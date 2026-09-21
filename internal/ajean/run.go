@@ -20,6 +20,9 @@ func Main() {
 	// true. À faire AVANT toute écriture.
 	haveConsole := setupConsole()
 
+	// Charge la configuration locale de dev (.env.local, .env) si présente.
+	loadDotEnv()
+
 	// Nettoie un éventuel binaire .old laissé par une mise à jour Windows.
 	cleanupOldBinary()
 
@@ -252,3 +255,19 @@ func red(s string) string     { return col("31", s) }
 func dim(s string) string     { return col("2", s) }
 func yellow(s string) string  { return col("33", s) }
 func magenta(s string) string { return col("35", s) }
+
+// loadDotEnv charge les variables d'un fichier .env.local ou .env local en dev.
+// Ces fichiers sont ignorés par git et ne quittent jamais la machine locale.
+func loadDotEnv() {
+	for _, f := range []string{".env.local", ".env"} {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		for k, v := range parseEnv(string(b)) {
+			if os.Getenv(k) == "" {
+				_ = os.Setenv(k, v)
+			}
+		}
+	}
+}

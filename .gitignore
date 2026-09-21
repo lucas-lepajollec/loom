@@ -24,6 +24,9 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Local notes
+# Local notes and dev config
 .project-local/
 AGENTS.override.md
+.env
+.env.local
+.env.*.local
