@@ -1,4 +1,4 @@
-module github.com/nathaninline/ajean
+module github.com/lucas-lepajollec/loom
 
 go 1.25.0
 

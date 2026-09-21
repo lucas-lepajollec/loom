@@ -9,10 +9,10 @@ Loom is a workstation control plane, OpenAI-compatible proxy, and test bench for
 ## Development
 
 - Setup requires Go 1.24+ and a functional `llama-server` or llama.cpp build.
-- Build the binary with `make build` (assembles embedded UI into `internal/ajean/ui/index.html` and compiles `bin/loom`).
+- Build the binary with `make build` (assembles embedded UI into `internal/loom/ui/index.html` and compiles `bin/loom`).
 - Run the web dashboard in development with `make web` or `./bin/loom web 8091`.
 - Run validation tests with `make test` or `go test -short ./...`.
-- Rebuild UI assets with `make assemble-ui` after modifying files in `internal/ajean/ui/src/`.
+- Rebuild UI assets with `make assemble-ui` after modifying files in `internal/loom/ui/src/`.
 
 ## Repository expectations
 

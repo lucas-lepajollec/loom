@@ -29,12 +29,12 @@ The Loom web interface provides complete control over local inference, model con
 | Chat & Parameters | OpenAI `/v1` Server Dashboard |
 | --- | --- |
 | Responsive chat with thinking/reasoning inspection and a three-tier parameter tuning panel (Essentials, Advanced, Expert). | Real-time slots monitoring, live token throughput (tok/s), active/queued request states, and completion history. |
-| <img src="docs/ui.png" alt="Loom chat interface and parameter panel" width="600" /> | <img src="docs/ui.png" alt="Loom OpenAI /v1 server dashboard" width="600" /> |
+| <img src="docs/ui.png" alt="Loom chat interface and parameter panel" width="600" /> | <img src="docs/loom-server.png" alt="Loom OpenAI /v1 server dashboard" width="600" /> |
 
 | Model Library & Hub | Hardware Test Bench |
 | --- | --- |
 | Local GGUF catalog, preset editor, and direct Hugging Face repository catalog with VRAM sizing estimates. | Standardized prompt tests and raw prefill/decode throughput benchmarking to measure hardware speed. |
-| <img src="docs/ui.png" alt="Loom model library and hub" width="600" /> | <img src="docs/ui.png" alt="Loom hardware test bench" width="600" /> |
+| <img src="docs/loom-models.png" alt="Loom model library and hub" width="600" /> | <img src="docs/ui.png" alt="Loom hardware test bench" width="600" /> |
 
 ## Highlights
 
@@ -109,7 +109,7 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 
 ```text
 cmd/loom/          # Main application entry point and Windows resource metadata
-internal/ajean/    # Daemon, OpenAI /v1 proxy, process orchestration, and embedded UI
+internal/loom/     # Daemon, OpenAI /v1 proxy, process orchestration, and embedded UI
 tools/             # Build scripts and single-page asset assembler
 docs/              # Visual assets and architecture documentation
 ```
@@ -121,7 +121,7 @@ docs/              # Visual assets and architecture documentation
 | `make build` | Assemble web UI assets and compile `bin/loom` |
 | `make test` | Run Go test suite (`go test ./...`) |
 | `make web` | Run the web server in foreground on port 8091 |
-| `make assemble-ui` | Reassemble `internal/ajean/ui/index.html` from `internal/ajean/ui/src/` |
+| `make assemble-ui` | Reassemble `internal/loom/ui/index.html` from `internal/loom/ui/src/` |
 
 ## Public demo
 
