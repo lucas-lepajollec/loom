@@ -1,0 +1,29 @@
+# Binaires compilés
+/ajean
+/ajean.exe
+/loom
+/loom.exe
+/bin/
+/dist/
+
+# Artefacts de build Go
+*.exe
+*.test
+*.out
+
+# Bases de données et modèles locaux
+*.db
+*.db-*
+*.gguf
+*.part
+*.log
+
+# OS / éditeurs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local notes
+.project-local/
+AGENTS.override.md
