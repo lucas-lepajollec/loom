@@ -38,28 +38,26 @@ func TestPickAssetSansCorrespondance(t *testing.T) {
 	}
 }
 
-// Le schéma de nommage ne doit PAS coïncider avec ajean-<GOOS>-<GOARCH> : c'est
-// ce qui empêche la mise à jour automatique d'une 0.7 de s'installer sur une
-// machine encore agencée en 0.7.
+// Le schéma de nommage ne doit PAS coïncider avec loom-<GOOS>-<GOARCH>.
 func TestNomDAssetDistinctDuSchema07(t *testing.T) {
-	legacy := "ajean-" + runtime.GOOS + "-" + runtime.GOARCH
+	legacy := "loom-" + runtime.GOOS + "-" + runtime.GOARCH
 	if runtime.GOOS == "windows" {
 		legacy += ".exe"
 	}
 	if got := updateAssetName(); got == legacy {
-		t.Fatalf("le nom %q est celui que cherche la 0.7 — sa mise à jour casserait l'installation", got)
+		t.Fatalf("le nom %q est celui du schéma verbeux", got)
 	}
 }
 
 // Les six noms publiés par la release, vérifiés un par un.
 func TestNomsDAssetParPlateforme(t *testing.T) {
 	for _, c := range []struct{ goos, goarch, want string }{
-		{"linux", "amd64", "ajean-linux"},
-		{"linux", "arm64", "ajean-linux-arm"},
-		{"darwin", "amd64", "ajean-macos"},
-		{"darwin", "arm64", "ajean-macos-arm"},
-		{"windows", "amd64", "ajean-windows.exe"},
-		{"windows", "arm64", "ajean-windows-arm.exe"},
+		{"linux", "amd64", "loom-linux"},
+		{"linux", "arm64", "loom-linux-arm"},
+		{"darwin", "amd64", "loom-macos"},
+		{"darwin", "arm64", "loom-macos-arm"},
+		{"windows", "amd64", "loom-windows.exe"},
+		{"windows", "arm64", "loom-windows-arm.exe"},
 	} {
 		if got := assetNameFor(c.goos, c.goarch); got != c.want {
 			t.Errorf("%s/%s → %q, attendu %q", c.goos, c.goarch, got, c.want)

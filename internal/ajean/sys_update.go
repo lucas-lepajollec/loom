@@ -18,12 +18,12 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-// ajean update — met à jour le binaire depuis les releases GitHub du projet.
+// loom update — met à jour le binaire depuis les releases GitHub du projet.
 // Périmètre minimal : compare la version, télécharge l'asset correspondant à
 // l'OS/arch courant, remplace le binaire en place, puis affiche quoi redémarrer.
 // AUCUN redémarrage de service automatique (choix volontaire, plus sûr).
 
-const updateRepo = "nathaninline/ajean"
+const updateRepo = "lucas-lepajollec/loom"
 
 type ghRelease struct {
 	TagName string `json:"tag_name"`
@@ -36,22 +36,14 @@ type ghRelease struct {
 }
 
 // updateAssetName est le nom de l'asset de release pour la plateforme courante :
-// ajean-linux, ajean-linux-arm, ajean-macos, ajean-macos-arm, ajean-windows.exe,
-// ajean-windows-arm.exe. Un seul nom publié, un seul nom cherché.
-//
-// Ces noms sont volontairement lisibles — « macos » plutôt que « darwin », pas
-// de « amd64 » pour le cas courant — et volontairement DIFFÉRENTS du schéma
-// ajean-<GOOS>-<GOARCH> qu'utilisaient les versions 0.7 : leur mise à jour
-// automatique ne trouve donc aucun asset et échoue sans rien remplacer, au lieu
-// d'installer un binaire 0.8 sur une machine encore agencée en 0.7 — ce qui
-// laissait le service de lien en boucle d'échec. La 0.7 se met à jour à la main,
-// par réinstallation.
+// loom-linux, loom-linux-arm, loom-macos, loom-macos-arm, loom-windows.exe,
+// loom-windows-arm.exe. Un seul nom publié, un seul nom cherché.
 func updateAssetName() string { return assetNameFor(runtime.GOOS, runtime.GOARCH) }
 
 // assetNameFor est séparée pour être vérifiable sur les six plateformes, et pas
 // seulement sur celle qui exécute les tests.
 func assetNameFor(goos, goarch string) string {
-	name := "ajean-" + map[string]string{
+	name := "loom-" + map[string]string{
 		"darwin":  "macos",
 		"linux":   "linux",
 		"windows": "windows",

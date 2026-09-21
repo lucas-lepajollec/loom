@@ -7,10 +7,10 @@ assemble-ui:
 
 build: assemble-ui
 	mkdir -p bin
-	go build -o bin/loom ./cmd/ajean
+	go build -o bin/loom ./cmd/loom
 
 api:
-	go run ./cmd/ajean web 8091
+	go run ./cmd/loom web 8091
 
 web: api
 

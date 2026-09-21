@@ -160,13 +160,13 @@ func sendPushToAll(title, body string) {
 		fmt.Printf("[push] clés VAPID indisponibles : %v\n", err)
 		return
 	}
-	msg, _ := json.Marshal(pushPayload{Title: title, Body: body, Tag: "ajean-turn"})
+	msg, _ := json.Marshal(pushPayload{Title: title, Body: body, Tag: "loom-turn"})
 	opts := &webpush.Options{
 		// ⚠️ SANS préfixe « mailto: » : webpush-go l'ajoute lui-même (sauf si la
 		// chaîne commence par « https: »). Passer « mailto:… » ici donnait
 		// « mailto:mailto:… », un sujet VAPID malformé → Apple répond 403
 		// BadJwtToken et rien n'arrive. On donne donc l'email nu.
-		Subscriber:      "mail@nathaninline.com",
+		Subscriber:      "noreply@lucas-homelab.fr",
 		VAPIDPublicKey:  pub,
 		VAPIDPrivateKey: priv,
 		TTL:             120, // périmé après 2 min : une notif « réponse prête » n'a pas de sens tardive
