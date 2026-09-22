@@ -43,21 +43,21 @@
 
         <h2 class="lh-demo-title">Testez l'interface station de travail Loom, sans aucun démon local.</h2>
         <p class="lh-demo-body">
-          Ceci est un aperçu interactif 100% autonome de <strong>Loom</strong>. Les modèles GGUF, le streaming avec réflexion &lt;think&gt;, les slots parallèles de continuous batching et les benchmarks tournent entièrement dans votre navigateur. Aucune donnée ne quitte votre machine et aucun GPU n'est requis.
+          Ceci est un aperçu interactif 100% autonome de <strong>Loom</strong>. L'exploration de modèles GGUF, le téléchargement simulé, la configuration des paramètres d'inférence, le streaming avec réflexion &lt;think&gt; et les benchmarks tournent entièrement dans votre navigateur. Aucune donnée ne quitte votre machine et aucun GPU physique n'est requis.
         </p>
 
         <div class="lh-demo-cards">
           <div class="lh-demo-card">
             <div class="lh-demo-card-title">Vous pouvez tester</div>
-            <div class="lh-demo-card-text">Naviguez dans le Hub, ajustez les samplers 3-tiers, testez le chat avec raisonnement dépliable, inspectez les slots /v1 et lancez le banc d'essai.</div>
+            <div class="lh-demo-card-text">Explorez le Hub Hugging Face, simulez le téléchargement et le chargement de modèles, ajustez les paramètres d'inférence en direct (contexte, couches GPU, température) et testez le chat avec réflexion.</div>
           </div>
           <div class="lh-demo-card">
             <div class="lh-demo-card-title">Ce qui est simulé</div>
-            <div class="lh-demo-card-text">L'allocation VRAM, le continuous batching 4 slots, le débit tok/s et le décodage matériel sont simulés en mémoire locale sans latence réseau.</div>
+            <div class="lh-demo-card-text">L'allocation VRAM (RTX 4090), la consommation RAM, le débit tok/s et le téléchargement GGUF sont simulés en mémoire locale avec une fidélité totale.</div>
           </div>
           <div class="lh-demo-card">
             <div class="lh-demo-card-title">Ce qui n'arrive jamais</div>
-            <div class="lh-demo-card-text">Aucun fichier GGUF lourd n'est téléchargé sur votre disque, aucune clé privée n'est transmise et aucun service d'arrière-plan n'est installé.</div>
+            <div class="lh-demo-card-text">Aucun fichier GGUF lourd n'est écrit sur votre disque, aucune clé privée n'est demandée et aucun démon d'arrière-plan n'est installé.</div>
           </div>
         </div>
 

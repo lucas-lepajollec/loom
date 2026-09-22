@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- GÉNÉRÉ depuis ui/src/ par tools/assemble-ui (go generate ./internal/loom) — NE PAS ÉDITER index.html DIRECTEMENT -->
-<html lang="fr"><head>
+<html lang="fr" data-theme="dark"><head>
 <link rel="stylesheet" href="DemoExperience.css">
 <script src="mock-engine.js"></script>
 <script src="DemoExperience.js"></script>
@@ -29,7 +29,7 @@
      garde `display-mode` en second pour les PWA Android/desktop à manifeste. -->
 <script>try{var pwa=(window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode:standalone)').matches)||(window.matchMedia&&window.matchMedia('(display-mode:fullscreen)').matches);document.documentElement.setAttribute('data-pwa',pwa?'1':'0');}catch(e){document.documentElement.setAttribute('data-pwa','0');}</script>
 <!-- Applique le thème AVANT le rendu (pas de flash) : lit le choix persisté. -->
-<script>try{var t=localStorage.getItem('loom-theme')||'light';document.documentElement.setAttribute('data-theme',(t==='dark'||t.endsWith('-dark'))?'dark':'light');['hide-reasoning','hide-tools','fold-tools','hide-side'].forEach(function(k){document.documentElement.setAttribute('data-'+k,localStorage.getItem('loom-'+k)==='1'?'1':'0')});document.documentElement.setAttribute('data-side-collapsed',localStorage.getItem('loom-side-collapsed')==='1'?'1':'0')}catch(e){document.documentElement.setAttribute('data-theme','light');}</script>
+<script>try{var t=localStorage.getItem('loom-theme')||'dark';document.documentElement.setAttribute('data-theme',(t==='light')?'light':'dark');['hide-reasoning','hide-tools','fold-tools','hide-side'].forEach(function(k){document.documentElement.setAttribute('data-'+k,localStorage.getItem('loom-'+k)==='1'?'1':'0')});document.documentElement.setAttribute('data-side-collapsed',localStorage.getItem('loom-side-collapsed')==='1'?'1':'0')}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
 <style>
 /* ===== Palette =====================================================
    Refero ChatGPT — graphite ink on warm paper. Clair par défaut ; sombre =
@@ -3601,7 +3601,7 @@ function toggleThemeDark(){
   savePrefs();
 }
 function initTheme(){
-  let id='light'; try{ id=localStorage.getItem('loom-theme')||'light'; }catch(e){}
+  let id='dark'; try{ id=localStorage.getItem('loom-theme')||'dark'; }catch(e){}
   applyTheme(id);
 }
 // ===== Affichage ============================================================
@@ -3637,8 +3637,8 @@ function initView(){
 // localStorage reste utilisé pour appliquer instantanément au chargement (sans
 // flash), puis loadPrefs() aligne sur la valeur du serveur (source de vérité).
 function savePrefs(){
-  let theme='light';
-  try{ theme=localStorage.getItem('loom-theme')||'light'; }catch(e){}
+  let theme='dark';
+  try{ theme=localStorage.getItem('loom-theme')||'dark'; }catch(e){}
   const p={theme};
   VIEW_OPTS.forEach(o=>{ p[o.id.replace('-','_')] = viewOn(o.id)?'1':'0'; });
   jpost('/api/prefs', p).catch(()=>{});
