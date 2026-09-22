@@ -662,7 +662,7 @@
 
       if (userMsg.toLowerCase().includes("vram") || userMsg.toLowerCase().includes("mémoire") || userMsg.toLowerCase().includes("kv")) {
         reasonText = "Calcul de l'allocation mémoire GPU / RAM selon le modèle actif et le contexte demandé.\n1. Évaluer la taille du modèle en VRAM.\n2. Calculer le budget du cache KV selon la précision (q8_0 vs q4_0).\n3. Proposer les optimisations clés.";
-        replyText = `### Optimisation du KV Cache & VRAM dans Loom\n\nPour économiser la VRAM sur votre GPU sans réduire drastiquement la longueur de contexte :\n\n1. **Quantification du cache KV (`--cache-type-k q8_0 --cache-type-v q8_0`)** :\n   Divise par 2 la taille du cache d'attention sans perte mesurable de qualité.\n2. **Flash Attention activé (`-fa 1`)** :\n   Réduit l'empreinte mémoire d'activation quadratique à une valeur linéaire.\n3. **Gestion dynamique des slots** :\n   Chaque slot libère son contexte dès la fin de la génération.\n\nSur **${modelLabel}**, ces optimisations permettent d'économiser **jusqu'à 2.8 Go de VRAM** à 32k tokens.`;
+        replyText = `### Optimisation du KV Cache & VRAM dans Loom\n\nPour économiser la VRAM sur votre GPU sans réduire drastiquement la longueur de contexte :\n\n1. **Quantification du cache KV ('--cache-type-k q8_0 --cache-type-v q8_0')** :\n   Divise par 2 la taille du cache d'attention sans perte mesurable de qualité.\n2. **Flash Attention activé ('-fa 1')** :\n   Réduit l'empreinte mémoire d'activation quadratique à une valeur linéaire.\n3. **Gestion dynamique des slots** :\n   Chaque slot libère son contexte dès la fin de la génération.\n\nSur **${modelLabel}**, ces optimisations permettent d'économiser **jusqu'à 2.8 Go de VRAM** à 32k tokens.`;
       } else if (userMsg.toLowerCase().includes("code") || userMsg.toLowerCase().includes("python") || userMsg.toLowerCase().includes("api")) {
         reasonText = "L'utilisateur demande un exemple d'intégration avec l'API compatible OpenAI de Loom.";
         replyText = `Voici comment interroger votre instance locale Loom en Python via la bibliothèque standard OpenAI :\n\n\`\`\`python\nfrom openai import OpenAI\n\n# Loom expose un endpoint compatible OpenAI sur le port 8081\nclient = OpenAI(\n    base_url="http://127.0.0.1:8081/v1",\n    api_key="loom-local" # Clé arbitraire en local\n)\n\nresponse = client.chat.completions.create(\n    model="${modelLabel}",\n    messages=[\n        {"role": "system", "content": "Vous êtes un assistant IA concis et rigoureux."},\n        {"role": "user", "content": "Quelle est la vitesse de ce modèle ?"}\n    ],\n    stream=True\n)\n\nfor chunk in response:\n    content = chunk.choices[0].delta.content or ""\n    print(content, end="", flush=True)\n\`\`\``;
@@ -757,16 +757,6 @@
           pendingGeneration = null;
         }
       });
-
-      return new Response(stream, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        }
-      });
-    }
 
       return new Response(stream, {
         status: 200,
