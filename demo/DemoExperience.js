@@ -1,0 +1,141 @@
+// Pass 9 Ecosystem Standard Demo Chrome for Loom
+(function() {
+  const INTRO_KEY = 'lh-demo-intro-seen';
+  const LINKS = {
+    site: 'https://loom.lucas-homelab.fr',
+    docs: 'https://docs.loom.lucas-homelab.fr',
+    source: 'https://github.com/lucas-lepajollec/loom',
+  };
+
+  function hasSeenIntro() {
+    try {
+      return sessionStorage.getItem(INTRO_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function markIntroSeen() {
+    try {
+      sessionStorage.setItem(INTRO_KEY, '1');
+    } catch {}
+  }
+
+  function resetDemo() {
+    try {
+      sessionStorage.clear();
+      localStorage.clear();
+    } catch {}
+    window.location.reload();
+  }
+
+  function initDemoExperience() {
+    // Inject Dialog
+    const dialog = document.createElement('dialog');
+    dialog.className = 'lh-demo-dialog';
+    dialog.id = 'lh-demo-modal';
+    dialog.innerHTML = `
+      <div class="lh-demo-dialog-content">
+        <div class="lh-demo-badge">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>DÉMONSTRATION PUBLIQUE ISOLÉE</span>
+        </div>
+
+        <h2 class="lh-demo-title">Testez l'interface station de travail Loom, sans aucun démon local.</h2>
+        <p class="lh-demo-body">
+          Ceci est un aperçu interactif 100% autonome de <strong>Loom</strong>. Les modèles GGUF, le streaming avec réflexion &lt;think&gt;, les slots parallèles de continuous batching et les benchmarks tournent entièrement dans votre navigateur. Aucune donnée ne quitte votre machine et aucun GPU n'est requis.
+        </p>
+
+        <div class="lh-demo-cards">
+          <div class="lh-demo-card">
+            <div class="lh-demo-card-title">Vous pouvez tester</div>
+            <div class="lh-demo-card-text">Naviguez dans le Hub, ajustez les samplers 3-tiers, testez le chat avec raisonnement dépliable, inspectez les slots /v1 et lancez le banc d'essai.</div>
+          </div>
+          <div class="lh-demo-card">
+            <div class="lh-demo-card-title">Ce qui est simulé</div>
+            <div class="lh-demo-card-text">L'allocation VRAM, le continuous batching 4 slots, le débit tok/s et le décodage matériel sont simulés en mémoire locale sans latence réseau.</div>
+          </div>
+          <div class="lh-demo-card">
+            <div class="lh-demo-card-title">Ce qui n'arrive jamais</div>
+            <div class="lh-demo-card-text">Aucun fichier GGUF lourd n'est téléchargé sur votre disque, aucune clé privée n'est transmise et aucun service d'arrière-plan n'est installé.</div>
+          </div>
+        </div>
+
+        <div class="lh-demo-limits">
+          Cette session est volatile et stockée dans la mémoire de votre onglet. Cliquez sur Réinitialiser à tout moment pour restaurer les fixtures d'origine.
+        </div>
+
+        <nav class="lh-demo-nav" aria-label="Liens écosystème">
+          <a href="${LINKS.site}" target="_blank" rel="noreferrer">Site officiel</a>
+          <a href="${LINKS.docs}" target="_blank" rel="noreferrer">Documentation technique</a>
+          <a href="${LINKS.source}" target="_blank" rel="noreferrer">Code source GitHub</a>
+        </nav>
+
+        <div class="lh-demo-actions">
+          <button type="button" class="lh-demo-btn-reset" id="lh-demo-modal-reset">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span>Réinitialiser</span>
+          </button>
+          <button type="button" class="lh-demo-btn-continue" id="lh-demo-modal-continue">
+            <span>Accéder à la démo</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Inject Chip
+    const chip = document.createElement('div');
+    chip.className = 'lh-demo-chip';
+    chip.id = 'lh-demo-chip';
+    chip.innerHTML = `
+      <div class="lh-demo-chip-inner">
+        <button type="button" class="lh-demo-chip-btn" id="lh-demo-chip-info" aria-label="Informations sur la démo">
+          <span>DÉMO</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        </button>
+        <div class="lh-demo-chip-divider"></div>
+        <button type="button" class="lh-demo-chip-reset" id="lh-demo-chip-reset" title="Réinitialiser la démo" aria-label="Réinitialiser la démonstration">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(dialog);
+    document.body.appendChild(chip);
+
+    const closeModal = () => {
+      markIntroSeen();
+      dialog.close();
+      chip.classList.remove('invisible');
+    };
+
+    const openModal = () => {
+      chip.classList.add('invisible');
+      dialog.showModal();
+    };
+
+    document.getElementById('lh-demo-modal-continue').addEventListener('click', closeModal);
+    document.getElementById('lh-demo-modal-reset').addEventListener('click', resetDemo);
+    document.getElementById('lh-demo-chip-info').addEventListener('click', openModal);
+    document.getElementById('lh-demo-chip-reset').addEventListener('click', resetDemo);
+
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      closeModal();
+    });
+
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) closeModal();
+    });
+
+    if (!hasSeenIntro()) {
+      openModal();
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDemoExperience);
+  } else {
+    initDemoExperience();
+  }
+})();
