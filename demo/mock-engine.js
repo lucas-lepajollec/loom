@@ -690,11 +690,12 @@
           } catch {}
         };
 
-        sendChunk({ user: userMsg });
+        const turnSeq = (conversationTurns.length) * 10;
+        sendChunk({ user: userMsg, seq: turnSeq + 1 });
         await new Promise(r => setTimeout(r, 60));
 
         if (reasonText) {
-          sendChunk({ reasoning_content: reasonText });
+          sendChunk({ reasoning_content: reasonText, seq: turnSeq + 2 });
           await new Promise(r => setTimeout(r, 80));
         }
 
@@ -702,14 +703,15 @@
         const words = replyText.split(' ');
         for (let i = 0; i < words.length; i += 3) {
           const slice = words.slice(i, i + 3).join(' ') + (i + 3 < words.length ? ' ' : '');
-          sendChunk({ content: slice });
+          sendChunk({ content: slice, seq: turnSeq + 3 });
           await new Promise(r => setTimeout(r, 35));
         }
 
         sendChunk({
           stats: newTurn.stats,
           elapsed_ms: newTurn.elapsed_ms,
-          turn_done: true
+          turn_done: true,
+          seq: turnSeq + 5
         });
 
         pendingGeneration = null;
@@ -718,43 +720,51 @@
       return jsonRes({ ok: true });
     }
 
+    // --- /api/chat/state ---
+    if (path.startsWith('/api/chat/state')) {
+      const latestSeq = conversationTurns.length * 10;
+      return jsonRes({
+        ok: true,
+        generating: !!pendingGeneration,
+        seq: latestSeq,
+        ctx_used: 1840,
+        compact_count: 0
+      });
+    }
+
     // --- /api/chat (SSE Stream) ---
     if (path.startsWith('/api/chat') && method === 'POST') {
+      let b = {}; try { b = JSON.parse(init.body); } catch {}
+      const fromSeq = Number(b.from) || 0;
       const encoder = new TextEncoder();
 
       const stream = new ReadableStream({
-        async start(controller) {
-          // Replay history
-          for (let idx = 0; idx < conversationTurns.length; idx++) {
-            const turn = conversationTurns[idx];
+        start(controller) {
+          activeStreamController = controller;
 
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { user: turn.user } }] })}\n\n`));
-            await new Promise(r => setTimeout(r, 15));
+          // Replay turns only if client has not seen them
+          conversationTurns.forEach((turn, idx) => {
+            const turnSeq = (idx + 1) * 10;
+            turn.seq = turnSeq;
+            if (fromSeq >= turnSeq) return; // already rendered
 
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { user: turn.user, seq: turnSeq - 5 } }] })}\n\n`));
             if (turn.reasoning) {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: turn.reasoning } }] })}\n\n`));
-              await new Promise(r => setTimeout(r, 15));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: turn.reasoning, seq: turnSeq - 4 } }] })}\n\n`));
             }
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: turn.assistant, seq: turnSeq - 2 } }] })}\n\n`));
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { stats: turn.stats, elapsed_ms: turn.elapsed_ms, turn_done: true, seq: turnSeq } }] })}\n\n`));
+          });
 
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: turn.assistant } }] })}\n\n`));
-            await new Promise(r => setTimeout(r, 15));
-
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-              choices: [{
-                delta: {
-                  stats: turn.stats,
-                  elapsed_ms: turn.elapsed_ms,
-                  turn_done: true
-                }
-              }]
-            })}\n\n`));
-            await new Promise(r => setTimeout(r, 15));
-          }
-
-          // Caught up
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { caught_up: true } }] })}\n\n`));
-          controller.close();
+          // Caught up marker
+          const latestSeq = Math.max(fromSeq, conversationTurns.length * 10);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { caught_up: true, seq: latestSeq } }] })}\n\n`));
           pendingGeneration = null;
+        },
+        cancel() {
+          if (activeStreamController === controller) {
+            activeStreamController = null;
+          }
         }
       });
 
@@ -766,6 +776,69 @@
           'Connection': 'keep-alive'
         }
       });
+    }
+
+    // --- /api/llama-flags ---
+    if (path.startsWith('/api/llama-flags')) {
+      return jsonRes({
+        ok: true,
+        bin: "/usr/local/bin/llama-server",
+        flags: [
+          // Advanced tier:
+          { id: 'batch-size', flag: '-b', arg: 'N', kind: 'int', default: '2048', tier: 'advanced', help: 'Taille du batch logique pour le calcul des invites (prefill).' },
+          { id: 'ubatch-size', flag: '-ub', arg: 'N', kind: 'int', default: '512', tier: 'advanced', help: 'Taille du micro-batch physique envoyé au GPU par passe.' },
+          { id: 'threads', flag: '-t', arg: 'N', kind: 'int', default: '16', tier: 'advanced', help: 'Nombre de threads CPU pour la génération de texte.' },
+          { id: 'threads-batch', flag: '-tb', arg: 'N', kind: 'int', default: '16', tier: 'advanced', help: 'Nombre de threads CPU dédiés au traitement du batch.' },
+          { id: 'flash-attn', flag: '-fa', kind: 'enum', choices: ['0', '1'], default: '1', tier: 'advanced', help: 'Active Flash Attention pour diviser la mémoire d\'attention par 2.' },
+          { id: 'fit', flag: '--fit', kind: 'bool', default: 'on', tier: 'advanced', help: 'Ajuste automatiquement les couches GPU et le contexte selon la VRAM libre.' },
+          { id: 'load-mode', flag: '--load-mode', kind: 'enum', choices: ['auto', 'mmap', 'mlock', 'dio'], default: 'auto', tier: 'advanced', help: 'Stratégie de chargement des tenseurs en mémoire physique.' },
+          { id: 'mlock', flag: '--mlock', kind: 'bool', default: 'off', tier: 'advanced', help: 'Verrouille les poids du modèle en RAM pour empêcher le swap.' },
+          { id: 'mmap', flag: '--no-mmap', kind: 'bool', default: 'off', tier: 'advanced', help: 'Désactive le mappage mémoire mmap (charge tous les poids d\'un bloc).' },
+          { id: 'kv-unified', flag: '--kv-unified', kind: 'bool', default: 'off', tier: 'advanced', help: 'Partage un espace KV unifié entre plusieurs slots de requête.' },
+          { id: 'jinja', flag: '--jinja', kind: 'bool', default: 'on', tier: 'advanced', help: 'Active le moteur de templating Jinja pour le formatage du prompt de chat.' },
+          { id: 'top-p', flag: '--top-p', arg: 'N', kind: 'float', default: '0.90', tier: 'advanced', help: 'Seuil d\'échantillonnage par noyau de probabilité cumulée.' },
+          { id: 'top-k', flag: '--top-k', arg: 'N', kind: 'int', default: '40', tier: 'advanced', help: 'Limite les choix aux K jetons les plus probables.' },
+          { id: 'min-p', flag: '--min-p', arg: 'N', kind: 'float', default: '0.05', tier: 'advanced', help: 'Élimine les jetons avec une probabilité relative inférieure au maximum.' },
+          { id: 'presence-penalty', flag: '--presence-penalty', arg: 'N', kind: 'float', default: '0.00', tier: 'advanced', help: 'Pénalité de présence favorisant l\'exploration de nouveaux thèmes.' },
+          { id: 'repeat-penalty', flag: '--repeat-penalty', arg: 'N', kind: 'float', default: '1.05', tier: 'advanced', help: 'Pénalise la répétition textuelle exacte de séquences déjà générées.' },
+          
+          // Expert tier:
+          { id: 'seed', flag: '-s', arg: 'N', kind: 'int', default: '-1', tier: 'expert', group: 'Génération', help: 'Graine du générateur aléatoire (-1 pour graine basée sur le temps).' },
+          { id: 'rope-freq-base', flag: '--rope-freq-base', arg: 'N', kind: 'float', default: '10000', tier: 'expert', group: 'Contexte & RoPE', help: 'Fréquence de base pour les encodages positionnels RoPE.' },
+          { id: 'rope-freq-scale', flag: '--rope-freq-scale', arg: 'N', kind: 'float', default: '1.0', tier: 'expert', group: 'Contexte & RoPE', help: 'Facteur d\'échelle de fréquence RoPE pour étendre le contexte.' },
+          { id: 'defrag-thold', flag: '--defrag-thold', arg: 'N', kind: 'float', default: '0.1', tier: 'expert', group: 'Gestion mémoire', help: 'Seuil de fragmentation du cache KV déclenchant un compactage.' },
+          { id: 'split-mode', flag: '-sm', kind: 'enum', choices: ['none', 'layer', 'row'], default: 'layer', tier: 'expert', group: 'Multi-GPU', help: 'Méthode de partitionnement du modèle sur plusieurs cartes GPU.' },
+          { id: 'main-gpu', flag: '-mg', arg: 'N', kind: 'int', default: '0', tier: 'expert', group: 'Multi-GPU', help: 'Index du GPU principal hébergeant les couches d\'attention initiales.' },
+          { id: 'tensor-split', flag: '-ts', arg: 'RATIO', kind: 'string', default: '', tier: 'expert', group: 'Multi-GPU', help: 'Proportions de distribution des tenseurs sur chaque périphérique GPU.' },
+          { id: 'grp-attn-n', flag: '-gan', arg: 'N', kind: 'int', default: '1', tier: 'expert', group: 'Attention', help: 'Facteur de groupement d\'attention auto-régressive.' }
+        ]
+      });
+    }
+
+    // --- /api/model-caps ---
+    if (path.startsWith('/api/model-caps')) {
+      const activeObj = getActiveModelObj();
+      return jsonRes({
+        ok: true,
+        native_ctx: (activeObj && activeObj.context_len) || 32768,
+        n_layers: 64,
+        thinks: true,
+        has_effort: true,
+        effort: ['low', 'medium', 'high', 'xhigh'],
+        effort_default: 'medium',
+        vision: false,
+        mmproj: [],
+        nextn: 0,
+        arch: 'qwen2'
+      });
+    }
+
+    // --- /api/hub/avatar ---
+    if (path.startsWith('/api/hub/avatar')) {
+      const u = new URL('http://127.0.0.1' + path);
+      const a = (u.searchParams.get('a') || 'HF').toUpperCase();
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='#334155'/><text x='16' y='21' font-size='14' font-weight='bold' fill='#ffffff' text-anchor='middle'>${a[0]}</text></svg>`;
+      return new Response(svg, { status: 200, headers: { 'Content-Type': 'image/svg+xml' } });
     }
 
     // --- /api/chat/stop ---
