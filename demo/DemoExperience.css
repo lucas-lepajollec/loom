@@ -182,14 +182,29 @@
 }
 
 .lh-demo-nav a {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  color: inherit;
-  transition: color 0.15s;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 2px 4px;
+  border-radius: 4px;
+  outline: none !important;
+  transition: color 0.15s, background-color 0.15s;
 }
 
 .lh-demo-nav a:hover {
   color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.lh-demo-nav a:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.lh-demo-nav a:focus-visible {
+  color: #ffffff;
+  outline: 1px solid rgba(255, 255, 255, 0.4) !important;
+  outline-offset: 2px;
 }
 
 .lh-demo-actions {
@@ -199,43 +214,61 @@
   flex-wrap: wrap;
 }
 
-.lh-demo-btn-reset {
+.lh-demo-dialog .lh-demo-btn-reset {
   display: inline-flex;
   min-height: 42px;
   align-items: center;
   justify-content: center;
   gap: 8px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   padding: 0 16px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-  background: transparent;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75) !important;
+  background: transparent !important;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  outline: none;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.lh-demo-btn-reset:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
+.lh-demo-dialog .lh-demo-btn-reset:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
-.lh-demo-btn-continue {
+.lh-demo-dialog .lh-demo-btn-reset:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+.lh-demo-dialog .lh-demo-btn-continue,
+.lh-demo-dialog .lh-demo-btn-continue:focus,
+.lh-demo-dialog .lh-demo-btn-continue:active {
   display: inline-flex;
   min-height: 42px;
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  border: none;
-  background: #ffffff;
+  border: 1px solid #ffffff;
+  background: #ffffff !important;
   padding: 0 24px;
   font-size: 13px;
   font-weight: 600;
-  color: #0b0e13;
+  color: #0b0e13 !important;
   cursor: pointer;
-  transition: background-color 0.15s;
+  outline: none;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.lh-demo-btn-continue:hover {
-  background: rgba(255, 255, 255, 0.92);
+.lh-demo-dialog .lh-demo-btn-continue:hover {
+  background: #e4e4e7 !important;
+  color: #000000 !important;
+  border-color: #e4e4e7 !important;
+}
+
+.lh-demo-dialog .lh-demo-btn-continue:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline-offset: 3px;
 }

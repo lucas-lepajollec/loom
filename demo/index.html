@@ -2005,7 +2005,8 @@ html[data-hub-remote="1"] .hub-lib{display:none}
 .hub-card:focus-visible{border-color:var(--text);box-shadow:0 0 0 2px rgba(255,255,255,0.15)}
 .hub-card-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}
 .hub-card-av-slot{flex-shrink:0}
-.hub-card-av{width:40px;height:40px;border-radius:12px;object-fit:cover;background:var(--row-bg,rgba(255,255,255,0.05));border:1px solid rgba(255,255,255,0.08);display:block}
+.hub-card-av{width:40px;height:40px;border-radius:12px;object-fit:cover;background:var(--row-bg,rgba(255,255,255,0.05));border:1px solid rgba(255,255,255,0.08);display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
+.hub-av svg{width:100%;height:100%;display:block;border-radius:inherit}
 .hub-card-meta{flex:1;min-width:0}
 .hub-card-title{margin:0;font-size:14.5px;font-weight:600;line-height:1.35;color:var(--text);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
 .hub-card-author{font-size:12px;color:var(--dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2033,7 +2034,7 @@ html[data-hub-remote="1"] .hub-lib{display:none}
 .hub-modal-overlay.open .hub-modal-dialog{transform:scale(1)}
 .hub-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.2);flex-shrink:0}
 .hub-modal-head-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
-.hub-modal-av{width:38px;height:38px;border-radius:10px;object-fit:cover;background:var(--row-bg);border:1px solid rgba(255,255,255,0.1);flex-shrink:0}
+.hub-modal-av{width:38px;height:38px;border-radius:10px;object-fit:cover;background:var(--row-bg);border:1px solid rgba(255,255,255,0.1);flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;overflow:hidden}
 .hub-modal-title-wrap{min-width:0;flex:1}
 .hub-modal-title{margin:0;font-size:16px;font-weight:600;line-height:1.3;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hub-modal-author{font-size:12px;color:var(--dim);margin-top:1px}
@@ -8927,35 +8928,28 @@ function hubAuthorOf(id){
   const i = s.indexOf('/');
   return i > 0 ? s.slice(0,i) : s;
 }
-const HUB_LOGOS = {
-  'deepseek-ai': "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231d4ed8'/><path d='M8 20c2-5 7-9 14-7-1 4-3 7-8 8-3 1-5 0-6-1z' fill='%2360a5fa'/><circle cx='20' cy='15' r='1.5' fill='%23ffffff'/><path d='M9 22c-2 1-3 3-2 4 2 0 4-1 5-3-1 0-2 0-3-1z' fill='%2393c5fd'/></svg>",
-  'qwen': "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236366f1'/><path d='M16 6l8.66 5v10L16 26l-8.66-5V11L16 6z' fill='none' stroke='%23ffffff' stroke-width='2.2'/><circle cx='16' cy='16' r='3.5' fill='%23ffffff'/></svg>",
-  'mistralai': "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ea580c'/><g fill='%23ffffff'><rect x='7' y='8' width='5' height='5' rx='1'/><rect x='20' y='8' width='5' height='5' rx='1'/><rect x='7' y='14' width='18' height='4' rx='1'/><rect x='7' y='19' width='5' height='5' rx='1'/><rect x='20' y='19' width='5' height='5' rx='1'/></g></svg>",
-  'meta-llama': "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230284c7'/><path d='M23.5 12c-1.5 0-2.8.8-3.7 2-1-1.3-2.4-2-3.8-2s-2.8.7-3.8 2c-.9-1.2-2.2-2-3.7-2C6 12 4 14.2 4 17c0 3.2 2.6 6 5.5 6 1.8 0 3.3-.9 4.3-2.3 1 1.4 2.5 2.3 4.2 2.3 1.7 0 3.2-.9 4.2-2.3 1 1.4 2.5 2.3 4.3 2.3 2.9 0 5.5-2.8 5.5-6 0-2.8-2-5-5-5zm-15 8c-1.7 0-3-1.3-3-3s1.3-3 3-3c1.3 0 2.3.8 2.8 2-.5 1.2-1.5 2-2.8 2zm15 0c-1.3 0-2.3-.8-2.8-2 .5-1.2 1.5-2 2.8-2 1.7 0 3 1.3 3 3s-1.3 3-3 3z' fill='%23ffffff'/></svg>",
-  'bartowski': "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23059669'/><path d='M10 8h12v4H10zM8 14h16v4H8zM11 20h10v4H11z' fill='%23ffffff'/></svg>"
+const HUB_SVGS = {
+  'deepseek-ai': '<svg viewBox="0 0 32 32" width="100%" height="100%"><rect width="32" height="32" rx="8" fill="#1d4ed8"/><path d="M8 20c2-5 7-9 14-7-1 4-3 7-8 8-3 1-5 0-6-1z" fill="#60a5fa"/><circle cx="20" cy="15" r="1.5" fill="#ffffff"/><path d="M9 22c-2 1-3 3-2 4 2 0 4-1 5-3-1 0-2 0-3-1z" fill="#93c5fd"/></svg>',
+  'qwen': '<svg viewBox="0 0 32 32" width="100%" height="100%"><rect width="32" height="32" rx="8" fill="#6366f1"/><path d="M16 6l8.66 5v10L16 26l-8.66-5V11L16 6z" fill="none" stroke="#ffffff" stroke-width="2.2"/><circle cx="16" cy="16" r="3.5" fill="#ffffff"/></svg>',
+  'mistralai': '<svg viewBox="0 0 32 32" width="100%" height="100%"><rect width="32" height="32" rx="8" fill="#ea580c"/><g fill="#ffffff"><rect x="7" y="8" width="5" height="5" rx="1"/><rect x="20" y="8" width="5" height="5" rx="1"/><rect x="7" y="14" width="18" height="4" rx="1"/><rect x="7" y="19" width="5" height="5" rx="1"/><rect x="20" y="19" width="5" height="5" rx="1"/></g></svg>',
+  'meta-llama': '<svg viewBox="0 0 32 32" width="100%" height="100%"><rect width="32" height="32" rx="8" fill="#0284c7"/><path d="M23.5 12c-1.5 0-2.8.8-3.7 2-1-1.3-2.4-2-3.8-2s-2.8.7-3.8 2c-.9-1.2-2.2-2-3.7-2C6 12 4 14.2 4 17c0 3.2 2.6 6 5.5 6 1.8 0 3.3-.9 4.3-2.3 1 1.4 2.5 2.3 4.2 2.3 1.7 0 3.2-.9 4.2-2.3 1 1.4 2.5 2.3 4.3 2.3 2.9 0 5.5-2.8 5.5-6 0-2.8-2-5-5-5zm-15 8c-1.7 0-3-1.3-3-3s1.3-3 3-3c1.3 0 2.3.8 2.8 2-.5 1.2-1.5 2-2.8 2zm15 0c-1.3 0-2.3-.8-2.8-2 .5-1.2 1.5-2 2.8-2 1.7 0 3 1.3 3 3s-1.3 3-3 3z" fill="#ffffff"/></svg>',
+  'bartowski': '<svg viewBox="0 0 32 32" width="100%" height="100%"><rect width="32" height="32" rx="8" fill="#059669"/><path d="M10 8h12v4H10zM8 14h16v4H8zM11 20h10v4H11z" fill="#ffffff"/></svg>'
 };
 
 function hubAvatarEl(author, cls){
-  const img = document.createElement('img');
-  img.className = 'hub-av'+(cls?' '+cls:'');
-  img.alt = '';
-  img.referrerPolicy = 'no-referrer';
+  const el = document.createElement('div');
+  el.className = 'hub-av' + (cls ? ' ' + cls : '');
+  el.setAttribute('aria-hidden', 'true');
   const a = String(author||'').trim();
-  if(!a){ img.classList.add('hub-av-fb'); return img; }
   const k = a.toLowerCase();
-  const logo = HUB_LOGOS[k] || (k.includes('deepseek') ? HUB_LOGOS['deepseek-ai'] : k.includes('qwen') ? HUB_LOGOS['qwen'] : k.includes('mistral') ? HUB_LOGOS['mistralai'] : (k.includes('llama')||k.includes('meta')) ? HUB_LOGOS['meta-llama'] : (k.includes('bartowski') ? HUB_LOGOS['bartowski'] : null));
-  if(logo){
-    img.src = logo;
-    return img;
+  const svg = HUB_SVGS[k] || (k.includes('deepseek') ? HUB_SVGS['deepseek-ai'] : k.includes('qwen') ? HUB_SVGS['qwen'] : k.includes('mistral') ? HUB_SVGS['mistralai'] : (k.includes('llama')||k.includes('meta')) ? HUB_SVGS['meta-llama'] : (k.includes('bartowski') ? HUB_SVGS['bartowski'] : ''));
+  if(svg){
+    el.innerHTML = svg;
+    return el;
   }
-  img.src = '/api/hub/avatar?a='+encodeURIComponent(a);
-  img.onerror = ()=>{
-    const s = document.createElement('span');
-    s.className = img.className+' hub-av-fb';
-    s.textContent = (a[0]||'?').toUpperCase();
-    img.replaceWith(s);
-  };
-  return img;
+  const letter = (a[0]||'?').toUpperCase();
+  el.innerHTML = `<svg viewBox="0 0 32 32" width="100%" height="100%"><rect width="32" height="32" rx="8" fill="#27272a"/><text x="16" y="21" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif">${letter}</text></svg>`;
+  return el;
 }
 function hubFiles(){
   const r = HUB.model;

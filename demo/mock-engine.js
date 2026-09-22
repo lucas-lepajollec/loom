@@ -836,8 +836,23 @@
     // --- /api/hub/avatar ---
     if (path.startsWith('/api/hub/avatar')) {
       const u = new URL('http://127.0.0.1' + path);
-      const a = (u.searchParams.get('a') || 'HF').toUpperCase();
-      const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='#334155'/><text x='16' y='21' font-size='14' font-weight='bold' fill='#ffffff' text-anchor='middle'>${a[0]}</text></svg>`;
+      const raw = (u.searchParams.get('a') || 'HF');
+      const k = raw.toLowerCase();
+      let svg = '';
+      if (k.includes('deepseek')) {
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#1d4ed8"/><path d="M8 20c2-5 7-9 14-7-1 4-3 7-8 8-3 1-5 0-6-1z" fill="#60a5fa"/><circle cx="20" cy="15" r="1.5" fill="#ffffff"/><path d="M9 22c-2 1-3 3-2 4 2 0 4-1 5-3-1 0-2 0-3-1z" fill="#93c5fd"/></svg>`;
+      } else if (k.includes('qwen')) {
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#6366f1"/><path d="M16 6l8.66 5v10L16 26l-8.66-5V11L16 6z" fill="none" stroke="#ffffff" stroke-width="2.2"/><circle cx="16" cy="16" r="3.5" fill="#ffffff"/></svg>`;
+      } else if (k.includes('mistral')) {
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#ea580c"/><g fill="#ffffff"><rect x="7" y="8" width="5" height="5" rx="1"/><rect x="20" y="8" width="5" height="5" rx="1"/><rect x="7" y="14" width="18" height="4" rx="1"/><rect x="7" y="19" width="5" height="5" rx="1"/><rect x="20" y="19" width="5" height="5" rx="1"/></g></svg>`;
+      } else if (k.includes('llama') || k.includes('meta')) {
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0284c7"/><path d="M23.5 12c-1.5 0-2.8.8-3.7 2-1-1.3-2.4-2-3.8-2s-2.8.7-3.8 2c-.9-1.2-2.2-2-3.7-2C6 12 4 14.2 4 17c0 3.2 2.6 6 5.5 6 1.8 0 3.3-.9 4.3-2.3 1 1.4 2.5 2.3 4.2 2.3 1.7 0 3.2-.9 4.2-2.3 1 1.4 2.5 2.3 4.3 2.3 2.9 0 5.5-2.8 5.5-6 0-2.8-2-5-5-5zm-15 8c-1.7 0-3-1.3-3-3s1.3-3 3-3c1.3 0 2.3.8 2.8 2-.5 1.2-1.5 2-2.8 2zm15 0c-1.3 0-2.3-.8-2.8-2 .5-1.2 1.5-2 2.8-2 1.7 0 3 1.3 3 3s-1.3 3-3 3z" fill="#ffffff"/></svg>`;
+      } else if (k.includes('bartowski')) {
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#059669"/><path d="M10 8h12v4H10zM8 14h16v4H8zM11 20h10v4H11z" fill="#ffffff"/></svg>`;
+      } else {
+        const letter = (raw[0] || '?').toUpperCase();
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#27272a"/><text x="16" y="21" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif">${letter}</text></svg>`;
+      }
       return new Response(svg, { status: 200, headers: { 'Content-Type': 'image/svg+xml' } });
     }
 
