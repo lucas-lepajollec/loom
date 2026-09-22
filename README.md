@@ -34,7 +34,7 @@ The Loom web interface provides complete control over local inference, model con
 | Model Library & Hub | Hardware Test Bench |
 | --- | --- |
 | Local GGUF catalog, preset editor, and direct Hugging Face repository catalog with VRAM sizing estimates. | Standardized prompt tests and raw prefill/decode throughput benchmarking to measure hardware speed. |
-| <img src="docs/loom-models.png" alt="Loom model library and hub" width="600" /> | <img src="docs/ui.png" alt="Loom hardware test bench" width="600" /> |
+| <img src="docs/loom-models.png" alt="Loom model library and hub" width="600" /> | <img src="docs/loom-bench.png" alt="Loom hardware test bench" width="600" /> |
 
 ## Highlights
 
