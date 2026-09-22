@@ -11,6 +11,7 @@ package loom
 // lui envoie WM_CLOSE.
 
 import (
+	"math"
 	"runtime"
 	"sync"
 	"syscall"
@@ -94,10 +95,9 @@ type wndClassExW struct {
 }
 
 const (
-	// Fond noir + « j » blanc : même marque que le favicon et que les icônes
-	// système (voir sys_brand_icon.go). L'écran de démarrage restait bleu.
-	colBrand = 0x00000000 // COLORREF = 0x00BBGGRR
-	colWhite = 0x00FFFFFF
+	// Fond noir #0d0d0d + tissage écru #f4f1ea (voir sys_brand_icon.go).
+	colBrand = 0x000D0D0D // COLORREF = 0x00BBGGRR
+	colWhite = 0x00EAF1F4
 )
 
 type splash struct{ hwnd uintptr }
@@ -220,18 +220,27 @@ func paintSplash(hdc uintptr) {
 	pFillRect.Call(hdc, uintptr(unsafe.Pointer(&full)), bg)
 	pDeleteObject.Call(bg)
 
-	// Logo « j » blanc — mêmes rectangles que l'icône et le favicon
-	// (glyphRects, sys_brand_icon.go), mis à l'échelle.
+	// Motif de tissage Loom (sys_brand_icon.go) mis à l'échelle.
 	white, _, _ := pCreateSolidBrush.Call(colWhite)
 	const logo = 58
 	ox, oy := int32(40), int32((splashH-logo)/2)
-	scale := float64(logo) / 12
-	for _, rc := range glyphRects {
-		r := rect{
-			left:   ox + int32(rc[0]*scale),
-			top:    oy + int32(rc[1]*scale),
-			right:  ox + int32((rc[0]+rc[2])*scale),
-			bottom: oy + int32((rc[1]+rc[3])*scale),
+	scale := float64(logo) / 24.0
+	for _, s := range loomSegments {
+		var r rect
+		if s.y1 == s.y2 { // fil horizontal
+			r = rect{
+				left:   ox + int32(math.Round(s.x1*scale)),
+				top:    oy + int32(math.Round((s.y1-0.85)*scale)),
+				right:  ox + int32(math.Round(s.x2*scale)),
+				bottom: oy + int32(math.Round((s.y1+0.85)*scale)),
+			}
+		} else { // fil vertical
+			r = rect{
+				left:   ox + int32(math.Round((s.x1-0.85)*scale)),
+				top:    oy + int32(math.Round(s.y1*scale)),
+				right:  ox + int32(math.Round((s.x1+0.85)*scale)),
+				bottom: oy + int32(math.Round(s.y2*scale)),
+			}
 		}
 		pFillRect.Call(hdc, uintptr(unsafe.Pointer(&r)), white)
 	}

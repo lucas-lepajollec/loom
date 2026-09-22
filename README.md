@@ -49,21 +49,37 @@ The Loom web interface provides complete control over local inference, model con
 
 ## Quick start
 
-### Prerequisites
+### Automated installation
+
+On Linux and macOS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh
+```
+
+On Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.ps1 | iex
+```
+
+The installer detects your operating system and CPU architecture, downloads the release binary, sets up systemd or launchd services, and registers `loom` in your PATH.
+
+---
+
+### Building from source
+
+If you prefer to build from source:
 
 - Go 1.24 or later
 - GNU Make
-- A local build of `llama-server` (from [llama.cpp](https://github.com/ggml-org/llama.cpp))
-
-### 1. Build Loom
 
 ```bash
 git clone https://github.com/lucas-lepajollec/loom.git
 cd loom
 make build
+sudo ./bin/loom install
 ```
-
-This compiles the embedded web UI and produces the standalone binary in `bin/loom`.
 
 ### 2. Run the web interface
 
