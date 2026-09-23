@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/self--hosted-111827" alt="Self-hosted" />
     <img src="https://img.shields.io/badge/OpenAI--compatible-/v1-111827" alt="OpenAI /v1 compatible" />
     <img src="https://img.shields.io/badge/continuous--batching-parallel--slots-111827" alt="Continuous batching" />
-    <img src="https://img.shields.io/badge/offline-100%25--local-111827" alt="100% Local & Private" />
+    <img src="https://img.shields.io/badge/inference-local--first-111827" alt="Local-first inference" />
   </p>
 
   <img src="docs/ui.png" alt="Loom workstation interface and llama.cpp dashboard" width="1200" />
@@ -45,11 +45,15 @@ The Loom web interface provides complete control over local inference, model con
 - **VRAM estimation**: Calculates expected KV and compute VRAM requirements against total GPU memory before loading.
 - **Model Library & Hugging Face Hub**: Search, inspect, and download GGUF models directly to local disk with download resume and progress tracking.
 - **Hardware test bench**: Benchmark prompt completion times and raw token generation speed (prefill tok/s, decode tok/s) across models and presets.
-- **100% offline & local-first**: Zero telemetry, zero external dependencies, all state preserved locally in `$LOOM_HOME`.
+- **Local-first inference**: Prompts, completions, and settings stay on the workstation. Optional Hub searches and model downloads use the network; there is no telemetry.
 
 ## Quick start
 
-### Automated installation
+### Current status
+
+Loom is currently in private development. There is no published binary release yet, so the release installers below are **not a working public quick start**. A collaborator with access to this repository can build from source. Do not run an installer script piped from the network until you have reviewed it and a release for your platform exists.
+
+### Release installers (once binaries are published)
 
 On Linux and macOS:
 
@@ -63,7 +67,7 @@ On Windows (PowerShell):
 irm https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.ps1 | iex
 ```
 
-The installer detects your operating system and CPU architecture, downloads the release binary, sets up systemd or launchd services, and registers `loom` in your PATH.
+These scripts download a matching release binary. They cannot install Loom until one has been published; they never fall back to a different build silently.
 
 ---
 
@@ -75,13 +79,13 @@ If you prefer to build from source:
 - GNU Make
 
 ```bash
-git clone https://github.com/lucas-lepajollec/loom.git
+git clone git@github.com:lucas-lepajollec/loom.git
 cd loom
 make build
-sudo ./bin/loom install
+./bin/loom web 8091
 ```
 
-### 2. Run the web interface
+### Run the web interface
 
 ```bash
 ./bin/loom web 8091
@@ -111,7 +115,7 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 - **Loopback binding**: Loom binds to `127.0.0.1` by default.
 - **LAN access**: When exposing the service to your local network, always set an API key in **Settings → Server API**.
 - **Single owned process**: Loom manages exactly one running `llama-server` process at a time; loading a new model safely unloads and replaces the resident instance.
-- **Strict local isolation**: Loom never sends prompts, completions, telemetry, or user data to external cloud servers.
+- **Local inference**: Loom does not send prompts, completions, or telemetry to a cloud service. Hub search and model downloads contact Hugging Face when explicitly used.
 
 ## Architecture
 
@@ -139,9 +143,9 @@ docs/              # Visual assets and architecture documentation
 | `make web` | Run the web server in foreground on port 8091 |
 | `make assemble-ui` | Reassemble `internal/loom/ui/index.html` from `internal/loom/ui/src/` |
 
-## Public demo
+## Interactive demo
 
-Loom is a local workstation control plane that manages physical hardware, GPU layers, and local subprocesses. Because it requires direct access to host GPU hardware and local model weights, there is no remote hosted public demo. All capabilities can be evaluated locally by following the [Quick start](#quick-start).
+The [browser-only demo](https://demo.loom.lucas-homelab.fr) simulates Loom with fictional data. It needs no GPU, model, daemon, or account, and does **not** perform inference. The actual workstation product runs locally.
 
 ## Documentation and community
 

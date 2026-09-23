@@ -9,8 +9,24 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    name: Verify source and demo before publishing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: go test -short ./...
+      - run: go vet ./...
+      - run: npm --prefix demo run check
+
   build-linux-windows:
     name: Build Linux & Windows
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -44,6 +60,7 @@ jobs:
 
   build-macos:
     name: Build macOS
+    needs: verify
     runs-on: macos-latest
     steps:
       - name: Checkout code

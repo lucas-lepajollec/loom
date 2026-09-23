@@ -39,12 +39,12 @@ const hostLocalOnly = "127.0.0.1"
 // hostAllInterfaces est l'adresse d'écoute « tout le réseau ».
 const hostAllInterfaces = "0.0.0.0"
 
-// engineHost renvoie l'adresse d'écoute configurée pour le moteur. Vide = le
-// défaut de backend_serve.go, c'est-à-dire toutes les interfaces.
+// engineHost renvoie l'adresse d'écoute configurée pour le front OpenAI.
+// Une configuration neuve ou incomplète reste locale jusqu'à un choix explicite.
 func engineHost() string {
 	h := strings.TrimSpace(ReadConfig()["HOST"])
 	if h == "" {
-		return hostAllInterfaces
+		return hostLocalOnly
 	}
 	return h
 }
@@ -87,6 +87,11 @@ func setLANExposure(on bool) (netStatus, error) {
 	host := hostLocalOnly
 	if on {
 		host = hostAllInterfaces
+		// Ne jamais ouvrir le front OpenAI sur le LAN sans clé. L'obligation
+		// persiste même si l'écriture de HOST échoue : l'échec reste fermé.
+		if err := setAPIKeyRequired(true); err != nil {
+			return netStatus{}, err
+		}
 	}
 	if err := SetConfigKey("HOST", host); err != nil {
 		return netStatus{}, err

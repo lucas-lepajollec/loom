@@ -324,7 +324,7 @@ func oaiKeyOK(r *http.Request) bool {
 		key = strings.TrimSpace(ReadConfig()["API_KEY"])
 	}
 	if key == "" {
-		return true
+		return !lanExposed()
 	}
 	got := oaiBearer(r)
 	if len(got) != len(key) {

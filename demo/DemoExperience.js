@@ -23,8 +23,14 @@
 
   function resetDemo() {
     try {
-      sessionStorage.clear();
-      localStorage.clear();
+      // Reset only Loom's demo state. A full origin-wide clear could erase
+      // unrelated preferences if this demo is ever hosted under a shared origin.
+      for (const key of Object.keys(sessionStorage)) {
+        if (key === INTRO_KEY || key.startsWith('loom_demo_')) sessionStorage.removeItem(key);
+      }
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('loom-') || key.startsWith('loom.')) localStorage.removeItem(key);
+      }
     } catch {}
     window.location.reload();
   }

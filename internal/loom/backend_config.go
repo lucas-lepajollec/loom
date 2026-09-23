@@ -30,6 +30,9 @@ func setAPIKeyRequired(on bool) error {
 		}
 		return putStr(bkState, "api_key_required", "1")
 	}
+	if lanExposed() {
+		return fmt.Errorf("la clé API reste obligatoire tant que le front OpenAI est exposé sur le réseau")
+	}
 	return putStr(bkState, "api_key_required", "")
 }
 
@@ -63,6 +66,9 @@ func genAPIKey() string {
 // Ne redémarre PAS le service : llama-server ne lit --api-key qu'au lancement,
 // c'est à l'appelant de choisir quand appliquer.
 func writeAPIKey(key string) error {
+	if strings.TrimSpace(key) == "" && lanExposed() {
+		return fmt.Errorf("impossible de retirer la clé API tant que le front OpenAI est exposé sur le réseau")
+	}
 	_ = SetConfigKey("API_KEY", "") // aucune ambiguïté avec une valeur résiduelle
 	return putStr(bkState, "api_key", key)
 }

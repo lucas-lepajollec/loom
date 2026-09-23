@@ -11,13 +11,12 @@ import (
 
 func TestEngineHostDefautEtBascule(t *testing.T) {
 	testHome(t)
-	// Clé absente : c'est le défaut de backend_serve.go qui s'applique, soit toutes
-	// les interfaces. Annoncer « fermé » ici serait un mensonge.
-	if h := engineHost(); h != hostAllInterfaces {
-		t.Fatalf("HOST absent → %q ; attendu %q", h, hostAllInterfaces)
+	// Clé absente : un nouveau profil reste local par défaut.
+	if h := engineHost(); h != hostLocalOnly {
+		t.Fatalf("HOST absent → %q ; attendu %q", h, hostLocalOnly)
 	}
-	if !lanExposed() {
-		t.Fatal("HOST absent devrait compter comme exposé")
+	if lanExposed() {
+		t.Fatal("HOST absent ne doit pas compter comme exposé")
 	}
 	if _, err := setLANExposure(false); err != nil {
 		t.Fatal(err)
@@ -30,6 +29,21 @@ func TestEngineHostDefautEtBascule(t *testing.T) {
 	}
 	if !lanExposed() || ReadConfig()["HOST"] != hostAllInterfaces {
 		t.Fatalf("ouverture sans effet : HOST=%q", ReadConfig()["HOST"])
+	}
+	if !apiKeyRequired() || readAPIKey() == "" {
+		t.Fatal("l'ouverture LAN doit exiger et générer une clé API")
+	}
+	if err := setAPIKeyRequired(false); err == nil {
+		t.Fatal("l'exigence de clé ne doit pas pouvoir être désactivée sur le LAN")
+	}
+	if err := writeAPIKey(""); err == nil {
+		t.Fatal("la clé ne doit pas pouvoir être supprimée sur le LAN")
+	}
+	if err := putStr(bkState, "api_key", ""); err != nil {
+		t.Fatal(err)
+	}
+	if oaiKeyOK(httptest.NewRequest("GET", "/v1/models", nil)) {
+		t.Fatal("une configuration LAN sans clé doit refuser les requêtes")
 	}
 }
 
