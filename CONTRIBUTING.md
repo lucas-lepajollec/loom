@@ -6,14 +6,14 @@ Thank you for contributing. Search existing issues and pull requests first, open
 
 ### Prerequisites
 
-- Go 1.24 or later
+- Go 1.25 or later
 - GNU Make
 - A local installation or build of `llama.cpp` (`llama-server`)
 
 ### Build from source
 
 ```bash
-git clone https://github.com/lucas-lepajollec/loom.git
+git clone git@github.com:lucas-lepajollec/loom.git
 cd loom
 make build
 ```

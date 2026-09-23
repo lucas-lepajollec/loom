@@ -281,8 +281,7 @@ func downloadTo(url, dst string) error {
 
 // verifyChecksum vérifie le SHA-256 du binaire téléchargé contre le fichier
 // SHA256SUMS publié dans la release (format `sha256sum` : "<hex>  <nom>").
-// Si la release n'en publie pas (anciennes versions), on ne vérifie rien —
-// le contrôle de taille reste le seul garde-fou, comme avant.
+// Une release sans manifeste ne peut pas être installée automatiquement.
 func verifyChecksum(rel *ghRelease, assetName, path string) error {
 	var sumsURL string
 	for _, a := range rel.Assets {
@@ -292,7 +291,7 @@ func verifyChecksum(rel *ghRelease, assetName, path string) error {
 		}
 	}
 	if sumsURL == "" {
-		return nil
+		return fmt.Errorf("release sans SHA256SUMS.txt — mise à jour annulée")
 	}
 	req, _ := http.NewRequest("GET", sumsURL, nil)
 	req.Header.Set("User-Agent", "loom-update")

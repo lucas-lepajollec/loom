@@ -42,8 +42,6 @@ func cmdInstall(args []string) error {
 	loomHome := filepath.Join(u.HomeDir, ".local", "share", "loom")
 	if v := os.Getenv("LOOM_HOME"); v != "" {
 		loomHome = v
-	} else if v := os.Getenv("LOOM_HOME"); v != "" {
-		loomHome = v
 	}
 
 	fmt.Printf("Installation pour utilisateur %s\n", cyan(targetUser))

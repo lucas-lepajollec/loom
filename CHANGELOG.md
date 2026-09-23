@@ -8,9 +8,6 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 - Support for local `.env.local` dynamic dev configuration.
 - Real-time task activity & background job indicator in UI.
-
-### Added
-
 - Initial private-development version of Loom as a workstation control plane and test bench for llama.cpp.
 - Single-process ownership model for external `llama-server`.
 - OpenAI-compatible `/v1` proxy with dynamic model loading, slot-level continuous batching, and real-time token throughput metrics.
@@ -18,5 +15,11 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 - Model library with local GGUF catalog, three-tier parameter editing (Essentials, Advanced, Expert), and direct Hugging Face Hub integration.
 - Hardware test bench for automated prompt testing and raw prefill/decode throughput measurement.
 - Local-first privacy architecture with data isolated in `$LOOM_HOME` and zero telemetry.
+
+### Fixed
+
+- Release installers verify the matching SHA-256 manifest before installing and Windows keeps only Loom's canonical binary.
+- In-app binary updates reject releases that lack a checksum manifest.
+- Release automation prepares an unpublished draft only after an explicit tagged-source check; a pushed tag no longer publishes a release by itself.
 
 No version has been tagged or published yet. Move these notes into a versioned section only when a release is actually shipped.

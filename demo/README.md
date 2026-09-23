@@ -1,13 +1,13 @@
 # Loom Interactive Public Demo
 
-Isolated, 100% client-side web demonstration of [Loom](https://github.com/lucas-lepajollec/loom).
+Isolated browser simulation of [Loom](https://loom.lucas-homelab.fr). The product source repository is private during development. The demo interface is currently in French, even when linked from another locale of the site.
 
 ## Security & Isolation Contract
 
 In accordance with Ecosystem Pass 09 (Public Demo Isolation):
-- **100% Client-Side Simulation**: Runs entirely inside browser memory via `mock-engine.js`.
+- **Client-Side Simulation**: Product actions are simulated in the browser via `mock-engine.js`; this is still a website served over the network, not a local product install.
 - **Zero Personal Data**: All models, paths, chats, and presets are synthetic fixtures.
-- **No Backend Requirement**: Does not require `llama-server`, a local GPU, or network access.
+- **No Product Backend Requirement**: Does not require `llama-server`, a local GPU, or external model downloads. Network access is still required to load the hosted demo.
 - **Pass 9 Chrome**: Includes the standard `<dialog>` introduction on first visit (`lh-demo-intro-seen`) and the persistent bottom-right demo chip with instant reset.
 - **Search Engine Isolation**: Configured with `X-Robots-Tag: noindex, nofollow, noarchive` in `vercel.json`.
 

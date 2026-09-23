@@ -4,7 +4,6 @@
   const LINKS = {
     site: 'https://loom.lucas-homelab.fr',
     docs: 'https://docs.loom.lucas-homelab.fr',
-    source: 'https://github.com/lucas-lepajollec/loom',
   };
 
   function hasSeenIntro() {
@@ -49,17 +48,17 @@
 
         <h2 class="lh-demo-title">Testez l'interface station de travail Loom, sans aucun démon local.</h2>
         <p class="lh-demo-body">
-          Ceci est un aperçu interactif 100% autonome de <strong>Loom</strong>. L'exploration de modèles GGUF, le téléchargement simulé, la configuration des paramètres d'inférence, le streaming avec réflexion &lt;think&gt; et les benchmarks tournent entièrement dans votre navigateur. Aucune donnée ne quitte votre machine et aucun GPU physique n'est requis.
+          Ceci est un aperçu interactif de <strong>Loom</strong>. La recherche de modèles, le téléchargement, l'inférence et les benchmarks sont simulés dans votre navigateur. Aucun vrai modèle n'est téléchargé, aucun moteur local n'est lancé et aucun GPU physique n'est requis.
         </p>
 
         <div class="lh-demo-cards">
           <div class="lh-demo-card">
             <div class="lh-demo-card-title">Vous pouvez tester</div>
-            <div class="lh-demo-card-text">Explorez le Hub Hugging Face, simulez le téléchargement et le chargement de modèles, ajustez les paramètres d'inférence en direct (contexte, couches GPU, température) et testez le chat avec réflexion.</div>
+            <div class="lh-demo-card-text">Parcourez le catalogue de démonstration, simulez le téléchargement et le chargement de modèles, ajustez les paramètres d'inférence (contexte, couches GPU, température) et testez le chat avec réflexion.</div>
           </div>
           <div class="lh-demo-card">
             <div class="lh-demo-card-title">Ce qui est simulé</div>
-            <div class="lh-demo-card-text">L'allocation VRAM (RTX 4090), la consommation RAM, le débit tok/s et le téléchargement GGUF sont simulés en mémoire locale avec une fidélité totale.</div>
+            <div class="lh-demo-card-text">L'allocation VRAM, la consommation RAM, le débit tok/s et le téléchargement GGUF sont des valeurs fictives destinées à montrer l'interface, pas des mesures réelles.</div>
           </div>
           <div class="lh-demo-card">
             <div class="lh-demo-card-title">Ce qui n'arrive jamais</div>
@@ -68,13 +67,12 @@
         </div>
 
         <div class="lh-demo-limits">
-          Cette session est volatile et stockée dans la mémoire de votre onglet. Cliquez sur Réinitialiser à tout moment pour restaurer les fixtures d'origine.
+          Certains choix peuvent rester enregistrés dans ce navigateur. Cliquez sur Réinitialiser pour restaurer les données de démonstration.
         </div>
 
         <nav class="lh-demo-nav" aria-label="Liens écosystème">
           <a href="${LINKS.site}" target="_blank" rel="noreferrer">Site officiel</a>
           <a href="${LINKS.docs}" target="_blank" rel="noreferrer">Documentation technique</a>
-          <a href="${LINKS.source}" target="_blank" rel="noreferrer">Code source GitHub</a>
         </nav>
 
         <div class="lh-demo-actions">

@@ -16,7 +16,7 @@
 
 ## Overview
 
-Loom operates **one** owned `llama-server` instance and provides an elegant local web interface, automated continuous batching across parallel slots, performance benchmarking, local model library management, and strict local-only data isolation.
+Loom operates **one** owned `llama-server` instance and provides a local web interface, automated continuous batching across parallel slots, performance benchmarking, and local model library management. Prompts and completions stay on the workstation; optional Hub, download, and update operations use the network when requested.
 
 Instead of forking or vendoring llama.cpp, Loom pilots `llama-server` as an external process. You can point Loom at an existing binary on your machine or let Loom clone and build upstream llama.cpp directly.
 
@@ -53,6 +53,8 @@ The Loom web interface provides complete control over local inference, model con
 
 Loom is currently in private development. There is no published binary release yet, so the release installers below are **not a working public quick start**. A collaborator with access to this repository can build from source. Do not run an installer script piped from the network until you have reviewed it and a release for your platform exists.
 
+The first release is gated by the platform checks and manual draft review in [RELEASING.md](RELEASING.md).
+
 ### Release installers (once binaries are published)
 
 On Linux and macOS:
@@ -75,7 +77,7 @@ These scripts download a matching release binary. They cannot install Loom until
 
 If you prefer to build from source:
 
-- Go 1.24 or later
+- Go 1.25 or later
 - GNU Make
 
 ```bash
@@ -121,7 +123,7 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 
 | Component | Implementation |
 | --- | --- |
-| Core daemon & proxy | Go 1.24+, bbolt embedded database |
+| Core daemon & proxy | Go 1.25+, bbolt embedded database |
 | Web dashboard | Single-page UI (HTML5, modern CSS, ES modules) assembled into Go binary |
 | Inference backend | Standalone external `llama-server` subprocess |
 | Web UI / control port | `8091` (`http://127.0.0.1:8091`) |

@@ -58,7 +58,7 @@ func cmdWeb(args []string) error {
 	}
 
 	// ReadHeaderTimeout : sans lui, une connexion qui n'envoie jamais sa requête
-	// immobilise une goroutine pour toujours — et ce port écoute sur 0.0.0.0.
+	// immobilise une goroutine pour toujours, même sur l'interface locale.
 	// Surtout PAS de WriteTimeout ici : il couperait les flux SSE du chat, qui
 	// restent ouverts aussi longtemps que l'utilisateur regarde la page.
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}

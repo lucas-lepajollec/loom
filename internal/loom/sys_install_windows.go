@@ -43,13 +43,13 @@ func cmdInstall(args []string) error {
 	dir := binDir()
 	onPath := false
 	if dst, err := installSelf(dir); err != nil {
-		fmt.Printf("  %s copie du binaire impossible (%v) — ajoute-le au PATH à la main\n", dim("•"), err)
+		return fmt.Errorf("copie du binaire dans %s : %w", dir, err)
 	} else {
 		fmt.Printf("  %s binaire installé %s\n", green("✓"), dst)
 		added, err := addToUserPath(dir)
 		switch {
 		case err != nil:
-			fmt.Printf("  %s mise à jour du PATH impossible (%v)\n", dim("•"), err)
+			return fmt.Errorf("binaire installé dans %s mais mise à jour du PATH impossible : %w", dir, err)
 		case added:
 			fmt.Printf("  %s %s ajouté au PATH utilisateur\n", green("✓"), dir)
 			onPath = true
