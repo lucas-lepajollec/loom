@@ -103,7 +103,7 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 ## Configuration and persistence
 
 - **Data directory**: All configuration, presets, chats, and downloads are persisted in `$LOOM_HOME` (defaults to `~/.local/share/loom` or `$XDG_DATA_HOME/loom`).
-- **Configuration file**: Stored in `$LOOM_HOME/config.json`. Can be edited in the UI or via `./bin/loom edit`.
+- **Configuration**: Persisted in `$LOOM_HOME/loom.db` (bbolt), alongside chats and preferences. Change settings through the UI or `./bin/loom edit`; legacy `config.env` files may be imported during migration.
 - **Development environment**: Loom automatically loads `.env.local` or `.env` from the project root if present, allowing local overrides without editing tracked files.
 - **Model discovery**: Recursively indexes all `.gguf` files within declared model directories and the directory containing the `llama-server` binary.
 
@@ -113,7 +113,7 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 > Do not expose Loom or its OpenAI `/v1` endpoint directly to the public internet without an authenticated TLS reverse proxy.
 
 - **Loopback binding**: Loom binds to `127.0.0.1` by default.
-- **LAN access**: When exposing the service to your local network, always set an API key in **Settings → Server API**.
+- **LAN access**: The OpenAI front can be exposed intentionally; Loom requires an API key before enabling that mode. The web UI remains on loopback by default and uses a separate web key.
 - **Single owned process**: Loom manages exactly one running `llama-server` process at a time; loading a new model safely unloads and replaces the resident instance.
 - **Local inference**: Loom does not send prompts, completions, or telemetry to a cloud service. Hub search and model downloads contact Hugging Face when explicitly used.
 
@@ -124,8 +124,9 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 | Core daemon & proxy | Go 1.24+, bbolt embedded database |
 | Web dashboard | Single-page UI (HTML5, modern CSS, ES modules) assembled into Go binary |
 | Inference backend | Standalone external `llama-server` subprocess |
-| Default UI / API port | `8091` (`http://127.0.0.1:8091`) |
-| Engine backend port | `8081` (`http://127.0.0.1:8081`) |
+| Web UI / control port | `8091` (`http://127.0.0.1:8091`) |
+| OpenAI-compatible front | `8081` (`http://127.0.0.1:8081/v1`) |
+| Managed llama-server backend | `18081` by default, loopback-only and derived from the front port |
 
 ```text
 cmd/loom/          # Main application entry point and Windows resource metadata
