@@ -5,18 +5,53 @@ import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Drawer, inspectTrigger } from '../../ui/drawer.js';
 import { SelectionInfo } from '../inspector/selection.js';
 import { Icon } from '../../ui/icons.js';
-import { Switch, Tip } from '../../ui/controls.js';
-import { confirm, toast } from '../../ui/dialog.js';
-import { post } from '../../core/api.js';
+import { Switch, Tip, Seg } from '../../ui/controls.js';
+import { Modal, confirm, toast } from '../../ui/dialog.js';
+import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace } from '../../core/state.js';
 import { groupVariants } from '../chat/picker.js';
 import { setVisible } from '../cloud/page.js';
+import { newDiscussion, chooseRemote } from '../chat/engine.js';
 
 // Ce que Loom sait vraiment piloter aujourd'hui, par capacité déclarée.
 const CAPS = [
   ['chat', 'Discussion dans le fil commun'], ['native-events', 'Outils natifs visibles'], ['usage', 'Tokens et quotas'],
   ['reasoning-summary', 'Résumé de réflexion'], ['approvals', 'Autorisations interactives'], ['skills', 'Skills partagés'], ['mcp', 'Serveurs MCP'],
+  ['tools', 'Outils et modifications visibles'], ['plan', 'Plan de l’agent'], ['workdir', 'Dossier de travail'], ['remote', 'Sur une autre machine'],
 ];
+const isACP = rt => (rt.capabilities || []).includes('workdir');
+
+// Ajout ou modification d'un harness ACP personnalisé (n'importe quel agent qui
+// parle ACP sur stdio, y compris sur une autre machine via ssh).
+const PRESETS = [
+  { label: 'Hermes via SSH', name: 'Hermes', command: 'ssh', args: '-T <hôte> hermes acp', remote: true },
+  { label: 'Agent sur cette machine', name: '', command: '', args: '', remote: false },
+];
+const splitArgs = t => (String(t).match(/"[^"]*"|'[^']*'|\S+/g) || []).map(a => a.replace(/^(["'])(.*)\1$/, '$2'));
+const joinArgs = a => (a || []).map(x => /\s/.test(x) ? '"' + x + '"' : x).join(' ');
+
+function CustomDialog({ agent, onClose }) {
+  const [v, setV] = useState(agent ? { name: agent.name, command: agent.command, args: joinArgs(agent.args), remote: !!agent.remote } : { ...PRESETS[0] });
+  const [busy, setBusy] = useState(false);
+  const set = patch => setV({ ...v, ...patch });
+  const save = async () => {
+    if (/<hôte>/.test(v.args)) return toast('Remplace <hôte> par ta machine (ex. hermes-lxc)', 'err');
+    setBusy(true);
+    const r = await post('/api/harness/custom', { id: agent ? agent.id : '', name: v.name, command: v.command, args: splitArgs(v.args), remote: v.remote });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || 'Enregistrement impossible', 'err');
+    toast(v.name + ' ajouté'); await refreshWorkspace(); onClose(r.agent);
+  };
+  return html`<${Modal} title=${agent ? 'Modifier ' + agent.name : 'Ajouter un harness'} sub="Tout agent qui parle ACP (Agent Client Protocol) sur stdio." onClose=${() => onClose()}
+      foot=${html`<button class="btn ghost" onClick=${() => onClose()}>Annuler</button><button class="btn primary" disabled=${busy || !v.name || !v.command} onClick=${save}>Enregistrer</button>`}>
+    ${!agent && html`<${Seg} value=${PRESETS.findIndex(p => p.remote === v.remote && (p.remote ? v.command === 'ssh' : true))} label="Modèle" onChange=${i => setV({ ...PRESETS[i] })} options=${PRESETS.map((p, i) => ({ value: i, label: p.label }))} />`}
+    <label class="field"><span>Nom</span><input class="input" value=${v.name} placeholder="ex. Hermes" onInput=${e => set({ name: e.target.value })} /></label>
+    <label class="field"><span>Commande</span><input class="input mono" value=${v.command} placeholder="ex. ssh, npx, opencode" onInput=${e => set({ command: e.target.value })} /></label>
+    <label class="field"><span>Arguments</span><input class="input mono" value=${v.args} placeholder="ex. -T hermes-lxc hermes acp" onInput=${e => set({ args: e.target.value })} /></label>
+    <div class="set-line" style="padding:4px 0;border:0"><div class="set-l"><span>Sur une autre machine</span><${Tip} text="Le dossier de travail est alors un chemin sur cette machine-là. Loom ne lit pas ses fichiers et ne lui transmet pas les serveurs MCP locaux ; les modifications restent visibles dans le fil." /></div>
+      <div class="set-c"><${Switch} checked=${v.remote} label="Sur une autre machine" onChange=${on => set({ remote: on })} /></div></div>
+  </${Modal}>`;
+}
 
 function Detail({ rt, models, onInspect }) {
   const native = models.filter(m => m.runtime_id === rt.id);
@@ -54,19 +89,57 @@ function Detail({ rt, models, onInspect }) {
   </div>`;
 }
 
-const SHORT = { chat: 'Discussion', 'native-events': 'Outils natifs', usage: 'Tokens et quotas', 'reasoning-summary': 'Résumé de réflexion', approvals: 'Autorisations', skills: 'Skills', mcp: 'MCP' };
+const SHORT = { chat: 'Discussion', 'native-events': 'Outils natifs', usage: 'Tokens et coût', 'reasoning-summary': 'Résumé de réflexion', approvals: 'Autorisations', skills: 'Skills', mcp: 'MCP Loom', tools: 'Outils et diffs', plan: 'Plan', workdir: 'Dossier de travail', remote: 'Machine distante' };
+
+// Harness ACP : lancement, état, capacités ; démarrer une discussion avec lui.
+function AcpDetail({ rt, models, onEdit }) {
+  const choice = models.find(m => m.runtime_id === rt.id);
+  const caps = CAPS.filter(([id]) => (rt.capabilities || []).includes(id));
+  const [custom, setCustom] = useState(null);
+  useEffect(() => { if (rt.custom) get('/api/harness/custom').then(r => setCustom((r.agents || []).find(a => a.id === rt.id) || null)).catch(() => {}); }, [rt.id]);
+  const start = async () => {
+    if (!choice) return toast('Ce harness n’est pas encore disponible', 'err');
+    await newDiscussion(); await chooseRemote(choice);
+  };
+  const del = async () => {
+    if (!await confirm('Supprimer ' + rt.name, 'Le harness disparaît de Loom. Les discussions passées restent lisibles.', { ok: 'Supprimer', danger: true })) return;
+    const r = await post('/api/harness/custom/delete', { id: rt.id });
+    if (!r.ok) return toast(r.error, 'err');
+    await refreshWorkspace(); go('harnesses');
+  };
+  const launch = custom ? [custom.command, ...(custom.args || [])].join(' ') : rt.install_hint || rt.cli;
+  return html`<div class="h-detail anim-fade">
+    <div class="h-head"><div style="display:flex;gap:14px;align-items:center"><${Logo} name=${rt.logo || rt.id} size="lg" /><div><h2>${rt.name}</h2><p>${rt.description || ''}</p></div></div>
+      <div class="acts">${rt.custom && html`<button class="btn ghost" onClick=${() => onEdit(custom)}>Modifier</button><button class="icon-btn" aria-label="Supprimer" onClick=${del}><${Icon} n="trash" /></button>`}
+        <button class="btn primary" disabled=${rt.available === false || !choice} onClick=${start}><${Icon} n="plus" />Nouvelle discussion</button></div></div>
+    <div class="grid2">
+      <div class="card pad">
+        <div class="kv"><span>État</span><span class="state"><i class=${'dot ' + (rt.available === false ? '' : 'green')}></i>${rt.available === false ? 'Non installé' : 'Prêt'}</span></div>
+        <div class="kv"><span>Lancement<${Tip} text="Commande exécutée par Loom pour démarrer l’agent. Il parle ACP sur son entrée et sa sortie standard." /></span><code class="mono trunc" style="max-width:60%">${launch}</code></div>
+        <div class="kv"><span>Compte</span><span>celui du CLI, déjà connecté</span></div>
+        ${rt.docs && html`<div class="kv"><span>Documentation</span><a href=${rt.docs} target="_blank" rel="noopener noreferrer">Ouvrir</a></div>`}
+      </div>
+      <div class="card pad"><div class="sec-h"><h2>Ce que Loom pilote</h2></div>
+        ${caps.map(([id, label]) => html`<div class="kv" key=${id}><span>${label}</span><span class="state"><${Icon} n="check" />oui</span></div>`)}</div>
+    </div>
+    <p class="note">Choisis le dossier de travail et le niveau d’autorisation dans le panneau de droite d’une discussion.</p>
+  </div>`;
+}
 
 function Card({ rt, models }) {
   const n = groupVariants(models.filter(m => m.runtime_id === rt.id)).length;
   const supported = rt.implemented && rt.capabilities && rt.capabilities.length > 0;
   const caps = CAPS.filter(([id]) => (rt.capabilities || []).includes(id)).map(([id]) => [id, SHORT[id]]);
-  return html`<button type="button" class=${cls('hx', !supported && 'is-soon')} onClick=${() => go('harnesses', rt.id)}>
+  const acp = isACP(rt), missing = rt.available === false;
+  const state = !supported ? null : missing ? ['', 'Non installé'] : acp ? ['green', 'Prêt'] : n ? ['green', 'Connecté'] : ['', 'Non connecté'];
+  return html`<button type="button" class=${cls('hx', (!supported || missing) && 'is-soon')} onClick=${() => go('harnesses', rt.id)}>
     <div class="hx-top"><${Logo} name=${rt.id} />
-      <span class="grow"><b>${rt.name}</b>${rt.cli && html`<code>${rt.cli}</code>`}</span>
-      ${!supported ? html`<span class="soon-pill">Bientôt</span>` : html`<span class="state"><i class=${cls('dot', n && 'green')}></i>${n ? 'Connecté' : 'Non connecté'}</span>`}</div>
+      <span class="grow"><b>${rt.name}</b>${rt.cli && html`<code>${acp ? 'ACP' + (rt.cli === 'npx' ? '' : ' · ' + rt.cli.split('/').pop()) : rt.cli}</code>`}</span>
+      ${!supported ? html`<span class="soon-pill">Bientôt</span>` : html`<span class="state"><i class=${'dot ' + state[0]}></i>${state[1]}</span>`}</div>
     ${rt.description && html`<p>${rt.description}</p>`}
     ${caps.length > 0 && html`<ul>${caps.map(([id, label]) => html`<li key=${id}><${Icon} n="check" />${label}</li>`)}</ul>`}
-    <div class="hx-foot">${!supported ? 'Adaptateur en préparation' : n ? n + ' modèle' + (n > 1 ? 's' : '') + ' dans le sélecteur' : 'Ouvre pour connecter ton compte'}</div>
+    <div class="hx-foot">${!supported ? (rt.id === 'hermes' ? 'Ajoute-le avec « Ajouter un harness »' : 'Adaptateur en préparation') : missing ? 'Installe ' + (rt.cli === 'npx' ? 'Node.js et le CLI' : rt.cli) + ' pour l’utiliser'
+      : acp ? (rt.custom ? 'Personnalisé · ' : '') + 'Dossier, outils et autorisations dans Loom' : n ? n + ' modèle' + (n > 1 ? 's' : '') + ' dans le sélecteur' : 'Ouvre pour connecter ton compte'}</div>
   </button>`;
 }
 
@@ -75,6 +148,7 @@ export function HarnessesPage({ route }) {
   const runtimes = ((ws && ws.runtimes) || []).filter(r => r.kind === 'harness');
   const models = (ws && ws.models) || [];
   const [selected, setSelected] = useState(null);
+  const [dlg, setDlg] = useState(null);
   useEffect(() => { setSelected(s => s && s.runtime !== route.sub ? null : s); }, [route.sub]);
   const selectedRuntime = runtimes.find(r => r.id === selected?.runtime);
   const selectedModel = models.find(m => m.id === selected?.model);
@@ -82,9 +156,12 @@ export function HarnessesPage({ route }) {
   const order = r => (r.implemented && r.capabilities && r.capabilities.length ? 0 : 1);
   return html`<div class="view page"><div class="page-in wide">
     ${cur ? html`<button class="btn ghost sm back" onClick=${() => go('harnesses')}><${Icon} n="left" />Harnesses</button>
-      <div style="margin-top:14px"><${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} /></div>`
-    : html`<div class="page-head"><div><h1>Harnesses</h1><p>Des agents qui gardent leurs outils, leur compte et leurs permissions. Loom leur passe la discussion.</p></div></div>
+      <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
+        : html`<${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} />`}</div>`
+    : html`<div class="page-head"><div><h1>Harnesses</h1><p>Des agents qui gardent leurs outils, leur compte et leurs permissions. Loom leur passe la discussion.</p></div>
+        <div class="acts"><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />Ajouter un harness</button></div></div>
       ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`<div class="hx-grid stagger">${[...runtimes].sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} />`)}</div>`}`}
+    ${dlg && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}
     ${selectedRuntime && html`<${Drawer} title=${selectedModel?.name || selectedRuntime.name} onClose=${() => setSelected(null)}><${SelectionInfo} model=${selectedModel} runtime=${selectedRuntime} models=${models} /></${Drawer}>`}
   </div></div>`;
 }

@@ -365,3 +365,11 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .work-b{display:flex;flex-direction:column;gap:12px;margin:8px 0 4px;padding-left:14px;border-left:1px solid var(--line);animation:in-fade var(--mid) var(--ease)}
 .work-b .msg-ai .md{color:var(--text-2);font-size:14px}
 .tc-st.muted{font-size:12px;color:var(--text-3)}
+/* commandes « / » d'un harness */
+.composer-wrap{position:relative}
+.slash{position:absolute;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 48px));bottom:calc(100% - 4px);z-index:20;padding:4px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--raised);box-shadow:var(--shadow-pop)}
+.slash-row{display:flex;align-items:baseline;gap:10px;width:100%;min-height:32px;padding:6px 10px;border-radius:6px;text-align:left}
+.slash-row b{font:500 12.5px var(--mono);color:var(--text);white-space:nowrap}
+.slash-row span{font-size:12.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slash-row.on{background:var(--surface-3)}
+.composer-tip{font-size:12px;color:var(--text-4)}

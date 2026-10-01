@@ -54,6 +54,7 @@ type acpBinding struct {
 	client        *acpClient
 	state         ACPState
 	roots         []*os.Root
+	remoteRoot    string // remote agents: folder on the other machine, never opened locally
 	tools         map[string]map[string]any
 	approvals     map[string]*acpApproval
 	ctx           context.Context
@@ -125,7 +126,11 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	if !agent.available() {
 		return nil, errors.New("CLI du harness ou lanceur ACP indisponible")
 	}
-	canonical, err := acpDirectory(s.Workdir)
+	check := acpDirectory
+	if agent.Remote {
+		check = remoteWorkdir
+	}
+	canonical, err := check(s.Workdir)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +140,10 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	definitions, err := acpSessionMCPDefinitions(s)
 	if err != nil {
 		return nil, err
+	}
+	if agent.Remote {
+		// Local MCP commands would run on the other machine: not passed.
+		definitions = map[string]MCPServerConfig{}
 	}
 	encoded, _ := json.Marshal(definitions)
 	mcpRevision := fmt.Sprintf("%x", sha256.Sum256(encoded))
@@ -166,7 +175,11 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	}
 	fresh := false
 	if p == nil {
-		c, err := startACPClient(agent.Command, agent.Args, s.Workdir)
+		processDir := s.Workdir
+		if agent.Remote {
+			processDir, _ = os.UserHomeDir()
+		}
+		c, err := startACPClient(agent.Command, agent.Args, processDir)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +188,14 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			p.state.Permission = "ask"
 		}
 		p.state.NativeRuntimeID = agent.ID
+		p.remoteRoot = ""
+		if agent.Remote {
+			p.remoteRoot = s.Workdir
+		}
 		for _, dir := range append([]string{s.Workdir}, s.AdditionalDirs...) {
+			if agent.Remote {
+				break
+			}
 			canonical, err := acpDirectory(dir)
 			if err != nil || canonical != dir {
 				p.close()
@@ -202,7 +222,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			ProtocolVersion   int            `json:"protocolVersion"`
 			AgentCapabilities map[string]any `json:"agentCapabilities"`
 		}
-		err = c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": true, "writeTextFile": true}, "terminal": false}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init)
+		err = c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": !agent.Remote, "writeTextFile": !agent.Remote}, "terminal": false}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init)
 		cancel()
 		if err != nil || init.ProtocolVersion != 1 {
 			m.closeACP(s.ID)

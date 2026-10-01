@@ -226,6 +226,9 @@ func (p *acpBinding) noteToolDiffsLocked(tool map[string]any) DiscussionEvent {
 
 func (p *acpBinding) insideRootsLocked(path string) bool {
 	clean := filepath.Clean(path)
+	if p.remoteRoot != "" {
+		return strings.HasPrefix(clean, p.remoteRoot+"/")
+	}
 	if real, err := filepath.EvalSymlinks(clean); err == nil {
 		clean = real
 	}

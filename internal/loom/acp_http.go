@@ -39,12 +39,20 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 		}
 		s.MCPServers = names
 	}
+	agent, _ := acpAgentFor(s.RuntimeID)
 	if c.Workdir != nil {
-		path, err := acpDirectory(*c.Workdir)
+		check := acpDirectory
+		if agent.Remote {
+			check = remoteWorkdir
+		}
+		path, err := check(*c.Workdir)
 		if err != nil {
 			return err
 		}
 		s.Workdir = path
+	}
+	if c.AdditionalDirs != nil && agent.Remote && len(*c.AdditionalDirs) > 0 {
+		return errors.New("dossiers supplémentaires indisponibles pour un harness distant")
 	}
 	if c.AdditionalDirs != nil {
 		if len(*c.AdditionalDirs) > 16 {
@@ -187,6 +195,10 @@ func handleACPDiff(w http.ResponseWriter, r *http.Request) {
 	before, observed := s.FileBaselines[path]
 	if !observed {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "fichier non suivi"})
+		return
+	}
+	if agent, _ := acpAgentFor(s.RuntimeID); agent.Remote {
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "fichier sur la machine distante : le diff est dans le fil"})
 		return
 	}
 	roots := []*os.Root{}

@@ -6,7 +6,7 @@ import { Icon } from '../../ui/icons.js';
 import { Seg, Switch, Tip } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
 import { FolderPicker } from '../../ui/folder.js';
-import { Modal, toast, confirm } from '../../ui/dialog.js';
+import { Modal, toast, confirm, prompt } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app } from '../../core/state.js';
 import { chat } from '../chat/engine.js';
@@ -67,7 +67,12 @@ function HarnessPanel() {
   const [diff, setDiff] = useState(null);
   if (!s) return null;
   const caps = ((runtimes.find(r => r.id === s.runtime_id) || {}).capabilities) || [];
-  const canDir = caps.includes('workdir'), canAsk = caps.includes('approvals');
+  const canDir = caps.includes('workdir'), canAsk = caps.includes('approvals'), remote = caps.includes('remote');
+  const chooseDir = async () => {
+    if (!remote) return setPick(true);
+    const p = await prompt('Dossier sur la machine distante', { value: workdir, placeholder: '/home/moi/projet', ok: 'Choisir' });
+    if (p) configure(s, { workdir: p });
+  };
   const workdir = h.workdir || s.workdir || '';
   const level = h.permission || s.permission || 'ask';
   const modes = h.modes || s.available_modes || [];
@@ -90,8 +95,8 @@ function HarnessPanel() {
     <div class="insp-model"><${Logo} name=${s.runtime_id} /><div><b>${baseName(s.model) || s.provider_name}</b><span>${s.provider_name} · compte natif</span></div></div>
 
     ${canDir && html`<div class="hs-sec"><div class="hs-h">Dossier de travail</div>
-      ${workdir ? html`<button class="hs-dir" onClick=${() => setPick(true)} title=${workdir}><${Icon} n="folder" /><span class="mono trunc">${workdir.replace(/^\/home\/[^/]+/, '~')}</span><span class="muted">Changer</span></button>`
-        : html`<button class="btn" onClick=${() => setPick(true)}><${Icon} n="folder" />Choisir un dossier</button>`}</div>`}
+      ${workdir ? html`<button class="hs-dir" onClick=${chooseDir} title=${workdir}><${Icon} n="folder" /><span class="mono trunc">${workdir.replace(/^\/home\/[^/]+/, '~')}</span><span class="muted">Changer</span></button>`
+        : html`<button class="btn" onClick=${chooseDir}><${Icon} n="folder" />${remote ? 'Indiquer le dossier distant' : 'Choisir un dossier'}</button>`}</div>`}
 
     ${canAsk && html`<div class="hs-sec"><div class="hs-h">Autorisations<${Tip} text=${LEVEL_TIP} /></div>
       <${Seg} value=${level} onChange=${setLevel} label="Niveau d’autorisation" options=${LEVELS} /></div>`}

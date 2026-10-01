@@ -62,7 +62,21 @@ export function Composer() {
     const sent = await send(t, { files: native ? files.map(f => f.path) : [], internet: tools.internet, mcp: tools.mcp });
     if (sent) setFiles([]); else setText(t);
   };
-  const onKey = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); } };
+  // Commandes « / » annoncées par le harness (available_commands_update).
+  const commands = (!native && c.harness && c.harness.commands) || [];
+  const slash = /^\/(\S*)$/.exec(text);
+  const matches = slash ? commands.filter(x => x.name.toLowerCase().startsWith(slash[1].toLowerCase())).slice(0, 8) : [];
+  const [sel, setSel] = useState(0);
+  const useCommand = x => { setText('/' + x.name + ' '); setSel(0); ta.current && ta.current.focus(); };
+  const onKey = e => {
+    if (matches.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSel((sel + 1) % matches.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSel((sel - 1 + matches.length) % matches.length); return; }
+      if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) { e.preventDefault(); useCommand(matches[Math.min(sel, matches.length - 1)]); return; }
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
+  };
+  const workdir = !native && ((c.harness && c.harness.workdir) || (c.session && c.session.workdir)) || '';
   const pick = async e => {
     for (const f of e.target.files || []) {
       try { const up = await upload(f); setFiles(x => [...x, up]); } catch (err) { toast(f.name + ' : ' + err.message, 'err'); }
@@ -72,6 +86,8 @@ export function Composer() {
   const toggleTool = n => { const v = !tools[n]; setToolOn(n, v); setTools({ ...tools, [n]: v }); };
 
   return html`<div class="composer-wrap">
+    ${matches.length > 0 && html`<div class="slash" role="listbox" aria-label="Commandes">${matches.map((x, i) => html`<button type="button" role="option" aria-selected=${String(i === sel)} class=${cls('slash-row', i === sel && 'on')} onMouseDown=${e => { e.preventDefault(); useCommand(x); }}>
+      <b>/${x.name}</b><span>${x.description || ''}</span></button>`)}</div>`}
     <div class="composer">
       ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}<button aria-label="Retirer" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
       <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey}
@@ -80,6 +96,8 @@ export function Composer() {
         ${native && html`<button class="icon-btn" aria-label="Joindre un fichier" title="Joindre" onClick=${() => fileIn.current.click()}><${Icon} n="paperclip" /></button>
           <input type="file" multiple hidden ref=${fileIn} onChange=${pick} />
           <button class=${cls('chip-btn', (tools.internet || tools.mcp) && 'on')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="sliders" />Outils${tools.internet || tools.mcp ? html` <span class="n">${(tools.internet ? 1 : 0) + (tools.mcp ? 1 : 0)}</span>` : ''}</button>`}
+        ${workdir && html`<button class="chip-btn" title=${workdir} onClick=${() => app.set({ inspector: true })}><${Icon} n="folder" />${workdir.split('/').pop()}</button>`}
+        ${commands.length > 0 && !text && html`<span class="composer-tip">/ pour les commandes</span>`}
         <span class="grow"></span>
         ${native && ctxMax ? html`<button class="ctx" title=${'Contexte utilisé : ' + c.ctx + ' / ' + ctxMax + ' tokens'} onClick=${compact}>
           <span class="ctx-ring" style=${`--p:${pct}`}></span><span>${fmtTok(c.ctx)} / ${fmtTok(ctxMax)}</span></button>` : ''}

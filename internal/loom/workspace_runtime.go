@@ -33,6 +33,7 @@ type RuntimeDescriptor struct {
 	Available    *bool    `json:"available,omitempty"`
 	InstallHint  string   `json:"install_hint,omitempty"`
 	Docs         string   `json:"docs,omitempty"`
+	Custom       bool     `json:"custom,omitempty"`
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
 	Kind         string   `json:"kind"`
@@ -99,6 +100,33 @@ func (reg *runtimeRegistry) register(adapter RuntimeAdapter) error {
 	reg.adapters[d.ID] = adapter
 	reg.order = append(reg.order, d.ID)
 	return nil
+}
+
+// upsert adds or replaces a runtime registered after startup (user-defined
+// harnesses). Built-in entries are never replaced by this path.
+func (reg *runtimeRegistry) upsert(adapter RuntimeAdapter) {
+	d := adapter.Descriptor()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	if _, exists := reg.adapters[d.ID]; !exists {
+		reg.order = append(reg.order, d.ID)
+	}
+	reg.adapters[d.ID] = adapter
+}
+
+func (reg *runtimeRegistry) remove(id string) {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	if _, ok := reg.adapters[id]; !ok {
+		return
+	}
+	delete(reg.adapters, id)
+	for i, x := range reg.order {
+		if x == id {
+			reg.order = append(reg.order[:i], reg.order[i+1:]...)
+			break
+		}
+	}
 }
 
 func (reg *runtimeRegistry) lookup(id string) (RuntimeAdapter, bool) {

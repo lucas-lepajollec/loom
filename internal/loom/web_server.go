@@ -21,6 +21,7 @@ func cmdWeb(args []string) error {
 	if err := provisionDataDir(); err != nil {
 		fmt.Printf("%s données Loom : %v\n", yellow("[!]"), err)
 	}
+	registerCustomACPAgents()
 	port := 8091
 	if len(args) > 0 && args[0] != "" {
 		n, err := strconv.Atoi(args[0])
@@ -150,6 +151,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/capabilities/save", handleCapabilitySave)
 	api("/api/capabilities/delete", handleCapabilityDelete)
 	api("/api/skills/targets", handleSkillSinks) // distribution des skills aux harnesses
+	api("/api/harness/custom", handleCustomACP)
+	api("/api/harness/custom/delete", handleCustomACPDelete)
 	api("/api/status", handleStatus)
 	api("/api/service/log", handleServiceLog) // journal du service pour diagnostiquer un modèle qui ne charge pas
 	api("/api/vram", handleVram)

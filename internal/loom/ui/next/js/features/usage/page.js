@@ -1,5 +1,6 @@
 // Usage : quotas des abonnements (lecture explicite, sans génération) et
 // tokens/coûts estimés des discussions. Une donnée absente reste « inconnue ».
+import { Logo } from '../../ui/logo.js';
 import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty, Tip } from '../../ui/controls.js';
@@ -50,20 +51,22 @@ export function UsagePage() {
   const [d, setD] = useState(null);
   const load = async () => { try { const r = await get('/api/usage'); setD(r); } catch (_) {} };
   useEffect(() => { load(); }, []);
-  const quotas = d ? d.quotas || [] : [];
+  const quotas = (d ? d.quotas || [] : []).filter(q => ((runtimes.find(r => r.id === q.runtime_id) || {}).capabilities || []).includes('quota'));
   const models = d ? d.models || [] : [];
-  const money = m => m.estimated_cost != null ? Number(m.estimated_cost).toLocaleString('fr-FR', { style: 'currency', currency: (m.price && m.price.currency) || 'USD', maximumFractionDigits: 3 }) : '—';
+  const fmtMoney = (v, cur) => Number(v).toLocaleString('fr-FR', { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 3 });
+  const money = m => m.estimated_cost != null ? fmtMoney(m.estimated_cost, m.price && m.price.currency) : '—';
+  const cost = m => m.reported_cost != null ? html`<span title="Coût déclaré par le harness">${fmtMoney(m.reported_cost, m.currency)}</span>` : m.runtime_id ? '—' : money(m);
   return html`<div class="view page"><div class="page-in">
     <div class="page-head"><div><h1>Usage</h1><p>Quotas de tes abonnements et consommation dans Loom. Une donnée absente reste inconnue, jamais zéro.</p></div></div>
     ${!d ? html`<div class="skeleton" style="height:200px"></div>` : html`
       <section class="sec"><div class="sec-h"><h2>Abonnements</h2></div>
         <div class="grid3 stagger">${quotas.map(q => html`<${Quota} key=${q.runtime_id} q=${q} rt=${runtimes.find(r => r.id === q.runtime_id)} onRefresh=${load} />`)}</div></section>
-      <section class="sec"><div class="sec-h"><h2>Tokens et coût estimé<${Tip} text="Tokens rapportés par les runtimes dans tes discussions Loom. Le coût API est une estimation à partir du prix que tu saisis, pas une facture." /></h2></div>
+      <section class="sec"><div class="sec-h"><h2>Tokens et coût estimé<${Tip} text="Tokens rapportés par les runtimes dans tes discussions Loom. Le coût API est une estimation à partir du prix que tu saisis, pas une facture. Pour un harness, c’est le coût qu’il déclare lui-même." /></h2></div>
         ${models.length ? html`<div class="card table usage-t">
           <div class="tr th"><span>Modèle</span><span>Entrée</span><span>Sortie</span><span>Prix / M tokens</span><span>Estimation</span></div>
-          ${models.map(m => html`<div class="tr"><span class="cell-main"><b>${m.name}</b><small>${m.provider} · ${m.reported_turns}/${m.turns} tours avec décompte</small></span>
+          ${models.map(m => html`<div class="tr"><span class="cell-id"><${Logo} name=${m.runtime_id || m.provider} size="sm" /><span class="cell-main"><b>${m.name && m.name !== 'default' ? m.name : 'Modèle par défaut'}</b><small>${m.provider} · ${m.turns} tour${m.turns > 1 ? 's' : ''}${m.reported_turns ? ' · ' + m.reported_turns + ' avec décompte' : ''}</small></span></span>
             <span class="mono">${m.reported_turns ? fmtTok(m.usage.prompt_tokens) : '—'}</span><span class="mono">${m.reported_turns ? fmtTok(m.usage.completion_tokens) : '—'}</span>
-            <span>${m.runtime_id ? html`<span class="muted">abonnement</span>` : html`<${Price} m=${m} onSaved=${load} />`}</span><span class="mono strong">${m.runtime_id ? '—' : money(m)}</span></div>`)}</div>`
+            <span>${m.runtime_id ? html`<span class="muted">abonnement</span>` : html`<${Price} m=${m} onSaved=${load} />`}</span><span class="num strong">${cost(m)}</span></div>`)}</div>`
           : html`<div class="card"><${Empty} icon="chart" title="Rien pour l’instant" text="Les tokens des discussions cloud et harness apparaîtront ici. Les modèles locaux n’ont pas de coût API." /></div>`}
       </section>`}
   </div></div>`;

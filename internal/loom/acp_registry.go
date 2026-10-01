@@ -21,6 +21,10 @@ type acpAgent struct {
 	Args    []string `json:"args"`
 	Detect  []string `json:"detect"`
 	Docs    string   `json:"docs"`
+	// Remote: the agent runs on another machine (e.g. through ssh); its folder
+	// is not on this disk. Custom: defined by the user in Harnesses.
+	Remote bool `json:"remote,omitempty"`
+	Custom bool `json:"custom,omitempty"`
 }
 
 func (a acpAgent) available() bool {
@@ -61,6 +65,9 @@ type acpAdapter struct {
 
 func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 	caps := []string{"chat", "stream", "cancel", "tools", "approvals", "plan", "usage", "workdir", "mcp"}
+	if a.agent.Remote {
+		caps = []string{"chat", "stream", "cancel", "tools", "approvals", "plan", "usage", "workdir", "remote"}
+	}
 	a.negotiatedMu.RLock()
 	if a.loadSession {
 		caps = append(caps, "resume")
@@ -70,7 +77,7 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		caps = append(caps, "quota")
 	}
 	available := a.agent.available()
-	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: a.agent.Command, Description: "Agent de code via ACP. Authentification et outils natifs du harness.", Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: &available, InstallHint: a.agent.Command + " " + joinACPArgs(a.agent.Args), Capabilities: caps, Docs: a.agent.Docs}
+	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: a.agent.Command, Description: acpDescription(a.agent), Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: &available, InstallHint: a.agent.Command + " " + joinACPArgs(a.agent.Args), Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom}
 }
 func joinACPArgs(args []string) string {
 	out := ""
@@ -97,4 +104,14 @@ func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallbac
 		err = ctx.Err()
 	}
 	return result, err
+}
+
+func acpDescription(a acpAgent) string {
+	switch {
+	case a.Remote:
+		return "Harness ACP sur une autre machine, lancé par " + a.Command + ". Il utilise ses propres fichiers et outils."
+	case a.Custom:
+		return "Harness ACP personnalisé, lancé par " + a.Command + "."
+	}
+	return "Agent de code via ACP. Authentification et outils natifs du harness."
 }

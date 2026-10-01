@@ -270,6 +270,15 @@ type ModelUsageSummary struct {
 	Usage         RuntimeUsage `json:"usage"`
 	Price         *UsagePrice  `json:"price"`
 	EstimatedCost *float64     `json:"estimated_cost"`
+	// Cost declared by the harness itself (ACP usage_update), summed over
+	// discussions; nil when no harness reported one.
+	ReportedCost *float64 `json:"reported_cost"`
+	Currency     string   `json:"currency,omitempty"`
+}
+
+func harnessRuntime(id string) bool {
+	a, ok := registeredRuntimes.lookup(id)
+	return ok && a.Descriptor().Kind == "harness"
 }
 
 func usageSummaries() []ModelUsageSummary {
@@ -291,7 +300,7 @@ func usageSummaries() []ModelUsageSummary {
 				continue
 			}
 			id := cloudChoiceID(t.ProviderID, t.Model)
-			if t.RuntimeID == "antigravity" || t.RuntimeID == "codex" {
+			if harnessRuntime(t.RuntimeID) {
 				id = t.RuntimeID + ":" + t.Model
 			}
 			row := rows[id]
@@ -314,9 +323,27 @@ func usageSummaries() []ModelUsageSummary {
 			}
 		}
 	}
+	// The harness cost is cumulative per native session: attribute it to the
+	// choice of the discussion's last harness turn.
+	for _, s := range workspaceSessions.list() {
+		cost, _ := s.ACPUsage["cost"].(map[string]any)
+		amount, ok := cost["amount"].(float64)
+		if !ok || len(s.Turns) == 0 {
+			continue
+		}
+		t := s.Turns[len(s.Turns)-1]
+		if row := rows[t.RuntimeID+":"+t.Model]; row != nil && harnessRuntime(t.RuntimeID) {
+			v := amount
+			if row.ReportedCost != nil {
+				v += *row.ReportedCost
+			}
+			row.ReportedCost = &v
+			row.Currency, _ = cost["currency"].(string)
+		}
+	}
 	out := []ModelUsageSummary{}
 	for _, r := range rows {
-		if (r.RuntimeID == "antigravity" || r.RuntimeID == "codex") && r.Turns == 0 {
+		if harnessRuntime(r.RuntimeID) && r.Turns == 0 {
 			continue
 		}
 		if r.Price != nil && r.Reported > 0 {
