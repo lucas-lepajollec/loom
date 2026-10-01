@@ -11,7 +11,7 @@ import (
 )
 
 func TestPWAPublicAssetsMatchManifest(t *testing.T) {
-	page, _ := uiFS.ReadFile("ui/index.html")
+	page, _ := nextFS.ReadFile("ui/next/index.html")
 	if strings.Count(string(page), `rel="apple-touch-icon"`) != 1 || !bytes.Contains(page, []byte(`href="/icons/loom-180.png"`)) || !bytes.Contains(page, []byte(`rel="icon"`)) {
 		t.Fatal("missing or duplicate brand icon links")
 	}

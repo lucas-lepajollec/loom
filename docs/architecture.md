@@ -80,7 +80,7 @@ example `FIT=off` resolves to the valued native `--fit off`), independently of i
 the flag. Composite/model controls do not claim native support by their presence.
 Aliases merge without duplicating curated flags in Expert; hidden, deprecated and
 curated-covered Expert flags are filtered. `expert_excludes` preserves the former
-panel exclusions. `/api/llama-flags` and its legacy tier maps remain for `/classic`.
+panel exclusions. `/api/llama-flags` keeps its legacy tier maps for API clients.
 
 Bare loading now seeds `FIT=on` and leaves CTX/NGL unset; binaries advertising
 `--fit` receive it without the former native context/all-layers defaults.
@@ -222,9 +222,8 @@ page = new `features/x/page.js` + one entry in `app/routes.js`. No build step.
 
 1. Unified SSE events are implemented (2.3); durable native archives and portable text snapshots still have separate storage formats.
 2. In-package Engine/ParamSpec and runtime metadata are implemented; package boundaries and a second engine remain future work.
-3. Old UI in `ui/src` served at `/classic` → delete once the features below are ported:
-   global search, activity center, memory pages editor, preset ordering,
-   encryption unlock & backups, push notifications, GPU device selection, web key.
+3. Done: the old UI (`ui/src`, `/classic`, `tools/assemble-ui`) is removed; its
+   features live in `ui/next` (multi-GPU split through Expert parameters).
 4. Auto config forces native context and `-ngl 999` → let `--fit` decide unset
    values and show the fitted result.
 5. API keys memory-only → OS keychain with explicit consent.

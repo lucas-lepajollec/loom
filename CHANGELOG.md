@@ -6,6 +6,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- The previous interface (`/classic`, `ui/src`, `tools/assemble-ui`) is removed; `make check-ui` replaces the assembled-UI check in CI.
 - Generic ACP v1 harness execution for Codex, Claude Code, Pi and Gemini through an embedded pinned agent registry; explicit working roots, native session lifecycle, confined filesystem writes/diffs, per-discussion permission policies and approvals, enabled MCP definitions, persisted discussion events and a token-free development/test agent. Codex app-server remains quota-only. Frontend changes store the new events/state without adding rendering or CSS; skills sinks are deferred.
 
 - New Settings controls for vault unlock/lock/decryption, one-time recovery keys and an additional key wrap, local snapshot listing/restoration, secure-context Web Push, and active-model GPU selection using native `--device` identifiers. Local preset ordering uses up/down buttons and the complete catalog even when filtered. Existing components/styles are reused; snapshot sizes remain unknown because the current API does not report them.
@@ -21,7 +22,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 - Ordered runtime registry with descriptor-driven harness and quota pages, optional native connection/quota actions, and authenticated generic `POST /api/runtimes/{id}/connect|quota` endpoints. Existing routes remain aliases; planned runtimes stay capability-less and native quota reads retain explicit consent/action, caching and throttling.
 
-- New interface, rebuilt from scratch on the approved design: one discussion view with an execution picker (Local · Cloud · Harness), a contextual right panel (llama.cpp parameters with live VRAM estimate and Essential/Advanced/Expert tiers, cloud model, harness session, shared context), and dedicated Local (library, Hub, engine & API, bench), Cloud, Harnesses, Ressources, Usage, project and Settings pages. Dark by default, embedded fonts, native ES modules without a build step. Pre-load tuning provides an advisory VRAM estimate; native fitting resolves unset memory settings at load time. The previous interface stays available at `/classic`.
+- New interface, rebuilt from scratch on the approved design: one discussion view with an execution picker (Local · Cloud · Harness), a contextual right panel (llama.cpp parameters with live VRAM estimate and Essential/Advanced/Expert tiers, cloud model, harness session, shared context), and dedicated Local (library, Hub, engine & API, bench), Cloud, Harnesses, Ressources, Usage, project and Settings pages. Dark by default, embedded fonts, native ES modules without a build step. Pre-load tuning provides an advisory VRAM estimate; native fitting resolves unset memory settings at load time.
 
 ### Security
 

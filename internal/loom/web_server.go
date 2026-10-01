@@ -11,8 +11,7 @@ import (
 	"time"
 )
 
-//go:generate go run ../../tools/assemble-ui ui
-//go:embed ui/index.html ui/marked.min.js ui/sw.js ui/manifest.webmanifest ui/offline.html ui/fonts
+//go:embed ui/marked.min.js ui/sw.js ui/manifest.webmanifest ui/offline.html ui/fonts
 var uiFS embed.FS
 
 // cmdWeb starts the HTTP server on the given port (default 8091).
@@ -275,27 +274,15 @@ func newWebMux() *http.ServeMux {
 	return mux
 }
 
-// handleIndex sert la nouvelle interface à la racine ; l'ancienne reste
-// disponible sous /classic pendant la transition.
+// handleIndex sert l'interface à la racine.
 func handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
-		r2 := r.Clone(r.Context())
-		r2.URL.Path = "/next/"
-		handleNext(w, r2)
-		return
-	}
-	if r.URL.Path != "/classic" && r.URL.Path != "/classic/" {
+	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
 		http.NotFound(w, r)
 		return
 	}
-	b, err := uiFS.ReadFile("ui/index.html")
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store, max-age=0")
-	w.Write(b)
+	r2 := r.Clone(r.Context())
+	r2.URL.Path = "/next/"
+	handleNext(w, r2)
 }
 
 func sendJSON(w http.ResponseWriter, code int, v any) {

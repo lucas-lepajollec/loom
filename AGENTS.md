@@ -11,13 +11,12 @@ Loom is a conversation-first, local-first AI workspace. A discussion owns its po
 Preserve the original discussion/composer and complete local parameters. The one original sidebar adapts to local, cloud or harness state; unsupported harness profiles remain non-executable previews. Do not reintroduce a second simplified chat or a redundant header. Common local discussions bind to the existing Conversation pipeline through workspace_native.go. External portability remains text-only. Usage snapshots distinguish account windows, retained Loom token counts and manual-price estimates; missing data is unknown, not zero. Refresh never starts generation or redeems resets.
 
 - Setup requires Go 1.25+ and a functional `llama-server` or llama.cpp build.
-- Build the binary with `make build` (assembles embedded UI into `internal/loom/ui/index.html` and compiles `bin/loom`).
+- Build the binary with `make build` (embeds `internal/loom/ui/next` and compiles `bin/loom`). Check the UI with `make check-ui`.
 - Run the web dashboard in development with `make web` or `./bin/loom web 8091`.
 - Run validation tests with `make test` or `go test -short ./...`.
 - UI regression tests: `node --test internal/loom/ui/tests/*.test.mjs` (Node required only for this test command).
 - Reasoning families are a UI projection of discovered native IDs, not invented runtime models. Keep per-response provenance in the display journal and out of model-visible context; unknown historical metrics stay unknown. AGY average output-token throughput is not llama.cpp decode throughput. Never reconstruct hidden reasoning or claim a file diff from a reported write target.
-- Rebuild UI assets with `make assemble-ui` after modifying files in `internal/loom/ui/src/`.
-- The default interface is `internal/loom/ui/next/`: native ES modules with vendored Preact + htm, no build step, served at `/` (and `/next/`). Edit its files directly and rebuild the binary; styles live in `ui/next/css/`, the conversation engine in `ui/next/js/chat/engine.js`. Model output is rendered through `chat/md.js`, which escapes raw HTML. The previous interface remains at `/classic` during the transition and still uses `ui/src/` + `make assemble-ui`.
+- The default interface is `internal/loom/ui/next/`: native ES modules with vendored Preact + htm, no build step, served at `/` (and `/next/`). Edit its files directly and rebuild the binary; styles live in `ui/next/css/`, the conversation engine in `ui/next/js/features/chat/engine.js`. Model output is rendered through `features/chat/md.js`, which escapes raw HTML.
 
 ## Repository expectations
 

@@ -45,8 +45,7 @@ jobs:
       - run: go test -short ./...
       - run: go vet ./...
       - run: npm --prefix demo run check
-      - run: go run ./tools/assemble-ui
-      - run: git diff --exit-code -- internal/loom/ui/index.html
+      - run: make check-ui
 
   build-linux:
     name: Build Linux

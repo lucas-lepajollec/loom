@@ -344,7 +344,6 @@ function About() {
     <${Group} title="Loom">
       <${Line} label="Version"><span class="mono">${status ? status.version : '—'}</span></${Line}>
       <${Line} label="Mises à jour">${upd ? html`<span class="muted">${upd.available ? 'Version ' + upd.latest + ' disponible' : 'À jour'}</span>` : html`<button class="btn sm" onClick=${async () => setUpd(await get('/api/update'))}>Vérifier</button>`}</${Line}>
-      <${Line} label="Interface précédente" tip="L’ancienne interface reste disponible pendant la transition."><a class="btn sm ghost" href="/classic">Ouvrir</a></${Line}>
     </${Group}>
     ${paths && html`<${Group} title="Emplacements">${[['Données', paths.home], ['Base', paths.database], ['Modèles', paths.models], ['Presets', paths.presets], ['Moteurs', paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
 }

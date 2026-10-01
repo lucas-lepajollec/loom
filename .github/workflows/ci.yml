@@ -45,5 +45,5 @@ jobs:
       - name: Build binary
         run: make build
 
-      - name: Ensure assembled UI is committed
-        run: git diff --exit-code -- internal/loom/ui/index.html
+      - name: Check UI modules and tests
+        run: make check-ui

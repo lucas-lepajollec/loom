@@ -31,7 +31,7 @@ You are continuing Loom. Read, in order: `AGENTS.md`, `docs/architecture-princip
 ## Commands
 
 ```bash
-make build                                   # assembles classic UI + builds bin/loom
+make build                                   # builds bin/loom with ui/next embedded
 go test -short ./...                         # Go suite (must stay green)
 go vet ./internal/loom/
 make check-ui                                # module syntax check of ui/next + UI unit tests
@@ -87,7 +87,7 @@ LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594   # http://127.0.0.1:2594/
 - Acceptance: one renderer, local → cloud → local in one discussion still works,
   existing tests green, new Go tests for the event mapping.
 
-### 5. Port the remaining classic features, then delete `ui/src`
+### 5. Port the remaining classic features, then delete `ui/src` — DONE
 Global search (Ctrl+K palette over discussions/projects/models), activity
 center (downloads + engine jobs), memory pages editor, preset ordering,
 encryption unlock and backups, push notifications, GPU device selection, web

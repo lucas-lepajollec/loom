@@ -22,6 +22,6 @@
 //   - loom-engine (« loom serve ») exec llama-server ;
 //   - loom-ui (« loom web ») sert l'UI locale et l'endpoint OpenAI /v1.
 //
-// ui/index.html est GÉNÉRÉ depuis ui/src/ : éditer les sources puis
-// `make assemble-ui` ou `go run ./tools/assemble-ui`.
+// L'interface est ui/next/ (modules ES natifs, sans étape de build),
+// embarquée telle quelle dans le binaire.
 package loom

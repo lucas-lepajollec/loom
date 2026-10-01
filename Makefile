@@ -1,11 +1,8 @@
-.PHONY: default assemble-ui build api web test check-ui clean
+.PHONY: default build api web test check-ui clean
 
 default: build
 
-assemble-ui:
-	go run ./tools/assemble-ui
-
-build: assemble-ui
+build:
 	mkdir -p bin
 	go build -o bin/loom ./cmd/loom
 

@@ -169,7 +169,7 @@ docs/              # Visual assets and architecture documentation
 | `make build` | Assemble web UI assets and compile `bin/loom` |
 | `make test` | Run Go test suite (`go test ./...`) |
 | `make web` | Run the web server in foreground on port 8091 |
-| `make assemble-ui` | Reassemble `internal/loom/ui/index.html` from `internal/loom/ui/src/` |
+| `make check-ui` | Syntax-check the UI modules and run the UI tests |
 
 ## Interactive demo
 
@@ -214,7 +214,7 @@ resumption is negotiated and requires compatible portable context. Skills sinks
 remain deferred. See the [ACP API and lifecycle notes](docs/agents/acp-implementation.md).
 
 
-## Settings and classic feature migration
+## Security, data and engine settings
 
 Settings → Security and data supports masked password/recovery-key unlock,
 locking, confirmed decryption, and adding/replacing an additional vault key.
@@ -226,8 +226,8 @@ Engine settings selects GPUs for the active model using its binary's native
 identifiers and saves `EXTRA_ARGS --device` in the preset or remembered model
 before confirmed application. Unknown/single GPU lists are read-only. Local
 Library's up/down preset buttons save the complete order, including hidden
-filtered entries. Automatic classic vault unlock/legacy-secret migration,
-remote relay backups and GPU tensor-split controls remain outside this slice.
+filtered entries. Multi-GPU split (`--tensor-split`, `--split-mode`) is set
+through the Expert parameters of a model.
 
 ## Inspecting models and automatic local settings
 

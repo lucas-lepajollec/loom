@@ -18,7 +18,7 @@ cd loom
 make build
 ```
 
-This assembles the web UI assets (`make assemble-ui`) and outputs the binary to `bin/loom`.
+This embeds the web UI (`internal/loom/ui/next`, no build step) and outputs the binary to `bin/loom`.
 
 ### Running in development
 
@@ -34,7 +34,7 @@ Before opening a pull request, run the test suite and verify UI assembly:
 
 ```bash
 make test
-make assemble-ui
+make check-ui
 make build
 ```
 
