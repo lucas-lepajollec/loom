@@ -416,3 +416,10 @@
 .term-box{flex:1;min-height:0;padding:8px 4px 4px 10px}
 .term-box .xterm{height:100%}
 @media (max-width:760px){.term-layout{grid-template-columns:1fr;height:auto}.term-list{max-height:180px}.term-view{height:60vh}}
+.mh-list{display:flex;flex-direction:column;gap:10px}
+.mh-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.mh-head b{font-weight:500}
+.lc{display:flex;flex-direction:column}
+.lc-log{margin-top:8px;font-size:12px}
+.lc-log summary{cursor:pointer;color:var(--text-2)}
+.lc-log pre{max-height:220px;overflow:auto;margin:6px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg-2);font:11.5px/1.45 var(--mono);white-space:pre-wrap}

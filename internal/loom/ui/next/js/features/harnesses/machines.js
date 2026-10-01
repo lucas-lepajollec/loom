@@ -12,6 +12,7 @@ import { get, post } from '../../core/api.js';
 import { go, refreshWorkspace } from '../../core/state.js';
 import { copyText } from '../../ui/clipboard.js';
 import { openTerminalWith } from '../terminals/page.js';
+import { Lifecycle } from './lifecycle.js';
 
 export { copyText };
 
@@ -99,6 +100,7 @@ export function MachinesSection({ onEdit }) {
   const load = () => get('/api/machines').then(r => setData(r.ok ? r : { machines: [] }), () => setData({ machines: [] }));
   useEffect(() => { load(); }, []);
   MachinesSection.reload = load;
+  const [manage, setManage] = useState(null);
   const remove = async m => {
     if (!await confirm('Retirer ' + m.name, 'Ses harnesses disparaissent de Loom. Les discussions déjà faites restent ; rien n’est modifié sur la machine (la clé de Loom y reste autorisée tant que tu ne la retires pas).', { ok: 'Retirer', danger: true })) return;
     const r = await post('/api/machines/delete', { id: m.id });
@@ -111,8 +113,39 @@ export function MachinesSection({ onEdit }) {
       <span class="mx-ico"><${Icon} n="server" /></span>
       <span class="grow"><b>${m.name}</b><small class="mono">${m.user}@${m.host}${m.port !== 22 ? ':' + m.port : ''}</small></span>
       <span class="mx-hs">${(m.harnesses || []).map(id => { const h = id.slice(('custom-' + m.id + '-').length); return html`<button class="chip-btn" key=${id} onClick=${() => go('harnesses', id)}><${Logo} name=${h} />${NAMES[h] || h}</button>`; })}</span>
+      <button class="btn sm ghost" onClick=${() => setManage(m)}>Harnesses</button>
       <button class="btn sm ghost" onClick=${() => openTerminalWith({ target: m.id, dir: m.home || '', title: m.name })}><${Icon} n="prompt" />Terminal</button>
       <button class="btn sm ghost" onClick=${() => onEdit(m)}>Modifier</button>
       <button class="icon-btn" aria-label=${'Retirer ' + m.name} onClick=${() => remove(m)}><${Icon} n="trash" /></button>
-    </div>`)}</div></section>`;
+    </div>`)}</div>
+    ${manage && html`<${MachineHarnesses} m=${manage} onClose=${() => { setManage(null); load(); }} />`}</section>`;
+}
+
+// Harnesses d'une machine connectée : installer, mettre à jour, puis les
+// ajouter à Loom (ils apparaissent alors dans le sélecteur).
+function MachineHarnesses({ m, onClose }) {
+  const [offers, setOffers] = useState(null);
+  const [busy, setBusy] = useState('');
+  const load = () => get('/api/machines').then(r => setOffers((r.offers || {})[m.id] || [])).catch(() => setOffers([]));
+  useEffect(() => { load(); }, [m.id]);
+  const added = id => (m.harnesses || []).includes('custom-' + m.id + '-' + id);
+  const add = async o => {
+    setBusy(o.id);
+    const ids = (m.harnesses || []).map(h => h.slice(('custom-' + m.id + '-').length));
+    const r = await post('/api/machines', { machine: { id: m.id, name: m.name, host: m.host, user: m.user, port: m.port }, harnesses: [...new Set([...ids, o.id])] }).catch(e => ({ ok: false, error: e.message }));
+    setBusy('');
+    if (!r.ok) return toast(r.error || 'Ajout impossible', 'err');
+    m.harnesses = r.machine.harnesses; toast(o.name + ' ajouté à Loom'); await refreshWorkspace(); load();
+  };
+  return html`<${Modal} wide title=${'Harnesses sur ' + m.name} sub="Installe ou mets à jour les harnesses de cette machine, puis ajoute-les à Loom." onClose=${onClose}
+      foot=${html`<button class="btn" onClick=${onClose}>Fermer</button>`}>
+    ${!offers ? html`<div class="state"><span class="spinner"></span>Lecture de la machine…</div>`
+      : html`<div class="mh-list">${offers.map(o => html`<div class="mh-item card pad" key=${o.id}>
+          <div class="mh-head"><${Logo} name=${o.logo} /><b>${o.name}</b><span class="grow"></span>
+            ${added(o.id) ? html`<span class="state"><i class="dot green"></i>dans Loom</span>`
+              : o.ready ? html`<button class="btn sm" disabled=${busy === o.id} onClick=${() => add(o)}>Ajouter à Loom</button>`
+              : o.installed && o.missing ? html`<span class="state err">${o.missing}</span>` : ''}</div>
+          <${Lifecycle} target=${m.id} id=${o.id} name=${o.name} where=${'sur ' + m.name} onChange=${load} />
+        </div>`)}</div>`}
+  </${Modal}>`;
 }

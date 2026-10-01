@@ -38,8 +38,10 @@ drive engines and harnesses wherever they run.
 - Also done: remote engine (a Loom on the GPU machine linked by address and
   control key; every engine route forwarded, completions through its /v1),
   engine auto-update (applied only when no model is loaded), terminals.
-- To do, in order: harness install/update/auto-update on any machine (in
-  progress), merge `refactor/runtime-registry` into `main` and install on the
+- Also done: harness install/update/auto-update on this machine or a connected
+  one (version vs latest published, official installers, never during a
+  discussion of that harness).
+- To do, in order: merge `refactor/runtime-registry` into `main` and install on the
   VM, installing Loom on a remote machine over SSH, remaining harness sources
   (Pi and OpenCode cloud, Hermes through its machine's environment).
 
