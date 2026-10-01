@@ -4,7 +4,7 @@ import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Tabs, Switch, Empty, Menu, Tip } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
-import { Modal, confirm, toast } from '../../ui/dialog.js';
+import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace } from '../../core/state.js';
 import { Memory } from './memory.js';
@@ -152,9 +152,58 @@ function Mcp() {
       </div>`)}</div>`
       : html`<div class="card" style="margin-top:14px"><${Empty} icon="plug" title="Aucun serveur MCP" text="Branche un serveur de fichiers, une base de données ou une API pour donner des outils à tes modèles locaux.">
         <button class="btn primary" onClick=${() => setDlg({})}>Ajouter un serveur</button></${Empty}></div>`}
+    <${McpFile} />
+    <${McpSources} onAdopted=${load} />
     ${menu && html`<${Menu} anchor=${menu.a} onClose=${() => setMenu(null)} items=${menu.items} />`}
     ${dlg && html`<${McpEditor} server=${dlg.server} onClose=${() => setDlg(null)} onSaved=${setList} />`}
   </div>`;
+}
+
+// Le fichier mcp.json de Loom : modifiable à la main, relu automatiquement.
+function McpFile() {
+  const [f, setF] = useState(null);
+  useEffect(() => { get('/api/mcp/file').then(setF).catch(() => setF(null)); }, []);
+  if (!f || !f.path) return null;
+  return html`<div class=${cls('mcp-file', f.error && 'err')}><${Icon} n="file" /><span>Serveurs enregistrés dans <code class="mono">${home(f.path)}</code>, au format standard (Claude, Cursor…) : modifiable avec ton éditeur, relu automatiquement.</span>
+    ${f.error && html`<span class="tag red" title=${f.error}>fichier invalide : la dernière version correcte reste utilisée</span>`}</div>`;
+}
+
+// Fichiers MCP d'autres outils, liés en lecture seule : leurs serveurs
+// s'affichent ici et peuvent être adoptés (copiés dans Loom, désactivés).
+function McpSources({ onAdopted }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState('');
+  const load = () => get('/api/mcp/sources').then(setData).catch(() => setData(null));
+  useEffect(() => { load(); }, []);
+  const link = async (path, label, unlink) => {
+    const r = await post('/api/mcp/sources', { path, label: label || '', action: unlink ? 'unlink' : 'link' });
+    if (!r.ok) return toast(r.error || 'Impossible', 'err');
+    setData(r);
+  };
+  const addFile = async () => { const p = await prompt('Lier un fichier MCP', { message: 'Fichier de configuration MCP d’un autre outil (.mcp.json, mcp.json, ~/.claude.json…). Loom le lit sans le modifier.', placeholder: '/chemin/vers/.mcp.json', ok: 'Lier' }); if (p) link(p.trim()); };
+  const adopt = async sv => {
+    const withEnv = sv.env_names && sv.env_names.length > 0 && await confirm('Adopter ' + sv.name, 'Copier aussi les valeurs de ses variables (' + sv.env_names.join(', ') + ') ? Sinon, Loom copie seulement leurs noms et tu les remplis toi-même.', { ok: 'Copier les valeurs' });
+    setBusy(sv.source + sv.name);
+    const r = await post('/api/mcp/sources/adopt', { source: sv.source, name: sv.name, with_env: !!withEnv });
+    setBusy('');
+    if (!r.ok) return toast(r.error || 'Adoption impossible', 'err');
+    toast(sv.name + ' ajouté à Loom, désactivé' + (r.env_to_fill && r.env_to_fill.length ? ' · à compléter : ' + r.env_to_fill.join(', ') : '')); onAdopted();
+  };
+  if (!data) return null;
+  return html`<section class="sec"><div class="sec-h"><h2>Fichiers MCP liés<${Tip} text="Les serveurs MCP configurés dans d’autres outils. Loom lit ces fichiers sans les modifier et ne montre jamais les valeurs de leurs variables ; « Adopter » copie un serveur dans Loom, désactivé." /></h2>
+      <button class="btn sm ghost" onClick=${addFile}><${Icon} n="link" />Lier un fichier</button></div>
+    ${(data.sources || []).map(src => html`<div class="card mcp-src" key=${src.path}>
+      <div class="row"><span class="mx-ico"><${Icon} n="link" /></span><div class="grow"><div class="t">${src.label}</div><div class="s mono">${home(src.path)}</div></div>
+        ${src.error ? html`<span class="tag red" title=${src.error}>illisible</span>` : html`<span class="muted">${src.servers.length} serveur${src.servers.length > 1 ? 's' : ''}</span>`}
+        <button class="btn sm ghost" onClick=${() => link(src.path, '', true)}>Délier</button></div>
+      ${src.servers.map(sv => html`<div class="row sub" key=${sv.name + (sv.project || '')}><span class="grow"><b>${sv.name}</b> <span class="tag">${sv.transport === 'http' ? 'HTTP' : 'local'}</span>${sv.project && html` <span class="muted mono">${home(sv.project)}</span>`}
+          ${sv.env_names && sv.env_names.length > 0 && html`<div class="s mono">${sv.env_names.join(' · ')}</div>`}</span>
+        <button class="btn sm" disabled=${busy === sv.source + sv.name} onClick=${() => adopt(sv)}>Adopter</button></div>`)}
+    </div>`)}
+    ${(data.suggested || []).length > 0 && html`<div class="card rows">${data.suggested.map(g => html`<div class="row sugg" key=${g.path}>
+      <span class="mx-ico"><${Icon} n="file" /></span><div class="grow"><div class="t">${g.label}</div><div class="s mono">${home(g.path)}</div></div>
+      <span class="muted">trouvé sur cette machine</span><button class="btn sm" onClick=${() => link(g.path, g.label)}>Lier</button></div>`)}</div>`}
+  </section>`;
 }
 
 export function ResourcesPage({ route }) {
