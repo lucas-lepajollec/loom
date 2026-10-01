@@ -37,14 +37,21 @@ type inspectCmd struct {
 }
 
 type inspectSpec struct {
-	Binary  string      `json:"binary"`
-	Version []string    `json:"version"`
-	Update  []string    `json:"update"`
-	Auth    *inspectCmd `json:"auth"`
-	MCP     *inspectCmd `json:"mcp"`
-	Plugins *inspectCmd `json:"plugins"`
-	Skills  []string    `json:"skills"`
-	Env     []string    `json:"env"`
+	Install       map[string][]string `json:"install"`
+	Latest        *harnessLatestSpec  `json:"latest"`
+	Requires      []string            `json:"requires"`
+	RequiresOS    map[string][]string `json:"requires_os"`
+	UpdateInstall bool                `json:"update_install"`
+	Unverified    bool                `json:"unverified"`
+	Source        string              `json:"source"`
+	Binary        string              `json:"binary"`
+	Version       []string            `json:"version"`
+	Update        []string            `json:"update"`
+	Auth          *inspectCmd         `json:"auth"`
+	MCP           *inspectCmd         `json:"mcp"`
+	Plugins       *inspectCmd         `json:"plugins"`
+	Skills        []string            `json:"skills"`
+	Env           []string            `json:"env"`
 }
 
 type HarnessMCP struct {
@@ -111,16 +118,18 @@ func runInspect(ctx context.Context, argv []string) (string, error) {
 	if len(argv) == 0 {
 		return "", errors.New("commande vide")
 	}
-	if _, err := exec.LookPath(argv[0]); err != nil {
+	native, err := harnessNativeArgv(argv)
+	if err != nil {
 		return "", err
 	}
 	c, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(c, argv[0], argv[1:]...)
+	cmd := exec.CommandContext(c, native[0], native[1:]...)
+	cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
 	cmd.Stdin = nil
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
-	err := cmd.Run()
+	err = cmd.Run()
 	s := out.String()
 	if len(s) > 256<<10 {
 		s = s[:256<<10]
@@ -256,11 +265,11 @@ func inspectHarness(ctx context.Context, id string) (HarnessInspection, error) {
 		return HarnessInspection{}, errors.New("inspection non décrite pour ce harness")
 	}
 	r := HarnessInspection{At: time.Now().UnixMilli(), MCP: []HarnessMCP{}, Plugins: []string{}, Skills: []HarnessSkill{}, Env: []string{}}
-	path, err := exec.LookPath(spec.Binary)
+	path, err := lifecycleLookPath(spec.Binary)
 	if err != nil {
 		return r, nil
 	}
-	r.Installed, r.Path, r.CanUpdate = true, path, len(spec.Update) > 0
+	r.Installed, r.Path, r.CanUpdate = true, path, len(spec.Update) > 0 || spec.UpdateInstall
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	fail := func(what string, err error) {
@@ -402,36 +411,16 @@ func handleHarnessUpdate(w http.ResponseWriter, r *http.Request) {
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	id := r.PathValue("id")
-	spec, ok := harnessInspectSpec(id)
-	if !ok || len(spec.Update) == 0 {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "mise à jour non prise en charge pour ce harness"})
-		return
-	}
-	if _, err := exec.LookPath(spec.Update[0]); err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": spec.Update[0] + " introuvable"})
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, spec.Update[0], spec.Update[1:]...)
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	err := cmd.Run()
-	log := out.String()
-	if len(log) > 32<<10 {
-		log = log[len(log)-32<<10:]
-	}
-	inspectMu.Lock()
-	delete(inspectCache, id)
-	inspectMu.Unlock()
-	acpProbeMu.Lock()
-	_ = putBytes(bkState, acpProbeKey+id, nil) // new version: probe again
-	acpProbeMu.Unlock()
+	target, id := harnessLifecycleRuntimeTarget(r.PathValue("id"))
+	state, err := harnessLifecycle.action(r.Context(), target, id, "update")
 	if err != nil {
-		sendJSON(w, 200, map[string]any{"ok": false, "error": "la mise à jour a échoué", "log": log})
+		sendHarnessLifecycle(w, state, err)
 		return
 	}
-	res, _ := inspectHarness(context.Background(), id)
-	sendJSON(w, 200, map[string]any{"ok": true, "log": log, "inspection": res})
+	var inspection any
+	if target == "local" {
+		res, _ := inspectHarness(r.Context(), id)
+		inspection = res
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "state": state, "log": state.Log, "inspection": inspection})
 }

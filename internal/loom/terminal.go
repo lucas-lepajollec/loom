@@ -32,7 +32,8 @@ const (
 	terminalTicketTT = 30 * time.Second
 )
 
-type Terminal struct {
+// TerminalInfo is what the browser sees of a terminal.
+type TerminalInfo struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	Target    string `json:"target"` // "local" or a remote machine id
@@ -41,6 +42,10 @@ type Terminal struct {
 	CreatedAt int64  `json:"created_at"`
 	Running   bool   `json:"running"`
 	ExitCode  int    `json:"exit_code"`
+}
+
+type Terminal struct {
+	TerminalInfo
 
 	proc    termProcess
 	mu      sync.Mutex
@@ -179,8 +184,8 @@ func openTerminal(target, dir, command, title string) (*Terminal, error) {
 	if target == "" {
 		target = "local"
 	}
-	t := &Terminal{ID: randomID(8), Title: title, Target: target, Dir: dir, Command: command, CreatedAt: time.Now().UnixMilli(),
-		Running: true, proc: proc, clients: map[chan []byte]struct{}{}, done: make(chan struct{})}
+	t := &Terminal{TerminalInfo: TerminalInfo{ID: randomID(8), Title: title, Target: target, Dir: dir, Command: command, CreatedAt: time.Now().UnixMilli(), Running: true},
+		proc: proc, clients: map[chan []byte]struct{}{}, done: make(chan struct{})}
 	terminals.Lock()
 	terminals.byID[t.ID] = t
 	terminals.Unlock()
@@ -244,10 +249,10 @@ func (t *Terminal) detach(c chan []byte) {
 	}
 }
 
-func (t *Terminal) snapshot() Terminal {
+func (t *Terminal) snapshot() TerminalInfo {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return Terminal{ID: t.ID, Title: t.Title, Target: t.Target, Dir: t.Dir, Command: t.Command, CreatedAt: t.CreatedAt, Running: t.Running, ExitCode: t.ExitCode}
+	return t.TerminalInfo
 }
 
 func terminalByID(id string) *Terminal {
@@ -260,7 +265,7 @@ func terminalByID(id string) *Terminal {
 func handleTerminals(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		terminals.Lock()
-		list := []Terminal{}
+		list := []TerminalInfo{}
 		for _, t := range terminals.byID {
 			list = append(list, t.snapshot())
 		}

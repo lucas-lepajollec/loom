@@ -18,7 +18,8 @@ import (
 // (for example Hermes in a container). Loom connects with its own key, reads
 // what is installed there with a small script, and registers each chosen
 // harness as a remote ACP agent (custom-<machine>-<harness>). Nothing is
-// installed on the remote machine besides Loom's public key, added by the user.
+// installed during linking besides Loom's public key, added by the user.
+// Explicit lifecycle actions can subsequently install or update harnesses.
 
 type RemoteTool struct {
 	ID      string `json:"id"`
@@ -76,12 +77,14 @@ func remoteLaunch(id string, fixed []string) []string {
 // machine. POSIX sh, no dependency; the user can run it by hand and Loom runs
 // it over SSH. Common user install folders are added to PATH because a
 // non-interactive SSH shell does not read the user's profile.
-const remoteProbeScript = `P="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.bun/bin:$HOME/.cargo/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+const remotePathPreamble = `P="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.bun/bin:$HOME/.cargo/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
 for d in "$HOME"/.nvm/versions/node/*/bin; do [ -d "$d" ] && P="$d:$P"; done
 export PATH="$P"
-T=""; command -v timeout >/dev/null 2>&1 && T="timeout 5"
+`
+
+const remoteProbeScript = remotePathPreamble + `T=""; command -v timeout >/dev/null 2>&1 && T="timeout 5"
 j=""
-for t in hermes claude codex pi gemini opencode npx node; do
+for t in hermes claude codex pi gemini opencode agy npm npx node; do
   p=$(command -v "$t" 2>/dev/null) || continue
   v=$($T "$p" --version </dev/null 2>/dev/null | head -n 1 | tr -d '"\\' | cut -c1-60)
   j="$j{\"id\":\"$t\",\"path\":\"$p\",\"version\":\"$v\"},"
@@ -214,6 +217,13 @@ func checkRemoteMachine(ctx context.Context, m RemoteMachine) (RemoteMachine, er
 	cmd.Stdin = strings.NewReader(remoteProbeScript)
 	out, err := cmd.Output()
 	if err != nil {
+		// Native Windows OpenSSH normally has no POSIX sh.
+		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() != 255 {
+			win := exec.CommandContext(ctx, "ssh", windowsRemoteSSHArgs(m, key, remoteWindowsProbeScript)...)
+			out, err = win.Output()
+		}
+	}
+	if err != nil {
 		msg := ""
 		if ee, ok := err.(*exec.ExitError); ok {
 			msg = strings.TrimSpace(string(ee.Stderr))
@@ -297,9 +307,13 @@ func remoteAgent(m RemoteMachine, harness string, key string) (acpAgent, error) 
 		if len(dirs) > 0 {
 			script = "PATH=" + shellQuote(strings.Join(dirs, ":")) + ":\"$PATH\" " + script
 		}
+		args := sshArgs(m, key, "sh", "-c", shellQuote(script))
+		if lifecycleOS(&m) == "windows" {
+			args = windowsRemoteLifecycleCommand(m, key, launch)[1:]
+		}
 		a := acpAgent{
 			ID: "custom-" + m.ID + "-" + d.ID, Name: d.Name, Logo: d.Logo, Command: "ssh",
-			Args: sshArgs(m, key, "sh", "-c", shellQuote(script)), Remote: true, Custom: true, Machine: m.ID, RemoteHome: m.Home,
+			Args: args, Remote: true, Custom: true, Machine: m.ID, RemoteHome: m.Home,
 		}
 		return a, nil
 	}

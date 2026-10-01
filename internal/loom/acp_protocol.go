@@ -49,10 +49,15 @@ type acpClient struct {
 }
 
 func startACPClient(command string, args []string, cwd string, env ...string) (*acpClient, error) {
-	cmd := exec.Command(command, args...)
+	argv, err := harnessNativeArgv(append([]string{command}, args...))
+	if err != nil {
+		return nil, errors.New("impossible de trouver le lanceur ACP")
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
 	cmd.Dir = cwd
 	if len(env) > 0 {
-		cmd.Env = append(os.Environ(), env...)
+		cmd.Env = append(cmd.Env, env...)
 	}
 	acpProcessGroup(cmd)
 	in, err := cmd.StdinPipe()

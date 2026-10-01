@@ -1,46 +1,372 @@
 {
   "claude-code": {
     "binary": "claude",
-    "version": ["claude", "--version"],
-    "update": ["claude", "update"],
-    "auth": {"cmd": ["claude", "auth", "status"], "format": "json", "connected": "loggedIn", "method": "authMethod", "account": "email"},
-    "mcp": {"cmd": ["claude", "mcp", "list"], "format": "claude"},
-    "plugins": {"file": "~/.claude/plugins/installed_plugins.json", "format": "claude-plugins"},
-    "skills": ["~/.claude/skills"],
-    "env": ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]
+    "version": [
+      "claude",
+      "--version"
+    ],
+    "update": [
+      "npm",
+      "install",
+      "-g",
+      "@anthropic-ai/claude-code@latest"
+    ],
+    "auth": {
+      "cmd": [
+        "claude",
+        "auth",
+        "status"
+      ],
+      "format": "json",
+      "connected": "loggedIn",
+      "method": "authMethod",
+      "account": "email"
+    },
+    "mcp": {
+      "cmd": [
+        "claude",
+        "mcp",
+        "list"
+      ],
+      "format": "claude"
+    },
+    "plugins": {
+      "file": "~/.claude/plugins/installed_plugins.json",
+      "format": "claude-plugins"
+    },
+    "skills": [
+      "~/.claude/skills"
+    ],
+    "env": [
+      "ANTHROPIC_API_KEY",
+      "ANTHROPIC_AUTH_TOKEN"
+    ],
+    "install": {
+      "unix": [
+        "npm",
+        "install",
+        "-g",
+        "@anthropic-ai/claude-code"
+      ],
+      "windows": [
+        "npm",
+        "install",
+        "-g",
+        "@anthropic-ai/claude-code"
+      ]
+    },
+    "latest": {
+      "npm": "@anthropic-ai/claude-code"
+    },
+    "requires": [
+      "npm",
+      "node"
+    ],
+    "source": "https://code.claude.com/docs/en/setup"
   },
   "codex": {
     "binary": "codex",
-    "version": ["codex", "--version"],
-    "update": ["codex", "update"],
-    "auth": {"cmd": ["codex", "login", "status"], "format": "text"},
-    "mcp": {"cmd": ["codex", "mcp", "list", "--json"], "format": "codex"},
-    "skills": ["~/.codex/skills", "~/.agents/skills"],
-    "env": ["OPENAI_API_KEY", "CODEX_API_KEY"]
+    "version": [
+      "codex",
+      "--version"
+    ],
+    "update": [
+      "npm",
+      "install",
+      "-g",
+      "@openai/codex@latest"
+    ],
+    "auth": {
+      "cmd": [
+        "codex",
+        "login",
+        "status"
+      ],
+      "format": "text"
+    },
+    "mcp": {
+      "cmd": [
+        "codex",
+        "mcp",
+        "list",
+        "--json"
+      ],
+      "format": "codex"
+    },
+    "skills": [
+      "~/.codex/skills",
+      "~/.agents/skills"
+    ],
+    "env": [
+      "OPENAI_API_KEY",
+      "CODEX_API_KEY"
+    ],
+    "install": {
+      "unix": [
+        "npm",
+        "install",
+        "-g",
+        "@openai/codex"
+      ],
+      "windows": [
+        "npm",
+        "install",
+        "-g",
+        "@openai/codex"
+      ]
+    },
+    "latest": {
+      "npm": "@openai/codex"
+    },
+    "requires": [
+      "npm",
+      "node"
+    ],
+    "source": "https://github.com/openai/codex/blob/main/README.md"
   },
   "pi": {
     "binary": "pi",
-    "version": ["pi", "--version"],
-    "update": ["pi", "update", "self"],
-    "auth": {"file": "~/.pi/agent/auth.json", "format": "keys"},
-    "plugins": {"cmd": ["pi", "list"], "format": "lines"},
-    "skills": ["~/.pi/agent/skills", "~/.agents/skills"],
-    "env": ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"]
+    "version": [
+      "pi",
+      "--version"
+    ],
+    "update": [
+      "npm",
+      "install",
+      "-g",
+      "@mariozechner/pi-coding-agent@latest"
+    ],
+    "auth": {
+      "file": "~/.pi/agent/auth.json",
+      "format": "keys"
+    },
+    "plugins": {
+      "cmd": [
+        "pi",
+        "list"
+      ],
+      "format": "lines"
+    },
+    "skills": [
+      "~/.pi/agent/skills",
+      "~/.agents/skills"
+    ],
+    "env": [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY",
+      "OPENROUTER_API_KEY"
+    ],
+    "install": {
+      "unix": [
+        "npm",
+        "install",
+        "-g",
+        "@mariozechner/pi-coding-agent"
+      ],
+      "windows": [
+        "npm",
+        "install",
+        "-g",
+        "@mariozechner/pi-coding-agent"
+      ]
+    },
+    "latest": {
+      "npm": "@mariozechner/pi-coding-agent"
+    },
+    "requires": [
+      "npm",
+      "node"
+    ],
+    "unverified": true,
+    "source": "https://github.com/badlogic/pi-mono/blob/v0.60.0/packages/coding-agent/README.md"
   },
   "antigravity": {
     "binary": "agy",
-    "version": ["agy", "--version"],
-    "update": ["agy", "update"],
-    "mcp": {"cmd": ["agy", "mcp", "list"], "format": "lines"},
-    "plugins": {"cmd": ["agy", "plugin", "list"], "format": "lines"},
-    "env": ["GEMINI_API_KEY", "GOOGLE_API_KEY"]
+    "version": [
+      "agy",
+      "--version"
+    ],
+    "update": [],
+    "mcp": {
+      "cmd": [
+        "agy",
+        "mcp",
+        "list"
+      ],
+      "format": "lines"
+    },
+    "plugins": {
+      "cmd": [
+        "agy",
+        "plugin",
+        "list"
+      ],
+      "format": "lines"
+    },
+    "env": [
+      "GEMINI_API_KEY",
+      "GOOGLE_API_KEY"
+    ],
+    "install": {
+      "unix": [
+        "bash",
+        "https://antigravity.google/cli/install.sh"
+      ],
+      "windows": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        "https://antigravity.google/cli/install.ps1"
+      ]
+    },
+    "requires": [
+      "bash"
+    ],
+    "requires_os": {
+      "windows": [
+        "powershell"
+      ],
+      "unix": [
+        "bash",
+        "curl"
+      ]
+    },
+    "update_install": true,
+    "source": "https://antigravity.google/docs/cli/install/"
   },
   "gemini": {
     "binary": "gemini",
-    "version": ["gemini", "--version"],
-    "update": ["npm", "install", "-g", "@google/gemini-cli@latest"],
-    "mcp": {"cmd": ["gemini", "mcp", "list"], "format": "lines"},
-    "skills": ["~/.gemini/skills", "~/.agents/skills"],
-    "env": ["GEMINI_API_KEY", "GOOGLE_API_KEY"]
+    "version": [
+      "gemini",
+      "--version"
+    ],
+    "update": [
+      "npm",
+      "install",
+      "-g",
+      "@google/gemini-cli@latest"
+    ],
+    "mcp": {
+      "cmd": [
+        "gemini",
+        "mcp",
+        "list"
+      ],
+      "format": "lines"
+    },
+    "skills": [
+      "~/.gemini/skills",
+      "~/.agents/skills"
+    ],
+    "env": [
+      "GEMINI_API_KEY",
+      "GOOGLE_API_KEY"
+    ],
+    "install": {
+      "unix": [
+        "npm",
+        "install",
+        "-g",
+        "@google/gemini-cli"
+      ],
+      "windows": [
+        "npm",
+        "install",
+        "-g",
+        "@google/gemini-cli"
+      ]
+    },
+    "latest": {
+      "npm": "@google/gemini-cli"
+    },
+    "requires": [
+      "npm",
+      "node"
+    ],
+    "source": "https://geminicli.com/docs/get-started/installation/"
+  },
+  "hermes": {
+    "binary": "hermes",
+    "version": [
+      "hermes",
+      "--version"
+    ],
+    "update": [
+      "hermes",
+      "update"
+    ],
+    "install": {
+      "unix": [
+        "bash",
+        "https://hermes-agent.nousresearch.com/install.sh",
+        "--non-interactive"
+      ],
+      "windows": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        "https://hermes-agent.nousresearch.com/install.ps1",
+        "-NonInteractive"
+      ]
+    },
+    "requires": [
+      "bash"
+    ],
+    "requires_os": {
+      "windows": [
+        "powershell"
+      ],
+      "unix": [
+        "bash",
+        "curl",
+        "git"
+      ]
+    },
+    "source": "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
+    "latest": {
+      "github": "NousResearch/hermes-agent"
+    }
+  },
+  "opencode": {
+    "binary": "opencode",
+    "version": [
+      "opencode",
+      "--version"
+    ],
+    "install": {
+      "unix": [
+        "npm",
+        "install",
+        "-g",
+        "opencode-ai"
+      ],
+      "windows": [
+        "npm",
+        "install",
+        "-g",
+        "opencode-ai"
+      ]
+    },
+    "update": [
+      "npm",
+      "install",
+      "-g",
+      "opencode-ai@latest"
+    ],
+    "latest": {
+      "npm": "opencode-ai"
+    },
+    "requires": [
+      "npm",
+      "node"
+    ],
+    "source": "https://opencode.ai/docs/"
   }
 }

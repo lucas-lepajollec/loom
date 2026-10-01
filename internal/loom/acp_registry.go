@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"os/exec"
 	"sync"
 )
 
@@ -32,11 +31,11 @@ type acpAgent struct {
 }
 
 func (a acpAgent) available() bool {
-	if _, err := exec.LookPath(a.Command); err != nil {
+	if _, err := lifecycleLookPath(a.Command); err != nil {
 		return false
 	}
 	for _, binary := range a.Detect {
-		if _, err := exec.LookPath(binary); err != nil {
+		if _, err := lifecycleLookPath(binary); err != nil {
 			return false
 		}
 	}

@@ -6,6 +6,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Data-driven harness install/check/update API for local and saved SSH targets, Windows npm execution without a local shell, refreshed machine offers/ACP probes, exclusive actions with bounded logs, and opt-in six-hour idle auto-updates with persisted results. Native Windows SSH probes and commands are supported; CGO-free macOS builds retain CLI/web access without the menu-bar icon; Pi's requested npm package remains marked unverified and Antigravity updates remain manual.
+
 - The previous interface (`/classic`, `ui/src`, `tools/assemble-ui`) is removed; `make check-ui` replaces the assembled-UI check in CI.
 - Generic ACP v1 harness execution for Codex, Claude Code, Pi and Gemini through an embedded pinned agent registry; explicit working roots, native session lifecycle, confined filesystem writes/diffs, per-discussion permission policies and approvals, enabled MCP definitions, persisted discussion events and a token-free development/test agent. Codex app-server remains quota-only. Frontend changes store the new events/state without adding rendering or CSS; skills sinks are deferred.
 

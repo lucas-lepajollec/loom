@@ -294,6 +294,9 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 	if s.LastRequestID == requestID {
 		return nil
 	}
+	if harnessLifecycle.updatingRuntime(s.RuntimeID) {
+		return errors.New("une mise à jour automatique du harness est en cours ; attendez sa fin")
+	}
 	if m.runs[id] != nil || m.nativeRunning(s) {
 		return errors.New("une réponse est déjà en cours")
 	}

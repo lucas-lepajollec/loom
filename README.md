@@ -221,6 +221,18 @@ capabilities. Codex, Claude Code, Pi and Gemini now have ACP adapters, available
 when their registry launcher and native detection binaries are installed. Hermes
 remains a planned entry without executable capabilities.
 
+Harness installation and updates are available through the control API on this
+machine or a saved SSH machine. `GET /api/harness/lifecycle?target=local&id=codex`
+reports versions and missing tools; `POST /api/harness/lifecycle` accepts
+`{"target":"local","id":"codex","action":"install"}` (also `check` or `update`).
+`POST /api/harness/lifecycle/auto` with `{target,id,auto:true}` opts that pair into
+six-hour checks and updates while its discussions are idle. The latest automatic
+result is retained. Existing remote linking uses `/api/machines`; the runtime
+update endpoint remains compatible. See the [lifecycle API](docs/architecture.md#harness-lifecycle-api)
+for OS commands, unknown version handling and upstream limitations. macOS builds
+without CGO keep the CLI/web server but have no menu-bar icon. Pi's requested
+npm package is marked unverified; Antigravity has no automatic latest-version source.
+
 Explicit native catalog connection uses `POST /api/runtimes/{id}/connect` with
 `{"consent":true}`. Explicit quota reading uses `POST /api/runtimes/{id}/quota`
 with `{}`. Both retain the control API's authentication, private-cache and vault

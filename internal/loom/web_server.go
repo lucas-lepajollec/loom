@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -47,6 +48,9 @@ func cmdWeb(args []string) error {
 	loadRememberedProviderKeys()
 	go probeMissingACPAgents()
 	go engineAutoLoop()
+	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
+	defer stopLifecycle()
+	go harnessLifecycle.autoLoop(lifecycleCtx)
 	mux := newWebMux()
 	fmt.Printf("[loom web] http://%s  (Ctrl-C pour arrêter)\n", addr)
 	if !webKeyConfigured() {
@@ -144,6 +148,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/runtimes/{id}/update", handleHarnessUpdate)
 	api("/api/runtimes/{id}/mcp/adopt", handleHarnessMCPAdopt) // copier un MCP du harness dans Loom
 	api("/api/harness/bindings", handleHarnessBindings)
+	api("/api/harness/lifecycle", handleHarnessLifecycle)
+	api("/api/harness/lifecycle/auto", handleHarnessLifecycleAuto)
 	api("/api/harness/model-source", handleModelSink)          // modèles Loom proposés dans un harness ouvert (Pi)        // MCP Loom transmis à chaque harness
 	api("/api/skills/binding", handleSkillBinding)             // une skill vers un dossier de skills      // mise à jour du CLI du harness
 	api("/api/runtimes/{id}/sessions", handleACPSessions)      // sessions natives d’un harness ACP

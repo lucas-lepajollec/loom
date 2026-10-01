@@ -148,7 +148,13 @@ func handleCustomACPDelete(w http.ResponseWriter, r *http.Request) {
 // cannot inspect it, so it only requires a clean absolute path.
 func remoteWorkdir(p string) (string, error) {
 	p = strings.TrimSpace(p)
-	if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, "\n\r\x00") || len(p) > 1024 {
+	if strings.ContainsAny(p, "\n\r\x00") || len(p) > 1024 {
+		return "", errors.New("chemin absolu requis sur la machine distante")
+	}
+	if regexp.MustCompile(`^[A-Za-z]:[\\/]`).MatchString(p) {
+		return strings.ToUpper(p[:1]) + path.Clean(strings.ReplaceAll(p[1:], `\`, "/")), nil
+	}
+	if !strings.HasPrefix(p, "/") {
 		return "", errors.New("chemin absolu requis sur la machine distante")
 	}
 	return path.Clean(p), nil

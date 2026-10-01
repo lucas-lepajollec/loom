@@ -139,6 +139,57 @@ type SkillSink  interface { ProjectSkills(ctx, []Skill) (LoadedReport, error) }
   and tested (`chat`, `stream`, `cancel`, `usage`, `native-events`,
   `reasoning-summary`, `approvals`, `skills`, `mcp`, `resume`).
 
+### Harness lifecycle API
+
+The embedded `harness/inspect.json` describes binary/version commands, Unix and
+Windows install argv, update argv, prerequisites and optional npm/GitHub latest
+version sources. An HTTPS `.sh`/`.ps1` argument denotes an official installer:
+Loom downloads it to a temporary file and executes its interpreter. Local
+commands use exec directly (Windows npm shims use Node); SSH targets reuse
+Loom's key and `sshArgs`, with the probe's PATH preamble and quoted argv. Native
+Windows OpenSSH targets use encoded PowerShell commands and a Windows probe.
+
+- `GET /api/harness/lifecycle?target=local&id=codex` checks without installing.
+  `target` defaults to `local`; otherwise it is a saved remote machine ID.
+  The response is `{ok, state, log}`; `state` contains `installed`, `version`,
+  `latest`, `update_available`, `requires_missing`, `auto`, `last_auto`,
+  `unverified`, and any probe `errors`. Unknown versions are empty strings;
+  they never trigger updates. Logs retain at most 32 KiB.
+- `POST /api/harness/lifecycle` accepts `{target,id,action}` where action is
+  `check`, `install` or `update`. Each pair has one action at a time (409 for
+  contention), a 15-minute timeout, and cancellation of its owned process tree.
+  Remote install/update refreshes and saves the machine description and its
+  existing links; local actions invalidate inspection and refresh ACP probes.
+  Linking still uses `POST /api/machines` with `{machine,harnesses}` or the
+  local built-in/custom ACP registry; installation does not grant transcript
+  sharing consent. `/api/runtimes/{id}/update` delegates to the same service,
+  including linked remote runtime IDs, retaining `log` and local `inspection`.
+- `POST /api/harness/lifecycle/auto` accepts `{target,id,auto}`. Auto is off by
+  default and stored independently for each pair. After the web port is bound,
+  a cancellable background cycle checks every six hours, including a startup
+  check when due. Only installed harnesses with a known newer published version
+  are updated, while no matching discussion is running; new turns wait during
+  the automatic update. `last_auto` is null or `{at,from,to,ok,log}` (milliseconds
+  since Unix epoch), retained across restarts and disabling auto. Missing latest
+  sources or failed version reads never mean that the installed version is current.
+
+Commands are sourced in the catalog from official upstream documentation:
+[Codex](https://github.com/openai/codex/blob/main/README.md),
+[Claude Code](https://code.claude.com/docs/en/setup),
+[Gemini](https://geminicli.com/docs/get-started/installation/),
+[Pi's previous package](https://github.com/badlogic/pi-mono/blob/v0.60.0/packages/coding-agent/README.md),
+[Hermes](https://hermes-agent.nousresearch.com/docs/getting-started/installation),
+[OpenCode](https://opencode.ai/docs/), and
+[Antigravity](https://antigravity.google/docs/cli/install/).
+The requested `@mariozechner/pi-coding-agent` package is retained with
+`unverified: true` because current Pi docs name a different npm package.
+Hermes compares its version with GitHub's latest release; its source installer
+tracks main and upstream still owns source updates. Antigravity has no verified
+read-only latest-version source in this catalog, so only manual lifecycle
+updates run for it. Upstream installers, package permissions and supported OS
+versions remain upstream's responsibility; Loom never adds sudo or changes
+native global permissions.
+
 ### 2.3 Event — one vocabulary for every runtime
 
 ```
