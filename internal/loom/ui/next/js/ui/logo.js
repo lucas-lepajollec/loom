@@ -12,10 +12,13 @@ const ALIAS = { 'claude-code': 'claudecode', hermes: 'hermesagent', 'lm studio':
   'moonshot · kimi': 'kimi', 'x-ai': 'xai', 'z-ai': 'zai', 'moonshotai': 'kimi', 'meta-llama': 'meta' };
 
 export function logoId(name) {
-  // Les harnesses ajoutés à la main ont l'identifiant custom-<nom>.
+  // Les harnesses ajoutés à la main ont l'identifiant custom-<nom>, ceux d'une
+  // machine distante custom-<machine>-<harness>.
   const k = String(name || '').trim().toLowerCase().replace(/^custom-/, '');
   const id = ALIAS[k] || k.replace(/[^a-z0-9]/g, '');
-  return KNOWN.has(id) ? id : '';
+  if (KNOWN.has(id)) return id;
+  const tail = [...Object.keys(ALIAS), ...KNOWN].find(x => k.endsWith('-' + x));
+  return tail ? ALIAS[tail] || tail : '';
 }
 
 // size : '' (32px), 'sm' (20px) ou 'lg' (42px), comme .mono-tile.

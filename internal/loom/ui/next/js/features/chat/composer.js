@@ -55,7 +55,7 @@ export function Composer() {
   let blocked = '';
   if (native && status && !status.health) blocked = status.load_error ? 'Le modèle n’a pas pu se charger.' : !status.active ? 'Moteur arrêté : charge un modèle pour commencer.' : status.model ? 'Chargement du modèle…' : 'Choisis un modèle pour commencer.';
   if (!native && c.session && !c.session.runtime_id) blocked = 'Choisis un modèle pour cette discussion.';
-  if (!native && c.session && runtimeCaps(c.session.runtime_id).includes('workdir') && !((c.harness && c.harness.workdir) || c.session.workdir)) blocked = 'Choisis un dossier de travail dans le panneau de droite.';
+  if (!native && c.session && runtimeCaps(c.session.runtime_id).includes('workdir') && !runtimeCaps(c.session.runtime_id).includes('remote') && !((c.harness && c.harness.workdir) || c.session.workdir)) blocked = 'Choisis un dossier de travail dans le panneau de droite.';
   if (c.context && c.context.problem) blocked = c.context.problem;
 
 

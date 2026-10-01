@@ -34,6 +34,7 @@ type RuntimeDescriptor struct {
 	InstallHint  string   `json:"install_hint,omitempty"`
 	Docs         string   `json:"docs,omitempty"`
 	Custom       bool     `json:"custom,omitempty"`
+	Machine      string   `json:"machine,omitempty"` // remote machine name, for harnesses running elsewhere
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
 	Kind         string   `json:"kind"`

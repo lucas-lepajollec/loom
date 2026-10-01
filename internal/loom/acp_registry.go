@@ -25,6 +25,10 @@ type acpAgent struct {
 	// is not on this disk. Custom: defined by the user in Harnesses.
 	Remote bool `json:"remote,omitempty"`
 	Custom bool `json:"custom,omitempty"`
+	// Machine and RemoteHome: for an agent on a connected machine, which one
+	// and the absolute home folder there (default folder, probe folder).
+	Machine    string `json:"machine,omitempty"`
+	RemoteHome string `json:"remoteHome,omitempty"`
 }
 
 func (a acpAgent) available() bool {
@@ -38,12 +42,16 @@ func (a acpAgent) available() bool {
 	}
 	return true
 }
-func registerACPAgents() {
+func builtinACPAgents() []acpAgent {
 	var entries []acpAgent
 	if json.Unmarshal(acpAgentsJSON, &entries) != nil {
 		panic("registre ACP invalide")
 	}
-	for _, entry := range entries {
+	return entries
+}
+
+func registerACPAgents() {
+	for _, entry := range builtinACPAgents() {
 		registerRuntime(&acpAdapter{agent: entry})
 	}
 	if os.Getenv("LOOM_DEV_FAKE_ACP") == "1" {
@@ -77,7 +85,7 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		caps = append(caps, "quota")
 	}
 	available := a.agent.available()
-	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: a.agent.Command, Description: acpDescription(a.agent), Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: &available, InstallHint: a.agent.Command + " " + joinACPArgs(a.agent.Args), Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom}
+	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: a.agent.Command, Description: acpDescription(a.agent), Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: &available, InstallHint: a.agent.Command + " " + joinACPArgs(a.agent.Args), Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, Machine: machineName(a.agent.Machine)}
 }
 func joinACPArgs(args []string) string {
 	out := ""

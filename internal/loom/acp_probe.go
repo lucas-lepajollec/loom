@@ -100,19 +100,24 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 		return fail(errors.New("l’agent ne répond pas au protocole ACP"))
 	}
 	out.Agent, out.Auth, out.Caps = init.AgentInfo, init.AuthMethods, init.AgentCapabilities
+	probeDir := dir
 	if agent.Remote {
-		// The remote folder is unknown before the user picks one.
-		out.Duration = time.Since(started).Seconds()
-		return out
+		// A remote agent needs a folder of its own machine: its home, read
+		// when the machine was connected. Without it, only the identity.
+		if agent.RemoteHome == "" {
+			out.Duration = time.Since(started).Seconds()
+			return out
+		}
+		probeDir = agent.RemoteHome
 	}
 	var session acpSessionResponse
-	if err := c.call(initCtx, "session/new", map[string]any{"cwd": dir, "mcpServers": []any{}}, &session); err != nil || session.SessionID == "" {
+	if err := c.call(initCtx, "session/new", map[string]any{"cwd": probeDir, "mcpServers": []any{}}, &session); err != nil || session.SessionID == "" {
 		return fail(errors.New("session refusée : vérifie que le CLI est connecté à ton compte"))
 	}
 	if session.Modes != nil {
 		out.Modes, out.Mode = session.Modes.Available, session.Modes.Current
 	}
-	out.Config = session.Config
+	out.Config = session.options()
 	// Agents announce their commands right after session/new.
 	select {
 	case out.Commands = <-commands:

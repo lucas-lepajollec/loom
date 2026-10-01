@@ -12,6 +12,7 @@ import { app, go, refreshWorkspace, refreshNav } from '../../core/state.js';
 import { groupVariants } from '../chat/picker.js';
 import { setVisible } from '../cloud/page.js';
 import { newDiscussion, chooseRemote, open as openChat } from '../chat/engine.js';
+import { MachineDialog, MachinesSection } from './machines.js';
 
 // Ce que Loom sait vraiment piloter aujourd'hui, par capacité déclarée.
 const CAPS = [
@@ -23,10 +24,8 @@ const isACP = rt => (rt.capabilities || []).includes('workdir');
 
 // Ajout ou modification d'un harness ACP personnalisé (n'importe quel agent qui
 // parle ACP sur stdio, y compris sur une autre machine via ssh).
-const PRESETS = [
-  { label: 'Hermes via SSH', name: 'Hermes', command: 'ssh', args: '-T <hôte> hermes acp', remote: true },
-  { label: 'Agent sur cette machine', name: '', command: '', args: '', remote: false },
-];
+// Les harnesses d'une autre machine passent par « Connecter une machine ».
+const PRESETS = [{ label: 'Agent sur cette machine', name: '', command: '', args: '', remote: false }];
 const splitArgs = t => (String(t).match(/"[^"]*"|'[^']*'|\S+/g) || []).map(a => a.replace(/^(["'])(.*)\1$/, '$2'));
 const joinArgs = a => (a || []).map(x => /\s/.test(x) ? '"' + x + '"' : x).join(' ');
 
@@ -44,7 +43,6 @@ function CustomDialog({ agent, onClose }) {
   };
   return html`<${Modal} title=${agent ? 'Modifier ' + agent.name : 'Ajouter un harness'} sub="Tout agent qui parle ACP (Agent Client Protocol) sur stdio." onClose=${() => onClose()}
       foot=${html`<button class="btn ghost" onClick=${() => onClose()}>Annuler</button><button class="btn primary" disabled=${busy || !v.name || !v.command} onClick=${save}>Enregistrer</button>`}>
-    ${!agent && html`<${Seg} value=${PRESETS.findIndex(p => p.remote === v.remote && (p.remote ? v.command === 'ssh' : true))} label="Modèle" onChange=${i => setV({ ...PRESETS[i] })} options=${PRESETS.map((p, i) => ({ value: i, label: p.label }))} />`}
     <label class="field"><span>Nom</span><input class="input" value=${v.name} placeholder="ex. Hermes" onInput=${e => set({ name: e.target.value })} /></label>
     <label class="field"><span>Commande</span><input class="input mono" value=${v.command} placeholder="ex. ssh, npx, opencode" onInput=${e => set({ command: e.target.value })} /></label>
     <label class="field"><span>Arguments</span><input class="input mono" value=${v.args} placeholder="ex. -T hermes-lxc hermes acp" onInput=${e => set({ args: e.target.value })} /></label>
@@ -374,18 +372,20 @@ function Card({ rt, models }) {
   const state = !supported ? null : missing ? ['', 'Non installé'] : acp ? ['green', 'Prêt'] : n ? ['green', 'Connecté'] : ['', 'Non connecté'];
   return html`<button type="button" class=${cls('hx', (!supported || missing) && 'is-soon')} onClick=${() => go('harnesses', rt.id)}>
     <div class="hx-top"><${Logo} name=${rt.id} />
-      <span class="grow"><b>${rt.name}</b>${rt.cli && html`<code>${acp ? 'ACP' + (rt.cli === 'npx' ? '' : ' · ' + rt.cli.split('/').pop()) : rt.cli}</code>`}</span>
+      <span class="grow"><b>${rt.name}</b>${rt.machine ? html`<code>sur ${rt.machine}</code>` : rt.cli && html`<code>${acp ? 'ACP' + (rt.cli === 'npx' ? '' : ' · ' + rt.cli.split('/').pop()) : rt.cli}</code>`}</span>
       ${!supported ? html`<span class="soon-pill">Bientôt</span>` : html`<span class="state"><i class=${'dot ' + state[0]}></i>${state[1]}</span>`}</div>
     ${rt.description && html`<p>${rt.description}</p>`}
     ${caps.length > 0 && html`<ul>${caps.map(([id, label]) => html`<li key=${id}><${Icon} n="check" />${label}</li>`)}</ul>`}
-    <div class="hx-foot">${!supported ? (rt.id === 'hermes' ? 'Ajoute-le avec « Ajouter un harness »' : 'Adaptateur en préparation') : missing ? 'Installe ' + (rt.cli === 'npx' ? 'Node.js et le CLI' : rt.cli) + ' pour l’utiliser'
+    <div class="hx-foot">${!supported ? (rt.id === 'hermes' ? 'Connecte sa machine avec « Connecter une machine »' : 'Adaptateur en préparation') : missing ? 'Installe ' + (rt.cli === 'npx' ? 'Node.js et le CLI' : rt.cli) + ' pour l’utiliser'
       : acp ? (rt.custom ? 'Personnalisé · ' : '') + 'Dossier, outils et autorisations dans Loom' : n ? n + ' modèle' + (n > 1 ? 's' : '') + ' dans le sélecteur' : 'Ouvre pour connecter ton compte'}</div>
   </button>`;
 }
 
 export function HarnessesPage({ route }) {
   const ws = useStore(app, s => s.workspace);
-  const runtimes = ((ws && ws.runtimes) || []).filter(r => r.kind === 'harness');
+  const all = ((ws && ws.runtimes) || []).filter(r => r.kind === 'harness');
+  // La carte d'attente « Hermes » disparaît dès qu'un Hermes est branché.
+  const runtimes = all.filter(r => !(r.id === 'hermes' && !(r.capabilities || []).length && all.some(x => x.id !== r.id && /(^|-)hermes$/.test(x.id))));
   const models = (ws && ws.models) || [];
   const [selected, setSelected] = useState(null);
   const [dlg, setDlg] = useState(null);
@@ -399,9 +399,11 @@ export function HarnessesPage({ route }) {
       <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
         : html`<${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} />`}</div>`
     : html`<div class="page-head"><div><h1>Harnesses</h1><p>Des agents qui gardent leurs outils, leur compte et leurs permissions. Loom leur passe la discussion.</p></div>
-        <div class="acts"><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />Ajouter un harness</button></div></div>
-      ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`<div class="hx-grid stagger">${[...runtimes].sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} />`)}</div>`}`}
-    ${dlg && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}
+        <div class="acts"><button class="btn" onClick=${() => setDlg({ machine: true })}><${Icon} n="server" />Connecter une machine</button><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />Ajouter un harness</button></div></div>
+      ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`<div class="hx-grid stagger">${[...runtimes].sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} />`)}</div>`}
+      <${MachinesSection} onEdit=${m => setDlg({ machine: m })} />`}
+    ${dlg && dlg.machine && html`<${MachineDialog} machine=${dlg.machine === true ? null : dlg.machine} onClose=${m => { setDlg(null); if (m) MachinesSection.reload && MachinesSection.reload(); }} />`}
+    ${dlg && !dlg.machine && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}
     ${selectedRuntime && html`<${Drawer} title=${selectedModel?.name || selectedRuntime.name} onClose=${() => setSelected(null)}><${SelectionInfo} model=${selectedModel} runtime=${selectedRuntime} models=${models} /></${Drawer}>`}
   </div></div>`;
 }

@@ -23,7 +23,7 @@ export function currentExec() {
   if (c.mode === 'thread' && s) {
     const kind = runtimeKind(s.runtime_id);
     // Un harness ACP démarre sur le modèle par défaut de son compte : on affiche le harness.
-    const model = baseName(s.model).replace(/-(low|medium|high|xhigh)$/, '');
+    const model = baseName(s.model).replace(/-(low|medium|high|xhigh)$/, '').replace(/^[\w.-]+:(?=.)/, '');
     return model && model !== 'default' ? { kind, name: model, sub: s.provider_name } : { kind, name: s.provider_name || s.runtime_id, sub: 'modèle par défaut' };
   }
   const st = app.get().status;
@@ -44,7 +44,7 @@ function grouped(rows) {
   return [...groups].map(([name, items]) => {
     const vendors = new Map();
     for (const r of items) { const v = vendorOf(r.vendorKey); if (!vendors.has(v)) vendors.set(v, []); vendors.get(v).push(r); }
-    return { name, cli: items[0].cli, subs: vendors.size > 1 || (items[0].cli && vendors.size === 1 && !vendors.has('Autres')) ? [...vendors].sort((a, b) => a[0].localeCompare(b[0])) : [['', items]] };
+    return { name, logo: items[0].logo, cli: items[0].cli, subs: vendors.size > 1 || (items[0].cli && vendors.size === 1 && !vendors.has('Autres')) ? [...vendors].sort((a, b) => a[0].localeCompare(b[0])) : [['', items]] };
   });
 }
 
@@ -90,7 +90,7 @@ export function Picker() {
       const m = g.variants.find(v => /-medium$/.test(v.model)) || g.variants[0];
       const rt = ((workspace && workspace.runtimes) || []).find(r => r.id === m.runtime_id) || {};
       const acp = (rt.capabilities || []).includes('workdir');
-      return { id: g.key, title: g.name, sub: g.variants.length > 1 ? 'réflexion réglable' : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: m.provider_name, cli: acp ? 'ACP' : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model), run: () => chooseRemote(m) };
+      return { id: g.key, title: g.name, sub: g.variants.length > 1 ? 'réflexion réglable' : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: rt.machine ? m.provider_name + ' · sur ' + rt.machine : m.provider_name, logo: m.runtime_id, cli: acp ? 'ACP' : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model && chat.get().session.runtime_id === v.runtime_id), run: () => chooseRemote(m) };
     });
     return { local, cloud, harness };
   }, [status, workspace, models, presets, cur.kind, cur.name]);
@@ -115,7 +115,7 @@ export function Picker() {
         ${!shown.length ? html`<div class="pick-empty">${q ? 'Aucun résultat pour « ' + q + ' ».' : emptyText}</div>`
           : tab === 'local' ? shown.map(r => html`<${Row} key=${r.id} ...${r} onPick=${() => { close(); r.run(); }} />`)
           : grouped(shown).map(g => html`<div class="pick-g" key=${g.name}>
-              <div class="pick-group"><${Logo} name=${g.name} size="sm" /><span>${g.name}</span><span class="grow"></span>${g.cli && html`<small>${g.cli}</small>`}</div>
+              <div class="pick-group"><${Logo} name=${g.logo || g.name} size="sm" /><span>${g.name}</span><span class="grow"></span>${g.cli && html`<small>${g.cli}</small>`}</div>
               ${g.subs.map(([v, items]) => html`${v && html`<div class="pick-sub"><${Logo} name=${v} size="xs" />${v}</div>`}${items.map(r => html`<${Row} key=${r.id} ...${r} nested onPick=${() => { close(); r.run(); }} />`)}`)}
             </div>`)}
       </div>

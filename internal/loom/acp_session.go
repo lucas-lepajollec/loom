@@ -413,6 +413,38 @@ type acpSessionResponse struct {
 		Available []map[string]any `json:"availableModes"`
 	} `json:"modes"`
 	Config []map[string]any `json:"configOptions"`
+	// Older "session model" API (still used by Hermes and others): a model
+	// list outside configOptions, changed with session/set_model.
+	Models *struct {
+		Current   string `json:"currentModelId"`
+		Available []struct {
+			ID          string `json:"modelId"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		} `json:"availableModels"`
+	} `json:"models"`
+}
+
+// acpLegacyModelKey marks the model option Loom built from the older API.
+const acpLegacyModelKey = "loomLegacyModel"
+
+// options returns configOptions plus, when the agent only uses the older
+// model API, an equivalent "model" option so the rest of Loom sees one shape.
+func (r acpSessionResponse) options() []map[string]any {
+	out := r.Config
+	if r.Models == nil || len(r.Models.Available) == 0 || acpModelOption(out) != nil {
+		return out
+	}
+	values := []any{}
+	for _, m := range r.Models.Available {
+		name := m.Name
+		if name == "" {
+			name = m.ID
+		}
+		values = append(values, map[string]any{"value": m.ID, "name": name, "description": m.Description})
+	}
+	return append(append([]map[string]any{}, out...), map[string]any{"id": "model", "name": "Model", "category": "model", "type": "select",
+		"currentValue": r.Models.Current, "options": values, acpLegacyModelKey: true})
 }
 
 func (p *acpBinding) applySessionResponse(r acpSessionResponse) {
@@ -420,11 +452,15 @@ func (p *acpBinding) applySessionResponse(r acpSessionResponse) {
 		p.state.Mode = r.Modes.Current
 		p.state.AvailableModes = r.Modes.Available
 	}
-	if r.Config != nil {
-		p.applyConfig(r.Config)
+	if options := r.options(); options != nil {
+		p.applyConfig(options)
 	}
 }
 func (p *acpBinding) applyConfig(options []map[string]any) {
+	// An update of configOptions keeps the model option built from the older API.
+	if legacy := acpModelOption(p.state.AvailableConfigOptions); legacy != nil && legacy[acpLegacyModelKey] == true && acpModelOption(options) == nil {
+		options = append(append([]map[string]any{}, options...), legacy)
+	}
 	p.state.AvailableConfigOptions = options
 	p.state.ConfigOptions = map[string]any{}
 	for _, option := range options {
@@ -455,15 +491,36 @@ func (p *acpBinding) configure(ctx context.Context, mode string, config map[stri
 		p.mu.Unlock()
 	}
 	for id, value := range config {
-		found := false
+		var found map[string]any
 		for _, option := range state.AvailableConfigOptions {
 			if option["id"] == id && acpConfigValueAllowed(option, value) {
-				found = true
+				found = option
 				break
 			}
 		}
-		if !found {
+		if found == nil {
 			return errors.New("option ou valeur non annoncée par l’agent")
+		}
+		if found[acpLegacyModelKey] == true {
+			if err := p.client.call(ctx, "session/set_model", map[string]any{"sessionId": sid, "modelId": value}, nil); err != nil {
+				return err
+			}
+			p.mu.Lock()
+			options := []map[string]any{}
+			for _, option := range p.state.AvailableConfigOptions {
+				if option["id"] == id {
+					copied := map[string]any{}
+					for k, v := range option {
+						copied[k] = v
+					}
+					copied["currentValue"] = value
+					option = copied
+				}
+				options = append(options, option)
+			}
+			p.applyConfig(options)
+			p.mu.Unlock()
+			continue
 		}
 		params := map[string]any{"sessionId": sid, "configId": id, "value": value}
 		if _, ok := value.(bool); ok {

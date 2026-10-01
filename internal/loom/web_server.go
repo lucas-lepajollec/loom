@@ -164,6 +164,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/skills/targets", handleSkillSinks) // distribution des skills aux harnesses
 	api("/api/harness/custom", handleCustomACP)
 	api("/api/harness/custom/delete", handleCustomACPDelete)
+	api("/api/machines", handleRemoteMachines)
+	api("/api/machines/delete", handleRemoteMachineDelete)
 	api("/api/status", handleStatus)
 	api("/api/service/log", handleServiceLog) // journal du service pour diagnostiquer un modèle qui ne charge pas
 	api("/api/vram", handleVram)

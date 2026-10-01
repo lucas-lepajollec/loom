@@ -351,6 +351,9 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 			check := acpDirectory
 			if acp.agent.Remote {
 				check = remoteWorkdir
+				if s.Workdir == "" && acp.agent.RemoteHome != "" {
+					s.Workdir = acp.agent.RemoteHome
+				}
 			}
 			if _, err := check(s.Workdir); err != nil {
 				return err
