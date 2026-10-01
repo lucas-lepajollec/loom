@@ -176,7 +176,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/projects/info", handleProjectInfo)
 	api("/api/capabilities/save", handleCapabilitySave)
 	api("/api/capabilities/delete", handleCapabilityDelete)
-	api("/api/skills/targets", handleSkillSinks) // distribution des skills aux harnesses
+	api("/api/skills/targets", handleSkillSinks)
+	api("/api/skills/sources", handleSkillSources) // distribution des skills aux harnesses
 	api("/api/harness/custom", handleCustomACP)
 	api("/api/harness/custom/delete", handleCustomACPDelete)
 	api("/api/machines", handleRemoteMachines)

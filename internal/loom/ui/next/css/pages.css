@@ -450,3 +450,4 @@
 .mh-row{display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid var(--line)}
 .mh-row .grow{font-size:13px}
 .mh-row .muted{font-size:12px}
+.row.sugg{background:var(--bg-2)}

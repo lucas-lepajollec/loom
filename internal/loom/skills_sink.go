@@ -1,11 +1,11 @@
 package loom
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
+
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -59,31 +59,10 @@ func saveSkillSinks(list []skillSinkTarget) error {
 	return putStoreJSON(bkState, skillSinkState, m)
 }
 
-var skillSlugRe = regexp.MustCompile(`[^a-z0-9]+`)
-
-func skillSlug(c Capability) string {
-	s := strings.Trim(skillSlugRe.ReplaceAllString(strings.ToLower(c.Name), "-"), "-")
-	if s == "" {
-		s = strings.Trim(skillSlugRe.ReplaceAllString(strings.ToLower(c.ID), "-"), "-")
-	}
-	if len(s) > 48 {
-		s = strings.Trim(s[:48], "-")
-	}
-	return "loom-" + s
-}
-
-// SKILL.md with the Agent Skills front matter (name, description).
-func skillMarkdown(c Capability, slug string) string {
-	desc := strings.Join(strings.Fields(c.Description), " ")
-	if desc == "" {
-		desc = "Skill Loom : " + c.Name
-	}
-	return fmt.Sprintf("---\nname: %s\ndescription: %q\n---\n\n<!-- Écrit par Loom. Modifier la skill dans Loom › Ressources. -->\n\n# %s\n\n%s\n", slug, desc, c.Name, strings.TrimSpace(c.Instructions))
-}
-
-// syncSkillSinks makes every enabled target contain exactly Loom's skills and
-// removes from disabled targets the folders Loom wrote. Errors are reported per
-// target and never touch folders outside the manifest.
+// syncSkillSinks makes every enabled target contain Loom's bound skills, as
+// links to their folders (a marked copy on Windows), and removes what Loom put
+// there before and no longer distributes. Loom never touches a folder it did
+// not create: legacy generated loom-* folders, its links, its marked copies.
 func syncSkillSinks() []skillSinkTarget {
 	skillSinkMu.Lock()
 	defer skillSinkMu.Unlock()
@@ -92,18 +71,32 @@ func syncSkillSinks() []skillSinkTarget {
 	bindings := skillBindings()
 	for i := range list {
 		t := &list[i]
+		t.Error = ""
 		want := map[string]Capability{}
 		if t.Enabled {
 			for _, c := range skills {
-				if skillBound(bindings, c.ID, t.ID) {
-					want[skillSlug(c)] = c
+				// A skill already living in this folder (linked source) is not re-added.
+				if !skillBound(bindings, c.ID, t.ID) || c.Dir == "" || filepath.Dir(c.Dir) == filepath.Clean(t.Dir) {
+					continue
+				}
+				name := filepath.Base(c.Dir)
+				if _, dup := want[name]; !dup {
+					want[name] = c
 				}
 			}
 		}
+		owned := func(name string) bool {
+			p := filepath.Join(t.Dir, name)
+			return strings.HasPrefix(name, "loom-") || isLoomSkillLink(p) || isLinkInto(p, skills)
+		}
 		kept := []string{}
 		for _, name := range t.Written {
-			if _, still := want[name]; still || !strings.HasPrefix(name, "loom-") {
+			if c, still := want[name]; still && skillSinkCurrent(filepath.Join(t.Dir, name), c.Dir) {
+				kept = append(kept, name)
 				continue
+			}
+			if !owned(name) {
+				continue // replaced by the user: not ours anymore
 			}
 			if err := os.RemoveAll(filepath.Join(t.Dir, name)); err != nil {
 				t.Error = err.Error()
@@ -116,12 +109,19 @@ func syncSkillSinks() []skillSinkTarget {
 		}
 		sort.Strings(names)
 		for _, name := range names {
-			dir := filepath.Join(t.Dir, name)
-			if err := os.MkdirAll(dir, 0o755); err != nil {
+			if hasName(kept, name) {
+				continue
+			}
+			dest := filepath.Join(t.Dir, name)
+			if _, err := os.Lstat(dest); err == nil {
+				t.Error = "un dossier « " + name + " » existe déjà dans " + home(t.Dir) + " : Loom ne le remplace pas"
+				continue
+			}
+			if err := os.MkdirAll(t.Dir, 0o755); err != nil {
 				t.Error = err.Error()
 				continue
 			}
-			if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skillMarkdown(want[name], name)), 0o644); err != nil {
+			if err := placeSkill(want[name].Dir, dest); err != nil {
 				t.Error = err.Error()
 				continue
 			}
@@ -131,6 +131,74 @@ func syncSkillSinks() []skillSinkTarget {
 	}
 	_ = saveSkillSinks(list)
 	return list
+}
+
+func hasName(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// isLinkInto: a link pointing at one of the known skills' folders.
+func isLinkInto(p string, skills []Capability) bool {
+	target, err := os.Readlink(p)
+	if err != nil {
+		return false
+	}
+	for _, c := range skills {
+		if filepath.Clean(target) == filepath.Clean(c.Dir) {
+			return true
+		}
+	}
+	return false
+}
+
+// skillSinkCurrent: the placed link still points at the skill (copies are
+// refreshed on every sync).
+func skillSinkCurrent(dest, src string) bool {
+	if target, err := os.Readlink(dest); err == nil {
+		return filepath.Clean(target) == filepath.Clean(src)
+	}
+	return false
+}
+
+// placeSkill links dest to the skill folder; where links are unavailable
+// (Windows without developer mode) it copies the folder with a marker.
+func placeSkill(src, dest string) error {
+	if runtime.GOOS != "windows" {
+		if err := os.Symlink(src, dest); err == nil {
+			return nil
+		}
+	}
+	if err := copySkillDir(src, dest); err != nil {
+		_ = os.RemoveAll(dest)
+		return err
+	}
+	return os.WriteFile(filepath.Join(dest, ".loom-copy"), []byte("Copie gérée par Loom, remplacée à chaque synchronisation.\n"), 0o644)
+}
+
+func copySkillDir(src, dest string) error {
+	return filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		out := filepath.Join(dest, rel)
+		if d.IsDir() {
+			return os.MkdirAll(out, 0o755)
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(out, b, 0o644)
+	})
 }
 
 // GET: targets with state. POST {id, enabled}: toggle one target and sync.

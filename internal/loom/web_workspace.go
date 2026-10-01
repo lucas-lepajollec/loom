@@ -94,13 +94,8 @@ func handleCapabilityDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	workspaceMu.Lock()
 	defer workspaceMu.Unlock()
-	var c Capability
-	if !getStoreJSON(bkCapabilities, req.ID, &c) {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "capacité introuvable"})
-		return
-	}
-	if err := putBytes(bkCapabilities, req.ID, nil); err != nil {
-		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+	if err := deleteCapability(req.ID); err != nil {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 	go syncSkillSinks()

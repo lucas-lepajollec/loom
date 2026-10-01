@@ -51,10 +51,10 @@ func TestSkillTargetBindingExcludesOneFolder(t *testing.T) {
 	_ = saveSkillSinks(list)
 	_ = putStoreJSON(bkState, skillBindingsState, map[string]map[string]bool{c.ID: {"claude": false}})
 	syncSkillSinks()
-	if _, err := os.Stat(filepath.Join(home, ".claude", "skills", "loom-revue")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(home, ".claude", "skills", "revue")); !os.IsNotExist(err) {
 		t.Fatal("excluded skill written for Claude Code")
 	}
-	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "loom-revue", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "revue", "SKILL.md")); err != nil {
 		t.Fatal("skill missing in the other folder")
 	}
 }

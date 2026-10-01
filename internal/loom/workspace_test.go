@@ -60,7 +60,7 @@ func TestWorkspaceContextIsExplicitAndDoesNotAlterHistory(t *testing.T) {
 		t.Fatalf("unknown project = %q", got)
 	}
 	// A deleted skill must not remain in the next turn's prompt.
-	if err := putBytes(bkCapabilities, selected.ID, nil); err != nil {
+	if err := deleteCapability(selected.ID); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(projectContext(p.ID), selected.Instructions) {

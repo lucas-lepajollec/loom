@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,23 +17,22 @@ var workspaceMu sync.Mutex
 
 // Capability is user-authored instruction content, not a permission grant or
 // executable tool. Selection is explicit per project, with no default injection.
+// Skills live in folders (skill_library.go): Loom's own, and linked ones.
 type Capability struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
+	Source       string `json:"source,omitempty"`       // "loom" or a linked folder id
+	SourceLabel  string `json:"source_label,omitempty"` // for display
+	Dir          string `json:"dir,omitempty"`          // the skill's folder
+	Files        int    `json:"files,omitempty"`        // other files next to SKILL.md
+	ReadOnly     bool   `json:"read_only,omitempty"`    // from a linked folder
 }
 
 func listCapabilities() []Capability {
-	out := []Capability{}
-	for id := range allKV(bkCapabilities) {
-		var c Capability
-		if getStoreJSON(bkCapabilities, id, &c) && c.ID != "" {
-			out = append(out, c)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
+	migrateSkillsToFolders()
+	return scanSkills()
 }
 
 func saveCapability(c Capability) (Capability, error) {
@@ -46,15 +44,38 @@ func saveCapability(c Capability) (Capability, error) {
 	if c.Name == "" || len(c.Name) > 160 || len(c.Description) > 500 || c.Instructions == "" || len(c.Instructions) > maxCapabilityInstructions {
 		return c, fmt.Errorf("nom et instructions requis (nom : 160 octets, description : 500, instructions : 8000 maximum)")
 	}
-	if c.ID == "" {
-		c.ID = newSessionID()
-	} else {
-		var old Capability
-		if !getStoreJSON(bkCapabilities, c.ID, &old) {
-			return c, fmt.Errorf("capacité introuvable")
+	dir := ""
+	if c.ID != "" {
+		old, ok := getCapability(c.ID)
+		if !ok {
+			return c, fmt.Errorf("skill introuvable")
 		}
+		if old.ReadOnly {
+			return c, errReadOnlySkill
+		}
+		dir = old.Dir
 	}
-	return c, putStoreJSON(bkCapabilities, c.ID, c)
+	dir, err := writeLoomSkill(c, dir)
+	if err != nil {
+		return c, err
+	}
+	saved, ok := readSkillDir(skillSources()[0], dir)
+	if !ok {
+		return c, fmt.Errorf("skill illisible après écriture")
+	}
+	return saved, nil
+}
+
+// deleteCapability removes a skill of Loom's folder (linked ones are not Loom's).
+func deleteCapability(id string) error {
+	c, ok := getCapability(id)
+	if !ok {
+		return fmt.Errorf("skill introuvable")
+	}
+	if c.ReadOnly {
+		return errReadOnlySkill
+	}
+	return os.RemoveAll(c.Dir)
 }
 
 func saveProjectContext(p ChatProject) (ChatProject, error) {
@@ -103,9 +124,8 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 	ids := []string{}
 	seen := map[string]bool{}
 	for _, id := range p.CapabilityIDs {
-		var c Capability
-		if !getStoreJSON(bkCapabilities, id, &c) {
-			return p, fmt.Errorf("capacité introuvable : actualise la liste")
+		if _, ok := getCapability(id); !ok {
+			return p, fmt.Errorf("skill introuvable : actualise la liste")
 		}
 		if !seen[id] {
 			ids = append(ids, id)
@@ -130,8 +150,7 @@ func projectContext(id string) string {
 		parts = append(parts, "Project instructions:\n"+p.Instructions)
 	}
 	for _, id := range p.CapabilityIDs {
-		var c Capability
-		if getStoreJSON(bkCapabilities, id, &c) && c.Instructions != "" {
+		if c, ok := getCapability(id); ok && c.Instructions != "" {
 			parts = append(parts, "Skill: "+c.Name+"\n"+c.Instructions)
 		}
 	}

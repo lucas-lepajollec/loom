@@ -63,8 +63,7 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 				c.Warning = warning
 			}
 			for _, id := range p.CapabilityIDs {
-				var skill Capability
-				if getStoreJSON(bkCapabilities, id, &skill) && skill.Instructions != "" {
+				if skill, ok := getCapability(id); ok && skill.Instructions != "" {
 					c.Skills = append(c.Skills, skill)
 					parts = append(parts, "Skill: "+skill.Name+"\n"+skill.Instructions)
 				} else {

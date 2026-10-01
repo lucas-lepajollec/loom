@@ -8,21 +8,59 @@ import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace } from '../../core/state.js';
 import { Memory } from './memory.js';
+import { FolderPicker } from '../../ui/folder.js';
 
+const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
+
+// Une skill est un dossier (SKILL.md + fichiers). Celles du dossier de Loom se
+// modifient ici ; celles d'un dossier lié se lisent, et peuvent être copiées.
 function SkillEditor({ skill, onClose }) {
+  const ro = !!(skill && skill.read_only);
   const [name, setName] = useState(skill ? skill.name : '');
   const [desc, setDesc] = useState(skill ? skill.description : '');
   const [instr, setInstr] = useState(skill ? skill.instructions : '');
-  const save = async () => {
-    const r = await post('/api/capabilities/save', { id: skill ? skill.id : '', name, description: desc, instructions: instr });
-    if (!r.ok) return toast(r.error, 'err'); toast('Skill enregistré'); refreshWorkspace(); onClose();
+  const save = async copy => {
+    const r = await post('/api/capabilities/save', { id: skill && !copy ? skill.id : '', name, description: desc, instructions: instr });
+    if (!r.ok) return toast(r.error, 'err'); toast(copy ? 'Copiée dans Loom' : 'Skill enregistrée'); refreshWorkspace(); onClose();
   };
-  return html`<${Modal} wide title=${skill ? 'Modifier le skill' : 'Nouveau skill'} sub="Des instructions réutilisables, ajoutées aux discussions des projets qui les choisissent." onClose=${onClose}
-      foot=${html`<button class="btn ghost" onClick=${onClose}>Annuler</button><button class="btn primary" disabled=${!name.trim() || !instr.trim()} onClick=${save}>Enregistrer</button>`}>
-    <label class="field"><span>Nom</span><input class="input" value=${name} onInput=${e => setName(e.target.value)} placeholder="ex. Revue de code" maxlength="160" /></label>
-    <label class="field"><span>Quand l’utiliser</span><input class="input" value=${desc} onInput=${e => setDesc(e.target.value)} placeholder="ex. Relire une modification avant de la publier" maxlength="500" /></label>
-    <label class="field"><span>Instructions</span><textarea class="textarea" rows="10" value=${instr} onInput=${e => setInstr(e.target.value)} maxlength="8000"></textarea></label>
+  return html`<${Modal} wide title=${!skill ? 'Nouvelle skill' : ro ? skill.name : 'Modifier la skill'} sub=${skill && skill.dir ? html`<span class="mono">${home(skill.dir)}/SKILL.md</span>${skill.files ? ' · ' + skill.files + ' autre' + (skill.files > 1 ? 's' : '') + ' fichier' + (skill.files > 1 ? 's' : '') : ''}` : 'Une méthode réutilisable, enregistrée comme dossier dans les skills de Loom.'} onClose=${onClose}
+      foot=${ro ? html`<span class="muted grow">Dossier lié (${skill.source_label}) : modifie-la dans ce dossier.</span><button class="btn ghost" onClick=${onClose}>Fermer</button><button class="btn" onClick=${() => save(true)}>Copier dans Loom</button>`
+        : html`<button class="btn ghost" onClick=${onClose}>Annuler</button><button class="btn primary" disabled=${!name.trim() || !instr.trim()} onClick=${() => save(false)}>Enregistrer</button>`}>
+    <label class="field"><span>Nom</span><input class="input" value=${name} readonly=${ro} onInput=${e => setName(e.target.value)} placeholder="ex. Revue de code" maxlength="160" /></label>
+    <label class="field"><span>Quand l’utiliser</span><input class="input" value=${desc} readonly=${ro} onInput=${e => setDesc(e.target.value)} placeholder="ex. Relire une modification avant de la publier" maxlength="500" /></label>
+    <label class="field"><span>Instructions</span><textarea class="textarea" rows="12" value=${instr} readonly=${ro} onInput=${e => setInstr(e.target.value)} maxlength="8000"></textarea></label>
   </${Modal}>`;
+}
+
+// Dossiers de skills : celui de Loom, et les dossiers liés (lecture seule).
+function SkillSources({ onChange }) {
+  const [data, setData] = useState(null);
+  const [pick, setPick] = useState(false);
+  const load = () => get('/api/skills/sources').then(setData).catch(() => setData(null));
+  useEffect(() => { load(); }, []);
+  const link = async (path, label) => {
+    const r = await post('/api/skills/sources', { path, label: label || '' });
+    if (!r.ok) return toast(r.error || 'Impossible', 'err');
+    toast('Dossier lié'); load(); refreshWorkspace(); onChange && onChange();
+  };
+  const unlink = async s => {
+    if (!await confirm('Ne plus lier ce dossier', 'Ses skills disparaissent de Loom (et des harnesses où Loom les avait mises). Le dossier n’est pas modifié.', { ok: 'Délier' })) return;
+    await post('/api/skills/sources', { unlink: s.id }); load(); refreshWorkspace(); onChange && onChange();
+  };
+  if (!data) return null;
+  return html`<section class="sec"><div class="sec-h"><h2>Dossiers de skills<${Tip} text="Chaque skill est un dossier au format Agent Skills (SKILL.md et ses fichiers), lisible par Claude Code, Codex, Pi… Tu peux les modifier avec ton éditeur ou les versionner avec Git. Les dossiers liés sont lus sans être modifiés." /></h2>
+      <button class="btn sm ghost" onClick=${() => setPick(true)}><${Icon} n="link" />Lier un dossier</button></div>
+    <div class="card rows">${data.sources.map(s => html`<div class="row" key=${s.id}>
+      <span class="mx-ico"><${Icon} n=${s.builtin ? 'sparkle' : 'link'} /></span>
+      <div class="grow"><div class="t">${s.builtin ? 'Skills de Loom' : s.label}</div><div class="s mono">${home(s.path)}</div></div>
+      ${s.error ? html`<span class="tag red">${s.error}</span>` : html`<span class="muted">${s.count} skill${s.count > 1 ? 's' : ''}${s.builtin ? '' : ' · lecture seule'}</span>`}
+      ${!s.builtin && html`<button class="btn sm ghost" onClick=${() => unlink(s)}>Délier</button>`}</div>`)}
+      ${(data.suggested || []).map(g => html`<div class="row sugg" key=${g.path}>
+        <span class="mx-ico"><${Icon} n="folder" /></span>
+        <div class="grow"><div class="t">${g.label}</div><div class="s mono">${home(g.path)}</div></div>
+        <span class="muted">trouvé sur cette machine</span><button class="btn sm" onClick=${() => link(g.path, g.label)}>Lier</button></div>`)}</div>
+    ${pick && html`<${FolderPicker} start="" onClose=${() => setPick(false)} onPick=${d => { setPick(false); link(d); }} />`}
+  </section>`;
 }
 
 const toLines = o => Object.entries(o || {}).map(([k, v]) => k + '=' + v).join('\n');
@@ -58,17 +96,17 @@ function Distribution({ count }) {
   const [targets, setTargets] = useState(null);
   useEffect(() => { get('/api/skills/targets').then(r => setTargets(r.targets || [])).catch(() => setTargets([])); }, [count]);
   const toggle = async (t, on) => {
-    if (on && !await confirm('Distribuer à ' + t.name, 'Loom écrira ses skills dans ' + t.dir + ' (dossiers loom-… uniquement) et les tiendra à jour. Les désactiver les retire.', { ok: 'Distribuer' })) return;
+    if (on && !await confirm('Distribuer à ' + t.name, 'Loom placera dans ' + t.dir + ' un lien vers chaque skill (pas de copie : une seule version, la tienne). Il ne touche jamais aux dossiers qu’il n’a pas créés ; désactiver retire ses liens.', { ok: 'Distribuer' })) return;
     const r = await post('/api/skills/targets', { id: t.id, enabled: on });
     if (!r.ok) return toast(r.error || 'Impossible', 'err');
     setTargets(r.targets || []);
   };
   if (!targets || !targets.length) return null;
-  return html`<section class="sec"><div class="sec-h"><h2>Distribution aux harnesses<${Tip} text="Les harnesses lisent leurs skills dans un dossier à eux. Loom y écrit une copie de ses skills, préfixée loom-, sans toucher aux autres." /></h2></div>
+  return html`<section class="sec"><div class="sec-h"><h2>Distribution aux harnesses<${Tip} text="Les harnesses lisent leurs skills dans un dossier à eux. Loom y place un lien vers chaque skill choisie (une copie sous Windows), sans toucher aux autres dossiers." /></h2></div>
     <div class="card rows">${targets.map(t => html`<div class="row" key=${t.id}>
       <span class="dist-logos">${t.harnesses.map(h => html`<${Logo} name=${h} size="sm" />`)}</span>
       <div class="grow"><div class="t">${t.name}</div><div class="s mono">${t.dir.replace(/^\/home\/[^/]+/, '~')}</div></div>
-      ${t.error ? html`<span class="tag red">${t.error}</span>` : t.enabled ? html`<span class="state"><i class="dot green"></i>${t.written.length} skill${t.written.length > 1 ? 's' : ''}</span>` : ''}
+      ${t.error ? html`<span class="tag amber" title=${t.error}>attention</span>` : ''}${t.enabled ? html`<span class="state"><i class="dot green"></i>${t.written.length} skill${t.written.length > 1 ? 's' : ''}</span>` : ''}
       <${Switch} checked=${t.enabled} label=${'Distribuer à ' + t.name} onChange=${on => toggle(t, on)} /></div>`)}</div></section>`;
 }
 
@@ -76,17 +114,18 @@ function Skills() {
   const ws = useStore(app, s => s.workspace);
   const [dlg, setDlg] = useState(null);
   const skills = (ws && ws.capabilities) || [], projects = (ws && ws.projects) || [];
-  const del = async s => { if (!await confirm('Supprimer le skill', '« ' + s.name + ' » ne sera plus ajouté aux discussions des projets.', { ok: 'Supprimer', danger: true })) return; const r = await post('/api/capabilities/delete', { id: s.id }); if (!r.ok) toast(r.error, 'err'); refreshWorkspace(); };
+  const del = async s => { if (!await confirm('Supprimer la skill', 'Son dossier (' + home(s.dir) + ') est supprimé ; « ' + s.name + ' » ne sera plus ajoutée aux projets ni aux harnesses.', { ok: 'Supprimer', danger: true })) return; const r = await post('/api/capabilities/delete', { id: s.id }); if (!r.ok) toast(r.error, 'err'); refreshWorkspace(); };
   return html`<div>
-    <div class="toolbar"><span class="grow muted" style="font-size:13.5px">Un skill est une méthode réutilisable. Choisis-le dans un projet pour l’ajouter à ses discussions.</span>
-      <button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />Nouveau skill</button></div>
+    <div class="toolbar"><span class="grow muted" style="font-size:13.5px">Une skill est une méthode réutilisable, rangée dans un dossier. Choisis-la dans un projet, ou distribue-la aux harnesses.</span>
+      <button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />Nouvelle skill</button></div>
     ${skills.length ? html`<div class="grid3 stagger" style="margin-top:14px">${skills.map(s => { const used = projects.filter(p => (p.capability_ids || []).includes(s.id)).length;
-      return html`<div class="card skill"><div class="skill-h"><span class="skill-ico"><${Icon} n="sparkle" /></span><b>${s.name}</b></div>
+      return html`<div class="card skill"><div class="skill-h"><span class="skill-ico"><${Icon} n=${s.read_only ? 'link' : 'sparkle'} /></span><b>${s.name}</b>${s.read_only && html`<span class="tag" title=${home(s.dir)}>${s.source_label}</span>`}</div>
         <p>${s.description || 'Instructions réutilisables.'}</p>
         <div class="skill-f"><span class="muted">${used ? used + ' projet' + (used > 1 ? 's' : '') : 'aucun projet'}</span><span class="grow"></span>
-          <button class="btn sm ghost" onClick=${() => setDlg({ skill: s })}>Modifier</button><button class="icon-btn" aria-label="Supprimer" onClick=${() => del(s)}><${Icon} n="trash" /></button></div></div>`; })}</div>`
+          <button class="btn sm ghost" onClick=${() => setDlg({ skill: s })}>${s.read_only ? 'Voir' : 'Modifier'}</button>${!s.read_only && html`<button class="icon-btn" aria-label="Supprimer" onClick=${() => del(s)}><${Icon} n="trash" /></button>`}</div></div>`; })}</div>`
       : html`<div class="card" style="margin-top:14px"><${Empty} icon="sparkle" title="Aucun skill" text="Une méthode de revue, un style d’écriture, une convention de code : écris-la une fois et réutilise-la dans tes projets.">
         <button class="btn primary" onClick=${() => setDlg({})}>Créer un skill</button></${Empty}></div>`}
+    <${SkillSources} />
     <${Distribution} count=${skills.length} />
     ${dlg && html`<${SkillEditor} skill=${dlg.skill} onClose=${() => setDlg(null)} />`}
   </div>`;
