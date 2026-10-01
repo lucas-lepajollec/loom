@@ -395,3 +395,7 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .slash-head b{font:500 12.5px var(--mono);color:var(--text)}
 .slash-head span{font-size:12px;color:var(--text-3);margin-left:auto}
 .slash-row.sub b{font:500 13px var(--font);max-width:60%;overflow:hidden;text-overflow:ellipsis}
+.hs-sess{font:12.5px var(--font)}
+.hs-sess .tc-n{color:var(--text-3);flex:none}
+.hs-sess:disabled{opacity:.6}
+.hs-more{margin-top:6px;align-self:flex-start}

@@ -61,19 +61,23 @@ export function slashEntries({ commands, session, harness, rtId }) {
     }
   }
   if (modes.length > 1) add('mode', 'Mode de l’agent', { children: modes.map(m => ({ label: m.name || m.id, description: m.description, current: m.id === harness.mode, run: { kind: 'mode', id: m.id } })) });
-  // Sessions : celles de Loom avec ce harness et celles du harness lui-même.
-  const sessions = { description: 'Ouvrir une autre discussion avec ce harness', load: async () => {
-    const loom = ((app.get().nav && app.get().nav.conversations) || []).filter(c => c.runtime_id === rtId && c.id !== session.id)
-      .map(c => ({ label: c.title || 'Discussion', description: 'dans Loom', run: { kind: 'open', id: c.id } }));
-    const r = await get('/api/runtimes/' + rtId + '/sessions').catch(() => null);
-    const native = (r && r.ok ? r.sessions : []).filter(x => !x.imported || !loom.some(l => l.run.id === x.imported))
-      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-      .map(x => ({ label: x.title || 'Session sans titre', description: x.imported ? 'dans Loom' : 'dans le harness · ' + x.cwd.replace(/^\/home\/[^/]+/, '~'), run: x.imported ? { kind: 'open', id: x.imported } : { kind: 'import', x } }));
-    return [...loom, ...native];
-  } };
+  const sessions = { description: 'Ouvrir une autre discussion avec ce harness', load: () => agentSessions(rtId, session.id) };
   for (const n of ['sessions', 'resume']) if (byName(n)) add(n, '', sessions);
   if (!byName('sessions') && !byName('resume')) add('sessions', sessions.description, sessions);
   return entries;
+}
+
+// Autres discussions avec ce harness, les plus récentes d'abord : celles de
+// Loom et celles faites directement dans le harness (importées à l'ouverture).
+export async function agentSessions(rtId, currentId) {
+  const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
+  const mine = ((app.get().nav && app.get().nav.conversations) || []).filter(c => c.runtime_id === rtId && c.id !== currentId);
+  const loom = mine.map(c => ({ label: c.title || 'Discussion', description: 'dans Loom', at: c.updated_at || 0, where: 'loom', run: { kind: 'open', id: c.id } }));
+  const r = await get('/api/runtimes/' + rtId + '/sessions').catch(() => null);
+  const native = (r && r.ok ? r.sessions : []).filter(x => x.imported !== currentId && !(x.imported && mine.some(c => c.id === x.imported)))
+    .map(x => ({ label: x.title || 'Session sans titre', description: 'dans le harness · ' + home(x.cwd), at: Date.parse(x.updatedAt || '') || 0, where: 'native',
+      run: x.imported ? { kind: 'open', id: x.imported } : { kind: 'import', x } }));
+  return [...loom, ...native].sort((a, b) => b.at - a.at);
 }
 
 // Exécute un choix du second niveau. Renvoie true si la commande est traitée

@@ -1,7 +1,7 @@
 // Panneau de droite : s'adapte à l'exécution choisie. Local = paramètres
 // llama.cpp ; Cloud = fournisseur, usage, coût ; Harness = session native.
 // Un second onglet montre le contexte partagé de la discussion.
-import { html, useState, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
+import { html, useState, useEffect, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Seg, Switch, Tip } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
@@ -11,6 +11,7 @@ import { get, post } from '../../core/api.js';
 import { app, refreshWorkspace } from '../../core/state.js';
 import { chat, open } from '../chat/engine.js';
 import { currentExec, EXEC_TAG } from '../chat/picker.js';
+import { agentSessions, runChoice } from '../chat/slash.js';
 import { LocalParams } from './params.js';
 import { ContextPanel } from './context.js';
 
@@ -128,9 +129,33 @@ function HarnessPanel() {
         : html`<p class="note">Aucune modification dans cette discussion.</p>`}</div>`}
     ${!canDir && html`<p class="note">Ce harness discute en texte : pas de dossier de travail ni d’outils pilotés par Loom.</p>`}
 
+    <${OtherSessions} s=${s} />
+
     ${pick && html`<${FolderPicker} start=${workdir} onClose=${() => setPick(false)} onPick=${async p => { setPick(false); await configure(s, { workdir: p }); }} />`}
     ${diff && html`<${Modal} wide title=${diff.path.split('/').pop()} sub=${diff.path} onClose=${() => setDiff(null)}><${UnifiedDiff} text=${diff.text} /></${Modal}>`}
   </div>`;
+}
+
+const ago = t => {
+  if (!t) return '';
+  const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? 'à l’instant' : m < 60 ? m + ' min' : m < 1440 ? Math.round(m / 60) + ' h' : m < 43200 ? Math.round(m / 1440) + ' j' : new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+};
+
+// Autres discussions avec ce harness : celles de Loom s'ouvrent, celles faites
+// dans le harness sont importées avec tout leur historique puis ouvertes.
+function OtherSessions({ s }) {
+  const [list, setList] = useState(null);
+  const [all, setAll] = useState(false);
+  const [busy, setBusy] = useState('');
+  useEffect(() => { setList(null); agentSessions(s.runtime_id, s.id).then(setList, () => setList([])); }, [s.runtime_id, s.id]);
+  const pick = async (x, i) => { setBusy(String(i)); await runChoice(x.run, { session: s, rtId: s.runtime_id }); setBusy(''); };
+  const shown = list ? (all ? list : list.slice(0, 6)) : [];
+  return html`<div class="hs-sec"><div class="hs-h">Autres discussions${list && html` <span class="count">${list.length}</span>`}<${Tip} text="Tes discussions avec ce harness, dans Loom et directement dans le harness. Celles du harness sont importées dans Loom avec tout leur historique quand tu les ouvres." /></div>
+    ${!list ? html`<p class="note">Chargement…</p>` : !list.length ? html`<p class="note">Aucune autre discussion avec ce harness.</p>`
+      : html`<div class="hs-files">${shown.map((x, i) => html`<button class="hs-file hs-sess" key=${i} disabled=${!!busy} onClick=${() => pick(x, i)} title=${x.label}>
+          <${Icon} n=${x.where === 'loom' ? 'chat' : 'download'} /><span class="trunc">${busy === String(i) ? 'Import…' : x.label}</span><span class="tc-n">${ago(x.at)}</span></button>`)}</div>
+        ${list.length > 6 && html`<button class="btn ghost sm hs-more" onClick=${() => setAll(!all)}>${all ? 'Réduire' : 'Tout afficher (' + list.length + ')'}</button>`}`}</div>`;
 }
 
 function UnifiedDiff({ text }) {
@@ -142,6 +167,9 @@ export function Inspector({ open, onClose }) {
   const mode = useStore(chat, c => c.mode);
   const hasCtx = useStore(chat, c => !!c.session);
   useStore(app, a => a.status && a.status.model);
+  // currentExec() dépend de la discussion et du registre des runtimes (chargé après).
+  useStore(chat, c => (c.mode || '') + ':' + ((c.session && c.session.runtime_id) || ''));
+  useStore(app, a => a.workspace && a.workspace.runtimes);
   const [tab, setTab] = useState('params');
   const exec = currentExec();
   const t = hasCtx ? tab : 'params';
