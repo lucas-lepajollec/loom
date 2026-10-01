@@ -225,7 +225,8 @@ branch inside the existing one.
 | Data | Owner | Store |
 | --- | --- | --- |
 | Discussions, turns, provenance, usage | Loom `discussion/` | bbolt |
-| Projects, skills, MCP definitions, providers (no keys) | Loom `resources/` | bbolt |
+| Projects, skills, providers (no keys) | Loom `resources/` | bbolt |
+| MCP definitions | Loom | `LOOM_HOME/mcp.json`; linked read-only sources/bindings in bbolt (see [MCP files](mcp-files.md)) |
 | Model configs, presets | Loom `engine/` | presets/*.env + bbolt |
 | Cloud provider API keys | server memory; optional OS keychain (`provider_keyring.go`) | absent from Loom provider records and browser storage |
 | Native sessions, approvals, private memory | each harness | upstream |

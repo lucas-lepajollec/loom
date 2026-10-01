@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
-	"strings"
 )
 
 // Resource bindings: which Loom MCP servers each harness receives, and which
@@ -176,28 +175,21 @@ func handleHarnessMCPAdopt(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	name := strings.Trim(mcpNameRe.ReplaceAllString(found.Name, "-"), "-")
-	if defs, _ := LoadMCPConfig(); defs != nil {
-		if _, exists := defs[name]; exists {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "un serveur MCP Loom porte déjà ce nom"})
-			return
+	name, missing, err := storeAdoptedMCP(found.Name, cfg)
+	if err != nil {
+		code := http.StatusBadRequest
+		if errors.Is(err, errMCPAdoptConflict) {
+			code = http.StatusConflict
 		}
-	}
-	if err := SetMCPServer(name, cfg); err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, code, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	missing := []string{}
-	for k := range cfg.Env {
-		missing = append(missing, k)
-	}
-	sort.Strings(missing)
 	sendJSON(w, 200, map[string]any{"ok": true, "name": name, "env_to_fill": missing})
 }
 
 func adoptedMCP(m HarnessMCP) (MCPServerConfig, error) {
 	if m.URL != "" {
-		return MCPServerConfig{URL: m.URL, Enabled: false}, nil
+		return adoptedMCPDefinition(MCPServerConfig{URL: m.URL}, false)
 	}
 	if m.Command == "" {
 		return MCPServerConfig{}, errors.New("définition incomplète : ce harness ne dit pas comment lancer ce serveur")
@@ -209,5 +201,5 @@ func adoptedMCP(m HarnessMCP) (MCPServerConfig, error) {
 		}
 	}
 	// Disabled until the user checks it: an adopted server is not trusted blindly.
-	return MCPServerConfig{Command: m.Command, Args: m.Args, Env: env, Enabled: false}, nil
+	return adoptedMCPDefinition(MCPServerConfig{Command: m.Command, Args: m.Args, Env: env}, false)
 }

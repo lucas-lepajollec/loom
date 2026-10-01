@@ -138,7 +138,7 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 ## Configuration and persistence
 
 - **Data directory**: Set `$LOOM_HOME` to choose the runtime data root. Otherwise Loom reads `/etc/default/loom` when present, then uses `$XDG_DATA_HOME/loom` or `~/.local/share/loom` on Unix; Windows uses `%ProgramData%\loom`, falling back to `%LOCALAPPDATA%\loom` or the temporary directory. Models may also live in explicitly configured external directories.
-- **Configuration**: Persisted in `$LOOM_HOME/loom.db` (bbolt), alongside chats and preferences. Change settings through the UI or `./bin/loom edit`; legacy `config.env` files may be imported during migration.
+- **Configuration**: Persisted in `$LOOM_HOME/loom.db` (bbolt), alongside chats and preferences. Change settings through the UI or `./bin/loom edit`; legacy `config.env` files may be imported during migration. MCP servers are stored separately in editable `$LOOM_HOME/mcp.json` (`mcpServers`, with per-server `enabled` and `disabledTools`), with atomic private-file writes, automatic reload and recovery from invalid edits. Existing Claude Code, Cursor, standard MCP and VS Code files can be linked read-only and explicitly adopted disabled; see [MCP files and API](docs/mcp-files.md).
 - **Development environment**: Loom loads `.env.local` and `.env` from its current working directory, filling unset environment variables. `.env.local` takes precedence over `.env`; exported variables take precedence over both. Keep runtime data in ignored `.project-local/` when developing in this repository.
 - **Model discovery**: Recursively indexes all `.gguf` files within declared model directories and the directory containing the `llama-server` binary.
 

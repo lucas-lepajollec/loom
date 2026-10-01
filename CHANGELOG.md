@@ -6,6 +6,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Editable `LOOM_HOME/mcp.json` MCP definitions with one-time database migration, retained recovery backup, atomic mode-0600 writes, preservation of unknown fields, editor reload and last-good recovery for invalid files. Authenticated MCP file/source APIs link Claude Code, Cursor, standard MCP and VS Code configurations read-only, suggest existing paths and adopt servers disabled with explicit opt-in for environment values. Existing MCP endpoints remain available.
+
 - Data-driven harness install/check/update API for local and saved SSH targets, Windows npm execution without a local shell, refreshed machine offers/ACP probes, exclusive actions with bounded logs, and opt-in six-hour idle auto-updates with persisted results. Native Windows SSH probes and commands are supported; CGO-free macOS builds retain CLI/web access without the menu-bar icon; Pi's requested npm package remains marked unverified and Antigravity updates remain manual.
 
 - The previous interface (`/classic`, `ui/src`, `tools/assemble-ui`) is removed; `make check-ui` replaces the assembled-UI check in CI.

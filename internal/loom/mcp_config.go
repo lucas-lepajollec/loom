@@ -32,6 +32,7 @@ import (
 // MCPServerConfig décrit un serveur MCP configuré. Un seul des deux transports
 // est renseigné : Command => stdio, URL => http.
 type MCPServerConfig struct {
+	Type string `json:"type,omitempty"`
 	// Transport stdio.
 	Command string            `json:"command,omitempty"`
 	Args    []string          `json:"args,omitempty"`
@@ -123,19 +124,6 @@ func LoadMCPConfig() (map[string]MCPServerConfig, error) {
 	return loadMCPConfigLocked()
 }
 
-func loadMCPConfigLocked() (map[string]MCPServerConfig, error) {
-	servers := map[string]MCPServerConfig{}
-	getJSON(bkState, "mcp", &servers)
-	if servers == nil {
-		servers = map[string]MCPServerConfig{}
-	}
-	return servers, nil
-}
-
-func saveMCPConfigLocked(servers map[string]MCPServerConfig) error {
-	return putJSON(bkState, "mcp", servers)
-}
-
 // SetMCPServer ajoute ou remplace un serveur nommé, puis invalide le pool de
 // sessions pour que le changement prenne effet au prochain tour.
 func SetMCPServer(name string, cfg MCPServerConfig) error {
@@ -150,10 +138,13 @@ func SetMCPServer(name string, cfg MCPServerConfig) error {
 		return err
 	}
 	mcpConfigMu.Lock()
-	servers, err := loadMCPConfigLocked()
+	servers, err := loadMCPConfigForWriteLocked()
 	if err != nil {
 		mcpConfigMu.Unlock()
 		return err
+	}
+	if cfg.Type == "" {
+		cfg.Type = servers[name].Type
 	}
 	servers[name] = cfg
 	err = saveMCPConfigLocked(servers)
@@ -168,7 +159,7 @@ func SetMCPServer(name string, cfg MCPServerConfig) error {
 // DeleteMCPServer retire un serveur et ferme sa session si ouverte.
 func DeleteMCPServer(name string) error {
 	mcpConfigMu.Lock()
-	servers, err := loadMCPConfigLocked()
+	servers, err := loadMCPConfigForWriteLocked()
 	if err != nil {
 		mcpConfigMu.Unlock()
 		return err
@@ -190,7 +181,7 @@ func DeleteMCPServer(name string) error {
 // SetMCPServerEnabled active/désactive un serveur existant.
 func SetMCPServerEnabled(name string, on bool) error {
 	mcpConfigMu.Lock()
-	servers, err := loadMCPConfigLocked()
+	servers, err := loadMCPConfigForWriteLocked()
 	if err != nil {
 		mcpConfigMu.Unlock()
 		return err
@@ -215,7 +206,7 @@ func SetMCPServerEnabled(name string, on bool) error {
 // DisabledTools), puis invalide la session pour recalculer les outils exposés.
 func SetMCPToolEnabled(server, tool string, on bool) error {
 	mcpConfigMu.Lock()
-	servers, err := loadMCPConfigLocked()
+	servers, err := loadMCPConfigForWriteLocked()
 	if err != nil {
 		mcpConfigMu.Unlock()
 		return err
