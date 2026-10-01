@@ -21,6 +21,7 @@ func cmdWeb(args []string) error {
 		fmt.Printf("%s données Loom : %v\n", yellow("[!]"), err)
 	}
 	registerCustomACPAgents()
+	go syncModelSinks()
 	loadRememberedProviderKeys()
 	go probeMissingACPAgents()
 	port := 8091
@@ -134,7 +135,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/runtimes/{id}/inspect", handleHarnessInspect) // ce que le harness possède déjà (MCP, skills, compte…)
 	api("/api/runtimes/{id}/update", handleHarnessUpdate)
 	api("/api/runtimes/{id}/mcp/adopt", handleHarnessMCPAdopt) // copier un MCP du harness dans Loom
-	api("/api/harness/bindings", handleHarnessBindings)        // MCP Loom transmis à chaque harness
+	api("/api/harness/bindings", handleHarnessBindings)
+	api("/api/harness/model-source", handleModelSink)          // modèles Loom proposés dans un harness ouvert (Pi)        // MCP Loom transmis à chaque harness
 	api("/api/skills/binding", handleSkillBinding)             // une skill vers un dossier de skills      // mise à jour du CLI du harness
 	api("/api/runtimes/{id}/sessions", handleACPSessions)      // sessions natives d’un harness ACP
 	api("/api/runtimes/{id}/sessions/import", handleACPImport) // importer une session native dans Loom // modèles et réglages annoncés par un harness ACP
@@ -173,7 +175,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/update", handleUpdateCheck)
 	api("/api/update/apply", handleUpdateApply)
 	api("/api/models", handleModels)
-	api("/api/models/delete", handleModelDelete)
+	api("/api/models/delete", resyncModelSinks(handleModelDelete))
 	api("/api/models/dirs", handleModelDirs) // dossiers de modèles (disque externe…)
 	api("/api/models/download", handleModelDownload)
 	api("/api/models/download/probe", handleModelDownloadProbe) // taille + espace libre avant de lancer
@@ -199,8 +201,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/presets", handlePresets)
 	api("/api/presets/order", handlePresetsOrder)
 	api("/api/preset", handlePreset)
-	api("/api/preset/save", handlePresetSave)
-	api("/api/preset/delete", handlePresetDelete)
+	api("/api/preset/save", resyncModelSinks(handlePresetSave))
+	api("/api/preset/delete", resyncModelSinks(handlePresetDelete))
 	api("/api/agent", handleAgent)
 	api("/api/agent/toggle", handleAgentToggle)
 	api("/api/agent/compact", handleCompactToggle)
@@ -301,3 +303,12 @@ func sendJSON(w http.ResponseWriter, code int, v any) {
 
 // handlePing is a lightweight authenticated endpoint a client hits to verify
 // connectivity AND that its key is valid (200 = bonne clé, 401 = mauvaise clé).
+
+// resyncModelSinks refreshes the "loom" provider of harnesses (Pi) after the
+// local library changes, so they list the same models as Loom.
+func resyncModelSinks(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		h(w, r)
+		go syncModelSinks()
+	}
+}

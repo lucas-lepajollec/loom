@@ -135,6 +135,32 @@ function NativeSessions({ rt }) {
   </section>`;
 }
 
+// Source du modèle : Natif (le harness choisit parmi ses modèles) et, quand
+// le harness le permet, Loom (tes modèles locaux ajoutés à sa propre liste).
+function ModelSource({ rt }) {
+  const [x, setX] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => get('/api/harness/model-source?id=' + encodeURIComponent(rt.id)).then(setX).catch(() => setX(null));
+  useEffect(() => { load(); }, [rt.id]);
+  if (!x) return null;
+  const toggle = async on => {
+    if (on && !await confirm('Modèles de Loom dans ' + rt.name, 'Loom ajoute un fournisseur « loom » dans ' + x.file + ' avec tes modèles locaux. Tes autres fournisseurs ne sont pas modifiés. Le désactiver le retire.', { ok: 'Ajouter' })) return;
+    setBusy(true);
+    const r = await post('/api/harness/model-source', { id: rt.id, enabled: on });
+    setBusy(false);
+    if (!r.ok) return toast(r.error, 'err');
+    toast(on ? 'Modèles de Loom ajoutés à ' + rt.name + ' · relecture de ses modèles…' : 'Fournisseur Loom retiré');
+    load(); setTimeout(refreshWorkspace, 8000);
+  };
+  return html`<section class="sec"><div class="sec-h"><h2>Source du modèle<${Tip} text="Natif : le harness utilise ses propres modèles et son compte. Loom : tes modèles locaux de Loom apparaissent dans la liste du harness, servis par l’API locale de Loom." /></h2></div>
+    <div class="card">
+      <div class="set-line"><div class="set-l"><span>Natif</span></div><div class="set-c"><span class="state"><i class="dot green"></i>toujours disponible</span></div></div>
+      <div class="set-line"><div class="set-l"><span>Modèles de Loom</span>${x.supported && html`<span class="muted" style="font-size:12px;margin-left:8px">${x.models} modèle${x.models > 1 ? 's' : ''} local${x.models > 1 ? 'aux' : ''}</span>`}</div>
+        <div class="set-c">${x.supported ? html`<${Switch} checked=${x.enabled} disabled=${busy} label=${'Proposer les modèles de Loom dans ' + rt.name} onChange=${toggle} />`
+          : html`<span class="muted">pas encore pris en charge par ce harness</span>`}</div></div>
+    </div></section>`;
+}
+
 // Ressources Loom reçues par ce harness : serveurs MCP (transmis à chaque
 // session) et skills (copiées dans son dossier de skills), choisies une à une.
 function LoomResources({ rt }) {
@@ -301,6 +327,7 @@ function AcpDetail({ rt, models, onEdit }) {
     </div>
     ${probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
     ${!rt.custom && html`<${MachineState} rt=${rt} commands=${probe && probe.commands ? probe.commands.length : null} />`}
+    <${ModelSource} rt=${rt} />
     <${LoomResources} rt=${rt} />
 
     <section class="sec"><div class="sec-h"><h2>Modèles <span class="count">${list.length}</span></h2></div>

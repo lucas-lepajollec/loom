@@ -5,7 +5,7 @@ import { vendorOf } from '../chat/picker.js';
 import { html, useState, useEffect, useRef, useStore, useMemo, cls, fmtBytes, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Tabs, Menu, Empty, Tip, Switch } from '../../ui/controls.js';
-import { confirm, toast, prompt } from '../../ui/dialog.js';
+import { confirm, toast, prompt, Modal } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, engineState, refreshLibrary, refreshStatus } from '../../core/state.js';
 import { Drawer, inspectTrigger } from '../../ui/drawer.js';
@@ -53,6 +53,27 @@ function Strip() {
   </div>`;
 }
 
+// Nouveau preset : un nom et un modèle ; les réglages se font ensuite dans le
+// panneau, comme pour un modèle.
+function NewPreset({ models, onClose, onCreated }) {
+  const [name, setName] = useState('');
+  const [model, setModel] = useState(models[0] ? (models[0].value || models[0].path) : '');
+  const create = async () => {
+    if (!name.trim() || !model) return;
+    const r = await post('/api/preset/save', { id: '', name: name.trim(), content: 'MODEL=' + model + '\n' });
+    if (!r.ok) return toast(r.error || 'Création impossible', 'err');
+    toast('Preset créé · règle-le dans le panneau');
+    onCreated({ id: r.id, name: name.trim(), model });
+  };
+  return html`<${Modal} title="Nouveau preset" sub="Choisis le modèle ; tu régleras ensuite ses paramètres dans le panneau." onClose=${onClose}
+      foot=${html`<button class="btn ghost" onClick=${onClose}>Annuler</button><button class="btn primary" disabled=${!name.trim() || !model} onClick=${create}>Créer</button>`}>
+    <label class="field"><span>Nom</span><input class="input" autofocus placeholder="ex. Qwen 27B · long contexte" value=${name} onInput=${e => setName(e.target.value)} onKeyDown=${e => e.key === 'Enter' && create()} /></label>
+    <label class="field"><span>Modèle</span><select class="select" value=${model} onChange=${e => setModel(e.target.value)}>
+      ${models.map(m => html`<option value=${m.value || m.path}>${m.name.replace(/\.gguf$/i, '')}</option>`)}</select></label>
+    ${!models.length && html`<p class="note">Aucun modèle dans la bibliothèque : télécharge-en un depuis le Hub.</p>`}
+  </${Modal}>`;
+}
+
 function Library() {
   const { models, presets, status } = useStore(app, s => ({ models: s.models, presets: s.presets, status: s.status }));
   const [q, setQ] = useState('');
@@ -60,6 +81,7 @@ function Library() {
   const request = useRef(0);
   useEffect(() => () => { request.current++; }, []);
   const [menu, setMenu] = useState(null);
+  const [creating, setCreating] = useState(() => { const v = !!(app.get && app.get().newPreset); if (v) app.set({ newPreset: false }); return v; });
   const [ordering, setOrdering] = useState(false);
   const orderBusy = useRef(false);
   useEffect(() => { refreshLibrary(); }, []);
@@ -107,17 +129,22 @@ function Library() {
   return html`<div class="lib">
     <div class="toolbar"><label class="search"><${Icon} n="search" /><input placeholder="Filtrer les modèles et presets…" value=${q} onInput=${e => setQ(e.target.value)} /></label>
       <span class="grow"></span></div>
-    ${plist.length > 0 && html`<section class="sec"><div class="sec-h"><h2>Presets <span class="count">${plist.length}</span></h2></div>
-      <div class="card rows stagger">${plist.map(p => {
+    <section class="sec"><div class="sec-h"><h2>Presets <span class="count">${plist.length}</span><${Tip} text="Un preset = un modèle et ses réglages, enregistrés sous un nom. Tu en charges un en un clic, ici ou dans le sélecteur de la discussion." /></h2>
+      <button class="btn sm" onClick=${() => setCreating(true)}><${Icon} n="plus" />Nouveau preset</button></div>
+      ${plist.length ? html`<div class="card rows stagger">${plist.map(p => {
         const on = status && status.preset_id === p.id;
         const index = presets.findIndex(x => x.id === p.id);
-        return html`<div class="row" key=${p.id}><span class=${'dot ' + (on && status.health ? 'green' : '')}></span>
-          <div class="grow" ...${inspectTrigger(() => openPreset(p), 'Inspecter ' + p.name)}><div class="t">${p.name}</div><div class="s">${baseName(p.model || '') || 'preset'}</div></div>
-          <button class="btn sm ghost" aria-label=${'Monter ' + p.name} disabled=${ordering || index === 0} onClick=${() => movePreset(p, -1)}>Monter</button>
-          <button class="btn sm ghost" aria-label=${'Descendre ' + p.name} disabled=${ordering || index === presets.length - 1} onClick=${() => movePreset(p, 1)}>Descendre</button>
-          ${on ? html`<span class="tag green">Chargé</span>` : html`<button class="btn sm" onClick=${async () => { await post('/api/switch', { n: presets.findIndex(x => x.id === p.id) + 1 }); toast('Chargement de ' + p.name + '…'); setTimeout(refreshStatus, 800); }}>Charger</button>`}
+        return html`<div class="row" key=${p.id}><${Logo} name=${vendorOf(p.model || p.name) === 'Autres' ? p.name : vendorOf(p.model || p.name)} />
+          <div class="grow" ...${inspectTrigger(() => openPreset(p), 'Régler ' + p.name)}><div class="t">${p.name}${on && html` <span class=${'tag ' + (status.health ? 'green' : 'amber')}>${status.health ? 'Chargé' : 'Chargement'}</span>`}</div><div class="s">${baseName(p.model || '').replace(/\.gguf$/i, '') || 'preset'}</div></div>
+          <span class="order-btns"><button class="icon-btn" aria-label=${'Monter ' + p.name} title="Monter" disabled=${ordering || index === 0} onClick=${() => movePreset(p, -1)}><${Icon} n="chevron" class="up" /><span class="sr">Monter</span></button>
+          <button class="icon-btn" aria-label=${'Descendre ' + p.name} title="Descendre" disabled=${ordering || index === presets.length - 1} onClick=${() => movePreset(p, 1)}><${Icon} n="chevron" /><span class="sr">Descendre</span></button></span>
+          <button class="icon-btn" aria-label="Régler" title="Régler" onClick=${() => openPreset(p)}><${Icon} n="sliders" /></button>
+          ${on ? html`<button class="btn sm" onClick=${unload}>Décharger</button>` : html`<button class="btn sm" onClick=${async () => { await post('/api/switch', { n: presets.findIndex(x => x.id === p.id) + 1 }); toast('Chargement de ' + p.name + '…'); setTimeout(refreshStatus, 800); }}>Charger</button>`}
           <button class="icon-btn" aria-label="Actions" onClick=${e => setMenu({ a: e.currentTarget, items: [{ label: 'Supprimer', icon: 'trash', danger: true, run: () => delPreset(p) }] })}><${Icon} n="more" /></button></div>`;
-      })}</div></section>`}
+      })}</div>`
+      : html`<div class="card pad"><p class="note">Aucun preset. Crée-en un pour garder un modèle avec ses réglages (contexte, couches GPU, température…) et le recharger en un clic.</p></div>`}
+    </section>
+    ${creating && html`<${NewPreset} models=${weights} onClose=${() => setCreating(false)} onCreated=${p => { setCreating(false); refreshLibrary().then(() => openPreset(p)); }} />`}
     <section class="sec"><div class="sec-h"><h2>Modèles <span class="count">${weights.length}</span></h2></div>
       ${weights.length ? html`<div class="card table stagger">
         <div class="tr th"><span>Modèle</span><span>Quant</span><span>Fichier</span><span>Mémoire estimée<${Tip} text="Estimation au contexte natif du modèle. Règle-le avant de charger pour qu’il tienne." /></span><span></span></div>

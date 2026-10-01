@@ -347,3 +347,6 @@
 .h-detail .sec{margin-top:24px}
 .h-head .acts{display:flex;gap:8px;align-items:center}
 .h-head h2 .tag{vertical-align:3px;font-size:11px}
+.order-btns{display:inline-flex}
+.order-btns .icon-btn{width:26px;height:26px}
+.order-btns .icon-btn .up{transform:rotate(180deg)}

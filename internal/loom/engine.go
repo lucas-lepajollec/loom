@@ -3,10 +3,8 @@ package loom
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // Engine is the in-package migration boundary. Existing service supervision,
@@ -128,11 +126,10 @@ func (e llamaCppEngine) Load(ctx context.Context, c ModelConfig) error {
 	if err != nil {
 		return err
 	}
-	routerMu.Lock()
-	defer routerMu.Unlock()
-	entry := routerEntry{Name: routerEntryName(opts), Label: filepath.Base(resolveEngineConfig(c)["MODEL"]) + " · variante API", Options: opts}
-	_ = putStr(bkState, routerStateCurrent, entry.Name)
-	return routerEnsureLoaded(entry)
+	_, err = llamaRouter().ActivateVariant(func() (routerEntry, error) {
+		return routerEntry{Name: routerEntryName(opts), Label: filepath.Base(resolveEngineConfig(c)["MODEL"]) + " · variante API", Options: opts}, nil
+	})
+	return err
 }
 
 func (llamaCppEngine) Unload(ctx context.Context, model string) error {
@@ -145,16 +142,7 @@ func (llamaCppEngine) Unload(ctx context.Context, model string) error {
 	if !routerReachable() {
 		return fmt.Errorf("déchargement ciblé : moteur router requis")
 	}
-	routerMu.Lock()
-	defer routerMu.Unlock()
-	_, code, err := routerDo(http.MethodPost, "/models/unload", map[string]string{"model": model}, 30*time.Second)
-	if err != nil {
-		return err
-	}
-	if code != http.StatusOK {
-		return fmt.Errorf("router /models/unload : HTTP %d", code)
-	}
-	return nil
+	return llamaRouter().Unload(model)
 }
 
 func (llamaCppEngine) Endpoint() string { return llamaBackendURL().String() + "/v1" }

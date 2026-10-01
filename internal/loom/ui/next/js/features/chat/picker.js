@@ -120,6 +120,7 @@ export function Picker() {
             </div>`)}
       </div>
       <div class="pick-foot"><span>Changer d’exécution garde la même discussion.</span>
+        ${tab === 'local' && html`<button type="button" onClick=${() => { close(); app.set({ newPreset: true }); go('local'); }}>Nouveau preset</button>`}
         <button type="button" onClick=${() => { close(); go(tab === 'local' ? 'local' : tab === 'cloud' ? 'cloud' : 'harnesses'); }}>Gérer</button></div>
     </${Popover}>`}`;
 }

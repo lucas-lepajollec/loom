@@ -49,13 +49,16 @@ type Engine interface {
 
 The in-package `Engine` interface and stateless `llamaCppEngine` wrapper are now
 implemented in `engine.go`; lifecycle orchestration remains in package `loom`.
-Stateless helpers now live in `engine/llamacpp/` (see §4). Existing
+Helpers, argument construction and router orchestration now live in
+`engine/llamacpp/` (see §4), with explicit inputs/state. Existing
 load/unload/estimate handlers delegate through it. Argument construction still
-has one implementation (`buildLlamaServerArgsForConfig`); the original helper
-delegates through the wrapper. Empty `ModelConfig` selects the saved current
+has one implementation (`llamacpp.BuildServerArgs`);
+`buildLlamaServerArgsForConfig` resolves Loom-owned inputs and delegates to it.
+The original helper delegates through the lifecycle wrapper. Empty `ModelConfig` selects the saved current
 configuration; explicit inputs resolve in memory and require a reachable router
 for transient loading. They never overwrite saved model settings. Service
-supervision and router execution remain owned by their existing functions.
+supervision remains in `loom`; router execution delegates through compatibility
+wrappers to an explicit `llamacpp.Router`.
 Contexts are checked before lifecycle actions; cancellation of an already-started
 legacy service/router job is not provided by this wrapper.
 
@@ -194,6 +197,17 @@ The third leaf slice now extracts a coherent, stateless subset into package
 with their implementation; no runtime globals are added. Standalone tests move
 with the parsers/calculations, while integration tests remain in `loom`.
 
+The fourth slice continues the same package: `backend_args.go` owns the
+config-to-argv implementation, supplied with resolved binary/model paths, backend
+port and accessors for runtime overrides, context, native flags, credentials and
+auxiliary model resolution. `router.go` owns orchestration through a small
+`Router` struct: binary path, backend port, INI path, models limit, state interface,
+shared owner lock, auth/key accessors and last-error reporting. It adds no runtime
+globals. Selection still precedes loading; variants never replace the active
+selection; observation retains `autoload=false`. Existing fake-router/fake-help
+integration tests remain in `loom`; package tests exercise argv precedence and
+independent router owners with a socket-free fake transport.
+
 Moved responsibilities:
 
 - `backend_help.go`: native help parsing, flag metadata, tiers and config keys.
@@ -204,6 +218,12 @@ Moved responsibilities:
   projection, using supplied model metadata/options.
 - `backend_router.go`: resolved entry type, argv-to-options conversion using a
   supplied flag catalog, deterministic entry names and INI rendering.
+- `backend_args.go`: launch argument assembly, defaults, fit gating, reasoning,
+  vision/draft flags, extra arguments and final loopback binding, using explicit
+  inputs/accessors.
+- `router.go`: router argv, persisted-entry retention through a supplied state
+  interface, INI publication, authenticated management HTTP, model load/unload,
+  active/variant selection and observed context.
 - `backend_config.go` and `backend_presets.go`: preset text parsing/formatting,
   quoted argument splitting and display names.
 
@@ -211,10 +231,15 @@ Still in `loom`, deliberately:
 
 - `engine.go` and the remainder of `engine_params.go`: active configuration,
   lifecycle adapter and authenticated HTTP handler.
-- `backend_serve.go`, `backend_llama_owned.go`, `backend_engine.go` and the
-  remainder of `backend_router.go`: argument resolution with global config and
-  runtime overlays, owned process/service state, persisted router entries,
-  credentials and load/unload/observation orchestration.
+- `backend_serve.go`, `backend_llama_owned.go` and `backend_engine.go`: child
+  process startup/supervision, signals, readiness tied to the owned process,
+  service restart/stop, preflight and service status. These remain coupled to
+  Loom's service layer and application cleanup (config, overlays and selection).
+- The remainder of `backend_router.go` and `engine_compat.go`: current config,
+  installed-binary/model/shard resolution, library/GPU environment setup, preset
+  labels and adapters for credentials, runtime overlays and persisted state.
+  The existing shared owner lock stays in `loom` and is passed explicitly; no
+  router implementation reads it as a package global.
 - The remainders of `backend_help.go`, `backend_gguf.go` and
   `backend_vram_est.go`: existing caches, installed-binary/library resolution,
   model path resolution, runtime overrides and hardware collection.
@@ -227,10 +252,11 @@ Still in `loom`, deliberately:
   model directories/downloads/shards/capabilities): configuration, installation
   and application integrations remain for a later coherent slice.
 
-Next engine slice: pass resolved launch inputs and explicit cache/process owners
-before moving argument construction and router/service execution. The runtime
-package split follows that boundary; the current extraction does not restart an
-engine, alter flags or change stored configuration.
+Next engine slice: introduce an explicit owned-process/supervisor boundary and
+cache owner, with service/environment callbacks from `loom`, before extracting
+process execution that can move cleanly. Keep service policy and application
+cleanup in `loom`. The runtime package split follows that boundary; the current
+extraction does not restart an engine, alter flags or change stored configuration.
 
 ## 5. Front-end layout (`internal/loom/ui/next`)
 

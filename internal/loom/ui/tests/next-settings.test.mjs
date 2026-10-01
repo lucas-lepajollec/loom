@@ -44,7 +44,8 @@ function harness(source, view, overrides = {}) {
       if (!old || deps.some((v, j) => !Object.is(v, old[j]))) { slots[i] = deps; effects.push(fn); }
     },
     useStore: (_store, select) => select(env.state),
-    state: { status: null, models: [], presets: [] }, app: {},
+    state: { status: null, models: [], presets: [] }, app: { get: () => ({}), set: () => {} },
+    vendorOf: () => 'Autres', Logo: 'Logo', Modal: 'Modal',
     navigator: { userAgent: 'Synthetic browser' }, window: { isSecureContext: false },
     Notification: { permission: 'default' }, atob, Uint8Array,
     get: async url => data[url],

@@ -197,7 +197,7 @@ function restartNative(replay) {
 // ---------------------------------------------------------------- ouverture
 // open(id) : une discussion commune (id de session) ou une archive native.
 // soft : garder le fil affiché pendant la relecture (changement de modèle).
-export async function open(id, soft) {
+export async function open(id, soft, quiet) {
   const ep = ++epoch; opening = true; if (abort) abort.abort();
   chat.set({ frozen: soft && items().length ? items() : null });
   if (soft) setTimeout(() => { if (ep === epoch) chat.set({ frozen: null }); }, 8000);
@@ -207,6 +207,7 @@ export async function open(id, soft) {
     if (entry && !entry.workspace) {
       // Archive native : le serveur la recharge et le flux la rejoue.
       restartNative(true);
+      remember('');
       chat.set({ sessionId: '', session: null, context: null });
       const r = await post('/api/chat/history/restore', { id });
       if (!r.ok) throw new Error(r.error || 'Ouverture impossible');
@@ -216,6 +217,7 @@ export async function open(id, soft) {
     const r = await get('/api/runtime/sessions?id=' + encodeURIComponent(id));
     if (ep !== epoch) return;
     if (!r.ok) throw new Error(r.error);
+    remember(id);
     if (r.session.runtime_id === 'llama.cpp') {
       restartNative(true);
       const local = await post('/api/runtime/sessions/local', { id });
@@ -227,13 +229,14 @@ export async function open(id, soft) {
       applySession(r.session, r.context);
     }
     if (abort) abort.abort();
-  } catch (e) { chat.set({ frozen: null }); toast(e.message, 'err'); }
+  } catch (e) { chat.set({ frozen: null }); if (quiet) remember(''); else toast(e.message, 'err'); }
   finally { if (ep === epoch) { opening = false; if (abort) abort.abort(); } }
 }
 
 // Nouvelle discussion : le chat natif archive la courante et repart à zéro.
 export async function newDiscussion(projectId) {
   ++epoch; opening = true; if (abort) abort.abort();
+  remember('');
   restartNative(false);
   chat.set({ sessionId: '', session: null, context: null, loading: false });
   let r;
@@ -342,4 +345,12 @@ export async function chooseLocal(target) {
 }
 const baseName = p => String(p || '').split(/[\\/]/).pop();
 
-export function init() { connectNative(); }
+// La dernière discussion commune ouverte est rouverte au rechargement.
+const LAST = 'loom.next.lastChat';
+const remember = id => { try { id ? localStorage.setItem(LAST, id) : localStorage.removeItem(LAST); } catch (_) {} };
+export function init() {
+  connectNative();
+  let last = '';
+  try { last = localStorage.getItem(LAST) || ''; } catch (_) {}
+  if (last) get('/api/runtime/sessions?id=' + encodeURIComponent(last)).then(r => { if (r && r.ok) open(last, false, true); else remember(''); }).catch(() => remember(''));
+}

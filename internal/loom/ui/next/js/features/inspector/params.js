@@ -179,8 +179,9 @@ export function ParamsEditor({ src, onSaved, onLoaded }) {
   ];
 
   return html`<div class="insp-body">
-      <div class="insp-model"><b>${src.mode === 'preset' ? src.presetName : baseName(src.model).replace(/\.gguf$/i, '')}</b>
+      <div class="insp-model-row"><div class="insp-model"><b>${src.mode === 'preset' ? src.presetName : baseName(src.model).replace(/\.gguf$/i, '')}</b>
         <span>${src.mode === 'preset' ? 'preset · ' + baseName(src.model) : !src.live ? 'pas chargé' : src.remembered ? 'modèle · réglages mémorisés' : 'modèle · réglages automatiques'}</span></div>
+        <button class="btn sm ghost" title="Enregistrer ces réglages sous un nom" onClick=${newPreset}><${Icon} n="plus" />Preset</button></div>
       <${VramCard} est=${est} note=${!cfg.get('CTX') ? (autoFit ? 'Estimation au contexte natif. llama.cpp ajustera les valeurs non fixées au chargement.' : 'Ajustement automatique indisponible ou désactivé ; le contexte natif sert de défaut.') : ''} />
       <${Seg} value=${tier} onChange=${t => { setTier(t); localStorage.setItem('loom.next.tier', t); }} label="Niveau" options=${[{ value: 'essential', label: 'Essentiel' }, { value: 'advanced', label: 'Avancé' }, { value: 'expert', label: 'Expert' }]} />
       <div class="prows" key=${tier}>${tier === 'essential' ? essentials : tier === 'advanced' ? advanced : expert}</div>
