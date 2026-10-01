@@ -9,11 +9,11 @@ import { copyText } from '../../ui/clipboard.js';
 import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav, refreshEngineNode } from '../../core/state.js';
 import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
+import { Line, Group } from './kit.js';
+import { MachinesSettings } from './machines.js';
 
-const SECTIONS = [['general', 'Général', 'gear'], ['engine', 'Moteur llama.cpp', 'chip'], ['internet', 'Internet', 'globe'], ['security', 'Sécurité et données', 'lock'], ['about', 'À propos', 'info']];
+const SECTIONS = [['general', 'Général', 'gear'], ['machines', 'Machines', 'server'], ['engine', 'Moteur llama.cpp', 'chip'], ['internet', 'Internet', 'globe'], ['security', 'Sécurité et données', 'lock'], ['about', 'À propos', 'info']];
 
-const Line = ({ label, tip, children, stack }) => html`<div class=${cls('set-line', stack && 'stack')}><div class="set-l"><span>${label}</span>${tip && html`<${Tip} text=${tip} />`}</div><div class="set-c">${children}</div></div>`;
-const Group = ({ title, children }) => html`<section class="set-group anim-rise">${title && html`<h3>${title}</h3>`}<div class="card">${children}</div></section>`;
 
 function usePref() {
   const [p, setP] = useState(null);
@@ -124,64 +124,29 @@ function Job() {
     ${lines && html`<pre class="mono">${lines}</pre>`}</div>`;
 }
 
-// Où tourne le moteur : sur cette machine, ou sur une autre machine du réseau
-// où un Loom possède le moteur (carte graphique). Loom y envoie alors tout ce
-// qui touche au moteur ; discussions, projets et harnesses restent ici.
-// Mise à jour automatique du moteur : appliquée seulement quand elle
-// n'interrompt rien (moteur arrêté ou aucun modèle chargé).
-function EngineAuto() {
-  const [a, setA] = useState(null);
-  useEffect(() => { get('/api/engine/auto-update').then(r => setA(r.ok ? r.state : null)).catch(() => setA(null)); }, []);
-  if (!a) return null;
-  const toggle = async on => { const r = await post('/api/engine/auto-update', { auto: on }); if (!r.ok) return toast(r.error || 'Réglage impossible', 'err'); setA(r.state); };
-  const when = t => t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-  const info = a.pending ? 'Version ' + a.pending + ' prête : installée dès qu’aucun modèle n’est chargé.'
-    : a.last_error ? 'Dernière tentative : ' + a.last_error
-    : a.last_at ? 'Mis à jour le ' + when(a.last_at) + (a.last_to ? ' (' + (a.last_from ? a.last_from + ' → ' : '') + a.last_to + ')' : '')
-    : a.checked_at ? 'Vérifié le ' + when(a.checked_at) + ' : à jour' : '';
-  return html`<${Line} label="Mise à jour automatique" tip="Vérifie les nouvelles versions de llama.cpp toutes les 6 h. Une mise à jour redémarre le moteur : elle n’est installée que s’il est arrêté ou sans modèle chargé, pour ne jamais couper une réponse.">
-    ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="Mise à jour automatique du moteur" onChange=${toggle} /></${Line}>`;
-}
-
+// Où tourne le moteur : sur cette machine, ou celui d'une machine connectée
+// (choisi dans Réglages › Machines).
 function EngineLocation() {
   const node = useStore(app, a => a.engineNode);
-  const [form, setForm] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const link = async () => {
-    setBusy(true);
-    const r = await post('/api/engine/node', { url: form.url, key: form.key });
-    setBusy(false);
-    if (!r.ok) return toast(r.error || 'Liaison impossible', 'err');
-    setForm(null); toast('Moteur de ' + r.hostname + ' lié');
-    await refreshEngineNode(); refreshStatus(); refreshLibrary();
-  };
   const unlink = async () => {
     if (!await confirm('Revenir au moteur de cette machine', 'Loom n’utilisera plus le moteur de ' + node.hostname + '. Rien n’est modifié sur cette machine-là.', { ok: 'Revenir' })) return;
     await post('/api/engine/node', { unlink: true });
     await refreshEngineNode(); refreshStatus(); refreshLibrary();
   };
   return html`<${Group} title="Emplacement du moteur">
-    <${Line} label="Le moteur tourne" tip="Sur une autre machine : une machine avec carte graphique où Loom est installé et ouvert au réseau (interface et API /v1). Ce Loom lui envoie tout ce qui touche au moteur ; tes discussions restent ici.">
+    <${Line} label="Le moteur tourne" tip="Une machine avec carte graphique où Loom est installé peut servir de moteur : elle se choisit dans Réglages › Machines. Tes discussions restent ici.">
       ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>sur <b>${node.hostname}</b></span><button class="btn sm ghost" onClick=${unlink}>Revenir à cette machine</button>`
-        : html`<span class="state">sur cette machine</span>${!form && html`<button class="btn sm" onClick=${() => setForm({ url: '', key: '' })}>Utiliser une autre machine</button>`}`}</${Line}>
+        : html`<span class="state">sur cette machine</span><a class="btn sm" href="#/settings/machines">Utiliser une autre machine</a>`}</${Line}>
     ${node && html`<${Line} label="Adresse"><code class="mono">${node.url}</code>${!node.reachable && html`<span class="tag amber">injoignable</span>`}</${Line}>`}
-    ${form && html`<div class="eng-link">
-      <p class="note">Sur la machine du moteur : Loom › Réglages › Accès réseau, active « Interface sur le réseau » et « API /v1 sur le réseau », puis recopie ici son adresse et sa clé de pilotage.</p>
-      <label class="field"><span>Adresse du Loom distant</span><input class="input mono" placeholder="http://192.168.1.20:8091" value=${form.url} onInput=${e => setForm({ ...form, url: e.target.value })} /></label>
-      <label class="field"><span>Sa clé de pilotage</span><input class="input mono" type="password" placeholder="loom-web-…" value=${form.key} onInput=${e => setForm({ ...form, key: e.target.value })} /></label>
-      <div class="form-foot"><span class="grow"></span><button class="btn ghost" onClick=${() => setForm(null)}>Annuler</button><button class="btn primary" disabled=${busy || !form.url || !form.key} onClick=${link}>${busy ? 'Vérification…' : 'Lier ce moteur'}</button></div>
-    </div>`}
   </${Group}>`;
 }
 
 function Engine() {
   const [lc, setLc] = useState(null);
-  const [dirs, setDirs] = useState(null);
-  const load = async () => { setLc(await get('/api/llamacpp')); setDirs(await get('/api/models/dirs')); };
+  const load = async () => { setLc(await get('/api/llamacpp')); };
   useEffect(() => { load(); }, []);
   const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || 'Échec', 'err'); if (ok) toast(ok); setTimeout(load, 800); };
   const link = async () => { const bin = await prompt('Lier un llama-server existant', { message: 'Chemin complet du binaire llama-server déjà installé sur cette machine.', placeholder: '/chemin/vers/llama-server', ok: 'Lier' }); if (bin) run('/api/llamacpp/use', { mode: 'exist', bin }, 'Moteur lié'); };
-  const addDir = async () => { const p = await prompt('Ajouter un dossier de modèles', { placeholder: '/chemin/vers/mes/modeles', ok: 'Ajouter' }); if (p) run('/api/models/dirs', { path: p, action: 'add' }, 'Dossier ajouté'); };
   if (!lc) return html`<div class="skeleton" style="height:220px"></div>`;
   return html`
     <${EngineLocation} />
@@ -202,6 +167,18 @@ function Engine() {
       <div class="set-note">${lc.reco && lc.reco.why}</div>
       <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/install', { dir: '' }, 'Compilation lancée')}>Compiler llama.cpp</button><button class="btn" onClick=${() => run('/api/llamacpp/prebuilt', {}, 'Téléchargement lancé')}>Binaire officiel</button></div>
     </${Group}>`}
+    <${ModelDirs} />`;
+}
+
+// Dossiers de modèles du moteur (sur la machine qui le possède : les requêtes
+// suivent le moteur distant quand il y en a un).
+export function ModelDirs() {
+  const [dirs, setDirs] = useState(null);
+  const load = () => get('/api/models/dirs').then(setDirs).catch(() => setDirs(null));
+  useEffect(() => { load(); }, []);
+  const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || 'Échec', 'err'); if (ok) toast(ok); setTimeout(load, 500); };
+  const addDir = async () => { const p = await prompt('Ajouter un dossier de modèles', { placeholder: '/chemin/vers/mes/modeles', ok: 'Ajouter' }); if (p) run('/api/models/dirs', { path: p, action: 'add' }, 'Dossier ajouté'); };
+  return html`
     <${Group} title="Dossiers de modèles">
       ${dirs && (dirs.dirs || []).map(d => html`<div class="set-line"><div class="set-l"><${Icon} n="folder" /><span class="mono path">${d.path}</span>${d.download && html`<span class="tag blue">téléchargements</span>`}</div>
         <div class="set-c"><span class="muted mono">${d.count} modèle${d.count > 1 ? 's' : ''}</span>
@@ -445,12 +422,12 @@ function About() {
 
 export function SettingsPage({ route }) {
   const sec = SECTIONS.some(s => s[0] === route.sub) ? route.sub : 'general';
-  const View = { general: General, engine: Engine, internet: Internet, security: Security, about: About }[sec];
+  const View = { general: General, machines: MachinesSettings, engine: Engine, internet: Internet, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
     <div class="page-head"><div><h1>Réglages</h1></div></div>
     <div class="settings">
       <nav class="set-nav">${SECTIONS.map(([id, label, ico]) => html`<a href=${'#/settings/' + id} aria-current=${id === sec ? 'page' : undefined}><${Icon} n=${ico} />${label}</a>`)}</nav>
-      <div class="set-body" key=${sec}><${View} /></div>
+      <div class="set-body" key=${sec}><${View} route=${route} /></div>
     </div>
   </div></div>`;
 }

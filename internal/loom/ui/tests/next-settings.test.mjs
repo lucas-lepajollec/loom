@@ -7,7 +7,9 @@ import { Config } from '../next/js/features/inspector/config.js';
 
 // Exécute les composants réels avec des hooks déterministes et des API simulées.
 // Aucun socket, secret réel, service système ni permission navigateur.
-const settings = fs.readFileSync(new URL('../next/js/features/settings/page.js', import.meta.url), 'utf8');
+// Les briques Line/Group vivent dans kit.js : chargées avec la page.
+const settings = fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8')
+  + fs.readFileSync(new URL('../next/js/features/settings/page.js', import.meta.url), 'utf8');
 const local = fs.readFileSync(new URL('../next/js/features/local/page.js', import.meta.url), 'utf8');
 const vnode = (type, props, ...children) => ({ type, props: { ...props, children } });
 const html = htm.bind(vnode);

@@ -12,7 +12,7 @@ const when = t => t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', mont
 // « codex-cli 0.159.2 », « 2.1.287 (Claude Code) », « Hermes Agent v0.21.3 (…) » → le numéro.
 const clean = v => { const m = String(v || '').match(/v?\d+(?:\.\d+)+[\w.+-]*/); return m ? m[0] : String(v || '').trim(); };
 
-export function Lifecycle({ target, id, name, where, onChange }) {
+export function Lifecycle({ target, id, name, where, onChange, compact }) {
   const [x, setX] = useState(null);
   const [busy, setBusy] = useState('');
   const [log, setLog] = useState(null);
@@ -36,8 +36,11 @@ export function Lifecycle({ target, id, name, where, onChange }) {
     setX({ ...x, auto: r.auto, last_auto: r.last_auto });
   };
   if (x === false) return null;
-  if (!x) return html`<div class="kv"><span>Version</span><span class="state"><span class="spinner"></span>Vérification…</span></div>`;
+  if (!x) return compact ? html`<span class="spinner"></span>` : html`<div class="kv"><span>Version</span><span class="state"><span class="spinner"></span>Vérification…</span></div>`;
   const missing = (x.requires_missing || []).length > 0;
+  // Ligne compacte d'un harness absent : juste de quoi l'installer.
+  if (compact && !x.installed) return missing ? html`<span class="state err">Manque ${x.requires_missing.join(', ')}</span>`
+    : html`<span class="muted">${x.latest ? 'v' + String(x.latest).replace(/^v/, '') : ''}</span><button class="btn sm" disabled=${!!busy} onClick=${() => run('install')}>${busy ? html`<span class="spinner"></span>Installation…` : html`<${Icon} n="download" />Installer`}</button>`;
   const la = x.last_auto;
   return html`<div class="lc">
     <div class="kv"><span>Version</span><span class="num">${x.installed ? clean(x.version) || 'inconnue' : 'non installé'}${x.latest && html`<span class="muted"> · dernière ${x.latest}</span>`}</span></div>

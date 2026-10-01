@@ -181,6 +181,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/harness/custom/delete", handleCustomACPDelete)
 	api("/api/machines", handleRemoteMachines)
 	api("/api/machines/delete", handleRemoteMachineDelete)
+	api("/api/machines/folders", handleMachineFolders)
+	api("/api/machines/local", handleLocalMachine)
 	api("/api/status", handleStatus)
 	api("/api/service/log", handleServiceLog) // journal du service pour diagnostiquer un modèle qui ne charge pas
 	api("/api/vram", handleVram)

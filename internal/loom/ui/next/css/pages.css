@@ -423,3 +423,30 @@
 .lc-log{margin-top:8px;font-size:12px}
 .lc-log summary{cursor:pointer;color:var(--text-2)}
 .lc-log pre{max-height:220px;overflow:auto;margin:6px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg-2);font:11.5px/1.45 var(--mono);white-space:pre-wrap}
+
+/* Réglages › Machines */
+.mc-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line);color:inherit;text-decoration:none}
+.mc-row:hover{background:var(--hover)}
+.mc-row .grow{display:flex;flex-direction:column;min-width:0}
+.mc-row b{font-weight:500}
+.mc-row small{font-size:12px;color:var(--text-3)}
+.mc-row>svg{width:14px;height:14px;color:var(--text-3)}
+.mc-hs{display:flex;gap:4px}
+.mc-head{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+.mc-head>.btn{align-self:flex-start}
+.mc-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mc-title h2{margin:0;font-size:18px;font-weight:600}
+.mc-title p{margin:2px 0 0;font-size:12px;color:var(--text-3)}
+.mc-note{display:flex;align-items:center;gap:12px;margin-top:16px;color:inherit;text-decoration:none}
+.mc-note:hover{background:var(--hover)}
+.mc-note .grow{display:flex;flex-direction:column}
+.mc-note small{font-size:12.5px;color:var(--text-3)}
+.mc-note>svg{width:14px;height:14px;color:var(--text-3)}
+.link-line{color:inherit;text-decoration:none}
+.link-line:hover{background:var(--hover)}
+.link-line .set-l{gap:10px}
+.mh-absent{padding:4px 0}
+.mh-absent-h{padding:10px 16px 6px;font-size:12px;color:var(--text-3)}
+.mh-row{display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid var(--line)}
+.mh-row .grow{font-size:13px}
+.mh-row .muted{font-size:12px}

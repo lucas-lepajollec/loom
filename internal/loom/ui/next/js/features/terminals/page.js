@@ -84,7 +84,9 @@ function NewTerminal({ onClose, preset }) {
   const [pick, setPick] = useState(false);
   const [busy, setBusy] = useState(false);
   const ws = useStore(app, a => a.workspace);
+  const [favs, setFavs] = useState([]);
   useEffect(() => { get('/api/machines').then(r => setMachines(r.ok ? r.machines : [])).catch(() => {}); }, []);
+  useEffect(() => { get('/api/machines/folders?machine=' + encodeURIComponent(v.target)).then(r => setFavs(r.folders || [])).catch(() => setFavs([])); }, [v.target]);
   const projects = ((ws && ws.projects) || []).filter(p => p.directory);
   const remote = v.target !== 'local';
   const m = machines.find(x => x.id === v.target);
@@ -94,10 +96,11 @@ function NewTerminal({ onClose, preset }) {
     <div class="field"><span>Où</span><div class="chips">
       <button type="button" class=${cls('chip-btn', !remote && 'on')} onClick=${() => setV({ ...v, target: 'local', dir: '' })}><${Icon} n="chip" />Cette machine</button>
       ${machines.map(x => html`<button type="button" class=${cls('chip-btn', v.target === x.id && 'on')} onClick=${() => setV({ ...v, target: x.id, dir: x.home || '' })}><${Icon} n="server" />${x.name}</button>`)}
-    </div>${!machines.length && html`<small>Pour une autre machine : Harnesses › Connecter une machine.</small>`}</div>
+    </div><small>${machines.length ? '' : 'Pour une autre machine : '}<a href="#/settings/machines" onClick=${() => onClose()}>${machines.length ? 'Gérer les machines' : 'Réglages › Machines'}</a></small></div>
     <div class="field"><span>Dossier</span>
       ${remote ? html`<input class="input mono" placeholder=${(m && m.home) || '/home/moi'} value=${v.dir} onInput=${e => setV({ ...v, dir: e.target.value })} />`
         : html`<button class="hs-dir" onClick=${() => setPick(true)}><${Icon} n="folder" /><span class="mono trunc">${home(v.dir) || '~ (dossier personnel)'}</span><span class="muted">Changer</span></button>`}
+      ${favs.length > 0 && html`<div class="chips">${favs.map(f => html`<button type="button" class=${cls('chip-btn', v.dir === f && 'on')} onClick=${() => setV({ ...v, dir: f })}><${Icon} n="folder" />${f.split('/').pop() || f}</button>`)}</div>`}
       ${!remote && projects.length > 0 && html`<div class="chips">${projects.map(p => html`<button type="button" class=${cls('chip-btn', v.dir === p.directory && 'on')} onClick=${() => setV({ ...v, dir: p.directory, title: v.title || p.name })}>${p.name}</button>`)}</div>`}</div>
     <div class="field"><span>Lancer<${Tip} text="Rien : un shell. Sinon la commande démarre dans le terminal, par exemple le CLI d’un agent pour vérifier ou dépanner quelque chose." /></span>
       <div class="chips">${QUICK.map(([c, l]) => html`<button type="button" class=${cls('chip-btn', v.command === c && 'on')} onClick=${() => setV({ ...v, command: c })}>${l}</button>`)}</div>

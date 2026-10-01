@@ -12,7 +12,7 @@ import { app, go, refreshWorkspace, refreshNav } from '../../core/state.js';
 import { groupVariants } from '../chat/picker.js';
 import { setVisible } from '../cloud/page.js';
 import { newDiscussion, chooseRemote, open as openChat } from '../chat/engine.js';
-import { MachineDialog, MachinesSection } from './machines.js';
+
 import { Lifecycle, remoteHarnessTarget } from './lifecycle.js';
 
 // Ce que Loom sait vraiment piloter aujourd'hui, par capacité déclarée.
@@ -365,6 +365,16 @@ function AcpDetail({ rt, models, onEdit }) {
   </div>`;
 }
 
+// Harnesses d'autres machines : tout se règle dans Réglages › Machines.
+function RemoteNote() {
+  const [n, setN] = useState(null);
+  useEffect(() => { get('/api/machines').then(r => setN(r.ok ? r.machines.length : 0)).catch(() => setN(0)); }, []);
+  if (n === null) return null;
+  return html`<a class="card pad mc-note" href="#/settings/machines"><span class="mx-ico"><${Icon} n="server" /></span>
+    <span class="grow"><b>${n ? n + ' machine' + (n > 1 ? 's' : '') + ' connectée' + (n > 1 ? 's' : '') : 'Harnesses sur une autre machine'}</b>
+    <small>${n ? 'Leurs harnesses, moteur, dossiers et terminaux se gèrent dans Réglages › Machines.' : 'Connecte une machine en SSH dans Réglages › Machines pour utiliser ses harnesses ici.'}</small></span><${Icon} n="right" /></a>`;
+}
+
 function Card({ rt, models }) {
   const n = groupVariants(models.filter(m => m.runtime_id === rt.id)).length;
   const supported = rt.implemented && rt.capabilities && rt.capabilities.length > 0;
@@ -400,10 +410,9 @@ export function HarnessesPage({ route }) {
       <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
         : html`<${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} />`}</div>`
     : html`<div class="page-head"><div><h1>Harnesses</h1><p>Des agents qui gardent leurs outils, leur compte et leurs permissions. Loom leur passe la discussion.</p></div>
-        <div class="acts"><button class="btn" onClick=${() => setDlg({ machine: true })}><${Icon} n="server" />Connecter une machine</button><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />Ajouter un harness</button></div></div>
+        <div class="acts"><a class="btn" href="#/settings/machines"><${Icon} n="server" />Machines</a><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />Ajouter un harness</button></div></div>
       ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`<div class="hx-grid stagger">${[...runtimes].sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} />`)}</div>`}
-      <${MachinesSection} onEdit=${m => setDlg({ machine: m })} />`}
-    ${dlg && dlg.machine && html`<${MachineDialog} machine=${dlg.machine === true ? null : dlg.machine} onClose=${m => { setDlg(null); if (m) MachinesSection.reload && MachinesSection.reload(); }} />`}
+      <${RemoteNote} />`}
     ${dlg && !dlg.machine && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}
     ${selectedRuntime && html`<${Drawer} title=${selectedModel?.name || selectedRuntime.name} onClose=${() => setSelected(null)}><${SelectionInfo} model=${selectedModel} runtime=${selectedRuntime} models=${models} /></${Drawer}>`}
   </div></div>`;

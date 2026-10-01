@@ -38,6 +38,7 @@ type RemoteMachine struct {
 	OS        string       `json:"os,omitempty"`
 	Tools     []RemoteTool `json:"tools,omitempty"`
 	Harnesses []string     `json:"harnesses,omitempty"` // registered harness ids on this machine
+	Folders   []string     `json:"folders,omitempty"`   // favourite work folders there (suggestions)
 	CheckedAt int64        `json:"checked_at,omitempty"`
 }
 
@@ -402,6 +403,9 @@ func saveRemoteMachine(m RemoteMachine, agents []acpAgent) error {
 	replaced := false
 	for _, old := range loadRemoteMachines() {
 		if old.ID == m.ID {
+			if m.Folders == nil {
+				m.Folders = old.Folders // re-checking a machine keeps its folders
+			}
 			old, replaced = m, true
 		}
 		machines = append(machines, old)
