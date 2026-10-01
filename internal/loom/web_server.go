@@ -20,10 +20,6 @@ func cmdWeb(args []string) error {
 	if err := provisionDataDir(); err != nil {
 		fmt.Printf("%s données Loom : %v\n", yellow("[!]"), err)
 	}
-	registerCustomACPAgents()
-	go syncModelSinks()
-	loadRememberedProviderKeys()
-	go probeMissingACPAgents()
 	port := 8091
 	if len(args) > 0 && args[0] != "" {
 		n, err := strconv.Atoi(args[0])
@@ -39,6 +35,11 @@ func cmdWeb(args []string) error {
 		return fmt.Errorf("impossible de démarrer Loom sur %s : %w (arrête le service qui occupe ce port ou choisis un autre port avec `loom web <port>`)", addr, err)
 	}
 	defer ln.Close()
+	// Only once the port is ours: these write to Loom's data.
+	registerCustomACPAgents()
+	go syncModelSinks()
+	loadRememberedProviderKeys()
+	go probeMissingACPAgents()
 	mux := newWebMux()
 	fmt.Printf("[loom web] http://%s  (Ctrl-C pour arrêter)\n", addr)
 	if !webKeyConfigured() {
