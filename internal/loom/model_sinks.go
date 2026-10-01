@@ -147,14 +147,18 @@ func writePiProvider(path string, enabled bool, models []string, baseURL, key st
 // providers): rewrite file sinks and re-probe the harnesses that list them.
 func resyncHarnessSources() {
 	_ = syncModelSinks()
+	reprobe := false
 	for _, s := range modelSinks {
 		if (s.Format == "pi" || s.Format == "opencode") && modelSinkEnabled(s.Harness) {
 			acpProbeMu.Lock()
 			_ = putBytes(bkState, acpProbeKey+s.Harness, nil)
 			acpProbeMu.Unlock()
+			reprobe = true
 		}
 	}
-	go probeMissingACPAgents()
+	if reprobe {
+		go probeMissingACPAgents()
+	}
 }
 
 func syncModelSinks() error {

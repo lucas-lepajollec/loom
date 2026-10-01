@@ -39,7 +39,7 @@ func handleProviderSave(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := workspaceSessions.saveProvider(CloudProvider{ID: req.ID, Name: req.Name, Endpoint: req.Endpoint, Model: req.Model, Models: req.Models, UsageMode: req.UsageMode, Remember: remember}, req.Key)
 	if err == nil || errors.Is(err, errNoKeychain) {
-		go resyncHarnessSources() // Pi/OpenCode list Loom's providers
+		resyncHarnessSources() // Pi/OpenCode list Loom's providers
 	}
 	if errors.Is(err, errNoKeychain) {
 		// Saved and usable; only the "remember" part failed.
@@ -63,7 +63,7 @@ func handleProviderDisconnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	workspaceSessions.disconnect(req.ID)
-	go resyncHarnessSources()
+	resyncHarnessSources()
 	sendJSON(w, 200, map[string]any{"ok": true})
 }
 func handleRuntimeSessions(w http.ResponseWriter, r *http.Request) {
