@@ -12,7 +12,8 @@ const ALIAS = { 'claude-code': 'claudecode', hermes: 'hermesagent', 'lm studio':
   'moonshot · kimi': 'kimi', 'x-ai': 'xai', 'z-ai': 'zai', 'moonshotai': 'kimi', 'meta-llama': 'meta' };
 
 export function logoId(name) {
-  const k = String(name || '').trim().toLowerCase();
+  // Les harnesses ajoutés à la main ont l'identifiant custom-<nom>.
+  const k = String(name || '').trim().toLowerCase().replace(/^custom-/, '');
   const id = ALIAS[k] || k.replace(/[^a-z0-9]/g, '');
   return KNOWN.has(id) ? id : '';
 }
