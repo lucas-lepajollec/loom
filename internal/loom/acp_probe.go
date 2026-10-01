@@ -2,6 +2,7 @@ package loom
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -22,6 +23,7 @@ type acpProbe struct {
 	Modes    []map[string]any `json:"modes,omitempty"`
 	Mode     string           `json:"mode,omitempty"`
 	Config   []map[string]any `json:"config,omitempty"`
+	Commands []map[string]any `json:"commands,omitempty"` // "/" commands announced by the agent
 	Error    string           `json:"error,omitempty"`
 	Duration float64          `json:"duration_seconds,omitempty"`
 }
@@ -63,7 +65,26 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 	defer c.close()
 	// The probe never grants anything: every client request is refused.
 	c.handler = func(*acpFrame) (any, error) { return nil, errors.New("sonde Loom") }
-	c.notify = func(acpFrame) {}
+	commands := make(chan []map[string]any, 4)
+	c.notify = func(f acpFrame) {
+		var params struct {
+			Update map[string]any `json:"update"`
+		}
+		if json.Unmarshal(f.Params, &params) != nil || params.Update["sessionUpdate"] != "available_commands_update" {
+			return
+		}
+		list, _ := params.Update["availableCommands"].([]any)
+		out := []map[string]any{}
+		for _, raw := range list {
+			if m, ok := raw.(map[string]any); ok {
+				out = append(out, m)
+			}
+		}
+		select {
+		case commands <- out:
+		default:
+		}
+	}
 	if err := c.start(); err != nil {
 		return fail(err)
 	}
@@ -92,6 +113,11 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 		out.Modes, out.Mode = session.Modes.Available, session.Modes.Current
 	}
 	out.Config = session.Config
+	// Agents announce their commands right after session/new.
+	select {
+	case out.Commands = <-commands:
+	case <-time.After(2 * time.Second):
+	}
 	out.Duration = time.Since(started).Seconds()
 	return out
 }

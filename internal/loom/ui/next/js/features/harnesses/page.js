@@ -8,7 +8,7 @@ import { Icon } from '../../ui/icons.js';
 import { Switch, Tip, Seg } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
-import { app, go, refreshWorkspace } from '../../core/state.js';
+import { app, go, refreshWorkspace, refreshNav } from '../../core/state.js';
 import { groupVariants } from '../chat/picker.js';
 import { setVisible } from '../cloud/page.js';
 import { newDiscussion, chooseRemote, open as openChat } from '../chat/engine.js';
@@ -97,6 +97,43 @@ const optValues = o => { const out = []; const walk = l => (l || []).forEach(x =
 const byCat = (cfg, cat) => (cfg || []).find(o => o.category === cat) || (cfg || []).find(o => o.id === cat);
 const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'à l’instant' : m < 60 ? 'il y a ' + m + ' min' : m < 1440 ? 'il y a ' + Math.round(m / 60) + ' h' : 'il y a ' + Math.round(m / 1440) + ' j'; };
 
+// Sessions déjà ouvertes dans le harness (hors Loom) : les importer pour les
+// continuer ici, avec la mémoire native du harness.
+function NativeSessions({ rt }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState('');
+  const [q, setQ] = useState('');
+  const load = async () => {
+    setErr(''); setList(null);
+    const r = await get('/api/runtimes/' + rt.id + '/sessions').catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) { setErr(r.error || 'Lecture impossible'); setList([]); return; }
+    setList((r.sessions || []).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))));
+  };
+  useEffect(() => { if (rt.available !== false) load(); }, [rt.id]);
+  const importOne = async x => {
+    if (x.imported) { openChat(x.imported); go('chat'); return; }
+    setBusy(x.sessionId);
+    const r = await post('/api/runtimes/' + rt.id + '/sessions/import', { sessionId: x.sessionId, cwd: x.cwd, title: x.title || '' }).catch(e => ({ ok: false, error: e.message }));
+    setBusy('');
+    if (!r.ok) return toast(r.error || 'Import impossible', 'err');
+    await refreshNav(); openChat(r.session.id); go('chat');
+  };
+  const shown = (list || []).filter(x => !q || ((x.title || '') + ' ' + x.cwd).toLowerCase().includes(q.toLowerCase()));
+  return html`<section class="sec"><div class="sec-h"><h2>Sessions de ${rt.name} <span class="count">${list ? list.length : ''}</span><${Tip} text=${'Les discussions que tu as eues directement dans ' + rt.name + '. Les importer les ajoute à Loom ; tu les continues ici avec la mémoire du harness.'} /></h2>
+      <span style="display:flex;gap:8px">${list && list.length > 6 && html`<label class="search" style="width:220px"><${Icon} n="search" /><input placeholder="Filtrer" aria-label="Filtrer les sessions" value=${q} onInput=${e => setQ(e.target.value)} /></label>`}
+      <button class="btn sm ghost" onClick=${load}><${Icon} n="refresh" />Actualiser</button></span></div>
+    ${list === null ? html`<div class="card pad"><div class="state"><span class="spinner"></span>Lecture des sessions de ${rt.name}…</div></div>`
+      : err ? html`<div class="card pad"><p class="note err">${err}</p></div>`
+      : !shown.length ? html`<div class="card pad"><p class="note">${q ? 'Aucune session ne correspond.' : 'Aucune session trouvée.'}</p></div>`
+      : html`<div class="card rows">${shown.slice(0, 30).map(x => html`<div class="row" key=${x.sessionId}>
+          <div class="grow"><div class="t">${x.title || 'Session sans titre'}</div>
+            <div class="s">${[x.cwd.replace(/^\/home\/[^/]+/, '~'), x.updatedAt ? ago(Date.parse(x.updatedAt)) : ''].filter(Boolean).join(' · ')}</div></div>
+          ${x.imported && html`<span class="tag">dans Loom</span>`}
+          <button class="btn sm" disabled=${!!busy} onClick=${() => importOne(x)}>${busy === x.sessionId ? html`<span class="spinner"></span>Import…` : x.imported ? 'Ouvrir' : 'Importer'}</button></div>`)}</div>`}
+  </section>`;
+}
+
 function AcpDetail({ rt, models, onEdit }) {
   const nav = useStore(app, a => a.nav);
   const [probe, setProbe] = useState(null);
@@ -182,7 +219,9 @@ function AcpDetail({ rt, models, onEdit }) {
         ${rt.docs && html`<div class="set-line"><div class="set-l"><span>Documentation</span></div><div class="set-c"><a class="btn sm ghost" href=${rt.docs} target="_blank" rel="noopener noreferrer">Ouvrir</a></div></div>`}
       </div></section>
 
-    <section class="sec"><div class="sec-h"><h2>Discussions récentes <span class="count">${talks.length}</span></h2></div>
+    ${(probe && probe.capabilities && probe.capabilities.sessionCapabilities && probe.capabilities.sessionCapabilities.list) ? html`<${NativeSessions} rt=${rt} />` : ''}
+
+    <section class="sec"><div class="sec-h"><h2>Discussions récentes dans Loom <span class="count">${talks.length}</span></h2></div>
       ${talks.length ? html`<div class="card rows">${talks.slice(0, 8).map(c => html`<button type="button" class="row link-row" key=${c.id} onClick=${() => { openChat(c.id); go('chat'); }}>
           <div class="grow"><div class="t">${c.title || 'Discussion'}</div><div class="s">${[c.model && c.model !== 'default' ? c.model : '', c.workdir ? c.workdir.split('/').pop() : '', c.updated_at ? ago(c.updated_at) : ''].filter(Boolean).join(' · ')}</div></div>
           <${Icon} n="right" /></button>`)}</div>`

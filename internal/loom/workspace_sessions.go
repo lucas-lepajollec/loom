@@ -332,7 +332,11 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 			if !acp.agent.available() {
 				return errors.New("CLI ou lanceur ACP indisponible")
 			}
-			if _, err := acpDirectory(s.Workdir); err != nil {
+			check := acpDirectory
+			if acp.agent.Remote {
+				check = remoteWorkdir
+			}
+			if _, err := check(s.Workdir); err != nil {
 				return err
 			}
 			adapter = &acpAdapter{agent: acp.agent, sessions: m, session: cloneRuntimeSession(s)}

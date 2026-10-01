@@ -4,7 +4,10 @@ import { html, useState, useRef, useEffect, useStore, cls, fmtTok } from '../../
 import { Icon } from '../../ui/icons.js';
 import { Popover } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
-import { request } from '../../core/api.js';
+import { request, get } from '../../core/api.js';
+
+// Commandes « / » lues par la sonde, par harness (évite de relancer l'agent).
+const probeCommands = {};
 import { runtimeCaps, app } from '../../core/state.js';
 import { chat, send, stop, compact } from './engine.js';
 import { currentExec } from './picker.js';
@@ -63,9 +66,18 @@ export function Composer() {
     if (sent) setFiles([]); else setText(t);
   };
   // Commandes « / » annoncées par le harness (available_commands_update).
-  const commands = (!native && c.harness && c.harness.commands) || [];
+  const rtId = !native && c.session ? c.session.runtime_id : '';
+  const [, bump] = useState(0);
+  useEffect(() => {
+    if (!rtId || probeCommands[rtId] || !runtimeCaps(rtId).includes('workdir')) return;
+    probeCommands[rtId] = [];
+    get('/api/runtimes/' + rtId + '/probe').then(r => { probeCommands[rtId] = (r.probe && r.probe.commands) || []; bump(x => x + 1); }).catch(() => {});
+  }, [rtId]);
+  // Commandes de la session en cours, sinon celles annoncées lors de la sonde.
+  const live = (!native && c.harness && c.harness.commands) || [];
+  const commands = live.length ? live : (rtId && probeCommands[rtId]) || [];
   const slash = /^\/(\S*)$/.exec(text);
-  const matches = slash ? commands.filter(x => x.name.toLowerCase().startsWith(slash[1].toLowerCase())).slice(0, 8) : [];
+  const matches = slash ? commands.filter(x => x.name.toLowerCase().includes(slash[1].toLowerCase())).sort((a, b) => a.name.toLowerCase().startsWith(slash[1].toLowerCase()) ? -1 : b.name.toLowerCase().startsWith(slash[1].toLowerCase()) ? 1 : 0).slice(0, 40) : [];
   const [sel, setSel] = useState(0);
   const useCommand = x => { setText('/' + x.name + ' '); setSel(0); ta.current && ta.current.focus(); };
   const onKey = e => {
@@ -87,7 +99,7 @@ export function Composer() {
 
   return html`<div class="composer-wrap">
     ${matches.length > 0 && html`<div class="slash" role="listbox" aria-label="Commandes">${matches.map((x, i) => html`<button type="button" role="option" aria-selected=${String(i === sel)} class=${cls('slash-row', i === sel && 'on')} onMouseDown=${e => { e.preventDefault(); useCommand(x); }}>
-      <b>/${x.name}</b><span>${x.description || ''}</span></button>`)}</div>`}
+      <b>/${x.name}</b>${x.input && x.input.hint && html`<em>${x.input.hint}</em>`}<span>${x.description || ''}</span></button>`)}</div>`}
     <div class="composer">
       ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}<button aria-label="Retirer" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
       <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey}
