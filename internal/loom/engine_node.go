@@ -121,6 +121,26 @@ func engineModelsJSON() []byte {
 	return engineModelsCache.body
 }
 
+// engineCurrentModel names the model the engine serves, for attribution.
+func engineCurrentModel() string {
+	n := currentEngineNode()
+	if n == nil {
+		return ReadConfig()["MODEL"]
+	}
+	req, _ := http.NewRequest(http.MethodGet, n.URL+"/api/status", nil)
+	req.Header.Set("Authorization", "Bearer "+n.WebKey)
+	resp, err := nodeClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	var st struct {
+		Model string `json:"model"`
+	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&st)
+	return st.Model
+}
+
 // --- the remote side: what a Loom tells another Loom that links to it ---
 
 // GET (control key required): what a linking Loom needs. Only served when this

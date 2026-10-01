@@ -413,7 +413,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	// journalisée dans turn_done pour que l'UI affiche la MÊME durée en direct et
 	// après un rechargement (le chrono client, lui, n'existe qu'en direct).
 	turnStart := time.Now()
-	turnModel := ReadConfig()["MODEL"]
+	turnModel := engineCurrentModel()
 	defer func() {
 		c.mu.Lock()
 		stale := c.epoch != epoch
