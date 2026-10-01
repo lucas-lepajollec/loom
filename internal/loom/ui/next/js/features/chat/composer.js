@@ -54,7 +54,7 @@ export function Composer() {
   if (!native && c.session && !c.session.runtime_id) blocked = 'Choisis un modèle pour cette discussion.';
   if (!native && c.session && runtimeCaps(c.session.runtime_id).includes('workdir') && !((c.harness && c.harness.workdir) || c.session.workdir)) blocked = 'Choisis un dossier de travail dans le panneau de droite.';
   if (c.context && c.context.problem) blocked = c.context.problem;
-  const hint = c.notice || blocked;
+
 
   const submit = async () => {
     const t = text.trim();
@@ -82,6 +82,10 @@ export function Composer() {
   const live = (!native && c.harness && c.harness.commands) || [];
   const probed = rtId && Array.isArray(probeCommands[rtId]) ? probeCommands[rtId] : [];
   const commands = live.length ? live : probed;
+  // Commande tapée mais non annoncée par le harness (ex. /usage, propre au terminal de Claude Code).
+  const typed = /^\/(\S+)/.exec(text.trim());
+  const unknownCmd = typed && commands.length > 0 && !commands.some(x => x.name === typed[1]) ? typed[1] : '';
+  const hint = c.notice || blocked || (unknownCmd ? '/' + unknownCmd + ' n’est pas proposée par ce harness via Loom : elle sera envoyée comme un message normal.' : '');
   const slash = /^\/(\S*)$/.exec(text);
   const matches = slash ? commands.filter(x => x.name.toLowerCase().includes(slash[1].toLowerCase())).sort((a, b) => a.name.toLowerCase().startsWith(slash[1].toLowerCase()) ? -1 : b.name.toLowerCase().startsWith(slash[1].toLowerCase()) ? 1 : 0).slice(0, 40) : [];
   const [sel, setSel] = useState(0);

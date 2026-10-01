@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -338,11 +339,16 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	p.publish(DiscussionEvent{"type": "mode", "current": state.Mode, "modes": state.AvailableModes})
 	p.publish(DiscussionEvent{"type": "config", "options": state.AvailableConfigOptions})
 	var prompt string
-	if fresh {
+	last, _ := turn.Messages[len(turn.Messages)-1].Content.(string)
+	// A "/" command must reach the agent exactly as typed, or it is not
+	// recognised. On a fresh native session the history is then not sent; the
+	// next ordinary message hands it over (see NativeContext below).
+	command := strings.HasPrefix(strings.TrimSpace(last), "/")
+	if fresh && !command {
 		b, _ := json.Marshal(turn.Messages)
 		prompt = "Loom portable discussion (role/content; tools are not replayed):\n" + string(b)
 	} else {
-		prompt, _ = turn.Messages[len(turn.Messages)-1].Content.(string)
+		prompt = last
 	}
 	// A cancelled prompt cannot leave an unknown native transcript reusable.
 	stopped := make(chan struct{})
@@ -391,6 +397,10 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	history := append(append([]Message{}, turn.Messages...), Message{Role: "assistant", Content: answer})
 	p.mu.Lock()
 	p.state.NativeContext = acpContextHash(history)
+	if fresh && command && len(turn.Messages) > 1 {
+		// The agent never received the portable history: hand it over next time.
+		p.state.NativeContext = ""
+	}
 	p.mu.Unlock()
 	p.publish(nil)
 	return []Message{{Role: "assistant", Content: answer}}, nil
