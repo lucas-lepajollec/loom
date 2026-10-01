@@ -26,6 +26,7 @@ function Connect({ provider, entry, onClose }) {
   const [key, setKey] = useState('');
   const [usage, setUsage] = useState(provider ? provider.usage_mode !== 'none' : entry ? !!entry.usage : true);
   const nokey = !!(preset && preset.nokey);
+  const [remember, setRemember] = useState(provider ? !!provider.remember : true);
   const [catalog, setCatalog] = useState(provider ? provider.models || [] : []);
   const [sel, setSel] = useState(new Set(provider ? provider.models || [] : []));
   const [q, setQ] = useState('');
@@ -43,9 +44,9 @@ function Connect({ provider, entry, onClose }) {
   const save = async () => {
     const models = [...sel];
     if (!models.length || models.length > 32) { setMsg('Choisis entre 1 et 32 modèles.'); return; }
-    const r = await post('/api/providers/save', { id: provider ? provider.id : '', name: name || (preset && preset.name) || 'Fournisseur', endpoint, model: models[0], models, key: key || (nokey && !editing ? 'local' : ''), usage_mode: usage ? '' : 'none' });
+    const r = await post('/api/providers/save', { id: provider ? provider.id : '', name: name || (preset && preset.name) || 'Fournisseur', endpoint, model: models[0], models, key: key || (nokey && !editing ? 'local' : ''), usage_mode: usage ? '' : 'none', remember: !nokey && remember });
     if (!r.ok) { setMsg(r.error); return; }
-    toast('Fournisseur enregistré'); refreshWorkspace(); onClose();
+    toast(r.warning || 'Fournisseur enregistré', r.warning ? 'err' : undefined); refreshWorkspace(); onClose();
   };
   const list = catalog.filter(m => !q || m.toLowerCase().includes(q.toLowerCase()));
   return html`<${Modal} wide title=${editing ? 'Modèles de ' + provider.name : 'Connecter un fournisseur'} sub=${step === 0 ? 'Choisis un fournisseur compatible Chat Completions.' : step === 1 ? 'La clé reste en mémoire côté serveur ; rien n’est écrit sur le disque.' : 'Choisis les modèles proposés dans tes discussions.'} onClose=${onClose}
@@ -56,7 +57,8 @@ function Connect({ provider, entry, onClose }) {
       ${!editing && html`<label class="field"><span>Nom</span><input class="input" value=${name} onInput=${e => setName(e.target.value)} placeholder="ex. OpenRouter" /></label>`}
       <label class="field"><span>URL de base</span><input class="input mono" value=${endpoint} readonly=${editing} onInput=${e => setEndpoint(e.target.value)} placeholder="https://api.exemple.com/v1" /></label>
       <label class="field"><span>Clé API</span><input class="input" type="password" autocomplete="off" value=${key} onInput=${e => setKey(e.target.value)} placeholder=${provider && provider.ready ? 'Déjà en mémoire · laisser vide pour la garder' : nokey ? 'Facultative pour un serveur local' : 'sk-…'} /></label>
-      <label class="check"><input type="checkbox" checked=${usage} onChange=${e => setUsage(e.target.checked)} /><span>Demander le décompte des tokens (désactive si le fournisseur refuse stream_options)</span></label>`}
+      ${!nokey && html`<label class="check"><input type="checkbox" checked=${remember} onChange=${e => setRemember(e.target.checked)} /><span>Mémoriser la clé dans le trousseau du système<${Tip} text="Gardée par Windows, macOS ou le trousseau Linux, jamais dans les fichiers de Loom. Décoché : la clé est oubliée au redémarrage." /></span></label>`}
+      <label class="check"><input type="checkbox" checked=${usage} onChange=${e => setUsage(e.target.checked)} /><span>Demander le décompte des tokens<${Tip} text="À décocher si le fournisseur refuse l’option stream_options." /></span></label>`}
     ${step === 2 && html`<label class="search"><${Icon} n="search" /><input placeholder="Filtrer le catalogue…" value=${q} onInput=${e => setQ(e.target.value)} /></label>
       <div class="catalog">${list.map(m => html`<label class=${cls('choice', sel.has(m) && 'on')}><input type="checkbox" checked=${sel.has(m)} onChange=${e => { const n = new Set(sel); e.target.checked ? n.add(m) : n.delete(m); setSel(n); }} /><span class="grow"><b class="mono">${m}</b></span></label>`)}</div>`}
     ${msg && html`<p class="note">${msg}</p>`}
@@ -78,7 +80,7 @@ function ProviderDetail({ p, models, onModels, onForget, onInspect }) {
   return html`<div class="insp-body">
     <div class="insp-model"><${Logo} id=${(entryFor(p) || {}).logo} name=${p.name} size="lg" /><div><b>${p.name}</b><span class="mono trunc">${p.endpoint}</span></div></div>
     <div class="card pad-sm">
-      <div class="kv"><span>Clé API</span><span class="state"><i class=${cls('dot', p.ready && 'green')}></i>${p.ready ? 'En mémoire' : 'À reconnecter'}</span></div>
+      <div class="kv"><span>Clé API</span><span class="state"><i class=${cls('dot', p.ready && 'green')}></i>${!p.ready ? 'À reconnecter' : p.remember ? 'Mémorisée dans le trousseau' : 'En mémoire jusqu’au redémarrage'}</span></div>
       <div class="kv"><span>Protocole</span><span>Chat Completions</span></div>
       <div class="kv"><span>Dans le sélecteur</span><span class="num">${list.filter(m => m.enabled).length} sur ${list.length}</span></div>
     </div>
@@ -109,7 +111,7 @@ export function CloudPage() {
   const opened = providers.find(p => p.id === open);
   const tile = (e, p) => html`<${Tile} key=${(p && p.id) || e.name} e=${e} p=${p} onOpen=${() => setOpen(p.id)} onConnect=${() => setDlg({ entry: e })} />`;
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>Cloud</h1><p>Connecte tes fournisseurs d’IA. Les clés restent en mémoire, jamais écrites en clair.<${Tip} text="Une discussion n’envoie que du texte au fournisseur, après ton accord. Fichiers, outils locaux et mémoire privée restent sur ta machine." /></p></div>
+    <div class="page-head"><div><h1>Cloud</h1><p>Connecte tes fournisseurs d’IA. Les clés restent en mémoire ou dans le trousseau du système, jamais dans les fichiers de Loom.<${Tip} text="Une discussion n’envoie que du texte au fournisseur, après ton accord. Fichiers, outils locaux et mémoire privée restent sur ta machine." /></p></div>
       <div class="acts"><span class="cl-sum"><i class=${cls('dot', ready && 'green')}></i>${ready} connecté${ready > 1 ? 's' : ''}${warn ? ' · ' + warn + ' à reconnecter' : ''}</span></div></div>
     <div class="cl-bar">
       ${[['all', 'Tous', ALL.length], ['on', 'Connectés', ready], ['warn', 'À reconnecter', warn]].map(([v, l, n]) => html`<button class="chipf" aria-pressed=${String(filter === v)} onClick=${() => setFilter(v)}>${l}<span>${n}</span></button>`)}

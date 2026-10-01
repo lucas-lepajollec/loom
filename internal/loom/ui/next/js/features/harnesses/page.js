@@ -135,6 +135,55 @@ function NativeSessions({ rt }) {
   </section>`;
 }
 
+// Ressources Loom reçues par ce harness : serveurs MCP (transmis à chaque
+// session) et skills (copiées dans son dossier de skills), choisies une à une.
+function LoomResources({ rt }) {
+  const ws = useStore(app, a => a.workspace);
+  const skills = (ws && ws.capabilities) || [];
+  const [mcp, setMcp] = useState(null);
+  const [sk, setSk] = useState(null);
+  const remote = (rt.capabilities || []).includes('remote');
+  const load = async () => {
+    const [m, t] = await Promise.all([get('/api/harness/bindings?id=' + encodeURIComponent(rt.id)).catch(() => null), get('/api/skills/targets').catch(() => null)]);
+    setMcp(m && m.ok ? m : { mcp: [], custom: false });
+    const target = ((t && t.targets) || []).find(x => x.harnesses.includes(rt.id)) || null;
+    setSk({ target, bindings: (t && t.bindings) || {} });
+  };
+  useEffect(() => { load(); }, [rt.id]);
+  const setMcpBound = async (name, on) => {
+    const names = mcp.mcp.filter(r => (r.name === name ? on : r.bound)).map(r => r.name);
+    const r = await post('/api/harness/bindings', { id: rt.id, mcp: names });
+    if (!r.ok) return toast(r.error, 'err'); load();
+  };
+  const resetMcp = async () => { await post('/api/harness/bindings', { id: rt.id, mcp: null }); load(); };
+  const enableTarget = async () => {
+    const r = await post('/api/skills/targets', { id: sk.target.id, enabled: true });
+    if (!r.ok) return toast(r.error, 'err'); load();
+  };
+  const setSkill = async (id, on) => {
+    const r = await post('/api/skills/binding', { skill_id: id, target: sk.target.id, enabled: on });
+    if (!r.ok) return toast(r.error, 'err'); load();
+  };
+  if (!mcp || !sk) return null;
+  const bound = id => !(sk.bindings[id] && sk.bindings[id][sk.target.id] === false);
+  return html`<section class="sec"><div class="sec-h"><h2>Ressources Loom transmises<${Tip} text=${'Loom garde la définition de tes skills et serveurs MCP ; tu choisis ce que ' + rt.name + ' reçoit. Le harness reste maître de leur exécution.'} /></h2>
+      <a class="btn sm ghost" href="#/resources">Gérer les ressources</a></div>
+    <div class="grid2">
+      <div class="card pad"><div class="sec-h"><h2>Serveurs MCP</h2>${mcp.custom && html`<button class="btn sm ghost" onClick=${resetMcp}>Tous</button>`}</div>
+        ${remote ? html`<p class="note">Non transmis : ce harness tourne sur une autre machine.</p>`
+          : mcp.mcp.length ? mcp.mcp.map(r => html`<div class="kv" key=${r.name}><span>${r.name}${!r.enabled && html` <span class="muted">· désactivé dans Loom</span>`}</span>
+              <${Switch} checked=${r.bound && r.enabled} disabled=${!r.enabled} label=${'Transmettre ' + r.name + ' à ' + rt.name} onChange=${on => setMcpBound(r.name, on)} /></div>`)
+          : html`<p class="note">Aucun serveur MCP dans Loom.</p>`}</div>
+      <div class="card pad"><div class="sec-h"><h2>Skills</h2></div>
+        ${!sk.target ? html`<p class="note">Loom ne connaît pas encore le dossier de skills de ce harness.</p>`
+          : !sk.target.enabled ? html`<div class="kv"><span>Distribution vers ${sk.target.dir.replace(/^\/home\/[^/]+/, '~')}</span><button class="btn sm" onClick=${enableTarget}>Activer</button></div>`
+          : skills.length ? skills.map(c => html`<div class="kv" key=${c.id}><span class="trunc" title=${c.description || ''}>${c.name}</span>
+              <${Switch} checked=${bound(c.id)} label=${'Envoyer ' + c.name + ' à ' + rt.name} onChange=${on => setSkill(c.id, on)} /></div>`)
+          : html`<p class="note">Aucune skill dans Loom.</p>`}
+        ${sk.target && sk.target.harnesses.length > 1 && sk.target.enabled && html`<p class="note" style="margin-top:8px">Dossier partagé avec ${sk.target.harnesses.filter(h => h !== rt.id).join(', ')}.</p>`}</div>
+    </div></section>`;
+}
+
 // Ce que le harness possède déjà sur cette machine, lu dans son CLI et ses
 // dossiers : version, compte, clés présentes, MCP, plugins, skills. Mise à jour
 // par sa propre commande, sur demande.
@@ -157,6 +206,11 @@ function MachineState({ rt, commands }) {
     if (r.inspection) setX(r.inspection); else load(true);
     refreshWorkspace();
   };
+  const adopt = async m => {
+    const r = await post('/api/runtimes/' + rt.id + '/mcp/adopt', { name: m.name }).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) return toast(r.error || 'Adoption impossible', 'err');
+    toast(r.name + ' ajouté à Loom, désactivé' + (r.env_to_fill && r.env_to_fill.length ? ' · à compléter : ' + r.env_to_fill.join(', ') : ''));
+  };
   if (x === false) return null;
   if (!x) return html`<section class="sec"><div class="sec-h"><h2>Sur cette machine</h2></div><div class="card pad"><div class="state"><span class="spinner"></span>Lecture de ${rt.name}…</div></div></section>`;
   if (!x.installed) return html`<section class="sec"><div class="sec-h"><h2>Sur cette machine</h2></div><div class="card pad"><p class="note">${rt.name} n’est pas installé sur cette machine.${rt.docs ? html` <a href=${rt.docs} target="_blank" rel="noopener noreferrer">Voir l’installation</a>` : ''}</p></div></section>`;
@@ -174,7 +228,8 @@ function MachineState({ rt, commands }) {
       </div>
       <div class="card pad">
         <div class="kv"><span>Serveurs MCP du harness</span><span class="num">${x.mcp_known ? x.mcp.length : 'non lus'}</span></div>
-        ${x.mcp.map(m => { const st = MCP_STATE[m.status] || ['', m.status || '']; return html`<div class="kv" key=${m.name}><span class="trunc" title=${m.target || ''}>${m.name}</span><span class="state">${st[1] && html`<i class=${'dot ' + st[0]}></i>`}${st[1]}</span></div>`; })}
+        ${x.mcp.map(m => { const st = MCP_STATE[m.status] || ['', m.status || '']; return html`<div class="kv" key=${m.name}><span class="trunc" title=${m.target || ''}>${m.name}</span><span class="state">${st[1] && html`<i class=${'dot ' + st[0]}></i>`}${st[1]}
+          ${(m.command || m.url) && html`<button class="btn sm ghost" title="Copier ce serveur dans Loom pour le donner aussi aux autres harnesses" onClick=${() => adopt(m)}>Adopter</button>`}</span></div>`; })}
         <div class="kv"><span>Plugins</span><span class="num">${x.plugins.length}</span></div>
         ${x.plugins.map(p => html`<div class="kv" key=${p}><span>${p}</span><span></span></div>`)}
         <div class="kv"><span>Skills installées</span><span class="num">${x.skills.length}</span></div>
@@ -246,6 +301,7 @@ function AcpDetail({ rt, models, onEdit }) {
     </div>
     ${probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
     ${!rt.custom && html`<${MachineState} rt=${rt} commands=${probe && probe.commands ? probe.commands.length : null} />`}
+    <${LoomResources} rt=${rt} />
 
     <section class="sec"><div class="sec-h"><h2>Modèles <span class="count">${list.length}</span></h2></div>
       ${list.length ? html`<div class="card rows">${list.map(m => html`<div class="row" key=${m.value}>

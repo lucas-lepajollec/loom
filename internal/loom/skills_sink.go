@@ -136,7 +136,7 @@ func syncSkillSinks() []skillSinkTarget {
 // GET: targets with state. POST {id, enabled}: toggle one target and sync.
 func handleSkillSinks(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		sendJSON(w, 200, map[string]any{"ok": true, "targets": loadSkillSinks()})
+		sendJSON(w, 200, map[string]any{"ok": true, "targets": loadSkillSinks(), "bindings": skillBindings()})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
