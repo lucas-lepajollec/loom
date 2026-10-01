@@ -56,9 +56,10 @@ has one implementation (`llamacpp.BuildServerArgs`);
 `buildLlamaServerArgsForConfig` resolves Loom-owned inputs and delegates to it.
 The original helper delegates through the lifecycle wrapper. Empty `ModelConfig` selects the saved current
 configuration; explicit inputs resolve in memory and require a reachable router
-for transient loading. They never overwrite saved model settings. Service
-supervision remains in `loom`; router execution delegates through compatibility
-wrappers to an explicit `llamacpp.Router`.
+for transient loading. They never overwrite saved model settings. Service policy
+remains in `loom`; child supervision and caches delegate through
+compatibility wrappers to an explicit `llamacpp.Supervisor`, and router execution
+to `llamacpp.Router`.
 Contexts are checked before lifecycle actions; cancellation of an already-started
 legacy service/router job is not provided by this wrapper.
 
@@ -208,6 +209,25 @@ selection; observation retains `autoload=false`. Existing fake-router/fake-help
 integration tests remain in `loom`; package tests exercise argv precedence and
 independent router owners with a socket-free fake transport.
 
+The fifth slice replaces the scattered process/cache globals with one explicit
+`llamacpp.Supervisor`, instantiated at the Loom compatibility boundary. It owns
+the child handle, completion channel, generation guard, managed state, last error,
+launch ports, native-help cache, GGUF metadata cache, two-second router `/props`
+cache, slot observations/history/statistics and their separate locks. Router INI
+and public model-switch locks also belong to that owner. It adds no runtime globals
+in the engine package. Loom still resolves configured ports on each call; recorded
+launch ports do not freeze or replace configuration reads.
+
+`supervisor.go` owns start/wait, interrupt then kill after four seconds, atomic
+legacy replacement and router readiness polling. Loom supplies command/environment
+preparation under the owner lock, the diagnostic writer and asynchronous cleanup
+callback for an unexpected exit. Requested stops retain the generation guard and
+never invoke that cleanup. `observation_cache.go`, `model_cache.go` and `slots.go`
+retain cache keys, lifetimes, copy behavior, slot parsing and completion accounting.
+No launch resets a cache that was not reset before this slice. Independent-owner
+and socket-free child tests cover lifecycle, cleanup and cache isolation; existing
+Loom integration tests still exercise the historical compatibility functions.
+
 Moved responsibilities:
 
 - `backend_help.go`: native help parsing, flag metadata, tiers and config keys.
@@ -231,32 +251,33 @@ Still in `loom`, deliberately:
 
 - `engine.go` and the remainder of `engine_params.go`: active configuration,
   lifecycle adapter and authenticated HTTP handler.
-- `backend_serve.go`, `backend_llama_owned.go` and `backend_engine.go`: child
-  process startup/supervision, signals, readiness tied to the owned process,
-  service restart/stop, preflight and service status. These remain coupled to
-  Loom's service layer and application cleanup (config, overlays and selection).
+- `backend_serve.go`, `backend_llama_owned.go` and `backend_engine.go`: service
+  startup/stop/restart policy, application signal handling, configured argv,
+  command working directory/environment, readiness integration and service status.
+  The unexpected-exit callback still clears Loom config, preset/router selection
+  and API overlays; the engine supervisor does not know those application stores.
 - The remainder of `backend_router.go` and `engine_compat.go`: current config,
   installed-binary/model/shard resolution, library/GPU environment setup, preset
   labels and adapters for credentials, runtime overlays and persisted state.
-  The existing shared owner lock stays in `loom` and is passed explicitly; no
-  router implementation reads it as a package global.
+  The supervisor supplies the shared owner lock explicitly; no router
+  implementation reads it as a package global.
 - The remainders of `backend_help.go`, `backend_gguf.go` and
-  `backend_vram_est.go`: existing caches, installed-binary/library resolution,
+  `backend_vram_est.go`: installed-binary/library resolution,
   model path resolution, runtime overrides and hardware collection.
 - The remainders of `backend_config.go`/`backend_presets.go`: active config and
   credentials, preserved machine-key policy, persistence, selection and CLI.
 - `llm_oai_*.go` and `backend_server.go`: global overlays, chat/session coupling,
-  proxy/authentication, server watches and web handlers. The config-key lookup
+  proxy/authentication, observation adapters and web handlers. The config-key lookup
   delegates through compatibility instead of exposing the moved table.
 - Other `backend_*` files (build/prebuilt/install, GPU discovery, catalog/Hub,
   model directories/downloads/shards/capabilities): configuration, installation
   and application integrations remain for a later coherent slice.
 
-Next engine slice: introduce an explicit owned-process/supervisor boundary and
-cache owner, with service/environment callbacks from `loom`, before extracting
-process execution that can move cleanly. Keep service policy and application
-cleanup in `loom`. The runtime package split follows that boundary; the current
-extraction does not restart an engine, alter flags or change stored configuration.
+Next slice: `runtime/` and its local/OpenAI/harness adapter boundaries, starting
+from the registry and contracts. Service policy, installed-binary/environment
+resolution, application cleanup and web/proxy orchestration remain in Loom until
+their own coherent migration. This extraction does not restart an engine, alter
+flags or change stored configuration.
 
 ## 5. Front-end layout (`internal/loom/ui/next`)
 

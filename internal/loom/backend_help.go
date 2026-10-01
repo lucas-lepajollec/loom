@@ -3,24 +3,10 @@ package loom
 import (
 	"bytes"
 	"context"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
-)
-
-type llamaHelpCache struct {
-	bin   string
-	mod   int64
-	text  string
-	flags []LlamaFlag
-}
-
-var (
-	llamaHelpMu    sync.Mutex
-	llamaHelpState llamaHelpCache
 )
 
 func llamaHelpText(bin string) string {
@@ -32,43 +18,21 @@ func llamaHelpText(bin string) string {
 		bin = filepath.Join(LoomHome(), bin)
 	}
 	bin = prebuiltResolveBin(bin)
-	mod := int64(0)
-	if st, err := os.Stat(bin); err == nil {
-		mod = st.ModTime().UnixNano()
-	}
-	llamaHelpMu.Lock()
-	if llamaHelpState.bin == bin && llamaHelpState.mod == mod && llamaHelpState.text != "" {
-		t := llamaHelpState.text
-		llamaHelpMu.Unlock()
-		return t
-	}
-	llamaHelpMu.Unlock()
-
-	setLibraryPath(filepath.Dir(bin))
-	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
-	defer cancel()
-	cmd := hideCmd(exec.CommandContext(ctx, bin, "--help"))
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	_ = cmd.Run()
-	text := out.String()
-
-	llamaHelpMu.Lock()
-	llamaHelpState = llamaHelpCache{bin: bin, mod: mod, text: text, flags: parseLlamaHelp(text)}
-	llamaHelpMu.Unlock()
-	return text
+	return llamaOwner.HelpText(bin, func() string {
+		setLibraryPath(filepath.Dir(bin))
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancel()
+		cmd := hideCmd(exec.CommandContext(ctx, bin, "--help"))
+		var out bytes.Buffer
+		cmd.Stdout, cmd.Stderr = &out, &out
+		_ = cmd.Run()
+		return out.String()
+	})
 }
 
 func llamaFlagsForBin(bin string) []LlamaFlag {
 	_ = llamaHelpText(bin)
-	llamaHelpMu.Lock()
-	defer llamaHelpMu.Unlock()
-	if llamaHelpState.bin == "" {
-		return nil
-	}
-	out := make([]LlamaFlag, len(llamaHelpState.flags))
-	copy(out, llamaHelpState.flags)
-	return out
+	return llamaOwner.HelpFlags()
 }
 
 func llamaHasFlag(bin, id string) bool {

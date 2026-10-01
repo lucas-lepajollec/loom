@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -30,27 +29,6 @@ type oaiEntry struct {
 	Preset string // chemin du .env
 	Model  string // chemin / valeur MODEL
 }
-
-var oaiSwitchMu sync.Mutex
-
-func llamaBackendPortFor(public int) int {
-	if public <= 0 {
-		public = 8081
-	}
-	cand := public + 10000
-	if cand > 65535 {
-		cand = public - 10000
-	}
-	if cand < 1 || cand == public {
-		if public != 18081 {
-			return 18081
-		}
-		return 18082
-	}
-	return cand
-}
-
-func llamaBackendPort() int { return llamaBackendPortFor(LLMPort()) }
 
 func llamaBackendURL() *url.URL {
 	return &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", llamaBackendPort())}
@@ -437,9 +415,9 @@ func newOAIRouter(injectKey string) http.Handler {
 			}
 			want := peekOAIModel(body)
 			if want != "" && !oaiAlreadyLoaded(want) {
-				oaiSwitchMu.Lock()
+				llamaOwner.SwitchLock().Lock()
 				switchErr := ensureOAIModel(want)
-				oaiSwitchMu.Unlock()
+				llamaOwner.SwitchLock().Unlock()
 				if switchErr != nil {
 					err = switchErr
 					if strings.Contains(err.Error(), "inconnu") {
@@ -455,9 +433,9 @@ func newOAIRouter(injectKey string) http.Handler {
 				}
 			}
 			if aerr == nil && (len(split.Run) > 0 || len(split.Extra) > 0) {
-				oaiSwitchMu.Lock()
+				llamaOwner.SwitchLock().Lock()
 				ovErr := oaiRuntimeApply(split.Run, split.Extra)
-				oaiSwitchMu.Unlock()
+				llamaOwner.SwitchLock().Unlock()
 				if ovErr != nil {
 					oaiError(w, http.StatusServiceUnavailable, "api_error", ovErr.Error(), "", "model_unavailable")
 					return
@@ -487,24 +465,6 @@ func newOAIRouter(injectKey string) http.Handler {
 		}
 		lp.ServeHTTP(w, r)
 	})
-}
-
-var (
-	routerModeMu   sync.Mutex
-	routerModeSeen time.Time
-	routerModeVal  bool
-)
-
-// routerModeCached évite d'interroger /props à chaque requête /v1.
-func routerModeCached() bool {
-	routerModeMu.Lock()
-	defer routerModeMu.Unlock()
-	if time.Since(routerModeSeen) < 2*time.Second {
-		return routerModeVal
-	}
-	routerModeVal = routerReachable()
-	routerModeSeen = time.Now()
-	return routerModeVal
 }
 
 // routerHealth garde le sens historique de /health : 200 seulement quand le

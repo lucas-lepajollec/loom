@@ -5,55 +5,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 )
 
 // Lecture minimale du métadonnées GGUF : on n'ouvre que l'en-tête KV pour
 // récupérer `{arch}.context_length`. Ça évite de plaquer le 32768 de l'UI
 // sur un modèle nu dont la fenêtre native est ailleurs (Qwen 3.5, etc.).
-
-type ggufMetaCacheEnt struct {
-	mod  time.Time
-	size int64
-	meta ggufMeta
-}
-
-var (
-	ggufMetaMu    sync.Mutex
-	ggufMetaCache = map[string]ggufMetaCacheEnt{}
-)
-
-// ggufContextLength lit n_ctx_train du .gguf. 0 = illisible ou absent :
-// l'appelant laisse alors llama-server décider (pas de -c de repli 32k).
-func ggufContextLength(path string) int {
-	return loadGGUFMeta(path).ContextLength
-}
-
-func loadGGUFMeta(path string) ggufMeta {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return ggufMeta{}
-	}
-	st, err := os.Stat(path)
-	if err != nil {
-		return ggufMeta{}
-	}
-	ggufMetaMu.Lock()
-	if ent, ok := ggufMetaCache[path]; ok && ent.mod.Equal(st.ModTime()) && ent.size == st.Size() {
-		m := ent.meta
-		ggufMetaMu.Unlock()
-		return m
-	}
-	ggufMetaMu.Unlock()
-	m, _ := readGGUFMeta(path)
-	m.Path = path
-	m.FileBytes = ggufWeightBytes(path)
-	ggufMetaMu.Lock()
-	ggufMetaCache[path] = ggufMetaCacheEnt{mod: st.ModTime(), size: st.Size(), meta: m}
-	ggufMetaMu.Unlock()
-	return m
-}
 
 func ggufWeightBytes(path string) int64 {
 	base := filepath.Base(path)

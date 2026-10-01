@@ -4,12 +4,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // Loom supplies current configuration, installed paths and preset labels to
-// engine/llamacpp. The existing owner lock is passed to every router view.
-var routerMu sync.Mutex // sérialise écriture INI + chargements dans ce process
+// engine/llamacpp. The supervisor lock is passed to every router view.
 
 func engineModePref() string {
 	return strings.ToLower(strings.TrimSpace(ReadConfig()["ENGINE_MODE"]))

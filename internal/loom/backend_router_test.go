@@ -219,7 +219,7 @@ func TestRouterFrontRewritesModelAndHealth(t *testing.T) {
 	if err := restartLlamaEngine(); err != nil {
 		t.Fatal(err)
 	}
-	routerModeSeen = routerModeSeen.AddDate(-1, 0, 0) // invalide le cache
+	llamaOwner.InvalidateRouterMode() // invalide le cache
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
 	if rec.Code != http.StatusOK {

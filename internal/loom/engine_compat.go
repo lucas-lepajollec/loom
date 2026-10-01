@@ -12,9 +12,11 @@ import (
 )
 
 // Historical engine names during leaf-first migration. Configuration readers,
-// caches, owned processes, sessions and web/proxy orchestration remain in Loom.
+// sessions and web/proxy orchestration remain in Loom.
 // Router execution uses explicit state and accessors supplied by these wrappers.
-// Wrappers pass resolved inputs to llama.cpp helpers; they add no global state.
+// The single compatibility owner replaces the scattered process/cache globals.
+var llamaOwner = llamacpp.NewSupervisor()
+
 type LlamaFlag = llamacpp.LlamaFlag
 type ggufMeta = llamacpp.GGUFMeta
 type chatTemplateCaps = llamacpp.ChatTemplateCaps
@@ -236,7 +238,7 @@ func (loomRouterStore) PutJSON(key string, value any) error { return putJSON(bkS
 func llamaRouter() *llamacpp.Router {
 	return &llamacpp.Router{
 		BackendPort: llamaBackendPort(), INIPath: routerINIPath(),
-		State: loomRouterStore{}, Lock: &routerMu, Authorize: authHeader,
+		State: loomRouterStore{}, Lock: llamaOwner.RouterLock(), Authorize: authHeader,
 		APIKey: func() (string, error) {
 			if err := ensureAPIKeyIfRequired(); err != nil {
 				return "", err
@@ -291,3 +293,31 @@ func routerActivateVariant() (string, error) {
 func routerUnloadAll() error    { return llamaRouter().UnloadAll() }
 func routerCurrentName() string { return llamaRouter().CurrentName() }
 func observedEngineCtx() *int   { return llamaRouter().ObservedContext() }
+
+// Historical lifecycle/cache entry points delegate to the same explicit owner.
+type llamaSlot = llamacpp.Slot
+type srvRecent = llamacpp.Recent
+
+func setLlamaLastError(msg string)  { llamaOwner.SetLastError(msg) }
+func getLlamaLastError() string     { return llamaOwner.LastError() }
+func initOwnedLlamaSupervisor()     { llamaOwner.Init() }
+func shutdownOwnedLlamaSupervisor() { llamaOwner.Shutdown() }
+func ownedLlamaManaged() bool       { return llamaOwner.Managed() }
+func ownedLlamaRunning() bool       { return llamaOwner.Running() }
+func startOwnedLlama(bin string, args []string) error {
+	return llamaOwner.Start(func() llamacpp.Launch { return ownedLlamaLaunch(bin, args) })
+}
+func stopOwnedLlama()                        { llamaOwner.Stop() }
+func llamaBackendPortFor(public int) int     { return llamacpp.BackendPortFor(public) }
+func llamaBackendPort() int                  { return llamaBackendPortFor(LLMPort()) }
+func routerModeCached() bool                 { return llamaOwner.RouterModeCached(routerReachable) }
+func loadGGUFMeta(path string) ggufMeta      { return llamaOwner.LoadGGUFMeta(path, ggufWeightBytes) }
+func ggufContextLength(path string) int      { return loadGGUFMeta(path).ContextLength }
+func parseLlamaSlots(raw []byte) []llamaSlot { return llamacpp.ParseSlots(raw) }
+func resetServerWatch()                      { llamaOwner.ResetServerWatch() }
+func noteServerSlots(slots []llamaSlot) ([]srvRecent, []map[string]any) {
+	return llamaOwner.NoteServerSlots(slots)
+}
+func serverStats(busy int, liveTokS float64) map[string]any {
+	return llamaOwner.ServerStats(busy, liveTokS)
+}

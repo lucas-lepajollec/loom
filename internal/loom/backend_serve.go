@@ -84,15 +84,5 @@ func cmdServe(args []string) error {
 
 // waitRouterUp attend que le router réponde sur le port interne.
 func waitRouterUp(budget time.Duration) error {
-	deadline := time.Now().Add(budget)
-	for time.Now().Before(deadline) {
-		if routerReachable() {
-			return nil
-		}
-		if !ownedLlamaRunning() {
-			return fmt.Errorf("llama-server s'est arrêté : %s", getLlamaLastError())
-		}
-		time.Sleep(300 * time.Millisecond)
-	}
-	return fmt.Errorf("délai dépassé")
+	return llamaOwner.WaitRouterUp(budget, routerReachable)
 }
