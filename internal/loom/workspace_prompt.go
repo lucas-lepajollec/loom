@@ -147,8 +147,12 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 		m.closeACP(id)
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
 	}
+	// Only an actual rename freezes the title; harness/context edits keep the
+	// automatic title taken from the first message.
+	if title != s.Title {
+		s.CustomTitle = true
+	}
 	s.Title, s.ProjectID, s.Instructions = title, projectID, instructions
-	s.CustomTitle = true
 	s.UpdatedAt = time.Now().UnixMilli()
 	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
 		m.closeACP(id)

@@ -99,8 +99,8 @@ function HarnessPanel() {
     ${modes.length > 1 && html`<div class="hs-sec"><div class="hs-h">Mode de l’agent<${Tip} text="Modes proposés par le harness lui-même (par exemple planifier avant d’agir)." /></div>
       <select class="select" value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${m.name}</option>`)}</select></div>`}
 
-    ${config.length > 0 && html`<div class="hs-sec"><div class="hs-h">Réglages du harness</div>
-      <div class="prows">${config.map(o => html`<${ConfigOption} key=${o.id} o=${o} onChange=${v => configure(s, { config: { [o.id]: v } })} />`)}</div></div>`}
+    ${config.filter(o => !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).length > 0 && html`<div class="hs-sec"><div class="hs-h">Réglages du harness</div>
+      <div class="prows">${config.filter(o => !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).map(o => html`<${ConfigOption} key=${o.id} o=${o} onChange=${v => configure(s, { config: { [o.id]: v } })} />`)}</div></div>`}
 
     <div class="hs-sec"><div class="hs-h">Contexte</div>
       ${ctxPct != null ? html`<div class="vram"><div class="vram-h"><span>Utilisé</span><b>${fmtTok(usage.context.used)} <small>/ ${fmtTok(usage.context.size)}</small></b></div>

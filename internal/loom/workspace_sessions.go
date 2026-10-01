@@ -476,6 +476,10 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	}
 	s.Status = "complete"
 	s.UpdatedAt = time.Now().UnixMilli()
+	// Runtimes that do not report a duration get Loom's wall-clock measure.
+	if n := len(s.Turns); n > 0 && s.Turns[n-1].DurationSeconds == 0 && s.Turns[n-1].StartedAt > 0 {
+		s.Turns[n-1].DurationSeconds = float64(s.UpdatedAt-s.Turns[n-1].StartedAt) / 1000
+	}
 	if err != nil {
 		s.Status = "error"
 		s.Error = err.Error()

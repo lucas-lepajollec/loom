@@ -33,7 +33,11 @@ function ChatLink({ c, active }) {
     { label: 'Renommer', icon: 'edit', run: async () => {
       const name = await prompt('Renommer la discussion', { value: c.title || '' });
       if (!name) return;
-      const r = c.workspace ? await post('/api/runtime/sessions/configure', { id: c.id, title: name, context_revision: '' }) : await post('/api/chat/history/rename', { id: c.id, title: name });
+      let r;
+      if (c.workspace) {
+        const cur = await get('/api/runtime/sessions?id=' + encodeURIComponent(c.id));
+        r = cur.ok ? await post('/api/runtime/sessions/configure', { id: c.id, title: name, project_id: cur.session.project_id || '', instructions: cur.session.instructions || '', context_revision: (cur.context && cur.context.revision) || '' }) : cur;
+      } else r = await post('/api/chat/history/rename', { id: c.id, title: name });
       if (!r.ok) toast(r.error || 'Impossible de renommer', 'err'); refreshNav();
     } },
     ...(!c.workspace ? [{ label: c.fav ? 'Désépingler' : 'Épingler', icon: 'star', run: async () => {
