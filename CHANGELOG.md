@@ -62,6 +62,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Fixed
 
+- Repository onboarding now documents direct UI embedding, current navigation,
+  router model loading, optional OS keychain storage and the real Makefile
+  targets. Release builds no longer call the removed UI assembler; the security
+  policy no longer assumes a private repository. Historical migration briefs
+  identify delivered work and point to the current roadmap.
+
 - Viewport-centered confirmations on phone/tablet and low-height screens, bounded scrolling, compact actions and keyboard focus containment/return.
 - Imported display metadata no longer inherits the currently selected local model or treats a replayed text chunk as a measured output token.
 

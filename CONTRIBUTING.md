@@ -13,7 +13,7 @@ Thank you for contributing. Search existing issues and pull requests first, open
 ### Build from source
 
 ```bash
-git clone git@github.com:lucas-lepajollec/loom.git
+git clone https://github.com/lucas-lepajollec/loom.git
 cd loom
 make build
 ```
@@ -30,13 +30,18 @@ Access the UI at `http://127.0.0.1:8091`. Configure `BIN=` to point to your `lla
 
 ## Validation
 
-Before opening a pull request, run the test suite and verify UI assembly:
+Before opening a pull request, validate Go packages and the embedded UI:
 
 ```bash
-make test
+go test -short ./...
+go vet ./...
 make check-ui
 make build
 ```
+
+`make test` runs the full Go suite (`go test ./...`); it is not the short-mode
+command above. Node is required for `make check-ui`, not for `make build`.
+Use `make help` to list all targets.
 
 ## Pull requests
 

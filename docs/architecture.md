@@ -1,7 +1,11 @@
 # Loom architecture
 
-Target architecture and migration plan. Read with `architecture-principles.md`
-(the rules) and `workspace-architecture.md` (discussion/runtime contracts).
+Target architecture and migration plan. Read with
+[`architecture-principles.md`](architecture-principles.md) (the rules),
+[`workspace-architecture.md`](workspace-architecture.md) (discussion/runtime
+contracts and historical slices), and [`ROADMAP.md`](ROADMAP.md) (current work).
+The diagram includes packages that have not yet been extracted; the migration
+notes in §4 distinguish the current layout from that target.
 The goal: Loom stays easy to extend at 50 000+ lines. Adding a harness, an
 engine, a cloud provider or a page must touch **one new folder plus one registry
 entry**, never the core.
@@ -172,13 +176,13 @@ branch inside the existing one.
 | Discussions, turns, provenance, usage | Loom `discussion/` | bbolt |
 | Projects, skills, MCP definitions, providers (no keys) | Loom `resources/` | bbolt |
 | Model configs, presets | Loom `engine/` | presets/*.env + bbolt |
-| API keys | memory only (today) → OS keychain (later) | never on disk in clear |
+| Cloud provider API keys | server memory; optional OS keychain (`provider_keyring.go`) | absent from Loom provider records and browser storage |
 | Native sessions, approvals, private memory | each harness | upstream |
 | KV cache, slots, loaded instances | the engine | upstream |
 
 ## 4. Target Go layout and migration
 
-`internal/loom` is one 190-file package today. Splitting it in one pass would
+Much of the application still lives in package `internal/loom`. Splitting it in one pass would
 break everything; do it **leaf-first, one package per PR, zero behavior change**:
 
 1. **Registries in place** (still package `loom`): runtime registry +
@@ -360,10 +364,14 @@ page = new `features/x/page.js` + one entry in `app/routes.js`. No build step.
 ## 6. How to add…
 
 - **A harness**: `runtime/<id>/` implementing `RuntimeAdapter` (+ optional
-  interfaces), `runtime.Register` in its `init`, tests with a fake CLI. The UI
-  needs nothing: the Harnesses page, picker and Usage read the descriptor.
+  interfaces) is the target layout. Today registration is owned by
+  `workspace_runtime.go` through `registerRuntime`; the leaf registry has no
+  global `runtime.Register` function. Existing ACP launchers are declared in
+  `internal/loom/harness/acp_agents.json`. Test with a fake CLI; the Harnesses
+  page, picker and Usage read descriptors.
 - **An engine**: `engine/<id>/` implementing `Engine`; register; declare
-  capabilities; provide `ParamSpec` JSON. The Local page adapts.
+  capabilities; provide `ParamSpec` JSON is the target. Today `engine.go` exposes
+  the llama.cpp wrapper; a second-engine registry and adaptive pages remain work.
 - **A llama.cpp parameter in Advanced**: one entry in the curated ParamSpec JSON.
 - **A page**: `features/<x>/page.js` + one line in `app/routes.js`.
 - **A cloud protocol**: new runtime adapter (see 2.4).
@@ -375,8 +383,10 @@ page = new `features/x/page.js` + one entry in `app/routes.js`. No build step.
 
 1. Unified SSE events are implemented (2.3); durable native archives and portable text snapshots still have separate storage formats.
 2. In-package Engine/ParamSpec and runtime metadata are implemented; the engine leaf subset is extracted; execution boundaries and a second engine remain future work.
-3. Done: the old UI (`ui/src`, `/classic`, `tools/assemble-ui`) is removed; its
-   features live in `ui/next` (multi-GPU split through Expert parameters).
-4. Auto config forces native context and `-ngl 999` → let `--fit` decide unset
-   values and show the fitted result.
-5. API keys memory-only → OS keychain with explicit consent.
+3. Real-GPU acceptance of native `--fit` and observed context remains separate
+   from the implemented automatic defaults and fixture tests (§2.1).
+4. Real-platform acceptance of optional cloud-provider OS keychain storage.
+
+The classic UI (`ui/src`, `/classic`, `tools/assemble-ui`) is already removed.
+Its features live in `ui/next` (multi-GPU split through Expert parameters);
+the release build embeds these files directly without an assembler.

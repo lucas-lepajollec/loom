@@ -1,5 +1,12 @@
 # Loom workspace: conversations, models and context
 
+This document contains dated implementation slices from the workspace migration.
+Use [`ROADMAP.md`](ROADMAP.md) for the current feature inventory and
+[`architecture.md`](architecture.md) for package boundaries. ACP execution is
+described in [`agents/acp-implementation.md`](agents/acp-implementation.md);
+the older preparatory harness and Codex text-bridge descriptions below are
+historical, not the current execution contract.
+
 ## Accepted product contract — clarified 2026-09-26, continued 2026-09-27
 
 A discussion belongs to Loom, not to a provider. Its portable transcript and
@@ -25,7 +32,9 @@ layout. The redundant workspace header and second simplified chat are removed.
 
 ## Existing architecture preserved
 
-Native Go binary, bbolt state, plain ordered JavaScript, generated embedded HTML.
+Native Go binary, bbolt state, native ES modules with vendored Preact + htm.
+`ui/next` is embedded directly (`web_next.go`); no generated HTML or asset
+assembly step is required. The classic UI and `/classic` have been removed.
 llama.cpp remains an external owned process. Library, presets, Hub, server,
 proxy, benchmarking, MCP and the original local chat remain in place.
 
@@ -61,24 +70,29 @@ Running native turns block related route/context changes. Imported portable text
 is rendered inert even after native replay/coalescing. The underlying text-only
 local adapter remains available for unbound API discussions and delegates to
 `runChat`. No llama.cpp execution layer is reimplemented.
-The engine remains shared: loading a different GGUF changes that one process.
+The engine remains shared: a router-capable `llama-server` stays running while
+models load/unload through its API. Older engines and explicit single mode retain
+the legacy process-replacement path.
 
 The cloud adapter implements a bounded Chat Completions SSE client:
 explicit base URL and model; no automatic provider discovery, fallback,
 local tools or hidden retry; no redirects; HTTPS required except explicit
-loopback HTTP for development. Upstream errors are sanitized rather than
-echoing provider bodies. UI progress uses authenticated polling of the live
-session, so navigation/reconnection does not resubmit a paid request.
+local-network HTTP (loopback, private/Tailscale addresses and local host names).
+Upstream errors are sanitized rather than echoing provider bodies. Current UI
+progress uses authenticated `/api/discussion/events` SSE and replay, so
+navigation/reconnection does not resubmit a paid request.
 
 Provider records contain multiple model IDs and no credential. Credentials
-exist only in server memory until disconnect/restart. Destination URLs cannot
+exist in server memory, with optional OS keychain storage and startup restoration
+through `provider_keyring.go`. Without an available remembered key, a restart
+requires reconnecting. Destination URLs cannot
 be edited in place; new connections are required. A discussion's current
 route is changed only through an explicit user selection, with confirmation
 before a cloud transfer. `ready` means an in-memory key is present, not that the
 account, model, quota or protocol has been validated. No real provider or paid
 model has been tested here.
 
-Models → Providers supplies URL presets for OpenAI, OpenRouter and Mistral,
+The Cloud page supplies URL presets for OpenAI, OpenRouter and Mistral,
 plus a custom endpoint. An explicit catalog probe sends only a Bearer key to
 that fixed destination's GET `/models`; it sends no discussion and performs no
 generation. It does not save the key, connection or catalog. Users select IDs
@@ -395,9 +409,11 @@ the wrapper; router/service ownership, saved configuration, and native execution
 remain in their original files. This does not implement a second
 engine, new scheduling or the future package split. See architecture §2.1.
 
-`workspace_runtime.go` registers the existing llama.cpp, Chat Completions,
-Antigravity and Codex adapters in deterministic insertion order. Claude Code,
-Pi and Hermes are descriptor-only adapters with empty capabilities. The registry
+`workspace_runtime.go` registers llama.cpp, Chat Completions, Antigravity and
+the ACP registry entries in deterministic insertion order. Codex, Claude Code,
+Pi and Gemini use ACP; Hermes remains a planned descriptor with empty capabilities.
+The contracts/registry live in `internal/loom/runtime`, with compatibility aliases
+in Loom. The registry
 rejects duplicate IDs and capabilities claimed without the corresponding action
 interface. Returned capability lists are detached snapshots.
 
@@ -422,10 +438,10 @@ and vault-checked:
   `/api/usage/refresh` remain aliases with their existing catalog wire formats
   and body-based quota request. Unsupported legacy refresh IDs remain 400.
 
-The already-present Codex text adapter uses its native app-server catalog and
-an ephemeral read-only thread, disables native MCP for that process and declines
-approval requests. Its protocol/stream/effort tests use synthetic fixtures here;
-no new real-account generation is acceptance evidence for the registry change.
+The earlier registry slice used the Codex app-server text bridge. Current Codex
+turns use ACP; app-server is quota-only and its old catalog-connect alias reports
+unsupported discovery. See the ACP lifecycle notes for native sessions, tools
+and approvals. Synthetic fixture tests are not real-account acceptance evidence.
 
 This first migration step leaves per-turn adapter configuration, existing native
 execution, text portability and journal/polling behavior unchanged. Registry-based

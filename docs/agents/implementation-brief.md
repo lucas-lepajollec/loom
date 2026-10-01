@@ -4,6 +4,11 @@ You are continuing Loom. Read, in order: `AGENTS.md`, `docs/architecture-princip
 `docs/architecture.md`, `docs/workspace-architecture.md`. Then inspect
 `git status` — earlier work may be uncommitted; never discard it.
 
+This brief records the initial migration sequence. Steps 1–5 below are delivered;
+do not recreate them. Use [`../ROADMAP.md`](../ROADMAP.md) for current priorities
+and architecture §4 for the remaining package split. ACP work has its own
+[`acp-implementation.md`](acp-implementation.md) notes.
+
 ## Hard rules
 
 1. **Do not touch the visual design.** `internal/loom/ui/next/css/*`, tokens,
@@ -33,7 +38,7 @@ You are continuing Loom. Read, in order: `AGENTS.md`, `docs/architecture-princip
 ```bash
 make build                                   # builds bin/loom with ui/next embedded
 go test -short ./...                         # Go suite (must stay green)
-go vet ./internal/loom/
+go vet ./...
 make check-ui                                # module syntax check of ui/next + UI unit tests
 # never use plain `node --check file.js`: it parses .js as CommonJS and misses errors
 ```
@@ -41,13 +46,13 @@ make check-ui                                # module syntax check of ui/next + 
 Dev instance (does not touch the installed Loom on 8091):
 
 ```bash
-LOOM_HOME=$PWD/.project-local/runtime LOOM_SERVICE=loom-dev-engine \
+LOOM_HOME="$PWD/.project-local/runtime" LOOM_SERVICE=loom-dev-engine \
 LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594   # http://127.0.0.1:2594/
 ```
 
-## Work queue (do in order, one per change set)
+## Initial migration sequence (historical, steps 1–5 delivered)
 
-### 1. Runtime registry (backend, package `loom`)
+### 1. Runtime registry — DONE (contracts now in `runtime/`)
 - Add `registerRuntime(RuntimeAdapter)` and a registry map; build
   `runtimeCatalog()` from it. Keep planned-only descriptors (claude-code, pi,
   hermes) as registered descriptors with empty capabilities.
@@ -59,7 +64,7 @@ LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594   # http://127.0.0.1:2594/
 - Front: `features/harnesses/page.js` reads description/CLI/consent from
   `workspace.runtimes` and calls the generic route; delete the `INFO` map.
 
-### 2. Engine interface + ParamSpec
+### 2. Engine interface + ParamSpec — DONE
 - Define `Engine` (architecture §2.1) and wrap the current llama.cpp functions
   (`restartLlamaEngine`, `unloadEngine`, `buildLlamaServerArgs`, estimate) in a
   `llamaCppEngine` type. No file moves yet.
@@ -72,7 +77,7 @@ LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594   # http://127.0.0.1:2594/
 - Acceptance: screenshots of the panel before/after are identical; adding a
   flag to Advanced requires only a JSON edit.
 
-### 3. Auto configuration with `--fit`
+### 3. Auto configuration with `--fit` — DONE (real-GPU acceptance separate)
 - When a bare model has no remembered config, do not force native `CTX` and
   `NGL=999`; pass `--fit on` and leave them unset. After load, read the actual
   context from the router (`/models` or `/props?model=`) and expose it in
@@ -80,7 +85,7 @@ LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594   # http://127.0.0.1:2594/
 - Keep explicit user values untouched. Tests with the fake router in
   `backend_router_test.go`.
 
-### 4. Unified discussion events
+### 4. Unified discussion events — DONE
 - Emit the event vocabulary of architecture §2.3 for cloud/harness turns over
   SSE (same shape as the native journal), then make the native journal map to
   it. Remove polling from `features/chat/engine.js` once both paths stream.
@@ -92,8 +97,8 @@ Global search (Ctrl+K palette over discussions/projects/models), activity
 center (downloads + engine jobs), memory pages editor, preset ordering,
 encryption unlock and backups, push notifications, GPU device selection, web
 key. Reuse existing components; ask the design owner before any new visual
-pattern. When all are ported: remove `/classic`, `ui/src`, `tools/assemble-ui`
-CSS/JS concatenation and old UI tests.
+pattern. `/classic`, `ui/src`, `tools/assemble-ui` CSS/JS concatenation and old
+UI tests have been removed. `make check-ui` validates the embedded modules.
 
 ### 6. Go package split (architecture §4), leaf-first
 `store/` → `platform/` → `engine/llamacpp/` → `runtime/…` → `discussion/` →

@@ -16,7 +16,7 @@
 
 ## Overview
 
-Loom is a conversation-first AI workspace: the discussion and its explicit project context stay together when you switch between local, cloud and the experimental Antigravity text bridge. Models manages local GGUFs, the download Hub, cloud model lists and providers. Harnesses manages native configurations; Antigravity uses its own discovered account catalog, not exported provider API keys. Other harness execution and interactive terminals are not connected yet.
+Loom is a conversation-first AI workspace: the discussion and its explicit project context stay together when you switch between local models, cloud APIs and harnesses. Local manages GGUFs, the download Hub and the engine; Cloud manages providers and their model lists. Harnesses manages native configurations and ACP adapters for Codex, Claude Code, Pi and Gemini. Antigravity uses its own discovered account catalog and experimental text bridge. Interactive terminals are not implemented. See [runtime actions](#runtime-actions) for capabilities and prerequisites.
 
 Loom operates **one** owned `llama-server` instance and preserves its existing model library, settings, continuous batching and benchmarking. Local inference stays on the workstation. Explicitly selecting a cloud destination allows the discussion text and selected project instructions/skills to be sent there; Hub, downloads and updates also use the network when requested.
 
@@ -26,21 +26,21 @@ The built-in OpenAI-compatible `/v1` proxy exposes `/v1/chat/completions` and `/
 
 ## Interface
 
-The sidebar groups Discussions, Models, Harnesses, Projects, Skills, Connections, Services and Settings. A common model selector controls the next reply in a discussion. The side panel shows model-specific controls and shared context. Models has Local, Cloud and Providers tabs, with per-model visibility in the selector. Harness profiles associate models without claiming unsupported execution. MCP configuration remains in Connections; the server is under Services and Bench remains in the existing local library.
+The sidebar includes Local, Cloud, Harnesses, Ressources, Bench and Usage, alongside discussions, projects and Settings. A common execution selector controls the next reply in a discussion. The side panel shows runtime-specific controls and shared context. Local has Library, Hub and Engine & API tabs; Cloud manages provider connections and model visibility. Shared skills and MCP definitions live in Ressources.
 
-Discussions use Loom's original chat, composer and model/preset picker, without an extra workspace header. The original side panel has three states: complete native local parameters, cloud connection/context, and a preparatory harness configuration. Local replies use the existing rich conversation pipeline (files, tools, reasoning, presets and compaction), not a second simplified chat. Cloud transfers carry **text only**; native attachments, tool state and private reasoning stay local. Returning a common thread to local appends its portable turns to a native archive while retaining the original source archive. Cloud credentials live only in server memory and must be supplied again after restart. See the [context and adapter boundaries](docs/workspace-architecture.md).
+Discussions use the original chat and composer, with complete native local parameters, cloud connection/context or harness configuration in the side panel. Local replies use the rich conversation pipeline (files, tools, reasoning, presets and compaction). Cloud transfers carry **text only**; native attachments, tool state and private reasoning stay local. Returning a common thread to local appends its portable turns to a native archive while retaining the original source archive. Cloud keys stay in server memory unless you choose to remember them in the operating system's keychain. See the [context and adapter boundaries](docs/workspace-architecture.md).
 
 The common discussion's context section lets you rename it, attach or detach a project and add instructions without rewriting exchanged messages. **View prepared text** previews its portable instructions/history and draft without contacting a model or saving the draft. Cloud sends and common-context edits reject stale revisions. Native local replies retain their existing prompt, tool and compaction processing; the portable preview is not a full native wire dump. Byte limits are not model token-window estimates.
 
 ### Cloud connections
 
-In **Models → Providers**, create a connection using the OpenAI, OpenRouter or Mistral URL preset, or a custom **Chat Completions-compatible** endpoint. Enter its API key and explicitly request **Verify and retrieve models**: this sends the key only to that destination's `/models` endpoint, without sending a conversation or generating a reply. Choose up to 32 model IDs to save; manual IDs remain available when catalog discovery is unsupported. A returned catalog does not guarantee chat compatibility, account access or quota. The usage-reporting option can be disabled for providers that reject `stream_options`.
+In **Cloud**, create a connection using the OpenAI, OpenRouter or Mistral URL preset, or a custom **Chat Completions-compatible** endpoint. Enter its API key and explicitly request **Verify and retrieve models**: this sends the key only to that destination's `/models` endpoint, without sending a conversation or generating a reply. Choose up to 32 model IDs to save; manual IDs remain available when catalog discovery is unsupported. A returned catalog does not guarantee chat compatibility, account access or quota. The usage-reporting option can be disabled for providers that reject `stream_options`.
 
-Use **Models → Cloud** to choose which saved models appear in discussions. Selecting one in the original model picker confirms the destination before sharing portable text/context. The same discussion continues, with model attribution and token usage when reported. After a server restart or disconnect, reconnect its key in Providers; sending is blocked until then. Keys are not saved in the database or browser storage. These presets do not implement Anthropic's native API, Responses-only models or arbitrary provider protocols.
+Use **Cloud** to choose which saved models appear in discussions. Selecting one in the original model picker confirms the destination before sharing portable text/context. The same discussion continues, with model attribution and token usage when reported. Without keychain storage, reconnect the key after a restart. Remembered keys are restored from the OS keychain when available; otherwise reconnect in Cloud. Sending requires an available key. Keys are not saved in the Loom database or browser storage. These presets do not implement Anthropic's native API, Responses-only models or arbitrary provider protocols.
 
 ### Mobile and installed app
 
-The interface retains its original chat and parameters, with responsive workspace pages, scrollable dialogs, larger touch targets and safe-area handling. **Settings → Appearance → Application** shows installation instructions or an install action when the browser offers it. Installation/service workers require HTTPS, except for browser-recognized loopback development origins; plain LAN HTTP can show the interface but is not an installable-PWA guarantee.
+The interface retains its original chat and parameters, with responsive workspace pages, scrollable dialogs, larger touch targets and safe-area handling. The application exposes a PWA manifest; installation depends on the browser offering it. Installation/service workers require HTTPS, except for browser-recognized loopback development origins; plain LAN HTTP can show the interface but is not an installable-PWA guarantee.
 
 The service worker caches only a public offline fallback and listed icons. It does **not** cache conversations, credentials, API traffic or the application document. Offline sends preserve the draft and are not queued or retried automatically. An already-open interface may remain visible, but offline chat or durable offline drafts are not provided. Existing push behavior is retained. See [service-worker security requirements](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API).
 
@@ -73,7 +73,11 @@ The screenshots below document the existing inference controls; the workspace sh
 
 ## Quick start
 
-### Install a release
+### Release installers
+
+The checked-in [changelog](CHANGELOG.md) records no published release yet.
+Until verified binaries and checksums are published, use the source build below.
+The following installer commands are for a published release.
 
 Review the installer before running it. It selects the binary for your platform and verifies it against the release's SHA-256 manifest. On Linux and macOS, it also configures system services with elevated privileges. See [RELEASING.md](RELEASING.md) for the maintainer's release process.
 
@@ -104,6 +108,11 @@ If you prefer to build from source:
 - Go 1.25 or later
 - GNU Make
 
+Node is needed only for `make check-ui`; the native ES-module UI has no build
+step. Local inference also requires a working `llama-server`, linked or installed
+from Settings → Engine. Building llama.cpp itself requires its native toolchain
+(Git, CMake and a C/C++ compiler).
+
 ```bash
 git clone https://github.com/lucas-lepajollec/loom.git
 cd loom
@@ -119,7 +128,7 @@ make build
 
 Open [http://127.0.0.1:8091](http://127.0.0.1:8091) in your browser.
 
-### 3. Link your llama-server engine
+### Link your llama-server engine
 
 In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 - Set `BIN=/path/to/llama-server`
@@ -128,9 +137,9 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 
 ## Configuration and persistence
 
-- **Data directory**: All configuration, presets, chats, and downloads are persisted in `$LOOM_HOME` (defaults to `~/.local/share/loom` or `$XDG_DATA_HOME/loom`).
+- **Data directory**: Set `$LOOM_HOME` to choose the runtime data root. Otherwise Loom reads `/etc/default/loom` when present, then uses `$XDG_DATA_HOME/loom` or `~/.local/share/loom` on Unix; Windows uses `%ProgramData%\loom`, falling back to `%LOCALAPPDATA%\loom` or the temporary directory. Models may also live in explicitly configured external directories.
 - **Configuration**: Persisted in `$LOOM_HOME/loom.db` (bbolt), alongside chats and preferences. Change settings through the UI or `./bin/loom edit`; legacy `config.env` files may be imported during migration.
-- **Development environment**: Loom automatically loads `.env.local` or `.env` from the project root if present, allowing local overrides without editing tracked files.
+- **Development environment**: Loom loads `.env.local` and `.env` from its current working directory, filling unset environment variables. `.env.local` takes precedence over `.env`; exported variables take precedence over both. Keep runtime data in ignored `.project-local/` when developing in this repository.
 - **Model discovery**: Recursively indexes all `.gguf` files within declared model directories and the directory containing the `llama-server` binary.
 
 ## Security, privacy, and limitations
@@ -140,7 +149,7 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 
 - **Loopback binding**: Loom binds to `127.0.0.1` by default.
 - **LAN access**: The OpenAI front can be exposed intentionally; Loom requires an API key before enabling that mode. The web UI remains on loopback by default and uses a separate web key.
-- **Single owned process**: Loom manages exactly one running `llama-server` process at a time; loading a new model safely unloads and replaces the resident instance.
+- **Single owned process**: Loom manages one `llama-server`. A router-capable engine stays running while models load/unload through its API; `ENGINE_MODE=single` or older engines use the legacy process-replacement path.
 - **Explicit destination**: local inference stays local. Selecting a cloud model requires confirmation before the conversation and selected context are sent to that provider. No telemetry. Never put credentials in project instructions or skills.
 
 ## Architecture
@@ -148,7 +157,7 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 | Component | Implementation |
 | --- | --- |
 | Core daemon & proxy | Go 1.25+, bbolt embedded database |
-| Web dashboard | Single-page UI (HTML5, modern CSS, ordered plain JavaScript sources) assembled into Go binary |
+| Web dashboard | Native ES modules with vendored Preact + htm; `internal/loom/ui/next` embedded directly in the Go binary, served at `/` and `/next/` |
 | Workspace layer | Portable conversation records, per-turn runtime attribution, local/cloud adapters, model/provider catalog, explicit project context and skills |
 | Inference backend | Standalone external `llama-server` subprocess |
 | Web UI / control port | `8091` (`http://127.0.0.1:8091`) |
@@ -158,18 +167,35 @@ In the Web UI, open **Settings → Engine** (or run `./bin/loom edit` via CLI):
 ```text
 cmd/loom/          # Main application entry point and Windows resource metadata
 internal/loom/     # Daemon, OpenAI /v1 proxy, process orchestration, and embedded UI
-tools/             # Build scripts and single-page asset assembler
+tools/gen-icon/    # Icon generator used by go generate ./cmd/loom
 docs/              # Visual assets and architecture documentation
 ```
+
+Read [architecture principles](docs/architecture-principles.md), the
+[architecture and migration plan](docs/architecture.md), and
+[workspace contracts](docs/workspace-architecture.md). The package diagram is a
+target layout; the migration notes identify the packages already extracted.
 
 ## Development and quality
 
 | Command | Purpose |
 | --- | --- |
-| `make build` | Assemble web UI assets and compile `bin/loom` |
+| `make help` | List all Makefile targets |
+| `make build` | Embed the UI directly and compile `bin/loom` |
 | `make test` | Run Go test suite (`go test ./...`) |
+| `go test -short ./...` | Run the Go suite in short mode (also used by CI) |
+| `go vet ./...` | Vet all Go packages |
 | `make web` | Run the web server in foreground on port 8091 |
 | `make check-ui` | Syntax-check the UI modules and run the UI tests |
+
+For a separate development data directory and port:
+
+```bash
+LOOM_HOME="$PWD/.project-local/runtime" LOOM_SERVICE=loom-dev-engine \
+LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594
+```
+
+Go HTTP integration tests require local TCP sockets, including in short mode.
 
 ## Interactive demo
 
@@ -205,13 +231,13 @@ its old catalog-connect alias reports that connection discovery is unsupported. 
 [workspace contracts](docs/workspace-architecture.md#runtime-registry-and-optional-actions).
 
 
-ACP discussions require an explicitly selected existing absolute workdir before
-sending. Session configuration, approval routing, confined fs writes/diffs and
-ordered display events are available over the control API; the chat store retains
-those events for the design owner's rendering. `LOOM_DEV_FAKE_ACP=1` enables a
+ACP discussions require an existing absolute workdir before sending. Session
+configuration, approval routing, confined fs writes/diffs and ordered display
+events are available over the control API. `LOOM_DEV_FAKE_ACP=1` enables a
 scripted agent that exercises this path without model calls. Native session
-resumption is negotiated and requires compatible portable context. Skills sinks
-remain deferred. See the [ACP API and lifecycle notes](docs/agents/acp-implementation.md).
+resumption is negotiated and requires compatible portable context. See the
+[ACP API and lifecycle notes](docs/agents/acp-implementation.md) and
+[roadmap](docs/ROADMAP.md) for shared-resource bindings and remaining work.
 
 
 ## Security, data and engine settings

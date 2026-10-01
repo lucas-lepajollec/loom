@@ -15,6 +15,11 @@
 *.gguf
 *.part
 *.log
+*.pid
+.api_key
+.web_key
+/config.env
+/router-models.ini
 
 # OS / éditeurs
 .DS_Store
@@ -23,7 +28,7 @@ Thumbs.db
 .vscode/
 
 # Local notes and dev config
-.project-local/
+/.project-local/
 AGENTS.override.md
 .env
 .env.local

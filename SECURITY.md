@@ -4,15 +4,16 @@ Loom is a local-first workstation control plane and OpenAI-compatible proxy for 
 
 ## Supported versions
 
-Loom has no published release yet. Security fixes currently target the private `main` branch. A supported-release policy will be defined before the first public binary release.
+Security fixes target `main`. See [CHANGELOG.md](CHANGELOG.md) for release status;
+a supported-release policy must accompany the first public binary release.
 
 ## Reporting a vulnerability
 
-Collaborators with repository access can use the [private vulnerability reporting form](https://github.com/lucas-lepajollec/loom/security/advisories/new).
+Use the [private vulnerability reporting form](https://github.com/lucas-lepajollec/loom/security/advisories/new) when available.
 
-The repository is private, so public visitors cannot open an issue there. If the form is unavailable, ask the maintainer for a private reporting channel through the [portfolio contact page](https://lucaslepajollec.com/#contact). Do not include exploit code, credentials, private data or sensitive configuration in that initial message.
+If the form is unavailable, ask the maintainer for a private reporting channel through the [portfolio contact page](https://lucaslepajollec.com/#contact). Do not include exploit code, credentials, private data or sensitive configuration in that initial message, and do not report vulnerabilities in public issues.
 
-Once a private reporting channel is agreed, include the affected version or commit, reproduction steps, impact and a sanitized proof of concept when possible. Response times are not guaranteed during private development.
+Once a private reporting channel is agreed, include the affected version or commit, reproduction steps, impact and a sanitized proof of concept when possible. Response times are not guaranteed.
 
 ## Local deployment guidance
 
