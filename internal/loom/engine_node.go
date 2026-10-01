@@ -141,6 +141,27 @@ func engineCurrentModel() string {
 	return st.Model
 }
 
+// engineContextSize is the context (tokens) the engine gives a request, as
+// /api/status reports it; 0 when unknown.
+func engineContextSize() int {
+	n := currentEngineNode()
+	if n == nil {
+		return effectiveCtx(ReadConfig())
+	}
+	req, _ := http.NewRequest(http.MethodGet, n.URL+"/api/status", nil)
+	req.Header.Set("Authorization", "Bearer "+n.WebKey)
+	resp, err := nodeClient.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	var st struct {
+		Ctx int `json:"ctx"`
+	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&st)
+	return st.Ctx
+}
+
 // --- the remote side: what a Loom tells another Loom that links to it ---
 
 // GET (control key required): what a linking Loom needs. Only served when this

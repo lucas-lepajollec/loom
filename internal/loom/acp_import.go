@@ -28,7 +28,7 @@ func startACPReader(ctx context.Context, agent acpAgent, cwd string, notify func
 	if !agent.available() {
 		return nil, nil, errors.New("CLI du harness ou lanceur ACP indisponible")
 	}
-	c, err := startACPClient(agent.Command, agent.Args, cwd)
+	c, err := startACPClient(agent.Command, agent.Args, cwd, acpLaunchEnv(agent.ID, "")...)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -150,7 +150,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	encoded, _ := json.Marshal(definitions)
 	// A Loom model is passed in the launch environment: changing it (or going
 	// back to a native model) restarts the adapter, the native session resumes.
-	env := acpLoomModelEnv(agent.ID, s.Model)
+	env := acpLaunchEnv(agent.ID, s.Model)
 	encoded = append(encoded, []byte(strings.Join(env, "\n"))...)
 	mcpRevision := fmt.Sprintf("%x", sha256.Sum256(encoded))
 	if len(turn.Messages) == 0 {

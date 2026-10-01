@@ -143,7 +143,11 @@ function ModelSource({ rt }) {
   useEffect(() => { load(); }, [rt.id]);
   if (!x) return null;
   const toggle = async on => {
-    const msg = x.format === 'env'
+    const msg = x.format === 'opencode'
+      ? 'Tes modèles locaux et tes fournisseurs Cloud apparaissent dans la liste de modèles de ' + rt.name + ' quand Loom le lance. Rien n’est écrit dans ses fichiers et les clés ne sont transmises qu’au lancement.'
+      : x.format === 'pi'
+      ? 'Loom ajoute à ' + x.file + ' un fournisseur « loom » (tes modèles locaux) et un par fournisseur Cloud connecté. Les clés Cloud n’y sont pas écrites : seulement une référence, remplie par Loom quand il lance Pi (hors de Loom, ces fournisseurs demandent ta clé). Le désactiver les retire.'
+      : x.format === 'env'
       ? 'Tes modèles locaux apparaissent sous ' + rt.name + ' dans le sélecteur. Quand tu en choisis un, Loom lance ' + rt.name + ' avec son API locale comme fournisseur ; aucun fichier de ' + rt.name + ' n’est modifié et ses modèles natifs restent disponibles.'
       : 'Loom ajoute un fournisseur « loom » dans ' + x.file + ' avec tes modèles locaux. Tes autres fournisseurs ne sont pas modifiés. Le désactiver le retire.';
     if (on && !await confirm('Modèles de Loom dans ' + rt.name, msg, { ok: 'Activer' })) return;

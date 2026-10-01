@@ -113,7 +113,7 @@ function HarnessPanel() {
   };
   const ctxPct = usage && usage.context && usage.context.size ? Math.min(100, Math.round(usage.context.used * 100 / usage.context.size)) : null;
   return html`<div class="insp-body">
-    <div class="insp-model"><${Logo} name=${s.runtime_id} /><div><b>${s.model && s.model !== 'default' ? baseName(s.model).replace(/^[\w.-]+:(?=.)/, '').replace(/\.gguf$/i, '') : s.provider_name}</b><span>${s.model && s.model !== 'default' ? s.provider_name + ' · ' : ''}${/^loom:/.test(s.model || '') ? 'modèle local servi par Loom' : 'compte natif'}</span></div></div>
+    <div class="insp-model"><${Logo} name=${s.runtime_id} /><div><b>${s.model && s.model !== 'default' ? baseName(s.model).replace(/^[\w.-]+:(?=.)/, '').replace(/\.gguf$/i, '') : s.provider_name}</b><span>${s.model && s.model !== 'default' ? s.provider_name + ' · ' : ''}${/^loom[:/]/.test(s.model || '') ? 'modèle local servi par Loom' : /^(provider:|loom-)/.test(s.model || '') ? 'fournisseur Cloud via Loom' : 'compte natif'}</span></div></div>
 
     ${canDir && html`<div class="hs-sec"><div class="hs-h">Dossier de travail</div>
       ${workdir ? html`<button class="hs-dir" onClick=${chooseDir} title=${workdir}><${Icon} n="folder" /><span class="mono trunc">${workdir.replace(/^\/home\/[^/]+/, '~')}</span><span class="muted">Changer</span></button>`

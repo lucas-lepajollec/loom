@@ -58,7 +58,8 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 	if agent.Remote {
 		cwd, _ = os.UserHomeDir()
 	}
-	c, err := startACPClient(agent.Command, agent.Args, cwd)
+	// The harness sees Loom's sources while it is probed, so they are listed.
+	c, err := startACPClient(agent.Command, agent.Args, cwd, acpLaunchEnv(agent.ID, "")...)
 	if err != nil {
 		return fail(err)
 	}

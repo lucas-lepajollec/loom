@@ -28,6 +28,7 @@ var modelSinks = []modelSink{
 	{Harness: "pi", File: "~/.pi/agent/models.json", Format: "pi"},
 	{Harness: "codex", Format: "env"},
 	{Harness: "claude-code", Format: "env"},
+	{Harness: "opencode", Format: "opencode"},
 }
 
 const modelSinkState = "model_sinks" // map[harness]bool
@@ -76,7 +77,7 @@ func loomAPIKey() string {
 
 // writePiProvider adds, refreshes or removes providers.loom in Pi's file,
 // preserving everything else verbatim at the JSON level.
-func writePiProvider(path string, enabled bool, models []string, baseURL, key string) error {
+func writePiProvider(path string, enabled bool, models []string, baseURL, key string, cloud ...map[string]any) error {
 	doc := map[string]any{}
 	if b, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(b, &doc); err != nil {
@@ -92,10 +93,16 @@ func writePiProvider(path string, enabled bool, models []string, baseURL, key st
 		providers = map[string]any{}
 	}
 	if !enabled {
-		if _, ok := providers["loom"]; !ok {
+		changed := false
+		for name := range providers {
+			if name == "loom" || strings.HasPrefix(name, "loom-") {
+				delete(providers, name)
+				changed = true
+			}
+		}
+		if !changed {
 			return nil
 		}
-		delete(providers, "loom")
 	} else {
 		list := []any{}
 		for _, id := range models {
@@ -106,6 +113,18 @@ func writePiProvider(path string, enabled bool, models []string, baseURL, key st
 		}
 		providers["loom"] = map[string]any{"baseUrl": baseURL, "api": "openai-completions", "apiKey": key,
 			"compat": map[string]any{"supportsDeveloperRole": false, "supportsReasoningEffort": false}, "models": list}
+		// Loom's cloud providers: keys are environment references, set by Loom
+		// when it launches Pi; never written here.
+		for name := range providers {
+			if strings.HasPrefix(name, "loom-") {
+				delete(providers, name)
+			}
+		}
+		if len(cloud) > 0 {
+			for name, p := range cloud[0] {
+				providers[name] = p
+			}
+		}
 	}
 	doc["providers"] = providers
 	b, err := json.MarshalIndent(doc, "", "  ")
@@ -124,6 +143,20 @@ func writePiProvider(path string, enabled bool, models []string, baseURL, key st
 
 // syncModelSinks applies the stored choices (called on toggle and when the
 // local library changes).
+// resyncHarnessSources follows a change of Loom's sources (models, cloud
+// providers): rewrite file sinks and re-probe the harnesses that list them.
+func resyncHarnessSources() {
+	_ = syncModelSinks()
+	for _, s := range modelSinks {
+		if (s.Format == "pi" || s.Format == "opencode") && modelSinkEnabled(s.Harness) {
+			acpProbeMu.Lock()
+			_ = putBytes(bkState, acpProbeKey+s.Harness, nil)
+			acpProbeMu.Unlock()
+		}
+	}
+	go probeMissingACPAgents()
+}
+
 func syncModelSinks() error {
 	modelSinkMu.Lock()
 	defer modelSinkMu.Unlock()
@@ -133,8 +166,8 @@ func syncModelSinks() error {
 		var err error
 		switch s.Format {
 		case "pi":
-			err = writePiProvider(expandHome(s.File), on, loomLocalModels(), engineBase()+"/v1", loomAPIKey())
-		case "env":
+			err = writePiProvider(expandHome(s.File), on, loomLocalModels(), engineBase()+"/v1", loomAPIKey(), piCloudProviders())
+		case "env", "opencode":
 			// Read at launch: nothing to write.
 		}
 		if err != nil && firstErr == nil {
