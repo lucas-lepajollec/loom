@@ -96,19 +96,66 @@ func projectContextFiles(p ChatProject) ([]string, string) {
 	return parts, warning
 }
 
-// projectWorkdir is the project folder when a local harness has none yet.
-func projectWorkdir(projectID string) string {
+// projectDir validates a project folder on its machine: an existing folder
+// here, an absolute path on a remote machine (Loom cannot check it there).
+func projectDir(machine, dir string) (string, error) {
+	dir = strings.TrimSpace(dir)
+	if machine != "" {
+		return remoteWorkdir(dir)
+	}
+	if !filepath.IsAbs(dir) {
+		return "", errors.New("le dossier doit être un chemin absolu")
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return "", errors.New("ce dossier n’existe pas ou n’est pas accessible : " + dir)
+	}
+	return filepath.Clean(dir), nil
+}
+
+func machineByID(id string) *RemoteMachine {
+	for _, m := range loadRemoteMachines() {
+		if m.ID == id {
+			return &m
+		}
+	}
+	return nil
+}
+
+// projectFolders gives a harness its project's folders when they live on the
+// harness's machine: the main one and, for local harnesses, the extra ones.
+func projectFolders(projectID string, agent acpAgent) (string, []string) {
 	if projectID == "" {
-		return ""
+		return "", nil
 	}
 	p, ok := getProject(projectID)
 	if !ok || p.Directory == "" {
-		return ""
+		return "", nil
+	}
+	if agent.Remote {
+		if p.Machine != "" && p.Machine == agent.Machine {
+			return p.Directory, nil
+		}
+		return "", nil
+	}
+	if p.Machine != "" {
+		return "", nil
 	}
 	if info, err := os.Stat(p.Directory); err != nil || !info.IsDir() {
-		return ""
+		return "", nil
 	}
-	return p.Directory
+	extra := []string{}
+	for _, d := range p.ExtraDirs {
+		if info, err := os.Stat(d); err == nil && info.IsDir() {
+			extra = append(extra, d)
+		}
+	}
+	return p.Directory, extra
+}
+
+// projectWorkdir is the project folder of this machine (terminals, previews).
+func projectWorkdir(projectID string) string {
+	dir, _ := projectFolders(projectID, acpAgent{})
+	return dir
 }
 
 type projectRepo struct {
@@ -205,7 +252,12 @@ func handleProjectInfo(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "projet introuvable"})
 		return
 	}
-	out := map[string]any{"ok": true, "directory": p.Directory}
+	out := map[string]any{"ok": true, "directory": p.Directory, "machine": p.Machine}
+	if p.Machine != "" {
+		// A remote folder is not read from here.
+		sendJSON(w, 200, out)
+		return
+	}
 	if p.Directory == "" {
 		sendJSON(w, 200, out)
 		return

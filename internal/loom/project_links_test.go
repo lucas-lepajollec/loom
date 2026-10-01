@@ -53,3 +53,41 @@ func TestProjectCandidatesAndRemoteCredentials(t *testing.T) {
 		t.Fatal(r)
 	}
 }
+
+func TestProjectFoldersFollowTheHarnessMachine(t *testing.T) {
+	testHome(t)
+	t.Setenv("HOME", t.TempDir())
+	main, extra := t.TempDir(), t.TempDir()
+	local, err := saveProjectContext(ChatProject{Name: "Ici", Directory: main, ExtraDirs: []string{extra, main, ""}})
+	if err != nil || len(local.ExtraDirs) != 1 {
+		t.Fatalf("%v %+v", err, local)
+	}
+	if dir, more := projectFolders(local.ID, acpAgent{}); dir != main || len(more) != 1 || more[0] != extra {
+		t.Fatalf("harness local: %q %v", dir, more)
+	}
+	if dir, _ := projectFolders(local.ID, acpAgent{Remote: true, Machine: "box"}); dir != "" {
+		t.Fatal("dossier local donné à un harness distant")
+	}
+	if err := saveRemoteMachine(RemoteMachine{ID: "box", Name: "box", Host: "10.0.0.2", User: "root", Port: 22}, nil); err != nil {
+		t.Fatal(err)
+	}
+	remote, err := saveProjectContext(ChatProject{Name: "Là-bas", Machine: "box", Directory: "/srv/app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir, _ := projectFolders(remote.ID, acpAgent{Remote: true, Machine: "box"}); dir != "/srv/app" {
+		t.Fatalf("harness de la machine: %q", dir)
+	}
+	if dir, _ := projectFolders(remote.ID, acpAgent{Remote: true, Machine: "autre"}); dir != "" {
+		t.Fatal("dossier donné à une autre machine")
+	}
+	if dir, _ := projectFolders(remote.ID, acpAgent{}); dir != "" {
+		t.Fatal("dossier distant donné à un harness local")
+	}
+	if _, err := saveProjectContext(ChatProject{ID: remote.ID, Name: "Là-bas", Machine: "box", Directory: "/srv/app", ContextFiles: []string{"README.md"}}); err == nil {
+		t.Fatal("fichiers de contexte distants acceptés")
+	}
+	if _, err := saveProjectContext(ChatProject{Name: "X", Machine: "inconnue", Directory: "/a"}); err == nil {
+		t.Fatal("machine inconnue acceptée")
+	}
+}

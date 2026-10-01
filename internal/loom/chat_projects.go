@@ -20,6 +20,10 @@ type ChatProject struct {
 	ContextFiles []string `json:"context_files,omitempty"`
 	// DefaultChoice: selector choice a new discussion of the project starts with.
 	DefaultChoice string `json:"default_choice,omitempty"`
+	// Machine: where Directory lives ("" = this machine, or a remote machine id).
+	Machine string `json:"machine,omitempty"`
+	// ExtraDirs: more folders of the same machine the project's harnesses may use.
+	ExtraDirs []string `json:"extra_dirs,omitempty"`
 }
 
 func listProjects() []ChatProject {

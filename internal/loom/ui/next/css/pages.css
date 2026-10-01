@@ -457,3 +457,9 @@
 .mcp-src{margin-bottom:10px}
 .mcp-src .row.sub{padding-left:58px}
 .mcp-src .row.sub b{font-weight:500}
+.pj-extra{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.pj-extra>.muted{font-size:12.5px}
+.pj-extra-row{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.pj-extra-row svg{width:13px;height:13px;color:var(--text-3)}
+.pj-extra-row .trunc{flex:1;min-width:0;display:block;max-width:none}
+.pj-extra>.btn{align-self:flex-start}

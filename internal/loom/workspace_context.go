@@ -3,7 +3,6 @@ package loom
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -102,15 +101,39 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 	if p.Name == "" || len([]rune(p.Name)) > 80 || len(p.Instructions) > maxProjectInstructions || len(p.CapabilityIDs) > maxProjectCapabilities {
 		return p, fmt.Errorf("nom requis (80 caractères maximum), contexte de 12000 octets maximum et 8 capacités maximum")
 	}
+	p.Machine = strings.TrimSpace(p.Machine)
+	if p.Machine == "local" {
+		p.Machine = ""
+	}
+	if p.Machine != "" && machineByID(p.Machine) == nil {
+		return p, fmt.Errorf("machine inconnue")
+	}
 	if p.Directory != "" {
-		if !filepath.IsAbs(p.Directory) {
-			return p, fmt.Errorf("le dossier doit être un chemin absolu")
+		clean, err := projectDir(p.Machine, p.Directory)
+		if err != nil {
+			return p, err
 		}
-		info, err := os.Stat(p.Directory)
-		if err != nil || !info.IsDir() {
-			return p, fmt.Errorf("ce dossier n’existe pas ou n’est pas accessible")
+		p.Directory = clean
+	}
+	if len(p.ExtraDirs) > 8 {
+		return p, fmt.Errorf("8 dossiers supplémentaires maximum")
+	}
+	extra := []string{}
+	for _, d := range p.ExtraDirs {
+		if strings.TrimSpace(d) == "" {
+			continue
 		}
-		p.Directory = filepath.Clean(p.Directory)
+		clean, err := projectDir(p.Machine, d)
+		if err != nil {
+			return p, err
+		}
+		if clean != p.Directory && !hasName(extra, clean) {
+			extra = append(extra, clean)
+		}
+	}
+	p.ExtraDirs = extra
+	if p.Machine != "" && len(p.ContextFiles) > 0 {
+		return p, fmt.Errorf("les fichiers de contexte ne sont lus que pour un dossier de cette machine")
 	}
 	files, err := validProjectContextFiles(p.Directory, p.ContextFiles)
 	if err != nil {
