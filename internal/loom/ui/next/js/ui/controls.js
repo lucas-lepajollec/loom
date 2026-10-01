@@ -1,6 +1,6 @@
 // Contrôles réutilisables : segmenté animé, onglets, interrupteur, curseur,
 // info-bulle ⓘ, popover ancré.
-import { html, useRef, useLayoutEffect, useEffect, useState, cls } from '../core/lib.js';
+import { html, render, useRef, useLayoutEffect, useEffect, useState, cls } from '../core/lib.js';
 import { Icon } from './icons.js';
 
 export function Seg({ value, options, onChange, size, label }) {
@@ -39,12 +39,21 @@ export function Slider({ value, min, max, step, onInput, onChange, label }) {
 }
 
 // ⓘ : l'explication vit dans une bulle au survol/focus, jamais en paragraphe.
+// La bulle est rendue à la racine du document : un parent animé (transform)
+// décalerait sinon sa position « fixed » loin de l'icône.
+let tipLayer = null;
 export function Tip({ text }) {
-  const [pos, setPos] = useState(null);
   const ref = useRef();
-  const show = () => { const r = ref.current.getBoundingClientRect(); setPos({ x: Math.min(r.left, innerWidth - 296), y: r.bottom + 8 }); };
-  return html`<span class="tip" tabindex="0" ref=${ref} onMouseEnter=${show} onMouseLeave=${() => setPos(null)} onFocus=${show} onBlur=${() => setPos(null)} aria-label=${text}>i
-    ${pos && html`<span class="tipbox" role="tooltip" style=${`left:${pos.x}px;top:${pos.y}px`}>${text}</span>`}</span>`;
+  const show = () => {
+    const r = ref.current.getBoundingClientRect();
+    if (!tipLayer) { tipLayer = document.createElement('div'); document.body.appendChild(tipLayer); }
+    const x = Math.max(8, Math.min(r.left - 6, innerWidth - 296));
+    const below = r.bottom + 8 + 120 < innerHeight;
+    render(html`<span class="tipbox" role="tooltip" style=${`left:${x}px;${below ? `top:${r.bottom + 8}px` : `bottom:${innerHeight - r.top + 8}px`}`}>${text}</span>`, tipLayer);
+  };
+  const hide = () => { if (tipLayer) render(null, tipLayer); };
+  useEffect(() => hide, []);
+  return html`<span class="tip" tabindex="0" ref=${ref} onMouseEnter=${show} onMouseLeave=${hide} onFocus=${show} onBlur=${hide} aria-label=${text}>i</span>`;
 }
 
 // Popover ancré sous (ou au-dessus de) son déclencheur, fermé par clic extérieur/Échap.
