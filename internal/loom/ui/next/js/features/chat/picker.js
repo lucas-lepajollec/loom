@@ -4,7 +4,7 @@ import { Logo } from '../../ui/logo.js';
 import { html, useState, useRef, useStore, useMemo, cls, fmtBytes, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Seg, Popover } from '../../ui/controls.js';
-import { app, go, refreshLibrary, refreshWorkspace } from '../../core/state.js';
+import { app, go, refreshLibrary, refreshWorkspace, runtimeKind } from '../../core/state.js';
 import { chat, chooseLocal, chooseRemote } from './engine.js';
 
 // Regroupe les variantes natives (-low/-medium/-high) sous un seul modèle.
@@ -21,8 +21,10 @@ export function groupVariants(models) {
 export function currentExec() {
   const c = chat.get(), s = c.session;
   if (c.mode === 'thread' && s) {
-    const kind = ['antigravity', 'codex'].includes(s.runtime_id) ? 'harness' : 'cloud';
-    return { kind, name: baseName(s.model).replace(/-(low|medium|high|xhigh)$/, ''), sub: s.provider_name };
+    const kind = runtimeKind(s.runtime_id);
+    // Un harness ACP démarre sur le modèle par défaut de son compte : on affiche le harness.
+    const model = baseName(s.model).replace(/-(low|medium|high|xhigh)$/, '');
+    return model && model !== 'default' ? { kind, name: model, sub: s.provider_name } : { kind, name: s.provider_name || s.runtime_id, sub: 'modèle par défaut' };
   }
   const st = app.get().status;
   if (st && st.model) return { kind: 'local', name: st.preset_name || baseName(st.model_name || st.model).replace(/\.gguf$/i, ''), sub: st.preset_name ? 'preset' : '' };

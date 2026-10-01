@@ -81,7 +81,7 @@ func modelCatalog(providers []CloudProvider) []ModelChoice {
 	for _, d := range runtimeCatalog() {
 		adapter, _ := registeredRuntimes.lookup(d.ID)
 		if _, ok := adapter.(*acpAdapter); ok {
-			add(ModelChoice{ID: d.ID + ":default", Name: d.Name, Kind: "harness", ProviderName: d.Name, RuntimeID: d.ID, Ready: d.Available})
+			add(ModelChoice{ID: d.ID + ":default", Name: d.Name, Kind: "harness", ProviderName: d.Name, RuntimeID: d.ID, Ready: d.Available != nil && *d.Available})
 		}
 	}
 

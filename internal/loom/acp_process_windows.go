@@ -3,6 +3,7 @@
 package loom
 
 import (
+	"os"
 	"os/exec"
 	"strconv"
 	"syscall"
@@ -18,3 +19,5 @@ func acpKillProcessGroup(cmd *exec.Cmd) {
 		_ = cmd.Process.Kill()
 	}
 }
+
+func acpOpenRead(root *os.Root, rel string) (*os.File, error) { return root.Open(rel) }

@@ -191,16 +191,27 @@ Third-party dependencies and llama.cpp retain their respective licenses and term
 
 The workspace runtime catalog comes from one ordered adapter registry. Descriptors
 include their description, native CLI, connection consent text and implemented
-capabilities. Claude Code, Pi and Hermes remain planned entries with no executable
-capabilities.
+capabilities. Codex, Claude Code, Pi and Gemini now have ACP adapters, available
+when their registry launcher and native detection binaries are installed. Hermes
+remains a planned entry without executable capabilities.
 
 Explicit native catalog connection uses `POST /api/runtimes/{id}/connect` with
 `{"consent":true}`. Explicit quota reading uses `POST /api/runtimes/{id}/quota`
 with `{}`. Both retain the control API's authentication, private-cache and vault
 boundaries. Quota reads share the existing 30-second throttle/cache and never
-start generation or consume reset credits. The older Antigravity/Codex connect
-routes and `/api/usage/refresh` remain compatible aliases. See
+start generation or consume reset credits. The Antigravity connect route and
+`/api/usage/refresh` remain aliases. Codex app-server now reads quotas only;
+its old catalog-connect alias reports that connection discovery is unsupported. See
 [workspace contracts](docs/workspace-architecture.md#runtime-registry-and-optional-actions).
+
+
+ACP discussions require an explicitly selected existing absolute workdir before
+sending. Session configuration, approval routing, confined fs writes/diffs and
+ordered display events are available over the control API; the chat store retains
+those events for the design owner's rendering. `LOOM_DEV_FAKE_ACP=1` enables a
+scripted agent that exercises this path without model calls. Native session
+resumption is negotiated and requires compatible portable context. Skills sinks
+remain deferred. See the [ACP API and lifecycle notes](docs/agents/acp-implementation.md).
 
 
 ## Settings and classic feature migration

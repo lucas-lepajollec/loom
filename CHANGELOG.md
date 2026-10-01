@@ -6,6 +6,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Generic ACP v1 harness execution for Codex, Claude Code, Pi and Gemini through an embedded pinned agent registry; explicit working roots, native session lifecycle, confined filesystem writes/diffs, per-discussion permission policies and approvals, enabled MCP definitions, persisted discussion events and a token-free development/test agent. Codex app-server remains quota-only. Frontend changes store the new events/state without adding rendering or CSS; skills sinks are deferred.
+
 - New Settings controls for vault unlock/lock/decryption, one-time recovery keys and an additional key wrap, local snapshot listing/restoration, secure-context Web Push, and active-model GPU selection using native `--device` identifiers. Local preset ordering uses up/down buttons and the complete catalog even when filtered. Existing components/styles are reused; snapshot sizes remain unknown because the current API does not report them.
 
 - Bench queue supports cloud model choices with explicit consent, streamed TTFT/reported token throughput and request cancellation, preserving local benchmarks.

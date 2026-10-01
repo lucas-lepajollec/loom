@@ -69,7 +69,8 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 	if a.agent.ID == "codex" {
 		caps = append(caps, "quota")
 	}
-	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: a.agent.Command, Description: "Agent de code via ACP. Authentification et outils natifs du harness.", Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: a.agent.available(), InstallHint: a.agent.Command + " " + joinACPArgs(a.agent.Args), Capabilities: caps, Docs: a.agent.Docs}
+	available := a.agent.available()
+	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: a.agent.Command, Description: "Agent de code via ACP. Authentification et outils natifs du harness.", Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: &available, InstallHint: a.agent.Command + " " + joinACPArgs(a.agent.Args), Capabilities: caps, Docs: a.agent.Docs}
 }
 func joinACPArgs(args []string) string {
 	out := ""

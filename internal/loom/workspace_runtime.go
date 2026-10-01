@@ -30,7 +30,7 @@ type QuotaReader interface {
 
 type RuntimeDescriptor struct {
 	Logo         string   `json:"logo,omitempty"`
-	Available    bool     `json:"available"`
+	Available    *bool    `json:"available,omitempty"`
 	InstallHint  string   `json:"install_hint,omitempty"`
 	Docs         string   `json:"docs,omitempty"`
 	ID           string   `json:"id"`

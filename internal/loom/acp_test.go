@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +20,14 @@ func TestACPAgentHelper(t *testing.T) {
 	if os.Getenv("LOOM_TEST_FAKE_ACP") != "1" {
 		return
 	}
-	runFakeACP(os.Stdin, os.Stdout)
+	if file := os.Getenv("LOOM_TEST_ACP_CHILD_PID_FILE"); file != "" {
+		child := exec.Command(os.Args[0], "-test.run=^TestACPChildHelper$")
+		if err := child.Start(); err != nil {
+			os.Exit(2)
+		}
+		_ = os.WriteFile(file, []byte(strconv.Itoa(child.Process.Pid)), 0600)
+	}
+	runFakeACPWithLoad(os.Stdin, os.Stdout, os.Getenv("LOOM_TEST_FAKE_NO_LOAD") != "1")
 	os.Exit(0)
 }
 func fakeACPAdapter(t *testing.T) *acpAdapter {
@@ -427,5 +436,132 @@ func TestACPConfigureNativeModeAndScope(t *testing.T) {
 	}
 	if !hasRuntimeCapability(a.Descriptor(), "resume") {
 		t.Fatal("negotiated resume missing")
+	}
+}
+
+func TestACPChildHelper(t *testing.T) {
+	if os.Getenv("LOOM_TEST_ACP_CHILD_PID_FILE") == "" {
+		return
+	}
+	for {
+		time.Sleep(time.Hour)
+	}
+}
+func TestACPNonResumablePortableHandoff(t *testing.T) {
+	testHome(t)
+	a := fakeACPAdapter(t)
+	t.Setenv("LOOM_TEST_FAKE_NO_LOAD", "1")
+	isolateRuntimeRegistry(t, a)
+	m := newRuntimeSessions()
+	s := createACPSession(t, m, a, "edits")
+	if err := m.start(s.ID, "request-history1", "question-history-control"); err != nil {
+		t.Fatal(err)
+	}
+	first := waitACPTurn(t, m, s.ID)
+	m.closeACP(s.ID)
+	if err := m.start(s.ID, "request-history2", "__loom_inspect_portable"); err != nil {
+		t.Fatal(err)
+	}
+	second := waitACPTurn(t, m, s.ID)
+	prompt, _ := second.Messages[3].Content.(string)
+	if first.NativeSessionID == second.NativeSessionID || !strings.Contains(prompt, "question-history-control") || !strings.Contains(prompt, `"role":"assistant","content":"OK"`) {
+		t.Fatal("new native session did not receive portable history", prompt)
+	}
+	if strings.Contains(prompt, "Reported thought") || strings.Contains(prompt, "Fixture result") {
+		t.Fatal("runtime-private state entered handoff")
+	}
+	if hasRuntimeCapability(a.Descriptor(), "resume") {
+		t.Fatal("unsupported resume advertised")
+	}
+}
+func TestACPCancelNotificationRoundtrip(t *testing.T) {
+	a := fakeACPAdapter(t)
+	c, err := startACPClient(a.agent.Command, a.agent.Args, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready := make(chan struct{}, 1)
+	c.notify = func(f acpFrame) {
+		if f.Method == "session/update" {
+			select {
+			case ready <- struct{}{}:
+			default:
+			}
+		}
+	}
+	if err = c.start(); err != nil {
+		t.Fatal(err)
+	}
+	defer c.close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err = c.call(ctx, "initialize", map[string]any{"protocolVersion": 1, "clientInfo": map[string]any{"name": "loom", "version": Version}, "clientCapabilities": map[string]any{"fs": map[string]any{"readTextFile": true, "writeTextFile": true}, "terminal": false}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var response acpSessionResponse
+	if err = c.call(ctx, "session/new", map[string]any{"cwd": t.TempDir(), "mcpServers": []any{}}, &response); err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	go func() {
+		var out struct {
+			StopReason string `json:"stopReason"`
+		}
+		err := c.call(ctx, "session/prompt", map[string]any{"sessionId": response.SessionID, "prompt": []any{map[string]any{"type": "text", "text": "wait"}}}, &out)
+		if err == nil && out.StopReason != "cancelled" {
+			err = errors.New("prompt not cancelled")
+		}
+		result <- err
+	}()
+	select {
+	case <-ready:
+	case <-ctx.Done():
+		t.Fatal("waiting prompt not observed")
+	}
+	if err = c.notification("session/cancel", map[string]any{"sessionId": response.SessionID}); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-result; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestACPMCPProjectAndSessionSelection(t *testing.T) {
+	testHome(t)
+	executable, _ := os.Executable()
+	mcpConfigMu.Lock()
+	err := saveMCPConfigLocked(map[string]MCPServerConfig{"first": {Command: executable, Enabled: true}, "second": {Command: executable, Enabled: true}, "disabled": {Command: executable, Enabled: false}})
+	mcpConfigMu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{"first"}
+	project, err := saveProjectContext(ChatProject{Name: "Scoped MCP", MCPServers: &names})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := RuntimeSession{ProjectID: project.ID}
+	definitions, err := acpSessionMCPDefinitions(s)
+	if err != nil || len(definitions) != 1 || definitions["first"].Command == "" {
+		t.Fatal("project scope", definitions, err)
+	}
+	explicit := []string{"second", "disabled"}
+	s.MCPServers = &explicit
+	definitions, err = acpSessionMCPDefinitions(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire, err := acpMCPServersFromDefinitions(map[string]any{}, definitions)
+	if err != nil || len(wire) != 1 || wire[0].(map[string]any)["name"] != "second" {
+		t.Fatal("session scope/enabled filter", wire, err)
+	}
+	none := []string{}
+	s.MCPServers = &none
+	definitions, err = acpSessionMCPDefinitions(s)
+	if err != nil || len(definitions) != 0 {
+		t.Fatal("empty scope inherited all servers")
+	}
+	if err = validateACPMCPSelection([]string{"unknown"}); err == nil {
+		t.Fatal("unknown MCP scope accepted")
 	}
 }

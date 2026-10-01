@@ -18,6 +18,7 @@ const acpMaxFrame = 4 << 20
 var errACPClosed = errors.New("agent ACP déconnecté")
 
 type acpFrame struct {
+	replied func()
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
 	Method  string          `json:"method,omitempty"`
@@ -42,7 +43,7 @@ type acpClient struct {
 	next    atomic.Uint64
 	done    chan struct{}
 	once    sync.Once
-	handler func(acpFrame) (any, error)
+	handler func(*acpFrame) (any, error)
 	notify  func(acpFrame)
 }
 
@@ -63,7 +64,7 @@ func startACPClient(command string, args []string, cwd string) (*acpClient, erro
 	c := &acpClient{cmd: cmd, stdout: out, stdin: in, pending: map[string]chan acpFrame{}, done: make(chan struct{})}
 	// Start/reader happen after handlers are installed by start().
 	c.notify = func(acpFrame) {}
-	c.handler = func(acpFrame) (any, error) { return nil, errors.New("méthode ACP non prise en charge") }
+	c.handler = func(*acpFrame) (any, error) { return nil, errors.New("méthode ACP non prise en charge") }
 	return c, nil
 }
 func (c *acpClient) start() error {
@@ -147,10 +148,20 @@ func (c *acpClient) read(out io.Reader) {
 			c.notify(f) // ordered updates, including those immediately before prompt completion
 		} else {
 			go func(f acpFrame) {
-				result, err := c.handler(f)
+				defer func() {
+					if f.replied != nil {
+						f.replied()
+					}
+				}()
+				result, err := c.handler(&f)
 				reply := map[string]any{"jsonrpc": "2.0", "id": f.ID}
 				if err != nil {
-					reply["error"] = &acpRPCError{Code: -32602, Message: "requête client refusée"}
+					code := -32602
+					var rpcError *acpRPCError
+					if errors.As(err, &rpcError) {
+						code = rpcError.Code
+					}
+					reply["error"] = &acpRPCError{Code: code, Message: "requête client refusée"}
 				} else {
 					reply["result"] = result
 				}

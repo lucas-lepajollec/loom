@@ -36,7 +36,7 @@ func TestEngineKindFullVsServer(t *testing.T) {
 	lone := filepath.Join(root, "only", "llama-server")
 	writeLlamaServer(t, lone)
 	if got := engineKind(lone); got != "server" {
-		t.Fatalf("kind(lone) = %q, attendu server", got)
+		t.Fatalf("kind(lone) = %q, attendu server (repo %q)", got, engineRepo(lone))
 	}
 	if got := engineRepo(lone); got != "" {
 		t.Fatalf("repo(lone) = %q, attendu vide", got)

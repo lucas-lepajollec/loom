@@ -16,6 +16,7 @@ const maxPortableMessages = 200
 // DiscussionContext is a fresh read model, not a second memory store. Revision
 // binds the route, portable history and instructions seen by the client.
 type DiscussionContext struct {
+	MCPServers   *[]string    `json:"mcp_servers,omitempty"`
 	ProjectID    string       `json:"project_id"`
 	ProjectName  string       `json:"project_name"`
 	Instructions string       `json:"project_instructions"`
@@ -41,7 +42,7 @@ type DiscussionPreview struct {
 func discussionContext(s RuntimeSession) DiscussionContext {
 	workspaceMu.Lock()
 	defer workspaceMu.Unlock()
-	c := DiscussionContext{ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}}
+	c := DiscussionContext{MCPServers: s.MCPServers, ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}}
 	parts := []string{}
 	if s.ProjectID != "" {
 		p, ok := getProject(s.ProjectID)
@@ -49,6 +50,9 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 			c.Problem = "Le projet est absent ou verrouillé. Choisissez un projet accessible ou détachez ce fil."
 		} else {
 			c.ProjectName, c.Instructions = p.Name, p.Instructions
+			if c.MCPServers == nil {
+				c.MCPServers = p.MCPServers
+			}
 			if p.Instructions != "" {
 				parts = append(parts, "Project instructions:\n"+p.Instructions)
 			}
@@ -68,7 +72,7 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 	}
 	c.System = strings.Join(parts, "\n\n")
 	// No credentials, folder contents, global/local-only prompt or hidden state.
-	encoded, _ := json.Marshal([]any{s.ID, s.Title, s.ProjectID, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.Mode, s.ConfigOptions, s.Messages, c.System, c.Problem, c.Warning})
+	encoded, _ := json.Marshal([]any{s.ID, s.Title, s.ProjectID, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.Mode, s.ConfigOptions, c.MCPServers, s.Messages, c.System, c.Problem, c.Warning})
 	digest := sha256.Sum256(encoded)
 	c.Revision = hex.EncodeToString(digest[:])
 	return c
@@ -147,6 +151,7 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 	s.CustomTitle = true
 	s.UpdatedAt = time.Now().UnixMilli()
 	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
+		m.closeACP(id)
 		return s, err
 	}
 	m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(s), "context": discussionContext(s)})

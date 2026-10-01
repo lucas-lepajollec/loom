@@ -33,7 +33,7 @@ func Main() {
 		runFakeACP(os.Stdin, os.Stdout)
 		return
 	}
-	installACPShutdown()
+	workspaceSessions.installACPShutdown()
 	defer workspaceSessions.shutdownACP()
 	args := os.Args[1:]
 	noArgs := len(args) == 0

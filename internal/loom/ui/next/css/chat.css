@@ -356,3 +356,12 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .hs-file .trunc{flex:1;min-width:0}
 .hs-file .tc-n em:not(.plus):not(.minus){font-style:normal;color:var(--text-3)}
 .insp-body .select{width:100%}
+/* travail d'un tour terminé, replié au-dessus de la réponse */
+.work-h{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 10px 0 8px;margin-left:-8px;border-radius:var(--r-sm);font-size:13px;color:var(--text-3)}
+.work-h:hover{background:var(--hover);color:var(--text-2)}
+.work-h .ico{width:14px;height:14px}
+.work-h .caret{transition:transform var(--mid) var(--out)}
+.work.open .work-h .caret{transform:rotate(180deg)}
+.work-b{display:flex;flex-direction:column;gap:12px;margin:8px 0 4px;padding-left:14px;border-left:1px solid var(--line);animation:in-fade var(--mid) var(--ease)}
+.work-b .msg-ai .md{color:var(--text-2);font-size:14px}
+.tc-st.muted{font-size:12px;color:var(--text-3)}

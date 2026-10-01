@@ -9,7 +9,7 @@ func acpClip(text string, n int) string {
 	if len(text) <= n {
 		return text
 	}
-	return strings.ToValidUTF8(text[:n], "") + "…"
+	return strings.ToValidUTF8(text[:max(0, n-3)], "") + "…"
 }
 func acpCompact(value any, n int) string { b, _ := json.Marshal(value); return acpClip(string(b), n) }
 func acpCloneMap(value map[string]any) map[string]any {
@@ -58,7 +58,7 @@ func (p *acpBinding) tool(update map[string]any) map[string]any {
 			case "diff":
 				before, _ := item["oldText"].(string)
 				after, _ := item["newText"].(string)
-				diffs = append(diffs, map[string]any{"path": item["path"], "old": acpClip(before, 64<<10), "new": acpClip(after, 64<<10)})
+				diffs = append(diffs, map[string]any{"path": item["path"], "old": before, "new": after})
 			case "content":
 				content, _ := item["content"].(map[string]any)
 				if content["type"] == "text" {

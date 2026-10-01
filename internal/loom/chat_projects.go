@@ -9,12 +9,13 @@ import (
 
 // ChatProject owns shared context while preserving the original chat grouping.
 type ChatProject struct {
-	ID            string   `json:"id"`
-	Name          string   `json:"name"`
-	CreatedAt     int64    `json:"created_at"`
-	Directory     string   `json:"directory,omitempty"`
-	Instructions  string   `json:"instructions,omitempty"`
-	CapabilityIDs []string `json:"capability_ids,omitempty"`
+	MCPServers    *[]string `json:"mcp_servers,omitempty"`
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	CreatedAt     int64     `json:"created_at"`
+	Directory     string    `json:"directory,omitempty"`
+	Instructions  string    `json:"instructions,omitempty"`
+	CapabilityIDs []string  `json:"capability_ids,omitempty"`
 }
 
 func listProjects() []ChatProject {

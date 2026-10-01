@@ -61,9 +61,18 @@ func TestUsageTotalsRemainLoomScopedAndIncomplete(t *testing.T) {
 	if putStoreJSON(bkRuntimeSessions, s.ID, s) != nil {
 		t.Fatal("write")
 	}
-	rows := usageSummaries()
-	if len(rows) != 1 || rows[0].Turns != 2 || rows[0].Reported != 1 || rows[0].Usage.Total != 150 || rows[0].EstimatedCost == nil || *rows[0].EstimatedCost != 0.0002 {
-		t.Fatalf("%+v", rows)
+	// Installed ACP harnesses add their own zero-turn rows; only the cloud row is under test.
+	var row *ModelUsageSummary
+	all := usageSummaries()
+	for i := range all {
+		if all[i].ChoiceID == id {
+			row = &all[i]
+		} else if all[i].Turns != 0 {
+			t.Fatalf("unexpected usage outside the fixture: %+v", all[i])
+		}
+	}
+	if row == nil || row.Turns != 2 || row.Reported != 1 || row.Usage.Total != 150 || row.EstimatedCost == nil || *row.EstimatedCost != 0.0002 {
+		t.Fatalf("%+v", all)
 	}
 }
 func TestUsageAPIReadOnlyAndPriceValidation(t *testing.T) {

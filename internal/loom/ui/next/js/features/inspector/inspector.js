@@ -48,7 +48,7 @@ const LEVELS = [{ value: 'ask', label: 'Demander' }, { value: 'edits', label: 'M
 const LEVEL_TIP = 'Demander : chaque action attend ton accord. Modifs auto : lectures et modifications de fichiers acceptées, commandes et suppressions demandées. Tout : aucune question. Les règles propres au harness restent actives.';
 
 async function configure(s, patch) {
-  const r = await post('/api/runtime/sessions/configure', { id: s.id, title: s.title || '', project_id: s.project_id || '', instructions: s.instructions || '', context_revision: '', ...patch });
+  const r = await post('/api/runtime/sessions/configure', { id: s.id, ...patch });
   if (!r.ok) toast(r.error || 'Réglage impossible', 'err');
   return r.ok;
 }
@@ -62,9 +62,12 @@ function ConfigOption({ o, onChange }) {
 
 function HarnessPanel() {
   const { s, h } = useStore(chat, c => ({ s: c.session, h: c.harness || {} }));
+  const runtimes = useStore(app, a => (a.workspace && a.workspace.runtimes) || []);
   const [pick, setPick] = useState(false);
   const [diff, setDiff] = useState(null);
   if (!s) return null;
+  const caps = ((runtimes.find(r => r.id === s.runtime_id) || {}).capabilities) || [];
+  const canDir = caps.includes('workdir'), canAsk = caps.includes('approvals');
   const workdir = h.workdir || s.workdir || '';
   const level = h.permission || s.permission || 'ask';
   const modes = h.modes || s.available_modes || [];
@@ -75,7 +78,7 @@ function HarnessPanel() {
   const t = lastTurn(s), u = t && t.usage;
   const setLevel = async v => {
     if (v === 'full' && !await confirm('Tout autoriser', 'Le harness pourra lancer des commandes et modifier ou supprimer des fichiers dans ' + (workdir || 'le dossier de travail') + ' sans te demander.', { ok: 'Tout autoriser', danger: true })) return;
-    configure(s, { permission: v });
+    configure(s, v === 'full' ? { permission: v, consent: true } : { permission: v });
   };
   const showDiff = async f => {
     const r = await get('/api/runtime/sessions/diff?id=' + encodeURIComponent(s.id) + '&path=' + encodeURIComponent(f.path)).catch(e => ({ ok: false, error: e.message }));
@@ -86,12 +89,12 @@ function HarnessPanel() {
   return html`<div class="insp-body">
     <div class="insp-model"><${Logo} name=${s.runtime_id} /><div><b>${baseName(s.model) || s.provider_name}</b><span>${s.provider_name} · compte natif</span></div></div>
 
-    <div class="hs-sec"><div class="hs-h">Dossier de travail</div>
+    ${canDir && html`<div class="hs-sec"><div class="hs-h">Dossier de travail</div>
       ${workdir ? html`<button class="hs-dir" onClick=${() => setPick(true)} title=${workdir}><${Icon} n="folder" /><span class="mono trunc">${workdir.replace(/^\/home\/[^/]+/, '~')}</span><span class="muted">Changer</span></button>`
-        : html`<button class="btn" onClick=${() => setPick(true)}><${Icon} n="folder" />Choisir un dossier</button>`}</div>
+        : html`<button class="btn" onClick=${() => setPick(true)}><${Icon} n="folder" />Choisir un dossier</button>`}</div>`}
 
-    <div class="hs-sec"><div class="hs-h">Autorisations<${Tip} text=${LEVEL_TIP} /></div>
-      <${Seg} value=${level} onChange=${setLevel} label="Niveau d’autorisation" options=${LEVELS} /></div>
+    ${canAsk && html`<div class="hs-sec"><div class="hs-h">Autorisations<${Tip} text=${LEVEL_TIP} /></div>
+      <${Seg} value=${level} onChange=${setLevel} label="Niveau d’autorisation" options=${LEVELS} /></div>`}
 
     ${modes.length > 1 && html`<div class="hs-sec"><div class="hs-h">Mode de l’agent<${Tip} text="Modes proposés par le harness lui-même (par exemple planifier avant d’agir)." /></div>
       <select class="select" value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${m.name}</option>`)}</select></div>`}
@@ -106,11 +109,12 @@ function HarnessPanel() {
         : u ? html`<div class="kv"><span>Dernier tour</span><span class="num">${fmtTok(u.prompt_tokens)} → ${fmtTok(u.completion_tokens)} tok</span></div>`
         : html`<p class="note">Non communiqué par le harness pour l’instant.</p>`}</div>
 
-    <div class="hs-sec"><div class="hs-h">Fichiers modifiés <span class="count">${files.length}</span></div>
+    ${canDir && html`<div class="hs-sec"><div class="hs-h">Fichiers modifiés <span class="count">${files.length}</span></div>
       ${files.length ? html`<div class="hs-files">${[...files].reverse().map(f => html`<button class="hs-file" key=${f.path} onClick=${() => showDiff(f)} title=${f.path}>
           <${Icon} n=${f.op === 'delete' ? 'trash' : 'file'} /><span class="trunc">${f.path.startsWith(workdir + '/') ? f.path.slice(workdir.length + 1) : f.path}</span>
           <span class="tc-n">${f.add > 0 ? html`<em class="plus">+${f.add}</em> ` : ''}${f.del > 0 ? html`<em class="minus">−${f.del}</em>` : ''}${f.op === 'create' ? html` <em>nouveau</em>` : ''}</span></button>`)}</div>`
-        : html`<p class="note">Aucune modification dans cette discussion.</p>`}</div>
+        : html`<p class="note">Aucune modification dans cette discussion.</p>`}</div>`}
+    ${!canDir && html`<p class="note">Ce harness discute en texte : pas de dossier de travail ni d’outils pilotés par Loom.</p>`}
 
     ${pick && html`<${FolderPicker} start=${workdir} onClose=${() => setPick(false)} onPick=${async p => { setPick(false); await configure(s, { workdir: p }); }} />`}
     ${diff && html`<${Modal} wide title=${diff.path.split('/').pop()} sub=${diff.path} onClose=${() => setDiff(null)}><${UnifiedDiff} text=${diff.text} /></${Modal}>`}

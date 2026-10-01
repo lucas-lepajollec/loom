@@ -14,6 +14,7 @@ import (
 // ACPState is runtime-private display state, never part of prepared messages.
 // MCP definitions/env values are deliberately absent from this persisted state.
 type ACPState struct {
+	MCPServers             *[]string         `json:"mcp_servers,omitempty"`
 	NativeSessionID        string            `json:"native_session_id,omitempty"`
 	NativeRuntimeID        string            `json:"native_runtime_id,omitempty"`
 	NativeContext          string            `json:"native_context,omitempty"`
@@ -60,6 +61,7 @@ type acpBinding struct {
 	manager       *runtimeSessions
 	id            string
 	idle          *time.Timer
+	mcpRevision   string
 	loading       bool
 	answer        string
 	approvalGrace time.Duration
@@ -123,9 +125,19 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	if !agent.available() {
 		return nil, errors.New("CLI du harness ou lanceur ACP indisponible")
 	}
-	if _, err := acpDirectory(s.Workdir); err != nil {
+	canonical, err := acpDirectory(s.Workdir)
+	if err != nil {
 		return nil, err
 	}
+	if canonical != s.Workdir {
+		return nil, errors.New("le dossier choisi a changé ; configurez-le à nouveau")
+	}
+	definitions, err := acpSessionMCPDefinitions(s)
+	if err != nil {
+		return nil, err
+	}
+	encoded, _ := json.Marshal(definitions)
+	mcpRevision := fmt.Sprintf("%x", sha256.Sum256(encoded))
 	if len(turn.Messages) == 0 {
 		return nil, errors.New("message ACP requis")
 	}
@@ -137,7 +149,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	m.acpMu.Unlock()
 	if p != nil {
 		p.mu.Lock()
-		valid := p.state.NativeRuntimeID == agent.ID && p.state.NativeContext == prefix && p.state.Workdir == s.Workdir && !p.active
+		valid := p.state.NativeRuntimeID == agent.ID && p.state.NativeContext == prefix && p.state.Workdir == s.Workdir && p.mcpRevision == mcpRevision && !p.active
 		if p.idle != nil {
 			p.idle.Stop()
 		}
@@ -158,12 +170,17 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		if err != nil {
 			return nil, err
 		}
-		p = &acpBinding{client: c, state: cloneACPState(s.ACPState), tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, manager: m, id: s.ID, ctx: requestCtx, emit: emit, active: true}
+		p = &acpBinding{client: c, state: cloneACPState(s.ACPState), tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, manager: m, id: s.ID, ctx: requestCtx, emit: emit, active: true, mcpRevision: mcpRevision}
 		if p.state.Permission == "" {
 			p.state.Permission = "ask"
 		}
 		p.state.NativeRuntimeID = agent.ID
 		for _, dir := range append([]string{s.Workdir}, s.AdditionalDirs...) {
+			canonical, err := acpDirectory(dir)
+			if err != nil || canonical != dir {
+				p.close()
+				return nil, errors.New("dossier autorisé inaccessible ou modifié")
+			}
 			root, err := os.OpenRoot(dir)
 			if err != nil {
 				p.close()
@@ -194,7 +211,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		p.mu.Lock()
 		p.state.AgentCapabilities = init.AgentCapabilities
 		p.mu.Unlock()
-		servers, err := acpMCPServers(init.AgentCapabilities)
+		servers, err := acpMCPServersFromDefinitions(init.AgentCapabilities, definitions)
 		if err != nil {
 			m.closeACP(s.ID)
 			return nil, err
@@ -252,6 +269,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		p.tools = map[string]map[string]any{}
 		p.emit = emit
 		p.active = true
+		p.state.MCPServers = cloneACPState(s.ACPState).MCPServers
 		p.state.Permission = s.Permission
 		if p.state.Permission == "" {
 			p.state.Permission = "ask"
@@ -304,7 +322,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	var result struct {
 		StopReason string `json:"stopReason"`
 	}
-	err := p.client.call(ctx, "session/prompt", map[string]any{"sessionId": state.NativeSessionID, "prompt": []any{map[string]any{"type": "text", "text": prompt}}}, &result)
+	err = p.client.call(ctx, "session/prompt", map[string]any{"sessionId": state.NativeSessionID, "prompt": []any{map[string]any{"type": "text", "text": prompt}}}, &result)
 	requestCancel()
 	p.mu.Lock()
 	p.active = false
@@ -417,6 +435,9 @@ func acpMCPServers(caps map[string]any) ([]any, error) {
 	if err != nil {
 		return nil, errors.New("définitions MCP indisponibles")
 	}
+	return acpMCPServersFromDefinitions(caps, definitions)
+}
+func acpMCPServersFromDefinitions(caps map[string]any, definitions map[string]MCPServerConfig) ([]any, error) {
 	httpCaps, _ := caps["mcpCapabilities"].(map[string]any)
 	servers := []any{}
 	for _, name := range sortedServerNames(definitions) {
@@ -480,4 +501,48 @@ func acpConfigValueAllowed(option map[string]any, value any) bool {
 		return false
 	}
 	return matches(option["options"])
+}
+
+// Explicit session selection overrides the project's selection. Nil inherits
+// all globally enabled definitions; an empty selection intentionally sends none.
+func acpSessionMCPDefinitions(s RuntimeSession) (map[string]MCPServerConfig, error) {
+	definitions, err := LoadMCPConfig()
+	if err != nil {
+		return nil, errors.New("définitions MCP indisponibles")
+	}
+	selected := s.MCPServers
+	if selected == nil && s.ProjectID != "" {
+		if project, ok := getProject(s.ProjectID); ok {
+			selected = project.MCPServers
+		} else {
+			return nil, errors.New("projet introuvable ou verrouillé")
+		}
+	}
+	if selected == nil {
+		return definitions, nil
+	}
+	out := map[string]MCPServerConfig{}
+	for _, name := range *selected {
+		definition, ok := definitions[name]
+		if !ok {
+			return nil, errors.New("serveur MCP sélectionné introuvable")
+		}
+		out[name] = definition
+	}
+	return out, nil
+}
+func validateACPMCPSelection(names []string) error {
+	if len(names) > 128 {
+		return errors.New("128 serveurs MCP maximum")
+	}
+	definitions, err := LoadMCPConfig()
+	if err != nil {
+		return errors.New("définitions MCP indisponibles")
+	}
+	for _, name := range names {
+		if _, ok := definitions[name]; !ok {
+			return errors.New("serveur MCP sélectionné introuvable")
+		}
+	}
+	return nil
 }

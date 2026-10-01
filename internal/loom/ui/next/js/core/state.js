@@ -60,6 +60,15 @@ export async function refreshNav() {
   } catch (_) {}
 }
 
+// Nature d'un runtime (local, cloud, harness) d'après le registre du serveur.
+export function runtimeKind(id) {
+  if (!id || id === 'llama.cpp') return 'local';
+  const r = ((app.get().workspace && app.get().workspace.runtimes) || []).find(x => x.id === id);
+  return r && r.kind === 'harness' ? 'harness' : 'cloud';
+}
+
+export const runtimeCaps = id => ((((app.get().workspace && app.get().workspace.runtimes) || []).find(x => x.id === id)) || {}).capabilities || [];
+
 // État lisible du moteur local pour la carte et l'en-tête.
 export function engineState(s) {
   if (!s) return { tone: '', label: 'Lecture de l’état…' };

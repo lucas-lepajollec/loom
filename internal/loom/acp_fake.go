@@ -14,7 +14,8 @@ import (
 
 // runFakeACP is a deterministic stdio agent, used by the test subprocess and
 // the explicitly enabled development command. It never contacts a provider.
-func runFakeACP(in io.Reader, out io.Writer) {
+func runFakeACP(in io.Reader, out io.Writer) { runFakeACPWithLoad(in, out, true) }
+func runFakeACPWithLoad(in io.Reader, out io.Writer, load bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var writeMu, mu sync.Mutex
@@ -76,11 +77,22 @@ func runFakeACP(in io.Reader, out io.Writer) {
 		sid, _ := params["sessionId"].(string)
 		switch f.Method {
 		case "initialize":
-			reply(f.ID, map[string]any{"protocolVersion": 1, "agentInfo": map[string]any{"name": "loom-fake-acp", "version": "1"}, "agentCapabilities": map[string]any{"loadSession": true, "mcpCapabilities": map[string]any{"http": true}}})
+			caps, _ := params["clientCapabilities"].(map[string]any)
+			fs, _ := caps["fs"].(map[string]any)
+			info, _ := params["clientInfo"].(map[string]any)
+			if params["protocolVersion"] != float64(1) || fs["readTextFile"] != true || fs["writeTextFile"] != true || caps["terminal"] != false || info["name"] != "loom" || info["version"] == nil {
+				send(map[string]any{"jsonrpc": "2.0", "id": f.ID, "error": map[string]any{"code": -32602, "message": "Invalid initialize"}})
+				continue
+			}
+			reply(f.ID, map[string]any{"protocolVersion": 1, "agentInfo": map[string]any{"name": "loom-fake-acp", "version": "1"}, "agentCapabilities": map[string]any{"loadSession": load, "mcpCapabilities": map[string]any{"http": true}}})
 		case "session/new", "session/load":
 			cwd, _ := params["cwd"].(string)
+			if !filepath.IsAbs(cwd) || params["mcpServers"] == nil {
+				send(map[string]any{"jsonrpc": "2.0", "id": f.ID, "error": map[string]any{"code": -32602, "message": "Invalid session setup"}})
+				continue
+			}
 			if sid == "" {
-				sid = fmt.Sprintf("fake-session-%d", next.Add(1))
+				sid = "fake-" + newSessionID()
 			}
 			mu.Lock()
 			sessions[sid] = cwd
@@ -110,7 +122,17 @@ func runFakeACP(in io.Reader, out io.Writer) {
 			go func(f acpFrame, sid, cwd string, params map[string]any) {
 				defer stop()
 				prompt, _ := json.Marshal(params["prompt"])
+				if strings.Contains(string(prompt), "__loom_inspect_portable") {
+					blocks, _ := params["prompt"].([]any)
+					if len(blocks) > 0 {
+						block, _ := blocks[0].(map[string]any)
+						update(sid, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": block["text"]}})
+					}
+					reply(f.ID, map[string]any{"stopReason": "end_turn"})
+					return
+				}
 				if strings.Contains(string(prompt), `\"content\":\"wait\"`) || strings.Contains(string(prompt), `"text":"wait"`) {
+					update(sid, map[string]any{"sessionUpdate": "current_mode_update", "currentModeId": "default"})
 					<-turnCtx.Done()
 					reply(f.ID, map[string]any{"stopReason": "cancelled"})
 					return

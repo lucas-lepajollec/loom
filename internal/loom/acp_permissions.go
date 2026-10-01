@@ -19,7 +19,7 @@ func acpAutoOption(policy, kind string, options []map[string]any) string {
 	}
 	return ""
 }
-func (p *acpBinding) handleRequest(f acpFrame) (any, error) {
+func (p *acpBinding) handleRequest(f *acpFrame) (any, error) {
 	var params struct {
 		SessionID string           `json:"sessionId"`
 		Path      string           `json:"path"`
@@ -38,12 +38,12 @@ func (p *acpBinding) handleRequest(f acpFrame) (any, error) {
 	active := p.active
 	if ctx != nil && active && params.SessionID == sid && sid != "" {
 		p.requestWG.Add(1)
+		f.replied = p.requestWG.Done
 	} else {
 		p.mu.Unlock()
 		return nil, errors.New("session ACP inactive")
 	}
 	p.mu.Unlock()
-	defer p.requestWG.Done()
 	if ctx == nil || !active || params.SessionID != sid || sid == "" {
 		return nil, errors.New("session ACP inactive")
 	}
@@ -62,7 +62,7 @@ func (p *acpBinding) handleRequest(f acpFrame) (any, error) {
 	case "session/request_permission":
 		return p.permission(ctx, params.Tool, params.Options)
 	default:
-		return nil, errors.New("méthode ACP non prise en charge")
+		return nil, &acpRPCError{Code: -32601, Message: "méthode client inconnue"}
 	}
 }
 func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, options []map[string]any) (any, error) {

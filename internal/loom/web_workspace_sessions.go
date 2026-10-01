@@ -174,9 +174,9 @@ func handleRuntimeSessionConfigure(w http.ResponseWriter, r *http.Request) {
 			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion introuvable"})
 			return
 		}
-		// Harness-only patches preserve discussion text/context. Mixed edits
-		// still require the existing revision contract.
-		if req.Title != "" || req.ProjectID != "" || req.Instructions != "" {
+		// Harness patches preserve discussion text/context. Unchanged legacy
+		// fields are harmless; portable edits require the existing revision.
+		if req.Title != "" && req.Title != current.Title || req.ProjectID != "" && req.ProjectID != current.ProjectID || req.Instructions != "" && req.Instructions != current.Instructions {
 			sendJSON(w, 409, map[string]any{"ok": false, "error": "context_revision requis"})
 			return
 		}

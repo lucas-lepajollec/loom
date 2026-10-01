@@ -2,6 +2,7 @@ package loom
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -11,20 +12,33 @@ import (
 )
 
 type acpConfiguration struct {
-	Workdir        *string        `json:"workdir"`
-	AdditionalDirs *[]string      `json:"additional_dirs"`
-	Permission     *string        `json:"permission"`
-	Mode           *string        `json:"mode"`
-	Config         map[string]any `json:"config"`
+	MCPServers     json.RawMessage `json:"mcp_servers"`
+	Workdir        *string         `json:"workdir"`
+	AdditionalDirs *[]string       `json:"additional_dirs"`
+	Permission     *string         `json:"permission"`
+	Mode           *string         `json:"mode"`
+	Config         map[string]any  `json:"config"`
 }
 
 func (c acpConfiguration) present() bool {
-	return c.Workdir != nil || c.AdditionalDirs != nil || c.Permission != nil || c.Mode != nil || c.Config != nil
+	return c.MCPServers != nil || c.Workdir != nil || c.AdditionalDirs != nil || c.Permission != nil || c.Mode != nil || c.Config != nil
 }
 
 // Called under the session lock while no turn is running. No prompt is sent.
 func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfiguration, consent bool) error {
 	old := cloneACPState(s.ACPState)
+	if c.MCPServers != nil {
+		var names *[]string
+		if json.Unmarshal(c.MCPServers, &names) != nil {
+			return errors.New("liste de serveurs MCP invalide")
+		}
+		if names != nil {
+			if err := validateACPMCPSelection(*names); err != nil {
+				return err
+			}
+		}
+		s.MCPServers = names
+	}
 	if c.Workdir != nil {
 		path, err := acpDirectory(*c.Workdir)
 		if err != nil {
@@ -110,8 +124,10 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 				m.closeACP(s.ID)
 				return err
 			}
+			scope := s.MCPServers
 			p.mu.Lock()
 			s.ACPState = cloneACPState(p.state)
+			s.MCPServers = scope
 			p.mu.Unlock()
 			// Policy is local, distinct from agent mode/config responses.
 			s.Permission = old.Permission

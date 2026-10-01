@@ -100,7 +100,7 @@ func acpScopedPath(roots []*os.Root, path string) (*os.Root, string, string, err
 	return nil, "", "", errors.New("lien hors du dossier autorisé")
 }
 func acpReadFile(root *os.Root, rel string) (string, error) {
-	f, err := root.Open(rel)
+	f, err := acpOpenRead(root, rel)
 	if err != nil {
 		return "", err
 	}
@@ -129,10 +129,10 @@ func (p *acpBinding) readFile(path string, line, limit *int) (any, error) {
 	if line != nil || limit != nil {
 		start := 0
 		if line != nil {
-			if *line < 1 {
+			if *line < 0 {
 				return nil, errors.New("ligne invalide")
 			}
-			start = *line - 1
+			start = max(0, *line-1)
 		}
 		lines := strings.SplitAfter(content, "\n")
 		if start > len(lines) {
@@ -184,22 +184,38 @@ func (p *acpBinding) writeFile(path, content string) (any, error) {
 	if bytes > acpMaxBaselines {
 		return nil, errors.New("limite de suivi des fichiers atteinte")
 	}
-	// Open without truncation first: inspect the opened descriptor before writing.
-	f, err := root.OpenFile(rel, os.O_WRONLY|os.O_CREATE, 0600)
+	// Replace atomically through a new regular file. A failed write cannot
+	// truncate the original, and an attacker cannot substitute a FIFO/device.
+	mode := os.FileMode(0600)
+	if info, err := root.Stat(rel); err == nil {
+		if !info.Mode().IsRegular() {
+			return nil, errors.New("fichier régulier requis")
+		}
+		mode = info.Mode().Perm()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, errors.New("écriture refusée")
+	}
+	temporary := filepath.Join(filepath.Dir(rel), ".loom-acp-"+newSessionID())
+	f, err := root.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return nil, errors.New("écriture refusée")
 	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		return nil, errors.New("fichier régulier requis")
+	defer root.Remove(temporary)
+	_, err = f.WriteString(content)
+	if err == nil {
+		err = f.Chmod(mode)
 	}
-	if err = f.Truncate(0); err == nil {
-		_, err = f.WriteString(content)
+	closeErr := f.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = root.Rename(temporary, rel)
 	}
 	if err != nil {
 		return nil, errors.New("écriture échouée")
 	}
+
 	add, del := acpLineCounts(before, content)
 	p.mu.Lock()
 	p.state.FileBaselines[canonical] = baseline
@@ -210,9 +226,6 @@ func (p *acpBinding) writeFile(path, content string) (any, error) {
 	found := false
 	for i, old := range p.state.Files {
 		if old.Path == canonical {
-			if old.Op == "create" {
-				change.Op = "create"
-			}
 			p.state.Files[i] = change
 			found = true
 			break

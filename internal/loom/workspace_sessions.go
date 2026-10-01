@@ -67,15 +67,18 @@ type runtimeRun struct {
 	cancel      context.CancelFunc
 	finalStatus string
 	finalError  string
+	acpBytes    int
+	acpError    string
 }
 type runtimeSessions struct {
-	acpMu       sync.Mutex
-	acp         map[string]*acpBinding
-	nativeMu    sync.Mutex
-	mu          sync.Mutex
-	keys        map[string]string
-	runs        map[string]*runtimeRun
-	subscribers map[string]map[*discussionSubscriber]bool
+	shutdownOnce sync.Once
+	acpMu        sync.Mutex
+	acp          map[string]*acpBinding
+	nativeMu     sync.Mutex
+	mu           sync.Mutex
+	keys         map[string]string
+	runs         map[string]*runtimeRun
+	subscribers  map[string]map[*discussionSubscriber]bool
 }
 
 func newRuntimeSessions() *runtimeSessions {
@@ -380,6 +383,9 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	_, err := adapter.Run(ctx, RuntimeTurn{Messages: messages, Temperature: 0.7}, func(event StreamEvent) bool {
 		m.mu.Lock()
 		defer m.mu.Unlock()
+		if m.runs[run.session.ID] != run {
+			return false
+		}
 		if ctx.Err() != nil && event.ACPEvent != nil && event.ACPEvent["type"] != "approval_resolved" {
 			return false
 		}
@@ -388,10 +394,25 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 		}
 		if event.ACPState != nil {
 			run.session.ACPState = cloneACPState(*event.ACPState)
-			run.session.Turns[len(run.session.Turns)-1].NativeSessionID = run.session.NativeSessionID
+			turn := &run.session.Turns[len(run.session.Turns)-1]
+			turn.NativeSessionID = run.session.NativeSessionID
+			for _, option := range run.session.AvailableConfigOptions {
+				if option["category"] == "model" {
+					if model, ok := option["currentValue"].(string); ok && len(model) <= 200 {
+						turn.Model = model
+					}
+				}
+			}
 		}
 		if event.ACPEvent != nil {
 			e := event.ACPEvent
+			encoded, _ := json.Marshal(e)
+			run.acpBytes += len(encoded)
+			if (run.acpBytes > 64<<20 || len(run.session.Turns[len(run.session.Turns)-1].ACPEvents) >= 16384) && e["type"] != "approval_resolved" {
+				run.acpError = "Journal ACP trop volumineux ; tour arrêté, événements déjà reçus conservés."
+				run.cancel()
+				return false
+			}
 			turn := &run.session.Turns[len(run.session.Turns)-1]
 			turn.ACPEvents = append(turn.ACPEvents, e)
 			if e["type"] == "text_delta" {
@@ -450,6 +471,9 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := &run.session
+	if run.acpError != "" {
+		err = errors.New(run.acpError)
+	}
 	s.Status = "complete"
 	s.UpdatedAt = time.Now().UnixMilli()
 	if err != nil {

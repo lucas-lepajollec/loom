@@ -5,7 +5,7 @@ import { Icon } from '../../ui/icons.js';
 import { Popover } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
 import { request } from '../../core/api.js';
-import { app } from '../../core/state.js';
+import { runtimeCaps, app } from '../../core/state.js';
 import { chat, send, stop, compact } from './engine.js';
 import { currentExec } from './picker.js';
 
@@ -48,7 +48,8 @@ export function Composer() {
 
   let blocked = '';
   if (native && status && !status.health) blocked = status.load_error ? 'Le modèle n’a pas pu se charger.' : !status.active ? 'Moteur arrêté : charge un modèle pour commencer.' : status.model ? 'Chargement du modèle…' : 'Choisis un modèle pour commencer.';
-  if (!native && c.session && !c.session.model) blocked = 'Choisis un modèle pour cette discussion.';
+  if (!native && c.session && !c.session.runtime_id) blocked = 'Choisis un modèle pour cette discussion.';
+  if (!native && c.session && runtimeCaps(c.session.runtime_id).includes('workdir') && !((c.harness && c.harness.workdir) || c.session.workdir)) blocked = 'Choisis un dossier de travail dans le panneau de droite.';
   if (c.context && c.context.problem) blocked = c.context.problem;
   const hint = c.notice || blocked;
 

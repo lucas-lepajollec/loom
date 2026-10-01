@@ -69,6 +69,9 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 		m.closeACP(id)
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
 		s.Mode = ""
+		s.Commands = nil
+		s.ACPUsage = nil
+		s.AgentCapabilities = nil
 		s.ConfigOptions = nil
 		s.AvailableModes = nil
 		s.AvailableConfigOptions = nil

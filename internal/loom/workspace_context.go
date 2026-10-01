@@ -68,6 +68,14 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 	} else if !ok {
 		return p, fmt.Errorf("projet introuvable")
 	}
+	if p.MCPServers == nil {
+		p.MCPServers = old.MCPServers
+	}
+	if p.MCPServers != nil {
+		if err := validateACPMCPSelection(*p.MCPServers); err != nil {
+			return p, err
+		}
+	}
 	p.Name = strings.TrimSpace(p.Name)
 	p.Instructions = strings.TrimSpace(p.Instructions)
 	p.Directory = strings.TrimSpace(p.Directory)

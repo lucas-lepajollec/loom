@@ -40,7 +40,7 @@ export function Diff({ d }) {
 }
 
 const Status = ({ s }) => s === 'failed' ? html`<span class="tc-st err"><${Icon} n="close" /></span>`
-  : s === 'completed' ? null : html`<span class="spinner tc-spin"></span>`;
+  : s === 'interrupted' ? html`<span class="tc-st muted">interrompu</span>` : s === 'completed' ? null : html`<span class="spinner tc-spin"></span>`;
 
 // Une action : ligne compacte (lecture, recherche) ou carte dépliable.
 export function ToolCard({ tool: t, root }) {
@@ -51,7 +51,7 @@ export function ToolCard({ tool: t, root }) {
   const add = stats.reduce((a, s) => a + s.add, 0), del = stats.reduce((a, s) => a + s.del, 0);
   const where = (t.locations || [])[0];
   const title = t.title || label;
-  const body = t.kind === 'execute' || t.output || diffs.length;
+  const body = !!(t.kind === 'execute' || t.output || diffs.length);
   if (QUIET.has(t.kind) && !diffs.length) {
     return html`<div class=${cls('tc-line', t.status === 'failed' && 'failed')}><${Icon} n=${ico} />
       <span class="t">${title}</span>${where && !title.includes(rel(where.path, root)) && html`<span class="p">${rel(where.path, root)}${where.line ? ':' + where.line : ''}</span>`}<${Status} s=${t.status} /></div>`;
@@ -72,7 +72,7 @@ export function ToolCard({ tool: t, root }) {
 // Plusieurs lectures/recherches d'affilée : « 4 actions · 3 lectures, 1 recherche ».
 export function QuietGroup({ tools, root }) {
   const [open, setOpen] = useState(false);
-  const live = tools.some(t => t.status !== 'completed' && t.status !== 'failed');
+  const live = tools.some(t => !['completed', 'failed', 'interrupted'].includes(t.status));
   const count = {}; tools.forEach(t => { count[t.kind] = (count[t.kind] || 0) + 1; });
   const words = { read: ['lecture', 'lectures'], search: ['recherche', 'recherches'], fetch: ['page web', 'pages web'], think: ['réflexion', 'réflexions'] };
   const sum = Object.entries(count).map(([k, n]) => n + ' ' + (words[k] || ['action', 'actions'])[n > 1 ? 1 : 0]).join(', ');
@@ -91,6 +91,7 @@ export function Plan({ entries }) {
   </div>`;
 }
 
+const OPT_LABEL = { allow_once: 'Autoriser', allow_always: 'Toujours autoriser', reject_once: 'Refuser', reject_always: 'Toujours refuser' };
 const OPT_ORDER = { allow_once: 0, allow_always: 1, reject_once: 2, reject_always: 3 };
 export function Approval({ a, resolved, root, onAnswer }) {
   const t = a.tool || {};
@@ -101,6 +102,6 @@ export function Approval({ a, resolved, root, onAnswer }) {
     <div class="ap-h"><${Icon} n="lock" /><span>${resolved ? (resolved.cancelled ? 'Demande annulée' : resolved.allowed ? 'Autorisé' + (resolved.auto ? ' automatiquement' : '') : 'Refusé') : 'Autorisation demandée'}</span></div>
     <div class="ap-tool"><${Icon} n=${ico} />${t.kind === 'execute' ? html`<code>${t.title}</code>` : html`<span>${t.title}</span>`}</div>
     ${!resolved && diffs.map(d => html`<div class="tc-file"><div class="tc-path">${rel(d.path, root)}</div><${Diff} d=${d} /></div>`)}
-    ${!resolved && html`<div class="ap-acts">${opts.map(o => html`<button class=${cls('btn sm', o.kind === 'allow_once' && 'primary', o.kind && o.kind.startsWith('reject') && 'ghost')} onClick=${() => onAnswer(o.id)}>${o.name}</button>`)}</div>`}
+    ${!resolved && html`<div class="ap-acts">${opts.map(o => html`<button class=${cls('btn sm', o.kind === 'allow_once' && 'primary', o.kind && o.kind.startsWith('reject') && 'ghost')} onClick=${() => onAnswer(o.id)}>${OPT_LABEL[o.kind] || o.name}</button>`)}</div>`}
   </div>`;
 }
