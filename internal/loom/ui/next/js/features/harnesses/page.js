@@ -86,6 +86,7 @@ function Detail({ rt, models, onInspect }) {
           <${Switch} checked=${on} label=${'Afficher ' + g.name} onChange=${v => g.variants.forEach(x => setVisible(x.id, v))} /></div>`; })}</div>`
           : html`<p class="note pad-b">Connecte ${rt.name} pour lire les modèles de ton compte.</p>`}</div>
       <p class="note">Chaque envoi ouvre une session native avec le texte commun de la discussion. Les autorisations, la mémoire et les réglages de ${rt.name} restent chez lui. <a href="#/usage">Voir les quotas</a></p>`}
+    <${MachineState} rt=${rt} />
   </div>`;
 }
 
@@ -134,6 +135,57 @@ function NativeSessions({ rt }) {
   </section>`;
 }
 
+// Ce que le harness possède déjà sur cette machine, lu dans son CLI et ses
+// dossiers : version, compte, clés présentes, MCP, plugins, skills. Mise à jour
+// par sa propre commande, sur demande.
+const MCP_STATE = { connected: ['green', 'connecté'], enabled: ['green', 'activé'], 'needs-auth': ['amber', 'à authentifier'], disabled: ['', 'désactivé'], error: ['red', 'erreur'] };
+function MachineState({ rt, commands }) {
+  const [x, setX] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [log, setLog] = useState(null);
+  const load = async refresh => {
+    const r = await get('/api/runtimes/' + rt.id + '/inspect' + (refresh ? '?refresh=1' : '')).catch(() => null);
+    setX(r && r.ok ? r.inspection : false);
+  };
+  useEffect(() => { load(false); }, [rt.id]);
+  const update = async () => {
+    if (!await confirm('Mettre à jour ' + rt.name, 'Loom lance la commande de mise à jour du harness (' + rt.name + '). Les sessions en cours peuvent être interrompues.', { ok: 'Mettre à jour' })) return;
+    setBusy(true);
+    const r = await post('/api/runtimes/' + rt.id + '/update', {}).catch(e => ({ ok: false, error: e.message }));
+    setBusy(false);
+    setLog({ ok: r.ok, text: r.log || r.error || '' });
+    if (r.inspection) setX(r.inspection); else load(true);
+    refreshWorkspace();
+  };
+  if (x === false) return null;
+  if (!x) return html`<section class="sec"><div class="sec-h"><h2>Sur cette machine</h2></div><div class="card pad"><div class="state"><span class="spinner"></span>Lecture de ${rt.name}…</div></div></section>`;
+  if (!x.installed) return html`<section class="sec"><div class="sec-h"><h2>Sur cette machine</h2></div><div class="card pad"><p class="note">${rt.name} n’est pas installé sur cette machine.${rt.docs ? html` <a href=${rt.docs} target="_blank" rel="noopener noreferrer">Voir l’installation</a>` : ''}</p></div></section>`;
+  const a = x.auth || {};
+  return html`<section class="sec"><div class="sec-h"><h2>Sur cette machine<${Tip} text=${'Lu directement dans le CLI de ' + rt.name + ' et ses dossiers. Loom ne lit jamais la valeur des clés : il indique seulement lesquelles sont présentes.'} /></h2>
+      <button class="btn sm ghost" onClick=${() => { setX(null); load(true); }}><${Icon} n="refresh" />Relire</button></div>
+    <div class="grid2">
+      <div class="card pad">
+        <div class="kv"><span>Version</span><span class="num">${x.version || 'inconnue'}</span></div>
+        <div class="kv"><span>Emplacement</span><code class="mono trunc" style="max-width:62%">${x.path.replace(/^\/home\/[^/]+/, '~')}</code></div>
+        <div class="kv"><span>Compte</span><span class="state"><i class=${'dot ' + (a.connected ? 'green' : '')}></i>${a.connected ? [a.method, a.account].filter(Boolean).join(' · ') || a.status || 'connecté' : a.providers ? 'aucun fournisseur' : a.status || 'non lu'}</span></div>
+        ${a.providers && a.providers.length > 0 && html`<div class="kv"><span>Fournisseurs</span><span>${a.providers.join(' · ')}</span></div>`}
+        <div class="kv"><span>Clés d’API détectées</span><span>${x.env.length ? x.env.map(e => html`<span class="tag">${e}</span> `) : html`<span class="muted">aucune dans l’environnement</span>`}</span></div>
+        ${x.can_update && html`<div class="kv"><span>Mise à jour</span><button class="btn sm" disabled=${busy} onClick=${update}>${busy ? html`<span class="spinner"></span>Mise à jour…` : html`<${Icon} n="download" />Mettre à jour`}</button></div>`}
+      </div>
+      <div class="card pad">
+        <div class="kv"><span>Serveurs MCP du harness</span><span class="num">${x.mcp_known ? x.mcp.length : 'non lus'}</span></div>
+        ${x.mcp.map(m => { const st = MCP_STATE[m.status] || ['', m.status || '']; return html`<div class="kv" key=${m.name}><span class="trunc" title=${m.target || ''}>${m.name}</span><span class="state">${st[1] && html`<i class=${'dot ' + st[0]}></i>`}${st[1]}</span></div>`; })}
+        <div class="kv"><span>Plugins</span><span class="num">${x.plugins.length}</span></div>
+        ${x.plugins.map(p => html`<div class="kv" key=${p}><span>${p}</span><span></span></div>`)}
+        <div class="kv"><span>Skills installées</span><span class="num">${x.skills.length}</span></div>
+        ${x.skills.map(k => html`<div class="kv" key=${k.folder + k.name}><span class="trunc" title=${k.description || ''}>${k.name}</span>${k.from_loom ? html`<span class="tag">via Loom</span>` : html`<span class="muted mono" style="font-size:11.5px">${k.folder}</span>`}</div>`)}
+        ${commands != null && html`<div class="kv"><span>Commandes « / » disponibles<${Tip} text="Commandes et skills que le harness annonce dans une session, plugins compris." /></span><span class="num">${commands}</span></div>`}
+      </div>
+    </div>
+    ${log && html`<${Modal} wide title=${log.ok ? rt.name + ' est à jour' : 'Mise à jour échouée'} onClose=${() => setLog(null)}><pre class="tool-out" style="max-height:50vh">${log.text || 'Aucune sortie.'}</pre></${Modal}>`}
+  </section>`;
+}
+
 function AcpDetail({ rt, models, onEdit }) {
   const nav = useStore(app, a => a.nav);
   const [probe, setProbe] = useState(null);
@@ -179,7 +231,7 @@ function AcpDetail({ rt, models, onEdit }) {
   const missing = rt.available === false;
   return html`<div class="h-detail anim-fade">
     <div class="h-head"><div style="display:flex;gap:14px;align-items:center"><${Logo} name=${rt.logo || rt.id} size="lg" />
-        <div><h2>${rt.name}${ver && html` <span class="tag">v${ver}</span>`}</h2><p>${rt.description || ''}</p></div></div>
+        <div><h2>${rt.name}${ver && html` <span class="tag" title="Version de l’adaptateur ACP utilisé par Loom">ACP ${ver}</span>`}</h2><p>${rt.description || ''}</p></div></div>
       <div class="acts">${rt.custom && html`<button class="btn ghost" onClick=${() => onEdit(custom)}>Modifier</button><button class="icon-btn" aria-label="Supprimer" onClick=${del}><${Icon} n="trash" /></button>`}
         <button class="btn" disabled=${busy || missing} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}Actualiser</button>
         <button class="btn primary" disabled=${missing || !choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />Nouvelle discussion</button></div></div>
@@ -193,6 +245,7 @@ function AcpDetail({ rt, models, onEdit }) {
         <div class="v"><b>${cost ? Number(cost).toLocaleString('fr-FR', { style: 'currency', currency, maximumFractionDigits: 2 }) : '—'}</b></div><div class="sub">${extra.quota && extra.quota.windows ? 'quotas lisibles dans Usage' : 'sessions Loom'}</div></div>
     </div>
     ${probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
+    ${!rt.custom && html`<${MachineState} rt=${rt} commands=${probe && probe.commands ? probe.commands.length : null} />`}
 
     <section class="sec"><div class="sec-h"><h2>Modèles <span class="count">${list.length}</span></h2></div>
       ${list.length ? html`<div class="card rows">${list.map(m => html`<div class="row" key=${m.value}>

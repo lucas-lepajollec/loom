@@ -1,0 +1,46 @@
+{
+  "claude-code": {
+    "binary": "claude",
+    "version": ["claude", "--version"],
+    "update": ["claude", "update"],
+    "auth": {"cmd": ["claude", "auth", "status"], "format": "json", "connected": "loggedIn", "method": "authMethod", "account": "email"},
+    "mcp": {"cmd": ["claude", "mcp", "list"], "format": "claude"},
+    "plugins": {"file": "~/.claude/plugins/installed_plugins.json", "format": "claude-plugins"},
+    "skills": ["~/.claude/skills"],
+    "env": ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]
+  },
+  "codex": {
+    "binary": "codex",
+    "version": ["codex", "--version"],
+    "update": ["codex", "update"],
+    "auth": {"cmd": ["codex", "login", "status"], "format": "text"},
+    "mcp": {"cmd": ["codex", "mcp", "list", "--json"], "format": "codex"},
+    "skills": ["~/.codex/skills", "~/.agents/skills"],
+    "env": ["OPENAI_API_KEY", "CODEX_API_KEY"]
+  },
+  "pi": {
+    "binary": "pi",
+    "version": ["pi", "--version"],
+    "update": ["pi", "update", "self"],
+    "auth": {"file": "~/.pi/agent/auth.json", "format": "keys"},
+    "plugins": {"cmd": ["pi", "list"], "format": "lines"},
+    "skills": ["~/.pi/agent/skills", "~/.agents/skills"],
+    "env": ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"]
+  },
+  "antigravity": {
+    "binary": "agy",
+    "version": ["agy", "--version"],
+    "update": ["agy", "update"],
+    "mcp": {"cmd": ["agy", "mcp", "list"], "format": "lines"},
+    "plugins": {"cmd": ["agy", "plugin", "list"], "format": "lines"},
+    "env": ["GEMINI_API_KEY", "GOOGLE_API_KEY"]
+  },
+  "gemini": {
+    "binary": "gemini",
+    "version": ["gemini", "--version"],
+    "update": ["npm", "install", "-g", "@google/gemini-cli@latest"],
+    "mcp": {"cmd": ["gemini", "mcp", "list"], "format": "lines"},
+    "skills": ["~/.gemini/skills", "~/.agents/skills"],
+    "env": ["GEMINI_API_KEY", "GOOGLE_API_KEY"]
+  }
+}
