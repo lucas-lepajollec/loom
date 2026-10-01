@@ -13,6 +13,11 @@ func (m *runtimeSessions) installACPShutdown() {
 		go func() {
 			sig := <-signals
 			m.shutdownACP()
+			// A llama.cpp started by this process (no system service) would
+			// otherwise outlive it, unknown to the next Loom, holding VRAM.
+			if ownedLlamaManaged() {
+				stopOwnedLlama()
+			}
 			signal.Stop(signals)
 			if sig == os.Interrupt {
 				os.Exit(130)
