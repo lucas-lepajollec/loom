@@ -63,7 +63,7 @@ LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594   # http://127.0.0.1:2594/
 - Define `Engine` (architecture §2.1) and wrap the current llama.cpp functions
   (`restartLlamaEngine`, `unloadEngine`, `buildLlamaServerArgs`, estimate) in a
   `llamaCppEngine` type. No file moves yet.
-- Create `internal/loom/params/llamacpp.json` with the curated Essential/Advanced
+- Create `internal/loom/engine/llamacpp/params/llamacpp.json` with the curated Essential/Advanced
   entries now hard-coded in `features/inspector/params.js` (`META`, `KV_OPTS`,
   `SPEC_OPTS`, the advanced list). Serve merged with the `--help` catalog at
   `GET /api/engine/params`.

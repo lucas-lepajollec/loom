@@ -48,7 +48,8 @@ type Engine interface {
 ```
 
 The in-package `Engine` interface and stateless `llamaCppEngine` wrapper are now
-implemented in `engine.go`, without moving `backend_*` or `llm_oai_*`. Existing
+implemented in `engine.go`; lifecycle orchestration remains in package `loom`.
+Stateless helpers now live in `engine/llamacpp/` (see §4). Existing
 load/unload/estimate handlers delegate through it. Argument construction still
 has one implementation (`buildLlamaServerArgsForConfig`); the original helper
 delegates through the wrapper. Empty `ModelConfig` selects the saved current
@@ -61,7 +62,7 @@ legacy service/router job is not provided by this wrapper.
 The contract above is schematic: the current caps expose router, presets, slots
 and estimate; status exposes active/ready/model; `Estimate` retains the existing
 VRAM estimate type. This is a migration boundary, not a delivered second-engine
-registry or package split. A later engine (vLLM) implements the interface in its
+registry or complete execution package split. A later engine (vLLM) implements the interface in its
 own folder.
 
 **ParamSpec** now replaces hard-coded UI tables (`META`, `KV_OPTS`… in
@@ -69,7 +70,7 @@ own folder.
 (essential|advanced|expert), kind, choices, min, max, affects_vram,
 requires_reload}`, served by `GET /api/engine/params`. Expert tier stays
 auto-generated from `llama-server --help`; curated tiers come from a JSON file
-versioned in `internal/loom/params/llamacpp.json`. Adding a generic flag to
+versioned in `internal/loom/engine/llamacpp/params/llamacpp.json`. Adding a generic flag to
 Advanced requires one JSON entry and rebuilding the embedded binary. Entries
 are ordered, with `kind` (`number`, `enum`, `bool`, `textarea`), optional choice
 pairs `[value, label]`, and `requires_flag` for controls gated on installed help.
@@ -187,6 +188,50 @@ break everything; do it **leaf-first, one package per PR, zero behavior change**
 Package-level globals (`conv`, bucket helpers, owned process state) move into
 small structs passed explicitly; do not add new globals.
 
+The third leaf slice now extracts a coherent, stateless subset into package
+`internal/loom/engine/llamacpp`, with historical names preserved by one
+`engine_compat.go` in `loom`. Existing immutable tables and embedded catalog move
+with their implementation; no runtime globals are added. Standalone tests move
+with the parsers/calculations, while integration tests remain in `loom`.
+
+Moved responsibilities:
+
+- `backend_help.go`: native help parsing, flag metadata, tiers and config keys.
+- `engine_params.go` and `params/llamacpp.json`: ParamSpec types, curated catalog
+  and merge with supplied native flags.
+- `backend_gguf.go`: bounded GGUF header reading and chat-template capabilities.
+- `backend_vram_est.go`: KV/compute/MTP/weight calculations, fit search and JSON
+  projection, using supplied model metadata/options.
+- `backend_router.go`: resolved entry type, argv-to-options conversion using a
+  supplied flag catalog, deterministic entry names and INI rendering.
+- `backend_config.go` and `backend_presets.go`: preset text parsing/formatting,
+  quoted argument splitting and display names.
+
+Still in `loom`, deliberately:
+
+- `engine.go` and the remainder of `engine_params.go`: active configuration,
+  lifecycle adapter and authenticated HTTP handler.
+- `backend_serve.go`, `backend_llama_owned.go`, `backend_engine.go` and the
+  remainder of `backend_router.go`: argument resolution with global config and
+  runtime overlays, owned process/service state, persisted router entries,
+  credentials and load/unload/observation orchestration.
+- The remainders of `backend_help.go`, `backend_gguf.go` and
+  `backend_vram_est.go`: existing caches, installed-binary/library resolution,
+  model path resolution, runtime overrides and hardware collection.
+- The remainders of `backend_config.go`/`backend_presets.go`: active config and
+  credentials, preserved machine-key policy, persistence, selection and CLI.
+- `llm_oai_*.go` and `backend_server.go`: global overlays, chat/session coupling,
+  proxy/authentication, server watches and web handlers. The config-key lookup
+  delegates through compatibility instead of exposing the moved table.
+- Other `backend_*` files (build/prebuilt/install, GPU discovery, catalog/Hub,
+  model directories/downloads/shards/capabilities): configuration, installation
+  and application integrations remain for a later coherent slice.
+
+Next engine slice: pass resolved launch inputs and explicit cache/process owners
+before moving argument construction and router/service execution. The runtime
+package split follows that boundary; the current extraction does not restart an
+engine, alter flags or change stored configuration.
+
 ## 5. Front-end layout (`internal/loom/ui/next`)
 
 ```
@@ -221,7 +266,7 @@ page = new `features/x/page.js` + one entry in `app/routes.js`. No build step.
 ## 7. Known debt (ordered)
 
 1. Unified SSE events are implemented (2.3); durable native archives and portable text snapshots still have separate storage formats.
-2. In-package Engine/ParamSpec and runtime metadata are implemented; package boundaries and a second engine remain future work.
+2. In-package Engine/ParamSpec and runtime metadata are implemented; the engine leaf subset is extracted; execution boundaries and a second engine remain future work.
 3. Done: the old UI (`ui/src`, `/classic`, `tools/assemble-ui`) is removed; its
    features live in `ui/next` (multi-GPU split through Expert parameters).
 4. Auto config forces native context and `-ngl 999` → let `--fit` decide unset

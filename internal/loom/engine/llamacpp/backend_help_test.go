@@ -1,6 +1,8 @@
-package loom
+package llamacpp
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestParseLlamaHelpCoreFlags(t *testing.T) {
 	const help = `----- common params -----
@@ -38,7 +40,7 @@ func TestParseLlamaHelpCoreFlags(t *testing.T) {
 --host HOST                             ip address to listen
 --port PORT                             port to listen (default: 8080)
 `
-	flags := parseLlamaHelp(help)
+	flags := ParseLlamaHelp(help)
 	byID := map[string]LlamaFlag{}
 	for _, f := range flags {
 		byID[f.ID] = f
@@ -57,14 +59,14 @@ func TestParseLlamaHelpCoreFlags(t *testing.T) {
 		t.Fatalf("ctx-size short=%q", ctx.Short)
 	}
 	fa := byID["flash-attn"]
-	if fa.Kind != "enum" || !containsFold(fa.Choices, "auto") || fa.Default != "auto" {
+	if fa.Kind != "enum" || !ContainsFold(fa.Choices, "auto") || fa.Default != "auto" {
 		t.Fatalf("flash-attn : %+v", fa)
 	}
 	if fa.Tier != "advanced" {
 		t.Fatalf("flash-attn tier=%s", fa.Tier)
 	}
 	lm := byID["load-mode"]
-	if !containsFold(lm.Choices, "mmap") || !containsFold(lm.Choices, "mlock") {
+	if !ContainsFold(lm.Choices, "mmap") || !ContainsFold(lm.Choices, "mlock") {
 		t.Fatalf("load-mode choices=%v", lm.Choices)
 	}
 	if byID["mlock"].Deprecated != true {
@@ -86,7 +88,7 @@ func TestParseLlamaHelpCoreFlags(t *testing.T) {
 		t.Fatalf("mmproj-auto kind=%s aliases=%v", byID["mmproj-auto"].Kind, byID["mmproj-auto"].Aliases)
 	}
 	st := byID["spec-type"]
-	if st.Kind != "enum" || !containsFold(st.Choices, "draft-mtp") || st.Default != "none" || st.Tier != "advanced" {
+	if st.Kind != "enum" || !ContainsFold(st.Choices, "draft-mtp") || st.Default != "none" || st.Tier != "advanced" {
 		t.Fatalf("spec-type : %+v", st)
 	}
 	md := byID["model-draft"]
@@ -96,10 +98,10 @@ func TestParseLlamaHelpCoreFlags(t *testing.T) {
 }
 
 func TestChatTemplateThinks(t *testing.T) {
-	if !chatTemplateThinks("{% if enable_thinking %}<think>{{ thinking }}</think>{% endif %}") {
+	if !ChatTemplateThinks("{% if enable_thinking %}<think>{{ thinking }}</think>{% endif %}") {
 		t.Fatal("qwen think template")
 	}
-	if chatTemplateThinks("{{ message.content }}") {
+	if ChatTemplateThinks("{{ message.content }}") {
 		t.Fatal("plain instruct ne doit pas penser")
 	}
 }
@@ -108,7 +110,7 @@ func TestInspectChatTemplateEffortFromGemmaAndQwen(t *testing.T) {
 	gemma := `{%- if (enable_thinking is defined and enable_thinking) or tools -%}
 {%- if not enable_thinking | default(false) -%}
 {%- macro strip_thinking(text) -%}{% endmacro %}`
-	g := inspectChatTemplate(gemma)
+	g := InspectChatTemplate(gemma)
 	if !g.Thinks {
 		t.Fatal("Gemma 4 : enable_thinking → raisonnement")
 	}
@@ -116,7 +118,7 @@ func TestInspectChatTemplateEffortFromGemmaAndQwen(t *testing.T) {
 		t.Fatalf("Gemma 4 n'a pas de niveaux d'effort : %+v", g)
 	}
 
-	plain := inspectChatTemplate("{{ message.content }}")
+	plain := InspectChatTemplate("{{ message.content }}")
 	if plain.Thinks || plain.HasEffort {
 		t.Fatalf("instruct nu : %+v", plain)
 	}
@@ -126,7 +128,7 @@ func TestInspectChatTemplateEffortFromGemmaAndQwen(t *testing.T) {
        {{- raise_exception('Unexpected reasoning effort ' ~ reasoning_effort ~ '. Supported types are xhigh (default), medium, and low.') }}
     {%- endif %}
     {%- if enable_thinking %}<think>{{ thinking }}</think>{% endif %}`
-	q := inspectChatTemplate(qwen)
+	q := InspectChatTemplate(qwen)
 	if !q.Thinks || !q.HasEffort {
 		t.Fatalf("Qwen doit penser avec effort : %+v", q)
 	}

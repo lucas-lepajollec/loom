@@ -1,0 +1,106 @@
+package llamacpp
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
+)
+
+// RouterEntry est une configuration de chargement complète, déjà résolue.
+type RouterEntry struct {
+	Name    string      `json:"name"`
+	Label   string      `json:"label"`
+	Options [][2]string `json:"options"`
+	Used    int64       `json:"used"`
+}
+
+// routerReserved : drapeaux que le router contrôle lui-même.
+var routerReserved = map[string]bool{
+	"host": true, "port": true, "api-key": true, "api-key-file": true, "alias": true,
+	"models-dir": true, "models-preset": true, "models-max": true, "models-autoload": true,
+	"no-models-autoload": true,
+}
+
+// ArgsToPresetOptions traduit l'argv d'une instance (sans le binaire) en paires
+// clé = valeur d'une section INI. L'aide du binaire dit si un drapeau prend une
+// valeur ; un drapeau sans valeur devient « drapeau = true » (llama.cpp gère les
+// formes négatives « no-xxx » lui-même).
+func ArgsToPresetOptions(flags []LlamaFlag, args []string) ([][2]string, error) {
+	// Plusieurs entrées de l'aide peuvent se réclamer du même nom (ex. --host
+	// et « --no-host » du tampon hôte) : celle qui attend une valeur l'emporte,
+	// sinon on avalerait la valeur comme un argument orphelin.
+	find := func(tok string) (LlamaFlag, bool) {
+		var hit LlamaFlag
+		found := false
+		for _, f := range flags {
+			match := f.Flag == tok || f.Short == tok
+			for _, a := range f.Aliases {
+				match = match || a == tok
+			}
+			if match && (!found || (hit.Arg == "" && f.Arg != "")) {
+				hit, found = f, true
+			}
+		}
+		return hit, found
+	}
+	var out [][2]string
+	for i := 0; i < len(args); i++ {
+		tok := strings.TrimSpace(args[i])
+		if tok == "" {
+			continue
+		}
+		if !strings.HasPrefix(tok, "-") {
+			return nil, fmt.Errorf("argument inattendu « %s »", tok)
+		}
+		key := strings.TrimLeft(tok, "-")
+		value := "true"
+		if k, v, ok := strings.Cut(key, "="); ok {
+			key, value = k, v
+		} else if f, ok := find(tok); ok {
+			if f.Arg != "" {
+				if i+1 >= len(args) {
+					return nil, fmt.Errorf("valeur manquante pour %s", tok)
+				}
+				i++
+				value = args[i]
+			}
+		} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
+			// Drapeau inconnu de l'aide : on suit la forme de la ligne.
+			i++
+			value = args[i]
+		}
+		if routerReserved[key] {
+			continue
+		}
+		if strings.ContainsAny(value, "\n\r") {
+			return nil, fmt.Errorf("valeur multiligne refusée pour %s", tok)
+		}
+		out = append(out, [2]string{key, value})
+	}
+	return out, nil
+}
+
+func RouterEntryName(options [][2]string) string {
+	h := sha256.New()
+	for _, kv := range options {
+		h.Write([]byte(kv[0]))
+		h.Write([]byte{0})
+		h.Write([]byte(kv[1]))
+		h.Write([]byte{0})
+	}
+	return "loom-" + hex.EncodeToString(h.Sum(nil))[:12]
+}
+
+func RenderRouterINI(entries []RouterEntry) []byte {
+	var b bytes.Buffer
+	b.WriteString("; Généré par Loom — modifié à chaque chargement, ne pas éditer.\nversion = 1\n")
+	for _, e := range entries {
+		fmt.Fprintf(&b, "\n; %s\n[%s]\n", strings.ReplaceAll(e.Label, "\n", " "), e.Name)
+		for _, kv := range e.Options {
+			fmt.Fprintf(&b, "%s = %s\n", kv[0], kv[1])
+		}
+	}
+	return b.Bytes()
+}

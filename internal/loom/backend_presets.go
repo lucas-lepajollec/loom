@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,33 +21,6 @@ type Preset struct {
 	Name   string // display name (# NAME= line, falls back to ID)
 	Path   string
 	Active bool
-}
-
-var nameLineRe = regexp.MustCompile(`(?mi)^[ \t]*#?[ \t]*NAME[ \t]*=.*$`)
-
-// presetDisplayName extracts the `# NAME=` value from a preset body, falling
-// back to `fallback` (the filename id) when absent — keeps old presets working.
-func presetDisplayName(content, fallback string) string {
-	for _, line := range strings.Split(content, "\n") {
-		s := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "#"))
-		i := strings.IndexByte(s, '=')
-		if i >= 0 && strings.EqualFold(strings.TrimSpace(s[:i]), "NAME") {
-			if v := unquoteValue(strings.TrimSpace(s[i+1:])); v != "" {
-				return v
-			}
-		}
-	}
-	return fallback
-}
-
-// withDisplayName ensures the body carries a `# NAME=<name>` line (replacing an
-// existing one, or prepended otherwise).
-func withDisplayName(content, name string) string {
-	line := "# NAME=" + name
-	if nameLineRe.MatchString(content) {
-		return nameLineRe.ReplaceAllString(content, line)
-	}
-	return line + "\n" + content
 }
 
 // configFingerprint réduit une configuration à l'ENSEMBLE TRIÉ de ses

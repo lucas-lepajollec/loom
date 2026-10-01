@@ -47,41 +47,6 @@ func fakeLlamaBin(t *testing.T, dir string) string {
 	return bin
 }
 
-func TestArgsToPresetOptionsTranslatesAndDropsRouterOwnedFlags(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("LOOM_HOME", home)
-	bin := fakeLlamaBin(t, home)
-	args := []string{"-m", "/models/q.gguf", "-ngl", "999", "-c", "32768", "-np", "4",
-		"-fa", "on", "--no-mmap", "--reasoning-budget", "-1", "--api-key", "secret",
-		"--slots", "--host", "127.0.0.1", "--port", "18081"}
-	got, err := argsToPresetOptions(bin, args)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := [][2]string{{"m", "/models/q.gguf"}, {"ngl", "999"}, {"c", "32768"}, {"np", "4"},
-		{"fa", "on"}, {"no-mmap", "true"}, {"reasoning-budget", "-1"}, {"slots", "true"}}
-	if len(got) != len(want) {
-		t.Fatalf("options = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("option %d = %v, want %v", i, got[i], want[i])
-		}
-	}
-	if routerEntryName(got) != routerEntryName(want) || !strings.HasPrefix(routerEntryName(got), "loom-") {
-		t.Fatal("le nom de section doit être déterministe")
-	}
-}
-
-func TestArgsToPresetOptionsRejectsMultilineValues(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("LOOM_HOME", home)
-	bin := fakeLlamaBin(t, home)
-	if _, err := argsToPresetOptions(bin, []string{"-m", "a\nb"}); err == nil {
-		t.Fatal("une valeur multiligne casserait le fichier INI")
-	}
-}
-
 // fakeRouter simule l'API de gestion du router llama.cpp.
 type fakeRouter struct {
 	mu         sync.Mutex

@@ -49,11 +49,11 @@ var oaiRuntimeAlias = map[string]string{
 	"num-ctx": "CTX", "n-ctx": "CTX", "ctx-size": "CTX", "ctx": "CTX",
 	"num-gpu": "NGL", "n-gpu-layers": "NGL", "n-gpu": "NGL", "ngl": "NGL",
 	"gpu-layers": "NGL",
-	"num-batch": "BATCH", "batch-size": "BATCH", "batch": "BATCH",
+	"num-batch":  "BATCH", "batch-size": "BATCH", "batch": "BATCH",
 	"ubatch": "UBATCH", "ubatch-size": "UBATCH", "n-ubatch": "UBATCH",
 	"num-thread": "THREADS", "num-threads": "THREADS", "threads": "THREADS",
 	"threads-batch": "THREADS_BATCH",
-	"cache-type-k": "KV_TYPE_K", "cache-type-v": "KV_TYPE_V",
+	"cache-type-k":  "KV_TYPE_K", "cache-type-v": "KV_TYPE_V",
 	"ctk": "KV_TYPE_K", "ctv": "KV_TYPE_V",
 }
 
@@ -160,7 +160,7 @@ func splitOAIPayload(m map[string]any) oaiSplit {
 			}
 			continue
 		}
-		if cfg, ok := flagToConfigKey[id]; ok {
+		if cfg, ok := flagToConfigKey(id); ok {
 			if oaiNoOverlay[cfg] {
 				out.Body[k] = v
 				continue
