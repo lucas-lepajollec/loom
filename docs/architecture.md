@@ -106,9 +106,10 @@ native fitted values. Real-GPU fitting still needs separate acceptance.
 ### 2.2 RuntimeAdapter — who answers a discussion turn
 
 The ordered registry and runtime contracts live in `internal/loom/runtime`;
-`runtime_compat.go` preserves the existing Loom names and signatures. Concrete
-adapters and startup registration remain in `workspace_runtime.go` and the
-adapter files; optional connect/quota HTTP dispatch stays in `web_runtimes.go`.
+`runtime_compat.go` preserves the existing Loom names and signatures. Cloud and
+Antigravity protocols and the local adapter live in `runtime/{openai,antigravity,local}`
+behind Loom compatibility wrappers. Startup registration remains in
+`workspace_runtime.go`; optional connect/quota HTTP dispatch stays in `web_runtimes.go`.
 Planned descriptors stay capability-less; execution/stream contracts are unchanged.
 The following is the target after later migration steps, not the current interface:
 
@@ -389,8 +390,58 @@ Still in Loom, deliberately:
 - `llm_bench_cloud.go`: model/key lookup, queue integration, timing and benchmark
   metric attribution; execution delegates through the historical adapter.
 
-Next slice: Antigravity (`workspace_antigravity.go`) with explicit application
-inputs and compatibility wrappers, followed by ACP and the local runtime.
+The eighth slice extracts the Antigravity text runtime into
+`internal/loom/runtime/antigravity`: bounded CLI reads, installed-CLI checks,
+ordered native model discovery, fresh-text subprocess execution, cancellation,
+bounded stream parsing, native tool metadata redaction, reported token usage,
+duration/session ID and read-only `/usage` + `/credits` parsing. `Adapter` receives
+the selected model and optional executable explicitly; `ReadQuota` receives a
+small read function. No mutable application state or runtime global is introduced.
+Native authentication, permissions and private sessions remain with the CLI.
+
+`antigravity_compat.go` preserves historical names, aliases the native wire and
+tool-event types, marshals the original messages without conversion, maps events
+to `StreamEvent` and builds the existing assistant `Message` and `QuotaSnapshot`.
+JSON tags, null-versus-zero values, empty window arrays, event order, argv,
+timeouts, limits and error text remain unchanged. Shared `RuntimeUsage` keeps
+its historical private presence flags; native usage does not gain cloud flags.
+Focused leaf tests cover subprocess stdin/cancellation, malformed/inconsistent
+streams, redaction, usage replacement by step, catalog order/bounds and nullable
+quotas with explicit read commands. Loom tests retain consent/integration coverage
+and check compatibility JSON/event order.
+
+The same slice extracts the llama.cpp discussion `RuntimeAdapter` into
+`internal/loom/runtime/local`, separate from the inference engine. Its generic
+`Adapter` implements the existing runtime contract and receives the original
+`runChat` pipeline through a `Runner` function. `local_compat.go` preserves the
+zero-value `llamaRuntimeAdapter` and injects the same runner on every turn.
+Messages, temperature, capabilities, context, callback, partial result and error
+pass through unchanged; `MaxTokens` remains unused as before. Focused tests verify
+these inputs/results and detached descriptor capabilities.
+
+Still in Loom, deliberately:
+
+- `workspace_antigravity.go`: native catalog persistence, explicit connect
+  consent, vault checks and application persistence errors; these require Loom's
+  store and security state. The full descriptor remains at the compatibility
+  boundary because its connect/quota capabilities include those application actions.
+- `workspace_runtime.go`, `workspace_catalog.go`, `workspace_sessions.go` and
+  `web_runtimes.go`: registry ownership/startup, model readiness/selection,
+  transcript-sharing consent, prepared discussion inputs and authenticated HTTP
+  actions. Leaf protocols receive only already-resolved turn inputs.
+- `workspace_usage.go` and the quota wrapper: shared account snapshot types,
+  account identity/source, cache/throttle, retained discussion usage, price
+  persistence and HTTP actions. The Antigravity parser returns observations only;
+  Codex quota execution remains unchanged for the ACP slice.
+- `llm_client.go` (`runChat`), `workspace_native.go` and the conversation pipeline:
+  tools, reasoning, sampling/configuration reads, reactive compaction, retries,
+  archive binding and persistence depend on Loom's application state. Moving
+  them with the small local adapter would prematurely extract discussion/tools
+  and risk changing the existing native pipeline. Local engine lifecycle and
+  supervision remain at their established engine/application boundaries.
+
+Next slice: ACP runtime with explicit application inputs and compatibility
+wrappers, then `discussion/` (sessions, context and native conversation bridge).
 Service policy, installed-binary/environment resolution, application cleanup and
 web/proxy orchestration remain in Loom until their own coherent migration.
 This extraction does not restart an engine, alter flags or change stored

@@ -5,16 +5,6 @@ import (
 	"errors"
 )
 
-type llamaRuntimeAdapter struct{}
-
-func (llamaRuntimeAdapter) Descriptor() RuntimeDescriptor {
-	return RuntimeDescriptor{ID: "llama.cpp", Name: "llama.cpp", Kind: "local", Description: "Moteur local llama.cpp, piloté par Loom.", Implemented: true, Capabilities: []string{"chat", "stream", "tools", "attachments", "cancel"}}
-}
-
-func (llamaRuntimeAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
-	return runChat(ctx, turn.Messages, turn.Temperature, turn.Caps, emit)
-}
-
 var registeredRuntimes = newRuntimeRegistry()
 
 // registerRuntime is the single startup registration point. A duplicate or
