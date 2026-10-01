@@ -68,14 +68,20 @@ export function Composer() {
   // Commandes « / » annoncées par le harness (available_commands_update).
   const rtId = !native && c.session ? c.session.runtime_id : '';
   const [, bump] = useState(0);
-  useEffect(() => {
-    if (!rtId || probeCommands[rtId] || !runtimeCaps(rtId).includes('workdir')) return;
-    probeCommands[rtId] = [];
-    get('/api/runtimes/' + rtId + '/probe').then(r => { probeCommands[rtId] = (r.probe && r.probe.commands) || []; bump(x => x + 1); }).catch(() => {});
-  }, [rtId]);
+  // Liste lue par la sonde du harness ; relue tant qu'elle est vide (la sonde
+  // tourne en arrière-plan au démarrage de Loom).
+  const loadCommands = () => {
+    if (!rtId || probeCommands[rtId] === 'loading' || (probeCommands[rtId] && probeCommands[rtId].length)) return;
+    probeCommands[rtId] = 'loading';
+    get('/api/runtimes/' + rtId + '/probe').then(r => { probeCommands[rtId] = (r && r.probe && r.probe.commands) || []; bump(x => x + 1); })
+      .catch(() => { probeCommands[rtId] = []; });
+  };
+  useEffect(loadCommands, [rtId]);
+  useEffect(() => { if (text.startsWith('/')) loadCommands(); }, [text.startsWith('/'), rtId]);
   // Commandes de la session en cours, sinon celles annoncées lors de la sonde.
   const live = (!native && c.harness && c.harness.commands) || [];
-  const commands = live.length ? live : (rtId && probeCommands[rtId]) || [];
+  const probed = rtId && Array.isArray(probeCommands[rtId]) ? probeCommands[rtId] : [];
+  const commands = live.length ? live : probed;
   const slash = /^\/(\S*)$/.exec(text);
   const matches = slash ? commands.filter(x => x.name.toLowerCase().includes(slash[1].toLowerCase())).sort((a, b) => a.name.toLowerCase().startsWith(slash[1].toLowerCase()) ? -1 : b.name.toLowerCase().startsWith(slash[1].toLowerCase()) ? 1 : 0).slice(0, 40) : [];
   const [sel, setSel] = useState(0);
