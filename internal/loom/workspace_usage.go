@@ -345,7 +345,7 @@ func usageSummaries() []ModelUsageSummary {
 			continue
 		}
 		if r.Price != nil && r.Reported > 0 {
-			v := (float64(r.Usage.Input)*r.Price.Input + float64(r.Usage.Output)*r.Price.Output) / 1e6
+			v := estimatedCloudCost(r.Usage.Input, r.Usage.Output, r.Price.Input, r.Price.Output)
 			r.EstimatedCost = &v
 		}
 		out = append(out, *r)

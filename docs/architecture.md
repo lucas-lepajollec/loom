@@ -160,7 +160,8 @@ controls. Send/stop and legacy session endpoints remain available.
 
 ### 2.4 Provider — cloud APIs
 
-Chat Completions today (`workspace_cloud.go`). A provider with a different
+Chat Completions today (`runtime/openai/`, with `openai_compat.go` preserving
+the Loom adapter). A provider with a different
 protocol (Anthropic Messages, Responses API) is a new `runtime/` adapter, not a
 branch inside the existing one.
 
@@ -295,13 +296,49 @@ per-turn configuration, session/context assembly, native account reads, quota
 cache/throttle and authenticated HTTP actions. These depend on application state
 and execution integrations rather than the registry contracts alone.
 
-Next slice: concrete runtime adapters — OpenAI-compatible (`workspace_cloud.go`),
-Antigravity (`workspace_antigravity.go`), ACP (`acp_*.go`) and llama.cpp
-(`workspace_runtime.go`) — with explicit application inputs and compatibility
-wrappers. Service policy, installed-binary/environment resolution, application
-cleanup and web/proxy orchestration remain in Loom until their own coherent
-migration. This extraction does not restart an engine, alter flags or change
-stored configuration.
+The seventh slice extracts the OpenAI-compatible cloud text protocol into
+`internal/loom/runtime/openai`: endpoint/local-network validation, request JSON
+and headers, bounded Chat Completions SSE parsing, token usage with field-presence
+tracking, sanitized errors, cancellation, no-redirect enforcement and manual-price
+cost arithmetic. `Adapter` receives provider configuration, credential lookup and
+an HTTP client through `ProviderSource`, `CredentialSource` and `ClientSource`.
+Loom supplies the same per-turn provider/key snapshot and optional client; there
+are no package globals or implicit provider discovery/retries.
+
+`openai_compat.go` preserves `cloudRuntimeAdapter`, its descriptor, historical
+validation helpers and shared `RuntimeUsage` (including private presence flags).
+Messages are marshaled directly without a schema conversion; streamed content and
+usage map back to the existing `StreamEvent`, and the result remains one assistant
+`Message`. Usage JSON tags, missing-versus-zero semantics, request budgets,
+`usage_mode: "none"`, limits, timeouts and all error text remain unchanged.
+Socket-free transport tests cover the extracted protocol and the Loom boundary;
+existing cloud/session/provider/benchmark tests remain in Loom.
+
+Still in Loom, deliberately:
+
+- `workspace_cloud.go`: persistent provider records, because settings/credentials
+  ownership remains with the application (no key in provider JSON).
+- `openai_compat.go`, `workspace_runtime.go` and `workspace_sessions.go`: descriptor,
+  registry startup, stored provider/key resolution, consent, prepared discussion
+  context, history, replay and per-turn persistence. These depend on Loom state;
+  the protocol receives resolved values only.
+- `workspace_provider_probe.go` and `web_workspace_sessions.go`: explicit catalog
+  probe and authenticated provider/session actions, including consent, credential
+  validation/lookup and response shapes. Catalog discovery is a separate
+  non-generation application action, outside this text-turn extraction.
+- `workspace_usage.go`: retained-turn aggregation, price persistence/validation,
+  account quota reads/cache, ACP-reported costs and HTTP actions. Only the pure
+  manual-price arithmetic delegates through compatibility. The cloud protocol
+  reported token usage but no provider charge before this slice; none is invented.
+- `llm_bench_cloud.go`: model/key lookup, queue integration, timing and benchmark
+  metric attribution; execution delegates through the historical adapter.
+
+Next slice: Antigravity (`workspace_antigravity.go`) with explicit application
+inputs and compatibility wrappers, followed by ACP and the local runtime.
+Service policy, installed-binary/environment resolution, application cleanup and
+web/proxy orchestration remain in Loom until their own coherent migration.
+This extraction does not restart an engine, alter flags or change stored
+configuration.
 
 ## 5. Front-end layout (`internal/loom/ui/next`)
 
