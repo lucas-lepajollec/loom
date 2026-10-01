@@ -12,6 +12,9 @@ function headers(extra) {
   return h;
 }
 
+// Clé reçue du serveur (ouverture au réseau) : gardée pour rester connecté.
+export function setToken(k) { token = k || ''; try { localStorage.setItem('loom.key', token); } catch (_) {} }
+
 async function askKey() {
   if (!asking) {
     asking = ask({ title: 'Authentification', message: 'Ce Loom exige sa clé de pilotage.', input: { placeholder: 'clé…', type: 'password' }, ok: 'Continuer' })
@@ -31,6 +34,15 @@ export async function request(url, opts = {}) {
   finally { if (timer) clearTimeout(timer); }
   if (r.status === 401 && retryAuth && await askKey()) { o.headers = headers(opts.headers); r = await fetch(url, o); }
   return r;
+}
+
+// Téléchargement authentifié (un lien <a href> ne porte pas la clé).
+export async function download(url, name) {
+  const r = await request(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(await r.blob()); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
 export async function get(url) {

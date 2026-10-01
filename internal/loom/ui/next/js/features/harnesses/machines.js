@@ -10,18 +10,10 @@ import { Tip } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { go, refreshWorkspace } from '../../core/state.js';
+import { copyText } from '../../ui/clipboard.js';
 
-export async function copyText(text) {
-  try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
-  // Adresse http sur le réseau local : l'API presse-papiers est refusée.
-  const ta = document.createElement('textarea');
-  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-  document.body.appendChild(ta); ta.select();
-  let ok = false;
-  try { ok = document.execCommand('copy'); } catch (_) {}
-  ta.remove();
-  return ok;
-}
+export { copyText };
+
 
 // Ligne « LOOM-MACHINE {…} » collée depuis le terminal de la machine.
 export function parseMachineLine(text) {

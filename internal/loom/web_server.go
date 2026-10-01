@@ -15,7 +15,8 @@ import (
 var uiFS embed.FS
 
 // cmdWeb starts the HTTP server on the given port (default 8091).
-// 8090 belongs to a live Loom; Loom stays on loopback.
+// 8090 belongs to a live Loom. Loom listens on loopback unless WEB_HOST opens
+// it to the network, which requires a control key (web_network.go).
 func cmdWeb(args []string) error {
 	if err := provisionDataDir(); err != nil {
 		fmt.Printf("%s données Loom : %v\n", yellow("[!]"), err)
@@ -28,13 +29,18 @@ func cmdWeb(args []string) error {
 		}
 		port = n
 	}
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	host := webHost()
+	if err := webListenCheck(host); err != nil {
+		return err
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("impossible de démarrer Loom sur %s : %w (arrête le service qui occupe ce port ou choisis un autre port avec `loom web <port>`)", addr, err)
 	}
 	defer ln.Close()
+	webBound.host, webBound.port = host, port
 	// Only once the port is ours: these write to Loom's data.
 	registerCustomACPAgents()
 	go syncModelSinks()
@@ -219,6 +225,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/mcp/tool", handleMCPTool)
 	api("/api/mcp/test", handleMCPTest)
 	api("/api/memory", handleMemoryMode)
+	api("/api/network/web", handleWebNetwork)
 	api("/api/network", handleNetwork) // écoute LAN du moteur + pare-feu (Windows)
 	api("/api/server", handleServer)   // Serveur API : slots llama-server, NP, requêtes
 	api("/api/prefs", handleWebPrefs)

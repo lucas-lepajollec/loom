@@ -256,7 +256,7 @@ func safePresetPath(name string) (string, error) {
 // Les bascules agent/internet/oai/tâches sont déjà dans bkState.
 var preservedKeys = []string{
 	"BIN", "MEM_MODE", "CRAWL4AI_URL", "WEB_ENGINE", "CUDA_VISIBLE_DEVICES", "HOST",
-	"MEM_ENCRYPTED", "BACKUP_AUTO", "COMPACT", "MACHINES", "NP",
+	"MEM_ENCRYPTED", "BACKUP_AUTO", "COMPACT", "MACHINES", "NP", webHostKey,
 }
 
 // softPreservedKeys : préservées SEULEMENT si le preset d'arrivée ne les définit

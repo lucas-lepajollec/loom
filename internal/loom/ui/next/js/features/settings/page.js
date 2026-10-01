@@ -4,7 +4,8 @@ import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../.
 import { Icon } from '../../ui/icons.js';
 import { Switch, Tip, Seg, Empty } from '../../ui/controls.js';
 import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
-import { get, post } from '../../core/api.js';
+import { get, post, download, setToken } from '../../core/api.js';
+import { copyText } from '../../ui/clipboard.js';
 import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav } from '../../core/state.js';
 import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
@@ -242,6 +243,47 @@ const snapshotDate = s => {
   return d && !Number.isNaN(d.getTime()) && d.getFullYear() > 1 ? d.toLocaleString('fr-FR') : 'Date inconnue';
 };
 
+// Accès réseau : l'interface (mode serveur, par ex. sur une VM) et l'API /v1
+// des modèles, chacune avec sa clé. Jamais ouvert sans clé.
+function NetworkAccess() {
+  const [web, setWeb] = useState(null);
+  const [api, setApi] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => Promise.all([
+    get('/api/network/web').then(r => setWeb(r.status || null)).catch(() => setWeb(null)),
+    get('/api/network').then(r => setApi(r.status || null)).catch(() => setApi(null)),
+  ]);
+  useEffect(() => { load(); }, []);
+  const toggleWeb = async on => {
+    if (on && !await confirm('Ouvrir l’interface au réseau', 'Loom sera accessible depuis les autres appareils de ton réseau, protégé par une clé de pilotage (créée maintenant si besoin). Ne l’expose pas directement sur internet : passe par un VPN ou un tunnel.', { ok: 'Ouvrir' })) return;
+    setBusy(true);
+    const r = await post('/api/network/web', { exposed: on });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || 'Réglage impossible', 'err');
+    if (r.key) {
+      setToken(r.key);
+      const copied = await copyText(r.key);
+      await confirm('Clé de pilotage', 'Note-la : elle sera demandée à la première ouverture de Loom sur chaque appareil. ' + (copied ? 'Elle est copiée dans le presse-papiers. ' : '') + r.key, { ok: 'C’est noté' });
+    }
+    load(); // post() remplace r.status par le code HTTP : on relit l'état
+  };
+  const restart = async () => {
+    const r = await post('/api/network/web', { restart: true });
+    toast(r.message || 'Redémarrage demandé', r.restarting ? '' : 'err');
+  };
+  const toggleApi = async on => { const r = await post('/api/network', { exposed: on }); if (r.ok === false) return toast(r.error, 'err'); load(); };
+  return html`<${Group} title="Accès réseau">
+    <${Line} label="Interface sur le réseau" tip="Mode serveur : ouvre Loom depuis un autre appareil (Loom sur une VM, un serveur…). Toujours protégé par la clé de pilotage.">
+      ${web ? html`<${Switch} checked=${web.exposed} disabled=${busy} label="Interface sur le réseau" onChange=${toggleWeb} />` : html`<span class="state">…</span>`}</${Line}>
+    ${web && web.exposed && html`<${Line} label="Adresse">${web.url ? html`<code class="mono">${web.url}</code><button class="btn sm ghost" onClick=${async () => toast(await copyText(web.url) ? 'Adresse copiée' : 'Copie refusée')}>Copier</button>` : html`<span class="state">après redémarrage</span>`}</${Line}>`}
+    ${web && web.restart && html`<${Line} label="À appliquer" tip="L’adresse d’écoute ne change qu’au redémarrage de l’interface. Le modèle chargé n’est pas touché."><span class="state">Redémarrage nécessaire</span><button class="btn sm" onClick=${restart}>Redémarrer l’interface</button></${Line}>`}
+    ${web && web.exposed && web.firewall === 'ferme' && html`<${Line} label="Pare-feu"><span class="state">Port ${web.port} non autorisé : ouvre-le dans le pare-feu de la machine</span></${Line}>`}
+    <${Line} label="API /v1 sur le réseau" tip="Les logiciels et harnesses d’autres machines peuvent utiliser tes modèles locaux. La clé API ci-dessous devient obligatoire.">
+      ${api ? html`<${Switch} checked=${api.exposed} label="API /v1 sur le réseau" onChange=${toggleApi} />` : html`<span class="state">…</span>`}</${Line}>
+    ${api && api.exposed && html`<${Line} label="Adresse de l’API"><code class="mono">${api.url}</code></${Line}>`}
+  </${Group}>`;
+}
+
 function Security() {
   const [k, setK] = useState(null);
   const [mem, setMem] = useState(null);
@@ -305,6 +347,7 @@ function Security() {
   const vault = mem && (mem.encrypted || mem.vault_copies > 0);
   const blocked = busy || !!secretForm;
   return html`
+    <${NetworkAccess} />
     <${Group} title="API /v1">
       <${Line} label="Clé API exigée" tip="Les applications qui utilisent le serveur devront envoyer cette clé. Obligatoire si le serveur est exposé sur le réseau."><${Switch} checked=${k && k.required} onChange=${v => key({ action: 'require', on: v })} /></${Line}>
       <${Line} label="Clé">${k && k.set ? html`<code class="mono">${k.masked}</code><button class="btn sm ghost" onClick=${() => key({ action: 'generate' })}>Régénérer</button><button class="btn sm ghost" onClick=${() => key({ action: 'clear' })}>Supprimer</button>`
@@ -321,7 +364,7 @@ function Security() {
           ${mem.encrypted && !mem.locked && html`<button class="btn sm ghost" disabled=${blocked} onClick=${lock}>Verrouiller</button><button class="btn sm ghost" disabled=${blocked} onClick=${decrypt}>Déchiffrer</button>`}`
           : html`<span class="state">En clair</span><button class="btn sm" disabled=${blocked} onClick=${() => secret('encrypt')}>Activer</button>`}</${Line}>
       ${mem?.encrypted && !mem.locked && html`<${Line} label="Clé supplémentaire" tip="Ajoute ou remplace le secret d’ouverture supplémentaire du coffre déjà déverrouillé, sans réécrire les données."><button class="btn sm ghost" disabled=${blocked} onClick=${() => secret('addkey')}>Ajouter une clé</button></${Line}>`}
-      <${Line} label="Exporter la discussion"><a class="btn sm ghost" href="/api/chat/export?format=md">Markdown</a><a class="btn sm ghost" href="/api/chat/export?format=json">JSON</a></${Line}>
+      <${Line} label="Exporter la discussion"><button class="btn sm ghost" onClick=${() => download('/api/chat/export?format=md', 'discussion.md').catch(() => toast('Export impossible', 'err'))}>Markdown</button><button class="btn sm ghost" onClick=${() => download('/api/chat/export?format=json', 'discussion.json').catch(() => toast('Export impossible', 'err'))}>JSON</button></${Line}>
     </${Group}>
     <${Group} title="Snapshots locaux">
       <${Line} label="Sauvegardes" tip="Copies locales des fichiers mémoire, coffre compris. La taille n’est pas fournie par le serveur. La restauration ne remplace pas les discussions, presets ou réglages."><button class="btn sm ghost" disabled=${blocked} onClick=${load}>Actualiser</button></${Line}>
