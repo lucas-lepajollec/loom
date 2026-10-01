@@ -71,3 +71,34 @@ func TestMigrateWebKeyToHash(t *testing.T) {
 		t.Fatal("l'empreinte aurait dû être posée")
 	}
 }
+
+func TestLegacyWebKeyProtectsAPIBeforeMigration(t *testing.T) {
+	testHome(t)
+	if err := putStr(bkState, "web_key", "ancienne-cle"); err != nil {
+		t.Fatal(err)
+	}
+	if got := getStr(bkState, "web_key_hash"); got != "" {
+		t.Fatalf("unexpected hash in legacy fixture: %q", got)
+	}
+	protected := requireWebAuth(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	for _, tc := range []struct {
+		name, auth string
+		want       int
+	}{
+		{"missing", "", http.StatusUnauthorized},
+		{"wrong", "Bearer mauvaise-cle", http.StatusUnauthorized},
+		{"valid", "Bearer ancienne-cle", http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+			if tc.auth != "" {
+				req.Header.Set("Authorization", tc.auth)
+			}
+			rr := httptest.NewRecorder()
+			protected(rr, req)
+			if rr.Code != tc.want {
+				t.Fatalf("status = %d, want %d", rr.Code, tc.want)
+			}
+		})
+	}
+}

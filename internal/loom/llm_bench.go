@@ -13,13 +13,21 @@ import (
 
 // benchResult captures the timings llama.cpp returns from /completion.
 type benchResult struct {
-	PromptN         int     `json:"prompt_n"`
-	PromptMs        float64 `json:"prompt_ms"`
-	PromptPerSecond float64 `json:"prompt_per_second"`
-	PredictedN      int     `json:"predicted_n"`
-	PredictedMs     float64 `json:"predicted_ms"`
-	PredictedPerSec float64 `json:"predicted_per_second"`
-	Elapsed         float64 `json:"elapsed_sec"`
+	PromptN         int      `json:"prompt_n"`
+	PromptMs        float64  `json:"prompt_ms"`
+	PromptPerSecond *float64 `json:"prompt_per_second"`
+	PredictedN      int      `json:"predicted_n"`
+	PredictedMs     float64  `json:"predicted_ms"`
+	PredictedPerSec *float64 `json:"predicted_per_second"`
+	Elapsed         float64  `json:"elapsed_sec"`
+	*BenchCloudMetrics
+}
+
+// Only cloud results include these observations; absent provider usage is unknown.
+type BenchCloudMetrics struct {
+	TTFT             *float64 `json:"ttft_sec"`
+	CompletionTokens *int64   `json:"completion_tokens"`
+	PromptTokens     *int64   `json:"prompt_tokens"`
 }
 
 // benchCorpus is a varied passage used to defeat speculative decoding
@@ -144,8 +152,8 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 	elapsed := time.Since(t0).Seconds()
 	t := parsed.Timings
 	res := &benchResult{
-		PromptN: t.PromptN, PromptMs: t.PromptMs, PromptPerSecond: t.PromptPerSecond,
-		PredictedN: t.PredictedN, PredictedMs: t.PredictedMs, PredictedPerSec: t.PredictedPerSec,
+		PromptN: t.PromptN, PromptMs: t.PromptMs, PromptPerSecond: &t.PromptPerSecond,
+		PredictedN: t.PredictedN, PredictedMs: t.PredictedMs, PredictedPerSec: &t.PredictedPerSec,
 		Elapsed: elapsed,
 	}
 	preview := ""
@@ -233,8 +241,8 @@ func cmdBench(args []string) error {
 		return err
 	}
 	fmt.Println()
-	fmt.Printf("  %s  %7.1f tok/s   (%d tokens en %.2fs)\n", cyan("Prefill"), r.PromptPerSecond, r.PromptN, r.PromptMs/1000)
-	fmt.Printf("  %s  %7.1f tok/s   (%d tokens en %.2fs)\n", cyan("Decode "), r.PredictedPerSec, r.PredictedN, r.PredictedMs/1000)
+	fmt.Printf("  %s  %7.1f tok/s   (%d tokens en %.2fs)\n", cyan("Prefill"), *r.PromptPerSecond, r.PromptN, r.PromptMs/1000)
+	fmt.Printf("  %s  %7.1f tok/s   (%d tokens en %.2fs)\n", cyan("Decode "), *r.PredictedPerSec, r.PredictedN, r.PredictedMs/1000)
 	fmt.Printf("  Total                     %.2fs\n", r.Elapsed)
 	fmt.Println()
 	return nil

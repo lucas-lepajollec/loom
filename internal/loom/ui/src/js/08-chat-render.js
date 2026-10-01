@@ -239,7 +239,7 @@ function setStats(el, text){
 }
 function bodyOf(el){ return el.querySelector('.body'); }
 // Render markdown into a message body in place; safe because md() escapes HTML.
-function renderBody(el, text){ const b=bodyOf(el); b.innerHTML = md(encodeMdLinkSpaces(text)); markNotices(b); addCopyButtons(b); markFileLinks(b); scrollMaybe(); }
+function renderBody(el, text){ const b=bodyOf(el); if(el._plain){b.textContent=text;scrollMaybe();return;} b.innerHTML = md(encodeMdLinkSpaces(text)); markNotices(b); addCopyButtons(b); markFileLinks(b); scrollMaybe(); }
 // Render a tool call as its own conversation message: the command the model
 // wrote, then the response it got back. textContent keeps it injection-safe.
 function renderToolMsg(el, tu){
@@ -479,6 +479,7 @@ async function clearAllHistory(){
   if(typeof loadNav==='function') loadNav();
 }
 async function restoreHistory(id){
+  THREAD.resumeID='';
   let r; try{ r = await jpost('/api/chat/history/restore', {id}); }catch(_){ toast('erreur réseau'); return; }
   if(!r.ok){ toast(r.error || 'impossible d\'ouvrir'); return; }
   closeHistoryModal();

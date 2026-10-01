@@ -4,8 +4,8 @@
 // localStorage reste utilisé pour appliquer instantanément au chargement (sans
 // flash), puis loadPrefs() aligne sur la valeur du serveur (source de vérité).
 function savePrefs(){
-  let theme='light';
-  try{ theme=localStorage.getItem('loom-theme')||'light'; }catch(e){}
+  let theme='dark';
+  try{ theme=localStorage.getItem('loom-theme')||'dark'; }catch(e){}
   const p={theme};
   VIEW_OPTS.forEach(o=>{ p[o.id.replace('-','_')] = viewOn(o.id)?'1':'0'; });
   jpost('/api/prefs', p).catch(()=>{});

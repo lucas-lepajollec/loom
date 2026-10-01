@@ -3,12 +3,141 @@ package loom
 import (
 	"archive/tar"
 	"compress/gzip"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+func writeTestArchive(t *testing.T, headers ...*tar.Header) string {
+	t.Helper()
+	archive := filepath.Join(t.TempDir(), "backend.tar.gz")
+	f, err := os.Create(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	for _, h := range headers {
+		if err := tw.WriteHeader(h); err != nil {
+			t.Fatal(err)
+		}
+		if h.Typeflag == tar.TypeReg {
+			if _, err := tw.Write([]byte("x")); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, closeFile := range []func() error{tw.Close, gz.Close, f.Close} {
+		if err := closeFile(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return archive
+}
+
+func TestExtractArchiveRejectsEscapingSymlink(t *testing.T) {
+	for _, target := range []string{"../../outside", "/etc/passwd"} {
+		t.Run(fmt.Sprintf("target=%s", target), func(t *testing.T) {
+			archive := writeTestArchive(t, &tar.Header{
+				Typeflag: tar.TypeSymlink, Name: "lib/escape.so", Linkname: target, Mode: 0o777,
+			})
+			out := filepath.Join(t.TempDir(), "out")
+			if err := extractArchive(archive, out); err == nil {
+				t.Fatal("escaping symlink was accepted")
+			}
+			if _, err := os.Lstat(filepath.Join(out, "lib", "escape.so")); !os.IsNotExist(err) {
+				t.Fatalf("unsafe link was created: %v", err)
+			}
+		})
+	}
+}
+
+func TestExtractArchiveRejectsPreexistingSymlinkDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating a test symlink may require elevated Windows privileges")
+	}
+	root := t.TempDir()
+	out := filepath.Join(root, "out")
+	outside := filepath.Join(root, "outside")
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(out, "lib")); err != nil {
+		t.Fatal(err)
+	}
+	archive := writeTestArchive(t, &tar.Header{
+		Typeflag: tar.TypeReg, Name: "lib/escape.so", Mode: 0o644, Size: 1,
+	})
+	if err := extractArchive(archive, out); err == nil {
+		t.Fatal("archive wrote through a preexisting symlink directory")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "escape.so")); !os.IsNotExist(err) {
+		t.Fatalf("file appeared outside extraction root: %v", err)
+	}
+}
+
+func TestExtractArchiveRejectsLinkToPreexistingExternalSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating a test symlink may require elevated Windows privileges")
+	}
+	root := t.TempDir()
+	out := filepath.Join(root, "out")
+	if err := os.MkdirAll(filepath.Join(out, "lib"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(root, "outside")
+	if err := os.WriteFile(outside, []byte("private"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(out, "lib", "existing.so")); err != nil {
+		t.Fatal(err)
+	}
+	archive := writeTestArchive(t, &tar.Header{
+		Typeflag: tar.TypeSymlink, Name: "lib/new.so", Linkname: "existing.so", Mode: 0o777,
+	})
+	if err := extractArchive(archive, out); err == nil {
+		t.Fatal("link to an external symlink was accepted")
+	}
+	if _, err := os.Lstat(filepath.Join(out, "lib", "new.so")); !os.IsNotExist(err) {
+		t.Fatalf("unsafe link was created: %v", err)
+	}
+}
+
+func TestExtractArchiveReplacesPreexistingFileSymlinkWithoutFollowingIt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating a test symlink may require elevated Windows privileges")
+	}
+	root := t.TempDir()
+	out := filepath.Join(root, "out")
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(root, "outside")
+	if err := os.WriteFile(outside, []byte("private"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(out, "new.so")); err != nil {
+		t.Fatal(err)
+	}
+	archive := writeTestArchive(t, &tar.Header{
+		Typeflag: tar.TypeReg, Name: "new.so", Mode: 0o644, Size: 1,
+	})
+	if err := extractArchive(archive, out); err != nil {
+		t.Fatal(err)
+	}
+	if content, err := os.ReadFile(outside); err != nil || string(content) != "private" {
+		t.Fatalf("outside file modified: %q, %v", content, err)
+	}
+	if content, err := os.ReadFile(filepath.Join(out, "new.so")); err != nil || string(content) != "x" {
+		t.Fatalf("archive file missing: %q, %v", content, err)
+	}
+}
 
 // TestExtractArchiveSymlink : les archives macOS/Linux de llama.cpp livrent les
 // bibliothèques sous leur nom versionné (libllama-common.0.0.10107.dylib) plus

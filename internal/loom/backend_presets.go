@@ -379,16 +379,12 @@ func nakedLoadEnv(model string) map[string]string {
 	return seed
 }
 
-// nakedDefaults : BIN/HOST/PORT machine + CTX natif du GGUF. Le reste
-// (NGL, BATCH, KV…) reste vide = défauts llama-server, pas ceux du modèle
-// précédent.
+// nakedDefaults leaves tunable memory settings unset. llama.cpp fits them to
+// available device memory at load time; remembered explicit values win later.
 func nakedDefaults(model string) map[string]string {
 	seed := newPresetSeed()
 	seed["MODEL"] = strings.TrimSpace(model)
-	meta := loadGGUFMetaForModel(model)
-	if meta.ContextLength > 0 {
-		seed["CTX"] = strconv.Itoa(meta.ContextLength)
-	}
+	seed["FIT"] = "on"
 	return seed
 }
 
@@ -486,6 +482,10 @@ func unloadEngine() error {
 		return err
 	}
 	_ = putStr(bkState, "active_preset", "")
+	// Router : on libère la VRAM, le moteur reste prêt pour le prochain modèle.
+	if routerReachable() {
+		return routerUnloadAll()
+	}
 	if ownedLlamaManaged() {
 		stopOwnedLlama()
 		return nil
@@ -503,7 +503,10 @@ func SwitchToPreset(target string) error {
 		return err
 	}
 	fmt.Printf("%s configuration <- %s\n", green("[ok]"), filepath.Base(target))
-	fmt.Println(dim("[info] redémarrage du service..."))
+	fmt.Println(dim("[info] application de la configuration..."))
+	if routerReachable() {
+		return routerActivate()
+	}
 	return serviceAction("restart")
 }
 

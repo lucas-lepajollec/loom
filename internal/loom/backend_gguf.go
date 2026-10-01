@@ -537,9 +537,12 @@ func serveCtxArg(cfg map[string]string, modelPath string) string {
 		return v
 	}
 	if v := strings.TrimSpace(cfg["CTX"]); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			return strconv.Itoa(n)
 		}
+	}
+	if strings.EqualFold(cfg["FIT"], "on") {
+		return ""
 	}
 	if n := ggufContextLength(modelPath); n > 0 {
 		return strconv.Itoa(n)

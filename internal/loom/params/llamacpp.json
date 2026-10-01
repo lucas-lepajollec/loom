@@ -1,0 +1,361 @@
+{
+  "params": [
+    {
+      "id": "ctx-size",
+      "label": "Contexte",
+      "tip": "Fenêtre de tokens. Le curseur va jusqu’au natif du modèle ; tape une valeur pour aller au-delà.",
+      "tier": "essential",
+      "kind": "slider",
+      "affects_vram": true,
+      "requires_reload": true,
+      "control": "context",
+      "flag": "--ctx-size",
+      "key": "CTX",
+      "min": 1024,
+      "step": 1024,
+      "stack": true
+    },
+    {
+      "id": "gpu-layers",
+      "label": "Couches GPU",
+      "tip": "Nombre de couches envoyées au GPU. « tout » les place toutes.",
+      "tier": "essential",
+      "kind": "slider",
+      "affects_vram": true,
+      "requires_reload": true,
+      "control": "layers",
+      "flag": "--gpu-layers",
+      "key": "NGL",
+      "min": 0,
+      "step": 1,
+      "stack": true,
+      "covers": [
+        "n-gpu-layers"
+      ]
+    },
+    {
+      "id": "reasoning",
+      "label": "Raisonnement",
+      "tip": "Le modèle réfléchit avant de répondre si son gabarit le permet. L’éteindre envoie --reasoning off.",
+      "tier": "essential",
+      "kind": "bool",
+      "affects_vram": false,
+      "requires_reload": true,
+      "control": "reasoning",
+      "flag": "--reasoning",
+      "key": "REASONING",
+      "when": "thinks"
+    },
+    {
+      "id": "reasoning-effort",
+      "label": "Effort",
+      "tip": "Niveaux lus dans le gabarit du modèle. Vide = défaut du gabarit.",
+      "tier": "essential",
+      "kind": "enum",
+      "affects_vram": false,
+      "requires_reload": true,
+      "control": "effort",
+      "flag": "--reasoning-effort",
+      "key": "REASONING_EFFORT",
+      "when": "effort"
+    },
+    {
+      "id": "vision",
+      "label": "Vision",
+      "tip": "Charge le projecteur mmproj trouvé à côté du modèle.",
+      "tier": "essential",
+      "kind": "bool",
+      "affects_vram": true,
+      "requires_reload": true,
+      "control": "vision",
+      "flag": "--mmproj",
+      "key": "MMPROJ",
+      "when": "vision",
+      "covers": [
+        "mmproj",
+        "mmproj-auto",
+        "mmproj-offload"
+      ]
+    },
+    {
+      "id": "temp",
+      "label": "Température",
+      "tip": "Aléatoire de l’échantillonnage. Vide = défaut du modèle.",
+      "tier": "essential",
+      "kind": "number",
+      "affects_vram": false,
+      "requires_reload": true,
+      "flag": "--temp",
+      "key": "TEMP",
+      "step": 0.05,
+      "covers": [
+        "temperature"
+      ]
+    },
+    {
+      "id": "sysprompt",
+      "label": "Prompt système",
+      "tip": "Propre à ce modèle ou preset. Vide = celui des Réglages.",
+      "tier": "essential",
+      "kind": "textarea",
+      "affects_vram": false,
+      "requires_reload": true,
+      "key": "SYSPROMPT",
+      "stack": true,
+      "placeholder": "Vide = prompt des Réglages"
+    },
+    {
+      "id": "kv",
+      "label": "Cache KV",
+      "tip": "Compression du cache de contexte. f16 = qualité maximale ; q8/q4 réduisent la VRAM.",
+      "tier": "advanced",
+      "kind": "enum",
+      "affects_vram": true,
+      "requires_reload": true,
+      "control": "kv",
+      "choices": [
+        [
+          "",
+          "f16"
+        ],
+        [
+          "q8_0|q8_0",
+          "q8_0"
+        ],
+        [
+          "q5_1|q5_1",
+          "q5_1"
+        ],
+        [
+          "q4_0|q4_0",
+          "q4_0"
+        ],
+        [
+          "q8_0|q5_1",
+          "q8_0 / q5_1"
+        ],
+        [
+          "q8_0|q5_0",
+          "q8_0 / q5_0"
+        ]
+      ],
+      "covers": [
+        "cache-type-k",
+        "cache-type-v"
+      ]
+    },
+    {
+      "id": "parallel",
+      "label": "Slots parallèles",
+      "tip": "Requêtes traitées en même temps par llama.cpp (batching continu).",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": true,
+      "requires_reload": true,
+      "control": "parallel",
+      "flag": "--parallel",
+      "key": "NP",
+      "step": 1,
+      "placeholder": "4"
+    },
+    {
+      "id": "spec-type",
+      "label": "Décodage spéculatif",
+      "tip": "Anticipe des tokens (MTP, EAGLE, n-grammes) pour accélérer.",
+      "tier": "advanced",
+      "kind": "enum",
+      "affects_vram": true,
+      "requires_reload": true,
+      "flag": "--spec-type",
+      "choices": [
+        [
+          "",
+          "non"
+        ],
+        [
+          "draft-mtp",
+          "MTP"
+        ],
+        [
+          "draft-eagle3",
+          "EAGLE-3"
+        ],
+        [
+          "draft-simple",
+          "Modèle brouillon"
+        ],
+        [
+          "ngram-simple",
+          "n-grammes"
+        ]
+      ]
+    },
+    {
+      "id": "flash-attn",
+      "label": "Flash attention",
+      "tip": "Plus rapide et plus économe. Auto laisse llama.cpp décider.",
+      "tier": "advanced",
+      "kind": "enum",
+      "affects_vram": true,
+      "requires_reload": true,
+      "flag": "--flash-attn",
+      "requires_flag": true,
+      "choices": [
+        [
+          "",
+          "auto"
+        ],
+        [
+          "on",
+          "on"
+        ],
+        [
+          "off",
+          "off"
+        ]
+      ]
+    },
+    {
+      "id": "fit",
+      "key": "FIT",
+      "label": "Ajuster à la VRAM",
+      "tip": "Laisse llama.cpp réduire ce qui n’est pas fixé pour tenir en mémoire.",
+      "tier": "advanced",
+      "kind": "bool",
+      "affects_vram": true,
+      "requires_reload": true,
+      "control": "fit",
+      "flag": "--fit",
+      "requires_flag": true
+    },
+    {
+      "id": "batch-size",
+      "label": "Batch",
+      "tip": "Taille logique de lot au prompt. Plus grand = plus rapide, plus de VRAM.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": true,
+      "requires_reload": true,
+      "flag": "--batch-size",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "ubatch-size",
+      "label": "Micro-batch",
+      "tip": "Taille physique de micro-lot. 512 est un bon départ.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": true,
+      "requires_reload": true,
+      "flag": "--ubatch-size",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "threads",
+      "label": "Threads CPU",
+      "tip": "0 = automatique.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": false,
+      "requires_reload": true,
+      "flag": "--threads",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "threads-batch",
+      "label": "Threads (prompt)",
+      "tip": "0 = comme Threads CPU.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": false,
+      "requires_reload": true,
+      "flag": "--threads-batch",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "n-cpu-moe",
+      "label": "Experts MoE sur CPU",
+      "tip": "Garde les N premières couches d’experts sur le CPU.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": true,
+      "requires_reload": true,
+      "flag": "--n-cpu-moe",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "top-p",
+      "label": "top_p",
+      "tip": "1 = désactivé.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": false,
+      "requires_reload": true,
+      "flag": "--top-p",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "top-k",
+      "label": "top_k",
+      "tip": "0 = désactivé.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": false,
+      "requires_reload": true,
+      "flag": "--top-k",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "min-p",
+      "label": "min_p",
+      "tip": "0 = désactivé.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": false,
+      "requires_reload": true,
+      "flag": "--min-p",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "repeat-penalty",
+      "label": "Pénalité de répétition",
+      "tip": "1 = neutre.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": false,
+      "requires_reload": true,
+      "flag": "--repeat-penalty",
+      "requires_flag": true,
+      "step": 1
+    },
+    {
+      "id": "presence-penalty",
+      "label": "Pénalité de présence",
+      "tip": "0 = neutre.",
+      "tier": "advanced",
+      "kind": "number",
+      "affects_vram": false,
+      "requires_reload": true,
+      "flag": "--presence-penalty",
+      "requires_flag": true,
+      "step": 1
+    }
+  ],
+  "expert_excludes": [
+    "load-mode",
+    "mlock",
+    "mmap",
+    "kv-unified",
+    "jinja",
+    "spec-draft-n-max",
+    "model-draft"
+  ]
+}

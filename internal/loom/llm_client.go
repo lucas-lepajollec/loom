@@ -386,11 +386,18 @@ func EnabledTools(caps Caps) []Tool {
 // Exactly one of {Content, Reasoning, ToolUsed, Stats, Err, DropReasoning} is set
 // per call.
 type StreamEvent struct {
-	Content   string
-	Reasoning string
-	ToolUsed  *ToolUsedEvent
-	Stats     *StatsEvent
-	Err       error
+	ACPEvent DiscussionEvent
+	ACPState *ACPState
+	// Usage is supplied by external adapters only when reported upstream.
+	Usage           *RuntimeUsage
+	HarnessEvent    *HarnessEvent
+	NativeSessionID string
+	DurationSeconds float64
+	Content         string
+	Reasoning       string
+	ToolUsed        *ToolUsedEvent
+	Stats           *StatsEvent
+	Err             error
 	// DropReasoning demande à l'UI de retirer la dernière bulle de raisonnement :
 	// le modèle a « pensé sans agir » et on relance le tour, ce raisonnement-là
 	// est mort-né et ne doit pas rester à l'écran (sinon double raisonnement).

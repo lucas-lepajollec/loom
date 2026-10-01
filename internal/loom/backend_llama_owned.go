@@ -103,6 +103,8 @@ func startOwnedLlamaLocked(bin string, args []string) error {
 		go func() {
 			_ = SetConfigKey("MODEL", "")
 			_ = putStr(bkState, "active_preset", "")
+			_ = putStr(bkState, routerStateActive, "")
+			_ = putStr(bkState, routerStateCurrent, "")
 			clearOAIRuntime()
 		}()
 	}()
@@ -136,6 +138,10 @@ func stopOwnedLlama() {
 
 func restartOwnedLlama() error {
 	setLlamaLastError("")
+	// Mode router : on change de modèle par l'API, le moteur reste vivant.
+	if routerReachable() {
+		return routerActivate()
+	}
 	args, err := buildLlamaServerArgs()
 	if err != nil {
 		return err
@@ -150,7 +156,13 @@ func restartOwnedLlama() error {
 	return nil
 }
 
+// restartLlamaEngine applique la configuration courante. Avec un router
+// joignable, c'est un simple chargement par son API ; sinon on relance le
+// process (mode historique ou moteur pas encore passé en router).
 func restartLlamaEngine() error {
+	if routerReachable() {
+		return routerActivate()
+	}
 	if ownedLlamaManaged() {
 		return restartOwnedLlama()
 	}

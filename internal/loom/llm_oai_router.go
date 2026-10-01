@@ -237,6 +237,9 @@ func ensureOAIModel(id string) error {
 }
 
 func restartLlamaForOAI() error {
+	if routerReachable() {
+		return routerActivate()
+	}
 	if ownedLlamaManaged() {
 		return restartOwnedLlama()
 	}
@@ -315,7 +318,11 @@ func oaiError(w http.ResponseWriter, code int, typ, msg, param, errCode string) 
 
 func oaiBearer(r *http.Request) string {
 	h := strings.TrimSpace(r.Header.Get("Authorization"))
-	return strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
+	scheme, token, ok := strings.Cut(h, " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(token)
 }
 
 func oaiKeyOK(r *http.Request) bool {
@@ -390,6 +397,11 @@ func newOAIRouter(injectKey string) http.Handler {
 			http.Error(w, "not found (endpoint OpenAI: /v1/*)", http.StatusNotFound)
 			return
 		}
+		router := routerModeCached()
+		if router && (p == "/health" || p == "/v1/health") {
+			routerHealth(w)
+			return
+		}
 		if !oaiKeyOK(r) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="loom"`)
 			oaiError(w, http.StatusUnauthorized, "invalid_request_error", "Invalid API key", "", "invalid_api_key")
@@ -438,7 +450,7 @@ func newOAIRouter(injectKey string) http.Handler {
 					return
 				}
 				loaded := filepath.Base(strings.TrimSpace(ReadConfig()["MODEL"]))
-				if loaded != "" {
+				if loaded != "" && !router {
 					body = rewriteOAIModel(body, loaded)
 				}
 			}
@@ -451,12 +463,67 @@ func newOAIRouter(injectKey string) http.Handler {
 					return
 				}
 			}
+			if router {
+				// Le router choisit l'instance par le champ model : on y met la
+				// section Loom qui sert maintenant (modèle choisi ou variante API).
+				cur := routerCurrentName()
+				if cur == "" {
+					oaiError(w, http.StatusServiceUnavailable, "api_error", "aucun modèle chargé", "model", "model_unavailable")
+					return
+				}
+				body = rewriteOAIModel(body, cur)
+			}
 			r.Body = io.NopCloser(bytes.NewReader(body))
 			r.ContentLength = int64(len(body))
 			r.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		}
+		if router && r.Method == http.MethodGet && r.URL.Query().Get("model") == "" &&
+			(p == "/props" || p == "/metrics" || strings.HasPrefix(p, "/slots")) {
+			if cur := routerCurrentName(); cur != "" {
+				q := r.URL.Query()
+				q.Set("model", cur)
+				r.URL.RawQuery = q.Encode()
+			}
+		}
 		lp.ServeHTTP(w, r)
 	})
+}
+
+var (
+	routerModeMu   sync.Mutex
+	routerModeSeen time.Time
+	routerModeVal  bool
+)
+
+// routerModeCached évite d'interroger /props à chaque requête /v1.
+func routerModeCached() bool {
+	routerModeMu.Lock()
+	defer routerModeMu.Unlock()
+	if time.Since(routerModeSeen) < 2*time.Second {
+		return routerModeVal
+	}
+	routerModeVal = routerReachable()
+	routerModeSeen = time.Now()
+	return routerModeVal
+}
+
+// routerHealth garde le sens historique de /health : 200 seulement quand le
+// modèle choisi est chargé et prêt, 503 pendant un chargement ou sans modèle.
+func routerHealth(w http.ResponseWriter) {
+	cur := routerCurrentName()
+	if cur == "" {
+		oaiWriteJSON(w, http.StatusServiceUnavailable, []byte(`{"status":"no model loaded"}`))
+		return
+	}
+	m, ok := routerModelStatus(cur)
+	switch {
+	case ok && m.Status == "loaded":
+		oaiWriteJSON(w, http.StatusOK, []byte(`{"status":"ok"}`))
+	case ok && m.Failed:
+		oaiWriteJSON(w, http.StatusServiceUnavailable, []byte(`{"status":"model failed to load"}`))
+	default:
+		oaiWriteJSON(w, http.StatusServiceUnavailable, []byte(`{"status":"loading model"}`))
+	}
 }
 
 func oaiPublicHandler() http.Handler { return newOAIRouter("") }

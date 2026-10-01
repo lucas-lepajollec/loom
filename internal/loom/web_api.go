@@ -3,6 +3,7 @@
 package loom
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -73,7 +74,13 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 			presetName = presetDisplayName(body, presetID)
 		}
 	}
+	host, _ := os.Hostname()
+	var ctxObserved *int
+	if model != "" && health {
+		ctxObserved = observedEngineCtx()
+	}
 	sendJSON(w, 200, map[string]any{
+		"ctx_effective":    ctxObserved,
 		"state":            state,
 		"active":           active,
 		"health":           health,
@@ -81,6 +88,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"ctx":              ctx,
 		"ctx_native":       native,
 		"version":          Version,
+		"hostname":         host,
 		"warn":             appWarning(), // ex. App Translocation macOS — vide si tout va bien
 		"load_error":       loadErr,      // modèle qui ne charge pas (incompat moteur…) — vide sinon
 		"boot":             procBoot,     // empreinte de démarrage du process (détecte un redémarrage côté UI)
@@ -1109,7 +1117,7 @@ func handleSwitch(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("%s config.env <- %s\n", green("[ok]"), filepath.Base(target.Path))
 	fmt.Println(dim("[info] redémarrage du moteur..."))
 	go func() {
-		if err := restartLlamaEngine(); err != nil {
+		if err := localEngine().Load(context.Background(), ModelConfig{}); err != nil {
 			fmt.Printf("%s redémarrage après bascule: %v\n", red("[ERREUR]"), err)
 		}
 	}()
@@ -1132,7 +1140,7 @@ func handleLoadModel(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("%s modèle nu <- %s\n", green("[ok]"), filepath.Base(strings.TrimSpace(req.Model)))
 	fmt.Println(dim("[info] redémarrage du moteur..."))
 	go func() {
-		if err := restartLlamaEngine(); err != nil {
+		if err := localEngine().Load(context.Background(), ModelConfig{}); err != nil {
 			fmt.Printf("%s redémarrage après chargement: %v\n", red("[ERREUR]"), err)
 		}
 	}()
@@ -1141,7 +1149,7 @@ func handleLoadModel(w http.ResponseWriter, r *http.Request) {
 
 func handleUnload(w http.ResponseWriter, r *http.Request) {
 	clearOAIRuntime()
-	if err := unloadEngine(); err != nil {
+	if err := localEngine().Unload(r.Context(), ""); err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
@@ -1172,7 +1180,7 @@ func handleApplyLive(w http.ResponseWriter, r *http.Request) {
 		refreshRememberedNakedIfAny(req.Content)
 	}
 	go func() {
-		if err := restartLlamaEngine(); err != nil {
+		if err := localEngine().Load(context.Background(), ModelConfig{}); err != nil {
 			fmt.Printf("%s redémarrage après configuration: %v\n", red("[ERREUR]"), err)
 		}
 	}()
@@ -1293,7 +1301,7 @@ func handleEstimate(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.Content) == "" {
 		req.Content = formatEnv(nakedLoadEnv(req.Model))
 	}
-	est := estimateModel(req.Model, req.Content)
+	est := localEngine().Estimate(ModelConfig{Model: req.Model, Content: req.Content})
 	sendJSON(w, 200, vramEstJSON(est))
 }
 

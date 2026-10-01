@@ -32,6 +32,7 @@ function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.
 // bool, askPrompt → string|null (null si annulé), askAlert → void. Échap/clic dehors
 // = annuler ; Entrée = valider (sur prompt aussi).
 let _askResolver=null, _askKind='confirm', _askCheck=false;
+let _askFocus=null;
 // État de la case optionnelle de la DERNIÈRE confirmation (opts.check). Lu par
 // l'appelant juste après le await — la Promise, elle, ne renvoie que oui/non.
 function askChecked(){ return _askCheck; }
@@ -41,12 +42,18 @@ function askResolve(ok){
   _askCheck = ok && document.getElementById('ask-check-input').checked;
   hideModal('ask-modal');
   document.removeEventListener('keydown', _askKey, true);
+  if(_askFocus?.isConnected)_askFocus.focus({preventScroll:true});
   if(_askKind==='prompt') r(ok ? document.getElementById('ask-input').value : null);
   else r(ok);
 }
 function _askKey(e){
   if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); askResolve(false); }
-  else if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); askResolve(true); }
+  else if(e.key==='Tab'){
+    const controls=[...document.querySelectorAll('#ask-modal button,#ask-modal input')].filter(n=>!n.disabled&&n.getClientRects().length);
+    const i=controls.indexOf(document.activeElement),next=controls[(i+(e.shiftKey?-1:1)+controls.length)%controls.length];
+    if(next){e.preventDefault();next.focus();}
+  }
+  else if(e.key==='Enter'&&document.activeElement?.tagName!=='BUTTON'){ e.preventDefault(); e.stopPropagation(); askResolve(true); }
 }
 function _openAsk(kind, message, opts){
   // Compat 2 conventions : (message, opts) [UI Loom] ET l'objet unique
@@ -59,6 +66,7 @@ function _openAsk(kind, message, opts){
   // TOUJOURS (requête suspendue, bouton figé). On l'annule proprement d'abord.
   if(_askResolver){ const prev=_askResolver; _askResolver=null; prev(_askKind==='prompt' ? null : false); }
   _askKind=kind;
+  _askFocus=document.activeElement;
   document.getElementById('ask-title').textContent = opts.title || (kind==='alert'?'Info':kind==='prompt'?'Saisie':'Confirmation');
   document.getElementById('ask-msg').textContent = message||'';
   const inp=document.getElementById('ask-input');
@@ -83,8 +91,9 @@ function _openAsk(kind, message, opts){
   showModal('ask-modal');
   document.addEventListener('keydown', _askKey, true);
   setTimeout(()=>{
+    if(!_askResolver)return;
     const f = kind==='prompt' ? inp : (extra && extra.style.display!=='none' ? extra : ok);
-    f.focus();
+    f.focus({preventScroll:true});document.querySelector('#ask-modal .ask-box').scrollTop=0;
     if(kind==='prompt') inp.select();
   }, 30);
   return new Promise(res=>{ _askResolver=res; });

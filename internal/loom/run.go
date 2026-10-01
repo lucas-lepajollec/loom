@@ -26,6 +26,15 @@ func Main() {
 	// Nettoie un éventuel binaire .old laissé par une mise à jour Windows.
 	cleanupOldBinary()
 
+	if len(os.Args) > 1 && os.Args[1] == "loom-fake-acp" {
+		if os.Getenv("LOOM_DEV_FAKE_ACP") != "1" {
+			return
+		}
+		runFakeACP(os.Stdin, os.Stdout)
+		return
+	}
+	installACPShutdown()
+	defer workspaceSessions.shutdownACP()
 	args := os.Args[1:]
 	noArgs := len(args) == 0
 	cmd := "help"
@@ -170,6 +179,7 @@ Env:
 func mustExit(err error) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "[err]", err)
+		workspaceSessions.shutdownACP()
 		os.Exit(1)
 	}
 }

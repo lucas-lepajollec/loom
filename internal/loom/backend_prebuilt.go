@@ -495,8 +495,15 @@ func downloadWithProgress(url, dest string, total int64, logf func(string)) erro
 func extractArchive(path, dir string) error {
 	safe := func(name string) (string, error) {
 		p := filepath.Join(dir, filepath.FromSlash(name))
-		if rel, err := filepath.Rel(dir, p); err != nil || strings.HasPrefix(rel, "..") {
+		if !archivePathWithin(dir, p) {
 			return "", fmt.Errorf("entrée d'archive suspecte : %s", name)
+		}
+		// An earlier extraction may have left a symlink in this reused directory.
+		// Never let a later archive write through it, even if its own names are safe.
+		for parent := filepath.Dir(p); archivePathWithin(dir, parent) && parent != dir; parent = filepath.Dir(parent) {
+			if fi, err := os.Lstat(parent); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+				return "", fmt.Errorf("dossier d'archive symbolique : %s", name)
+			}
 		}
 		return p, nil
 	}
@@ -519,6 +526,11 @@ func extractArchive(path, dir string) error {
 			}
 			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 				return err
+			}
+			if fi, err := os.Lstat(p); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+				if err := os.Remove(p); err != nil {
+					return err
+				}
 			}
 			rc, err := f.Open()
 			if err != nil {
@@ -556,7 +568,7 @@ func extractArchive(path, dir string) error {
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
-			return applyLinks(links)
+			return applyLinks(dir, links)
 		}
 		if err != nil {
 			return err
@@ -573,6 +585,11 @@ func extractArchive(path, dir string) error {
 		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 				return err
+			}
+			if fi, err := os.Lstat(p); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+				if err := os.Remove(p); err != nil {
+					return err
+				}
 			}
 			w, err := os.Create(p)
 			if err != nil {
@@ -598,10 +615,21 @@ func extractArchive(path, dir string) error {
 					return err
 				}
 				target = t
+			} else {
+				// Symlinks in official llama.cpp archives are relative library aliases.
+				// An absolute or escaping target would leave a link into the host.
+				if filepath.IsAbs(target) || !archivePathWithin(dir, filepath.Join(filepath.Dir(p), filepath.FromSlash(target))) {
+					return fmt.Errorf("cible de lien d'archive suspecte : %s", h.Linkname)
+				}
 			}
 			links = append(links, archiveLink{path: p, target: target})
 		}
 	}
+}
+
+func archivePathWithin(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // archiveLink : un lien (symbolique ou dur) relevé dans une archive.
@@ -610,8 +638,18 @@ type archiveLink struct{ path, target string }
 // applyLinks crée les liens relevés pendant l'extraction. Sur les systèmes où la
 // création de liens symboliques est refusée (Windows sans mode développeur), on
 // copie le fichier cible : moins élégant, mais fonctionnel.
-func applyLinks(links []archiveLink) error {
+func applyLinks(root string, links []archiveLink) error {
 	for _, l := range links {
+		src := l.target
+		if !filepath.IsAbs(src) {
+			src = filepath.Join(filepath.Dir(l.path), filepath.FromSlash(src))
+		}
+		if !archivePathWithin(root, src) {
+			return fmt.Errorf("cible de lien d'archive suspecte : %s", l.target)
+		}
+		if resolved, err := filepath.EvalSymlinks(src); err == nil && !archivePathWithin(root, resolved) {
+			return fmt.Errorf("cible de lien d'archive hors dossier : %s", l.target)
+		}
 		_ = os.Remove(l.path)
 		if err := os.MkdirAll(filepath.Dir(l.path), 0o755); err != nil {
 			return err
@@ -620,10 +658,6 @@ func applyLinks(links []archiveLink) error {
 			continue
 		}
 		// Repli par copie. La cible peut être relative au dossier du lien.
-		src := l.target
-		if !filepath.IsAbs(src) {
-			src = filepath.Join(filepath.Dir(l.path), l.target)
-		}
 		data, err := os.ReadFile(src)
 		if err != nil {
 			continue // cible absente de l'archive : on n'échoue pas l'installation pour ça

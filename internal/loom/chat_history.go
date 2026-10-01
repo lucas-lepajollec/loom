@@ -226,6 +226,7 @@ func (c *Conversation) snapshotForSession() *convArchive {
 func (c *Conversation) upsertSession() {
 	if a := c.snapshotForSession(); a != nil {
 		_ = saveArchive(a)
+		workspaceSessions.syncNativeArchive(a)
 	}
 }
 

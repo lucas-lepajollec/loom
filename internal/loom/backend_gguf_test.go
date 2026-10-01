@@ -70,7 +70,7 @@ func TestGGUFContextLengthRejectsGarbage(t *testing.T) {
 	}
 }
 
-func TestLoadNakedModelUsesGGUFContext(t *testing.T) {
+func TestLoadNakedModelLeavesMemorySettingsAutomatic(t *testing.T) {
 	home := testHome(t)
 	setConfig(t, "BIN=/usr/bin/llama-server\nHOST=127.0.0.1\nPORT=8081\nCTX=8192\n")
 	_ = putStr(bkState, "active_preset", "")
@@ -80,8 +80,8 @@ func TestLoadNakedModelUsesGGUFContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := ReadConfig()
-	if cfg["CTX"] != "262144" {
-		t.Fatalf("CTX = %q, attendu 262144 (natif GGUF, pas 8192)", cfg["CTX"])
+	if cfg["CTX"] != "" || cfg["NGL"] != "" || cfg["FIT"] != "on" {
+		t.Fatal("naked load must leave memory settings automatic")
 	}
 	if cfg["MODEL"] != "qwen.gguf" {
 		t.Fatalf("MODEL = %q", cfg["MODEL"])
@@ -170,8 +170,8 @@ func TestLiveNakedTweakDoesNotStickWithoutRemember(t *testing.T) {
 	if err := loadNakedModel("qwen.gguf"); err != nil {
 		t.Fatal(err)
 	}
-	if got := ReadConfig()["CTX"]; got != "262144" {
-		t.Fatalf("sans souvenir, reload doit reprendre le GGUF, CTX=%q", got)
+	if got := ReadConfig()["CTX"]; got != "" {
+		t.Fatalf("sans souvenir, reload doit reprendre le fit automatique, CTX=%q", got)
 	}
 }
 

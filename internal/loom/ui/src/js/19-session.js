@@ -161,6 +161,7 @@ function syncPickerLabel(s){
   }
   const el=document.getElementById('model-pick-label');
   if(!el) return;
+  if(typeof threadSyncPickerLabel==='function'&&threadSyncPickerLabel())return;
   const pending = pendingModel || (typeof pendingPreset==='number' && pendingPreset>0);
   if(pending){ el.textContent = 'Chargement…'; return; }
   if(running && s.preset_name){ el.textContent = s.preset_name; return; }
@@ -240,7 +241,7 @@ async function refreshPicker(){
       if(inuse && SESSION.mode==='preset') tag = (tag ? tag+' · ' : '')+'via preset';
       modelsBox.appendChild(pickerRow({
         label:m.name, sub:tag, active:SESSION.mode==='model' && inuse, inuse, pending:pend,
-        onClick:()=>loadNaked(m.value, m.name),
+        onClick:()=>typeof threadChooseLocal==='function'?threadChooseLocal(m.value,m.name):loadNaked(m.value,m.name),
         onUnload:inuse ? ()=>unloadCurrent(m.name) : null
       }));
     });
@@ -258,11 +259,12 @@ async function refreshPicker(){
       if(x.model) tag = (tag ? tag+' · ' : '')+baseName(x.model);
       presetsBox.appendChild(pickerRow({
         label:x.name, sub:tag, active:livePreset, pending:pend,
-        onClick:()=>loadPresetAt(i+1, x.name),
+        onClick:()=>typeof threadChooseLocal==='function'?threadChooseLocal(x.model,x.name,i+1):loadPresetAt(i+1,x.name),
         onUnload:livePreset ? ()=>unloadCurrent(x.name) : null
       }));
     });
   }
+  if(typeof threadRefreshPicker==='function')await threadRefreshPicker();
 }
 
 async function loadNaked(model, name){
@@ -333,6 +335,7 @@ async function unloadCurrent(name){
 }
 
 function renderSessionChrome(){
+  if(typeof threadPanelMode==='function'&&threadPanelMode()!=='local')return;
   const empty=document.getElementById('params-empty');
   const body=document.getElementById('params-body');
   const kind=document.getElementById('params-kind');

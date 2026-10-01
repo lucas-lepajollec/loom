@@ -64,6 +64,7 @@ var (
 // première classe (pas EXTRA_ARGS). Les alias du même drapeau y aboutissent.
 var flagToConfigKey = map[string]string{
 	"ctx-size":         "CTX",
+	"fit":              "FIT",
 	"gpu-layers":       "NGL",
 	"n-gpu-layers":     "NGL",
 	"threads":          "THREADS",

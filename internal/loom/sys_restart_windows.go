@@ -42,6 +42,7 @@ func scheduleAppRestart() (bool, string) {
 
 	go func() {
 		time.Sleep(1500 * time.Millisecond) // laisser la réponse atteindre le navigateur
+		workspaceSessions.shutdownACP()
 		os.Exit(0)
 	}()
 	return true, "Loom redémarre — la page se reconnectera toute seule dans quelques secondes."

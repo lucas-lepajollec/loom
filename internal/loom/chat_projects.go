@@ -7,12 +7,14 @@ import (
 	"time"
 )
 
-// ChatProject groupe des conversations, comme un projet ChatGPT : le clic
-// déplie la liste dans la barre, pas une page dédiée.
+// ChatProject owns shared context while preserving the original chat grouping.
 type ChatProject struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	CreatedAt int64  `json:"created_at"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	CreatedAt     int64    `json:"created_at"`
+	Directory     string   `json:"directory,omitempty"`
+	Instructions  string   `json:"instructions,omitempty"`
+	CapabilityIDs []string `json:"capability_ids,omitempty"`
 }
 
 func listProjects() []ChatProject {
@@ -57,6 +59,8 @@ func createProject(name string) (ChatProject, error) {
 }
 
 func renameProject(id, name string) error {
+	workspaceMu.Lock()
+	defer workspaceMu.Unlock()
 	p, ok := getProject(id)
 	if !ok {
 		return fmt.Errorf("projet introuvable")
@@ -73,6 +77,8 @@ func renameProject(id, name string) error {
 }
 
 func deleteProject(id string) error {
+	workspaceMu.Lock()
+	defer workspaceMu.Unlock()
 	if _, ok := getProject(id); !ok {
 		return fmt.Errorf("projet introuvable")
 	}

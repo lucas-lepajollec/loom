@@ -93,10 +93,32 @@ func listSnapshots() []MemSnapshot {
 // l'état courant, puis on écrit chaque fichier de façon vérifiée avant de retirer
 // les fichiers surnuméraires.
 func restoreSnapshot(id string) error {
-	src := filepath.Join(snapshotsRoot(), filepath.Base(id))
+	if !validSnapshotID(id) {
+		return fmt.Errorf("identifiant de snapshot invalide")
+	}
+	src := filepath.Join(snapshotsRoot(), id)
+	info, err := os.Lstat(src)
+	if err != nil {
+		return fmt.Errorf("snapshot introuvable : %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("snapshot invalide : dossier ordinaire attendu")
+	}
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		return fmt.Errorf("snapshot introuvable : %w", err)
+	}
+	if len(entries) == 0 {
+		return fmt.Errorf("snapshot invalide : dossier vide")
+	}
+	for _, e := range entries {
+		entryInfo, err := e.Info()
+		if err != nil {
+			return fmt.Errorf("snapshot invalide : %w", err)
+		}
+		if e.Type()&os.ModeSymlink != 0 || !entryInfo.Mode().IsRegular() {
+			return fmt.Errorf("snapshot invalide : fichier ordinaire attendu pour %s", e.Name())
+		}
 	}
 	if _, err := snapshotMemory("avant-restauration"); err != nil {
 		return fmt.Errorf("snapshot de sécurité impossible, restauration annulée : %w", err)
@@ -127,6 +149,21 @@ func restoreSnapshot(id string) error {
 		}
 	}
 	return nil
+}
+
+func validSnapshotID(id string) bool {
+	if len(id) < 17 || id[15] != '-' {
+		return false
+	}
+	if _, err := time.Parse("20060102-150405", id[:15]); err != nil {
+		return false
+	}
+	for _, r := range id[16:] {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 // pruneSnapshots garde les memSnapshotsKept plus récents, en conservant en plus

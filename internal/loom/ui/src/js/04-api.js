@@ -3,7 +3,8 @@
 let TOKEN = localStorage.getItem('loom.key') || '';
 function authHeaders(h){ h = Object.assign({}, h||{}); if(TOKEN) h['Authorization']='Bearer '+TOKEN; return h; }
 // Base d'URL : "" en local (page à "/").
-const API_BASE = location.pathname.replace(/\/(index\.html)?$/, '');
+// L'ancienne interface est servie sous /classic : l'API reste à la racine.
+const API_BASE = location.pathname.startsWith('/classic') ? '' : location.pathname.replace(/\/(index\.html)?$/, '');
 // Délai maximal d'un appel /api/* ordinaire. Sans lui, une requête que le
 // navigateur met en file d'attente (plafond de ~6 connexions par domaine, atteint
 // dès qu'on laisse traîner plusieurs onglets Loom) reste suspendue POUR TOUJOURS :

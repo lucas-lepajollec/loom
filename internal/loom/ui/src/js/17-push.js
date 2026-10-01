@@ -109,7 +109,7 @@ async function togglePush(){
 
 // Au chargement : enregistre le SW en avance (pour recevoir les push même sans
 // ouvrir les réglages) et cale l'interrupteur. Silencieux si non supporté.
-if(pushSupported()){
+if('serviceWorker' in navigator && window.isSecureContext){
   navigator.serviceWorker.register('/sw.js', {scope:'/'}).then(r=>{ _swReg=r; }).catch(()=>{});
 }
 document.addEventListener('DOMContentLoaded', ()=>{ pushRefresh(); });

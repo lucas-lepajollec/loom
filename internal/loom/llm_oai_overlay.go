@@ -68,6 +68,12 @@ func oaiRuntimeApply(kv, extra map[string]string) error {
 	if !changed {
 		return nil
 	}
+	// Router : les drapeaux demandés deviennent une variante éphémère chargée à
+	// côté de la configuration de l'utilisateur, jamais écrite dans ses réglages.
+	if routerReachable() {
+		_, err := routerActivateVariant()
+		return err
+	}
 	if err := restartLlamaForOAI(); err != nil {
 		return err
 	}

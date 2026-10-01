@@ -207,6 +207,9 @@ func (c *Conversation) compactLogLocked() {
 		return
 	}
 	textKey := func(d map[string]any) string {
+		if d["portable_text"] == true {
+			return ""
+		}
 		if _, ok := d["content"].(string); ok {
 			return "content"
 		}
@@ -410,6 +413,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	// journalisée dans turn_done pour que l'UI affiche la MÊME durée en direct et
 	// après un rechargement (le chrono client, lui, n'existe qu'en direct).
 	turnStart := time.Now()
+	turnModel := ReadConfig()["MODEL"]
 	defer func() {
 		c.mu.Lock()
 		stale := c.epoch != epoch
@@ -426,7 +430,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 		if stale {
 			return // Reset pendant le tour : Reset a déjà persisté l'état vide
 		}
-		c.appendDelta(epoch, map[string]any{"turn_done": true, "elapsed_ms": time.Since(turnStart).Milliseconds()})
+		c.appendDelta(epoch, map[string]any{"turn_done": true, "elapsed_ms": time.Since(turnStart).Milliseconds(), "runtime_turn": RuntimeTurnRecord{RuntimeID: "llama.cpp", ProviderName: "llama.cpp", Model: turnModel}})
 		c.mu.Lock()
 		c.compactLogLocked() // le tour est fini : coalesce ses tokens pour garder le journal petit
 		c.mu.Unlock()
@@ -447,9 +451,16 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 
 	// Snapshot de la vue modèle.
 	c.mu.Lock()
+	if c.epoch != epoch {
+		c.mu.Unlock()
+		return
+	}
 	msgs := append([]Message(nil), c.Messages...)
 	ctxUsed := c.CtxUsed
+	projectID := c.ActiveProject
+	archiveID := c.ID
 	c.mu.Unlock()
+	sharedContext := nativeDiscussionContext(archiveID, projectID)
 
 	// Compaction proactive (façon Hermes) sur la vue MODÈLE uniquement ; le journal
 	// d'affichage garde le fil complet. Le résumé est un appel modèle non streamé :
@@ -473,7 +484,8 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	// Non-nil = elle remplace l'historique (elle contient déjà le tour en cours).
 	var newBase []Message
 	var content strings.Builder
-	extra, _ := runChat(ctx, InjectSkills(final, caps), temperature, caps, func(ev StreamEvent) bool {
+	final = withProjectContext(final, sharedContext)
+	extra, _ := localChatRuntime().Run(ctx, RuntimeTurn{Messages: InjectSkills(final, caps), Temperature: temperature, Caps: caps}, func(ev StreamEvent) bool {
 		switch {
 		case ev.Err != nil:
 			// Arrêt volontaire (bouton stop → cancel du contexte) : ce n'est pas une
@@ -763,7 +775,7 @@ func coalesceReplay(events []LogEvent, from int) []map[string]any {
 		// le flushTool final l'émet une seule fois, en fin de fil.
 		// Delta texte ? (une seule clé content ou reasoning_content, valeur string)
 		key := ""
-		if s, ok := ev.Delta["content"].(string); ok {
+		if s, ok := ev.Delta["content"].(string); ok && ev.Delta["portable_text"] != true {
 			key, _ = "content", s
 		} else if s, ok := ev.Delta["reasoning_content"].(string); ok {
 			key, _ = "reasoning_content", s

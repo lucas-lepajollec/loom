@@ -22,11 +22,21 @@ func hashWebKey(k string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// webKeyHashErr renvoie l'empreinte stockée en distinguant « aucune clé » d'une
+// webKeyHashErr renvoie l'empreinte stockée, ou celle d'une ancienne clé en
+// clair encore en attente de migration. Il distingue « aucune clé » d'une
 // lecture ratée (voir requireWebAuth : une lecture ratée FERME l'API).
 func webKeyHashErr() (string, error) {
 	b, err := getBytesErr(bkState, "web_key_hash")
-	return string(b), err
+	if err != nil || len(b) != 0 {
+		return string(b), err
+	}
+	// A pre-migration database can still contain the old plaintext key. Keep
+	// protecting requests if the migration has not completed successfully.
+	legacy, err := getBytesErr(bkState, "web_key")
+	if err != nil || len(legacy) == 0 {
+		return "", err
+	}
+	return hashWebKey(string(legacy)), nil
 }
 
 // webKeyConfigured indique qu'une clé de pilotage est définie (empreinte présente).
@@ -36,12 +46,14 @@ func webKeyConfigured() bool { h, _ := webKeyHashErr(); return h != "" }
 // (jamais le clair), et efface tout ancien clair résiduel. key vide = protection
 // retirée.
 func storeWebKey(key string) error {
-	_ = putStr(bkState, "web_key", "") // le clair ne doit plus jamais traîner
 	hash := ""
 	if key != "" {
 		hash = hashWebKey(key)
 	}
-	return putStr(bkState, "web_key_hash", hash)
+	if err := putStr(bkState, "web_key_hash", hash); err != nil {
+		return err
+	}
+	return putStr(bkState, "web_key", "") // le clair ne doit plus jamais traîner
 }
 
 // migrateWebKeyToHash convertit une ancienne clé stockée en clair vers son
@@ -51,8 +63,14 @@ func migrateWebKeyToHash() {
 	if plain == "" {
 		return
 	}
-	if !webKeyConfigured() {
-		_ = putStr(bkState, "web_key_hash", hashWebKey(plain))
+	hash, err := getBytesErr(bkState, "web_key_hash")
+	if err != nil {
+		return
+	}
+	if len(hash) == 0 {
+		if err := putStr(bkState, "web_key_hash", hashWebKey(plain)); err != nil {
+			return // the legacy key still protects access until the next attempt
+		}
 	}
 	_ = putStr(bkState, "web_key", "") // le clair ne doit plus jamais traîner
 }

@@ -38,6 +38,7 @@ function navChatBtn(c){
   name.className = 'nav-label';
   name.textContent = c.title || 'Nouveau chat';
   b.appendChild(name);
+  if(c.workspace){b.draggable=false;b.onclick=()=>openWorkspace('discussions',c.id);return b;}
   b.onclick = ()=>{ closeSettings(); restoreHistory(c.id); };
   b.oncontextmenu = (e)=>{ e.preventDefault(); navChatMenu(e, c); };
   b.addEventListener('dragstart', e=>{
@@ -196,7 +197,7 @@ function renderNavSearch(){
     b.onclick = ()=>{
       closeNavSearch();
       closeSettings();
-      restoreHistory(c.id);
+      if(c.workspace) openWorkspace('discussions',c.id); else restoreHistory(c.id);
     };
     box.appendChild(b);
   });
@@ -259,21 +260,28 @@ function renderNav(){
 async function loadNav(){
   try{
     const r = await jget('/api/chat/history');
-    NAV.conversations = (r && r.conversations) || [];
+    const unified=await jget('/api/runtime/sessions');
+    const sessions=unified.ok?unified.sessions:[];
+    const imported=new Set(sessions.flatMap(s=>[s.source_archive,s.native_archive]).filter(Boolean));
+    NAV.conversations = [...sessions.map(s=>({...s,workspace:true})),...((r && r.conversations) || []).filter(c=>!imported.has(c.id))];
     NAV.projects = (r && r.projects) || [];
-    NAV.active = (r && r.active) || '';
+    const bound=sessions.find(s=>s.native_archive===r?.active&&s.runtime_id==='llama.cpp');
+    NAV.active = (typeof THREAD!=='undefined'&&THREAD.current?.id) || bound?.id || (r && r.active) || '';
     NAV.project_id = (r && r.project_id) || '';
   }catch(_){}
   renderNav();
+  if(typeof workspaceNavChanged==='function') workspaceNavChanged();
   const sm=document.getElementById('nav-search-modal');
   if(sm && !sm.hidden) renderNavSearch();
 }
 
 async function newChat(projectId){
+  THREAD.resumeID='';
   closeSettings();
   closeNavSearch();
   try{
-    await jfetch('/api/chat/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:projectId||''})});
+    const r=await jfetch('/api/chat/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:projectId||''})});
+    if(!r.ok){toast('Impossible de créer la discussion.');return;}
   }catch(_){}
   toast(projectId ? 'nouveau chat du projet' : 'nouvelle conversation');
   loadNav();
@@ -282,6 +290,7 @@ async function newChat(projectId){
 }
 
 async function createProjectUI(){
+  if(typeof editWorkspace==='function'){ editWorkspace('project'); return; }
   const name = await askPrompt('Nom du projet', {title:'Nouveau projet', okText:'Créer', placeholder:'ex. Docs'});
   if(name===null) return;
   let r; try{ r = await jpost('/api/projects', {name}); }catch(_){ toast('erreur réseau'); return; }
@@ -312,6 +321,7 @@ function leaveHubPreview(){
   if(typeof refreshSession==='function') refreshSession(true);
 }
 function showMainView(name){
+  if(typeof workspaceViewChanged==='function') workspaceViewChanged(name);
   const wasHub = document.documentElement.hasAttribute('data-hub');
   const chat = document.getElementById('chat-view');
   const set = document.getElementById('settings-view');
@@ -354,7 +364,7 @@ function showMainView(name){
   const nv = document.getElementById('nav-srv');
   const nb = document.getElementById('nav-bench');
   if(ns) ns.classList.toggle('active', name === 'settings');
-  if(nh) nh.classList.toggle('active', name === 'hub');
+  if(nh) nh.classList.toggle('active', name === 'hub' || name === 'models' || name === 'bench');
   if(nv) nv.classList.toggle('active', name === 'server');
   if(nb) nb.classList.toggle('active', name === 'bench');
   const keepParams = name === 'chat' || libHub;

@@ -1,13 +1,18 @@
-// Loom service worker — UNIQUEMENT les notifications Web Push.
-//
-// ⚠️ VOLONTAIREMENT sans cache ni handler `fetch` : ce worker ne fait QUE
-// recevoir les push du serveur et afficher la notification.
-//
-// Le SERVEUR (push.go) pousse à la fin d'un tour utilisateur, même app fermée /
-// iPhone verrouillé — c'est tout l'intérêt par rapport à une notif côté page.
-
-self.addEventListener('install', function(){ self.skipWaiting(); });
-self.addEventListener('activate', function(e){ e.waitUntil(self.clients.claim()); });
+// Cache only the public offline fallback and brand assets, NEVER the app HTML,
+// API, conversations, credentials, provider requests or SSE.
+const PWA_CACHE='loom-public-offline-v1';
+const PWA_ASSETS=['/offline.html','/icons/loom-192.png','/icons/loom-512.png'];
+self.addEventListener('install', function(e){e.waitUntil(caches.open(PWA_CACHE).then(c=>c.addAll(PWA_ASSETS)).then(()=>self.skipWaiting()));});
+self.addEventListener('activate', function(e){e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('loom-public-offline-')&&k!==PWA_CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
+self.addEventListener('fetch',function(e){
+  const url=new URL(e.request.url);
+  if(e.request.method!=='GET'||url.origin!==self.location.origin||url.search)return;
+  if(e.request.mode==='navigate'&&(url.pathname==='/'||url.pathname==='/index.html')){
+    e.respondWith(fetch(e.request).catch(()=>caches.match('/offline.html')));
+  }else if(PWA_ASSETS.includes(url.pathname)){
+    e.respondWith(caches.match(e.request).then(hit=>hit||fetch(e.request)));
+  }
+});
 
 self.addEventListener('push', function(e){
   var data = { title: 'Loom', body: 'Réponse prête' };

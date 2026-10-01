@@ -32,6 +32,7 @@ async function loadStatus(){
     el.innerHTML='<span class="dot"></span>'+txt;
   }
   syncEngineBar(s);
+  if(typeof workspaceStatusChanged==='function') workspaceStatusChanged(s);
   MODEL_READY = !!(s.active && s.health);
   if(typeof syncPickerLabel==='function') syncPickerLabel(s);
   if(typeof pendingModel!=='undefined' && pendingModel && s.health) pendingModel='';
@@ -214,6 +215,7 @@ function fmtCtxTokens(n){
 let REASON_EFFORT = null; // null = pas encore chargé
 function updateReasonBtn(eff){
   REASON_EFFORT = eff==null ? REASON_EFFORT : eff;
+  if(typeof threadSyncReason==='function')threadSyncReason();
   const e=(REASON_EFFORT||'').trim();
   const row=document.getElementById('p-reason-row');
   const sel=document.getElementById('p-reason-live');

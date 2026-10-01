@@ -1,24 +1,18 @@
 package loom
 
 import (
-	"bufio"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"os/exec"
-	"regexp"
-	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
 
 //go:generate go run ../../tools/assemble-ui ui
-//go:embed ui/index.html ui/marked.min.js ui/sw.js ui/manifest.webmanifest
+//go:embed ui/index.html ui/marked.min.js ui/sw.js ui/manifest.webmanifest ui/offline.html ui/fonts
 var uiFS embed.FS
 
 // cmdWeb starts the HTTP server on the given port (default 8091).
@@ -35,20 +29,14 @@ func cmdWeb(args []string) error {
 		}
 		port = n
 	}
-	mux := newWebMux()
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		// Port occupé : on identifie le process qui le tient et on propose de
-		// le terminer pour relancer à sa place.
-		if !resolvePortConflict(port) {
-			return err
-		}
-		if ln, err = net.Listen("tcp", addr); err != nil {
-			return err
-		}
+		return fmt.Errorf("impossible de démarrer Loom sur %s : %w (arrête le service qui occupe ce port ou choisis un autre port avec `loom web <port>`)", addr, err)
 	}
+	defer ln.Close()
+	mux := newWebMux()
 	fmt.Printf("[loom web] http://%s  (Ctrl-C pour arrêter)\n", addr)
 	if !webKeyConfigured() {
 		fmt.Printf("%s API de pilotage NON protégée (aucune clé). Avant de l'exposer sur internet :\n", yellow("[!]"))
@@ -74,6 +62,7 @@ func newWebMux() *http.ServeMux {
 	// Charge l'état de conversation persisté (une fois par process : loom web ET
 	// loom link serve appellent newWebMux).
 	convLoadOnce.Do(LoadConversation)
+	annotateLoadedNativeConversation(conv)
 	// Pré-chauffe les serveurs MCP en tâche de fond : sinon le handshake (plusieurs
 	// secondes pour un serveur lancé via npx) est payé par le premier message.
 	MCPPrewarm()
@@ -98,13 +87,16 @@ func newWebMux() *http.ServeMux {
 	// Pages publiques : le HTML et le JS ne contiennent aucun secret. Toute la
 	// donnée et toutes les actions passent par /api/* qui, lui, exige la clé.
 	mux.HandleFunc("/", handleIndex)
+	mux.HandleFunc("/next/", handleNext)
+	mux.HandleFunc("/next", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/next/", http.StatusFound) })
+	registerPWAAssets(mux)
 	mux.HandleFunc("/marked.min.js", func(w http.ResponseWriter, r *http.Request) {
 		b, _ := uiFS.ReadFile("ui/marked.min.js")
 		w.Header().Set("Content-Type", "application/javascript")
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		w.Write(b)
 	})
-	// Service worker + manifeste des notifications Web Push (voir push.go / sw.js).
+	// Service worker et manifeste PWA, avec notifications Web Push (push.go / sw.js).
 	// PUBLICS (aucun secret) et servis en clair à la RACINE : un service worker doit
 	// venir de l'origine même, et son scope est celui de son URL. no-store sur le SW
 	// pour qu'une mise à jour du worker soit toujours reprise (pas de cache figé).
@@ -124,6 +116,40 @@ func newWebMux() *http.ServeMux {
 	// api enregistre une route /api/* protégée par la clé de pilotage (web_auth.go).
 	api := func(path string, h http.HandlerFunc) { mux.HandleFunc(path, requireWebAuth(h)) }
 	api("/api/ping", handlePing)
+	api("/api/workspace", handleWorkspace)
+	api("/api/usage", handleUsage)
+	api("/api/usage/refresh", handleUsageRefresh)
+	api("/api/usage/price", handleUsagePrice)
+	api("/api/workspace/antigravity/connect", handleAgyConnect)
+	api("/api/workspace/codex/connect", handleCodexConnect)
+	api("/api/runtimes", handleACPRuntimes)
+	api("/api/runtime/sessions/approval", handleACPApproval)
+	api("/api/runtime/sessions/files", handleACPFiles)
+	api("/api/runtime/sessions/diff", handleACPDiff)
+	api("/api/fs/dirs", handleACPDirs)
+	api("/api/runtimes/{id}/connect", handleRuntimeConnect)
+	api("/api/runtimes/{id}/quota", handleRuntimeQuota)
+	api("/api/providers", handleProviders)
+	api("/api/providers/save", handleProviderSave)
+	api("/api/providers/models", handleProviderModels)
+	api("/api/providers/disconnect", handleProviderDisconnect)
+	api("/api/discussion/events", handleDiscussionEvents)
+	api("/api/runtime/sessions", handleRuntimeSessions)
+	api("/api/runtime/sessions/select", handleRuntimeSessionSelect)
+	api("/api/runtime/sessions/import", handleRuntimeSessionImport)
+	api("/api/runtime/sessions/local", handleRuntimeSessionLocal)
+	api("/api/runtime/sessions/configure", handleRuntimeSessionConfigure)
+	api("/api/runtime/sessions/preview", handleRuntimeSessionPreview)
+	api("/api/workspace/models/visibility", handleModelChoice)
+	api("/api/workspace/harnesses/save", handleHarnessProfileSave)
+	api("/api/runtime/sessions/create", handleRuntimeSessionCreate)
+	api("/api/runtime/sessions/send", handleRuntimeSessionSend)
+	api("/api/runtime/sessions/stop", handleRuntimeSessionStop)
+	api("/api/runtime/sessions/delete", handleRuntimeSessionDelete)
+	api("/api/projects/context", handleProjectContext)
+	api("/api/capabilities/save", handleCapabilitySave)
+	api("/api/capabilities/delete", handleCapabilityDelete)
+	api("/api/skills/targets", handleSkillSinks) // distribution des skills aux harnesses
 	api("/api/status", handleStatus)
 	api("/api/service/log", handleServiceLog) // journal du service pour diagnostiquer un modèle qui ne charge pas
 	api("/api/vram", handleVram)
@@ -190,13 +216,13 @@ func newWebMux() *http.ServeMux {
 	api("/api/mem", handleMem)
 	api("/api/mem/save", handleMemSave)
 	api("/api/mem/delete", handleMemDelete)
-	api("/api/mem/health", handleMemHealth)         // état chiffrement/verrou/pages/snapshots
-	api("/api/mem/encrypt", handleMemEncrypt)       // active le chiffrement (renvoie la clé de récupération)
-	api("/api/mem/decrypt", handleMemDecrypt)       // remet la mémoire en clair
-	api("/api/mem/unlock", handleMemUnlock)         // déverrouille (mot de passe ou clé de récupération)
-	api("/api/mem/addkey", handleMemAddKey)         // ajoute un wrap (ex. clé d'API) au coffre déjà ouvert
-	api("/api/mem/lock", handleMemLock)             // reverrouille (purge la DEK de la RAM)
-	api("/api/mem/snapshots", handleMemSnapshots)   // liste + restauration des snapshots locaux
+	api("/api/mem/health", handleMemHealth)       // état chiffrement/verrou/pages/snapshots
+	api("/api/mem/encrypt", handleMemEncrypt)     // active le chiffrement (renvoie la clé de récupération)
+	api("/api/mem/decrypt", handleMemDecrypt)     // remet la mémoire en clair
+	api("/api/mem/unlock", handleMemUnlock)       // déverrouille (mot de passe ou clé de récupération)
+	api("/api/mem/addkey", handleMemAddKey)       // ajoute un wrap (ex. clé d'API) au coffre déjà ouvert
+	api("/api/mem/lock", handleMemLock)           // reverrouille (purge la DEK de la RAM)
+	api("/api/mem/snapshots", handleMemSnapshots) // liste + restauration des snapshots locaux
 	api("/api/switch", handleSwitch)
 	api("/api/load-model", handleLoadModel)         // charge un .gguf sans preset
 	api("/api/unload", handleUnload)                // décharge modèle/preset et arrête le moteur Loom
@@ -204,6 +230,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/naked/remember", handleNakedRemember) // souvenir par .gguf pour le prochain chargement nu
 	api("/api/naked/defaults", handleNakedDefaults) // défauts GGUF d'un modèle nu
 	api("/api/llama-flags", handleLlamaFlags)       // catalogue llama-server --help
+	api("/api/engine/params", handleEngineParams)   // curated controls merged with installed help
 	api("/api/model-caps", handleModelCaps)         // vision / raisonnement natifs d'un GGUF
 	api("/api/estimate", handleEstimate)            // estimation VRAM (panneau / presets / alerte)
 	api("/api/start", svcHandler("start"))
@@ -243,126 +270,16 @@ func newWebMux() *http.ServeMux {
 	return mux
 }
 
-// resolvePortConflict identifies the process listening on `port`, asks the user
-// whether to terminate it, and (on yes) kills it and waits for the port to free.
-// Returns true if the caller should retry binding.
-func resolvePortConflict(port int) bool {
-	pid, name := pidOnPort(port)
-	if pid == 0 {
-		fmt.Printf("%s port %d déjà utilisé, mais le process n'a pas pu être identifié (essaie en root ?)\n", red("[err]"), port)
-		return false
-	}
-	fmt.Printf("%s le port %d est déjà utilisé par %s (PID %d).\n", yellow("[!]"), port, bold(name), pid)
-	fmt.Print(dim("    terminer ce process et relancer ? [Y/n] "))
-	sc := bufio.NewScanner(os.Stdin)
-	if sc.Scan() && strings.HasPrefix(strings.ToLower(strings.TrimSpace(sc.Text())), "n") {
-		fmt.Println(dim("    annulé."))
-		return false
-	}
-	// Arrêt poli d'abord, puis forcé si le port ne se libère pas.
-	killPid(pid, false)
-	for i := 0; i < 15; i++ {
-		time.Sleep(200 * time.Millisecond)
-		if p, _ := pidOnPort(port); p == 0 {
-			fmt.Printf("%s process %d terminé, redémarrage…\n", green("[ok]"), pid)
-			return true
-		}
-	}
-	killPid(pid, true)
-	time.Sleep(500 * time.Millisecond)
-	if p, _ := pidOnPort(port); p != 0 {
-		fmt.Printf("%s impossible de libérer le port %d (PID %d toujours présent)\n", red("[err]"), port, p)
-		return false
-	}
-	fmt.Printf("%s process %d terminé (forcé), redémarrage…\n", green("[ok]"), pid)
-	return true
-}
-
-// killPid termine un process : kill TERM/KILL sous Unix, taskkill sous Windows
-// (où il n'existe pas d'arrêt « poli » générique — taskkill sans /F échoue sur
-// les process console, donc le second essai passe en forcé).
-func killPid(pid int, force bool) {
-	if runtime.GOOS == "windows" {
-		args := []string{"/PID", strconv.Itoa(pid)}
-		if force {
-			args = append(args, "/F")
-		}
-		_ = hideCmd(exec.Command("taskkill", args...)).Run()
+// handleIndex sert la nouvelle interface à la racine ; l'ancienne reste
+// disponible sous /classic pendant la transition.
+func handleIndex(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = "/next/"
+		handleNext(w, r2)
 		return
 	}
-	sig := "-TERM"
-	if force {
-		sig = "-KILL"
-	}
-	_ = exec.Command("kill", sig, strconv.Itoa(pid)).Run()
-}
-
-// pidOnPort returns the PID and command name of the process listening on the
-// given TCP port, via `ss` (Linux) with an `lsof` fallback, or `netstat -ano`
-// on Windows. Returns 0 if none is found or if the tools can't see it (e.g.
-// owned by another user).
-func pidOnPort(port int) (int, string) {
-	if runtime.GOOS == "windows" {
-		// netstat -ano : "  TCP    0.0.0.0:8090   0.0.0.0:0   LISTENING   1234"
-		out, err := hideCmd(exec.Command("netstat", "-ano", "-p", "tcp")).Output()
-		if err != nil {
-			return 0, ""
-		}
-		suffix := ":" + strconv.Itoa(port)
-		for _, line := range strings.Split(string(out), "\n") {
-			f := strings.Fields(line)
-			if len(f) >= 5 && f[0] == "TCP" && strings.HasSuffix(f[1], suffix) && f[3] == "LISTENING" {
-				if pid, err := strconv.Atoi(f[4]); err == nil && pid > 0 {
-					return pid, processName(pid)
-				}
-			}
-		}
-		return 0, ""
-	}
-	redir := regexp.MustCompile(`pid=(\d+)`)
-	if out, err := exec.Command("ss", "-ltnHp", fmt.Sprintf("sport = :%d", port)).Output(); err == nil {
-		if m := redir.FindStringSubmatch(string(out)); m != nil {
-			pid, _ := strconv.Atoi(m[1])
-			return pid, processName(pid)
-		}
-	}
-	if out, err := exec.Command("lsof", "-ti", fmt.Sprintf("tcp:%d", port), "-sTCP:LISTEN").Output(); err == nil {
-		for _, line := range strings.Fields(string(out)) {
-			if pid, err := strconv.Atoi(strings.TrimSpace(line)); err == nil {
-				return pid, processName(pid)
-			}
-		}
-	}
-	return 0, ""
-}
-
-// processName returns a short command name for a PID, or "?" if unknown.
-func processName(pid int) string {
-	if runtime.GOOS == "windows" {
-		// tasklist CSV : "loom.exe","1234","Console","1","12 345 K"
-		out, err := hideCmd(exec.Command("tasklist", "/FI", "PID eq "+strconv.Itoa(pid), "/FO", "CSV", "/NH")).Output()
-		if err == nil {
-			if f := strings.SplitN(strings.TrimSpace(string(out)), "\",\"", 2); len(f) == 2 {
-				return strings.TrimPrefix(f[0], "\"")
-			}
-		}
-		return "?"
-	}
-	if b, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid)); err == nil {
-		if n := strings.TrimSpace(string(b)); n != "" {
-			return n
-		}
-	}
-	if out, err := exec.Command("ps", "-o", "comm=", "-p", strconv.Itoa(pid)).Output(); err == nil {
-		if n := strings.TrimSpace(string(out)); n != "" {
-			return n
-		}
-	}
-	return "?"
-}
-
-func handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+	if r.URL.Path != "/classic" && r.URL.Path != "/classic/" {
 		http.NotFound(w, r)
 		return
 	}

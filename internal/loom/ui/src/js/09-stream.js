@@ -186,8 +186,10 @@ function finalizeTurn(elapsedMs){
   const parts=[];
   if(elapsedMs>0) parts.push(fmtElapsed(elapsedMs/1000));
   if(tok>0){ parts.push(fmtTok(tok)+' tok'); if(rate!=null) parts.push(rate.toFixed(1)+' tok/s'); }
-  if(!parts.length){ removeGenEl(); scrollMaybe(true); return; }
-  const g=ensureGenEl(); g.querySelector('.gtxt').textContent=parts.join('  ·  ');
+  const provenance=T.runtimeTurn;
+  const summary=T.portableText||provenance?.runtime_id&&provenance.runtime_id!=='llama.cpp'?threadTurnSummary(provenance):[threadProvenance(provenance),...parts,...(provenance?.runtime_id==='llama.cpp'?['Sans coût API']:[])].join(' · ');
+  const g=ensureGenEl(); g.querySelector('.gtxt').textContent=summary;
+  if(provenance?.runtime_id&&provenance.runtime_id!=='llama.cpp'&&T.contentEl){let details=T.contentEl.querySelector(':scope > .turn-metadata');if(!details){details=document.createElement('div');details.className='turn-metadata';T.contentEl.appendChild(details);}details.innerHTML=threadTurnDetails(provenance);}
   GENEL=null;
   scrollMaybe(true); // révèle la fin (et cette ligne) même sur un fil à peine défilable
 }
@@ -272,12 +274,13 @@ function labelTokens(el, role, n, firstTs, lastTs){
 // Pendant le replay on met à jour l'état `busy` mais on NE touche PAS aux boutons
 // (sinon user→stop puis turn_done→send à chaque tour rejoué = flottement visible).
 // L'état final est appliqué une seule fois au caught_up via syncSendBtn().
-function setBusy(on){ busy=on; if(!REPLAYING) syncSendBtn(); }
+function setBusy(on){ busy=on; if(!REPLAYING) syncSendBtn(); if(typeof threadSyncReason==='function')threadSyncReason(); }
 // RUNNING_TASK = nom de la tâche de fond qui occupe le moteur (vide = un tour
 // utilisateur normal). Sert à distinguer les deux dans le bouton stop : sinon une
 // tâche qui tourne fait croire à l'utilisateur qu'il génère lui-même.
 let RUNNING_TASK='';
 function syncSendBtn(){
+  if(typeof threadOwnsChat==='function'&&threadOwnsChat()){threadSyncSend();return;}
   const sb=document.getElementById('send');
   const stop=document.getElementById('stop');
   if(sb) sb.hidden = !!busy;
@@ -377,6 +380,7 @@ function feedBlock(el, full){ if(REPLAYING) scheduleRender(el, full); else smoot
 // Traite UN événement du flux — même sémantique que l'ancien switch inline, mais
 // piloté par le serveur et rejouable à l'identique.
 function handleDelta(d){
+  if(typeof threadOwnsChat==='function'&&threadOwnsChat())return;
   if(typeof d.seq==='number' && d.seq>lastSeq) lastSeq=d.seq;
   if(d.caught_up){
     smoothSnap(); flushRender(); // rendre le dernier bloc rejoué à sa valeur exacte
@@ -417,12 +421,14 @@ function handleDelta(d){
     newTurn();
     let el=PENDING;
     if(!confirmPending(d.user)) el=addMsg('user', d.user);
+    if(d.portable_text&&el)el._plain=true;
     // Pièces jointes du tour : rendues DANS la bulle. La bulle en attente en
     // porte déjà (posées à l'envoi), on ne les ajoute donc qu'au replay/à une
     // bulle neuve — sinon elles apparaîtraient en double.
     if(d.files && !hasMsgFiles(el)) addMsgFiles(el, d.files);
     TURN_ENDED=false; setBusy(true); T.typingEl=addTyping(); elapsedStart(); if(typeof loadNav==='function') loadNav(); return; }
   if(d.turn_done){ TURN_ENDED=true; smoothSnap(); flushRender();
+    T.runtimeTurn=d.runtime_turn||null;
     // MÊME ligne en direct et au replay : durée serveur (elapsed_ms, rejouée) +
     // mesures serveur. removeTyping AVANT finalize pour que la ligne soit bien le
     // dernier enfant du fil (donc sous le message).
@@ -502,6 +508,7 @@ function handleDelta(d){
   if(d.content){
     removeTyping();
     if(!T.contentEl){ setActive(null); collapseAll(T.turnCollapsibles); T.contentEl=addMsg('assistant',''); T.fullContent=''; }
+    if(d.portable_text){T.contentEl._plain=true;T.portableText=true;}
     if(d.replace){ smoothSnap(); T.fullContent=''; T.contentTok=0; T.contentFirstTs=0; }
     T.fullContent+=d.content; feedBlock(T.contentEl, T.fullContent);
     if(!T.contentFirstTs) T.contentFirstTs=d.ts0||d.ts||0; T.contentLastTs=d.ts||T.contentLastTs; T.contentTok+=(d.toks||1);
@@ -529,7 +536,7 @@ document.addEventListener('visibilitychange', ()=>{
 async function connectStream(){
   while(true){
     // Onglet en arrière-plan : on n'ouvre aucune connexion, on attend le retour.
-    while(document.hidden){ await new Promise(res=>setTimeout(res, 500)); }
+    while(document.hidden||(typeof threadOwnsChat==='function'&&threadOwnsChat())){ await new Promise(res=>setTimeout(res, 500)); }
     streamAbort=new AbortController();
     try{
       const r=await jfetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:lastSeq}),signal:streamAbort.signal});
@@ -551,19 +558,21 @@ async function connectStream(){
     // Le flux s'est arrêté (coupure ou fin prématurée). Si le fil n'a JAMAIS fini
     // de charger, le silence est trompeur — un chat vide sans explication. On le
     // dit dans le voile ; il disparaîtra au {caught_up} de la reconnexion.
-    if(REPLAYING) setChatLoading('connexion au serveur…');
+    if(REPLAYING&&!(typeof threadOwnsChat==='function'&&threadOwnsChat())) setChatLoading('connexion au serveur…');
     await new Promise(res=>setTimeout(res, 600));
   }
 }
 // Interrompt la génération en cours côté serveur (la goroutine détachée est
 // annulée). Le serveur émet alors turn_done → le bouton repasse en « send ».
-function stopGen(){ jfetch('/api/chat/stop',{method:'POST'}).catch(()=>{}); toast('stop'); }
+function stopGen(){if(typeof threadOwnsChat==='function'&&threadOwnsChat())return threadStop();jfetch('/api/chat/stop',{method:'POST'}).catch(()=>{});toast('stop');}
 // Recale l'état du bouton sur la vérité serveur. Ne touche à rien pendant le replay
 // initial (l'état final y est posé au caught_up) ni si l'appel échoue : dans le
 // doute on garde ce que les événements ont déjà établi.
 async function reconcileBusy(){
+  if(typeof threadOwnsChat==='function'&&threadOwnsChat())return;
   try{
     const s=await (await jfetch('/api/chat/state')).json();
+    if(typeof threadOwnsChat==='function'&&threadOwnsChat())return;
     const rt = s.running_task || '';
     if(rt !== RUNNING_TASK){ RUNNING_TASK = rt; if(!REPLAYING) syncSendBtn(); }
     if(typeof s.generating==='boolean' && s.generating!==busy) setBusy(s.generating);
@@ -688,6 +697,8 @@ document.addEventListener('keydown', e=>{
 });
 
 async function send(){
+  if(navigator.onLine===false){toast('Appareil hors ligne : votre brouillon est conservé.');return;}
+  if(typeof threadOwnsChat==='function'&&threadOwnsChat())return threadSend();
   if(busy) return;
   // Garde-fou : le bouton est déjà désactivé, mais l'Entrée passe aussi par ici.
   if(STATUS_SEEN && !MODEL_READY){ toast('le modèle n\'est pas encore prêt'); return; }

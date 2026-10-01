@@ -4,18 +4,24 @@ This file is public repository guidance for maintainers and AI agents. Inspect t
 
 ## Product boundaries
 
-Loom is a workstation control plane, OpenAI-compatible proxy, and test bench for llama.cpp. It operates a single owned `llama-server` process without vendoring or reimplementing llama.cpp. Conversations, settings, presets, and model files reside strictly on the local machine. Telemetry, external cloud dependencies, and unmanaged process killing are strictly out of bounds.
+Loom is a conversation-first, local-first AI workspace. A discussion owns its portable transcript and project context independently of the model or harness chosen for a turn. Do not split discussions into local/cloud products. Models owns the local library/Hub, providers, cloud models and selector visibility; Harnesses owns adapter configurations and model associations. The common path supports llama.cpp, configured Chat Completions providers and experimental Antigravity and Codex text bridges. Other harness execution and terminals remain unimplemented. Antigravity uses its own CLI/account catalog; do not export provider keys, change native global permissions or claim arbitrary-model compatibility. Read `docs/architecture-principles.md` and `docs/architecture.md` before changing runtime or product structure; agents continuing implementation follow `docs/agents/implementation-brief.md`. The visual design of `ui/next` (CSS, tokens, layout of existing screens) is owned by the design owner: reuse existing components, do not restyle, and see `docs/workspace-architecture.md`. Loom owns one external `llama-server` without reimplementing it; a router-capable engine is started once and models load through its API (`backend_router.go`), never by restarting the engine. External selection requires explicit confirmation before sharing transcript/context. Runtime-private memory, approvals and tool state are not portable. Catalog/connection/quota actions dispatch through the registry in `workspace_runtime.go` and optional `Connectable`/`QuotaReader` interfaces. Native account reads remain explicit; planned descriptors have empty capabilities. Do not build a parallel memory engine. Telemetry and unmanaged process killing remain out of bounds.
 
 ## Development
+
+Preserve the original discussion/composer and complete local parameters. The one original sidebar adapts to local, cloud or harness state; unsupported harness profiles remain non-executable previews. Do not reintroduce a second simplified chat or a redundant header. Common local discussions bind to the existing Conversation pipeline through workspace_native.go. External portability remains text-only. Usage snapshots distinguish account windows, retained Loom token counts and manual-price estimates; missing data is unknown, not zero. Refresh never starts generation or redeems resets.
 
 - Setup requires Go 1.25+ and a functional `llama-server` or llama.cpp build.
 - Build the binary with `make build` (assembles embedded UI into `internal/loom/ui/index.html` and compiles `bin/loom`).
 - Run the web dashboard in development with `make web` or `./bin/loom web 8091`.
 - Run validation tests with `make test` or `go test -short ./...`.
+- UI regression tests: `node --test internal/loom/ui/tests/*.test.mjs` (Node required only for this test command).
+- Reasoning families are a UI projection of discovered native IDs, not invented runtime models. Keep per-response provenance in the display journal and out of model-visible context; unknown historical metrics stay unknown. AGY average output-token throughput is not llama.cpp decode throughput. Never reconstruct hidden reasoning or claim a file diff from a reported write target.
 - Rebuild UI assets with `make assemble-ui` after modifying files in `internal/loom/ui/src/`.
+- The default interface is `internal/loom/ui/next/`: native ES modules with vendored Preact + htm, no build step, served at `/` (and `/next/`). Edit its files directly and rebuild the binary; styles live in `ui/next/css/`, the conversation engine in `ui/next/js/chat/engine.js`. Model output is rendered through `chat/md.js`, which escapes raw HTML. The previous interface remains at `/classic` during the transition and still uses `ui/src/` + `make assemble-ui`.
 
 ## Repository expectations
 
+- PWA caching is restricted to the public offline fallback and listed brand icons. Never cache conversation HTML/JSON, credentials, API/SSE traffic or queued sends. Installing on a non-loopback host requires a secure browser context; LAN HTTP is a preview, not an installability guarantee.
 - Update tests, `README.md`, focused docs and `CHANGELOG.md` when public workflows, API endpoints or CLI flags change.
 - Never commit model files (`*.gguf`), local database state, `.env` values, private machine paths or logs.
 - Follow `CONTRIBUTING.md` for pull requests and `SECURITY.md` for vulnerabilities.

@@ -1,5 +1,5 @@
 // ===== Apparence =============================================================
-// Un seul thème, en deux variantes : claire (par défaut) et sombre. La variante
+// Un seul thème, en deux variantes : sombre (par défaut) et claire. La variante
 // est portée par l'attribut data-theme de <html> ('' ou 'dark') ; tout le reste
 // est du CSS (voir la section « Palette »). Persistée dans localStorage pour
 // être appliquée sans clignotement au chargement, puis alignée sur le serveur
@@ -9,6 +9,7 @@ function applyTheme(id){
   // désormais la variante, déduite du suffixe.
   const dark = id==='dark' || (typeof id==='string' && id.endsWith('-dark'));
   document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+  const chrome=document.getElementById('app-theme-color');if(chrome)chrome.content=dark?'#131312':'#f6f5f2';
   try{ localStorage.setItem('loom-theme', dark?'dark':'light'); }catch(e){}
   const sw=document.getElementById('theme-dark'); if(sw) sw.checked=dark;
 }
@@ -17,7 +18,7 @@ function toggleThemeDark(){
   savePrefs();
 }
 function initTheme(){
-  let id='light'; try{ id=localStorage.getItem('loom-theme')||'light'; }catch(e){}
+  let id='dark'; try{ id=localStorage.getItem('loom-theme')||'dark'; }catch(e){}
   applyTheme(id);
 }
 // ===== Affichage ============================================================

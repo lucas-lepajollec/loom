@@ -39,6 +39,7 @@
     const dialog = document.createElement('dialog');
     dialog.className = 'lh-demo-dialog';
     dialog.id = 'lh-demo-modal';
+    dialog.setAttribute('aria-labelledby', 'lh-demo-title');
     dialog.innerHTML = `
       <div class="lh-demo-dialog-content">
         <div class="lh-demo-badge">
@@ -46,7 +47,7 @@
           <span>DÉMONSTRATION PUBLIQUE ISOLÉE</span>
         </div>
 
-        <h2 class="lh-demo-title">Testez l'interface station de travail Loom, sans aucun démon local.</h2>
+        <h2 class="lh-demo-title" id="lh-demo-title" tabindex="-1">Testez l'interface station de travail Loom, sans aucun démon local.</h2>
         <p class="lh-demo-body">
           Ceci est un aperçu interactif de <strong>Loom</strong>. La recherche de modèles, le téléchargement, l'inférence et les benchmarks sont simulés dans votre navigateur. Aucun vrai modèle n'est téléchargé, aucun moteur local n'est lancé et aucun GPU physique n'est requis.
         </p>
@@ -80,7 +81,7 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             <span>Réinitialiser</span>
           </button>
-          <button type="button" class="lh-demo-btn-continue" id="lh-demo-modal-continue" autofocus>
+          <button type="button" class="lh-demo-btn-continue" id="lh-demo-modal-continue">
             <span>Accéder à la démo</span>
           </button>
         </div>
@@ -116,6 +117,10 @@
     const openModal = () => {
       chip.classList.add('invisible');
       dialog.showModal();
+      // On a narrow screen the actions sit below the scrollable introduction.
+      // Focus the heading instead of jumping straight to the bottom button.
+      dialog.querySelector('#lh-demo-title').focus({ preventScroll: true });
+      dialog.scrollTop = 0;
     };
 
     document.getElementById('lh-demo-modal-continue').addEventListener('click', closeModal);

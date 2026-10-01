@@ -8,27 +8,24 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Loom">
+<meta name="theme-color" content="#131312" id="app-theme-color">
 <title>Loom</title>
-<!-- Favicon tissage Loom + icône PWA. SVG inline ; PNG 180×180 en data-URI pour
-     apple-touch-icon (iOS n'accepte pas le SVG). Aucun fichier externe requis. -->
+<!-- Favicon vectoriel ; icône Apple PNG servie depuis la marque canonique. -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230d0d0d'/><g fill='none' stroke='%23f4f1ea' stroke-width='1.35' stroke-linecap='round'><path d='M3 5.5h10M3 8h10M3 10.5h10'/><path d='M5.5 3v10M8 3v10M10.5 3v10'/></g></svg>">
-<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABBUlEQVR42u3SAQkAAAwCQfuX3lI4GNxF0E8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIArU2NbcYhDHOIQhzgQB+JAHIgDcSAOxIE4xCEOcYhDHIgDcSAOxIE4EAfiQBziEIc4xCEOcYgDcSAOxIE4EAfiQBziEIc4xCEOcYgDcSAOxIE4EAfiQByIQxziEIc4xIE4EAfiQByIA3EgDsQhDnGIQxziEIc4EAfiQByIAxciDsSBOBAH4kAc4hCHOMQhDnGIA3EgDsSBOBAH4kAc4hCHOMQhDnGIA3EgDsSBOBAH4kAciEMc4hCHOMQBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADfLBHMhi4TnG6EAAAAAElFTkSuQmCC">
+<link rel="apple-touch-icon" href="/icons/loom-180.png">
 <!-- Manifeste PWA (installabilité Android/desktop + Web Push). iOS s'appuie sur
      les métas apple-* ci-dessus ; le manifeste ne le gêne pas. Servi à la racine
      (web_server.go, page à la racine). -->
-<link rel="manifest" href="manifest.webmanifest">
-<!-- Marque le mode PWA AVANT le rendu : la hauteur de coque et le défilement du
-     document en dépendent (voir styles.css). ⚠️ On NE PEUT PAS se fier au média
-     `display-mode:standalone` : WebKit l'adosse au `display` du MANIFESTE, or cette
-     app n'en a pas (elle est en `apple-mobile-web-app-capable`) — en PWA iOS il
-     répond donc `browser`. `navigator.standalone` est le signal juste ici ; on
-     garde `display-mode` en second pour les PWA Android/desktop à manifeste. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<!-- Mode installé avant le rendu : navigator.standalone pour Safari iOS,
+     display-mode pour les navigateurs qui utilisent le manifeste. -->
 <script>try{var pwa=(window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode:standalone)').matches)||(window.matchMedia&&window.matchMedia('(display-mode:fullscreen)').matches);document.documentElement.setAttribute('data-pwa',pwa?'1':'0');}catch(e){document.documentElement.setAttribute('data-pwa','0');}</script>
 <!-- Applique le thème AVANT le rendu (pas de flash) : lit le choix persisté. -->
-<script>try{var t=localStorage.getItem('loom-theme')||'light';document.documentElement.setAttribute('data-theme',(t==='dark'||t.endsWith('-dark'))?'dark':'light');['hide-reasoning','hide-tools','fold-tools','hide-side'].forEach(function(k){document.documentElement.setAttribute('data-'+k,localStorage.getItem('loom-'+k)==='1'?'1':'0')});document.documentElement.setAttribute('data-side-collapsed',localStorage.getItem('loom-side-collapsed')==='1'?'1':'0')}catch(e){document.documentElement.setAttribute('data-theme','light');}</script>
+<script>try{var t=localStorage.getItem('loom-theme')||'dark';document.documentElement.setAttribute('data-theme',(t==='dark'||t.endsWith('-dark'))?'dark':'light');['hide-reasoning','hide-tools','fold-tools','hide-side'].forEach(function(k){document.documentElement.setAttribute('data-'+k,localStorage.getItem('loom-'+k)==='1'?'1':'0')});document.documentElement.setAttribute('data-side-collapsed',localStorage.getItem('loom-side-collapsed')==='1'?'1':'0')}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
 <style>
 @@CSS@@
 </style></head><body>
+<div id="app-network-status" role="status" hidden>Appareil hors ligne · aucun message envoyé</div>
 <button id="menubtn" onclick="toggleSide()" title="Menu" aria-label="Menu">
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
 </button>
@@ -60,20 +57,21 @@
   <div id="model-err" style="display:none;font-size:11px;line-height:1.5;margin:0 0 10px;padding:8px 10px;border-radius:8px;color:var(--err);border:1px solid color-mix(in srgb,var(--err) 45%,transparent);background:color-mix(in srgb,var(--err) 12%,transparent)"></div>
   <!-- Journal du moteur : replié par défaut, ouvert au clic sur la pastille d'état.
        C'est le seul endroit où l'on voit pourquoi un modèle refuse de charger. -->
-  <nav class="sidenav" id="sidenav">
+  <button type="button" class="ws-new" onclick="newChat()"><span>+</span> Nouvelle discussion</button>
+  <nav class="sidenav" id="sidenav" aria-label="Navigation principale">
     <button type="button" class="nav-item" id="nav-new" onclick="newChat()">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-      <span class="nav-label">Nouveau chat</span>
+      <span class="nav-label">Discussions</span>
     </button>
     <button type="button" class="nav-item" id="nav-hub" onclick="openLibrary()" title="Modèles">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
       <span class="nav-label">Modèles</span>
     </button>
-    <button type="button" class="nav-item" id="nav-srv" onclick="openServer()" title="Serveur">
+    <button type="button" class="nav-item" id="nav-srv" onclick="openServer()" title="Serveur" hidden>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01M6 17h.01"/></svg>
       <span class="nav-label">Serveur</span>
     </button>
-    <button type="button" class="nav-item" id="nav-bench" onclick="openBench()" title="Bench">
+    <button type="button" class="nav-item" id="nav-bench" onclick="openBench()" title="Bench" hidden>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20V8"/></svg>
       <span class="nav-label">Bench</span>
     </button>
@@ -85,6 +83,7 @@
       <div id="nav-projects"></div>
     </div>
     <div class="nav-section nav-chats-sec">
+      <div class="nav-section-h"><span>Récents</span></div>
       <div id="nav-chats"></div>
     </div>
   </nav>
@@ -144,6 +143,12 @@
           </div>
           <div id="model-menu-presets"></div>
         </div>
+        <div class="mpick-sec" id="model-menu-cloud-section" hidden>
+          <div class="mpick-h">Cloud</div><div id="model-menu-cloud"></div>
+        </div>
+        <div class="mpick-sec" id="model-menu-harness-section" hidden>
+          <div class="mpick-h">Harnesses</div><div id="model-menu-harness"></div>
+        </div>
       </div>
     </div>
     <div class="chat-head-acts" id="chat-head-acts">
@@ -193,6 +198,13 @@
             <button type="button" id="tool-mcp" class="toolchip" role="menuitemcheckbox" onclick="toggleChatTool('mcp')" aria-pressed="false" title="Outils MCP pour ce chat"><span class="tool-check" aria-hidden="true"></span>MCP</button>
           </div>
         </div>
+        <button type="button" id="usage-btn" class="cbtn" onclick="openUsage()" title="Usage et quotas" aria-label="Usage et quotas" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 18a9 9 0 1 1 16 0M12 13l4-5M5 18h14"/><circle cx="12" cy="13" r="1"/></svg>
+        </button>
+        <label id="composer-reason" class="composer-reason" hidden title="Niveau de réflexion du modèle sélectionné">
+          <span aria-hidden="true">Réflexion</span>
+          <select id="composer-reason-select" aria-label="Niveau de réflexion" onchange="threadPickReason(this.value)"></select>
+        </label>
         <button type="button" id="mic-btn" class="cbtn" onclick="toggleMic()" title="Dictée" aria-label="Dictée" aria-pressed="false">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
         </button>
@@ -256,7 +268,9 @@
     <div class="params-acts params-acts-foot">
       <button type="button" class="pe-btn" id="params-reset-btn" hidden onclick="resetNakedDefaults()">Remettre les défauts du modèle</button>
     </div>
+    <details id="params-context" hidden><summary>Contexte de la discussion</summary><div id="params-context-body"></div></details>
   </div>
+  <div id="params-runtime" hidden></div>
 </aside>
 
 <div id="activity-popover" class="act-popover" hidden>
@@ -323,6 +337,26 @@
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
 </button>
 
+<main class="main ws-view" id="workspace-view" hidden>
+  <div class="ws-scroll" id="ws-scroll">
+    <div class="ws-content">
+      <div class="ws-page-heading"><div><p class="ws-eyebrow" id="ws-kicker"></p><h1 id="ws-title" tabindex="-1"></h1><p id="ws-description"></p></div><div id="ws-actions"></div></div>
+      <div id="ws-body" aria-live="polite"></div>
+    </div>
+  </div>
+</main>
+<dialog id="ws-editor" class="ws-dialog" aria-labelledby="ws-editor-title">
+  <form id="ws-editor-form">
+    <div class="ws-dialog-head"><div><p class="ws-eyebrow" id="ws-editor-kicker"></p><h2 id="ws-editor-title"></h2></div><button type="button" class="ws-icon-button" onclick="closeWorkspaceEditor()" aria-label="Fermer">×</button></div>
+    <div id="ws-editor-fields" class="ws-editor-fields"></div>
+    <p id="ws-editor-error" class="ws-error" role="alert" hidden></p>
+    <div class="ws-dialog-foot"><span id="ws-editor-note">Enregistré sur cette machine</span><button type="button" class="ws-button" onclick="closeWorkspaceEditor()">Annuler</button><button type="submit" class="ws-button primary" id="ws-editor-save">Enregistrer</button></div>
+  </form>
+</dialog>
+<dialog id="thread-preview" class="ws-dialog thread-preview" aria-labelledby="thread-preview-title">
+  <div class="ws-dialog-head"><div><p class="ws-eyebrow">Vérification locale · aucun envoi</p><h2 id="thread-preview-title">Texte préparé pour le modèle</h2></div><button type="button" id="thread-preview-close" class="ws-icon-button" aria-label="Fermer l’aperçu">×</button></div>
+  <div id="thread-preview-content" class="ws-editor-fields"></div>
+</dialog>
 <div class="main" id="settings-view" hidden>
   <div class="set-head">
     <button type="button" class="set-back head-nav" onclick="settingsBack()" title="Retour" aria-label="Retour">
@@ -458,6 +492,8 @@
     </div>
   </details>
   <details data-set="apparence"><summary><span class="stitle">Apparence</span></summary>
+    <div class="subhead">Application</div>
+    <div class="slist"><div class="rowbody pwa-install-row"><div><strong>Installer Loom</strong><p id="pwa-install-status" class="set-note"></p></div><button type="button" id="pwa-install" hidden>Installer</button></div></div>
     <div class="slist">
       <label class="switchrow"><span>Mode sombre</span>
         <span class="switch"><input type="checkbox" id="theme-dark" onchange="toggleThemeDark()"><span class="slider"></span></span>
@@ -760,6 +796,7 @@
       <input id="hub-q" type="search" placeholder="Recherche" autocomplete="off" oninput="hubOnQuery()" aria-label="Recherche">
     </form>
     <div class="hub-head-acts" id="hub-head-acts">
+      <button type="button" class="hub-switch" onclick="openBench()">Bench</button>
       <button type="button" class="hub-switch" id="hub-switch" onclick="hubTogglePlace()">Télécharger en ligne</button>
     </div>
     <div class="hub-filters" id="hub-filters"></div>
@@ -885,7 +922,7 @@
   </div>
 </div>
 <div id="ask-modal" class="ask-overlay" style="display:none" onclick="if(event.target===this)askResolve(false)">
-  <div class="ask-box">
+  <div class="ask-box" role="dialog" aria-modal="true" aria-labelledby="ask-title" aria-describedby="ask-msg">
     <div id="ask-title" class="ask-title"></div>
     <div id="ask-msg" class="ask-msg"></div>
     <input id="ask-input" class="ask-input" style="display:none">
@@ -1091,7 +1128,7 @@
     </div>
   </div>
 </div>
-<script src="marked.min.js"></script>
+<script src="/marked.min.js"></script>
 <script>
 @@JS@@
 </script></body></html>

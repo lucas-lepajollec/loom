@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // binSupportsReasoningFlag dit si ce llama-server accepte « --reasoning ».
@@ -40,7 +41,38 @@ func cmdServe(args []string) error {
 	defer shutdownOwnedLlamaSupervisor()
 
 	model := strings.TrimSpace(cfg["MODEL"])
-	if model != "" {
+	if engineBin := resolvedEngineBin(); routerWanted(engineBin) {
+		// Mode router : le moteur démarre une fois, sans modèle ; les modèles se
+		// chargent ensuite par son API, sans jamais relancer ce process.
+		setLibraryPath(filepath.Dir(engineBin))
+		if v := cfg["CUDA_VISIBLE_DEVICES"]; v != "" {
+			_ = os.Setenv("CUDA_VISIBLE_DEVICES", v)
+			_ = os.Setenv("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
+		}
+		if err := ensureRouterINI(); err != nil {
+			return fmt.Errorf("presets du router : %w", err)
+		}
+		rArgs := routerServerArgs(engineBin)
+		fmt.Fprintf(os.Stderr, "[loom serve] llama-server router  /v1=:%d  llama=:%d  modèles max=%d\n",
+			LLMPort(), llamaBackendPort(), routerModelsMax())
+		if err := startOwnedLlama(rArgs[0], rArgs); err != nil {
+			return fmt.Errorf("démarrage du router llama-server : %w", err)
+		}
+		if model != "" {
+			go func() {
+				if err := waitRouterUp(2 * time.Minute); err != nil {
+					fmt.Fprintf(os.Stderr, "[loom serve] router injoignable : %v\n", err)
+					return
+				}
+				if err := routerActivate(); err != nil {
+					fmt.Fprintf(os.Stderr, "[loom serve] modèle non chargé au démarrage : %v\n", err)
+				}
+			}()
+		} else {
+			_ = putStr(bkState, routerStateActive, "")
+			_ = putStr(bkState, routerStateCurrent, "")
+		}
+	} else if model != "" {
 		llmArgs, err := buildLlamaServerArgs()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[loom serve] modèle non chargé au démarrage : %v\n", err)
@@ -66,11 +98,29 @@ func cmdServe(args []string) error {
 	return <-errc
 }
 
+// waitRouterUp attend que le router réponde sur le port interne.
+func waitRouterUp(budget time.Duration) error {
+	deadline := time.Now().Add(budget)
+	for time.Now().Before(deadline) {
+		if routerReachable() {
+			return nil
+		}
+		if !ownedLlamaRunning() {
+			return fmt.Errorf("llama-server s'est arrêté : %s", getLlamaLastError())
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	return fmt.Errorf("délai dépassé")
+}
+
 // buildLlamaServerArgs construit argv de llama-server à partir de la config
 // courante. --host/--port forcés en dernier : le GGUF n'écoute que en local,
 // le front Loom prend HOST:PORT.
 func buildLlamaServerArgs() ([]string, error) {
-	cfg := ReadConfig()
+	return (llamaCppEngine{}).BuildArgs(ModelConfig{})
+}
+
+func buildLlamaServerArgsForConfig(cfg map[string]string) ([]string, error) {
 	bin := cfg["BIN"]
 	if bin == "" {
 		return nil, fmt.Errorf("BIN non défini — lance « loom edit »")
@@ -134,13 +184,43 @@ func buildLlamaServerArgs() ([]string, error) {
 	ktv := get("KV_TYPE_K", kv)
 	vtv := get("KV_TYPE_V", kv)
 
-	llmArgs := []string{bin,
-		"-m", model,
-		"-ngl", get("NGL", "999"),
+	// Only opt into fitting on binaries that actually advertise it. Explicit
+	// EXTRA_ARGS wins, as for every existing native flag.
+	fit := get("FIT", "")
+	args := splitArgs(cfg["EXTRA_ARGS"])
+	for i, arg := range args {
+		if (arg == "--fit" || arg == "-fit") && i+1 < len(args) {
+			fit = args[i+1]
+		}
+		if strings.HasPrefix(arg, "--fit=") {
+			fit = strings.TrimPrefix(arg, "--fit=")
+		}
 	}
-	if ctx := serveCtxArg(cfg, model); ctx != "" {
+	fitSupported := fit != "" && llamaHasFlag(bin, "fit")
+	autoFit := fitSupported && strings.EqualFold(fit, "on")
+	llmArgs := []string{bin, "-m", model}
+	if fitSupported && get("FIT", "") != "" {
+		llmArgs = append(llmArgs, "--fit", get("FIT", ""))
+	}
+	nglFallback := "999"
+	if autoFit {
+		nglFallback = ""
+	}
+	if ngl := get("NGL", nglFallback); ngl != "" {
+		llmArgs = append(llmArgs, "-ngl", ngl)
+	}
+	ctxCfg := cfg
+	if autoFit {
+		ctxCfg = cloneEngineConfig(cfg)
+		ctxCfg["FIT"] = "on"
+	} else {
+		ctxCfg = cloneEngineConfig(cfg)
+		delete(ctxCfg, "FIT")
+	}
+	if ctx := serveCtxArg(ctxCfg, model); ctx != "" {
 		llmArgs = append(llmArgs, "-c", ctx)
 	}
+
 	llmArgs = append(llmArgs,
 		"-t", get("THREADS", "0"),
 		"-tb", get("THREADS_BATCH", "0"),
@@ -258,4 +338,12 @@ func buildLlamaServerArgs() ([]string, error) {
 		"--port", strconv.Itoa(llamaBackendPort()),
 	)
 	return llmArgs, nil
+}
+
+func cloneEngineConfig(cfg map[string]string) map[string]string {
+	out := make(map[string]string, len(cfg))
+	for k, v := range cfg {
+		out[k] = v
+	}
+	return out
 }

@@ -41,6 +41,26 @@ func run(uiDir string) error {
 	if err != nil {
 		return err
 	}
+	workspaceCSS, err := os.ReadFile(filepath.Join(srcDir, "workspace.css"))
+	if err != nil {
+		return err
+	}
+	css = append(append(css, '\n'), workspaceCSS...)
+	conversationCSS, err := os.ReadFile(filepath.Join(srcDir, "conversation.css"))
+	if err != nil {
+		return err
+	}
+	css = append(append(css, '\n'), conversationCSS...)
+	polishCSS, err := os.ReadFile(filepath.Join(srcDir, "workspace-polish.css"))
+	if err != nil {
+		return err
+	}
+	css = append(append(css, '\n'), polishCSS...)
+	shellCSS, err := os.ReadFile(filepath.Join(srcDir, "shell.css"))
+	if err != nil {
+		return err
+	}
+	css = append(append(css, '\n'), shellCSS...)
 	entries, err := os.ReadDir(filepath.Join(srcDir, "js"))
 	if err != nil {
 		return err

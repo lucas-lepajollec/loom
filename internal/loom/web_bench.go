@@ -45,14 +45,19 @@ func handleBenchTestsDelete(w http.ResponseWriter, r *http.Request) {
 func handleBenchQueue(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var req struct {
-			TestID string      `json:"test_id"`
-			Models []benchPick `json:"models"`
+			TestID  string      `json:"test_id"`
+			Models  []benchPick `json:"models"`
+			Consent bool        `json:"consent"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
-		j, err := startBenchQueue(req.TestID, req.Models)
+		if err := benchCheckConsent(req.Models, req.Consent); err != nil {
+			sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		j, err := startBenchQueue(req.TestID, req.Models, req.Consent)
 		if err != nil {
 			sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 			return

@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,13 +31,16 @@ type benchTest struct {
 }
 
 type benchJobRow struct {
-	Model   string       `json:"model"`
-	Preset  string       `json:"preset,omitempty"`
-	Name    string       `json:"name"`
-	Status  string       `json:"status"` // pending|loading|running|ok|err|skip
-	Error   string       `json:"error,omitempty"`
-	Result  *benchResult `json:"result,omitempty"`
-	Preview string       `json:"preview,omitempty"`
+	ChoiceID string       `json:"choice_id,omitempty"`
+	Kind     string       `json:"kind"`
+	Provider string       `json:"provider,omitempty"`
+	Model    string       `json:"model"`
+	Preset   string       `json:"preset,omitempty"`
+	Name     string       `json:"name"`
+	Status   string       `json:"status"` // pending|loading|running|ok|err|skip
+	Error    string       `json:"error,omitempty"`
+	Result   *benchResult `json:"result,omitempty"`
+	Preview  string       `json:"preview,omitempty"`
 }
 
 type benchJob struct {
@@ -52,15 +56,17 @@ type benchJob struct {
 }
 
 type benchPick struct {
-	Model  string `json:"model"`
-	Name   string `json:"name"`
-	Preset string `json:"preset,omitempty"`
+	ChoiceID string `json:"choice_id,omitempty"`
+	Model    string `json:"model"`
+	Name     string `json:"name"`
+	Preset   string `json:"preset,omitempty"`
 }
 
 var (
-	benchJobMu sync.Mutex
-	benchBusy  atomic.Bool
-	benchStop  atomic.Bool
+	benchJobMu  sync.Mutex
+	benchBusy   atomic.Bool
+	benchStop   atomic.Bool
+	benchCancel context.CancelFunc // guarded by benchJobMu
 )
 
 func builtinBenchTests() []benchTest {
@@ -206,6 +212,24 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 	var rows []benchJobRow
 	seen := map[string]bool{}
 	for _, p := range picks {
+		if choiceID := strings.TrimSpace(p.ChoiceID); choiceID != "" {
+			if seen[choiceID] {
+				continue
+			}
+			seen[choiceID] = true
+			row := benchJobRow{ChoiceID: choiceID, Kind: "cloud", Name: strings.TrimSpace(p.Name), Status: "pending"}
+			if provider, ok := benchCloudProvider(choiceID); ok {
+				row.Model, row.Provider = provider.Model, provider.Name
+			}
+			if row.Name == "" {
+				row.Name = row.Model
+			}
+			if row.Name == "" {
+				row.Name = choiceID
+			}
+			rows = append(rows, row)
+			continue
+		}
 		if preset := strings.TrimSpace(p.Preset); preset != "" {
 			path, err := safePresetPath(preset)
 			if err != nil {
@@ -223,7 +247,7 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 			if name == "" {
 				name = preset
 			}
-			rows = append(rows, benchJobRow{Preset: preset, Model: strings.TrimSpace(p.Model), Name: name, Status: "pending"})
+			rows = append(rows, benchJobRow{Kind: "local", Preset: preset, Model: strings.TrimSpace(p.Model), Name: name, Status: "pending"})
 			continue
 		}
 		model := strings.TrimSpace(p.Model)
@@ -238,7 +262,7 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 		if name == "" {
 			name = filepath.Base(model)
 		}
-		rows = append(rows, benchJobRow{Model: model, Name: name, Status: "pending"})
+		rows = append(rows, benchJobRow{Kind: "local", Model: model, Name: name, Status: "pending"})
 	}
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("choisis au moins un modèle ou un preset")
@@ -246,7 +270,19 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 	return rows, nil
 }
 
-func startBenchQueue(testID string, picks []benchPick) (*benchJob, error) {
+func benchCheckConsent(picks []benchPick, consent bool) error {
+	for _, p := range picks {
+		if strings.TrimSpace(p.ChoiceID) != "" && !consent {
+			return fmt.Errorf("confirmez l’envoi du prompt de test au provider cloud")
+		}
+	}
+	return nil
+}
+
+func startBenchQueue(testID string, picks []benchPick, consent ...bool) (*benchJob, error) {
+	if err := benchCheckConsent(picks, len(consent) > 0 && consent[0]); err != nil {
+		return nil, err
+	}
 	t, ok := findBenchTest(testID)
 	if !ok {
 		return nil, fmt.Errorf("test inconnu")
@@ -255,6 +291,8 @@ func startBenchQueue(testID string, picks []benchPick) (*benchJob, error) {
 	if err != nil {
 		return nil, err
 	}
+	benchJobMu.Lock()
+	defer benchJobMu.Unlock()
 	if !benchBusy.CompareAndSwap(false, true) {
 		return nil, fmt.Errorf("une file tourne déjà")
 	}
@@ -263,15 +301,21 @@ func startBenchQueue(testID string, picks []benchPick) (*benchJob, error) {
 		Kind: t.Kind, Status: "running", Started: time.Now().Unix(), Rows: rows,
 	}
 	benchStop.Store(false)
+	ctx, cancel := context.WithCancel(context.Background())
+	benchCancel = cancel
 	saveBenchJob(j)
-	go runBenchQueue(j, t)
-	return benchJobClone(j), nil
+	initial := benchJobClone(j)
+	go runBenchQueue(ctx, j, t)
+	return initial, nil
 }
 
 func cancelBenchQueue() *benchJob {
-	benchStop.Store(true)
 	benchJobMu.Lock()
 	defer benchJobMu.Unlock()
+	benchStop.Store(true)
+	if benchCancel != nil {
+		benchCancel()
+	}
 	j := loadBenchJob()
 	if j != nil && j.Status == "running" {
 		j.Status = "cancel"
@@ -280,8 +324,14 @@ func cancelBenchQueue() *benchJob {
 	return benchJobClone(j)
 }
 
-func runBenchQueue(j *benchJob, t benchTest) {
-	defer benchBusy.Store(false)
+func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
+	defer func() {
+		benchJobMu.Lock()
+		defer benchJobMu.Unlock()
+		benchCancel()
+		benchCancel = nil
+		benchBusy.Store(false)
+	}()
 	for i := range j.Rows {
 		if benchStop.Load() {
 			benchJobMu.Lock()
@@ -303,15 +353,23 @@ func runBenchQueue(j *benchJob, t benchTest) {
 		saveBenchJob(j)
 		benchJobMu.Unlock()
 
-		if err := benchLoadAndWait(j.Rows[i].Model, j.Rows[i].Preset); err != nil {
-			benchJobMu.Lock()
-			j.Rows[i].Status = "err"
-			j.Rows[i].Error = err.Error()
-			saveBenchJob(j)
-			benchJobMu.Unlock()
-			continue
+		if j.Rows[i].Kind != "cloud" {
+			if err := benchLoadAndWait(j.Rows[i].Model, j.Rows[i].Preset); err != nil {
+				benchJobMu.Lock()
+				j.Rows[i].Status = "err"
+				j.Rows[i].Error = err.Error()
+				saveBenchJob(j)
+				benchJobMu.Unlock()
+				continue
+			}
 		}
 		if benchStop.Load() {
+			if j.Rows[i].Kind == "cloud" {
+				benchJobMu.Lock()
+				j.Rows[i].Status = "skip"
+				saveBenchJob(j)
+				benchJobMu.Unlock()
+			}
 			continue
 		}
 		benchJobMu.Lock()
@@ -319,9 +377,18 @@ func runBenchQueue(j *benchJob, t benchTest) {
 		saveBenchJob(j)
 		benchJobMu.Unlock()
 
-		res, preview, err := runBenchTest(t)
+		var res *benchResult
+		var preview string
+		var err error
+		if j.Rows[i].Kind == "cloud" {
+			res, preview, err = runCloudBenchTest(ctx, t, j.Rows[i].ChoiceID)
+		} else {
+			res, preview, err = runBenchTest(t)
+		}
 		benchJobMu.Lock()
-		if err != nil {
+		if j.Rows[i].Kind == "cloud" && ctx.Err() != nil {
+			j.Rows[i].Status = "skip"
+		} else if err != nil {
 			j.Rows[i].Status = "err"
 			j.Rows[i].Error = err.Error()
 		} else {
@@ -333,7 +400,9 @@ func runBenchQueue(j *benchJob, t benchTest) {
 		benchJobMu.Unlock()
 	}
 	benchJobMu.Lock()
-	if j.Status != "cancel" {
+	if benchStop.Load() {
+		j.Status = "cancel"
+	} else if j.Status != "cancel" {
 		j.Status = "done"
 	}
 	j.Finished = time.Now().Unix()
@@ -427,7 +496,7 @@ func benchLoadAndWait(model, preset string) error {
 	if err := loadNakedModel(model); err != nil {
 		return err
 	}
-	if err := serviceAction("restart"); err != nil {
+	if err := restartLlamaEngine(); err != nil {
 		return err
 	}
 	return waitLLMHealth(benchHealthWait)
