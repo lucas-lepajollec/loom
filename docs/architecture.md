@@ -101,10 +101,12 @@ native fitted values. Real-GPU fitting still needs separate acceptance.
 
 ### 2.2 RuntimeAdapter — who answers a discussion turn
 
-The ordered registry and optional connect/quota action dispatch are implemented
-in package `loom` (`workspace_runtime.go`, `web_runtimes.go`). Planned descriptors
-stay capability-less; existing execution/stream contracts remain unchanged. The
-following is the target after later migration steps, not the current interface:
+The ordered registry and runtime contracts live in `internal/loom/runtime`;
+`runtime_compat.go` preserves the existing Loom names and signatures. Concrete
+adapters and startup registration remain in `workspace_runtime.go` and the
+adapter files; optional connect/quota HTTP dispatch stays in `web_runtimes.go`.
+Planned descriptors stay capability-less; execution/stream contracts are unchanged.
+The following is the target after later migration steps, not the current interface:
 
 ```go
 type RuntimeAdapter interface {
@@ -120,9 +122,9 @@ type Approver   interface { Answer(ctx, approvalID string, allow bool) error }
 type SkillSink  interface { ProjectSkills(ctx, []Skill) (LoadedReport, error) }
 ```
 
-- **Registry**: current in-package `registerRuntime(adapter)` at init, later
-  `runtime.Register(adapter)` after the package split; `runtimeCatalog()` and
-  `/api/workspace` read the registry. No `switch runtimeID` anywhere else.
+- **Registry**: `registerRuntime(adapter)` at init delegates to an explicit
+  `runtime.Registry` owned by Loom; `runtimeCatalog()` and `/api/workspace` read
+  its ordered snapshots. No registry global is added to the leaf package.
 - **Generic HTTP**: `POST /api/runtimes/{id}/connect`, `GET/POST
   /api/runtimes/{id}/quota`, `POST /api/runtimes/{id}/approval`. The current
   per-harness routes (`/api/workspace/antigravity/connect`,
@@ -273,11 +275,33 @@ Still in `loom`, deliberately:
   model directories/downloads/shards/capabilities): configuration, installation
   and application integrations remain for a later coherent slice.
 
-Next slice: `runtime/` and its local/OpenAI/harness adapter boundaries, starting
-from the registry and contracts. Service policy, installed-binary/environment
-resolution, application cleanup and web/proxy orchestration remain in Loom until
-their own coherent migration. This extraction does not restart an engine, alter
-flags or change stored configuration.
+The sixth slice extracts only the runtime contracts and registry into
+`internal/loom/runtime`: `RuntimeDescriptor`, `RuntimeTurn`, `RuntimeAdapter`,
+optional `Connectable`/`QuotaReader`, capability checks and an ordered `Registry`
+with register/upsert/remove/lookup/list operations and its own lock. Validation,
+errors, insertion order, replacement/removal behavior and detached capability
+snapshots are unchanged; empty catalog capabilities still serialize as `[]`.
+
+`runtime_compat.go` supplies aliases and thin wrappers for every historical name
+and unexported registry method, so ACP and other existing callers stay unchanged.
+Turn/adapter/registry contracts use type parameters for the existing `Message`,
+`Caps`, `ChatCallback` and `QuotaSnapshot` types: those remain in Loom, avoiding
+an import cycle or prematurely moving discussion, tool and usage contracts.
+There is no payload conversion or JSON tag change and no runtime package global.
+
+Still in Loom: the registry instance, startup registration/panic policy, planned
+descriptor adapter, concrete llama.cpp/OpenAI-compatible/Antigravity/ACP adapters,
+per-turn configuration, session/context assembly, native account reads, quota
+cache/throttle and authenticated HTTP actions. These depend on application state
+and execution integrations rather than the registry contracts alone.
+
+Next slice: concrete runtime adapters — OpenAI-compatible (`workspace_cloud.go`),
+Antigravity (`workspace_antigravity.go`), ACP (`acp_*.go`) and llama.cpp
+(`workspace_runtime.go`) — with explicit application inputs and compatibility
+wrappers. Service policy, installed-binary/environment resolution, application
+cleanup and web/proxy orchestration remain in Loom until their own coherent
+migration. This extraction does not restart an engine, alter flags or change
+stored configuration.
 
 ## 5. Front-end layout (`internal/loom/ui/next`)
 
