@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 	"sync/atomic"
@@ -47,9 +48,12 @@ type acpClient struct {
 	notify  func(acpFrame)
 }
 
-func startACPClient(command string, args []string, cwd string) (*acpClient, error) {
+func startACPClient(command string, args []string, cwd string, env ...string) (*acpClient, error) {
 	cmd := exec.Command(command, args...)
 	cmd.Dir = cwd
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	acpProcessGroup(cmd)
 	in, err := cmd.StdinPipe()
 	if err != nil {

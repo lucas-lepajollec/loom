@@ -142,13 +142,16 @@ function ModelSource({ rt }) {
   useEffect(() => { load(); }, [rt.id]);
   if (!x) return null;
   const toggle = async on => {
-    if (on && !await confirm('Modèles de Loom dans ' + rt.name, 'Loom ajoute un fournisseur « loom » dans ' + x.file + ' avec tes modèles locaux. Tes autres fournisseurs ne sont pas modifiés. Le désactiver le retire.', { ok: 'Ajouter' })) return;
+    const msg = x.format === 'env'
+      ? 'Tes modèles locaux apparaissent sous ' + rt.name + ' dans le sélecteur. Quand tu en choisis un, Loom lance ' + rt.name + ' avec son API locale comme fournisseur ; aucun fichier de ' + rt.name + ' n’est modifié et ses modèles natifs restent disponibles.'
+      : 'Loom ajoute un fournisseur « loom » dans ' + x.file + ' avec tes modèles locaux. Tes autres fournisseurs ne sont pas modifiés. Le désactiver le retire.';
+    if (on && !await confirm('Modèles de Loom dans ' + rt.name, msg, { ok: 'Activer' })) return;
     setBusy(true);
     const r = await post('/api/harness/model-source', { id: rt.id, enabled: on });
     setBusy(false);
     if (!r.ok) return toast(r.error, 'err');
-    toast(on ? 'Modèles de Loom ajoutés à ' + rt.name + ' · relecture de ses modèles…' : 'Fournisseur Loom retiré');
-    load(); setTimeout(refreshWorkspace, 8000);
+    toast(on ? 'Modèles de Loom proposés dans ' + rt.name : 'Modèles de Loom retirés de ' + rt.name);
+    load(); refreshWorkspace(); setTimeout(refreshWorkspace, 8000);
   };
   return html`<section class="sec"><div class="sec-h"><h2>Source du modèle<${Tip} text="Natif : le harness utilise ses propres modèles et son compte. Loom : tes modèles locaux de Loom apparaissent dans la liste du harness, servis par l’API locale de Loom." /></h2></div>
     <div class="card">

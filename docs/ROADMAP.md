@@ -30,7 +30,7 @@ Brain / Context Service  →  what each execution needs to know, within a token 
 
 1. **Finish the package split** (engine, runtimes, discussion, web) — no visible change, keeps the code maintainable.
 2. **Resources ↔ harness bindings.** Choose per harness which Loom skills and MCP servers it receives; adopt a harness's own MCP servers into Loom; credentials as references (OS keychain), never stored in clear.
-3. **Harness model source: Native / Loom / Custom.** Let open harnesses (Pi, OpenCode…) use a Loom model (local endpoint or provider), show only what each adapter really supports.
+3. **Harness model source: Native / Loom / Custom.** Done for Pi (provider written in its own file, opt-in) and Codex (Loom passed in the launch environment only when a Loom model is picked, nothing written; verified with a local Gemma). Remaining: Custom endpoints (a cloud provider of Loom as the harness's provider), OpenCode, and the real context size of a Loom model shown by Codex.
 4. **Projects as link objects.** A project links its code folder/repo, context sources, default work folder and preferred executors, instead of being a separate store.
 5. **Brain V1 + Context Service.** Sources (context repository, personal notes, conversations, repositories), search, context packs with an explicit token budget, personal sources read only on request; exposed over HTTP and as an MCP server so harnesses use the same context without Loom open.
 6. **Environment.** Machines, services and connections (declared + observed through optional providers: Docker, Proxmox…), and which harness can reach what.

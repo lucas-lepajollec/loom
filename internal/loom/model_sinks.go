@@ -23,7 +23,41 @@ type modelSink struct {
 	Format  string
 }
 
-var modelSinks = []modelSink{{Harness: "pi", File: "~/.pi/agent/models.json", Format: "pi"}}
+// Format "env": nothing is written; the harness receives Loom as a provider
+// through its launch environment only when a Loom model is chosen (Codex).
+var modelSinks = []modelSink{
+	{Harness: "pi", File: "~/.pi/agent/models.json", Format: "pi"},
+	{Harness: "codex", Format: "env"},
+}
+
+// acpLoomModelPrefix marks a harness model served by Loom's local API.
+const acpLoomModelPrefix = "loom:"
+
+// acpLoomModelEnv returns the launch environment that makes the harness use
+// the chosen Loom model, or nil for the harness's own models.
+func acpLoomModelEnv(agentID, model string) []string {
+	id, ok := strings.CutPrefix(model, acpLoomModelPrefix)
+	if !ok || id == "" {
+		return nil
+	}
+	if s, ok := modelSinkFor(agentID); !ok || s.Format != "env" {
+		return nil
+	}
+	switch agentID {
+	case "codex":
+		cfg, _ := json.Marshal(map[string]any{
+			"model_provider": "loom", "model": id,
+			"model_providers": map[string]any{"loom": map[string]any{
+				"name": "Loom", "base_url": fmt.Sprintf("http://127.0.0.1:%d/v1", LLMPort()), "wire_api": "responses", "env_key": "LOOM_API_KEY"}},
+		})
+		key := loomAPIKey()
+		if key == "" {
+			key = "loom" // the API accepts any key when none is required
+		}
+		return []string{"CODEX_CONFIG=" + string(cfg), "MODEL_PROVIDER=loom", "LOOM_API_KEY=" + key}
+	}
+	return nil
+}
 
 const modelSinkState = "model_sinks" // map[harness]bool
 
@@ -129,6 +163,8 @@ func syncModelSinks() error {
 		switch s.Format {
 		case "pi":
 			err = writePiProvider(expandHome(s.File), on, loomLocalModels(), fmt.Sprintf("http://127.0.0.1:%d/v1", LLMPort()), loomAPIKey())
+		case "env":
+			// Read at launch: nothing to write.
 		}
 		if err != nil && firstErr == nil {
 			firstErr = err
@@ -142,7 +178,7 @@ func handleModelSink(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		id := r.URL.Query().Get("id")
 		s, ok := modelSinkFor(id)
-		sendJSON(w, 200, map[string]any{"ok": true, "supported": ok, "enabled": ok && modelSinkEnabled(id), "file": s.File, "models": len(loomLocalModels())})
+		sendJSON(w, 200, map[string]any{"ok": true, "supported": ok, "enabled": ok && modelSinkEnabled(id), "file": s.File, "format": s.Format, "models": len(loomLocalModels())})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -168,6 +204,10 @@ func handleModelSink(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := syncModelSinks(); err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	if s, _ := modelSinkFor(req.ID); s.Format == "env" {
+		sendJSON(w, 200, map[string]any{"ok": true})
 		return
 	}
 	// The harness's model list changed: probe it again.

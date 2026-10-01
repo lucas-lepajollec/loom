@@ -64,6 +64,7 @@ type acpBinding struct {
 	id            string
 	idle          *time.Timer
 	mcpRevision   string
+	loomModel     bool // the harness runs a Loom model through its launch environment
 	loading       bool
 	answer        string
 	approvalGrace time.Duration
@@ -147,6 +148,10 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		definitions = map[string]MCPServerConfig{}
 	}
 	encoded, _ := json.Marshal(definitions)
+	// A Loom model is passed in the launch environment: changing it (or going
+	// back to a native model) restarts the adapter, the native session resumes.
+	env := acpLoomModelEnv(agent.ID, s.Model)
+	encoded = append(encoded, []byte(strings.Join(env, "\n"))...)
 	mcpRevision := fmt.Sprintf("%x", sha256.Sum256(encoded))
 	if len(turn.Messages) == 0 {
 		return nil, errors.New("message ACP requis")
@@ -180,11 +185,11 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		if agent.Remote {
 			processDir, _ = os.UserHomeDir()
 		}
-		c, err := startACPClient(agent.Command, agent.Args, processDir)
+		c, err := startACPClient(agent.Command, agent.Args, processDir, env...)
 		if err != nil {
 			return nil, err
 		}
-		p = &acpBinding{client: c, state: cloneACPState(s.ACPState), tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, manager: m, id: s.ID, ctx: requestCtx, emit: emit, active: true, mcpRevision: mcpRevision}
+		p = &acpBinding{client: c, state: cloneACPState(s.ACPState), tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, manager: m, id: s.ID, ctx: requestCtx, emit: emit, active: true, mcpRevision: mcpRevision, loomModel: env != nil}
 		if p.state.Permission == "" {
 			p.state.Permission = "ask"
 		}

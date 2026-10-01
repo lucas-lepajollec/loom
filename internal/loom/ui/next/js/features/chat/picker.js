@@ -23,7 +23,7 @@ export function currentExec() {
   if (c.mode === 'thread' && s) {
     const kind = runtimeKind(s.runtime_id);
     // Un harness ACP démarre sur le modèle par défaut de son compte : on affiche le harness.
-    const model = baseName(s.model).replace(/-(low|medium|high|xhigh)$/, '').replace(/^[\w.-]+:(?=.)/, '');
+    const model = baseName(s.model).replace(/-(low|medium|high|xhigh)$/, '').replace(/^[\w.-]+:(?=.)/, '').replace(/\.gguf$/i, '');
     return model && model !== 'default' ? { kind, name: model, sub: s.provider_name } : { kind, name: s.provider_name || s.runtime_id, sub: 'modèle par défaut' };
   }
   const st = app.get().status;
@@ -32,7 +32,7 @@ export function currentExec() {
 }
 
 // Éditeur du modèle, déduit de son identifiant (« anthropic/claude… », « gemini-3… »).
-const VENDORS = [[/claude|anthropic|^(opus|sonnet|haiku|fable)/, 'Anthropic'], [/gemini|gemma|google/, 'Google'], [/(^|\/)(gpt|o\d|codex|openai)/, 'OpenAI'], [/deepseek/, 'DeepSeek'],
+const VENDORS = [[/^loom:/, 'Modèles Loom (local)'], [/claude|anthropic|^(opus|sonnet|haiku|fable)/, 'Anthropic'], [/gemini|gemma|google/, 'Google'], [/(^|\/)(gpt|o\d|codex|openai)/, 'OpenAI'], [/deepseek/, 'DeepSeek'],
   [/qwen|alibaba/, 'Qwen'], [/glm|z-ai|zhipu/, 'Zhipu · GLM'], [/kimi|moonshot/, 'Moonshot · Kimi'], [/minimax/, 'MiniMax'], [/grok|x-ai|xai/, 'xAI'],
   [/mistral|codestral|magistral|devstral/, 'Mistral'], [/llama|meta/, 'Meta'], [/nemotron|nvidia/, 'NVIDIA'], [/cohere|command/, 'Cohere']];
 export const vendorOf = id => { const s = String(id).toLowerCase(); const v = VENDORS.find(([re]) => re.test(s)); return v ? v[1] : 'Autres'; };

@@ -112,6 +112,12 @@ func (p *acpBinding) handleNotification(f acpFrame) {
 			return
 		}
 		text, _ := c["text"].(string)
+		// Codex warns that it has no metadata for a model it does not know:
+		// expected for a Loom model, and not part of the answer.
+		if p.loomModel && strings.HasPrefix(strings.TrimSpace(text), "Warning: Model metadata for") {
+			p.mu.Unlock()
+			return
+		}
 		kind := "text_delta"
 		if u["sessionUpdate"] == "agent_thought_chunk" {
 			kind = "reasoning_delta"

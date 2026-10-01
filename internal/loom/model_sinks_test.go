@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,5 +41,27 @@ func TestPiProviderSinkOnlyTouchesLoomProvider(t *testing.T) {
 	}
 	if writePiProvider(path, true, nil, "u", "") == nil {
 		t.Fatal("unreadable file must not be overwritten")
+	}
+}
+
+func TestCodexLoomModelEnv(t *testing.T) {
+	testHome(t)
+	if env := acpLoomModelEnv("codex", "gpt-6.1-sol[high]"); env != nil {
+		t.Fatalf("modèle natif: aucun environnement attendu, reçu %v", env)
+	}
+	if env := acpLoomModelEnv("pi", "loom:x"); env != nil {
+		t.Fatalf("Pi passe par son fichier, pas par l'environnement: %v", env)
+	}
+	env := acpLoomModelEnv("codex", "loom:Qwen3-8B.gguf")
+	if len(env) != 3 || !strings.HasPrefix(env[0], "CODEX_CONFIG=") || env[1] != "MODEL_PROVIDER=loom" || !strings.HasPrefix(env[2], "LOOM_API_KEY=") {
+		t.Fatalf("%v", env)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimPrefix(env[0], "CODEX_CONFIG=")), &cfg); err != nil || cfg["model"] != "Qwen3-8B.gguf" || cfg["model_provider"] != "loom" {
+		t.Fatalf("%v %v", err, cfg)
+	}
+	provider := cfg["model_providers"].(map[string]any)["loom"].(map[string]any)
+	if provider["wire_api"] != "responses" || !strings.HasSuffix(provider["base_url"].(string), "/v1") || strings.Contains(env[0], "LOOM_API_KEY=") {
+		t.Fatalf("%v", provider)
 	}
 }

@@ -92,6 +92,12 @@ func modelCatalog(providers []CloudProvider) []ModelChoice {
 				}
 				add(ModelChoice{ID: d.ID + ":" + m.Value, Name: name, Kind: "harness", ProviderName: d.Name, Model: m.Value, RuntimeID: d.ID, Ready: ready})
 			}
+			// Loom's local models, when this harness takes them through its environment.
+			if s, ok := modelSinkFor(d.ID); ok && s.Format == "env" && modelSinkEnabled(d.ID) {
+				for _, id := range loomLocalModels() {
+					add(ModelChoice{ID: d.ID + ":" + acpLoomModelPrefix + id, Name: strings.TrimSuffix(id, ".gguf"), Kind: "harness", ProviderName: d.Name, Model: acpLoomModelPrefix + id, RuntimeID: d.ID, Ready: ready})
+				}
+			}
 		}
 	}
 
