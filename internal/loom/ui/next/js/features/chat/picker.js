@@ -43,7 +43,7 @@ function grouped(rows) {
   for (const r of rows) { if (!groups.has(r.group)) groups.set(r.group, []); groups.get(r.group).push(r); }
   return [...groups].map(([name, items]) => {
     const vendors = new Map();
-    for (const r of items) { const v = vendorOf(r.vendorKey); if (!vendors.has(v)) vendors.set(v, []); vendors.get(v).push(r); }
+    for (const r of items) { const v = r.via || vendorOf(r.vendorKey); if (!vendors.has(v)) vendors.set(v, []); vendors.get(v).push(r); }
     return { name, logo: items[0].logo, cli: items[0].cli, subs: vendors.size > 1 || (items[0].cli && vendors.size === 1 && !vendors.has('Autres')) ? [...vendors].sort((a, b) => a[0].localeCompare(b[0])) : [['', items]] };
   });
 }
@@ -90,7 +90,7 @@ export function Picker() {
       const m = g.variants.find(v => /-medium$/.test(v.model)) || g.variants[0];
       const rt = ((workspace && workspace.runtimes) || []).find(r => r.id === m.runtime_id) || {};
       const acp = (rt.capabilities || []).includes('workdir');
-      return { id: g.key, title: g.name, sub: g.variants.length > 1 ? 'réflexion réglable' : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: rt.machine ? m.provider_name + ' · sur ' + rt.machine : m.provider_name, logo: m.runtime_id, cli: acp ? 'ACP' : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model && chat.get().session.runtime_id === v.runtime_id), run: () => chooseRemote(m) };
+      return { id: g.key, title: g.name, sub: g.variants.length > 1 ? 'réflexion réglable' : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: rt.machine ? m.provider_name + ' · sur ' + rt.machine : m.provider_name, logo: m.runtime_id, via: m.via || '', cli: acp ? 'ACP' : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model && chat.get().session.runtime_id === v.runtime_id), run: () => chooseRemote(m) };
     });
     return { local, cloud, harness };
   }, [status, workspace, models, presets, cur.kind, cur.name]);

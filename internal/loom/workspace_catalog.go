@@ -11,6 +11,8 @@ import (
 // ModelChoice is a selectable model, independent from its provider and from the
 // conversation using it. Enabled only controls visibility in the chat picker.
 type ModelChoice struct {
+	// Via: for a harness model served by Loom, where it comes from (local, a provider).
+	Via              string   `json:"via,omitempty"`
 	ID               string   `json:"id"`
 	Name             string   `json:"name"`
 	Kind             string   `json:"kind"`
@@ -92,11 +94,9 @@ func modelCatalog(providers []CloudProvider) []ModelChoice {
 				}
 				add(ModelChoice{ID: d.ID + ":" + m.Value, Name: name, Kind: "harness", ProviderName: d.Name, Model: m.Value, RuntimeID: d.ID, Ready: ready})
 			}
-			// Loom's local models, when this harness takes them through its environment.
-			if s, ok := modelSinkFor(d.ID); ok && s.Format == "env" && modelSinkEnabled(d.ID) {
-				for _, id := range loomLocalModels() {
-					add(ModelChoice{ID: d.ID + ":" + acpLoomModelPrefix + id, Name: strings.TrimSuffix(id, ".gguf"), Kind: "harness", ProviderName: d.Name, Model: acpLoomModelPrefix + id, RuntimeID: d.ID, Ready: ready})
-				}
+			// Loom's local models and compatible cloud providers, passed at launch.
+			for _, c := range harnessLoomChoices(d, ready) {
+				add(c)
 			}
 		}
 	}

@@ -28,35 +28,7 @@ type modelSink struct {
 var modelSinks = []modelSink{
 	{Harness: "pi", File: "~/.pi/agent/models.json", Format: "pi"},
 	{Harness: "codex", Format: "env"},
-}
-
-// acpLoomModelPrefix marks a harness model served by Loom's local API.
-const acpLoomModelPrefix = "loom:"
-
-// acpLoomModelEnv returns the launch environment that makes the harness use
-// the chosen Loom model, or nil for the harness's own models.
-func acpLoomModelEnv(agentID, model string) []string {
-	id, ok := strings.CutPrefix(model, acpLoomModelPrefix)
-	if !ok || id == "" {
-		return nil
-	}
-	if s, ok := modelSinkFor(agentID); !ok || s.Format != "env" {
-		return nil
-	}
-	switch agentID {
-	case "codex":
-		cfg, _ := json.Marshal(map[string]any{
-			"model_provider": "loom", "model": id,
-			"model_providers": map[string]any{"loom": map[string]any{
-				"name": "Loom", "base_url": fmt.Sprintf("http://127.0.0.1:%d/v1", LLMPort()), "wire_api": "responses", "env_key": "LOOM_API_KEY"}},
-		})
-		key := loomAPIKey()
-		if key == "" {
-			key = "loom" // the API accepts any key when none is required
-		}
-		return []string{"CODEX_CONFIG=" + string(cfg), "MODEL_PROVIDER=loom", "LOOM_API_KEY=" + key}
-	}
-	return nil
+	{Harness: "claude-code", Format: "env"},
 }
 
 const modelSinkState = "model_sinks" // map[harness]bool
