@@ -1,4 +1,4 @@
-package loom
+package platform
 
 import (
 	"os"
@@ -22,7 +22,7 @@ func TestRenameAsideNeBloquePasSurUnAncienEcartement(t *testing.T) {
 	if err := os.WriteFile(exe+".old", []byte("v0"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	aside, err := renameAside(exe)
+	aside, err := RenameAside(exe)
 	if err != nil {
 		t.Fatalf("renameAside a échoué alors qu'un .old existe déjà : %v", err)
 	}
@@ -39,7 +39,7 @@ func TestRenameAsideNeBloquePasSurUnAncienEcartement(t *testing.T) {
 	if err := os.WriteFile(exe, []byte("v2"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	aside2, err := renameAside(exe)
+	aside2, err := RenameAside(exe)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestRemoveOldBinaries(t *testing.T) {
 	if err := os.WriteFile(exe, []byte("v1"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	removeOldBinaries(exe)
+	RemoveOldBinaries(exe)
 	restes, _ := filepath.Glob(exe + ".old*")
 	if len(restes) != 0 {
 		t.Errorf("écartements non nettoyés : %v", restes)

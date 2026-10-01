@@ -1,4 +1,4 @@
-package loom
+package platform
 
 import (
 	"runtime"
@@ -6,8 +6,8 @@ import (
 )
 
 // relWith fabrique une release ne contenant que les assets nommés.
-func relWith(names ...string) *ghRelease {
-	rel := &ghRelease{TagName: "v9.9.9"}
+func relWith(names ...string) *Release {
+	rel := &Release{TagName: "v9.9.9"}
 	for _, n := range names {
 		rel.Assets = append(rel.Assets, struct {
 			Name               string `json:"name"`
@@ -21,8 +21,8 @@ func relWith(names ...string) *ghRelease {
 // L'asset de la plateforme est trouvé au milieu des autres, et le nom renvoyé
 // est bien celui qui servira à vérifier le SHA-256.
 func TestPickAssetTrouveSaPlateforme(t *testing.T) {
-	want := updateAssetName()
-	got, url, size := pickAsset(relWith("SHA256SUMS", "loom-plan9-386", want))
+	want := UpdateAssetName()
+	got, url, size := PickAsset(relWith("SHA256SUMS", "loom-plan9-386", want))
 	if got != want {
 		t.Fatalf("got %q, attendu %q", got, want)
 	}
@@ -33,7 +33,7 @@ func TestPickAssetTrouveSaPlateforme(t *testing.T) {
 
 // Aucun asset pour cette plateforme → pas d'URL, l'appelant doit pouvoir le voir.
 func TestPickAssetSansCorrespondance(t *testing.T) {
-	if _, url, _ := pickAsset(relWith("loom-plan9-386", "SHA256SUMS")); url != "" {
+	if _, url, _ := PickAsset(relWith("loom-plan9-386", "SHA256SUMS")); url != "" {
 		t.Fatalf("URL inattendue: %q", url)
 	}
 }
@@ -44,7 +44,7 @@ func TestNomDAssetDistinctDuSchema07(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		legacy += ".exe"
 	}
-	if got := updateAssetName(); got == legacy {
+	if got := UpdateAssetName(); got == legacy {
 		t.Fatalf("le nom %q est celui du schéma verbeux", got)
 	}
 }
@@ -59,7 +59,7 @@ func TestNomsDAssetParPlateforme(t *testing.T) {
 		{"windows", "amd64", "loom-windows.exe"},
 		{"windows", "arm64", "loom-windows-arm.exe"},
 	} {
-		if got := assetNameFor(c.goos, c.goarch); got != c.want {
+		if got := AssetNameFor(c.goos, c.goarch); got != c.want {
 			t.Errorf("%s/%s → %q, attendu %q", c.goos, c.goarch, got, c.want)
 		}
 	}

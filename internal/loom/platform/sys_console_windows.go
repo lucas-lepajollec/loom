@@ -1,6 +1,6 @@
 //go:build windows
 
-package loom
+package platform
 
 // sys_console_windows.go — gestion de la console sous Windows.
 //
@@ -49,7 +49,7 @@ var kernel32 = syscall.NewLazyDLL("kernel32.dll")
 // sommes le SEUL, c'est que Windows l'a créée pour nous, donc qu'aucun terminal
 // ne nous a lancés. On la fait disparaître et on bascule en mode application.
 // Un shell rattaché (cmd, PowerShell, Windows Terminal) en fait au moins deux.
-func setupConsole() bool {
+func SetupConsole() bool {
 	// Le compte vaut 0 quand il n'y a aucune console (parent détaché). On répond
 	// alors « CLI », le cas contraire étant couvert autrement : les relances
 	// internes passent « app » explicitement (voir launch, sys_firstrun_windows.go).
@@ -97,4 +97,4 @@ func configureConsole() {
 
 // appWarning : rien à signaler sous Windows (pas d'App Translocation). Voir
 // sys_console_darwin.go.
-func appWarning() string { return "" }
+func AppWarning() string { return "" }

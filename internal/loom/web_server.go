@@ -130,6 +130,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/fs/dirs", handleACPDirs)
 	api("/api/runtimes/{id}/connect", handleRuntimeConnect)
 	api("/api/runtimes/{id}/probe", handleACPProbe)
+	api("/api/runtimes/{id}/inspect", handleHarnessInspect)    // ce que le harness possède déjà (MCP, skills, compte…)
+	api("/api/runtimes/{id}/update", handleHarnessUpdate)      // mise à jour du CLI du harness
 	api("/api/runtimes/{id}/sessions", handleACPSessions)      // sessions natives d’un harness ACP
 	api("/api/runtimes/{id}/sessions/import", handleACPImport) // importer une session native dans Loom // modèles et réglages annoncés par un harness ACP
 	api("/api/runtimes/{id}/quota", handleRuntimeQuota)

@@ -1,6 +1,6 @@
 //go:build darwin
 
-package loom
+package platform
 
 // sys_console_darwin.go — détection du lancement « par clic » sous macOS.
 //
@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-func setupConsole() bool {
+func SetupConsole() bool {
 	exe, err := os.Executable()
 	if err != nil {
 		return true
@@ -45,7 +45,7 @@ func setupConsole() bool {
 // la première, souvent une version périmée), des process fantômes issus de
 // copies précédentes, et une mise à jour en place impossible.
 // Le remède est côté utilisateur : déplacer Loom.app dans /Applications.
-func appWarning() string {
+func AppWarning() string {
 	exe, err := os.Executable()
 	if err != nil {
 		return ""

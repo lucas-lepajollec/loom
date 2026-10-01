@@ -267,27 +267,6 @@ func readServicePID() int {
 	return pid
 }
 
-// processAlive : le signal 0 ne tue rien, il teste juste l'existence du process.
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	return syscall.Kill(pid, 0) == nil
-}
-
-// tailFile renvoie les n dernières lignes d'un fichier (best-effort).
-func tailFile(path string, n int) string {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
-	}
-	return strings.Join(lines, "\n") + "\n"
-}
-
 // serviceLogTail renvoie les n dernières lignes du journal du service (pour
 // l'UI web). Le fichier est le même en mode launchd et en mode utilisateur.
 func serviceLogTail(n int) string { return tailFile(logFilePath(), n) }

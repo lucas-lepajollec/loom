@@ -1,4 +1,4 @@
-package loom
+package platform
 
 // sys_disk_windows.go — espace libre d'un volume via GetDiskFreeSpaceExW. On
 // veut l'espace réellement disponible pour l'utilisateur courant (quotas
@@ -13,7 +13,7 @@ var procGetDiskFreeSpaceExW = syscall.NewLazyDLL("kernel32.dll").NewProc("GetDis
 
 // diskFreeAt renvoie les octets libres du volume contenant dir, ou -1 si la
 // mesure échoue. dir doit exister (l'appelant remonte les parents au besoin).
-func diskFreeAt(dir string) int64 {
+func DiskFreeAt(dir string) int64 {
 	p, err := syscall.UTF16PtrFromString(dir)
 	if err != nil {
 		return -1

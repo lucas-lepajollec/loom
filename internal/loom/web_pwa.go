@@ -1,23 +1,9 @@
 package loom
 
 import (
-	"image"
-	"image/draw"
 	"net/http"
 	"sync"
 )
-
-// Reuse the canonical tray/executable mark, including its antialiasing. The
-// opaque 512px background meets maskable-icon requirements without a new logo.
-func loomIcon(size int) []byte {
-	if size != 512 {
-		return BrandIconPNG(size)
-	}
-	im := image.NewRGBA(image.Rect(0, 0, size, size))
-	draw.Draw(im, im.Bounds(), &image.Uniform{C: brandBlack}, image.Point{}, draw.Src)
-	draw.Draw(im, im.Bounds(), brandIconImage(size, brandBlack, brandWhite), image.Point{}, draw.Over)
-	return encodePNG(im)
-}
 
 var pwaIcons = sync.OnceValue(func() map[string][]byte {
 	icons := map[string][]byte{}

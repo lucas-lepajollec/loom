@@ -1,6 +1,6 @@
 //go:build windows
 
-package loom
+package platform
 
 import (
 	"fmt"
@@ -29,20 +29,20 @@ func firewallRuleName(port int) string {
 
 // netsh exécute netsh sans faire clignoter de console (hideCmd) et renvoie sa
 // sortie combinée.
-func netsh(args ...string) (string, error) {
-	if firewallInert {
+func netsh(inert bool, args ...string) (string, error) {
+	if inert {
 		return "", fmt.Errorf("pare-feu non piloté")
 	}
-	out, err := hideCmd(exec.Command("netsh", args...)).CombinedOutput()
+	out, err := HideCmd(exec.Command("netsh", args...)).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
 
 // firewallOpen autorise le port en entrée (TCP), pour les profils privé et
 // domaine seulement : ouvrir un modèle non authentifié sur un réseau public
 // (café, hôtel) n'est pas un défaut qu'on pose au nom de l'utilisateur.
-func firewallOpen(port int) error {
-	_ = firewallClose(port) // idempotence : pas d'empilement de règles homonymes
-	out, err := netsh("advfirewall", "firewall", "add", "rule",
+func FirewallOpen(port int, inert bool) error {
+	_ = FirewallClose(port, inert) // idempotence : pas d'empilement de règles homonymes
+	out, err := netsh(inert, "advfirewall", "firewall", "add", "rule",
 		"name="+firewallRuleName(port), "dir=in", "action=allow",
 		"protocol=TCP", "localport="+strconv.Itoa(port), "profile=private,domain")
 	if err != nil {
@@ -53,15 +53,15 @@ func firewallOpen(port int) error {
 
 // firewallClose retire la règle. Absente = rien à faire, et surtout pas une
 // erreur.
-func firewallClose(port int) error {
-	_, _ = netsh("advfirewall", "firewall", "delete", "rule", "name="+firewallRuleName(port))
+func FirewallClose(port int, inert bool) error {
+	_, _ = netsh(inert, "advfirewall", "firewall", "delete", "rule", "name="+firewallRuleName(port))
 	return nil
 }
 
 // firewallState relit l'état RÉEL de la règle plutôt que de croire au succès
 // supposé d'une commande passée.
-func firewallState(port int) string {
-	out, err := netsh("advfirewall", "firewall", "show", "rule", "name="+firewallRuleName(port))
+func FirewallState(port int, inert bool) string {
+	out, err := netsh(inert, "advfirewall", "firewall", "show", "rule", "name="+firewallRuleName(port))
 	if err != nil || strings.TrimSpace(out) == "" {
 		return "ferme"
 	}
@@ -72,7 +72,7 @@ func firewallState(port int) string {
 
 // firewallManualHint : la commande à coller dans un terminal ADMINISTRATEUR
 // quand Loom n'a pas pu poser la règle lui-même.
-func firewallManualHint(port int) string {
+func FirewallManualHint(port int) string {
 	return fmt.Sprintf("le pare-feu Windows bloque encore le port %d. Ouvre un terminal ADMINISTRATEUR et lance :\n"+
 		`  netsh advfirewall firewall add rule name="%s" dir=in action=allow protocol=TCP localport=%d profile=private,domain`,
 		port, firewallRuleName(port), port)

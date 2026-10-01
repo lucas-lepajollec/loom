@@ -1,4 +1,4 @@
-package loom
+package platform
 
 import (
 	"fmt"
@@ -8,30 +8,30 @@ import (
 	"strings"
 )
 
-const uiUnitName = "loom-ui"
+const UIUnitName = "loom-ui"
 
-func uiServiceName() string {
+func UIServiceName() string {
 	if n := os.Getenv("LOOM_UI_SERVICE"); n != "" {
 		return n
 	}
 	if n := os.Getenv("LOOM_UI_SERVICE"); n != "" {
 		return n
 	}
-	return uiUnitName
+	return UIUnitName
 }
 
-func uiServiceActive() bool {
+func UIServiceActive() bool {
 	if runtime.GOOS != "linux" {
 		return false
 	}
-	out, err := exec.Command("systemctl", "is-active", uiServiceName()).Output()
+	out, err := exec.Command("systemctl", "is-active", UIServiceName()).Output()
 	if err != nil {
 		return false
 	}
 	return strings.TrimSpace(string(out)) == "active"
 }
 
-func cmdUI(args []string) error {
+func CmdUI(args []string) error {
 	action := "status"
 	if len(args) > 0 {
 		action = args[0]
@@ -39,7 +39,7 @@ func cmdUI(args []string) error {
 	if runtime.GOOS != "linux" {
 		return fmt.Errorf("la commande ui n'est disponible que sous Linux (systemd)")
 	}
-	svc := uiServiceName()
+	svc := UIServiceName()
 	needsRoot := action == "start" || action == "stop" || action == "restart" || action == "enable" || action == "disable"
 	var cmdArgs []string
 	bin := "systemctl"

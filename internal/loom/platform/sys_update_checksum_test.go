@@ -1,4 +1,4 @@
-package loom
+package platform
 
 import (
 	"crypto/sha256"
@@ -18,7 +18,7 @@ func TestVerifyChecksumRequiresManifest(t *testing.T) {
 	if err := os.WriteFile(path, []byte("binary"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := verifyChecksum(relWith(asset), asset, path); err == nil {
+	if err := VerifyChecksum(relWith(asset), asset, path); err == nil {
 		t.Fatal("an automatic update must reject a release without checksums")
 	}
 }
@@ -39,16 +39,16 @@ func TestVerifyChecksumMatchesExactAsset(t *testing.T) {
 
 	release := relWith(asset, "SHA256SUMS.txt")
 	release.Assets[1].BrowserDownloadURL = server.URL
-	if err := verifyChecksum(release, asset, path); err != nil {
+	if err := VerifyChecksum(release, asset, path); err != nil {
 		t.Fatalf("valid manifest was rejected: %v", err)
 	}
 
 	manifest = strings.Replace(manifest, asset, "another-platform", 1)
-	if err := verifyChecksum(release, asset, path); err == nil {
+	if err := VerifyChecksum(release, asset, path); err == nil {
 		t.Fatal("manifest for another platform was accepted")
 	}
 	manifest = strings.Repeat("0", 64) + "  " + asset + "\n"
-	if err := verifyChecksum(release, asset, path); err == nil {
+	if err := VerifyChecksum(release, asset, path); err == nil {
 		t.Fatal("mismatched binary was accepted")
 	}
 }

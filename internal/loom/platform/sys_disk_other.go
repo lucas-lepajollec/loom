@@ -1,6 +1,6 @@
 //go:build !windows
 
-package loom
+package platform
 
 // sys_disk_other.go — espace libre d'un système de fichiers via statfs(2).
 // Bavail (et pas Bfree) : les blocs réservés à root ne sont pas utilisables pour
@@ -11,7 +11,7 @@ import "syscall"
 // diskFreeAt renvoie les octets libres du système de fichiers contenant dir, ou
 // -1 si la mesure échoue. dir doit exister (l'appelant remonte les parents au
 // besoin).
-func diskFreeAt(dir string) int64 {
+func DiskFreeAt(dir string) int64 {
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(dir, &st); err != nil {
 		return -1

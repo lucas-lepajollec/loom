@@ -1,4 +1,4 @@
-package loom
+package platform
 
 // sys_brand_icon.go — l'icône de la marque Loom, rendue à la volée.
 //
@@ -20,7 +20,7 @@ import (
 	"math"
 )
 
-const trayIconSize = 32
+const TrayIconSize = 32
 
 var (
 	brandBlack = color.RGBA{0x0d, 0x0d, 0x0d, 0xff}
@@ -157,7 +157,7 @@ func BrandIconPNG(n int) []byte { return encodePNG(brandIconImage(n, brandBlack,
 // brandTemplatePNG rend la variante « template » macOS (tissage découpé).
 //
 //lint:ignore U1000 utilisée par sys_tray_darwin.go, invisible sans CGO/macOS
-func brandTemplatePNG(n int) []byte {
+func BrandTemplatePNG(n int) []byte {
 	return encodePNG(brandIconImage(n, brandBlack, brandClear))
 }
 
@@ -167,7 +167,7 @@ func brandTemplatePNG(n int) []byte {
 // (16 px) à la grande tuile de l'explorateur (256 px).
 func BrandICO(sizes ...int) []byte {
 	if len(sizes) == 0 {
-		sizes = []int{trayIconSize}
+		sizes = []int{TrayIconSize}
 	}
 	imgs := make([][]byte, 0, len(sizes))
 	for _, n := range sizes {

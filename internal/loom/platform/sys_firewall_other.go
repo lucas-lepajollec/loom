@@ -1,6 +1,6 @@
 //go:build !windows
 
-package loom
+package platform
 
 // Linux et macOS n'ont pas de pare-feu entrant activé par défaut, et quand il y
 // en a un (ufw, firewalld, pf) c'est une affaire d'administration système qu'un
@@ -8,9 +8,9 @@ package loom
 // n'en pilote donc aucun : « inconnu » dit exactement ça, et l'interface
 // n'affiche pas d'avertissement de pare-feu là où il n'y a rien à avertir.
 
-func firewallOpen(int) error  { return nil }
-func firewallClose(int) error { return nil }
+func FirewallOpen(int, bool) error  { return nil }
+func FirewallClose(int, bool) error { return nil }
 
-func firewallState(int) string { return "inconnu" }
+func FirewallState(int, bool) string { return "inconnu" }
 
-func firewallManualHint(int) string { return "" }
+func FirewallManualHint(int) string { return "" }

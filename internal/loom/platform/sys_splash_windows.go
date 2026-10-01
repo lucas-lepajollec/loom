@@ -1,6 +1,6 @@
 //go:build windows
 
-package loom
+package platform
 
 // sys_splash_windows.go — écran de démarrage « Lancement de Loom… ».
 //
@@ -100,10 +100,10 @@ const (
 	colWhite = 0x00EAF1F4
 )
 
-type splash struct{ hwnd uintptr }
+type Splash struct{ hwnd uintptr }
 
-func showSplash(text string) *splash {
-	s := &splash{}
+func ShowSplash(text string) *Splash {
+	s := &Splash{}
 	ready := make(chan uintptr, 1)
 	go func() {
 		runtime.LockOSThread()
@@ -118,7 +118,7 @@ func showSplash(text string) *splash {
 	return s
 }
 
-func (s *splash) close() {
+func (s *Splash) Close() {
 	if s == nil || s.hwnd == 0 {
 		return
 	}

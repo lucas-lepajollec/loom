@@ -1,4 +1,4 @@
-package loom
+package platform
 
 import "testing"
 
@@ -15,7 +15,7 @@ func TestEngineCmdlineOwned(t *testing.T) {
 		{"", false},
 	}
 	for _, c := range cases {
-		if got := engineCmdlineOwned(c.in); got != c.want {
+		if got := EngineCmdlineOwned(c.in); got != c.want {
 			t.Errorf("engineCmdlineOwned(%q)=%v want %v", c.in, got, c.want)
 		}
 	}

@@ -16,19 +16,6 @@ func dataDirs() []string {
 	return []string{LoomHome(), backendsDir(), binDir(), presetsDir(), memoryDir(), modelsDir(), workspaceDir(), scriptsDir()}
 }
 
-// defaultConfig est la configuration de départ d'une installation neuve. Les
-// valeurs sont volontairement incomplètes (BIN et MODEL sont vides) : c'est
-// l'écran d'accueil, ou « loom llamacpp install », qui les renseigne.
-func defaultConfig() map[string]string {
-	return map[string]string{
-		"PORT":   "8081",
-		"HOST":   "127.0.0.1",
-		"BATCH":  "2048",
-		"UBATCH": "512",
-		"NGL":    "999",
-	}
-}
-
 // provisionDataDir crée l'arborescence et, sur une installation neuve, pose la
 // configuration de départ. Idempotente : une configuration existante n'est
 // jamais écrasée.

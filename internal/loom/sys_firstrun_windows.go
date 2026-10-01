@@ -59,7 +59,7 @@ const (
 )
 
 var (
-	pMessageBoxW = u32s.NewProc("MessageBoxW")
+	pMessageBoxW = syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW")
 
 	verDLL                   = syscall.NewLazyDLL("version.dll")
 	pGetFileVersionInfoSizeW = verDLL.NewProc("GetFileVersionInfoSizeW")
