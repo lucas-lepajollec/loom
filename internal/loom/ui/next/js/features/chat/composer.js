@@ -6,11 +6,14 @@ import { Popover } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
 import { request, get } from '../../core/api.js';
 
-// Commandes « / » lues par la sonde, par harness (évite de relancer l'agent).
-const probeCommands = {};
 import { runtimeCaps, app } from '../../core/state.js';
 import { chat, send, stop, compact } from './engine.js';
 import { currentExec } from './picker.js';
+import { slashEntries, runChoice } from './slash.js';
+
+// Sonde du harness par runtime (commandes « / », réglages, modes) : évite de
+// relancer l'agent avant la première réponse.
+const probes = {};
 
 const toolOn = n => { try { return localStorage.getItem('loom.chat.' + n) === '1'; } catch (_) { return false; } };
 const setToolOn = (n, v) => { try { localStorage.setItem('loom.chat.' + n, v ? '1' : '0'); } catch (_) {} };
@@ -35,7 +38,7 @@ async function upload(file) {
 }
 
 export function Composer() {
-  const c = useStore(chat, s => ({ busy: s.busy, mode: s.mode, ctx: s.ctxUsed, session: s.session, context: s.context, notice: s.notice }));
+  const c = useStore(chat, s => ({ busy: s.busy, mode: s.mode, ctx: s.ctxUsed, session: s.session, context: s.context, notice: s.notice, harness: s.harness }));
   const status = useStore(app, s => s.status);
   const [text, setText] = useState('');
   const [files, setFiles] = useState([]);
@@ -71,30 +74,67 @@ export function Composer() {
   // Liste lue par la sonde du harness ; relue tant qu'elle est vide (la sonde
   // tourne en arrière-plan au démarrage de Loom).
   const loadCommands = () => {
-    if (!rtId || probeCommands[rtId] === 'loading' || (probeCommands[rtId] && probeCommands[rtId].length)) return;
-    probeCommands[rtId] = 'loading';
-    get('/api/runtimes/' + rtId + '/probe').then(r => { probeCommands[rtId] = (r && r.probe && r.probe.commands) || []; bump(x => x + 1); })
-      .catch(() => { probeCommands[rtId] = []; });
+    if (!rtId || probes[rtId] === 'loading' || (probes[rtId] && (probes[rtId].commands || []).length)) return;
+    probes[rtId] = 'loading';
+    get('/api/runtimes/' + rtId + '/probe').then(r => { probes[rtId] = (r && r.probe) || {}; bump(x => x + 1); })
+      .catch(() => { probes[rtId] = {}; });
   };
   useEffect(loadCommands, [rtId]);
   useEffect(() => { if (text.startsWith('/')) loadCommands(); }, [text.startsWith('/'), rtId]);
-  // Commandes de la session en cours, sinon celles annoncées lors de la sonde.
-  const live = (!native && c.harness && c.harness.commands) || [];
-  const probed = rtId && Array.isArray(probeCommands[rtId]) ? probeCommands[rtId] : [];
-  const commands = live.length ? live : probed;
+  // Session en cours, sinon ce que la sonde a vu.
+  const probe = rtId && typeof probes[rtId] === 'object' ? probes[rtId] : {};
+  const h = (!native && c.harness) || {};
+  const commands = (h.commands || []).length ? h.commands : (probe.commands || []);
+  const harness = { config: (h.config || []).length ? h.config : (probe.config || []), modes: (h.modes || []).length ? h.modes : (probe.modes || []), mode: h.mode || probe.mode || '' };
+  const entries = slashEntries({ commands, session: !native && c.session, harness, rtId });
   // Commande tapée mais non annoncée par le harness (ex. /usage, propre au terminal de Claude Code).
   const typed = /^\/(\S+)/.exec(text.trim());
-  const unknownCmd = typed && commands.length > 0 && !commands.some(x => x.name === typed[1]) ? typed[1] : '';
+  const unknownCmd = typed && entries.length > 0 && !entries.some(x => x.name === typed[1]) ? typed[1] : '';
   const hint = c.notice || blocked || (unknownCmd ? '/' + unknownCmd + ' n’est pas proposée par ce harness via Loom : elle sera envoyée comme un message normal.' : '');
-  const slash = /^\/(\S*)$/.exec(text);
-  const matches = slash ? commands.filter(x => x.name.toLowerCase().includes(slash[1].toLowerCase())).sort((a, b) => a.name.toLowerCase().startsWith(slash[1].toLowerCase()) ? -1 : b.name.toLowerCase().startsWith(slash[1].toLowerCase()) ? 1 : 0).slice(0, 40) : [];
+
+  // Premier niveau : « /mot ». Second niveau : « /commande filtre » quand la
+  // commande a des choix (réglages, sessions, options de l'indice).
+  const [loaded, setLoaded] = useState({});
   const [sel, setSel] = useState(0);
-  const useCommand = x => { setText('/' + x.name + ' '); setSel(0); ta.current && ta.current.focus(); };
+  const first = /^\/(\S*)$/.exec(text);
+  const second = /^\/(\S+) (.*)$/s.exec(text);
+  const parent = second && entries.find(e => e.name === second[1] && (e.children || e.load));
+  useEffect(() => {
+    if (!parent || !parent.load || loaded[parent.name]) return;
+    setLoaded(l => ({ ...l, [parent.name]: 'loading' }));
+    parent.load().then(items => setLoaded(l => ({ ...l, [parent.name]: items })), () => setLoaded(l => ({ ...l, [parent.name]: [] })));
+  }, [parent && parent.name]);
+  useEffect(() => setLoaded({}), [rtId, c.session && c.session.id]);
+  const low = v => String(v || '').toLowerCase();
+  let rows = [], level = null;
+  if (first) {
+    const q = low(first[1]);
+    const rank = x => (low(x.name).startsWith(q) ? 2 : 0) + (x.children || x.load ? 1 : 0);
+    rows = entries.filter(x => low(x.name).includes(q)).sort((a, b) => rank(b) - rank(a)).slice(0, 40);
+  } else if (parent) {
+    const q = low(second[2]).trim();
+    const items = parent.children || (Array.isArray(loaded[parent.name]) ? loaded[parent.name] : []);
+    level = { name: parent.name, loading: !parent.children && loaded[parent.name] !== undefined && !Array.isArray(loaded[parent.name]), empty: !items.length };
+    rows = items.filter(x => !q || low(x.label).includes(q) || low(x.description).includes(q)).slice(0, 60);
+  }
+  useEffect(() => setSel(0), [first ? 'a' : parent ? 'b' + parent.name : '', rows.length]);
+  const focus = () => ta.current && ta.current.focus();
+  const choose = async x => {
+    setSel(0);
+    if (!level) { setText('/' + x.name + ' '); focus(); return; }
+    if (x.insert && !x.complete) { setText(x.insert + ' '); focus(); return; }
+    if (x.insert) { setText(''); const ok = await send(x.insert, {}); if (!ok) setText(x.insert); return; }
+    setText(''); await runChoice(x.run, { session: c.session, rtId }); focus();
+  };
   const onKey = e => {
-    if (matches.length) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setSel((sel + 1) % matches.length); return; }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setSel((sel - 1 + matches.length) % matches.length); return; }
-      if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) { e.preventDefault(); useCommand(matches[Math.min(sel, matches.length - 1)]); return; }
+    if (level && e.key === 'Escape') { e.preventDefault(); setText('/' + level.name); return; }
+    if (rows.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSel((sel + 1) % rows.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSel((sel - 1 + rows.length) % rows.length); return; }
+      const pick = rows[Math.min(sel, rows.length - 1)];
+      const leaf = !level && !(pick.children || pick.load);
+      if ((e.key === 'Tab' || (e.key === 'Enter' && !leaf)) && !e.shiftKey && !e.isComposing) { e.preventDefault(); choose(pick); return; }
+      if (e.key === 'Enter' && leaf && !e.shiftKey && first && first[1] !== pick.name) { e.preventDefault(); choose(pick); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
   };
@@ -108,8 +148,12 @@ export function Composer() {
   const toggleTool = n => { const v = !tools[n]; setToolOn(n, v); setTools({ ...tools, [n]: v }); };
 
   return html`<div class="composer-wrap">
-    ${matches.length > 0 && html`<div class="slash" role="listbox" aria-label="Commandes">${matches.map((x, i) => html`<button type="button" role="option" aria-selected=${String(i === sel)} class=${cls('slash-row', i === sel && 'on')} onMouseDown=${e => { e.preventDefault(); useCommand(x); }}>
-      <b>/${x.name}</b>${x.input && x.input.hint && html`<em>${x.input.hint}</em>`}<span>${x.description || ''}</span></button>`)}</div>`}
+    ${(rows.length > 0 || level) && html`<div class="slash" role="listbox" aria-label=${level ? '/' + level.name : 'Commandes'}>
+      ${level && html`<div class="slash-head"><button type="button" aria-label="Retour" onMouseDown=${e => { e.preventDefault(); setText('/'); }}><${Icon} n="left" /></button><b>/${level.name}</b>
+        <span>${level.loading ? 'Chargement…' : level.empty ? 'Aucun choix proposé' : 'Échap pour revenir'}</span></div>`}
+      ${rows.map((x, i) => html`<button type="button" role="option" aria-selected=${String(i === sel)} class=${cls('slash-row', level && 'sub', i === sel && 'on')} onMouseDown=${e => { e.preventDefault(); choose(x); }}>
+        ${level ? html`<b>${x.label}</b>${x.current && html`<em>actuel</em>`}<span>${x.description || ''}</span>`
+          : html`<b>/${x.name}</b>${x.hint && html`<em>${x.hint}</em>`}<span>${x.description || ''}</span>${(x.children || x.load) && html`<${Icon} n="right" />`}`}</button>`)}</div>`}
     <div class="composer">
       ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}<button aria-label="Retirer" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
       <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey}
@@ -119,7 +163,7 @@ export function Composer() {
           <input type="file" multiple hidden ref=${fileIn} onChange=${pick} />
           <button class=${cls('chip-btn', (tools.internet || tools.mcp) && 'on')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="sliders" />Outils${tools.internet || tools.mcp ? html` <span class="n">${(tools.internet ? 1 : 0) + (tools.mcp ? 1 : 0)}</span>` : ''}</button>`}
         ${workdir && html`<button class="chip-btn" title=${workdir} onClick=${() => app.set({ inspector: true })}><${Icon} n="folder" />${workdir.split('/').pop()}</button>`}
-        ${commands.length > 0 && !text && html`<span class="composer-tip">/ pour les commandes</span>`}
+        ${entries.length > 0 && !text && html`<span class="composer-tip">/ pour les commandes</span>`}
         <span class="grow"></span>
         ${native && ctxMax ? html`<button class="ctx" title=${'Contexte utilisé : ' + c.ctx + ' / ' + ctxMax + ' tokens'} onClick=${compact}>
           <span class="ctx-ring" style=${`--p:${pct}`}></span><span>${fmtTok(c.ctx)} / ${fmtTok(ctxMax)}</span></button>` : ''}
