@@ -35,10 +35,13 @@ drive engines and harnesses wherever they run.
   `/v1` on the network, remote harness machines over SSH, Loom models in
   Codex and Claude Code (local + compatible cloud providers), projects linked
   to their folder.
-- To do, in order: remote engine (llama.cpp on the GPU machine, linked by
-  address — part of step 7), merge `refactor/runtime-registry` into `main` and
-  install on the VM, terminals (step 11), remaining harness sources (Pi and
-  OpenCode cloud, Hermes through its machine's environment).
+- Also done: remote engine (a Loom on the GPU machine linked by address and
+  control key; every engine route forwarded, completions through its /v1),
+  engine auto-update (applied only when no model is loaded), terminals.
+- To do, in order: harness install/update/auto-update on any machine (in
+  progress), merge `refactor/runtime-registry` into `main` and install on the
+  VM, installing Loom on a remote machine over SSH, remaining harness sources
+  (Pi and OpenCode cloud, Hermes through its machine's environment).
 
 ## Next, in order
 
@@ -51,7 +54,7 @@ drive engines and harnesses wherever they run.
 7. **Local engines: llama.cpp, vLLM, more later.** At first install the user chooses to install one or several engines and link them, or to link engines already installed, among those Loom supports. Loom only links: each engine keeps working on its own as if Loom were not there. The engine can run on another machine (GPU box) while Loom runs elsewhere. Engines differ (vLLM targets high-throughput parallel serving, llama.cpp consumer GPUs and GGUF), so the Local page and the parameters panel adapt to each engine's capabilities and parameter catalog (Engine interface + ParamSpec per engine).
 8. **Public release readiness.** English + French UI, first-run onboarding (hardware detection, engine install, first model, providers, harnesses), tested installers for Linux/macOS/Windows, demo, landing page and documentation. Repository hygiene pass done (docs match the code, release workflow fixed; open decisions in `docs/agents/repo-hygiene-report.md`).
 9. **Advanced memory.** Distillation of conversations into decisions/facts with provenance, semantic search, then a graph index (Graphify) as one more index, never a source of truth.
-10. **Terminals.** Open terminals from Loom (local or on a remote machine): run and manage apps, launch an agent's own CLI to check or repair something. PTY over WebSocket, behind the control key, tied to a project folder or a harness session.
+10. **Terminals.** Done on Linux/macOS: real shells (PTY over WebSocket, one-time tickets behind the control key) on this machine or a connected one, in a folder, optionally running a command (an agent's CLI, an app); they outlive the tab and replay recent output. Opened from Terminaux, a project, a harness discussion or a remote machine. Remaining: Windows (ConPTY), terminals tied to harness sessions' native resume.
 11. **Quotas everywhere, then routing.** Usage/quotas for every harness and provider, then automatic routing (model/harness/skills per task) last, on top of clean data.
 
 Later candidates: native cloud protocols (Anthropic Messages, Responses API), harness cron/terminal views where the harness exposes them.

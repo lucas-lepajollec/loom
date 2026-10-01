@@ -229,6 +229,11 @@ func newWebMux() *http.ServeMux {
 	api("/api/network/web", handleWebNetwork)
 	api("/api/engine/node", handleEngineNode)
 	api("/api/engine/auto-update", handleEngineAuto)
+	api("/api/terminals", handleTerminals)
+	api("/api/terminals/close", handleTerminalClose)
+	api("/api/terminals/ticket", handleTerminalTicket)
+	// One-time ticket from /api/terminals/ticket instead of the key header.
+	mux.HandleFunc("/api/terminals/ws", handleTerminalWS)
 	api("/api/node/info", handleNodeInfo)
 	api("/api/network", handleNetwork) // écoute LAN du moteur + pare-feu (Windows)
 	api("/api/server", handleServer)   // Serveur API : slots llama-server, NP, requêtes

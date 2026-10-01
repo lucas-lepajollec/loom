@@ -12,6 +12,7 @@ import { app, refreshWorkspace } from '../../core/state.js';
 import { chat, open } from '../chat/engine.js';
 import { currentExec, EXEC_TAG } from '../chat/picker.js';
 import { agentSessions, runChoice } from '../chat/slash.js';
+import { openTerminalWith } from '../terminals/page.js';
 import { LocalParams } from './params.js';
 import { ContextPanel } from './context.js';
 
@@ -68,6 +69,18 @@ function ConfigOption({ o, onChange }) {
     <select class="select sm" value=${o.currentValue} onChange=${e => onChange(e.target.value)}>${opts.map(x => html`<option value=${x.value} selected=${x.value === o.currentValue}>${x.name || x.value}</option>`)}</select></div>`;
 }
 
+// Terminal dans le dossier de travail du harness, sur sa machine.
+async function openHarnessTerminal(s, dir, remote) {
+  let target = 'local';
+  if (remote) {
+    const r = await get('/api/machines').catch(() => null);
+    const m = r && r.ok && r.machines.find(x => (x.harnesses || []).includes(s.runtime_id));
+    if (!m) return toast('Machine de ce harness introuvable', 'err');
+    target = m.id;
+  }
+  openTerminalWith({ target, dir, title: s.provider_name });
+}
+
 function HarnessPanel() {
   const { s, h } = useStore(chat, c => ({ s: c.session, h: c.harness || {} }));
   const runtimes = useStore(app, a => (a.workspace && a.workspace.runtimes) || []);
@@ -104,7 +117,8 @@ function HarnessPanel() {
 
     ${canDir && html`<div class="hs-sec"><div class="hs-h">Dossier de travail</div>
       ${workdir ? html`<button class="hs-dir" onClick=${chooseDir} title=${workdir}><${Icon} n="folder" /><span class="mono trunc">${workdir.replace(/^\/home\/[^/]+/, '~')}</span><span class="muted">Changer</span></button>`
-        : html`<button class="btn" onClick=${chooseDir}><${Icon} n="folder" />${remote ? 'Indiquer le dossier distant' : 'Choisir un dossier'}</button>`}</div>`}
+        : html`<button class="btn" onClick=${chooseDir}><${Icon} n="folder" />${remote ? 'Indiquer le dossier distant' : 'Choisir un dossier'}</button>`}
+      ${workdir && html`<button class="btn sm ghost hs-term" onClick=${() => openHarnessTerminal(s, workdir, remote)}><${Icon} n="prompt" />Ouvrir un terminal ici</button>`}</div>`}
 
     ${canAsk && html`<div class="hs-sec"><div class="hs-h">Autorisations<${Tip} text=${LEVEL_TIP} /></div>
       <${Seg} value=${level} onChange=${setLevel} label="Niveau d’autorisation" options=${LEVELS} /></div>`}

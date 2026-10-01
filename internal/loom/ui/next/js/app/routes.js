@@ -10,6 +10,7 @@ import { UsagePage } from '../features/usage/page.js';
 import { BenchPage } from '../features/bench/page.js';
 import { SettingsPage } from '../features/settings/page.js';
 import { ProjectPage } from '../features/projects/page.js';
+import { TerminalsPage } from '../features/terminals/page.js';
 
 export const ROUTES = [
   { id: 'chat', page: ChatView },
@@ -17,6 +18,7 @@ export const ROUTES = [
   { id: 'cloud', page: CloudPage, nav: { label: 'Cloud', icon: 'cloud' } },
   { id: 'harnesses', page: HarnessesPage, nav: { label: 'Harnesses', icon: 'terminal' } },
   { id: 'resources', page: ResourcesPage, nav: { label: 'Ressources', icon: 'box' } },
+  { id: 'terminals', page: TerminalsPage, nav: { label: 'Terminaux', icon: 'prompt' } },
   { id: 'bench', page: BenchPage, nav: { label: 'Bench', icon: 'gauge' } },
   { id: 'usage', page: UsagePage, nav: { label: 'Usage', icon: 'chart' } },
   { id: 'project', page: ProjectPage },

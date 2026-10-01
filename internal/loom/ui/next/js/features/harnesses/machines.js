@@ -11,6 +11,7 @@ import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { go, refreshWorkspace } from '../../core/state.js';
 import { copyText } from '../../ui/clipboard.js';
+import { openTerminalWith } from '../terminals/page.js';
 
 export { copyText };
 
@@ -110,6 +111,7 @@ export function MachinesSection({ onEdit }) {
       <span class="mx-ico"><${Icon} n="server" /></span>
       <span class="grow"><b>${m.name}</b><small class="mono">${m.user}@${m.host}${m.port !== 22 ? ':' + m.port : ''}</small></span>
       <span class="mx-hs">${(m.harnesses || []).map(id => { const h = id.slice(('custom-' + m.id + '-').length); return html`<button class="chip-btn" key=${id} onClick=${() => go('harnesses', id)}><${Logo} name=${h} />${NAMES[h] || h}</button>`; })}</span>
+      <button class="btn sm ghost" onClick=${() => openTerminalWith({ target: m.id, dir: m.home || '', title: m.name })}><${Icon} n="prompt" />Terminal</button>
       <button class="btn sm ghost" onClick=${() => onEdit(m)}>Modifier</button>
       <button class="icon-btn" aria-label=${'Retirer ' + m.name} onClick=${() => remove(m)}><${Icon} n="trash" /></button>
     </div>`)}</div></section>`;

@@ -6,6 +6,8 @@ require (
 	codeberg.org/readeck/go-readability/v2 v2.1.2
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.2
 	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/coder/websocket v1.8.15
+	github.com/creack/pty v1.1.24
 	github.com/getlantern/systray v1.2.2
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/zalando/go-keyring v0.2.8

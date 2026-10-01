@@ -10,6 +10,7 @@ import { confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshNav, refreshWorkspace } from '../../core/state.js';
 import { open, newDiscussion, chooseRemote } from '../chat/engine.js';
+import { openTerminalWith } from '../terminals/page.js';
 
 const kb = b => b < 1024 ? b + ' o' : (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' Ko';
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
@@ -70,7 +71,7 @@ export function ProjectPage({ route }) {
   const groups = [...new Set(choices.map(m => m.kind === 'harness' ? 'Harness · ' + m.provider_name : 'Cloud · ' + m.provider_name))];
   return html`<div class="view page"><div class="page-in">
     <div class="page-head"><div><h1>${p.name}</h1><p>Ce qui relie les discussions de ce projet : son dossier, son contexte et l’exécution par défaut.</p></div>
-      <div class="acts"><button class="btn primary" onClick=${() => newProjectDiscussion(p)}><${Icon} n="plus" />Nouvelle discussion</button></div></div>
+      <div class="acts">${p.directory && html`<button class="btn" onClick=${() => openTerminalWith({ target: 'local', dir: p.directory, title: p.name })}><${Icon} n="prompt" />Terminal</button>`}<button class="btn primary" onClick=${() => newProjectDiscussion(p)}><${Icon} n="plus" />Nouvelle discussion</button></div></div>
 
     <div class="grid-proj">
       <div class="pj-col">
