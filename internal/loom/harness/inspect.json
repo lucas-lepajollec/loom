@@ -134,7 +134,7 @@
       "npm",
       "install",
       "-g",
-      "@mariozechner/pi-coding-agent@latest"
+      "@earendil-works/pi-coding-agent@latest"
     ],
     "auth": {
       "file": "~/.pi/agent/auth.json",
@@ -162,23 +162,22 @@
         "npm",
         "install",
         "-g",
-        "@mariozechner/pi-coding-agent"
+        "@earendil-works/pi-coding-agent"
       ],
       "windows": [
         "npm",
         "install",
         "-g",
-        "@mariozechner/pi-coding-agent"
+        "@earendil-works/pi-coding-agent"
       ]
     },
     "latest": {
-      "npm": "@mariozechner/pi-coding-agent"
+      "npm": "@earendil-works/pi-coding-agent"
     },
     "requires": [
       "npm",
       "node"
     ],
-    "unverified": true,
     "source": "https://github.com/badlogic/pi-mono/blob/v0.60.0/packages/coding-agent/README.md"
   },
   "antigravity": {
@@ -355,10 +354,8 @@
       ]
     },
     "update": [
-      "npm",
-      "install",
-      "-g",
-      "opencode-ai@latest"
+      "opencode",
+      "upgrade"
     ],
     "latest": {
       "npm": "opencode-ai"
