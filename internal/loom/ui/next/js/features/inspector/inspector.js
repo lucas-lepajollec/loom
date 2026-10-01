@@ -8,8 +8,8 @@ import { Logo } from '../../ui/logo.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { Modal, toast, confirm, prompt } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
-import { app } from '../../core/state.js';
-import { chat } from '../chat/engine.js';
+import { app, refreshWorkspace } from '../../core/state.js';
+import { chat, open } from '../chat/engine.js';
 import { currentExec, EXEC_TAG } from '../chat/picker.js';
 import { LocalParams } from './params.js';
 import { ContextPanel } from './context.js';
@@ -51,6 +51,13 @@ async function configure(s, patch) {
   const r = await post('/api/runtime/sessions/configure', { id: s.id, ...patch });
   if (!r.ok) toast(r.error || 'Réglage impossible', 'err');
   return r.ok;
+}
+
+// Changer de modèle passe par le sélecteur : nouvelle session native, même fil.
+async function switchModel(s, value) {
+  const r = await post('/api/runtime/sessions/select', { id: s.id, choice_id: s.runtime_id + ':' + value, consent: true });
+  if (!r.ok) return toast(r.error || 'Modèle indisponible', 'err');
+  await refreshWorkspace(); open(s.id, true);
 }
 
 function ConfigOption({ o, onChange }) {
@@ -105,7 +112,7 @@ function HarnessPanel() {
       <select class="select" value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${m.name}</option>`)}</select></div>`}
 
     ${config.filter(o => !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).length > 0 && html`<div class="hs-sec"><div class="hs-h">Réglages du harness</div>
-      <div class="prows">${config.filter(o => !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).map(o => html`<${ConfigOption} key=${o.id} o=${o} onChange=${v => configure(s, { config: { [o.id]: v } })} />`)}</div></div>`}
+      <div class="prows">${config.filter(o => !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).map(o => html`<${ConfigOption} key=${o.id} o=${o} onChange=${v => o.category === 'model' ? switchModel(s, v) : configure(s, { config: { [o.id]: v } })} />`)}</div></div>`}
 
     <div class="hs-sec"><div class="hs-h">Contexte</div>
       ${ctxPct != null ? html`<div class="vram"><div class="vram-h"><span>Utilisé</span><b>${fmtTok(usage.context.used)} <small>/ ${fmtTok(usage.context.size)}</small></b></div>

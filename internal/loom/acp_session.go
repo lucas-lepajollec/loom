@@ -278,7 +278,20 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		p.state.NativeSessionID = response.SessionID
 		p.applySessionResponse(response)
 		p.mu.Unlock()
-		if err := p.configure(ctx, s.Mode, s.ConfigOptions); err != nil {
+		config := map[string]any{}
+		for k, v := range s.ConfigOptions {
+			config[k] = v
+		}
+		// The model picked in Loom's selector wins over the agent's default.
+		if s.Model != "" && s.Model != "default" {
+			p.mu.Lock()
+			option := acpModelOption(p.state.AvailableConfigOptions)
+			p.mu.Unlock()
+			if id, _ := option["id"].(string); id != "" && option["currentValue"] != s.Model && acpConfigValueAllowed(option, s.Model) {
+				config[id] = s.Model
+			}
+		}
+		if err := p.configure(ctx, s.Mode, config); err != nil {
 			m.closeACP(s.ID)
 			return nil, err
 		}
@@ -294,7 +307,15 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		if p.state.Permission == "" {
 			p.state.Permission = "ask"
 		}
+		option := acpModelOption(p.state.AvailableConfigOptions)
 		p.mu.Unlock()
+		// A model picked in Loom since the last turn applies to the live session.
+		if id, _ := option["id"].(string); id != "" && s.Model != "" && s.Model != "default" && option["currentValue"] != s.Model && acpConfigValueAllowed(option, s.Model) {
+			if err := p.configure(ctx, "", map[string]any{id: s.Model}); err != nil {
+				m.closeACP(s.ID)
+				return nil, err
+			}
+		}
 	}
 	defer func() {
 		p.mu.Lock()

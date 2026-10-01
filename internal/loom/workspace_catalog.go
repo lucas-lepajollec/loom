@@ -81,14 +81,31 @@ func modelCatalog(providers []CloudProvider) []ModelChoice {
 	for _, d := range runtimeCatalog() {
 		adapter, _ := registeredRuntimes.lookup(d.ID)
 		if _, ok := adapter.(*acpAdapter); ok {
-			add(ModelChoice{ID: d.ID + ":default", Name: d.Name, Kind: "harness", ProviderName: d.Name, RuntimeID: d.ID, Ready: d.Available != nil && *d.Available})
+			ready := d.Available != nil && *d.Available
+			probe, _ := loadACPProbe(d.ID)
+			models := acpOptionValues(acpModelOption(probe.Config))
+			if len(models) == 0 {
+				add(ModelChoice{ID: d.ID + ":default", Name: d.Name, Kind: "harness", ProviderName: d.Name, RuntimeID: d.ID, Ready: ready})
+			}
+			// The agent's own model list, as announced in a probed session.
+			for _, m := range models {
+				name := m.Name
+				if name == "" {
+					name = m.Value
+				}
+				add(ModelChoice{ID: d.ID + ":" + m.Value, Name: name, Kind: "harness", ProviderName: d.Name, Model: m.Value, RuntimeID: d.ID, Ready: ready})
+			}
 		}
 	}
 
-	sort.Slice(choices, func(i, j int) bool {
+	// Harness models keep the order their agent announced (default first).
+	sort.SliceStable(choices, func(i, j int) bool {
 		if choices[i].Kind != choices[j].Kind {
 			rank := map[string]int{"local": 0, "cloud": 1, "harness": 2}
 			return rank[choices[i].Kind] < rank[choices[j].Kind]
+		}
+		if choices[i].Kind == "harness" {
+			return false
 		}
 		return choices[i].Name < choices[j].Name
 	})

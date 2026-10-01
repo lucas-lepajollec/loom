@@ -341,3 +341,9 @@
 .mem-none{min-height:200px;align-items:center;justify-content:center}
 @media (max-width:900px){.mem-grid{grid-template-columns:1fr}}
 .dist-logos{display:flex;gap:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.tag.on{color:var(--text);border-color:var(--line-strong);background:var(--surface-2)}
+.h-detail .local-strip{margin:18px 0 0}
+.h-detail .sec{margin-top:24px}
+.h-head .acts{display:flex;gap:8px;align-items:center}
+.h-head h2 .tag{vertical-align:3px;font-size:11px}

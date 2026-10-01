@@ -32,7 +32,7 @@ export function currentExec() {
 }
 
 // Éditeur du modèle, déduit de son identifiant (« anthropic/claude… », « gemini-3… »).
-const VENDORS = [[/claude|anthropic/, 'Anthropic'], [/gemini|gemma|google/, 'Google'], [/(^|\/)(gpt|o\d|codex|openai)/, 'OpenAI'], [/deepseek/, 'DeepSeek'],
+const VENDORS = [[/claude|anthropic|^(opus|sonnet|haiku|fable)/, 'Anthropic'], [/gemini|gemma|google/, 'Google'], [/(^|\/)(gpt|o\d|codex|openai)/, 'OpenAI'], [/deepseek/, 'DeepSeek'],
   [/qwen|alibaba/, 'Qwen'], [/glm|z-ai|zhipu/, 'Zhipu · GLM'], [/kimi|moonshot/, 'Moonshot · Kimi'], [/minimax/, 'MiniMax'], [/grok|x-ai|xai/, 'xAI'],
   [/mistral|codestral|magistral|devstral/, 'Mistral'], [/llama|meta/, 'Meta'], [/nemotron|nvidia/, 'NVIDIA'], [/cohere|command/, 'Cohere']];
 export const vendorOf = id => { const s = String(id).toLowerCase(); const v = VENDORS.find(([re]) => re.test(s)); return v ? v[1] : 'Autres'; };
@@ -89,7 +89,8 @@ export function Picker() {
     const harness = groupVariants(wsModels.filter(m => m.kind === 'harness' && m.enabled)).map(g => {
       const m = g.variants.find(v => /-medium$/.test(v.model)) || g.variants[0];
       const rt = ((workspace && workspace.runtimes) || []).find(r => r.id === m.runtime_id) || {};
-      return { id: g.key, title: g.name, sub: g.variants.length > 1 ? 'réflexion réglable' : '', group: m.provider_name, cli: rt.cli || '', vendorKey: m.model, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model), run: () => chooseRemote(m) };
+      const acp = (rt.capabilities || []).includes('workdir');
+      return { id: g.key, title: g.name, sub: g.variants.length > 1 ? 'réflexion réglable' : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: m.provider_name, cli: acp ? 'ACP' : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model), run: () => chooseRemote(m) };
     });
     return { local, cloud, harness };
   }, [status, workspace, models, presets, cur.kind, cur.name]);

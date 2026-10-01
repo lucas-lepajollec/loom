@@ -22,6 +22,7 @@ func cmdWeb(args []string) error {
 		fmt.Printf("%s données Loom : %v\n", yellow("[!]"), err)
 	}
 	registerCustomACPAgents()
+	go probeMissingACPAgents()
 	port := 8091
 	if len(args) > 0 && args[0] != "" {
 		n, err := strconv.Atoi(args[0])
@@ -129,6 +130,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/runtime/sessions/diff", handleACPDiff)
 	api("/api/fs/dirs", handleACPDirs)
 	api("/api/runtimes/{id}/connect", handleRuntimeConnect)
+	api("/api/runtimes/{id}/probe", handleACPProbe) // modèles et réglages annoncés par un harness ACP
 	api("/api/runtimes/{id}/quota", handleRuntimeQuota)
 	api("/api/providers", handleProviders)
 	api("/api/providers/save", handleProviderSave)
