@@ -54,7 +54,8 @@ export async function refreshNav() {
     const [hist, unified] = await Promise.all([get('/api/chat/history'), get('/api/runtime/sessions')]);
     const sessions = unified.ok ? unified.sessions : [];
     const imported = new Set(sessions.flatMap(s => [s.source_archive, s.native_archive]).filter(Boolean));
-    const conversations = [...sessions.map(s => ({ ...s, workspace: true })), ...((hist && hist.conversations) || []).filter(c => !imported.has(c.id))];
+    // Une discussion n'apparaît qu'après son premier message.
+    const conversations = [...sessions.filter(s => s.message_count > 0).map(s => ({ ...s, workspace: true })), ...((hist && hist.conversations) || []).filter(c => !imported.has(c.id) && c.turns > 0)];
     const bound = sessions.find(s => s.native_archive === hist.active && s.runtime_id === 'llama.cpp');
     app.set({ nav: { conversations, projects: hist.projects || [], active: bound ? bound.id : hist.active || '', projectId: hist.project_id || '' } });
   } catch (_) {}

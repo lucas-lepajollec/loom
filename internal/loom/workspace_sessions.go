@@ -25,6 +25,7 @@ type RuntimeSession struct {
 	Title           string        `json:"title"`
 	CreatedAt       int64         `json:"created_at"`
 	UpdatedAt       int64         `json:"updated_at"`
+	MessageCount    int           `json:"message_count,omitempty"` // filled in lists, where messages are left out
 	Status          string        `json:"status"`
 	Messages        []Message     `json:"messages"`
 	Usage           *RuntimeUsage `json:"usage,omitempty"`
@@ -265,6 +266,7 @@ func (m *runtimeSessions) list() []RuntimeSession {
 	out := []RuntimeSession{}
 	for id := range allKV(bkRuntimeSessions) {
 		if s, ok := m.getLocked(id); ok {
+			s.MessageCount = len(s.Messages)
 			s.Messages = nil
 			out = append(out, s)
 		}
