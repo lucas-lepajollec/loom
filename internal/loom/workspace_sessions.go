@@ -157,10 +157,26 @@ func (m *runtimeSessions) saveProvider(p CloudProvider, key string) (CloudProvid
 		m.keys[p.ID] = strings.TrimSpace(key)
 	}
 	p.Ready = m.keys[p.ID] != ""
+	if err := rememberProviderKey(p.ID, m.keys[p.ID], p.Remember); err != nil {
+		p.Remember = false
+		_ = putStoreJSON(bkProviders, p.ID, p)
+		return p, err
+	}
 	return p, nil
 }
 
-func (m *runtimeSessions) disconnect(id string) { m.mu.Lock(); defer m.mu.Unlock(); delete(m.keys, id) }
+// disconnect forgets the key in memory and in the keychain.
+func (m *runtimeSessions) disconnect(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.keys, id)
+	_ = rememberProviderKey(id, "", false)
+	var p CloudProvider
+	if getStoreJSON(bkProviders, id, &p) && p.Remember {
+		p.Remember = false
+		_ = putStoreJSON(bkProviders, id, p)
+	}
+}
 
 func (m *runtimeSessions) create(projectID, providerID string, consent bool) (RuntimeSession, error) {
 	m.mu.Lock()

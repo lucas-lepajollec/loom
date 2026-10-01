@@ -89,12 +89,15 @@ func syncSkillSinks() []skillSinkTarget {
 	defer skillSinkMu.Unlock()
 	list := loadSkillSinks()
 	skills := listCapabilities()
+	bindings := skillBindings()
 	for i := range list {
 		t := &list[i]
 		want := map[string]Capability{}
 		if t.Enabled {
 			for _, c := range skills {
-				want[skillSlug(c)] = c
+				if skillBound(bindings, c.ID, t.ID) {
+					want[skillSlug(c)] = c
+				}
 			}
 		}
 		kept := []string{}

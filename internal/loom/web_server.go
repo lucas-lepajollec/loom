@@ -21,6 +21,7 @@ func cmdWeb(args []string) error {
 		fmt.Printf("%s données Loom : %v\n", yellow("[!]"), err)
 	}
 	registerCustomACPAgents()
+	loadRememberedProviderKeys()
 	go probeMissingACPAgents()
 	port := 8091
 	if len(args) > 0 && args[0] != "" {
@@ -130,8 +131,11 @@ func newWebMux() *http.ServeMux {
 	api("/api/fs/dirs", handleACPDirs)
 	api("/api/runtimes/{id}/connect", handleRuntimeConnect)
 	api("/api/runtimes/{id}/probe", handleACPProbe)
-	api("/api/runtimes/{id}/inspect", handleHarnessInspect)    // ce que le harness possède déjà (MCP, skills, compte…)
-	api("/api/runtimes/{id}/update", handleHarnessUpdate)      // mise à jour du CLI du harness
+	api("/api/runtimes/{id}/inspect", handleHarnessInspect) // ce que le harness possède déjà (MCP, skills, compte…)
+	api("/api/runtimes/{id}/update", handleHarnessUpdate)
+	api("/api/runtimes/{id}/mcp/adopt", handleHarnessMCPAdopt) // copier un MCP du harness dans Loom
+	api("/api/harness/bindings", handleHarnessBindings)        // MCP Loom transmis à chaque harness
+	api("/api/skills/binding", handleSkillBinding)             // une skill vers un dossier de skills      // mise à jour du CLI du harness
 	api("/api/runtimes/{id}/sessions", handleACPSessions)      // sessions natives d’un harness ACP
 	api("/api/runtimes/{id}/sessions/import", handleACPImport) // importer une session native dans Loom // modèles et réglages annoncés par un harness ACP
 	api("/api/runtimes/{id}/quota", handleRuntimeQuota)

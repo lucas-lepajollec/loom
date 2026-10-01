@@ -560,7 +560,17 @@ func acpSessionMCPDefinitions(s RuntimeSession) (map[string]MCPServerConfig, err
 		}
 	}
 	if selected == nil {
-		return definitions, nil
+		selected = harnessMCPBinding(s.RuntimeID)
+	}
+	if selected == nil {
+		// All servers enabled in Loom; disabled ones are never passed.
+		out := map[string]MCPServerConfig{}
+		for name, d := range definitions {
+			if d.Enabled {
+				out[name] = d
+			}
+		}
+		return out, nil
 	}
 	out := map[string]MCPServerConfig{}
 	for _, name := range *selected {

@@ -52,6 +52,12 @@ type HarnessMCP struct {
 	Target  string `json:"target,omitempty"`
 	Status  string `json:"status,omitempty"` // connected | disabled | needs-auth | error | ""
 	Enabled *bool  `json:"enabled,omitempty"`
+	// Enough to recreate the server in Loom ("adopt"). Environment variable
+	// names only: their values stay in the harness's own configuration.
+	Command  string   `json:"command,omitempty"`
+	Args     []string `json:"args,omitempty"`
+	URL      string   `json:"url,omitempty"`
+	EnvNames []string `json:"env_names,omitempty"`
 }
 
 type HarnessSkill struct {
@@ -132,9 +138,11 @@ func parseMCP(format, text string) []HarnessMCP {
 			Name      string `json:"name"`
 			Enabled   bool   `json:"enabled"`
 			Transport struct {
-				Type    string `json:"type"`
-				Command string `json:"command"`
-				URL     string `json:"url"`
+				Type    string   `json:"type"`
+				Command string   `json:"command"`
+				Args    []string `json:"args"`
+				URL     string   `json:"url"`
+				EnvVars []string `json:"env_vars"`
 			} `json:"transport"`
 		}
 		if json.Unmarshal([]byte(strings.TrimSpace(text)), &list) == nil {
@@ -147,7 +155,7 @@ func parseMCP(format, text string) []HarnessMCP {
 				if m.Enabled {
 					st = "enabled"
 				}
-				out = append(out, HarnessMCP{Name: m.Name, Target: target, Status: st, Enabled: &en})
+				out = append(out, HarnessMCP{Name: m.Name, Target: target, Status: st, Enabled: &en, Command: m.Transport.Command, Args: m.Transport.Args, URL: m.Transport.URL, EnvNames: m.Transport.EnvVars})
 			}
 		}
 	case "claude":
@@ -168,7 +176,15 @@ func parseMCP(format, text string) []HarnessMCP {
 			case strings.Contains(state, "pending"):
 				st = "disabled"
 			}
-			out = append(out, HarnessMCP{Name: m[1], Target: m[2], Status: st})
+			entry := HarnessMCP{Name: m[1], Target: m[2], Status: st}
+			target := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(m[2]), "(HTTP)"))
+			target = strings.TrimSpace(strings.TrimSuffix(target, "(SSE)"))
+			if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+				entry.URL = target
+			} else if f := strings.Fields(target); len(f) > 0 {
+				entry.Command, entry.Args = f[0], f[1:]
+			}
+			out = append(out, entry)
 		}
 	default: // one entry per line; "No … configured" means none
 		for _, line := range strings.Split(text, "\n") {

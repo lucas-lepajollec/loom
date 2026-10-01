@@ -20,11 +20,21 @@ func handleProviderSave(w http.ResponseWriter, r *http.Request) {
 		Models    []string `json:"models"`
 		Key       string   `json:"key"`
 		UsageMode string   `json:"usage_mode"`
+		Remember  *bool    `json:"remember"` // nil keeps the current choice
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	p, err := workspaceSessions.saveProvider(CloudProvider{ID: req.ID, Name: req.Name, Endpoint: req.Endpoint, Model: req.Model, Models: req.Models, UsageMode: req.UsageMode}, req.Key)
+	remember := false
+	if req.Remember != nil {
+		remember = *req.Remember
+	} else if req.ID != "" {
+		var old CloudProvider
+		if getStoreJSON(bkProviders, req.ID, &old) {
+			remember = old.Remember
+		}
+	}
+	p, err := workspaceSessions.saveProvider(CloudProvider{ID: req.ID, Name: req.Name, Endpoint: req.Endpoint, Model: req.Model, Models: req.Models, UsageMode: req.UsageMode, Remember: remember}, req.Key)
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
