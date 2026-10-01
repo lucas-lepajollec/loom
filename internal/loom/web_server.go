@@ -124,7 +124,7 @@ func newWebMux() *http.ServeMux {
 		w.Write(b)
 	})
 	// api enregistre une route /api/* protégée par la clé de pilotage (web_auth.go).
-	api := func(path string, h http.HandlerFunc) { mux.HandleFunc(path, requireWebAuth(h)) }
+	api := func(path string, h http.HandlerFunc) { mux.HandleFunc(path, requireWebAuth(nodeAware(path, h))) }
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)
 	api("/api/usage", handleUsage)
@@ -226,6 +226,8 @@ func newWebMux() *http.ServeMux {
 	api("/api/mcp/test", handleMCPTest)
 	api("/api/memory", handleMemoryMode)
 	api("/api/network/web", handleWebNetwork)
+	api("/api/engine/node", handleEngineNode)
+	api("/api/node/info", handleNodeInfo)
 	api("/api/network", handleNetwork) // écoute LAN du moteur + pare-feu (Windows)
 	api("/api/server", handleServer)   // Serveur API : slots llama-server, NP, requêtes
 	api("/api/prefs", handleWebPrefs)

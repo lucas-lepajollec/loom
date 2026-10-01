@@ -400,7 +400,7 @@ Write the summary in the SAME language as the conversation.`
 		"chat_template_kwargs": map[string]any{"enable_thinking": false},
 	}
 	body, _ := json.Marshal(payload)
-	url := fmt.Sprintf("http://localhost:%d/v1/chat/completions", LLMPort())
+	url := engineBase() + "/v1/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return "", err

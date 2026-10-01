@@ -228,8 +228,9 @@ function Engine() {
 
 export function LocalPage({ route }) {
   const tab = TABS.some(t => t.value === route.sub) ? route.sub : 'library';
+  const node = useStore(app, a => a.engineNode);
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>Local</h1><p>Les modèles de cette machine, servis par llama.cpp.</p></div>
+    <div class="page-head"><div><h1>Local</h1><p>${node ? html`Les modèles de <b>${node.hostname}</b>, servis par llama.cpp sur cette autre machine.` : 'Les modèles de cette machine, servis par llama.cpp.'}</p></div>
       <div class="acts"><button class="btn primary" onClick=${() => go('local', 'hub')}><${Icon} n="download" />Télécharger un modèle</button></div></div>
     <${Strip} />
     <${Tabs} value=${tab} options=${TABS} onChange=${t => go('local', t)} label="Local" />

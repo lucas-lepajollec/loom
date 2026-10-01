@@ -7,7 +7,7 @@ export const app = createStore({
   route: parseRoute(),
   theme: localStorage.getItem('loom-theme') || 'dark',
   sideOpen: false, palette: false, inspector: innerWidth > 1100 && localStorage.getItem('loom.next.insp') !== '0',
-  status: null, gpus: [], ram: null,
+  status: null, gpus: [], ram: null, engineNode: null,
   workspace: null, presets: [], models: [],
   nav: { conversations: [], projects: [], active: '' },
 });
@@ -33,6 +33,11 @@ export function setTheme(t) {
 }
 
 // ---------- sondages ----------
+// Moteur sur une autre machine (Loom lié) : lu au démarrage et après un changement.
+export async function refreshEngineNode() {
+  try { const r = await get('/api/engine/node'); app.set({ engineNode: r.ok && r.remote ? r : null }); } catch (_) {}
+}
+
 export async function refreshStatus() {
   try { app.set({ status: await get('/api/status') }); } catch (_) {}
 }
@@ -81,6 +86,7 @@ export function engineState(s) {
 }
 
 export function startPolling() {
+  refreshEngineNode();
   refreshStatus(); refreshHardware(); refreshWorkspace(); refreshNav(); refreshLibrary();
   setInterval(refreshStatus, 4000);
   setInterval(refreshHardware, 4000);

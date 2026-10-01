@@ -3,7 +3,6 @@ package loom
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -57,7 +56,7 @@ func loomLocalModels() []string {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	_ = json.Unmarshal(oaiModelsJSON(), &list)
+	_ = json.Unmarshal(engineModelsJSON(), &list)
 	ids := []string{}
 	for _, m := range list.Data {
 		if m.ID != "" {
@@ -69,7 +68,7 @@ func loomLocalModels() []string {
 }
 
 func loomAPIKey() string {
-	if key := readAPIKey(); key != "" {
+	if key := engineAPIKey(); key != "" {
 		return key
 	}
 	return strings.TrimSpace(ReadConfig()["API_KEY"])
@@ -134,7 +133,7 @@ func syncModelSinks() error {
 		var err error
 		switch s.Format {
 		case "pi":
-			err = writePiProvider(expandHome(s.File), on, loomLocalModels(), fmt.Sprintf("http://127.0.0.1:%d/v1", LLMPort()), loomAPIKey())
+			err = writePiProvider(expandHome(s.File), on, loomLocalModels(), engineBase()+"/v1", loomAPIKey())
 		case "env":
 			// Read at launch: nothing to write.
 		}

@@ -18,7 +18,7 @@ import (
 // POST /api/server  {np} → slots parallèles (NP), puis redémarrage
 
 func llamaGET(path string) ([]byte, int, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s", LLMPort(), path), nil)
+	req, err := http.NewRequest(http.MethodGet, engineBase()+path, nil)
 	if err != nil {
 		return nil, 0, err
 	}

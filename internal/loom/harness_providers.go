@@ -2,7 +2,6 @@ package loom
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"strings"
 )
@@ -81,11 +80,11 @@ func resolveHarnessSource(agentID, model string) (harnessSource, bool) {
 		return harnessSource{}, false
 	}
 	if id, ok := strings.CutPrefix(model, acpLoomModelPrefix); ok && id != "" {
-		key := loomAPIKey()
+		key := engineAPIKey()
 		if key == "" {
 			key = "loom" // Loom's API accepts any key when none is required
 		}
-		base := fmt.Sprintf("http://127.0.0.1:%d", LLMPort())
+		base := engineBase() // this machine, or the linked remote engine
 		if protocol != "anthropic" {
 			base += "/v1"
 		}

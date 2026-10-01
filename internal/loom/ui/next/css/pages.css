@@ -394,3 +394,5 @@
 .pj-file:hover{background:var(--hover)}
 .pj-file .trunc,.pj-sec .hs-dir .trunc{flex:1;min-width:0}
 .pj-file.off{opacity:.6}
+.eng-link{display:flex;flex-direction:column;gap:12px;padding:14px 16px;border-top:1px solid var(--line)}
+.eng-link .note{margin:0}

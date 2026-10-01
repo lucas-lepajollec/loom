@@ -6,7 +6,7 @@ import { Switch, Tip, Seg, Empty } from '../../ui/controls.js';
 import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { get, post, download, setToken } from '../../core/api.js';
 import { copyText } from '../../ui/clipboard.js';
-import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav } from '../../core/state.js';
+import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav, refreshEngineNode } from '../../core/state.js';
 import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 
@@ -124,6 +124,40 @@ function Job() {
     ${lines && html`<pre class="mono">${lines}</pre>`}</div>`;
 }
 
+// Où tourne le moteur : sur cette machine, ou sur une autre machine du réseau
+// où un Loom possède le moteur (carte graphique). Loom y envoie alors tout ce
+// qui touche au moteur ; discussions, projets et harnesses restent ici.
+function EngineLocation() {
+  const node = useStore(app, a => a.engineNode);
+  const [form, setForm] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const link = async () => {
+    setBusy(true);
+    const r = await post('/api/engine/node', { url: form.url, key: form.key });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || 'Liaison impossible', 'err');
+    setForm(null); toast('Moteur de ' + r.hostname + ' lié');
+    await refreshEngineNode(); refreshStatus(); refreshLibrary();
+  };
+  const unlink = async () => {
+    if (!await confirm('Revenir au moteur de cette machine', 'Loom n’utilisera plus le moteur de ' + node.hostname + '. Rien n’est modifié sur cette machine-là.', { ok: 'Revenir' })) return;
+    await post('/api/engine/node', { unlink: true });
+    await refreshEngineNode(); refreshStatus(); refreshLibrary();
+  };
+  return html`<${Group} title="Emplacement du moteur">
+    <${Line} label="Le moteur tourne" tip="Sur une autre machine : une machine avec carte graphique où Loom est installé et ouvert au réseau (interface et API /v1). Ce Loom lui envoie tout ce qui touche au moteur ; tes discussions restent ici.">
+      ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>sur <b>${node.hostname}</b></span><button class="btn sm ghost" onClick=${unlink}>Revenir à cette machine</button>`
+        : html`<span class="state">sur cette machine</span>${!form && html`<button class="btn sm" onClick=${() => setForm({ url: '', key: '' })}>Utiliser une autre machine</button>`}`}</${Line}>
+    ${node && html`<${Line} label="Adresse"><code class="mono">${node.url}</code>${!node.reachable && html`<span class="tag amber">injoignable</span>`}</${Line}>`}
+    ${form && html`<div class="eng-link">
+      <p class="note">Sur la machine du moteur : Loom › Réglages › Accès réseau, active « Interface sur le réseau » et « API /v1 sur le réseau », puis recopie ici son adresse et sa clé de pilotage.</p>
+      <label class="field"><span>Adresse du Loom distant</span><input class="input mono" placeholder="http://192.168.1.20:8091" value=${form.url} onInput=${e => setForm({ ...form, url: e.target.value })} /></label>
+      <label class="field"><span>Sa clé de pilotage</span><input class="input mono" type="password" placeholder="loom-web-…" value=${form.key} onInput=${e => setForm({ ...form, key: e.target.value })} /></label>
+      <div class="form-foot"><span class="grow"></span><button class="btn ghost" onClick=${() => setForm(null)}>Annuler</button><button class="btn primary" disabled=${busy || !form.url || !form.key} onClick=${link}>${busy ? 'Vérification…' : 'Lier ce moteur'}</button></div>
+    </div>`}
+  </${Group}>`;
+}
+
 function Engine() {
   const [lc, setLc] = useState(null);
   const [dirs, setDirs] = useState(null);
@@ -134,6 +168,7 @@ function Engine() {
   const addDir = async () => { const p = await prompt('Ajouter un dossier de modèles', { placeholder: '/chemin/vers/mes/modeles', ok: 'Ajouter' }); if (p) run('/api/models/dirs', { path: p, action: 'add' }, 'Dossier ajouté'); };
   if (!lc) return html`<div class="skeleton" style="height:220px"></div>`;
   return html`
+    <${EngineLocation} />
     <${Group} title="Moteur actuel">
       <${Line} label="llama.cpp"><span class="mono">${lc.commit || lc.prebuilt && lc.prebuilt.tag || '—'}</span>${lc.behind > 0 && html`<span class="tag amber">${lc.behind} commits de retard</span>`}</${Line}>
       <${Line} label="Accélération"><span class="tag blue">${(lc.plan && lc.plan.backend || '—').toUpperCase()}</span></${Line}>

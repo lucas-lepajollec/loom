@@ -759,7 +759,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 			payload["parallel_tool_calls"] = false
 		}
 		body, _ := json.Marshal(payload)
-		url := fmt.Sprintf("http://localhost:%d/v1/chat/completions", LLMPort())
+		url := engineBase() + "/v1/chat/completions"
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 		if err != nil {
 			return extra, err
@@ -1316,7 +1316,7 @@ var healthClient = &http.Client{Timeout: 3 * time.Second}
 
 // healthCheck pings llama.cpp's /health endpoint.
 func healthCheck() bool {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/health", LLMPort()), nil)
+	req, err := http.NewRequest(http.MethodGet, engineBase()+"/health", nil)
 	if err != nil {
 		return false
 	}

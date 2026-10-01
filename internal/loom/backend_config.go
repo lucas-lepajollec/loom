@@ -49,7 +49,7 @@ func ensureAPIKeyIfRequired() error {
 // configured, so Loom's own internal calls (chat/web/bench/test) authenticate
 // against a protected llama-server. No-op when no key is set.
 func authHeader(req *http.Request) {
-	if k := readAPIKey(); k != "" {
+	if k := engineAPIKey(); k != "" {
 		req.Header.Set("Authorization", "Bearer "+k)
 	}
 }
