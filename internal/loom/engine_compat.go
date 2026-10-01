@@ -238,7 +238,7 @@ func (loomRouterStore) PutJSON(key string, value any) error { return putJSON(bkS
 func llamaRouter() *llamacpp.Router {
 	return &llamacpp.Router{
 		BackendPort: llamaBackendPort(), INIPath: routerINIPath(),
-		State: loomRouterStore{}, Lock: llamaOwner.RouterLock(), Authorize: authHeader,
+		State: loomRouterStore{}, Lock: llamaOwner.RouterLock(), Authorize: localAuthHeader,
 		APIKey: func() (string, error) {
 			if err := ensureAPIKeyIfRequired(); err != nil {
 				return "", err

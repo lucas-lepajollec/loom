@@ -127,6 +127,22 @@ function Job() {
 // Où tourne le moteur : sur cette machine, ou sur une autre machine du réseau
 // où un Loom possède le moteur (carte graphique). Loom y envoie alors tout ce
 // qui touche au moteur ; discussions, projets et harnesses restent ici.
+// Mise à jour automatique du moteur : appliquée seulement quand elle
+// n'interrompt rien (moteur arrêté ou aucun modèle chargé).
+function EngineAuto() {
+  const [a, setA] = useState(null);
+  useEffect(() => { get('/api/engine/auto-update').then(r => setA(r.ok ? r.state : null)).catch(() => setA(null)); }, []);
+  if (!a) return null;
+  const toggle = async on => { const r = await post('/api/engine/auto-update', { auto: on }); if (!r.ok) return toast(r.error || 'Réglage impossible', 'err'); setA(r.state); };
+  const when = t => t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const info = a.pending ? 'Version ' + a.pending + ' prête : installée dès qu’aucun modèle n’est chargé.'
+    : a.last_error ? 'Dernière tentative : ' + a.last_error
+    : a.last_at ? 'Mis à jour le ' + when(a.last_at) + (a.last_to ? ' (' + (a.last_from ? a.last_from + ' → ' : '') + a.last_to + ')' : '')
+    : a.checked_at ? 'Vérifié le ' + when(a.checked_at) + ' : à jour' : '';
+  return html`<${Line} label="Mise à jour automatique" tip="Vérifie les nouvelles versions de llama.cpp toutes les 6 h. Une mise à jour redémarre le moteur : elle n’est installée que s’il est arrêté ou sans modèle chargé, pour ne jamais couper une réponse.">
+    ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="Mise à jour automatique du moteur" onChange=${toggle} /></${Line}>`;
+}
+
 function EngineLocation() {
   const node = useStore(app, a => a.engineNode);
   const [form, setForm] = useState(null);
@@ -174,6 +190,7 @@ function Engine() {
       <${Line} label="Accélération"><span class="tag blue">${(lc.plan && lc.plan.backend || '—').toUpperCase()}</span></${Line}>
       <${GpuDevices} bin=${lc.config_bin || lc.bin || ''} />
       <${Line} label="Binaire" stack><code class="mono path">${lc.bin || 'aucun'}</code></${Line}>
+      <${EngineAuto} />
       <div class="set-actions">
         ${lc.can_update && html`<button class="btn" onClick=${() => run('/api/llamacpp/update', { clean: false }, 'Mise à jour lancée')}><${Icon} n="refresh" />Mettre à jour</button>`}
         <button class="btn ghost" onClick=${() => run('/api/llamacpp/check', {}, 'Vérification…')}>Vérifier</button>

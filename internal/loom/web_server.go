@@ -46,6 +46,7 @@ func cmdWeb(args []string) error {
 	go syncModelSinks()
 	loadRememberedProviderKeys()
 	go probeMissingACPAgents()
+	go engineAutoLoop()
 	mux := newWebMux()
 	fmt.Printf("[loom web] http://%s  (Ctrl-C pour arrêter)\n", addr)
 	if !webKeyConfigured() {
@@ -227,6 +228,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/memory", handleMemoryMode)
 	api("/api/network/web", handleWebNetwork)
 	api("/api/engine/node", handleEngineNode)
+	api("/api/engine/auto-update", handleEngineAuto)
 	api("/api/node/info", handleNodeInfo)
 	api("/api/network", handleNetwork) // écoute LAN du moteur + pare-feu (Windows)
 	api("/api/server", handleServer)   // Serveur API : slots llama-server, NP, requêtes

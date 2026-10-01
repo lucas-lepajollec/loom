@@ -237,7 +237,7 @@ func waitLlamaReady(budget time.Duration) error {
 		if err != nil {
 			return err
 		}
-		authHeader(req)
+		localAuthHeader(req)
 		resp, err := client.Do(req)
 		if err == nil {
 			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))

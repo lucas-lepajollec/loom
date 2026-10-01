@@ -54,6 +54,14 @@ func authHeader(req *http.Request) {
 	}
 }
 
+// localAuthHeader authenticates to this machine's own llama-server/router,
+// even when this Loom uses a remote engine for its discussions.
+func localAuthHeader(req *http.Request) {
+	if k := readAPIKey(); k != "" {
+		req.Header.Set("Authorization", "Bearer "+k)
+	}
+}
+
 // genAPIKey returns a fresh random OpenAI-style completion key.
 func genAPIKey() string {
 	buf := make([]byte, 24)

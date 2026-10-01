@@ -107,7 +107,7 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 		return nil, "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	authHeader(req)
+	localAuthHeader(req) // bench runs where the engine is (forwarded when remote)
 	client := &http.Client{Timeout: 8 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {

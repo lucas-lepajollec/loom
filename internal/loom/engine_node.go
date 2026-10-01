@@ -238,7 +238,7 @@ var engineRoutes = map[string]bool{
 	"/api/switch": true, "/api/load-model": true, "/api/unload": true, "/api/apply": true,
 	"/api/naked/remember": true, "/api/naked/defaults": true, "/api/llama-flags": true, "/api/engine/params": true,
 	"/api/model-caps": true, "/api/estimate": true, "/api/start": true, "/api/stop": true, "/api/restart": true,
-	"/api/apikey": true, "/api/network": true,
+	"/api/apikey": true, "/api/network": true, "/api/engine/auto-update": true,
 	"/api/bench": true, "/api/bench/last": true, "/api/bench/tests": true, "/api/bench/tests/delete": true,
 	"/api/bench/queue": true, "/api/bench/queue/cancel": true, "/api/bench/runs": true,
 }
