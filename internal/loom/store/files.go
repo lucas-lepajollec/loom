@@ -1,6 +1,6 @@
-package loom
+package store
 
-// mem_fsutil.go — écritures fichier sûres pour la mémoire : temporaire + fsync +
+// files.go — écritures fichier sûres pour la mémoire : temporaire + fsync +
 // rename atomique. Aucune donnée n'est jamais écrite « en place » par-dessus une
 // ancienne : on écrit à côté, on force sur disque, puis on bascule d'un rename
 // (atomique au niveau du système de fichiers).
@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 )
 
-// memWriteFileAtomic écrit data dans path de façon atomique et durable. En cas
+// WriteFileAtomic écrit data dans path de façon atomique et durable. En cas
 // d'échec, path conserve son ancien contenu (le temporaire est nettoyé).
-func memWriteFileAtomic(path string, data []byte, perm os.FileMode) error {
+func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -50,12 +50,12 @@ func memWriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	return nil
 }
 
-// memWriteFileVerified écrit data atomiquement PUIS relit le fichier et compare
+// WriteFileVerified écrit data atomiquement PUIS relit le fichier et compare
 // octet pour octet. C'est la garantie « ce qui est sur le disque est bien ce
 // qu'on voulait » avant toute suppression de l'original. En cas d'écart, le
 // fichier écrit est retiré et une erreur est renvoyée.
-func memWriteFileVerified(path string, data []byte, perm os.FileMode) error {
-	if err := memWriteFileAtomic(path, data, perm); err != nil {
+func WriteFileVerified(path string, data []byte, perm os.FileMode) error {
+	if err := WriteFileAtomic(path, data, perm); err != nil {
 		return err
 	}
 	back, err := os.ReadFile(path)

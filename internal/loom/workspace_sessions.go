@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-const bkRuntimeSessions = "workspace_sessions"
-
 // RuntimeSession is a Loom-owned conversation. Its portable transcript outlives
 // any execution route. A route change never replaces or forks this history.
 type RuntimeSession struct {

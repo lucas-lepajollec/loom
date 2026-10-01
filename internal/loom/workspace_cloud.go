@@ -17,8 +17,6 @@ import (
 	"time"
 )
 
-const bkProviders = "workspace_providers"
-
 type CloudProvider struct {
 	ID        string   `json:"id"`
 	Name      string   `json:"name"`

@@ -8,9 +8,6 @@ import (
 	"strings"
 )
 
-const bkModelChoices = "workspace_model_choices"
-const bkHarnessProfiles = "workspace_harness_profiles"
-
 // ModelChoice is a selectable model, independent from its provider and from the
 // conversation using it. Enabled only controls visibility in the chat picker.
 type ModelChoice struct {

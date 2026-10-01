@@ -1,4 +1,4 @@
-package loom
+package store
 
 import (
 	"sync"
@@ -10,15 +10,15 @@ import (
 // s'exclure ni perdre d'écriture : c'est le scénario du serveur, où le service
 // de lien tourne pendant qu'on tape des commandes.
 func TestAccesConcurrent(t *testing.T) {
-	testHome(t)
+	path := testDB(t)
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
 			for j := 0; j < 20; j++ {
-				_ = SetConfigKey("K", "v")
-				_ = ReadConfig()
+				_ = PutStr(path, BucketConfig, "K", "v")
+				_ = CachedKV(path, BucketConfig)
 			}
 		}(i)
 	}
@@ -29,7 +29,7 @@ func TestAccesConcurrent(t *testing.T) {
 	case <-time.After(30 * time.Second):
 		t.Fatal("blocage sous accès concurrent")
 	}
-	if ReadConfig()["K"] != "v" {
+	if CachedKV(path, BucketConfig)["K"] != "v" {
 		t.Fatal("écriture perdue")
 	}
 }

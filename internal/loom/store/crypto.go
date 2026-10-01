@@ -1,6 +1,6 @@
-package loom
+package store
 
-// mem_crypto.go — primitives de chiffrement de la mémoire.
+// crypto.go — primitives de chiffrement de la mémoire.
 //
 // Modèle à enveloppe (voir docs/chiffrement-memoire-et-sauvegarde.md) :
 //   - DEK (Data Encryption Key) : 32 octets aléatoires, chiffre chaque page
@@ -25,30 +25,30 @@ import (
 )
 
 const (
-	memDEKLen   = 32 // AES-256
-	memNonceLen = 12 // taille standard du nonce GCM
-	memSaltLen  = 16 // sel Argon2id
+	DEKLen   = 32 // AES-256
+	NonceLen = 12 // taille standard du nonce GCM
+	SaltLen  = 16 // sel Argon2id
 )
 
 // Paramètres Argon2id par défaut. Stockés dans chaque wrap du keyvault pour que
 // de futurs réglages n'invalident pas les coffres existants (on relit toujours
 // les paramètres écrits, jamais ces constantes, lors du déballage).
 const (
-	argonTime    = 3
-	argonMemory  = 64 * 1024 // 64 Mio
-	argonThreads = 1
+	ArgonTime    = 3
+	ArgonMemory  = 64 * 1024 // 64 Mio
+	ArgonThreads = 1
 )
 
 // En-tête d'une page chiffrée. Sert de marqueur de format ET d'AAD (le tag GCM
 // couvre ainsi la version : impossible de rejouer un blob d'une autre version).
 var memPageMagic = []byte("LOOMMEMv1")
 
-// errNotEncrypted signale un contenu qui n'est pas une page chiffrée valide
+// ErrNotEncrypted signale un contenu qui n'est pas une page chiffrée valide
 // (mauvais magic) — utile pour distinguer « clair » de « chiffré » à la volée.
-var errNotEncrypted = errors.New("contenu non chiffré (magic absent)")
+var ErrNotEncrypted = errors.New("contenu non chiffré (magic absent)")
 
-// randBytes renvoie n octets aléatoires cryptographiques.
-func randBytes(n int) ([]byte, error) {
+// RandBytes renvoie n octets aléatoires cryptographiques.
+func RandBytes(n int) ([]byte, error) {
 	b := make([]byte, n)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
 		return nil, fmt.Errorf("source aléatoire indisponible : %w", err)
@@ -56,28 +56,28 @@ func randBytes(n int) ([]byte, error) {
 	return b, nil
 }
 
-// deriveKEK dérive une clé de 32 octets d'un mot de passe via Argon2id.
-func deriveKEK(password string, salt []byte, t, m uint32, p uint8) []byte {
+// DeriveKEK dérive une clé de 32 octets d'un mot de passe via Argon2id.
+func DeriveKEK(password string, salt []byte, t, m uint32, p uint8) []byte {
 	if t == 0 {
-		t = argonTime
+		t = ArgonTime
 	}
 	if m == 0 {
-		m = argonMemory
+		m = ArgonMemory
 	}
 	if p == 0 {
-		p = argonThreads
+		p = ArgonThreads
 	}
-	return argon2.IDKey([]byte(password), salt, t, m, p, memDEKLen)
+	return argon2.IDKey([]byte(password), salt, t, m, p, DEKLen)
 }
 
-// gcmSeal chiffre plaintext avec key (AES-256-GCM) et renvoie nonce||ciphertext.
+// GCMSeal chiffre plaintext avec key (AES-256-GCM) et renvoie nonce||ciphertext.
 // aad (données authentifiées mais non chiffrées) lie le blob à un contexte.
-func gcmSeal(key, plaintext, aad []byte) ([]byte, error) {
-	gcm, err := memNewGCM(key)
+func GCMSeal(key, plaintext, aad []byte) ([]byte, error) {
+	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, err
 	}
-	nonce, err := randBytes(memNonceLen)
+	nonce, err := RandBytes(NonceLen)
 	if err != nil {
 		return nil, err
 	}
@@ -88,17 +88,17 @@ func gcmSeal(key, plaintext, aad []byte) ([]byte, error) {
 	return out, nil
 }
 
-// gcmOpen déchiffre un blob nonce||ciphertext produit par gcmSeal. Une clé
+// GCMOpen déchiffre un blob nonce||ciphertext produit par GCMSeal. Une clé
 // erronée ou un blob altéré renvoie une erreur (jamais un contenu partiel).
-func gcmOpen(key, blob, aad []byte) ([]byte, error) {
-	gcm, err := memNewGCM(key)
+func GCMOpen(key, blob, aad []byte) ([]byte, error) {
+	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, err
 	}
-	if len(blob) < memNonceLen {
+	if len(blob) < NonceLen {
 		return nil, errors.New("blob trop court")
 	}
-	nonce, ct := blob[:memNonceLen], blob[memNonceLen:]
+	nonce, ct := blob[:NonceLen], blob[NonceLen:]
 	pt, err := gcm.Open(nil, nonce, ct, aad)
 	if err != nil {
 		return nil, fmt.Errorf("déchiffrement refusé (clé erronée ou donnée altérée) : %w", err)
@@ -106,9 +106,9 @@ func gcmOpen(key, blob, aad []byte) ([]byte, error) {
 	return pt, nil
 }
 
-func memNewGCM(key []byte) (cipher.AEAD, error) {
-	if len(key) != memDEKLen {
-		return nil, fmt.Errorf("clé de %d octets, %d attendus", len(key), memDEKLen)
+func newGCM(key []byte) (cipher.AEAD, error) {
+	if len(key) != DEKLen {
+		return nil, fmt.Errorf("clé de %d octets, %d attendus", len(key), DEKLen)
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -117,10 +117,10 @@ func memNewGCM(key []byte) (cipher.AEAD, error) {
 	return cipher.NewGCM(block)
 }
 
-// encPage chiffre le contenu d'une page mémoire : magic || nonce || ciphertext.
+// EncryptPage chiffre le contenu d'une page mémoire : magic || nonce || ciphertext.
 // Le magic sert d'AAD (authentifié) et de marqueur de format.
-func encPage(dek, plaintext []byte) ([]byte, error) {
-	sealed, err := gcmSeal(dek, plaintext, memPageMagic)
+func EncryptPage(dek, plaintext []byte) ([]byte, error) {
+	sealed, err := GCMSeal(dek, plaintext, memPageMagic)
 	if err != nil {
 		return nil, err
 	}
@@ -130,35 +130,35 @@ func encPage(dek, plaintext []byte) ([]byte, error) {
 	return out, nil
 }
 
-// decPage déchiffre une page produite par encPage. Renvoie errNotEncrypted si
+// DecryptPage déchiffre une page produite par EncryptPage. Renvoie ErrNotEncrypted si
 // le magic manque (donc si on tombe sur une page restée en clair).
-func decPage(dek, blob []byte) ([]byte, error) {
+func DecryptPage(dek, blob []byte) ([]byte, error) {
 	if !bytes.HasPrefix(blob, memPageMagic) {
-		return nil, errNotEncrypted
+		return nil, ErrNotEncrypted
 	}
-	return gcmOpen(dek, blob[len(memPageMagic):], memPageMagic)
+	return GCMOpen(dek, blob[len(memPageMagic):], memPageMagic)
 }
 
-// looksEncrypted indique si un contenu disque est une page chiffrée (magic).
-func looksEncrypted(blob []byte) bool { return bytes.HasPrefix(blob, memPageMagic) }
+// LooksEncrypted indique si un contenu disque est une page chiffrée (magic).
+func LooksEncrypted(blob []byte) bool { return bytes.HasPrefix(blob, memPageMagic) }
 
-// memCryptoSelfTest vérifie que la chaîne crypto marche RÉELLEMENT sur cette
+// CryptoSelfTest vérifie que la chaîne crypto marche RÉELLEMENT sur cette
 // machine/ce build avant qu'on chiffre la moindre donnée : round-trip DEK sur
 // une page, plus un cycle KEK wrap/unwrap. Toute anomalie renvoie une erreur, et
 // l'appelant DOIT alors refuser d'activer le chiffrement (on ne touche pas à la
 // mémoire tant que ceci n'a pas réussi).
-func memCryptoSelfTest() error {
-	dek, err := randBytes(memDEKLen)
+func CryptoSelfTest() error {
+	dek, err := RandBytes(DEKLen)
 	if err != nil {
 		return err
 	}
 	sample := []byte("loom auto-test — éàçùô — 0123456789 — ✔")
 
-	enc, err := encPage(dek, sample)
+	enc, err := EncryptPage(dek, sample)
 	if err != nil {
 		return fmt.Errorf("auto-test chiffrement page : %w", err)
 	}
-	dec, err := decPage(dek, enc)
+	dec, err := DecryptPage(dek, enc)
 	if err != nil {
 		return fmt.Errorf("auto-test déchiffrement page : %w", err)
 	}
@@ -166,22 +166,22 @@ func memCryptoSelfTest() error {
 		return errors.New("auto-test : round-trip page incohérent")
 	}
 	// Une DEK erronée DOIT échouer (sinon le GCM ne protège rien).
-	badKey, _ := randBytes(memDEKLen)
-	if _, err := decPage(badKey, enc); err == nil {
+	badKey, _ := RandBytes(DEKLen)
+	if _, err := DecryptPage(badKey, enc); err == nil {
 		return errors.New("auto-test : une clé erronée a déchiffré (GCM cassé ?!)")
 	}
 
 	// Cycle KEK : wrap la DEK sous un mot de passe, puis déballe.
-	salt, err := randBytes(memSaltLen)
+	salt, err := RandBytes(SaltLen)
 	if err != nil {
 		return err
 	}
-	kek := deriveKEK("mot-de-passe-auto-test", salt, argonTime, argonMemory, argonThreads)
-	box, err := gcmSeal(kek, dek, []byte("loom-vault-selftest"))
+	kek := DeriveKEK("mot-de-passe-auto-test", salt, ArgonTime, ArgonMemory, ArgonThreads)
+	box, err := GCMSeal(kek, dek, []byte("loom-vault-selftest"))
 	if err != nil {
 		return fmt.Errorf("auto-test wrap DEK : %w", err)
 	}
-	got, err := gcmOpen(kek, box, []byte("loom-vault-selftest"))
+	got, err := GCMOpen(kek, box, []byte("loom-vault-selftest"))
 	if err != nil {
 		return fmt.Errorf("auto-test unwrap DEK : %w", err)
 	}

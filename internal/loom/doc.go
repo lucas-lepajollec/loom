@@ -4,7 +4,7 @@
 //
 //	run.go        point d'entrée : dispatch des sous-commandes, LoomHome() et
 //	              l'arborescence de données
-//	store.go      base bbolt (loom.db) : configuration, préférences, conversation,
+//	store/        base bbolt (loom.db) : configuration, préférences, conversation,
 //	              clés, jetons, interrupteurs — tout l'état non éditable à la main
 //	cli_*         expérience application (double-clic : UI + tray + splash)
 //	web_*         serveur HTTP :8091 (UI embarquée via go:embed ui/, auth, prefs)

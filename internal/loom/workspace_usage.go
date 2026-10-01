@@ -251,8 +251,6 @@ func parseCodexQuota(data []byte) (QuotaSnapshot, error) {
 	return q, nil
 }
 
-const bkUsagePrices = "workspace_usage_prices"
-
 type UsagePrice struct {
 	ChoiceID  string  `json:"choice_id"`
 	Input     float64 `json:"input_per_million"`

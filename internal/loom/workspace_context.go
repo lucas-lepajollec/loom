@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-const bkCapabilities = "workspace_capabilities"
 const maxProjectInstructions = 12000
 const maxCapabilityInstructions = 8000
 const maxProjectCapabilities = 8

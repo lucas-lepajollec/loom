@@ -17,8 +17,6 @@ import (
 	"time"
 )
 
-const bkHarnessConnections = "workspace_harness_connections"
-
 type antigravityConnection struct {
 	Models []string `json:"models"`
 }
