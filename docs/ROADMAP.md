@@ -34,9 +34,9 @@ Brain / Context Service  →  what each execution needs to know, within a token 
 4. **Projects as link objects.** A project links its code folder/repo, context sources, default work folder and preferred executors, instead of being a separate store.
 5. **Brain V1 + Context Service.** Sources (context repository, personal notes, conversations, repositories), search, context packs with an explicit token budget, personal sources read only on request; exposed over HTTP and as an MCP server so harnesses use the same context without Loom open.
 6. **Environment.** Machines, services and connections (declared + observed through optional providers: Docker, Proxmox…), and which harness can reach what.
-7. **Remote local runtime.** llama.cpp on another machine (GPU box) while Loom runs elsewhere.
+7. **Local engines: llama.cpp, vLLM, more later.** At first install the user chooses to install one or several engines and link them, or to link engines already installed, among those Loom supports. Loom only links: each engine keeps working on its own as if Loom were not there. The engine can run on another machine (GPU box) while Loom runs elsewhere. Engines differ (vLLM targets high-throughput parallel serving, llama.cpp consumer GPUs and GGUF), so the Local page and the parameters panel adapt to each engine's capabilities and parameter catalog (Engine interface + ParamSpec per engine).
 8. **Public release readiness.** English + French UI, first-run onboarding (hardware detection, engine install, first model, providers, harnesses), tested installers for Linux/macOS/Windows, documentation and site, safe defaults for network exposure.
 9. **Advanced memory.** Distillation of conversations into decisions/facts with provenance, semantic search, then a graph index (Graphify) as one more index, never a source of truth.
 10. **Quotas everywhere, then routing.** Usage/quotas for every harness and provider, then automatic routing (model/harness/skills per task) last, on top of clean data.
 
-Later candidates: vLLM engine, native cloud protocols (Anthropic Messages, Responses API), harness cron/terminal views where the harness exposes them.
+Later candidates: native cloud protocols (Anthropic Messages, Responses API), harness cron/terminal views where the harness exposes them.
