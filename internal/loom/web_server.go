@@ -160,6 +160,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/runtime/sessions/stop", handleRuntimeSessionStop)
 	api("/api/runtime/sessions/delete", handleRuntimeSessionDelete)
 	api("/api/projects/context", handleProjectContext)
+	api("/api/projects/info", handleProjectInfo)
 	api("/api/capabilities/save", handleCapabilitySave)
 	api("/api/capabilities/delete", handleCapabilityDelete)
 	api("/api/skills/targets", handleSkillSinks) // distribution des skills aux harnesses

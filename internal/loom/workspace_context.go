@@ -91,6 +91,15 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 		}
 		p.Directory = filepath.Clean(p.Directory)
 	}
+	files, err := validProjectContextFiles(p.Directory, p.ContextFiles)
+	if err != nil {
+		return p, err
+	}
+	p.ContextFiles = files
+	p.DefaultChoice = strings.TrimSpace(p.DefaultChoice)
+	if len(p.DefaultChoice) > 400 {
+		return p, fmt.Errorf("exécution par défaut invalide")
+	}
 	ids := []string{}
 	seen := map[string]bool{}
 	for _, id := range p.CapabilityIDs {

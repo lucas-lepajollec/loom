@@ -1,6 +1,7 @@
 // Coquille : barre latérale (navigation, projets, récents, carte moteur) et
 // zone principale routée.
 import { html, useState, useStore, useEffect, cls } from '../core/lib.js';
+import { newProjectDiscussion } from '../features/projects/page.js';
 import { Icon } from '../ui/icons.js';
 import { Menu } from '../ui/controls.js';
 import { prompt, confirm, toast } from '../ui/dialog.js';
@@ -107,7 +108,7 @@ export function Sidebar() {
           <${Icon} n=${openProj.has(p.id) ? 'chevron' : 'right'} class="proj-caret" /></button>
         ${openProj.has(p.id) && html`<div class="proj-chats anim-fade">
           ${nav.conversations.filter(c => c.project_id === p.id).map(c => html`<${ChatLink} key=${c.id} c=${c} active=${route.section === 'chat' && c.id === activeId} />`)}
-          <button class="chat-link sub" onClick=${() => newDiscussion(p.id)}><${Icon} n="plus" /><span>Nouvelle discussion</span></button>
+          <button class="chat-link sub" onClick=${() => newProjectDiscussion(p)}><${Icon} n="plus" /><span>Nouvelle discussion</span></button>
         </div>`}</div>`)}
       </div>
     </div>

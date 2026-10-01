@@ -44,6 +44,10 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 			return s, errors.New("CLI du harness indisponible")
 		}
 		s.RuntimeID = choice.RuntimeID
+		// A local harness starts in the project folder unless one was chosen.
+		if agent, ok := acpAgentFor(s.RuntimeID); ok && !agent.Remote && s.Workdir == "" {
+			s.Workdir = projectWorkdir(s.ProjectID)
+		}
 	}
 	s.ReasoningEffort = ""
 	if choice.RuntimeID == "codex" && len(choice.ReasoningEfforts) > 0 {

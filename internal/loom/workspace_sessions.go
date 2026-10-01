@@ -356,6 +356,8 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 				if s.Workdir == "" && acp.agent.RemoteHome != "" {
 					s.Workdir = acp.agent.RemoteHome
 				}
+			} else if s.Workdir == "" {
+				s.Workdir = projectWorkdir(s.ProjectID)
 			}
 			if _, err := check(s.Workdir); err != nil {
 				return err

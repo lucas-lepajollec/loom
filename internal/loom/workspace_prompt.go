@@ -56,6 +56,12 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 			if p.Instructions != "" {
 				parts = append(parts, "Project instructions:\n"+p.Instructions)
 			}
+			// Files the user chose in the project folder (explicit opt-in).
+			files, warning := projectContextFiles(p)
+			parts = append(parts, files...)
+			if warning != "" {
+				c.Warning = warning
+			}
 			for _, id := range p.CapabilityIDs {
 				var skill Capability
 				if getStoreJSON(bkCapabilities, id, &skill) && skill.Instructions != "" {
@@ -71,7 +77,7 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 		parts = append(parts, "Discussion instructions:\n"+s.Instructions)
 	}
 	c.System = strings.Join(parts, "\n\n")
-	// No credentials, folder contents, global/local-only prompt or hidden state.
+	// No credentials, unchosen folder contents, global/local-only prompt or hidden state.
 	encoded, _ := json.Marshal([]any{s.ID, s.Title, s.ProjectID, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.Mode, s.ConfigOptions, c.MCPServers, s.Messages, c.System, c.Problem, c.Warning})
 	digest := sha256.Sum256(encoded)
 	c.Revision = hex.EncodeToString(digest[:])

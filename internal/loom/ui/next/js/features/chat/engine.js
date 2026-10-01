@@ -300,7 +300,7 @@ export async function chooseRemote(choice) {
   if (st.busy) { toast('Attends la fin de la réponse avant de changer.'); return false; }
   const dest = choice.kind === 'harness' ? choice.provider_name : choice.endpoint || choice.provider_name;
   const ok = await confirm('Continuer avec ' + choice.name,
-    'Le texte de la discussion et les instructions du projet seront envoyés à ' + dest + '. Les fichiers, outils et la mémoire privée ne sont pas transférés.', { ok: 'Continuer' });
+    'Le texte de la discussion et le contexte du projet (instructions et fichiers choisis) seront envoyés à ' + dest + '. Les autres fichiers, les outils et la mémoire privée ne sont pas transférés.', { ok: 'Continuer' });
   if (!ok) return false;
   try {
     let id = st.sessionId;

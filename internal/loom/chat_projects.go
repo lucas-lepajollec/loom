@@ -16,6 +16,10 @@ type ChatProject struct {
 	Directory     string    `json:"directory,omitempty"`
 	Instructions  string    `json:"instructions,omitempty"`
 	CapabilityIDs []string  `json:"capability_ids,omitempty"`
+	// ContextFiles: files of Directory added to the context (relative paths).
+	ContextFiles []string `json:"context_files,omitempty"`
+	// DefaultChoice: selector choice a new discussion of the project starts with.
+	DefaultChoice string `json:"default_choice,omitempty"`
 }
 
 func listProjects() []ChatProject {
