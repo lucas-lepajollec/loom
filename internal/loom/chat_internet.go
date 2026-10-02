@@ -183,7 +183,7 @@ func getPage(rawURL string, opts fetchOptions) (*cacheEntry, error) {
 	// Le diagnostic « probablement du JavaScript » est posé par goFetchMarkdown,
 	// qui seul connaît la taille du HTML brut. Ici on n'attrape que le cas trivial.
 	if strings.TrimSpace(md) == "" {
-		return nil, fmt.Errorf("page vide")
+		return nil, fmt.Errorf("empty page")
 	}
 	entry := &cacheEntry{URL: u, Lines: normalizeLines(md), FetchedAt: time.Now()}
 	pageCacheMu.Lock()

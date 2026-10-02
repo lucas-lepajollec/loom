@@ -45,13 +45,13 @@ var memPageMagic = []byte("LOOMMEMv1")
 
 // ErrNotEncrypted signale un contenu qui n'est pas une page chiffrée valide
 // (mauvais magic) — utile pour distinguer « clair » de « chiffré » à la volée.
-var ErrNotEncrypted = errors.New("contenu non chiffré (magic absent)")
+var ErrNotEncrypted = errors.New("unencrypted content (missing magic)")
 
 // RandBytes renvoie n octets aléatoires cryptographiques.
 func RandBytes(n int) ([]byte, error) {
 	b := make([]byte, n)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
-		return nil, fmt.Errorf("source aléatoire indisponible : %w", err)
+		return nil, fmt.Errorf("random source unavailable: %w", err)
 	}
 	return b, nil
 }
@@ -96,19 +96,19 @@ func GCMOpen(key, blob, aad []byte) ([]byte, error) {
 		return nil, err
 	}
 	if len(blob) < NonceLen {
-		return nil, errors.New("blob trop court")
+		return nil, errors.New("blob too short")
 	}
 	nonce, ct := blob[:NonceLen], blob[NonceLen:]
 	pt, err := gcm.Open(nil, nonce, ct, aad)
 	if err != nil {
-		return nil, fmt.Errorf("déchiffrement refusé (clé erronée ou donnée altérée) : %w", err)
+		return nil, fmt.Errorf("decryption refused (incorrect key or altered data): %w", err)
 	}
 	return pt, nil
 }
 
 func newGCM(key []byte) (cipher.AEAD, error) {
 	if len(key) != DEKLen {
-		return nil, fmt.Errorf("clé de %d octets, %d attendus", len(key), DEKLen)
+		return nil, fmt.Errorf("key is %d bytes, expected %d", len(key), DEKLen)
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -156,19 +156,19 @@ func CryptoSelfTest() error {
 
 	enc, err := EncryptPage(dek, sample)
 	if err != nil {
-		return fmt.Errorf("auto-test chiffrement page : %w", err)
+		return fmt.Errorf("page encryption self-test: %w", err)
 	}
 	dec, err := DecryptPage(dek, enc)
 	if err != nil {
-		return fmt.Errorf("auto-test déchiffrement page : %w", err)
+		return fmt.Errorf("page decryption self-test: %w", err)
 	}
 	if !bytes.Equal(dec, sample) {
-		return errors.New("auto-test : round-trip page incohérent")
+		return errors.New("self-test: inconsistent page round trip")
 	}
 	// Une DEK erronée DOIT échouer (sinon le GCM ne protège rien).
 	badKey, _ := RandBytes(DEKLen)
 	if _, err := DecryptPage(badKey, enc); err == nil {
-		return errors.New("auto-test : une clé erronée a déchiffré (GCM cassé ?!)")
+		return errors.New("self-test: an incorrect key decrypted successfully (GCM broken?!)")
 	}
 
 	// Cycle KEK : wrap la DEK sous un mot de passe, puis déballe.
@@ -179,14 +179,14 @@ func CryptoSelfTest() error {
 	kek := DeriveKEK("mot-de-passe-auto-test", salt, ArgonTime, ArgonMemory, ArgonThreads)
 	box, err := GCMSeal(kek, dek, []byte("loom-vault-selftest"))
 	if err != nil {
-		return fmt.Errorf("auto-test wrap DEK : %w", err)
+		return fmt.Errorf("DEK wrap self-test: %w", err)
 	}
 	got, err := GCMOpen(kek, box, []byte("loom-vault-selftest"))
 	if err != nil {
-		return fmt.Errorf("auto-test unwrap DEK : %w", err)
+		return fmt.Errorf("DEK unwrap self-test: %w", err)
 	}
 	if !bytes.Equal(got, dek) {
-		return errors.New("auto-test : DEK déballée ≠ DEK d'origine")
+		return errors.New("self-test: unwrapped DEK ≠ original DEK")
 	}
 	return nil
 }

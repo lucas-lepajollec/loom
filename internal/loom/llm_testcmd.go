@@ -14,12 +14,12 @@ func cmdTest(args []string) error {
 	fmt.Printf("→ GET http://localhost:%d/health … ", port)
 	if !healthCheck() {
 		fmt.Println(red("ko"))
-		return fmt.Errorf("/health ne répond pas — loom start d'abord")
+		return fmt.Errorf("/health is not responding — run loom start first")
 	}
 	fmt.Println(green("ok"))
 
 	fmt.Printf("→ chat completion (prompt « ping ») … ")
-	msgs := []Message{{Role: "user", Content: "Réponds juste « pong ». Rien d'autre."}}
+	msgs := []Message{{Role: "user", Content: "Reply with just “pong”. Nothing else."}}
 	var reply strings.Builder
 	t0 := time.Now()
 	var firstTok time.Time
@@ -49,7 +49,7 @@ func cmdTest(args []string) error {
 	if len(out) > 120 {
 		out = out[:120] + "…"
 	}
-	fmt.Printf("\n  %s  %s\n", cyan("réponse :"), out)
+	fmt.Printf("\n  %s  %s\n", cyan("response:"), out)
 	fmt.Printf("  %s  %s\n", cyan("ttft    :"), ttft.Round(time.Millisecond))
 	fmt.Printf("  %s  %s (%d tokens)\n", cyan("total   :"), elapsed.Round(time.Millisecond), tokens)
 	if elapsed > 0 {
@@ -59,8 +59,8 @@ func cmdTest(args []string) error {
 		}
 	}
 	if tokens == 0 {
-		return fmt.Errorf("aucun token généré")
+		return fmt.Errorf("no tokens generated")
 	}
-	fmt.Println("\n" + green("[ok]") + " l'IA répond")
+	fmt.Println("\n" + green("[ok]") + " the AI is responding")
 	return nil
 }

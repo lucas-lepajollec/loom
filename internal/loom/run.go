@@ -122,62 +122,62 @@ func Main() {
 	case "help", "-h", "--help", "":
 		printHelp()
 	default:
-		fmt.Fprintf(os.Stderr, "commande inconnue: %s\n\n", cmd)
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", cmd)
 		printHelp()
 		os.Exit(2)
 	}
 }
 
 func printHelp() {
-	fmt.Printf(`loom %s — control plane llama.cpp + UI web
+	fmt.Printf(`loom %s — llama.cpp control plane + web UI
 
-Usage: loom <commande> [args]
+Usage: loom <command> [args]
 
-Loom tourne en deux services : loom-engine (le modèle) et loom-ui
-(l'interface web et le proxy OpenAI /v1).
+Loom runs as two services: loom-engine (the model) and loom-ui
+(the web interface and OpenAI /v1 proxy).
 
-Moteur (loom-engine) :
-  start | stop | restart        gérer le service
-  status | logs                 état / logs en direct
-  enable | disable              auto-démarrage au boot
-  edit                          éditer la configuration dans $EDITOR
-  switch [N]                    activer un preset de presets/ (interactif ou par numéro)
-  test | bench [N]              vérifier que l'IA répond / mesurer prefill + decode tok/s
-  vram                          utilisation GPU/VRAM (nvidia-smi)
-  gpu [index…]                  liste les GPU / choisit le(s)quel(s) utiliser (gpu all = tous)
-  set-api-key [clé]             protéger llama-server (clé Bearer); vide = générer, "" = retirer
-  network [on|off|status]       rendre l'endpoint OpenAI joignable depuis le réseau local
-                                (HOST + règle de pare-feu sous Windows)
+Engine (loom-engine):
+  start | stop | restart        manage the service
+  status | logs                 status / live logs
+  enable | disable              automatic startup at boot
+  edit                          edit configuration in $EDITOR
+  switch [N]                    activate a preset from presets/ (interactive or by number)
+  test | bench [N]              check that the AI responds / measure prefill + decode tok/s
+  vram                          GPU/VRAM usage (nvidia-smi)
+  gpu [index…]                  list GPUs / select which to use (gpu all = all)
+  set-api-key [key]              protect llama-server (Bearer key); omitted = generate, "" = remove
+  network [on|off|status]        make the OpenAI endpoint reachable from the local network
+                                (HOST + firewall rule on Windows)
 
-Interface (loom-ui) :
-  ui [start|stop|restart|status]  pilote le service d'interface
-  web [PORT]                    sert l'interface au premier plan (défaut :8091)
-  set-web-key [clé]             protéger l'API de pilotage; vide = générer, "" = retirer
+Interface (loom-ui):
+  ui [start|stop|restart|status]  manage the interface service
+  web [PORT]                    serve the interface in the foreground (default :8091)
+  set-web-key [key]              protect the control API; omitted = generate, "" = remove
 
 Interaction:
-  chat [system-prompt]          chat terminal streamé
-  export [options] [fichier]    exporte la conversation de l'interface web
-                                (Markdown par défaut, « - » = sortie standard)
+  chat [system-prompt]           streaming terminal chat
+  export [options] [file]        export the web interface conversation
+                                (Markdown by default, “-” = standard output)
                                 --json  --last N  --no-reasoning
                                 --no-tools  --no-results
-  memory [off|ondemand|status]  mémoire persistante (off par défaut ; pas d'auto)
-  internet [on|off|status|engine <go|crawl4ai>|url <url>|key <clé>]
-                                accès web de l'IA (moteur intégré ou serveur Crawl4AI)
+  memory [off|ondemand|status]   persistent memory (off by default; no auto mode)
+  internet [on|off|status|engine <go|crawl4ai>|url <url>|key <key>]
+                                AI web access (built-in engine or Crawl4AI server)
 
-Backend llama.cpp :
-  llamacpp install              clone + compile llama.cpp (CUDA/ROCm/Metal/CPU), pointe BIN dessus
-  llamacpp update               git pull + recompile le backend existant
-  llamacpp status               commit courant, backend détecté, retard sur origin
+llama.cpp backend:
+  llamacpp install               clone + compile llama.cpp (CUDA/ROCm/Metal/CPU), point BIN to it
+  llamacpp update                git pull + rebuild the existing backend
+  llamacpp status                current commit, detected backend, lag behind origin
 
 Installation:
-  where                         affiche l'emplacement du binaire, de la base et des dossiers
-  install | uninstall           installer / désinstaller
-  update [--check]              mettre à jour depuis les releases GitHub
-  serve                         entrypoint du service : exec llama-server (usage interne)
+  where                         show binary, database and directory locations
+  install | uninstall           install / uninstall
+  update [--check]               update from GitHub releases
+  serve                         service entrypoint: exec llama-server (internal use)
 
 Env:
-  LOOM_HOME    racine des données (défaut : ~/.local/share/loom)
-  EDITOR       éditeur pour 'edit' (défaut : nano, notepad sous Windows)
+  LOOM_HOME    data root (default: ~/.local/share/loom)
+  EDITOR       editor for 'edit' (default: nano, notepad on Windows)
 `, Version)
 }
 

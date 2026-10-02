@@ -26,14 +26,14 @@ func preflightEngine() error {
 	cfg := ReadConfig()
 	bin := strings.TrimSpace(cfg["BIN"])
 	if bin == "" {
-		return fmt.Errorf("BIN non défini — pointe vers un llama-server déjà compilé avec %s (clé BIN), ou en dernier recours %s",
+		return fmt.Errorf("BIN not set — point to an already compiled llama-server using %s (BIN key), or as a last resort %s",
 			bold("loom edit"), bold("loom llamacpp install"))
 	}
 	if !filepath.IsAbs(bin) {
 		bin = filepath.Join(LoomHome(), bin)
 	}
 	if _, err := os.Stat(prebuiltResolveBin(bin)); err != nil {
-		return fmt.Errorf("moteur introuvable : %s — corrige BIN avec %s", bin, bold("loom edit"))
+		return fmt.Errorf("engine not found: %s — fix BIN using %s", bin, bold("loom edit"))
 	}
 	model := strings.TrimSpace(cfg["MODEL"])
 	if model == "" {
@@ -45,12 +45,12 @@ func preflightEngine() error {
 		return fmt.Errorf("MODEL=%s : %w", model, err)
 	}
 	if _, err := os.Stat(p); err != nil {
-		return fmt.Errorf("modèle introuvable : %s — corrige MODEL avec %s", p, bold("loom edit"))
+		return fmt.Errorf("model not found: %s — fix MODEL using %s", p, bold("loom edit"))
 	}
 	// Modèle en plusieurs fichiers : une tranche manquante ne se voit qu'au moment
 	// où llama-server réclame un tenseur absent, dans le journal du service.
 	if missing := shardFamilyMissing(filepath.Dir(p), filepath.Base(p)); len(missing) > 0 {
-		return fmt.Errorf("modèle incomplet : il manque %s dans %s — ce modèle tient en %d fichiers, télécharge-les tous",
+		return fmt.Errorf("incomplete model: missing %s in %s — this model has %d files; download them all",
 			strings.Join(missing, ", "), filepath.Dir(p), len(shardFamily(filepath.Base(p))))
 	}
 	return nil
@@ -62,30 +62,30 @@ func preflightEngine() error {
 // donc les clés utiles avec leur rôle, les valeurs déjà définies telles quelles,
 // les autres commentées.
 var configTemplate = []struct{ key, help string }{
-	{"BIN", "chemin de llama-server déjà compilé (ex. …/llama.cpp/build/bin/llama-server)"},
-	{"MODEL", "nom de fichier .gguf ou chemin complet"},
-	{"HOST", "adresse d'écoute du moteur (défaut 127.0.0.1)"},
-	{"PORT", "port du moteur (défaut 8081)"},
-	{"CTX", "taille du contexte (vide = natif du GGUF pour un modèle nu)"},
-	{"NGL", "couches déportées sur le GPU (défaut 999 = tout)"},
-	{"BATCH", "batch (défaut 2048)"},
-	{"UBATCH", "micro-batch (défaut 512)"},
+	{"BIN", "path to an already compiled llama-server (e.g. …/llama.cpp/build/bin/llama-server)"},
+	{"MODEL", ".gguf file name or full path"},
+	{"HOST", "engine listen address (default 127.0.0.1)"},
+	{"PORT", "engine port (default 8081)"},
+	{"CTX", "context size (empty = native GGUF context for a bare model)"},
+	{"NGL", "layers offloaded to the GPU (default 999 = all)"},
+	{"BATCH", "batch (default 2048)"},
+	{"UBATCH", "micro-batch (default 512)"},
 	{"THREADS", "threads CPU, 0 = auto"},
-	{"THREADS_BATCH", "threads CPU du prefill, 0 = auto"},
-	{"KV_TYPE", "quantization du cache KV (q8_0, q4_0…) ; KV_TYPE_K / KV_TYPE_V pour les séparer"},
-	{"REASONING", "passthrough du mode raisonnement (on/auto/deepseek)"},
-	{"REASONING_BUDGET", "plafond de tokens de réflexion ; -1 = illimité"},
-	{"COMPACT", "compactage automatique du contexte (off pour couper)"},
-	{"MEM_MODE", "mémoire de l'IA : off / ondemand"},
-	{"EXTRA_ARGS", "ajouté tel quel à la ligne de commande de llama-server"},
+	{"THREADS_BATCH", "prefill CPU threads, 0 = auto"},
+	{"KV_TYPE", "KV cache quantization (q8_0, q4_0…); KV_TYPE_K / KV_TYPE_V to set them separately"},
+	{"REASONING", "reasoning mode passthrough (on/auto/deepseek)"},
+	{"REASONING_BUDGET", "reasoning token limit; -1 = unlimited"},
+	{"COMPACT", "automatic context compaction (off to disable)"},
+	{"MEM_MODE", "AI memory: off / ondemand"},
+	{"EXTRA_ARGS", "added as is to the llama-server command line"},
 }
 
 // configEditorText rend la configuration au format présenté dans $EDITOR.
 func configEditorText(cfg map[string]string) string {
 	var b strings.Builder
-	b.WriteString("# Configuration du moteur Loom (loom-engine).\n")
-	b.WriteString("# Une clé par ligne : CLE=valeur. Les lignes commentées (#) sont ignorées :\n")
-	b.WriteString("# décommente celles dont tu as besoin. « loom restart » applique.\n\n")
+	b.WriteString("# Loom engine configuration (loom-engine).\n")
+	b.WriteString("# One key per line: KEY=value. Commented lines (#) are ignored:\n")
+	b.WriteString("# uncomment the ones you need. “loom restart” applies them.\n\n")
 	seen := map[string]bool{}
 	for _, f := range configTemplate {
 		seen[f.key] = true
@@ -105,7 +105,7 @@ func configEditorText(cfg map[string]string) string {
 		}
 	}
 	if len(rest) > 0 {
-		b.WriteString("# --- autres clés déjà définies ---\n")
+		b.WriteString("# --- other keys already defined ---\n")
 		b.WriteString(formatEnv(rest))
 	}
 	return b.String()
@@ -144,7 +144,7 @@ func editConfig() error {
 	if err := WriteConfig(parseEnv(string(b))); err != nil {
 		return err
 	}
-	fmt.Println(dim("[info] loom restart pour appliquer"))
+	fmt.Println(dim("[info] loom restart to apply"))
 	return nil
 }
 
@@ -156,7 +156,7 @@ func showVram() error {
 		"--query-gpu=name,memory.used,memory.total,utilization.gpu,temperature.gpu",
 		"--format=csv,noheader,nounits")).Output()
 	if err != nil {
-		return fmt.Errorf("nvidia-smi indisponible: %w", err)
+		return fmt.Errorf("nvidia-smi unavailable: %w", err)
 	}
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		parts := strings.Split(line, ",")

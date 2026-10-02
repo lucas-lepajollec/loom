@@ -17,7 +17,7 @@ import (
 )
 
 // errMemLocked : page chiffrée alors que la mémoire est verrouillée (DEK absente).
-var errMemLocked = errors.New("page chiffrée, mémoire verrouillée")
+var errMemLocked = errors.New("page encrypted, memory locked")
 
 // memEncActive indique si le chiffrement de la mémoire est activé (réglage
 // MEM_ENCRYPTED). Indépendant de l'état verrouillé/déverrouillé.

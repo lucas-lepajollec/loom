@@ -12,14 +12,14 @@ import (
 // First positional arg (if any) becomes the system prompt.
 func cmdChat(args []string) error {
 	if !healthCheck() {
-		return fmt.Errorf("serveur injoignable sur :%d — loom start d'abord", LLMPort())
+		return fmt.Errorf("server unreachable on :%d — run loom start first", LLMPort())
 	}
 	sysPrompt := strings.Join(args, " ")
 	msgs := []Message{}
 	if sysPrompt != "" {
 		msgs = append(msgs, Message{Role: "system", Content: sysPrompt})
 	}
-	fmt.Printf("\n%s  —  /reset pour vider, /sys <prompt> pour changer le system, /quit ou Ctrl-D pour sortir\n", cyan("loom chat"))
+	fmt.Printf("\n%s  —  /reset to clear, /sys <prompt> to change the system prompt, /quit or Ctrl-D to exit\n", cyan("loom chat"))
 	if sysPrompt != "" {
 		fmt.Println(dim("system: " + sysPrompt))
 	}
@@ -48,7 +48,7 @@ func cmdChat(args []string) error {
 				}
 			}
 			msgs = kept
-			fmt.Println(dim("[contexte vidé]"))
+			fmt.Println(dim("[context cleared]"))
 			continue
 		}
 		if strings.HasPrefix(u, "/sys ") {
@@ -57,7 +57,7 @@ func cmdChat(args []string) error {
 			if newSys != "" {
 				msgs = append(msgs, Message{Role: "system", Content: newSys})
 			}
-			fmt.Println(dim("[system mis à jour]"))
+			fmt.Println(dim("[system prompt updated]"))
 			continue
 		}
 		msgs = append(msgs, Message{Role: "user", Content: user})
@@ -71,12 +71,12 @@ func cmdChat(args []string) error {
 		// l'historique dépasse le seuil, au lieu d'imposer un /reset.
 		if compacted, changed := MaybeCompact(context.Background(), msgs, caps, 0); changed {
 			msgs = compacted
-			fmt.Println(dim("[contexte compacté pour tenir dans la fenêtre]"))
+			fmt.Println(dim("[context compacted to fit the window]"))
 		}
 		extra, err := runChat(context.Background(), InjectSkills(msgs, caps), 0.7, caps, func(ev StreamEvent) bool {
 			switch {
 			case ev.Err != nil:
-				fmt.Printf("\n%s\n", red("[erreur] "+ev.Err.Error()))
+				fmt.Printf("\n%s\n", red("[error] "+ev.Err.Error()))
 			case ev.NewHistory != nil:
 				// Compaction survenue pendant le tour : elle REMPLACE l'historique (elle
 				// contient déjà le tour en cours), préfixe système injecté retiré. Sans
@@ -86,7 +86,7 @@ func cmdChat(args []string) error {
 					base = base[1:]
 				}
 				msgs = append([]Message(nil), base...)
-				fmt.Println(dim("\n[contexte compacté pour tenir dans la fenêtre]"))
+				fmt.Println(dim("\n[context compacted to fit the window]"))
 			case ev.Stats != nil:
 				stats = ev.Stats
 			case ev.DropReasoning:
@@ -101,17 +101,17 @@ func cmdChat(args []string) error {
 					break // résultat / frappe live affichés côté web ; en terminal on garde l'annonce seule
 				}
 				icon := "🧠"
-				verb := "mémoire"
+				verb := "memory"
 				switch ev.ToolUsed.Name {
 				case "bash":
 					icon = "⚙️"
-					verb = "exécution"
+					verb = "execution"
 				case "write":
 					icon = "📄"
-					verb = "écriture"
+					verb = "writing"
 				case "edit":
 					icon = "✏️"
-					verb = "édition"
+					verb = "editing"
 				case "web_search", "web_open", "web_read", "web_grep":
 					icon = "🌐"
 					verb = "web"

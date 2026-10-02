@@ -179,16 +179,16 @@ func runShell(parent context.Context, command string, timeoutSec int) string {
 	err := cmd.Run()
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return fmt.Sprintf("[timeout après %ds]", timeoutSec)
+		return fmt.Sprintf("[timeout after %ds]", timeoutSec)
 	case errors.Is(parent.Err(), context.Canceled):
-		return "[commande interrompue]"
+		return "[command interrupted]"
 	}
 	exit := 0
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
 			exit = ee.ExitCode()
 		} else {
-			return fmt.Sprintf("[erreur: %v]", err)
+			return fmt.Sprintf("[error: %v]", err)
 		}
 	}
 	out := tailRunes(stdout.String(), toolMaxOutput)
@@ -220,7 +220,7 @@ func shellName() string {
 // unreliable everywhere and outright broken on cmd.exe.
 func fileWrite(path, content string) string {
 	if strings.TrimSpace(path) == "" {
-		return "[erreur] chemin vide"
+		return "[error] empty path"
 	}
 	path = resolveAgentPath(path)
 	// memory et scripts sont réservés à leurs outils dédiés : pas d'écriture directe.
@@ -229,7 +229,7 @@ func fileWrite(path, content string) string {
 	}
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return "[erreur] " + err.Error()
+			return "[error] " + err.Error()
 		}
 	}
 	// Préserve les permissions d'origine quand le fichier existe déjà (un script
@@ -241,13 +241,13 @@ func fileWrite(path, content string) string {
 		existed = true
 	}
 	if err := os.WriteFile(path, []byte(content), mode); err != nil {
-		return "[erreur] " + err.Error()
+		return "[error] " + err.Error()
 	}
-	verb := "créé"
+	verb := "created"
 	if existed {
-		verb = "réécrit"
+		verb = "rewritten"
 	}
-	return fmt.Sprintf("[ok] %s %s (%d octets)", path, verb, len(content))
+	return fmt.Sprintf("[ok] %s %s (%d bytes)", path, verb, len(content))
 }
 
 // fileEdit applies a single exact-text replacement to a file on disk: oldText
@@ -255,10 +255,10 @@ func fileWrite(path, content string) string {
 // without rewriting it whole. Returns a short status string for the tool result.
 func fileEdit(path, oldText, newText string) string {
 	if strings.TrimSpace(path) == "" {
-		return "[erreur] chemin vide"
+		return "[error] empty path"
 	}
 	if oldText == "" {
-		return "[erreur] old vide"
+		return "[error] empty old"
 	}
 	path = resolveAgentPath(path)
 	// memory et scripts sont réservés à leurs outils dédiés : pas d'édition directe.
@@ -267,7 +267,7 @@ func fileEdit(path, oldText, newText string) string {
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return "[erreur] " + err.Error()
+		return "[error] " + err.Error()
 	}
 	content := string(b)
 	n := strings.Count(content, oldText)
@@ -275,12 +275,12 @@ func fileEdit(path, oldText, newText string) string {
 		// Modification déjà en place : on le dit clairement plutôt que de renvoyer
 		// une erreur, sinon le modèle croit avoir échoué et recommence.
 		if newText != "" && strings.Contains(content, newText) {
-			return "[ok] déjà à jour — le fichier contient déjà cette modification"
+			return "[ok] already up to date — the file already contains this change"
 		}
-		return "[erreur] old introuvable dans le fichier"
+		return "[error] old not found in the file"
 	}
 	if n > 1 {
-		return fmt.Sprintf("[erreur] old apparaît %d fois — ajoute du contexte pour le rendre unique", n)
+		return fmt.Sprintf("[error] old occurs %d times — add context to make it unique", n)
 	}
 	updated := strings.Replace(content, oldText, newText, 1)
 	// Préserve les permissions d'origine (un script 0755 doit rester exécutable).
@@ -289,7 +289,7 @@ func fileEdit(path, oldText, newText string) string {
 		mode = fi.Mode()
 	}
 	if err := os.WriteFile(path, []byte(updated), mode); err != nil {
-		return "[erreur] " + err.Error()
+		return "[error] " + err.Error()
 	}
-	return fmt.Sprintf("[ok] %s modifié (1 remplacement)", path)
+	return fmt.Sprintf("[ok] %s modified (1 replacement)", path)
 }

@@ -73,7 +73,7 @@ func handleRuntimeSessions(w http.ResponseWriter, r *http.Request) {
 	if id := r.URL.Query().Get("id"); id != "" {
 		s, ok := workspaceSessions.get(id)
 		if !ok {
-			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion introuvable ou verrouillée"})
+			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found or locked"})
 			return
 		}
 		c := discussionContext(s)
@@ -131,7 +131,7 @@ func handleRuntimeSessionStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := workspaceSessions.stop(req.ID); err != nil {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": "enregistrement impossible : déverrouillez le stockage"})
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "could not save: unlock storage"})
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true})
@@ -193,13 +193,13 @@ func handleRuntimeSessionConfigure(w http.ResponseWriter, r *http.Request) {
 	if req.present() && req.Revision == "" {
 		current, ok := workspaceSessions.get(req.ID)
 		if !ok {
-			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion introuvable"})
+			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found"})
 			return
 		}
 		// Harness patches preserve discussion text/context. Unchanged legacy
 		// fields are harmless; portable edits require the existing revision.
 		if req.Title != "" && req.Title != current.Title || req.ProjectID != "" && req.ProjectID != current.ProjectID || req.Instructions != "" && req.Instructions != current.Instructions {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "context_revision requis"})
+			sendJSON(w, 409, map[string]any{"ok": false, "error": "context_revision required"})
 			return
 		}
 		req.Title, req.ProjectID, req.Instructions = current.Title, current.ProjectID, current.Instructions
@@ -230,7 +230,7 @@ func handleRuntimeSessionPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	s, ok := workspaceSessions.get(req.ID)
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion introuvable ou verrouillée"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found or locked"})
 		return
 	}
 	p := prepareDiscussion(s, req.Text)
@@ -254,7 +254,7 @@ func handleModelChoice(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !found {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "modèle introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "model not found"})
 		return
 	}
 	value := "hidden"
@@ -262,7 +262,7 @@ func handleModelChoice(w http.ResponseWriter, r *http.Request) {
 		value = "visible"
 	}
 	if err := putStr(bkModelChoices, req.ID, value); err != nil {
-		sendJSON(w, 500, map[string]any{"ok": false, "error": "enregistrement impossible"})
+		sendJSON(w, 500, map[string]any{"ok": false, "error": "could not save"})
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true})

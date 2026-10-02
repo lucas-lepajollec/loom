@@ -218,7 +218,7 @@ func TestProviderBalanceRedirectBoundAndDeadline(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	q = readProviderBalance(ctx, CloudProvider{Endpoint: "https://api.deepseek.com"}, "secret", client)
-	if !strings.Contains(q.Error, "10 secondes") {
+	if !strings.Contains(q.Error, "10-second") {
 		t.Fatal("deadline not reported")
 	}
 }
@@ -289,7 +289,7 @@ func TestProviderBalanceConcurrentCache(t *testing.T) {
 	<-started
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if c.read(ctx, p, "key", true).Error != "lecture interrompue" {
+	if c.read(ctx, p, "key", true).Error != "reading interrupted" {
 		t.Error("cache wait ignored cancellation")
 	}
 	for i := 0; i < 10; i++ {

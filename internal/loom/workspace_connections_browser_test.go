@@ -54,7 +54,7 @@ func TestWorkspaceConnectionsBrowser(t *testing.T) {
 		remaining := 42.0
 		for _, a := range []*registryFixtureAdapter{agy, codex} {
 			a.quota = QuotaSnapshot{Name: a.descriptor.Name, FetchedAt: time.Now().Unix(), Source: "fixture",
-				Windows: []QuotaWindow{{Group: "Synthétique", Remaining: &remaining}, {Group: "Inconnu"}}}
+				Windows: []QuotaWindow{{Group: "Synthétique", Remaining: &remaining}, {Group: "Unknown"}}}
 		}
 		isolateRuntimeRegistry(t, llamaRuntimeAdapter{}, cloudRuntimeAdapter{}, agy, codex,
 			plannedRuntimeAdapter{RuntimeDescriptor{ID: "claude-code", Name: "Claude Code", Kind: "harness", Description: "Agent d’Anthropic.", CLI: "claude"}},

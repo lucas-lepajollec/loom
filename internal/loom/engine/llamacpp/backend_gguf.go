@@ -65,7 +65,7 @@ func ReadGGUFMeta(path string) (GGUFMeta, error) {
 	var out GGUFMeta
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return out, fmt.Errorf("chemin vide")
+		return out, fmt.Errorf("empty path")
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -78,13 +78,13 @@ func ReadGGUFMeta(path string) (GGUFMeta, error) {
 		return out, err
 	}
 	if magic != GGUFMagic {
-		return out, fmt.Errorf("pas un GGUF")
+		return out, fmt.Errorf("not a GGUF")
 	}
 	if err := binary.Read(f, binary.LittleEndian, &version); err != nil {
 		return out, err
 	}
 	if version < 2 || version > 3 {
-		return out, fmt.Errorf("GGUF version %d non gérée", version)
+		return out, fmt.Errorf("unsupported GGUF version %d", version)
 	}
 	var nTensors, nKV uint64
 	if err := binary.Read(f, binary.LittleEndian, &nTensors); err != nil {
@@ -94,7 +94,7 @@ func ReadGGUFMeta(path string) (GGUFMeta, error) {
 		return out, err
 	}
 	if nKV > GGUFMaxKV {
-		return out, fmt.Errorf("trop de métadonnées GGUF")
+		return out, fmt.Errorf("too much GGUF metadata")
 	}
 
 	arch := ""
@@ -280,7 +280,7 @@ func GGUFReadString(r io.Reader) (string, error) {
 		return "", err
 	}
 	if n > GGUFMaxString {
-		return "", fmt.Errorf("chaîne GGUF trop longue")
+		return "", fmt.Errorf("GGUF string too long")
 	}
 	if n == 0 {
 		return "", nil
@@ -336,7 +336,7 @@ func GGUFReadInt(r io.Reader, typ uint32) (int, error) {
 			return 0, err
 		}
 		if v > uint64(^uint(0)>>1) {
-			return 0, fmt.Errorf("entier GGUF trop grand")
+			return 0, fmt.Errorf("GGUF integer too large")
 		}
 		return int(v), nil
 	case GGUFTypeInt64:
@@ -352,7 +352,7 @@ func GGUFReadInt(r io.Reader, typ uint32) (int, error) {
 		}
 		return int(v), nil
 	default:
-		return 0, fmt.Errorf("type GGUF %d non entier", typ)
+		return 0, fmt.Errorf("GGUF type %d is not an integer", typ)
 	}
 }
 
@@ -369,7 +369,7 @@ func GGUFSkipValue(r io.Reader, typ uint32) error {
 		_, err := GGUFSkipArrayKeepLen(r)
 		return err
 	default:
-		return fmt.Errorf("type GGUF %d inconnu", typ)
+		return fmt.Errorf("unknown GGUF type %d", typ)
 	}
 }
 
@@ -383,7 +383,7 @@ func GGUFSkipArrayKeepLen(r io.Reader) (uint64, error) {
 		return 0, err
 	}
 	if count > GGUFMaxArrayLen {
-		return 0, fmt.Errorf("tableau GGUF trop long")
+		return 0, fmt.Errorf("GGUF array too large")
 	}
 	if sz := GGUFScalarSize(elem); sz > 0 {
 		_, err := io.CopyN(io.Discard, r, sz*int64(count))

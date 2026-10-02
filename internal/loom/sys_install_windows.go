@@ -27,7 +27,7 @@ func cmdInstall(args []string) error {
 	//    elle déplace des dossiers entiers, donc la destination ne doit pas
 	//    encore exister. Code temporaire, voir migrate_07.go.
 	if err := migrateFrom07(loomHome); err != nil {
-		return fmt.Errorf("reprise de l'installation 0.7 : %w", err)
+		return fmt.Errorf("migrating 0.7 installation: %w", err)
 	}
 
 	// 1. Arborescence + configuration de départ (partagé avec le premier
@@ -35,7 +35,7 @@ func cmdInstall(args []string) error {
 	if err := provisionDataDir(); err != nil {
 		return err
 	}
-	fmt.Printf("  %s arborescence prête\n", green("✓"))
+	fmt.Printf("  %s directory structure ready\n", green("✓"))
 
 	// 2. Le binaire va dans LOOM_HOME\bin, ajouté au PATH utilisateur, pour que
 	//    `loom` soit appelable depuis n'importe quel shell (pendant Windows du
@@ -43,32 +43,32 @@ func cmdInstall(args []string) error {
 	dir := binDir()
 	onPath := false
 	if dst, err := installSelf(dir); err != nil {
-		return fmt.Errorf("copie du binaire dans %s : %w", dir, err)
+		return fmt.Errorf("copying binary to %s: %w", dir, err)
 	} else {
-		fmt.Printf("  %s binaire installé %s\n", green("✓"), dst)
+		fmt.Printf("  %s binary installed %s\n", green("✓"), dst)
 		added, err := addToUserPath(dir)
 		switch {
 		case err != nil:
-			return fmt.Errorf("binaire installé dans %s mais mise à jour du PATH impossible : %w", dir, err)
+			return fmt.Errorf("binary installed in %s but could not update PATH: %w", dir, err)
 		case added:
-			fmt.Printf("  %s %s ajouté au PATH utilisateur\n", green("✓"), dir)
+			fmt.Printf("  %s %s added to user PATH\n", green("✓"), dir)
 			onPath = true
 		default:
-			fmt.Printf("  %s %s déjà dans le PATH\n", dim("•"), dir)
+			fmt.Printf("  %s %s already in PATH\n", dim("•"), dir)
 			onPath = true
 		}
 	}
 
 	fmt.Println()
-	fmt.Printf("%s installation terminée.\n", green("[ok]"))
-	fmt.Printf("\nProchaines étapes :\n")
-	fmt.Printf("  1. édite la config :   %s   (renseigne BIN, MODEL)\n", bold("loom edit"))
-	fmt.Printf("  2. démarre le service: %s\n", bold("loom start"))
+	fmt.Printf("%s installation complete.\n", green("[ok]"))
+	fmt.Printf("\nNext steps:\n")
+	fmt.Printf("  1. edit the config:    %s   (set BIN, MODEL)\n", bold("loom edit"))
+	fmt.Printf("  2. start the service:  %s\n", bold("loom start"))
 	fmt.Printf("  3. UI web :            %s\n", bold("loom web"))
 	if onPath {
-		fmt.Printf("\n%s ouvre un NOUVEAU terminal pour que 'loom' soit reconnu (le PATH n'est lu qu'au démarrage du shell).\n", dim("[info]"))
+		fmt.Printf("\n%s open a NEW terminal so 'loom' is recognized (PATH is only read when the shell starts).\n", dim("[info]"))
 	} else {
-		fmt.Printf("\n%s pour exécuter 'loom' depuis n'importe où, ajoute son dossier au PATH.\n", dim("[info]"))
+		fmt.Printf("\n%s to run 'loom' from anywhere, add its directory to PATH.\n", dim("[info]"))
 	}
 	return nil
 }
@@ -212,23 +212,23 @@ func cmdUninstall(args []string) error {
 	// Pull LOOM_HOME\bin off the user PATH (best-effort).
 	dir := binDir()
 	if removed, err := removeFromUserPath(dir); err == nil && removed {
-		fmt.Printf("  %s %s retiré du PATH utilisateur\n", green("✓"), dir)
+		fmt.Printf("  %s %s removed from user PATH\n", green("✓"), dir)
 	}
 
 	// Raccourcis posés à l'installation (menu Démarrer + Bureau).
 	if removeShortcuts() {
-		fmt.Printf("  %s raccourcis « Loom » supprimés\n", green("✓"))
+		fmt.Printf("  %s “Loom” shortcuts deleted\n", green("✓"))
 	}
 
 	if !keepData {
 		loomHome := LoomHome()
 		if err := os.RemoveAll(loomHome); err != nil {
-			return fmt.Errorf("suppression de %s: %w", loomHome, err)
+			return fmt.Errorf("removing %s: %w", loomHome, err)
 		}
-		fmt.Printf("  %s %s supprimé\n", green("✓"), loomHome)
+		fmt.Printf("  %s %s deleted\n", green("✓"), loomHome)
 	} else {
-		fmt.Println(dim("(données utilisateur conservées — relance avec --purge pour tout supprimer)"))
+		fmt.Println(dim("(user data preserved — run again with --purge to delete everything)"))
 	}
-	fmt.Println(green("[ok]") + " désinstallé")
+	fmt.Println(green("[ok]") + " uninstalled")
 	return nil
 }

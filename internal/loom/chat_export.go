@@ -170,9 +170,9 @@ func stripInlineImagesValue(v any) any {
 // corps base64 par sa taille, pour que l'export reste informatif sans le poids.
 func elideDataURI(url string) string {
 	if i := strings.Index(url, ","); i >= 0 {
-		return url[:i+1] + fmt.Sprintf("<élidé — %s>", humanBytes(int64(len(url)-i-1)))
+		return url[:i+1] + fmt.Sprintf("<omitted — %s>", humanBytes(int64(len(url)-i-1)))
 	}
-	return "<image élidée>"
+	return "<image omitted>"
 }
 
 // filterLog applique au journal les MÊMES cases que le Markdown. Les deux
@@ -265,8 +265,8 @@ func (c *Conversation) ExportMarkdown(o exportOpts) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Conversation Loom\n\nExportée le %s par Loom %s.\n",
-		time.Now().Format("02/01/2006 à 15:04"), Version)
+	fmt.Fprintf(&b, "# Loom conversation\n\nExported on %s by Loom %s.\n",
+		time.Now().Format("2006-01-02 at 15:04"), Version)
 	// Un export tronqué ou allégé doit le DIRE : relu six mois plus tard, un fil
 	// sans ses raisonnements ne doit pas passer pour le fil complet.
 	if note := exportNote(o); note != "" {
@@ -291,7 +291,7 @@ func (c *Conversation) ExportMarkdown(o exportOpts) string {
 			// Pièces jointes du tour. Sans elles, un message envoyé SANS texte
 			// (juste un fichier) donnait une section « Vous » entièrement vide.
 			if names := exportFileNames(ev["files"]); len(names) > 0 {
-				fmt.Fprintf(&b, "\nFichiers joints : %s\n", strings.Join(names, ", "))
+				fmt.Fprintf(&b, "\nAttached files: %s\n", strings.Join(names, ", "))
 			}
 		case ev["reasoning_content"] != nil:
 			if !o.Reasoning {
@@ -322,11 +322,11 @@ func (c *Conversation) ExportMarkdown(o exportOpts) string {
 				fmt.Fprintf(&b, "\n```\n%s\n```\n", strings.TrimRight(res, "\n"))
 			}
 		case ev["compacted"] != nil:
-			fmt.Fprintf(&b, "\n_(contexte compacté à cet endroit : les tours précédents ont été résumés pour le modèle, le fil ci-dessus reste complet)_\n")
+			fmt.Fprintf(&b, "\n_(context compacted here: earlier turns were summarized for the model; the thread above remains complete)_\n")
 		}
 	}
 	if !openBubble && len(snapshot) == 0 {
-		b.WriteString("\n_Conversation vide._\n")
+		b.WriteString("\n_Empty conversation._\n")
 	}
 	return b.String()
 }
@@ -335,20 +335,20 @@ func (c *Conversation) ExportMarkdown(o exportOpts) string {
 func exportNote(o exportOpts) string {
 	var parts []string
 	if o.Turns > 0 {
-		parts = append(parts, fmt.Sprintf("%d derniers échanges seulement", o.Turns))
+		parts = append(parts, fmt.Sprintf("only the last %d exchanges", o.Turns))
 	}
 	if !o.Reasoning {
-		parts = append(parts, "raisonnements retirés")
+		parts = append(parts, "reasoning removed")
 	}
 	if !o.Tools {
-		parts = append(parts, "appels d'outils retirés")
+		parts = append(parts, "tool calls removed")
 	} else if !o.Results {
-		parts = append(parts, "sorties d'outils retirées")
+		parts = append(parts, "tool outputs removed")
 	}
 	if len(parts) == 0 {
 		return ""
 	}
-	return "_Export partiel : " + strings.Join(parts, ", ") + "._"
+	return "_Partial export: " + strings.Join(parts, ", ") + "._"
 }
 
 // mdText rend une valeur d'événement en texte de bloc Markdown.
@@ -413,17 +413,17 @@ func cmdExport(args []string) error {
 			o.Results = false
 		case "--last":
 			if i+1 >= len(args) {
-				return fmt.Errorf("--last attend un nombre d'échanges")
+				return fmt.Errorf("--last expects a number of exchanges")
 			}
 			i++
 			n, err := strconv.Atoi(args[i])
 			if err != nil || n <= 0 {
-				return fmt.Errorf("--last : nombre d'échanges invalide (%s)", args[i])
+				return fmt.Errorf("--last: invalid number of exchanges (%s)", args[i])
 			}
 			o.Turns = n
 		default:
 			if strings.HasPrefix(a, "-") && a != "-" {
-				return fmt.Errorf("option inconnue : %s (voir « loom help »)", a)
+				return fmt.Errorf("unknown option: %s (see “loom help”)", a)
 			}
 			out = a
 		}

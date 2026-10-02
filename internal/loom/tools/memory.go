@@ -42,19 +42,19 @@ var memNameRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 // EXACTEMENT une fois (sinon erreur), pour une édition sans ambiguïté.
 // ErrAlreadyApplied signale une édition dont le résultat est DÉJÀ en place :
 // ce n'est pas un échec, la page est dans l'état demandé.
-var ErrAlreadyApplied = errors.New("déjà à jour — la page contient déjà cette modification")
+var ErrAlreadyApplied = errors.New("already up to date — the page already contains this change")
 
 // MemFileName normalise un nom de page : ajoute .md si absent et valide.
 func MemFileName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", fmt.Errorf("nom vide")
+		return "", fmt.Errorf("empty name")
 	}
 	if !strings.HasSuffix(strings.ToLower(name), ".md") {
 		name += ".md"
 	}
 	if !memNameRe.MatchString(name) {
-		return "", fmt.Errorf("nom invalide (alphanum, ._-)")
+		return "", fmt.Errorf("invalid name (alphanumeric, ._-)")
 	}
 	return name, nil
 }
@@ -145,7 +145,7 @@ func (m Memory) MemList() []MemPage {
 		txt, ok := m.Store.PageText(e.Name())
 		title := TitleOf(txt)
 		if !ok {
-			title = "🔒 (chiffré — mémoire verrouillée)"
+			title = "🔒 (encrypted — memory locked)"
 		}
 		out = append(out, MemPage{Name: e.Name(), Title: title})
 	}
@@ -258,9 +258,9 @@ func (m Memory) MemRead(name string, offset, limit int) (string, error) {
 	b, err := m.Store.ReadPage(name)
 	if err != nil {
 		if err == m.Store.LockedError() {
-			return "", fmt.Errorf("page '%s' chiffrée — mémoire verrouillée", name)
+			return "", fmt.Errorf("page '%s' encrypted — memory locked", name)
 		}
-		return "", fmt.Errorf("page '%s' introuvable", name)
+		return "", fmt.Errorf("page '%s' not found", name)
 	}
 	lines := strings.Split(string(b), "\n")
 	if offset <= 0 {
@@ -284,7 +284,7 @@ func (m Memory) MemAdd(name, content string) error {
 		return err
 	}
 	if _, err := os.Stat(p); err == nil {
-		return fmt.Errorf("la page existe déjà — utilise mem_edit pour la modifier")
+		return fmt.Errorf("the page already exists — use mem_edit to modify it")
 	}
 	body := strings.TrimRight(content, "\n") + "\n"
 	return m.Store.WriteFile(name, []byte(body))
@@ -294,14 +294,14 @@ func (m Memory) MemEdit(name, oldText, newText string) error {
 	b, err := m.Store.ReadPage(name)
 	if err != nil {
 		if err == m.Store.LockedError() {
-			return fmt.Errorf("page '%s' chiffrée — mémoire verrouillée", name)
+			return fmt.Errorf("page '%s' encrypted — memory locked", name)
 		}
-		return fmt.Errorf("page '%s' introuvable", name)
+		return fmt.Errorf("page '%s' not found", name)
 	}
 	content := string(b)
 	n := strings.Count(content, oldText)
 	if oldText == "" {
-		return fmt.Errorf("old vide")
+		return fmt.Errorf("empty old")
 	}
 	if n == 0 {
 		// Déjà remplacé (le modèle rejoue souvent la même édition) : ce n'est pas
@@ -309,10 +309,10 @@ func (m Memory) MemEdit(name, oldText, newText string) error {
 		if newText != "" && strings.Contains(content, newText) {
 			return ErrAlreadyApplied
 		}
-		return fmt.Errorf("old introuvable dans la page")
+		return fmt.Errorf("old not found in the page")
 	}
 	if n > 1 {
-		return fmt.Errorf("old apparaît %d fois — ajoute du contexte pour le rendre unique", n)
+		return fmt.Errorf("old occurs %d times — add context to make it unique", n)
 	}
 	updated := strings.Replace(content, oldText, newText, 1)
 	return m.Store.WriteFile(name, []byte(updated))
@@ -352,7 +352,7 @@ func (m Memory) MemDelete(name string) error {
 		return err
 	}
 	if _, err := os.Stat(p); err != nil {
-		return fmt.Errorf("introuvable")
+		return fmt.Errorf("not found")
 	}
 	return os.Remove(p)
 }
@@ -372,7 +372,7 @@ func (m Memory) SafePath(name string) (string, error) {
 		return "", err
 	}
 	if !strings.HasPrefix(abs, root+string(filepath.Separator)) {
-		return "", fmt.Errorf("path invalide")
+		return "", fmt.Errorf("invalid path")
 	}
 	return abs, nil
 }

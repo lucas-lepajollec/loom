@@ -89,7 +89,7 @@ func (s *pageFixture) GetPage(_ string, opts FetchOptions) (*Page, error) {
 func TestWebReadGrepAndOpenBoundary(t *testing.T) {
 	source := &pageFixture{page: &Page{URL: "https://page.test", Lines: []string{"# Title", "alpha", "match", "omega", "match"}}}
 	got := ToolWebRead(source, map[string]any{"url": "https://page.test", "offset": float64(2), "limit": float64(2)})
-	want := "# https://page.test\nLignes 2–3 sur 5 (2 de plus en dessous)\n\n```\n    2 | alpha\n    3 | match\n```"
+	want := "# https://page.test\nLines 2–3 of 5 (2 more below)\n\n```\n    2 | alpha\n    3 | match\n```"
 	if got != want {
 		t.Fatalf("read: %q", got)
 	}
@@ -98,7 +98,7 @@ func TestWebReadGrepAndOpenBoundary(t *testing.T) {
 		t.Fatalf("grep: %q", grep)
 	}
 	open := ToolWebOpen(source, map[string]any{"refresh": true, "wait_for": "#main", "actions": []any{"expand()"}})
-	if !source.options.Force || !source.options.DismissPopups || source.options.WaitFor != "#main" || len(source.options.Actions) != 1 || !strings.Contains(open, "# Ouvert : https://page.test") {
+	if !source.options.Force || !source.options.DismissPopups || source.options.WaitFor != "#main" || len(source.options.Actions) != 1 || !strings.Contains(open, "# Opened: https://page.test") {
 		t.Fatalf("open: %q %+v", open, source.options)
 	}
 	props := WebOpenTool(source).Function.Parameters.(map[string]any)["properties"].(map[string]any)

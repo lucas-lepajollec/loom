@@ -73,7 +73,7 @@ func handleServer(w http.ResponseWriter, r *http.Request) {
 			if serviceIsActive() {
 				go func() {
 					if err := restartLlamaEngine(); err != nil {
-						fmt.Printf("%s redémarrage après NP: %v\n", red("[ERREUR]"), err)
+						fmt.Printf("%s restart after NP: %v\n", red("[ERREUR]"), err)
 					}
 				}()
 			}

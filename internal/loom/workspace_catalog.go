@@ -157,7 +157,7 @@ func saveHarnessProfile(p HarnessProfile) (HarnessProfile, error) {
 	}
 	p.Name = strings.TrimSpace(p.Name)
 	if !found || p.Name == "" || len(p.Name) > 100 || len(p.ModelIDs) > 32 {
-		return p, fmt.Errorf("harness valide, nom et 32 modèles maximum requis")
+		return p, fmt.Errorf("valid harness, name and maximum 32 models required")
 	}
 	available := map[string]bool{}
 	for _, c := range choices {
@@ -167,7 +167,7 @@ func saveHarnessProfile(p HarnessProfile) (HarnessProfile, error) {
 	ids := []string{}
 	for _, id := range p.ModelIDs {
 		if !available[id] {
-			return p, fmt.Errorf("modèle introuvable")
+			return p, fmt.Errorf("model not found")
 		}
 		if !seen[id] {
 			ids = append(ids, id)
@@ -180,7 +180,7 @@ func saveHarnessProfile(p HarnessProfile) (HarnessProfile, error) {
 	} else {
 		var old HarnessProfile
 		if !getStoreJSON(bkHarnessProfiles, p.ID, &old) {
-			return p, fmt.Errorf("configuration introuvable")
+			return p, fmt.Errorf("configuration not found")
 		}
 	}
 	return p, putStoreJSON(bkHarnessProfiles, p.ID, p)

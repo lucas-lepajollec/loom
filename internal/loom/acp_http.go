@@ -30,7 +30,7 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 	if c.MCPServers != nil {
 		var names *[]string
 		if json.Unmarshal(c.MCPServers, &names) != nil {
-			return errors.New("liste de serveurs MCP invalide")
+			return errors.New("invalid MCP server list")
 		}
 		if names != nil {
 			if err := validateACPMCPSelection(*names); err != nil {
@@ -52,11 +52,11 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 		s.Workdir = path
 	}
 	if c.AdditionalDirs != nil && agent.Remote && len(*c.AdditionalDirs) > 0 {
-		return errors.New("dossiers supplémentaires indisponibles pour un harness distant")
+		return errors.New("additional directories unavailable for a remote harness")
 	}
 	if c.AdditionalDirs != nil {
 		if len(*c.AdditionalDirs) > 16 {
-			return errors.New("16 dossiers supplémentaires maximum")
+			return errors.New("maximum 16 additional directories")
 		}
 		s.AdditionalDirs = []string{}
 		for _, path := range *c.AdditionalDirs {
@@ -70,38 +70,38 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 	if c.Permission != nil {
 		level := *c.Permission
 		if level != "ask" && level != "edits" && level != "full" {
-			return errors.New("permission invalide : ask, edits ou full")
+			return errors.New("invalid permission: ask, edits or full")
 		}
 		if level == "full" && old.Permission != "full" && !consent {
-			return errors.New("confirmez explicitement le niveau full avec consent:true")
+			return errors.New("explicitly confirm the full level with consent:true")
 		}
 		s.Permission = level
 	}
 	if c.Mode != nil {
 		if len(*c.Mode) > 200 {
-			return errors.New("mode invalide")
+			return errors.New("invalid mode")
 		}
 		s.Mode = *c.Mode
 	}
 	if c.Config != nil {
 		if len(c.Config) > 64 {
-			return errors.New("trop d’options ACP")
+			return errors.New("too many ACP options")
 		}
 		if s.ConfigOptions == nil {
 			s.ConfigOptions = map[string]any{}
 		}
 		for key, value := range c.Config {
 			if key == "" || len(key) > 200 {
-				return errors.New("identifiant d’option invalide")
+				return errors.New("invalid option ID")
 			}
 			switch v := value.(type) {
 			case string:
 				if len(v) > 4096 {
-					return errors.New("valeur d’option trop longue")
+					return errors.New("option value too long")
 				}
 			case bool:
 			default:
-				return errors.New("valeur d’option ACP : chaîne ou booléen requis")
+				return errors.New("ACP option value: string or boolean required")
 			}
 			s.ConfigOptions[key] = value
 		}
@@ -177,7 +177,7 @@ func handleACPFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	s, ok := workspaceSessions.get(r.URL.Query().Get("id"))
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found"})
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "files": append([]ACPChangedFile{}, s.Files...)})
@@ -188,17 +188,17 @@ func handleACPDiff(w http.ResponseWriter, r *http.Request) {
 	}
 	s, ok := workspaceSessions.get(r.URL.Query().Get("id"))
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found"})
 		return
 	}
 	path := r.URL.Query().Get("path")
 	before, observed := s.FileBaselines[path]
 	if !observed {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "fichier non suivi"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "file not tracked"})
 		return
 	}
 	if agent, _ := acpAgentFor(s.RuntimeID); agent.Remote {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": "fichier sur la machine distante : le diff est dans le fil"})
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "file on the remote machine: the diff is in the thread"})
 		return
 	}
 	roots := []*os.Root{}
@@ -210,12 +210,12 @@ func handleACPDiff(w http.ResponseWriter, r *http.Request) {
 	for _, dir := range append([]string{s.Workdir}, s.AdditionalDirs...) {
 		canonical, err := acpDirectory(dir)
 		if err != nil || canonical != dir {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "dossier inaccessible"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "directory inaccessible"})
 			return
 		}
 		root, err := os.OpenRoot(dir)
 		if err != nil {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "dossier inaccessible"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "directory inaccessible"})
 			return
 		}
 		roots = append(roots, root)
@@ -227,7 +227,7 @@ func handleACPDiff(w http.ResponseWriter, r *http.Request) {
 	}
 	after, err := acpReadFile(root, rel)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "lecture refusée"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "read denied"})
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "diff": acpUnifiedDiff(path, before, after)})
@@ -247,7 +247,7 @@ func handleACPDirs(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "dossier inaccessible"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "directory inaccessible"})
 		return
 	}
 	dirs := []map[string]any{}

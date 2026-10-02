@@ -349,11 +349,11 @@ func (c *Conversation) state() map[string]any {
 }
 
 // ErrBusy : une génération est déjà en cours (un seul tour à la fois).
-var ErrBusy = fmt.Errorf("génération en cours")
+var ErrBusy = fmt.Errorf("generation in progress")
 
 // errModelLoading est renvoyée telle quelle à l'utilisateur, dans le chat : ce
 // n'est pas un défaut mais une attente, et le message doit le dire.
-var errModelLoading = fmt.Errorf("⏳ Le modèle est encore en train de charger — réessaie dans quelques secondes.")
+var errModelLoading = fmt.Errorf("⏳ The model is still loading — try again in a few seconds.")
 
 // StartTurn ajoute le message utilisateur et lance la génération EN ARRIÈRE-PLAN
 // (context.Background, détaché de toute connexion HTTP). Renvoie ErrBusy si un
@@ -445,7 +445,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 		// notification, l'utilisateur est là et a coupé volontairement. Un Reset annule
 		// aussi le ctx, mais ce cas sort plus haut (stale) sans jamais atteindre ici.
 		if hasPushSubs() && ctx.Err() == nil {
-			go sendPushToAll("Loom", "Réponse prête · "+fmtDurFR(time.Since(turnStart)))
+			go sendPushToAll("Loom", "Response ready · "+fmtDurFR(time.Since(turnStart)))
 		}
 	}()
 
@@ -473,7 +473,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	// il bloque plusieurs secondes AVANT que la vraie réponse commence, d'où la
 	// bannière de progression émise par compactAndPublish.
 	if compactWouldTrigger(msgs, ctxUsed) {
-		if out, changed := c.compactAndPublish(ctx, epoch, "début-tour", msgs, ctxUsed, caps); changed {
+		if out, changed := c.compactAndPublish(ctx, epoch, "turn-start", msgs, ctxUsed, caps); changed {
 			msgs = out
 		}
 	}
@@ -499,7 +499,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 			// canceled » en rouge est laid et alarmant pour rien — on pose à la place
 			// une note discrète. Un vrai échec (ctx non annulé) garde son message.
 			if ctx.Err() != nil {
-				c.appendDelta(epoch, map[string]any{"content": "\n\n_Génération interrompue._"})
+				c.appendDelta(epoch, map[string]any{"content": "\n\n_Generation interrupted._"})
 			} else {
 				c.appendDelta(epoch, map[string]any{"error": ev.Err.Error()})
 			}
@@ -594,7 +594,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	}
 	// context.Background() et non ctx : le tour est terminé, son contexte peut
 	// être annulé alors que cette compaction-là doit aller au bout.
-	c.compactAndPublish(context.Background(), epoch, "fin-tour", msgs, ctxUsed, caps)
+	c.compactAndPublish(context.Background(), epoch, "turn-end", msgs, ctxUsed, caps)
 }
 
 // CompactNow force une compaction du contexte MAINTENANT, sans attendre le seuil
@@ -631,7 +631,7 @@ func (c *Conversation) CompactNow() error {
 			}
 			c.mu.Unlock()
 		}()
-		if _, changed := c.compactAndPublish(ctx, epoch, "manuel", msgs, lastReal, Caps{}); changed {
+		if _, changed := c.compactAndPublish(ctx, epoch, "manual", msgs, lastReal, Caps{}); changed {
 			c.persist()
 		}
 	}()

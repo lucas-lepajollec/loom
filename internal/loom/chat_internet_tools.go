@@ -20,17 +20,17 @@ func cmdInternet(args []string) error {
 	case "on":
 		// Le moteur intégré ne demande aucun réglage ; Crawl4AI exige un serveur.
 		if webEngine() == engineCrawl && crawl4aiURL() == "" {
-			return fmt.Errorf("configure d'abord l'URL : loom internet url <url>  (ou bascule sur le moteur intégré : loom internet engine go)")
+			return fmt.Errorf("configure the URL first: loom internet url <url>  (or switch to the built-in engine: loom internet engine go)")
 		}
 		if err := setInternetEnabled(true); err != nil {
 			return err
 		}
-		fmt.Println(green("[ok]") + " accès internet activé — l'IA dispose de web_search/web_open/web_read/web_grep (si le mode agent est actif)")
+		fmt.Println(green("[ok]") + " internet access enabled — the AI has web_search/web_open/web_read/web_grep (if agent mode is active)")
 	case "off":
 		if err := setInternetEnabled(false); err != nil {
 			return err
 		}
-		fmt.Println(green("[ok]") + " accès internet désactivé")
+		fmt.Println(green("[ok]") + " internet access disabled")
 	case "url":
 		if len(args) < 2 {
 			return fmt.Errorf("usage: loom internet url <url>  (ex: http://localhost:11235)")
@@ -42,10 +42,10 @@ func cmdInternet(args []string) error {
 		reachMu.Lock()
 		reachURL = "" // invalide le cache de reachability
 		reachMu.Unlock()
-		fmt.Printf("%s serveur Crawl4AI : %s\n", green("[ok]"), bold(u))
+		fmt.Printf("%s Crawl4AI server: %s\n", green("[ok]"), bold(u))
 	case "key":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: loom internet key <clé>  (vide pour l'enlever : loom internet key \"\")")
+			return fmt.Errorf("usage: loom internet key <key>  (empty to remove it: loom internet key \"\")")
 		}
 		k := strings.TrimSpace(args[1])
 		if err := writeCrawlKey(k); err != nil {
@@ -55,9 +55,9 @@ func cmdInternet(args []string) error {
 		reachURL = ""
 		reachMu.Unlock()
 		if k == "" {
-			fmt.Println(green("[ok]") + " clé Crawl4AI retirée")
+			fmt.Println(green("[ok]") + " Crawl4AI key removed")
 		} else {
-			fmt.Println(green("[ok]") + " clé Crawl4AI enregistrée")
+			fmt.Println(green("[ok]") + " Crawl4AI key saved")
 		}
 	case "engine":
 		if len(args) < 2 {
@@ -68,35 +68,35 @@ func cmdInternet(args []string) error {
 			return err
 		}
 		if e == engineGo {
-			fmt.Println(green("[ok]") + " moteur intégré — aucune installation requise (pas de rendu JavaScript)")
+			fmt.Println(green("[ok]") + " built-in engine — no installation required (no JavaScript rendering)")
 		} else {
-			fmt.Println(green("[ok]") + " moteur Crawl4AI — configure le serveur : loom internet url <url>")
+			fmt.Println(green("[ok]") + " Crawl4AI engine — configure the server: loom internet url <url>")
 		}
 	case "", "status", "list":
 		state := dim("off")
 		if internetEnabled() {
 			state = green("on")
 		}
-		fmt.Printf("%s  état: %s\n", cyan("Accès internet"), state)
+		fmt.Printf("%s  state: %s\n", cyan("Internet access"), state)
 		if webEngine() == engineGo {
-			fmt.Printf("  moteur  : %s (aucune installation, pas de rendu JavaScript)\n", bold("intégré"))
-			fmt.Printf("  outils  : web_search, web_open, web_read, web_grep\n")
+			fmt.Printf("  engine:  %s (no installation, no JavaScript rendering)\n", bold("built-in"))
+			fmt.Printf("  tools: web_search, web_open, web_read, web_grep\n")
 			return nil
 		}
 		fmt.Printf("  moteur  : %s\n", bold("crawl4ai"))
 		u := crawl4aiURL()
 		if u == "" {
-			fmt.Printf("  serveur : %s — configure : loom internet url <url>\n", dim("(non configuré)"))
+			fmt.Printf("  server: %s — configure: loom internet url <url>\n", dim("(not configured)"))
 			return nil
 		}
-		reach := red("injoignable")
+		reach := red("unreachable")
 		if crawlReachable() {
-			reach = green("joignable")
+			reach = green("reachable")
 		}
-		fmt.Printf("  serveur : %s (%s)\n", bold(u), reach)
-		fmt.Printf("  outils  : web_search, web_open, web_read, web_grep\n")
+		fmt.Printf("  server: %s (%s)\n", bold(u), reach)
+		fmt.Printf("  tools: web_search, web_open, web_read, web_grep\n")
 	default:
-		return fmt.Errorf("usage: loom internet [on|off|status|engine <go|crawl4ai>|url <url>|key <clé>]")
+		return fmt.Errorf("usage: loom internet [on|off|status|engine <go|crawl4ai>|url <url>|key <key>]")
 	}
 	return nil
 }

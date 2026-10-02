@@ -11,7 +11,7 @@ func TestWebExposureNeedsAKey(t *testing.T) {
 	if err := webListenCheck("127.0.0.1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := webListenCheck("0.0.0.0"); err == nil || !strings.Contains(err.Error(), "clé") {
+	if err := webListenCheck("0.0.0.0"); err == nil || !strings.Contains(err.Error(), "key") {
 		t.Fatalf("ouverture sans clé acceptée: %v", err)
 	}
 	st, key, err := setWebExposure(true)

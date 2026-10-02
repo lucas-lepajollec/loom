@@ -62,7 +62,7 @@ func PlaceSkill(src, dest string) error {
 		_ = os.RemoveAll(dest)
 		return err
 	}
-	return os.WriteFile(filepath.Join(dest, ".loom-copy"), []byte("Copie gérée par Loom, remplacée à chaque synchronisation.\n"), 0o644)
+	return os.WriteFile(filepath.Join(dest, ".loom-copy"), []byte("Copy managed by Loom, replaced on each synchronization.\n"), 0o644)
 }
 
 func CopySkillDir(src, dest string) error {
@@ -133,7 +133,7 @@ func (lib Library) SyncSkillSinks(list []SkillSinkTarget, skills []Capability, b
 			}
 			dest := filepath.Join(t.Dir, name)
 			if _, err := os.Lstat(dest); err == nil {
-				t.Error = "un dossier « " + name + " » existe déjà dans " + displayPath(t.Dir) + " : Loom ne le remplace pas"
+				t.Error = "a directory “" + name + "” already exists in " + displayPath(t.Dir) + ": Loom will not replace it"
 				continue
 			}
 			if err := os.MkdirAll(t.Dir, 0o755); err != nil {

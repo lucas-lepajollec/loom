@@ -18,7 +18,7 @@ type antigravityAdapter struct {
 }
 
 func (antigravityAdapter) Descriptor() RuntimeDescriptor {
-	return RuntimeDescriptor{ID: "antigravity", Name: "Antigravity", Kind: "harness", Description: "Agent de Google. Loom utilise le CLI déjà connecté à ton compte.", CLI: "agy", Consent: "Loom lit la liste des modèles du CLI agy déjà connecté à ton compte. Aucun message n’est envoyé. Tes permissions natives restent actives.", Implemented: true, Capabilities: []string{"chat", "stream", "cancel", "usage", "native-events", "fresh-text-handoff", "connect", "quota"}}
+	return RuntimeDescriptor{ID: "antigravity", Name: "Antigravity", Kind: "harness", Description: "Google agent. Loom uses the CLI already signed in to your account.", CLI: "agy", Consent: "Loom reads the model list from the agy CLI already signed in to your account. No message is sent. Your native permissions remain active.", Implemented: true, Capabilities: []string{"chat", "stream", "cancel", "usage", "native-events", "fresh-text-handoff", "connect", "quota"}}
 }
 
 func agyRead(ctx context.Context, args ...string) ([]byte, error) {
@@ -50,7 +50,7 @@ func (a antigravityAdapter) Run(ctx context.Context, turn RuntimeTurn, emit Chat
 }
 
 func readAgyQuota(ctx context.Context) (QuotaSnapshot, error) {
-	q := QuotaSnapshot{RuntimeID: "antigravity", Name: "Antigravity", Source: "agy /usage · compte natif", Windows: []QuotaWindow{}}
+	q := QuotaSnapshot{RuntimeID: "antigravity", Name: "Antigravity", Source: "agy /usage · native account", Windows: []QuotaWindow{}}
 	native, err := antigravity.ReadQuota(ctx, agyRead)
 	for _, w := range native.Windows {
 		q.Windows = append(q.Windows, QuotaWindow{Group: w.Group, Name: w.Name, Remaining: w.Remaining, ResetAt: w.ResetAt})

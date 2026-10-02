@@ -325,10 +325,10 @@ func resolveServeModelPath(name string) (string, error) {
 func resolveModelPath(name string) (string, error) {
 	s := strings.TrimSpace(strings.Trim(strings.TrimSpace(name), `"`))
 	if s == "" {
-		return "", fmt.Errorf("nom de modèle invalide")
+		return "", fmt.Errorf("invalid model name")
 	}
 	if !strings.HasSuffix(strings.ToLower(s), ".gguf") {
-		return "", fmt.Errorf("le modèle doit être un fichier .gguf")
+		return "", fmt.Errorf("the model must be a .gguf file")
 	}
 	if filepath.IsAbs(s) {
 		abs := filepath.Clean(s)
@@ -337,11 +337,11 @@ func resolveModelPath(name string) (string, error) {
 				return abs, nil
 			}
 		}
-		return "", fmt.Errorf("dossier non autorisé : %s — ajoute-le dans « Dossiers de modèles »", filepath.Dir(abs))
+		return "", fmt.Errorf("directory not allowed: %s — add it in “Model directories”", filepath.Dir(abs))
 	}
 	base := baseName(s)
 	if base == "" || base == "." {
-		return "", fmt.Errorf("nom de modèle invalide")
+		return "", fmt.Errorf("invalid model name")
 	}
 	for _, d := range modelDirs() {
 		p := filepath.Join(d, base)
@@ -414,11 +414,11 @@ func preferredDownloadDir() string {
 func savePreferredDownloadDir(dir string) error {
 	abs, err := filepath.Abs(strings.TrimSpace(dir))
 	if err != nil {
-		return fmt.Errorf("chemin invalide")
+		return fmt.Errorf("invalid path")
 	}
 	d, ok := dirInList(abs, modelDirs())
 	if !ok {
-		return fmt.Errorf("dossier non autorisé : %s — ajoute-le dans « Dossiers de modèles »", abs)
+		return fmt.Errorf("directory not allowed: %s — add it in “Model directories”", abs)
 	}
 	if normDir(d) == normDir(modelsDir()) {
 		return putStr(bkState, downloadDirKey, "")
@@ -447,12 +447,12 @@ func resolveDownloadDir(dir string) (string, error) {
 	}
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return "", fmt.Errorf("chemin invalide")
+		return "", fmt.Errorf("invalid path")
 	}
 	if d, ok := dirInList(abs, modelDirs()); ok {
 		return d, nil
 	}
-	return "", fmt.Errorf("dossier non autorisé : %s — ajoute-le dans « Dossiers de modèles »", abs)
+	return "", fmt.Errorf("directory not allowed: %s — add it in “Model directories”", abs)
 }
 
 // handleModelDirs : GET liste les dossiers de modèles (LOOM_HOME + ajoutés),
@@ -470,13 +470,13 @@ func handleModelDirs(w http.ResponseWriter, r *http.Request) {
 		}
 		p := strings.TrimSpace(req.Path)
 		if p == "" {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "chemin vide"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "empty path"})
 			return
 		}
 		cur := extraModelDirs()
 		abs, err := filepath.Abs(p)
 		if err != nil {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "chemin invalide"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid path"})
 			return
 		}
 		switch req.Action {
@@ -495,12 +495,12 @@ func handleModelDirs(w http.ResponseWriter, r *http.Request) {
 			forgetPreferredIfGone()
 		case "download":
 			if err := os.MkdirAll(abs, 0o755); err != nil {
-				sendJSON(w, 400, map[string]any{"ok": false, "error": "impossible de créer " + abs + " : " + err.Error()})
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "could not create " + abs + " : " + err.Error()})
 				return
 			}
 			st, err := os.Stat(abs)
 			if err != nil || !st.IsDir() {
-				sendJSON(w, 400, map[string]any{"ok": false, "error": "pas un dossier : " + abs})
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "not a directory: " + abs})
 				return
 			}
 			if _, ok := dirInList(abs, modelDirs()); !ok {
@@ -517,7 +517,7 @@ func handleModelDirs(w http.ResponseWriter, r *http.Request) {
 		default:
 			st, err := os.Stat(abs)
 			if err != nil || !st.IsDir() {
-				sendJSON(w, 400, map[string]any{"ok": false, "error": "dossier introuvable : " + abs})
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "directory not found: " + abs})
 				return
 			}
 			cur = append(cur, abs)

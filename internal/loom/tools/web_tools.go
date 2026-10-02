@@ -112,7 +112,7 @@ func WebGrepTool() Tool {
 func CapWebOutput(s string) string {
 	if r := []rune(s); len(r) > webMaxOutput {
 		return string(r[:webMaxOutput]) +
-			"\n…[tronqué : réponse trop longue. Relis par tranches avec web_read(offset, limit) ou cible avec web_grep.]"
+			"\n…[truncated: response too long. Read in chunks with web_read(offset, limit) or target specific content with web_grep.]"
 	}
 	return s
 }
@@ -131,13 +131,13 @@ func ToolWebSearch(source WebSource, args map[string]any) string {
 	}
 	results, err := source.SearchPages(query, limit)
 	if err != nil {
-		return "❌ Recherche échouée : " + err.Error()
+		return "❌ Search failed: " + err.Error()
 	}
 	if len(results) == 0 {
-		return fmt.Sprintf("Aucun résultat pour « %s »", query)
+		return fmt.Sprintf("No results for “%s”", query)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Recherche : %s\n%d résultat(s) DuckDuckGo\n\n", query, len(results))
+	fmt.Fprintf(&b, "# Search: %s\n%d DuckDuckGo result(s)\n\n", query, len(results))
 	for i, r := range results {
 		fmt.Fprintf(&b, "%d. %s\n   %s\n   %s\n\n", i+1, r.Title, r.URL, r.Snippet)
 	}
@@ -172,7 +172,7 @@ func ToolWebOpen(source WebSource, args map[string]any) string {
 	for _, l := range entry.Lines {
 		chars += len(l)
 	}
-	return fmt.Sprintf("# Ouvert : %s\nTotal : %d lignes, %s (%d caractères)\nEn cache 10 min. Utilise web_read ou web_grep pour lire.\n\n## Plan (n° de ligne des titres)\n```\n%s\n```",
+	return fmt.Sprintf("# Opened: %s\nTotal: %d lines, %s (%d characters)\nCached for 10 min. Use web_read or web_grep to read.\n\n## Outline (heading line numbers)\n```\n%s\n```",
 		entry.URL, total, FormatBytes(chars), chars, ExtractOutline(entry.Lines))
 }
 
@@ -180,7 +180,7 @@ func ToolWebRead(source WebSource, args map[string]any) string {
 	u, _ := args["url"].(string)
 	entry := source.FindCached(u)
 	if entry == nil {
-		return fmt.Sprintf("❌ Page absente du cache. Appelle d'abord web_open(\"%s\").", u)
+		return fmt.Sprintf("❌ Page missing from cache. Call web_open(\"%s\") first.", u)
 	}
 	total := len(entry.Lines)
 	offset := 1
@@ -210,11 +210,11 @@ func ToolWebRead(source WebSource, args map[string]any) string {
 	}
 	slice := entry.Lines[start:end]
 	remaining := total - end
-	tail := " (fin de page)"
+	tail := " (end of page)"
 	if remaining > 0 {
-		tail = fmt.Sprintf(" (%d de plus en dessous)", remaining)
+		tail = fmt.Sprintf(" (%d more below)", remaining)
 	}
-	return fmt.Sprintf("# %s\nLignes %d–%d sur %d%s\n\n```\n%s\n```",
+	return fmt.Sprintf("# %s\nLines %d–%d of %d%s\n\n```\n%s\n```",
 		entry.URL, offset, end, total, tail, FormatLines(slice, offset))
 }
 
@@ -223,11 +223,11 @@ func ToolWebGrep(source WebSource, args map[string]any) string {
 	pattern, _ := args["pattern"].(string)
 	entry := source.FindCached(u)
 	if entry == nil {
-		return fmt.Sprintf("❌ Page absente du cache. Appelle d'abord web_open(\"%s\").", u)
+		return fmt.Sprintf("❌ Page missing from cache. Call web_open(\"%s\") first.", u)
 	}
 	re, err := regexp.Compile("(?i)" + pattern)
 	if err != nil {
-		return "❌ Regex invalide : " + err.Error()
+		return "❌ Invalid regex: " + err.Error()
 	}
 	ctx := 2
 	if v, ok := args["context"].(float64); ok {
@@ -251,7 +251,7 @@ func ToolWebGrep(source WebSource, args map[string]any) string {
 		}
 	}
 	if len(matchIdx) == 0 {
-		return fmt.Sprintf("# %s\nAucun match pour /%s/i", entry.URL, pattern)
+		return fmt.Sprintf("# %s\nNo matches for /%s/i", entry.URL, pattern)
 	}
 	// Fusionne les fenêtres de contexte qui se chevauchent.
 	type rng struct{ s, e int }
@@ -279,8 +279,8 @@ func ToolWebGrep(source WebSource, args map[string]any) string {
 	}
 	capped := ""
 	if len(matchIdx) == maxMatches {
-		capped = fmt.Sprintf(" (plafonné à %d)", maxMatches)
+		capped = fmt.Sprintf(" (capped at %d)", maxMatches)
 	}
-	return fmt.Sprintf("# %s\n%d match(es) pour /%s/i%s\n\n%s",
+	return fmt.Sprintf("# %s\n%d match(es) for /%s/i%s\n\n%s",
 		entry.URL, len(matchIdx), pattern, capped, strings.Join(blocks, "\n\n---\n\n"))
 }

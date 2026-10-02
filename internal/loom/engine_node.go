@@ -184,7 +184,7 @@ func engineContextSize() int {
 // Loom is protected by a control key, since it hands out the /v1 key.
 func handleNodeInfo(w http.ResponseWriter, r *http.Request) {
 	if !webKeyConfigured() {
-		sendJSON(w, 403, map[string]any{"ok": false, "error": "ce Loom n’a pas de clé de pilotage : ouvre-le au réseau depuis Réglages › Accès réseau"})
+		sendJSON(w, 403, map[string]any{"ok": false, "error": "this Loom has no control key: enable network access from Settings › Network access"})
 		return
 	}
 	host, _ := os.Hostname()
@@ -204,10 +204,10 @@ func cleanNodeURL(raw string) (string, *url.URL, error) {
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
-		return "", nil, errors.New("adresse invalide (ex. http://192.168.1.20:8091)")
+		return "", nil, errors.New("invalid address (e.g. http://192.168.1.20:8091)")
 	}
 	if u.Scheme == "http" && !localNetworkHost(u.Hostname()) {
-		return "", nil, errors.New("http n’est accepté que sur le réseau local ; utilise https au-delà")
+		return "", nil, errors.New("http is only accepted on the local network; use https elsewhere")
 	}
 	u.Path, u.RawQuery, u.Fragment = "", "", ""
 	return u.String(), u, nil
@@ -222,13 +222,13 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	}
 	webKey = strings.TrimSpace(webKey)
 	if webKey == "" {
-		return nil, errors.New("clé de pilotage du Loom distant requise")
+		return nil, errors.New("remote Loom control key required")
 	}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/node/info", nil)
 	req.Header.Set("Authorization", "Bearer "+webKey)
 	resp, err := nodeClient.Do(req)
 	if err != nil {
-		return nil, errors.New("Loom distant injoignable : vérifie l’adresse et qu’il est ouvert au réseau")
+		return nil, errors.New("Remote Loom unreachable: check the address and that network access is enabled")
 	}
 	defer resp.Body.Close()
 	var info struct {
@@ -244,20 +244,20 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&info)
 	switch {
 	case resp.StatusCode == 401:
-		return nil, errors.New("clé de pilotage refusée par le Loom distant")
+		return nil, errors.New("control key rejected by remote Loom")
 	case resp.StatusCode == 404:
-		return nil, errors.New("ce Loom distant est trop ancien : mets-le à jour")
+		return nil, errors.New("this remote Loom is too old: update it")
 	case !info.OK:
 		if info.Error == "" {
-			info.Error = "réponse inattendue du Loom distant (HTTP " + resp.Status + ")"
+			info.Error = "unexpected response from remote Loom (HTTP " + resp.Status + ")"
 		}
 		return nil, errors.New(info.Error)
 	case !info.Engine:
-		return nil, errors.New("ce Loom utilise lui-même un moteur distant : lie directement la machine qui a le moteur")
+		return nil, errors.New("this Loom itself uses a remote engine: link directly to the machine hosting the engine")
 	case !info.Exposed:
-		return nil, errors.New("l’API /v1 du Loom distant n’écoute pas sur le réseau : active « API /v1 sur le réseau » dans ses Réglages › Accès réseau")
+		return nil, errors.New("remote Loom's /v1 API is not listening on the network: enable “API /v1 on the network” in its Settings › Network access")
 	case info.LLMPort <= 0:
-		return nil, errors.New("port /v1 du Loom distant inconnu")
+		return nil, errors.New("unknown remote Loom /v1 port")
 	}
 	v1 := fmt.Sprintf("%s://%s:%d", u.Scheme, u.Hostname(), info.LLMPort)
 	n := &engineNode{URL: base, WebKey: webKey, V1: v1, APIKey: info.APIKey, Hostname: info.Hostname, Version: info.Version, LinkedAt: time.Now().UnixMilli()}
@@ -268,11 +268,11 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	}
 	hresp, err := nodeClient.Do(hreq)
 	if err != nil {
-		return nil, fmt.Errorf("l’API /v1 du Loom distant (%s) est injoignable : pare-feu ?", v1)
+		return nil, fmt.Errorf("remote Loom's /v1 API (%s) is unreachable: firewall?", v1)
 	}
 	hresp.Body.Close()
 	if hresp.StatusCode != 200 {
-		return nil, fmt.Errorf("l’API /v1 du Loom distant refuse la connexion (HTTP %d)", hresp.StatusCode)
+		return nil, fmt.Errorf("remote Loom's /v1 API refused the connection (HTTP %d)", hresp.StatusCode)
 	}
 	if err := setEngineNode(n); err != nil {
 		return nil, err
@@ -321,7 +321,7 @@ func nodeAware(path string, local http.HandlerFunc) http.HandlerFunc {
 		}
 		target, err := url.Parse(n.URL)
 		if err != nil {
-			sendJSON(w, 502, map[string]any{"ok": false, "error": "lien moteur invalide"})
+			sendJSON(w, 502, map[string]any{"ok": false, "error": "invalid engine link"})
 			return
 		}
 		proxy := httputil.NewSingleHostReverseProxy(target)
@@ -334,7 +334,7 @@ func nodeAware(path string, local http.HandlerFunc) http.HandlerFunc {
 			req.Header.Del("Cookie")
 		}
 		proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) {
-			sendJSON(w, 502, map[string]any{"ok": false, "error": "moteur distant injoignable (" + n.Hostname + ")"})
+			sendJSON(w, 502, map[string]any{"ok": false, "error": "remote engine unreachable (" + n.Hostname + ")"})
 		}
 		proxy.ServeHTTP(w, r)
 	}

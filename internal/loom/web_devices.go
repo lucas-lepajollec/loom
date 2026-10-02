@@ -187,13 +187,13 @@ func handleBackendDevices(w http.ResponseWriter, r *http.Request) {
 	}
 	bin = prebuiltResolveBin(bin)
 	if bin == "" || !isFile(bin) {
-		sendJSON(w, 200, map[string]any{"ok": false, "error": "moteur introuvable — choisissez d'abord un moteur"})
+		sendJSON(w, 200, map[string]any{"ok": false, "error": "engine not found — choose an engine first"})
 		return
 	}
 	// Garde-fou : on n'exécute que le serveur llama.cpp, pas n'importe quel
 	// chemin qui passerait par cette requête.
 	if base := strings.ToLower(filepath.Base(bin)); base != "llama-server" && base != "llama-server.exe" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "ce chemin n'est pas un llama-server"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "this path is not a llama-server"})
 		return
 	}
 	// L'ordre d'énumération DOIT être celui du serveur en marche, sinon la liste
@@ -230,7 +230,7 @@ func handleBackendDevices(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(devs) == 0 {
-			sendJSON(w, 200, map[string]any{"ok": false, "error": "le moteur n'a pas répondu : " + err.Error()})
+			sendJSON(w, 200, map[string]any{"ok": false, "error": "the engine did not respond: " + err.Error()})
 			return
 		}
 		// Pas de repli disponible : on rend ce qu'on a lu, sans le figer (ni cache

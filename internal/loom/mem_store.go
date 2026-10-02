@@ -15,7 +15,7 @@ import (
 )
 
 // errStoreLocked : écriture chiffrée demandée alors que la DEK n'est pas en RAM.
-var errStoreLocked = errors.New("valeur chiffrée, mémoire verrouillée")
+var errStoreLocked = errors.New("encrypted value, memory locked")
 
 // putStoreBytes écrit une valeur, chiffrée si le chiffrement est actif ET
 // déverrouillé. Si actif mais verrouillé, renvoie errStoreLocked SANS écrire
@@ -73,7 +73,7 @@ func reencryptBucket(bucket string) error {
 		}
 		back, ok := getStoreBytes(bucket, k)
 		if !ok || string(back) != v {
-			return errors.New("vérification post-chiffrement échouée pour " + bucket + "/" + k)
+			return errors.New("post-encryption verification failed for " + bucket + "/" + k)
 		}
 	}
 	return nil

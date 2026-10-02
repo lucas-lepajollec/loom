@@ -30,7 +30,7 @@ func machineFolders(target string) []string {
 
 func cleanMachineFolders(target string, folders []string) ([]string, error) {
 	if len(folders) > 32 {
-		return nil, errors.New("32 dossiers maximum")
+		return nil, errors.New("maximum 32 directories")
 	}
 	out := []string{}
 	seen := map[string]bool{}
@@ -42,10 +42,10 @@ func cleanMachineFolders(target string, folders []string) ([]string, error) {
 		var clean string
 		if target == "" || target == "local" {
 			if !filepath.IsAbs(f) {
-				return nil, errors.New("chemin absolu requis : " + f)
+				return nil, errors.New("absolute path required: " + f)
 			}
 			if info, err := os.Stat(f); err != nil || !info.IsDir() {
-				return nil, errors.New("dossier introuvable sur cette machine : " + f)
+				return nil, errors.New("directory not found on this machine: " + f)
 			}
 			clean = filepath.Clean(f)
 		} else {
@@ -95,7 +95,7 @@ func handleMachineFolders(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !found {
-			sendJSON(w, 404, map[string]any{"ok": false, "error": "machine introuvable"})
+			sendJSON(w, 404, map[string]any{"ok": false, "error": "machine not found"})
 			return
 		}
 		err = putStoreJSON(bkState, remoteMachinesState, machines)

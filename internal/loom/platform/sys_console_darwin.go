@@ -53,9 +53,9 @@ func AppWarning() string {
 	if !strings.Contains(exe, "/AppTranslocation/") {
 		return ""
 	}
-	return "Loom tourne depuis une copie temporaire en lecture seule (App Translocation de macOS). " +
-		"Fermez l'app, déplacez Loom.app dans le dossier Applications, puis rouvrez-la — " +
-		"sinon chaque lancement crée une instance séparée et les mises à jour du moteur échouent."
+	return "Loom is running from a temporary read-only copy (macOS App Translocation). " +
+		"Quit the app, move Loom.app to the Applications folder, then reopen it — " +
+		"otherwise each launch creates a separate instance and engine updates fail."
 }
 
 // fixFinderPath complète le PATH famélique hérité du Finder. Une app lancée par

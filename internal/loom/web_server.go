@@ -15,13 +15,13 @@ import (
 // it to the network, which requires a control key (web_network.go).
 func cmdWeb(args []string) error {
 	if err := provisionDataDir(); err != nil {
-		fmt.Printf("%s données Loom : %v\n", yellow("[!]"), err)
+		fmt.Printf("%s Loom data: %v\n", yellow("[!]"), err)
 	}
 	port := 8091
 	if len(args) > 0 && args[0] != "" {
 		n, err := strconv.Atoi(args[0])
 		if err != nil {
-			return fmt.Errorf("port invalide: %s", args[0])
+			return fmt.Errorf("invalid port: %s", args[0])
 		}
 		port = n
 	}
@@ -33,7 +33,7 @@ func cmdWeb(args []string) error {
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("impossible de démarrer Loom sur %s : %w (arrête le service qui occupe ce port ou choisis un autre port avec `loom web <port>`)", addr, err)
+		return fmt.Errorf("could not start Loom on %s: %w (stop the service using this port or choose another port with `loom web <port>`)", addr, err)
 	}
 	defer ln.Close()
 	webBound.host, webBound.port = host, port
@@ -48,12 +48,12 @@ func cmdWeb(args []string) error {
 	defer stopLifecycle()
 	go harnessLifecycle.autoLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
-	fmt.Printf("[loom web] http://%s  (Ctrl-C pour arrêter)\n", addr)
+	fmt.Printf("[loom web] http://%s  (Ctrl-C to stop)\n", addr)
 	if !webKeyConfigured() {
-		fmt.Printf("%s API de pilotage NON protégée (aucune clé). Avant de l'exposer sur internet :\n", yellow("[!]"))
+		fmt.Printf("%s control API is NOT protected (no key). Before exposing it to the internet:\n", yellow("[!]"))
 		fmt.Printf("       %s\n", bold("loom set-web-key"))
 	} else {
-		fmt.Printf("%s API protégée par clé (Authorization: Bearer …)\n", green("[ok]"))
+		fmt.Printf("%s API protected by a key (Authorization: Bearer …)\n", green("[ok]"))
 	}
 
 	// ReadHeaderTimeout : sans lui, une connexion qui n'envoie jamais sa requête

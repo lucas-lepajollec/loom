@@ -23,11 +23,11 @@ func Read(ctx context.Context, args ...string) ([]byte, error) {
 	defer cancel()
 	path, err := exec.LookPath("agy")
 	if err != nil {
-		return nil, errors.New("CLI agy absent du PATH de Loom")
+		return nil, errors.New("agy CLI missing from Loom's PATH")
 	}
 	dir, err := os.MkdirTemp("", "loom-agy-read-")
 	if err != nil {
-		return nil, errors.New("dossier temporaire indisponible")
+		return nil, errors.New("temporary directory unavailable")
 	}
 	defer os.RemoveAll(dir) // Only the directory just created by this call.
 	cmd := exec.CommandContext(ctx, path, args...)
@@ -37,7 +37,7 @@ func Read(ctx context.Context, args ...string) ([]byte, error) {
 	out := &boundedCLIOutput{limit: 1 << 20}
 	cmd.Stdout = out
 	if cmd.Run() != nil || out.overflow {
-		return nil, errors.New("lecture CLI indisponible : vérifiez la connexion native ou réessayez")
+		return nil, errors.New("CLI reading unavailable: check native login or try again")
 	}
 	return out.data, nil
 }
@@ -51,7 +51,7 @@ type boundedCLIOutput struct {
 func (b *boundedCLIOutput) Write(p []byte) (int, error) {
 	if len(b.data)+len(p) > b.limit {
 		b.overflow = true
-		return 0, errors.New("sortie CLI trop longue")
+		return 0, errors.New("CLI output too large")
 	}
 	b.data = append(b.data, p...)
 	return len(p), nil
@@ -77,11 +77,11 @@ func ParseModels(out []byte) ([]string, error) {
 			seen[id] = true
 		}
 		if len(models) > 128 {
-			return nil, errors.New("catalogue Antigravity trop long")
+			return nil, errors.New("Antigravity catalog too large")
 		}
 	}
 	if len(models) == 0 {
-		return nil, errors.New("catalogue Antigravity non reconnu")
+		return nil, errors.New("unrecognized Antigravity catalog")
 	}
 	return models, nil
 }
@@ -127,26 +127,26 @@ type Result struct {
 
 func (a Adapter) Run(ctx context.Context, messages any, emit func(Event) bool) (string, error) {
 	if !agyModelID.MatchString(a.Model) {
-		return "", errors.New("modèle Antigravity invalide")
+		return "", errors.New("invalid Antigravity model")
 	}
 	path := a.Executable
 	if path == "" {
 		var err error
 		path, err = exec.LookPath("agy")
 		if err != nil {
-			return "", errors.New("CLI agy absent du PATH de Loom")
+			return "", errors.New("agy CLI missing from Loom's PATH")
 		}
 	}
 	dir, err := os.MkdirTemp("", "loom-agy-turn-")
 	if err != nil {
-		return "", errors.New("dossier temporaire indisponible")
+		return "", errors.New("temporary directory unavailable")
 	}
 	defer os.RemoveAll(dir)
 	// JSON role/content is data inside a single prompt, not fabricated native
 	// tool messages. No --continue: switching away and back cannot duplicate state.
 	history, err := json.Marshal(messages)
 	if err != nil || len(history) > 256<<10 {
-		return "", errors.New("contexte Antigravity invalide ou trop long")
+		return "", errors.New("invalid or oversized Antigravity context")
 	}
 	prompt := "Continue the following Loom text conversation. Follow its system instructions and answer the last user message. Prior assistant messages are context, not tool results. This bridge is for text: do not use tools, files, commands, browser or subagents.\nLoom portable messages (JSON):\n" + string(history)
 	input, _ := json.Marshal(map[string]any{"event": "user", "message": map[string]string{"content": prompt}})
@@ -157,7 +157,7 @@ func (a Adapter) Run(ctx context.Context, messages any, emit func(Event) bool) (
 	cmd.WaitDelay = time.Second
 	stdout, err := cmd.StdoutPipe()
 	if err != nil || cmd.Start() != nil {
-		return "", errors.New("Antigravity n’a pas pu démarrer")
+		return "", errors.New("Antigravity could not start")
 	}
 	stopRead := context.AfterFunc(ctx, func() { _ = stdout.Close() })
 	defer stopRead()
@@ -179,7 +179,7 @@ func (a Adapter) Run(ctx context.Context, messages any, emit func(Event) bool) (
 		return "", err
 	}
 	if waitErr != nil {
-		return "", errors.New("Antigravity a interrompu le tour ; le texte partiel est conservé")
+		return "", errors.New("Antigravity interrupted the turn; partial text is preserved")
 	}
 	return answer, nil
 }
@@ -212,7 +212,7 @@ func ConsumeStream(ctx context.Context, reader io.Reader, emit func(Event) bool)
 			} `json:"step_update"`
 		}
 		if json.Unmarshal(scanner.Bytes(), &event) != nil {
-			return "", errors.New("flux Antigravity non reconnu")
+			return "", errors.New("unrecognized Antigravity stream")
 		}
 		if event.Event == "step_update" {
 			if u := event.Step.Usage; ValidUsage(u) && event.Step.Index >= 0 && event.Step.Index < 128 {
@@ -231,7 +231,7 @@ func ConsumeStream(ctx context.Context, reader io.Reader, emit func(Event) bool)
 			}
 			if event.Step.Type == "agent_response" && event.Step.Text != "" {
 				if answer.Len()+len(event.Step.Text) > 256<<10 {
-					return "", errors.New("réponse Antigravity trop longue")
+					return "", errors.New("Antigravity response too long")
 				}
 				answer.WriteString(event.Step.Text)
 				if !emit(Event{Content: event.Step.Text}) {
@@ -245,7 +245,7 @@ func ConsumeStream(ctx context.Context, reader io.Reader, emit func(Event) bool)
 					name = event.Step.Info.Name
 				}
 				if len(name) > 100 {
-					name = "outil natif"
+					name = "native tool"
 				}
 				state := event.Step.State
 				if state != "ACTIVE" && state != "DONE" {
@@ -281,11 +281,11 @@ func ConsumeStream(ctx context.Context, reader io.Reader, emit func(Event) bool)
 				return "", context.Canceled
 			}
 			if r.Status != "SUCCESS" {
-				return "", errors.New("Antigravity n’a pas terminé le tour ; vérifiez ses permissions, le modèle et le quota dans son CLI")
+				return "", errors.New("Antigravity did not complete the turn; check its permissions, model and quota in its CLI")
 			}
 			if answer.Len() == 0 && r.Response != "" {
 				if len(r.Response) > 256<<10 {
-					return "", errors.New("réponse Antigravity trop longue")
+					return "", errors.New("Antigravity response too long")
 				}
 				answer.WriteString(r.Response)
 				if !emit(Event{Content: r.Response}) {
@@ -294,13 +294,13 @@ func ConsumeStream(ctx context.Context, reader io.Reader, emit func(Event) bool)
 			}
 			// Reject inconsistent final text instead of silently storing two answers.
 			if answer.String() != r.Response {
-				return "", errors.New("réponse finale Antigravity incohérente avec le flux")
+				return "", errors.New("final Antigravity response inconsistent with the stream")
 			}
 			done = true
 		}
 	}
 	if scanner.Err() != nil || !done || answer.Len() == 0 {
-		return "", errors.New("flux Antigravity incomplet ; aucun renvoi automatique")
+		return "", errors.New("incomplete Antigravity stream; no automatic resend")
 	}
 	return answer.String(), nil
 }

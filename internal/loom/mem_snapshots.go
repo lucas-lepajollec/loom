@@ -51,10 +51,10 @@ func snapshotMemory(reason string) (string, error) {
 		src := filepath.Join(memoryDir(), e.Name())
 		b, err := os.ReadFile(src)
 		if err != nil {
-			return "", fmt.Errorf("lecture %s : %w", e.Name(), err)
+			return "", fmt.Errorf("reading %s: %w", e.Name(), err)
 		}
 		if err := memWriteFileVerified(filepath.Join(dst, e.Name()), b, 0o600); err != nil {
-			return "", fmt.Errorf("copie %s : %w", e.Name(), err)
+			return "", fmt.Errorf("copying %s: %w", e.Name(), err)
 		}
 	}
 	pruneSnapshots()
@@ -94,34 +94,34 @@ func listSnapshots() []MemSnapshot {
 // les fichiers surnuméraires.
 func restoreSnapshot(id string) error {
 	if !validSnapshotID(id) {
-		return fmt.Errorf("identifiant de snapshot invalide")
+		return fmt.Errorf("invalid snapshot ID")
 	}
 	src := filepath.Join(snapshotsRoot(), id)
 	info, err := os.Lstat(src)
 	if err != nil {
-		return fmt.Errorf("snapshot introuvable : %w", err)
+		return fmt.Errorf("snapshot not found: %w", err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("snapshot invalide : dossier ordinaire attendu")
+		return fmt.Errorf("invalid snapshot: regular directory expected")
 	}
 	entries, err := os.ReadDir(src)
 	if err != nil {
-		return fmt.Errorf("snapshot introuvable : %w", err)
+		return fmt.Errorf("snapshot not found: %w", err)
 	}
 	if len(entries) == 0 {
-		return fmt.Errorf("snapshot invalide : dossier vide")
+		return fmt.Errorf("invalid snapshot: empty directory")
 	}
 	for _, e := range entries {
 		entryInfo, err := e.Info()
 		if err != nil {
-			return fmt.Errorf("snapshot invalide : %w", err)
+			return fmt.Errorf("invalid snapshot: %w", err)
 		}
 		if e.Type()&os.ModeSymlink != 0 || !entryInfo.Mode().IsRegular() {
-			return fmt.Errorf("snapshot invalide : fichier ordinaire attendu pour %s", e.Name())
+			return fmt.Errorf("invalid snapshot: regular file expected for %s", e.Name())
 		}
 	}
 	if _, err := snapshotMemory("avant-restauration"); err != nil {
-		return fmt.Errorf("snapshot de sécurité impossible, restauration annulée : %w", err)
+		return fmt.Errorf("could not create safety snapshot, restore cancelled: %w", err)
 	}
 	if err := os.MkdirAll(memoryDir(), 0o755); err != nil {
 		return err

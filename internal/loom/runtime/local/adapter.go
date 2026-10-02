@@ -15,7 +15,7 @@ type Adapter[Message, Caps, Callback any] struct {
 }
 
 func (Adapter[Message, Caps, Callback]) Descriptor() runtime.RuntimeDescriptor {
-	return runtime.RuntimeDescriptor{ID: "llama.cpp", Name: "llama.cpp", Kind: "local", Description: "Moteur local llama.cpp, piloté par Loom.", Implemented: true, Capabilities: []string{"chat", "stream", "tools", "attachments", "cancel"}}
+	return runtime.RuntimeDescriptor{ID: "llama.cpp", Name: "llama.cpp", Kind: "local", Description: "Local llama.cpp engine, managed by Loom.", Implemented: true, Capabilities: []string{"chat", "stream", "tools", "attachments", "cancel"}}
 }
 
 func (a Adapter[Message, Caps, Callback]) Run(ctx context.Context, turn runtime.RuntimeTurn[Message, Caps], emit Callback) ([]Message, error) {

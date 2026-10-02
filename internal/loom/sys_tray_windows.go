@@ -23,10 +23,10 @@ func runTray(url string) {
 	systray.Run(func() {
 		systray.SetIcon(trayIcon())
 		systray.SetTitle("Loom")
-		systray.SetTooltip("Loom — votre IA locale")
-		mOpen := systray.AddMenuItem("Ouvrir Loom", "Ouvrir l'interface")
+		systray.SetTooltip("Loom — your local AI")
+		mOpen := systray.AddMenuItem("Open Loom", "Open the interface")
 		systray.AddSeparator()
-		mQuit := systray.AddMenuItem("Quitter", "Arrêter Loom et décharger le modèle")
+		mQuit := systray.AddMenuItem("Quit", "Quit Loom and unload the model")
 
 		go func() {
 			for {

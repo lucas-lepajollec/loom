@@ -71,7 +71,7 @@ var (
 
 func builtinBenchTests() []benchTest {
 	return []benchTest{{
-		ID: benchTestPerf, Name: "Perfs brutes", Kind: "perf", Builtin: true,
+		ID: benchTestPerf, Name: "Raw performance", Kind: "perf", Builtin: true,
 		MaxTokens: 300,
 	}}
 }
@@ -107,10 +107,10 @@ func saveCustomBenchTest(name, prompt string, maxTok int) (benchTest, error) {
 	name = strings.TrimSpace(name)
 	prompt = strings.TrimSpace(prompt)
 	if name == "" {
-		return benchTest{}, fmt.Errorf("nom requis")
+		return benchTest{}, fmt.Errorf("name required")
 	}
 	if prompt == "" {
-		return benchTest{}, fmt.Errorf("prompt requis")
+		return benchTest{}, fmt.Errorf("prompt required")
 	}
 	if maxTok <= 0 {
 		maxTok = 256
@@ -136,7 +136,7 @@ func saveCustomBenchTest(name, prompt string, maxTok int) (benchTest, error) {
 func deleteCustomBenchTest(id string) error {
 	id = strings.TrimSpace(id)
 	if id == "" || id == benchTestPerf {
-		return fmt.Errorf("ce test ne se supprime pas")
+		return fmt.Errorf("this test cannot be deleted")
 	}
 	list := loadCustomBenchTests()
 	out := list[:0]
@@ -149,7 +149,7 @@ func deleteCustomBenchTest(id string) error {
 		out = append(out, t)
 	}
 	if !found {
-		return fmt.Errorf("test introuvable")
+		return fmt.Errorf("test not found")
 	}
 	return putJSON(bkState, benchTestsKey, out)
 }
@@ -240,7 +240,7 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 				continue
 			}
 			if _, err := os.Stat(path); err != nil {
-				return nil, fmt.Errorf("preset %s introuvable", preset)
+				return nil, fmt.Errorf("preset %s not found", preset)
 			}
 			seen[key] = true
 			name := strings.TrimSpace(p.Name)
@@ -265,7 +265,7 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 		rows = append(rows, benchJobRow{Kind: "local", Model: model, Name: name, Status: "pending"})
 	}
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("choisis au moins un modèle ou un preset")
+		return nil, fmt.Errorf("choose at least one model or preset")
 	}
 	return rows, nil
 }
@@ -273,7 +273,7 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 func benchCheckConsent(picks []benchPick, consent bool) error {
 	for _, p := range picks {
 		if strings.TrimSpace(p.ChoiceID) != "" && !consent {
-			return fmt.Errorf("confirmez l’envoi du prompt de test au provider cloud")
+			return fmt.Errorf("confirm sending the test prompt to the cloud provider")
 		}
 	}
 	return nil
@@ -285,7 +285,7 @@ func startBenchQueue(testID string, picks []benchPick, consent ...bool) (*benchJ
 	}
 	t, ok := findBenchTest(testID)
 	if !ok {
-		return nil, fmt.Errorf("test inconnu")
+		return nil, fmt.Errorf("unknown test")
 	}
 	rows, err := benchRowsFromPicks(picks)
 	if err != nil {
@@ -294,7 +294,7 @@ func startBenchQueue(testID string, picks []benchPick, consent ...bool) (*benchJ
 	benchJobMu.Lock()
 	defer benchJobMu.Unlock()
 	if !benchBusy.CompareAndSwap(false, true) {
-		return nil, fmt.Errorf("une file tourne déjà")
+		return nil, fmt.Errorf("a queue is already running")
 	}
 	j := &benchJob{
 		ID: fmt.Sprintf("j%d", time.Now().UnixNano()), TestID: t.ID, TestName: t.Name,
@@ -460,7 +460,7 @@ func waitLLMHealth(timeout time.Duration) error {
 		}
 		time.Sleep(1500 * time.Millisecond)
 	}
-	return fmt.Errorf("moteur pas prêt après %s", timeout.Round(time.Second))
+	return fmt.Errorf("engine not ready after %s", timeout.Round(time.Second))
 }
 
 func benchPresetReady(preset string) bool {
@@ -488,7 +488,7 @@ func benchLoadAndWait(model, preset string) error {
 	}
 	model = strings.TrimSpace(model)
 	if model == "" {
-		return fmt.Errorf("modèle requis")
+		return fmt.Errorf("model required")
 	}
 	if benchModelReady(model) {
 		return nil

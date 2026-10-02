@@ -89,7 +89,7 @@ func TestRemoteTerminalCommand(t *testing.T) {
 	if _, _, err := terminalCommand("box", "relatif", ""); err == nil {
 		t.Fatal("dossier distant relatif accepté")
 	}
-	if _, _, err := terminalCommand("inconnue", "", ""); err == nil {
+	if _, _, err := terminalCommand("unknown", "", ""); err == nil {
 		t.Fatal("machine inconnue acceptée")
 	}
 }

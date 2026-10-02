@@ -209,7 +209,7 @@ func buildLlamacpp(repo string, p buildPlan, clean bool) error {
 
 	if clean || cacheStale(build, repo) {
 		if isDir(build) {
-			fmt.Printf("%s reconfiguration propre (suppression de build/)\n", dim("[info]"))
+			fmt.Printf("%s clean reconfiguration (removing build/)\n", dim("[info]"))
 			old := build + ".old"
 			_ = os.RemoveAll(old)
 			if err := os.Rename(build, old); err != nil {
@@ -254,7 +254,7 @@ func buildLlamacpp(repo string, p buildPlan, clean bool) error {
 	cfgLog := filepath.Join(repo, "configure.log")
 	if err := runBuildStep("cmake configure", repo, env, "cmake", cfgLog, cfgArgs...); err != nil {
 		hintMissingBuildDep(p, cfgLog)
-		return fmt.Errorf("configuration CMake échouée: %w", err)
+		return fmt.Errorf("CMake configuration failed: %w", err)
 	}
 
 	buildArgs := []string{"--build", "build", "--config", "Release",
@@ -266,7 +266,7 @@ func buildLlamacpp(repo string, p buildPlan, clean bool) error {
 		buildArgs = append(buildArgs, "--", "/nologo", "/verbosity:minimal")
 	}
 	if err := runBuildStep("cmake build", repo, env, "cmake", filepath.Join(repo, "build.log"), buildArgs...); err != nil {
-		return fmt.Errorf("compilation échouée: %w", err)
+		return fmt.Errorf("compilation failed: %w", err)
 	}
 	return nil
 }
@@ -290,27 +290,27 @@ func hintMissingBuildDep(p buildPlan, cfgLog string) {
 	// ensureCudaVSIntegration ; ce filet sert aux cas où la détection n'a pas pu
 	// conclure (vswhere absent, install VS non standard).
 	if p.backend == "cuda" && strings.Contains(log, "No CUDA toolset found") {
-		fmt.Printf("\n%s l'intégration Visual Studio de CUDA est absente (« No CUDA toolset found »).\n", yellow("[dépendance]"))
-		fmt.Printf("            Relance l'installeur du CUDA Toolkit (installation personnalisée) en cochant « CUDA → Visual Studio Integration »\n")
-		fmt.Printf("            (Visual Studio avec le workload C++ doit déjà être installé), ou copie les fichiers de\n")
-		fmt.Printf("            <toolkit>\\extras\\visual_studio_integration\\MSBuildExtensions vers\n")
-		fmt.Printf("            <VS>\\MSBuild\\Microsoft\\VC\\<version>\\BuildCustomizations, puis relance %s.\n", bold("loom llamacpp install"))
+		fmt.Printf("\n%s CUDA Visual Studio integration is missing (“No CUDA toolset found”).\n", yellow("[dependency]"))
+		fmt.Printf("            Run the CUDA Toolkit installer again (custom installation), selecting “CUDA → Visual Studio Integration”\n")
+		fmt.Printf("            (Visual Studio with the C++ workload must already be installed), or copy the files from\n")
+		fmt.Printf("            <toolkit>\\extras\\visual_studio_integration\\MSBuildExtensions to\n")
+		fmt.Printf("            <VS>\\MSBuild\\Microsoft\\VC\\<version>\\BuildCustomizations, then run %s again.\n", bold("loom llamacpp install"))
 	}
 	// Linux/CUDA : nvcc trouvé mais en-têtes/cudart introuvables = le toolkit
 	// complet n'est pas installé (seul le paquet nvcc l'est). On passe déjà
 	// CUDAToolkit_ROOT quand un vrai toolkit existe ; si ça échoue quand même,
 	// c'est qu'il manque pour de bon.
 	if p.backend == "cuda" && strings.Contains(log, "CUDA Toolkit not found") {
-		fmt.Printf("\n%s nvcc est présent mais le CUDA Toolkit complet (en-têtes + cudart) est introuvable.\n", yellow("[dépendance]"))
-		fmt.Printf("            Installe le toolkit NVIDIA officiel (il se pose dans /usr/local/cuda), puis relance %s.\n", bold("loom llamacpp install"))
+		fmt.Printf("\n%s nvcc is present but the full CUDA Toolkit (headers + cudart) was not found.\n", yellow("[dependency]"))
+		fmt.Printf("            Install the official NVIDIA toolkit (under /usr/local/cuda), then run %s again.\n", bold("loom llamacpp install"))
 	}
 	if p.backend == "vulkan" && strings.Contains(log, "SPIRV-Headers") {
-		fmt.Printf("\n%s dépendance manquante pour le backend %s : les en-têtes SPIR-V (paquet « SPIRV-Headers ») sont introuvables.\n",
-			yellow("[dépendance]"), green("Vulkan"))
+		fmt.Printf("\n%s missing dependency for backend %s: SPIR-V headers (package “SPIRV-Headers”) not found.\n",
+			yellow("[dependency]"), green("Vulkan"))
 		if cmd := pkgInstallHint("spirv-headers"); cmd != "" {
-			fmt.Printf("            installe-les puis relance %s : %s\n", bold("loom llamacpp install"), bold(cmd))
+			fmt.Printf("            install them, then run %s again: %s\n", bold("loom llamacpp install"), bold(cmd))
 		} else {
-			fmt.Printf("            installe le paquet de développement « SPIRV-Headers » de ta distribution, puis relance %s.\n", bold("loom llamacpp install"))
+			fmt.Printf("            install your distribution's “SPIRV-Headers” development package, then run %s again.\n", bold("loom llamacpp install"))
 		}
 	}
 }
@@ -549,7 +549,7 @@ func requireTools(tools ...string) error {
 	// Tentative d'installation automatique (winget sur Windows, apt/brew/dnf sur
 	// Unix). On rafraîchit ensuite le PATH du process car un installeur système
 	// écrit le PATH machine sans toucher l'environnement déjà chargé.
-	fmt.Printf("%s outils manquants: %s — installation automatique…\n", yellow("[info]"), strings.Join(missing, ", "))
+	fmt.Printf("%s missing tools: %s — installing automatically…\n", yellow("[info]"), strings.Join(missing, ", "))
 	for _, t := range missing {
 		if err := autoInstallTool(t); err != nil {
 			fmt.Printf("  %s %s: %v\n", dim("•"), t, err)
@@ -558,9 +558,9 @@ func requireTools(tools ...string) error {
 	refreshToolPath()
 
 	if still := missingTools(tools); len(still) > 0 {
-		return fmt.Errorf("outils toujours manquants après tentative d'install: %s — installe-les à la main puis réessaie", strings.Join(still, ", "))
+		return fmt.Errorf("tools still missing after installation attempt: %s — install them manually then try again", strings.Join(still, ", "))
 	}
-	fmt.Printf("%s outils installés.\n", green("✓"))
+	fmt.Printf("%s tools installed.\n", green("✓"))
 	return nil
 }
 
@@ -661,7 +661,7 @@ func runBuildStep(name, dir, extraEnv, bin, logPath string, args ...string) erro
 	var (
 		mu    sync.Mutex
 		count int
-		label = "préparation…"
+		label = "preparing…"
 		fi    int
 	)
 	clearLine := func() {
@@ -694,7 +694,7 @@ func runBuildStep(name, dir, extraEnv, bin, logPath string, args ...string) erro
 			mu.Lock()
 			if f := compiledFile(line); f != "" {
 				count++
-				label = fmt.Sprintf("compilation… %d fichiers  %s", count, dim("("+f+")"))
+				label = fmt.Sprintf("building… %d files  %s", count, dim("("+f+")"))
 				mu.Unlock()
 				continue
 			}
@@ -739,10 +739,10 @@ func runBuildStep(name, dir, extraEnv, bin, logPath string, args ...string) erro
 	<-tickerDone
 	clearLine()
 	if err == nil && count > 0 {
-		fmt.Printf("  %s %d fichiers compilés\n", green("✓"), count)
+		fmt.Printf("  %s %d files compiled\n", green("✓"), count)
 	}
 	if err != nil && logPath != "" {
-		fmt.Printf("%s étape échouée — log complet : %s\n", yellow("[err]"), logPath)
+		fmt.Printf("%s step failed — full log: %s\n", yellow("[err]"), logPath)
 		printLogTail(logPath, 30)
 	}
 	return err
@@ -755,9 +755,9 @@ func phaseLabel(line string) string {
 	t := strings.TrimSpace(line)
 	switch {
 	case strings.HasPrefix(t, "-- "):
-		return "configuration… " + truncLabel(strings.TrimPrefix(t, "-- "), 50)
+		return "configuring… " + truncLabel(strings.TrimPrefix(t, "-- "), 50)
 	case strings.Contains(t, "Linking") || strings.Contains(t, "Build files have been written"):
-		return "édition de liens…"
+		return "linking…"
 	}
 	return ""
 }
@@ -847,12 +847,12 @@ func planLabel(p buildPlan) string {
 	case "vulkan":
 		return green("Vulkan")
 	default:
-		return yellow("CPU") + dim(" (aucun accélérateur détecté)")
+		return yellow("CPU") + dim(" (no accelerator detected)")
 	}
 }
 
 func printPlan(p buildPlan, repo string) {
-	fmt.Printf("\n%s configuration du build\n", bold("•"))
+	fmt.Printf("\n%s build configuration\n", bold("•"))
 	fmt.Printf("  backend  : %s\n", planLabel(p))
 	fmt.Printf("  jobs     : %d\n", p.jobs)
 	fmt.Printf("  flags    : %s\n", dim(strings.Join(p.flags, " ")))

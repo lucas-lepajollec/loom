@@ -26,13 +26,13 @@ func saveCapability(c Capability) (Capability, error) {
 	c.Description = strings.TrimSpace(c.Description)
 	c.Instructions = strings.TrimSpace(c.Instructions)
 	if c.Name == "" || len(c.Name) > 160 || len(c.Description) > 500 || c.Instructions == "" || len(c.Instructions) > maxCapabilityInstructions {
-		return c, fmt.Errorf("nom et instructions requis (nom : 160 octets, description : 500, instructions : 8000 maximum)")
+		return c, fmt.Errorf("name and instructions required (maximum: name 160 bytes, description 500, instructions 8000)")
 	}
 	dir := ""
 	if c.ID != "" {
 		old, ok := getCapability(c.ID)
 		if !ok {
-			return c, fmt.Errorf("skill introuvable")
+			return c, fmt.Errorf("skill not found")
 		}
 		if old.ReadOnly {
 			return c, errReadOnlySkill
@@ -45,7 +45,7 @@ func saveCapability(c Capability) (Capability, error) {
 	}
 	saved, ok := readSkillDir(skillSources()[0], dir)
 	if !ok {
-		return c, fmt.Errorf("skill illisible après écriture")
+		return c, fmt.Errorf("skill unreadable after writing")
 	}
 	return saved, nil
 }
@@ -54,7 +54,7 @@ func saveCapability(c Capability) (Capability, error) {
 func deleteCapability(id string) error {
 	c, ok := getCapability(id)
 	if !ok {
-		return fmt.Errorf("skill introuvable")
+		return fmt.Errorf("skill not found")
 	}
 	if c.ReadOnly {
 		return errReadOnlySkill
@@ -70,7 +70,7 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 		p.ID = newSessionID()
 		old.CreatedAt = time.Now().UnixMilli()
 	} else if !ok {
-		return p, fmt.Errorf("projet introuvable")
+		return p, fmt.Errorf("project not found")
 	}
 	if p.MCPServers == nil {
 		p.MCPServers = old.MCPServers
@@ -84,14 +84,14 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 	p.Instructions = strings.TrimSpace(p.Instructions)
 	p.Directory = strings.TrimSpace(p.Directory)
 	if p.Name == "" || len([]rune(p.Name)) > 80 || len(p.Instructions) > maxProjectInstructions || len(p.CapabilityIDs) > maxProjectCapabilities {
-		return p, fmt.Errorf("nom requis (80 caractères maximum), contexte de 12000 octets maximum et 8 capacités maximum")
+		return p, fmt.Errorf("name required (maximum 80 characters), context up to 12000 bytes and maximum 8 capabilities")
 	}
 	p.Machine = strings.TrimSpace(p.Machine)
 	if p.Machine == "local" {
 		p.Machine = ""
 	}
 	if p.Machine != "" && machineByID(p.Machine) == nil {
-		return p, fmt.Errorf("machine inconnue")
+		return p, fmt.Errorf("unknown machine")
 	}
 	if p.Directory != "" {
 		clean, err := projectDir(p.Machine, p.Directory)
@@ -101,7 +101,7 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 		p.Directory = clean
 	}
 	if len(p.ExtraDirs) > 8 {
-		return p, fmt.Errorf("8 dossiers supplémentaires maximum")
+		return p, fmt.Errorf("maximum 8 additional directories")
 	}
 	extra := []string{}
 	for _, d := range p.ExtraDirs {
@@ -118,18 +118,18 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 	}
 	p.ExtraDirs = extra
 	if p.BrainBudget < 0 || p.BrainBudget > maxProjectBrainBudget || len(p.BrainSources) > 16 {
-		return p, fmt.Errorf("budget du Brain entre 0 et 8000 tokens, 16 sources maximum")
+		return p, fmt.Errorf("Brain budget between 0 and 8000 tokens, maximum 16 sources")
 	}
 	if len(p.BrainSources) > 0 {
 		kinds := brainSourceKinds()
 		for _, id := range p.BrainSources {
 			if _, ok := kinds[id]; !ok {
-				return p, fmt.Errorf("source du Brain inconnue : %s", id)
+				return p, fmt.Errorf("unknown Brain source: %s", id)
 			}
 		}
 	}
 	if p.Machine != "" && len(p.ContextFiles) > 0 {
-		return p, fmt.Errorf("les fichiers de contexte ne sont lus que pour un dossier de cette machine")
+		return p, fmt.Errorf("context files are only read for a directory on this machine")
 	}
 	files, err := validProjectContextFiles(p.Directory, p.ContextFiles)
 	if err != nil {
@@ -138,13 +138,13 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 	p.ContextFiles = files
 	p.DefaultChoice = strings.TrimSpace(p.DefaultChoice)
 	if len(p.DefaultChoice) > 400 {
-		return p, fmt.Errorf("exécution par défaut invalide")
+		return p, fmt.Errorf("invalid default execution")
 	}
 	ids := []string{}
 	seen := map[string]bool{}
 	for _, id := range p.CapabilityIDs {
 		if _, ok := getCapability(id); !ok {
-			return p, fmt.Errorf("skill introuvable : actualise la liste")
+			return p, fmt.Errorf("skill not found: refresh the list")
 		}
 		if !seen[id] {
 			ids = append(ids, id)

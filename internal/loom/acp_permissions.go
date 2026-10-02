@@ -30,7 +30,7 @@ func (p *acpBinding) handleRequest(f *acpFrame) (any, error) {
 		Options   []map[string]any `json:"options"`
 	}
 	if json.Unmarshal(f.Params, &params) != nil {
-		return nil, errors.New("paramètres ACP invalides")
+		return nil, errors.New("invalid ACP parameters")
 	}
 	p.mu.Lock()
 	ctx := p.ctx
@@ -41,11 +41,11 @@ func (p *acpBinding) handleRequest(f *acpFrame) (any, error) {
 		f.Replied = p.requestWG.Done
 	} else {
 		p.mu.Unlock()
-		return nil, errors.New("session ACP inactive")
+		return nil, errors.New("inactive ACP session")
 	}
 	p.mu.Unlock()
 	if ctx == nil || !active || params.SessionID != sid || sid == "" {
-		return nil, errors.New("session ACP inactive")
+		return nil, errors.New("inactive ACP session")
 	}
 	select {
 	case <-ctx.Done():
@@ -62,7 +62,7 @@ func (p *acpBinding) handleRequest(f *acpFrame) (any, error) {
 	case "session/request_permission":
 		return p.permission(ctx, params.Tool, params.Options)
 	default:
-		return nil, &acpRPCError{Code: -32601, Message: "méthode client inconnue"}
+		return nil, &acpRPCError{Code: -32601, Message: "unknown client method"}
 	}
 }
 func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, options []map[string]any) (any, error) {
@@ -72,7 +72,7 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 	policy := p.state.Permission
 	p.mu.Unlock()
 	if len(options) == 0 {
-		return nil, errors.New("options de permission requises")
+		return nil, errors.New("permission options required")
 	}
 	id := newSessionID()
 	decision := acpDecision{option: acpAutoOption(policy, kind, options), auto: true}
@@ -132,19 +132,19 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 func (m *runtimeSessions) answerACP(id, approval, option string, cancel bool) error {
 	// get checks the vault before consulting private, live approval state.
 	if _, ok := m.get(id); !ok {
-		return errors.New("discussion introuvable ou verrouillée")
+		return errors.New("discussion not found or locked")
 	}
 	m.acpMu.Lock()
 	p := m.acp[id]
 	m.acpMu.Unlock()
 	if p == nil {
-		return errors.New("session ACP inactive")
+		return errors.New("inactive ACP session")
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	pending := p.approvals[approval]
 	if pending == nil || !p.active || p.ctx == nil || p.ctx.Err() != nil {
-		return errors.New("approbation absente ou déjà résolue")
+		return errors.New("approval missing or already resolved")
 	}
 	valid := cancel && option == ""
 	for _, o := range pending.options {
@@ -153,13 +153,13 @@ func (m *runtimeSessions) answerACP(id, approval, option string, cancel bool) er
 		}
 	}
 	if !valid {
-		return errors.New("option d’approbation invalide")
+		return errors.New("invalid approval option")
 	}
 	select {
 	case pending.answer <- acpDecision{option: option}:
 		delete(p.approvals, approval)
 		return nil
 	default:
-		return errors.New("approbation déjà résolue")
+		return errors.New("approval already resolved")
 	}
 }

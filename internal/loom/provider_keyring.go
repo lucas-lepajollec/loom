@@ -23,7 +23,7 @@ var (
 	keyringDelete = func(id string) error { return keyring.Delete(keyringService, keyringUser(id)) }
 )
 
-var errNoKeychain = errors.New("trousseau du système indisponible : la clé reste en mémoire jusqu’au redémarrage")
+var errNoKeychain = errors.New("system keyring unavailable: the key stays in memory until restart")
 
 // rememberProviderKey stores or forgets the key in the keychain.
 func rememberProviderKey(id, key string, remember bool) error {

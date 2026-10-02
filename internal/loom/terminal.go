@@ -88,7 +88,7 @@ func randomID(n int) string {
 func terminalCommand(target, dir, command string) ([]string, string, error) {
 	command = strings.TrimSpace(command)
 	if strings.ContainsAny(command, "\x00") || len(command) > 2000 {
-		return nil, "", errors.New("commande invalide")
+		return nil, "", errors.New("invalid command")
 	}
 	if target == "" || target == "local" {
 		if dir == "" {
@@ -96,7 +96,7 @@ func terminalCommand(target, dir, command string) ([]string, string, error) {
 		}
 		info, err := os.Stat(dir)
 		if err != nil || !info.IsDir() {
-			return nil, "", errors.New("dossier introuvable sur cette machine")
+			return nil, "", errors.New("directory not found on this machine")
 		}
 		if runtime.GOOS == "windows" {
 			return windowsTerminalShellCommand(windowsTerminalShell(exec.LookPath, os.Getenv("ComSpec")), command), dir, nil
@@ -118,7 +118,7 @@ func terminalCommand(target, dir, command string) ([]string, string, error) {
 		}
 	}
 	if !found {
-		return nil, "", errors.New("machine inconnue")
+		return nil, "", errors.New("unknown machine")
 	}
 	if dir == "" {
 		dir = m.Home
@@ -185,14 +185,14 @@ func openTerminal(target, dir, command, title string) (*Terminal, error) {
 	}
 	terminals.Unlock()
 	if running >= maxTerminals {
-		return nil, errors.New("16 terminaux ouverts au maximum : ferme-en un")
+		return nil, errors.New("maximum 16 open terminals: close one")
 	}
 	argv, cwd, err := terminalCommand(target, dir, command)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := exec.LookPath(argv[0]); err != nil {
-		return nil, errors.New(argv[0] + " introuvable")
+		return nil, errors.New(argv[0] + " not found")
 	}
 	proc, err := startPTY(argv, cwd, []string{"TERM=xterm-256color", "COLORTERM=truecolor"})
 	if err != nil {
@@ -306,7 +306,7 @@ func handleTerminals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ptySupported {
-		sendJSON(w, 501, map[string]any{"ok": false, "error": "les terminaux ne sont pas encore disponibles sur ce système"})
+		sendJSON(w, 501, map[string]any{"ok": false, "error": "terminals are not available on this system yet"})
 		return
 	}
 	var req struct {
@@ -342,7 +342,7 @@ func handleTerminalClose(w http.ResponseWriter, r *http.Request) {
 	}
 	t := terminalByID(req.ID)
 	if t == nil {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "terminal introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "terminal not found"})
 		return
 	}
 	_ = t.proc.Close()
@@ -368,7 +368,7 @@ func handleTerminalTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if terminalByID(req.ID) == nil {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "terminal introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "terminal not found"})
 		return
 	}
 	tk := randomID(24)
@@ -402,7 +402,7 @@ func handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 	id := useTicket(r.URL.Query().Get("ticket"))
 	t := terminalByID(id)
 	if t == nil {
-		http.Error(w, "ticket invalide ou expiré", http.StatusUnauthorized)
+		http.Error(w, "invalid or expired ticket", http.StatusUnauthorized)
 		return
 	}
 	// Same-origin only (the default check), against cross-site hijacking.

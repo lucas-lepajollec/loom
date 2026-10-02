@@ -75,7 +75,7 @@ func safeUploadName(name string) string {
 	name = strings.TrimSpace(b.String())
 	name = strings.Trim(name, ".") // ".." et les noms cachés/vides
 	if name == "" {
-		name = "fichier"
+		name = "file"
 	}
 	// Un nom démesuré casse l'écriture sur certains systèmes de fichiers ; on
 	// tronque la BASE en gardant l'extension, qui porte le sens.
@@ -144,9 +144,9 @@ func attachNote(files []attachInfo) string {
 	if len(files) == 0 {
 		return ""
 	}
-	head := "Fichier joint à ce message, déposé dans ton dossier de travail :"
+	head := "File attached to this message, placed in your working directory:"
 	if len(files) > 1 {
-		head = "Fichiers joints à ce message, déposés dans ton dossier de travail :"
+		head = "Files attached to this message, placed in your working directory:"
 	}
 	var lines []string
 	for _, f := range files {
@@ -267,7 +267,7 @@ const e2eInnerHeader = "X-Loom-E2E"
 func handleChatFile(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
 	if strings.TrimSpace(rel) == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "chemin manquant"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "missing path"})
 		return
 	}
 	// Un chemin ABSOLU fourni par le client ne doit pas être suivi : on le traite
@@ -281,15 +281,15 @@ func handleChatFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if !localOK {
 		if _, ok := workspaceRel(abs); !ok {
-			sendJSON(w, 403, map[string]any{"ok": false, "error": "hors du dossier de travail"})
+			sendJSON(w, 403, map[string]any{"ok": false, "error": "outside the working directory"})
 			return
 		}
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "fichier introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "file not found"})
 		return
 	}
 	st, err := os.Stat(abs)
 	if err != nil || st.IsDir() {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "fichier introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "file not found"})
 		return
 	}
 	name := filepath.Base(abs)
@@ -308,7 +308,7 @@ func handleChatFile(w http.ResponseWriter, r *http.Request) {
 			length = downloadChunkMax
 		}
 		if off < 0 || off > st.Size() {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "position hors du fichier"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "position outside the file"})
 			return
 		}
 		if off+length > st.Size() {
@@ -417,7 +417,7 @@ func handleChatUpload(w http.ResponseWriter, r *http.Request) {
 	// Le plafond porte sur UN morceau, pas sur le fichier : c'est la seule borne
 	// qui compte pour la mémoire du process.
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2*uploadChunkMax)).Decode(&body); err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "morceau trop gros ou requête invalide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "chunk too large or invalid request"})
 		return
 	}
 	data := body.Data
@@ -430,7 +430,7 @@ func handleChatUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(data))
 	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "contenu illisible (base64 attendu)"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "unreadable content (base64 expected)"})
 		return
 	}
 
@@ -445,7 +445,7 @@ func handleChatUpload(w http.ResponseWriter, r *http.Request) {
 			// L'envoi a expiré ou le serveur a redémarré en cours de route : le dire,
 			// plutôt que de recommencer un fichier à partir de son milieu.
 			upMu.Unlock()
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "envoi expiré — recommence le fichier"})
+			sendJSON(w, 409, map[string]any{"ok": false, "error": "upload expired — start the file again"})
 			return
 		}
 		dir, err := uploadsDir()
@@ -460,7 +460,7 @@ func handleChatUpload(w http.ResponseWriter, r *http.Request) {
 		if free := diskFree(dir); free > 0 && body.Size > 0 && free < body.Size+uploadSpaceMargin {
 			upMu.Unlock()
 			sendJSON(w, 507, map[string]any{"ok": false,
-				"error": fmt.Sprintf("espace insuffisant : %s libres, %s nécessaires", humanBytes(free), humanBytes(body.Size+uploadSpaceMargin))})
+				"error": fmt.Sprintf("insufficient space: %s free, %s required", humanBytes(free), humanBytes(body.Size+uploadSpaceMargin))})
 			return
 		}
 		f, err := os.CreateTemp(dir, ".upload-*.part")
@@ -499,7 +499,7 @@ func handleChatUpload(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, code, map[string]any{"ok": false, "error": msg})
 	}
 	if s.written+int64(len(raw)) > uploadMaxBytes {
-		abort(413, fmt.Sprintf("fichier trop gros (max %s)", humanBytes(uploadMaxBytes)))
+		abort(413, fmt.Sprintf("file too large (max %s)", humanBytes(uploadMaxBytes)))
 		return
 	}
 	if len(raw) > 0 {
@@ -529,7 +529,7 @@ func handleChatUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.written == 0 {
 		os.Remove(part)
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "fichier vide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "empty file"})
 		return
 	}
 	dest := uniqueUploadPath(filepath.Dir(part), s.name)

@@ -123,7 +123,7 @@ func AutoInstallTool(name string) error {
 		argv := append(append([]string{m.bin}, m.install...), name)
 		if m.bin != "brew" && os.Geteuid() != 0 {
 			if _, err := exec.LookPath("sudo"); err != nil {
-				return fmt.Errorf("%s requiert root (ni root ni sudo disponibles)", m.bin)
+				return fmt.Errorf("%s requires root (neither root nor sudo available)", m.bin)
 			}
 			argv = append([]string{"sudo"}, argv...)
 		}
@@ -131,7 +131,7 @@ func AutoInstallTool(name string) error {
 		cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
 		return cmd.Run()
 	}
-	return fmt.Errorf("aucun gestionnaire de paquets connu — installe %s manuellement", name)
+	return fmt.Errorf("no known package manager — install %s manually", name)
 }
 
 // cudaPathEnv is Windows-specific (the MSBuild CUDA integration needs CUDA_PATH);

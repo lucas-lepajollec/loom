@@ -49,7 +49,7 @@ func PrepareDiscussion[Usage, Stats, Capability any](s RuntimeSession[Usage, Sta
 	for _, msg := range s.Messages {
 		content, ok := msg.Content.(string)
 		if !ok || (msg.Role != "user" && msg.Role != "assistant") || len(msg.ToolCalls) > 0 || msg.ToolCallID != "" {
-			p.Problem = "Ce fil contient un format non portable ; aucun envoi automatique."
+			p.Problem = "This thread contains a non-portable format; no automatic sending."
 			continue
 		}
 		if content != "" {
@@ -66,9 +66,9 @@ func PrepareDiscussion[Usage, Stats, Capability any](s RuntimeSession[Usage, Sta
 		p.TextBytes += len(msg.Content.(string))
 	}
 	if len(draft) > 24000 {
-		p.Problem = "Message trop long (24000 octets maximum)."
+		p.Problem = "Message too long (maximum 24000 bytes)."
 	} else if p.TextBytes > MaxPortableBytes || len(p.Messages) > MaxPortableMessages {
-		p.Problem = "Contexte trop long : 128 Kio de texte et 200 messages maximum, instructions comprises. Aucun texte n’a été tronqué."
+		p.Problem = "Context too long: maximum 128 KiB of text and 200 messages, including instructions. No text was truncated."
 	}
 	return p
 }

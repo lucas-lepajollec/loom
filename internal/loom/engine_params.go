@@ -21,7 +21,7 @@ func handleEngineParams(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		sendJSON(w, 405, map[string]any{"ok": false, "error": "méthode non autorisée"})
+		sendJSON(w, 405, map[string]any{"ok": false, "error": "method not allowed"})
 		return
 	}
 	e := localEngine()

@@ -33,9 +33,9 @@ func cmdMemory(args []string) error {
 		sub = strings.ToLower(strings.TrimSpace(args[0]))
 	}
 	label := map[MemMode]string{
-		MemOff:      "désactivée (l'IA n'a aucun accès mémoire)",
-		MemOnDemand: "sur demande (outils dispo, utilisés seulement si tu le demandes)",
-		MemAlways:   "auto (l'IA cherche et sauve d'elle-même)",
+		MemOff:      "disabled (the AI has no memory access)",
+		MemOnDemand: "on demand (tools available, used only when you ask)",
+		MemAlways:   "auto (the AI searches and saves on its own)",
 	}
 	switch sub {
 	case "off":
@@ -50,17 +50,17 @@ func cmdMemory(args []string) error {
 		if err := setMemMode(MemOff); err != nil {
 			return err
 		}
-		fmt.Printf("%s mémoire auto retirée — mode off\n", yellow("[info]"))
+		fmt.Printf("%s automatic memory removed — off mode\n", yellow("[info]"))
 	case "", "status":
 		m := memMode()
-		fmt.Printf("%s  mode: %s — %s\n", cyan("Mémoire"), bold(string(m)), label[m])
+		fmt.Printf("%s  mode: %s — %s\n", cyan("Memory"), bold(string(m)), label[m])
 		pages := MemList()
-		fmt.Printf("  %d page(s) sous %s\n", len(pages), memoryDir())
+		fmt.Printf("  %d page(s) under %s\n", len(pages), memoryDir())
 		return nil
 	default:
 		return fmt.Errorf("usage: loom memory [off|ondemand|status]")
 	}
 	m := memMode()
-	fmt.Printf("%s mémoire : %s — %s\n", green("[ok]"), bold(string(m)), label[m])
+	fmt.Printf("%s memory: %s — %s\n", green("[ok]"), bold(string(m)), label[m])
 	return nil
 }

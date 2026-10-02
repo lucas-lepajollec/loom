@@ -49,7 +49,7 @@ func RequireAuth(next http.HandlerFunc, keyHash func() (string, error)) http.Han
 		if err != nil {
 			// On ne sait pas si une clé protège cette API : on ferme.
 			SendJSON(w, http.StatusServiceUnavailable,
-				map[string]any{"error": "configuration illisible — réessaie dans un instant"})
+				map[string]any{"error": "configuration unreadable — try again in a moment"})
 			return
 		}
 		if hash == "" {
@@ -58,7 +58,7 @@ func RequireAuth(next http.HandlerFunc, keyHash func() (string, error)) http.Han
 		}
 		if !CheckBearer(r, hash) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="loom"`)
-			SendJSON(w, http.StatusUnauthorized, map[string]any{"error": "non autorisé"})
+			SendJSON(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 			return
 		}
 		next(w, r)

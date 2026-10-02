@@ -146,7 +146,7 @@ func TestServerArgsAuxiliaryModelsAndCredentialErrors(t *testing.T) {
 		t.Fatalf("credential error = %v", err)
 	}
 	in.ResolveModelPath = func(string) (string, error) { return "", os.ErrNotExist }
-	if _, err := BuildServerArgs(cfg, in); err == nil || !strings.Contains(err.Error(), "projecteur vision introuvable") {
+	if _, err := BuildServerArgs(cfg, in); err == nil || !strings.Contains(err.Error(), "vision projector not found") {
 		t.Fatalf("vision error = %v", err)
 	}
 }

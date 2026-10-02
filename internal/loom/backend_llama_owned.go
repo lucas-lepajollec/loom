@@ -45,7 +45,7 @@ func restartOwnedLlama() error {
 	if err := llamaOwner.Restart(func() llamacpp.Launch { return ownedLlamaLaunch(args[0], args) }); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "[loom serve] llama-server relancé (port interne %d)\n", llamaBackendPort())
+	fmt.Fprintf(os.Stderr, "[loom serve] llama-server restarted (internal port %d)\n", llamaBackendPort())
 	return nil
 }
 

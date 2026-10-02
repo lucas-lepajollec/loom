@@ -112,7 +112,7 @@ func loomSSHKey() (string, string, error) {
 		}
 		host, _ := os.Hostname()
 		if out, err := exec.Command("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "loom@"+host, "-f", key).CombinedOutput(); err != nil {
-			return "", "", errors.New("clé SSH impossible à créer : " + strings.TrimSpace(string(out)))
+			return "", "", errors.New("could not create SSH key: " + strings.TrimSpace(string(out)))
 		}
 	}
 	pub, err := os.ReadFile(key + ".pub")
@@ -139,19 +139,19 @@ func validRemoteMachine(m RemoteMachine) (RemoteMachine, error) {
 		m.Port = 22
 	}
 	if !remoteHostRe.MatchString(m.Host) || strings.HasPrefix(m.Host, "-") {
-		return m, errors.New("adresse de la machine invalide")
+		return m, errors.New("invalid machine address")
 	}
 	if !remoteUserRe.MatchString(m.User) {
-		return m, errors.New("utilisateur invalide")
+		return m, errors.New("invalid user")
 	}
 	if m.Port < 1 || m.Port > 65535 {
-		return m, errors.New("port invalide")
+		return m, errors.New("invalid port")
 	}
 	if m.Name == "" {
 		m.Name = m.Host
 	}
 	if len([]rune(m.Name)) > 40 {
-		return m, errors.New("nom trop long (40 caractères)")
+		return m, errors.New("name too long (40 characters)")
 	}
 	if m.ID == "" {
 		m.ID = strings.Trim(acpCustomIDRe.ReplaceAllString(strings.ToLower(m.Name), "-"), "-")
@@ -198,12 +198,12 @@ func parseRemoteProbe(out string) (RemoteMachine, error) {
 		line = strings.TrimSpace(line)
 		if i := strings.Index(line, "LOOM-MACHINE "); i >= 0 {
 			if err := json.Unmarshal([]byte(line[i+len("LOOM-MACHINE "):]), &info); err != nil {
-				return info, errors.New("réponse de la machine illisible")
+				return info, errors.New("unreadable machine response")
 			}
 			return info, nil
 		}
 	}
-	return info, errors.New("la machine n’a pas renvoyé sa description")
+	return info, errors.New("the machine did not return its description")
 }
 
 // checkRemoteMachine connects with Loom's key and runs the description script.
@@ -231,16 +231,16 @@ func checkRemoteMachine(ctx context.Context, m RemoteMachine) (RemoteMachine, er
 		}
 		switch {
 		case strings.Contains(msg, "Permission denied"):
-			return m, errors.New("connexion refusée : la clé de Loom n’est pas encore autorisée sur cette machine (colle le bloc d’installation dans son terminal)")
+			return m, errors.New("connection refused: Loom's key is not authorized on this machine yet (paste the installation block into its terminal)")
 		case strings.Contains(msg, "timed out") || strings.Contains(msg, "No route") || strings.Contains(msg, "Connection refused"):
-			return m, errors.New("machine injoignable : vérifie l’adresse, le port et que SSH est actif")
+			return m, errors.New("machine unreachable: check the address, port and that SSH is active")
 		case strings.Contains(msg, "Host key verification failed") || strings.Contains(msg, "REMOTE HOST IDENTIFICATION HAS CHANGED"):
-			return m, errors.New("l’identité SSH de la machine a changé : vérifie qu’il s’agit bien d’elle (~/.ssh/known_hosts)")
+			return m, errors.New("the machine's SSH identity changed: verify it is the correct machine (~/.ssh/known_hosts)")
 		}
 		if msg == "" {
 			msg = err.Error()
 		}
-		return m, errors.New("connexion impossible : " + lastLine(msg))
+		return m, errors.New("could not connect: " + lastLine(msg))
 	}
 	info, err := parseRemoteProbe(string(out))
 	if err != nil {
@@ -273,7 +273,7 @@ func remoteOffers(m RemoteMachine) []map[string]any {
 		_, installed := have[d.Needs[0]]
 		missing := ""
 		if installed && !ok {
-			missing = "Node.js (npx) requis sur la machine pour l’adaptateur ACP"
+			missing = "Node.js (npx) required on the machine for the ACP adapter"
 		}
 		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "logo": d.Logo, "installed": installed, "ready": ok, "version": version, "missing": missing})
 	}
@@ -290,7 +290,7 @@ func remoteAgent(m RemoteMachine, harness string, key string) (acpAgent, error) 
 		}
 		launch := remoteLaunch(d.ID, d.Launch)
 		if launch == nil {
-			return acpAgent{}, errors.New("lanceur inconnu")
+			return acpAgent{}, errors.New("unknown launcher")
 		}
 		dirs := []string{}
 		seen := map[string]bool{}
@@ -318,7 +318,7 @@ func remoteAgent(m RemoteMachine, harness string, key string) (acpAgent, error) 
 		}
 		return a, nil
 	}
-	return acpAgent{}, errors.New("harness non pris en charge à distance")
+	return acpAgent{}, errors.New("harness not supported remotely")
 }
 
 func machineName(id string) string {
@@ -458,7 +458,7 @@ func handleRemoteMachineDelete(w http.ResponseWriter, r *http.Request) {
 		machines = append(machines, m)
 	}
 	if !found {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "machine introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "machine not found"})
 		return
 	}
 	kept := []acpAgent{}

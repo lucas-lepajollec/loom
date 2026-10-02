@@ -57,7 +57,7 @@ func handleCatalog(w http.ResponseWriter, r *http.Request) {
 const fallbackCatalogJSON = `{
   "version": 1,
   "models": [
-    {"id":"qwen2.5-3b-instruct-q4","name":"Qwen2.5 3B Instruct","params":"3B","quant":"Q4_K_M","size_gb":2.1,"min_ram_gb":6,"url":"https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf","note":"Léger et rapide — idéal petites machines."},
-    {"id":"qwen2.5-7b-instruct-q4","name":"Qwen2.5 7B Instruct","params":"7B","quant":"Q4_K_M","size_gb":4.7,"min_ram_gb":10,"url":"https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf","note":"Plus capable — recommandé avec 16 Go de RAM ou un GPU."}
+    {"id":"qwen2.5-3b-instruct-q4","name":"Qwen2.5 3B Instruct","params":"3B","quant":"Q4_K_M","size_gb":2.1,"min_ram_gb":6,"url":"https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf","note":"Lightweight and fast — ideal for small machines."},
+    {"id":"qwen2.5-7b-instruct-q4","name":"Qwen2.5 7B Instruct","params":"7B","quant":"Q4_K_M","size_gb":4.7,"min_ram_gb":10,"url":"https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf","note":"More capable — recommended with 16 GB of RAM or a GPU."}
   ]
 }`

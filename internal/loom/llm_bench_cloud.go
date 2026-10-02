@@ -23,13 +23,13 @@ func benchCloudProvider(choiceID string) (CloudProvider, bool) {
 func runCloudBenchTest(ctx context.Context, t benchTest, choiceID string) (*benchResult, string, error) {
 	p, ok := benchCloudProvider(choiceID)
 	if !ok {
-		return nil, "", fmt.Errorf("modèle cloud introuvable ; vérifiez le provider dans Modèles")
+		return nil, "", fmt.Errorf("cloud model not found; check the provider in Models")
 	}
 	workspaceSessions.mu.Lock()
 	key := workspaceSessions.keys[p.ID]
 	workspaceSessions.mu.Unlock()
 	if !p.Ready || strings.TrimSpace(key) == "" {
-		return nil, "", fmt.Errorf("clé absente : reconnectez le provider %s dans Modèles → Providers", p.Name)
+		return nil, "", fmt.Errorf("missing key: reconnect provider %s in Models → Providers", p.Name)
 	}
 	prompt, maxTokens := t.Prompt, t.MaxTokens
 	if t.Kind == "perf" || t.ID == benchTestPerf {

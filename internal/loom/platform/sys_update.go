@@ -86,7 +86,7 @@ func FetchLatestRelease() (*Release, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("GitHub a répondu %s", resp.Status)
+		return nil, fmt.Errorf("GitHub returned %s", resp.Status)
 	}
 	var rel Release
 	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
@@ -102,9 +102,9 @@ func UpdatePermissionError(exe string) error {
 		// Windows renvoie le MÊME code (5, accès refusé) pour « droits
 		// insuffisants » et pour « fichier utilisé par un processus » : on nomme
 		// les deux causes au lieu d'affirmer la mauvaise.
-		return fmt.Errorf("impossible de remplacer %s : soit un autre Loom utilise ce fichier (ferme l'application et arrête le service, puis réessaie), soit les droits manquent (relance Loom en administrateur)", exe)
+		return fmt.Errorf("could not replace %s: another Loom may be using this file (quit the application and stop the service, then retry), or permissions are missing (restart Loom as administrator)", exe)
 	}
-	return fmt.Errorf("droits insuffisants pour remplacer %s (le binaire appartient à root) — lance la mise à jour en ligne de commande : sudo loom update", exe)
+	return fmt.Errorf("insufficient permissions to replace %s (binary owned by root) — update from the command line: sudo loom update", exe)
 }
 
 // checkUpdateWritable vérifie qu'on peut écrire dans le dossier du binaire, en
@@ -117,7 +117,7 @@ func CheckUpdateWritable(exe string) error {
 		if os.IsPermission(err) {
 			return UpdatePermissionError(exe)
 		}
-		return fmt.Errorf("impossible d'écrire dans %s : %w", dir, err)
+		return fmt.Errorf("could not write to %s: %w", dir, err)
 	}
 	name := probe.Name()
 	probe.Close()
@@ -135,7 +135,7 @@ func DownloadTo(url, dst string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("GitHub a répondu %s", resp.Status)
+		return fmt.Errorf("GitHub returned %s", resp.Status)
 	}
 	f, err := os.Create(dst)
 	if err != nil {
@@ -160,17 +160,17 @@ func VerifyChecksum(rel *Release, assetName, path string) error {
 		}
 	}
 	if sumsURL == "" {
-		return fmt.Errorf("release sans SHA256SUMS.txt — mise à jour annulée")
+		return fmt.Errorf("release missing SHA256SUMS.txt — update cancelled")
 	}
 	req, _ := http.NewRequest("GET", sumsURL, nil)
 	req.Header.Set("User-Agent", "loom-update")
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
-		return fmt.Errorf("téléchargement des sommes de contrôle : %w", err)
+		return fmt.Errorf("downloading checksums: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("sommes de contrôle : GitHub a répondu %s", resp.Status)
+		return fmt.Errorf("checksums: GitHub returned %s", resp.Status)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	if err != nil {
@@ -186,7 +186,7 @@ func VerifyChecksum(rel *Release, assetName, path string) error {
 		}
 	}
 	if want == "" {
-		return fmt.Errorf("SHA256SUMS présent mais sans entrée pour %q — mise à jour annulée", assetName)
+		return fmt.Errorf("SHA256SUMS present but missing an entry for %q — update cancelled", assetName)
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -199,7 +199,7 @@ func VerifyChecksum(rel *Release, assetName, path string) error {
 	}
 	got := hex.EncodeToString(h.Sum(nil))
 	if got != want {
-		return fmt.Errorf("somme SHA-256 invalide (%s reçu, %s attendu) — mise à jour annulée", got, want)
+		return fmt.Errorf("invalid SHA-256 checksum (%s received, %s expected) — update cancelled", got, want)
 	}
 	return nil
 }

@@ -48,11 +48,11 @@ func ReadQuota(ctx context.Context, read ReadFunc) (Quota, error) {
 		} `json:"command"`
 	}
 	if json.Unmarshal(out, &envelope) != nil || envelope.Status != "SUCCESS" || envelope.Command.Name != "usage" || len(envelope.Command.Data.Groups) > 128 {
-		return q, errors.New("format des quotas Antigravity non reconnu")
+		return q, errors.New("unrecognized Antigravity quota format")
 	}
 	for _, g := range envelope.Command.Data.Groups {
 		if len(g.Buckets) > 32 {
-			return q, errors.New("trop de fenêtres de quota")
+			return q, errors.New("too many quota windows")
 		}
 		for _, b := range g.Buckets {
 			w := QuotaWindow{Group: g.Name, Name: b.Name}
@@ -68,7 +68,7 @@ func ReadQuota(ctx context.Context, read ReadFunc) (Quota, error) {
 		}
 	}
 	if len(q.Windows) == 0 {
-		return q, errors.New("aucune fenêtre de quota communiquée")
+		return q, errors.New("no quota windows reported")
 	}
 	// AI credits are not reset credits. Keep the two fields distinct.
 	if out, err := read(ctx, "-p", "/credits", "--output-format", "json", "--print-timeout", "15s"); err == nil {

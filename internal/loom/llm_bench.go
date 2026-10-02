@@ -86,7 +86,7 @@ func runBench(nPrompt, nPredict int) (*benchResult, error) {
 func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, error) {
 	port := LLMPort()
 	if !healthCheck() {
-		return nil, "", fmt.Errorf("serveur injoignable sur :%d", port)
+		return nil, "", fmt.Errorf("server unreachable on :%d", port)
 	}
 	if nPredict <= 0 {
 		nPredict = 256
@@ -225,14 +225,14 @@ func cmdBench(args []string) error {
 		if n, err := strconv.Atoi(args[0]); err == nil {
 			nPredict = n
 		} else {
-			return fmt.Errorf("argument invalide: %s", args[0])
+			return fmt.Errorf("invalid argument: %s", args[0])
 		}
 	}
 	if len(args) >= 2 && args[1] != "" {
 		if n, err := strconv.Atoi(args[1]); err == nil {
 			nPrompt = n
 		} else {
-			return fmt.Errorf("argument invalide: %s", args[1])
+			return fmt.Errorf("invalid argument: %s", args[1])
 		}
 	}
 	fmt.Printf("[bench] prompt ~%d tokens, n_predict=%d…\n", nPrompt, nPredict)

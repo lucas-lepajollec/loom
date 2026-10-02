@@ -105,10 +105,10 @@ func TestMemoryStorageBoundaryAndExactEdit(t *testing.T) {
 		t.Fatal("existing page replaced")
 	}
 	m.Store.(*testMemoryStore).locked = true
-	if _, err := m.MemRead("notes", 1, 1); err == nil || !strings.Contains(err.Error(), "mémoire verrouillée") {
+	if _, err := m.MemRead("notes", 1, 1); err == nil || !strings.Contains(err.Error(), "memory locked") {
 		t.Fatalf("locked: %v", err)
 	}
-	if pages := m.MemList(); len(pages) != 1 || pages[0].Title != "🔒 (chiffré — mémoire verrouillée)" {
+	if pages := m.MemList(); len(pages) != 1 || pages[0].Title != "🔒 (encrypted — memory locked)" {
 		t.Fatalf("locked listing: %+v", pages)
 	}
 }

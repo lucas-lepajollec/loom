@@ -60,16 +60,16 @@ func WriteFileVerified(path string, data []byte, perm os.FileMode) error {
 	}
 	back, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("relecture de vérification impossible : %w", err)
+		return fmt.Errorf("could not reread for verification: %w", err)
 	}
 	if len(back) != len(data) {
 		os.Remove(path)
-		return fmt.Errorf("vérification échouée : %d octets relus, %d écrits", len(back), len(data))
+		return fmt.Errorf("verification failed: %d bytes reread, %d written", len(back), len(data))
 	}
 	for i := range back {
 		if back[i] != data[i] {
 			os.Remove(path)
-			return fmt.Errorf("vérification échouée : octet %d diffère", i)
+			return fmt.Errorf("verification failed: byte %d differs", i)
 		}
 	}
 	return nil

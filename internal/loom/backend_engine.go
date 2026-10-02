@@ -116,14 +116,14 @@ func resolveInstallDir(dir string) (string, error) {
 		return defaultRepoDir(), nil
 	}
 	if !filepath.IsAbs(dir) {
-		return "", fmt.Errorf("dossier absolu requis")
+		return "", fmt.Errorf("absolute directory required")
 	}
 	dir = filepath.Clean(dir)
 	if isLlamaServerName(filepath.Base(dir)) && isFile(dir) {
-		return "", fmt.Errorf("indique le dossier llama.cpp, pas le binaire llama-server")
+		return "", fmt.Errorf("specify the llama.cpp directory, not the llama-server binary")
 	}
 	if isFile(dir) {
-		return "", fmt.Errorf("ce chemin est un fichier, pas un dossier : %s", dir)
+		return "", fmt.Errorf("this path is a file, not a directory: %s", dir)
 	}
 	return dir, nil
 }

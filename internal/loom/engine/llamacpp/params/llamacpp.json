@@ -2,8 +2,8 @@
   "params": [
     {
       "id": "ctx-size",
-      "label": "Contexte",
-      "tip": "Fenêtre de tokens. Le curseur va jusqu’au natif du modèle ; tape une valeur pour aller au-delà.",
+      "label": "Context",
+      "tip": "Token window. The slider goes up to the model's native limit; type a value to go beyond it.",
       "tier": "essential",
       "kind": "slider",
       "affects_vram": true,
@@ -17,8 +17,8 @@
     },
     {
       "id": "gpu-layers",
-      "label": "Couches GPU",
-      "tip": "Nombre de couches envoyées au GPU. « tout » les place toutes.",
+      "label": "GPU layers",
+      "tip": "Number of layers offloaded to the GPU. “All” offloads every layer.",
       "tier": "essential",
       "kind": "slider",
       "affects_vram": true,
@@ -35,8 +35,8 @@
     },
     {
       "id": "reasoning",
-      "label": "Raisonnement",
-      "tip": "Le modèle réfléchit avant de répondre si son gabarit le permet. L’éteindre envoie --reasoning off.",
+      "label": "Reasoning",
+      "tip": "The model reasons before answering if its template supports it. Turning this off sends --reasoning off.",
       "tier": "essential",
       "kind": "bool",
       "affects_vram": false,
@@ -49,7 +49,7 @@
     {
       "id": "reasoning-effort",
       "label": "Effort",
-      "tip": "Niveaux lus dans le gabarit du modèle. Vide = défaut du gabarit.",
+      "tip": "Levels read from the model template. Blank uses the template default.",
       "tier": "essential",
       "kind": "enum",
       "affects_vram": false,
@@ -62,7 +62,7 @@
     {
       "id": "vision",
       "label": "Vision",
-      "tip": "Charge le projecteur mmproj trouvé à côté du modèle.",
+      "tip": "Loads the mmproj projector found beside the model.",
       "tier": "essential",
       "kind": "bool",
       "affects_vram": true,
@@ -79,8 +79,8 @@
     },
     {
       "id": "temp",
-      "label": "Température",
-      "tip": "Aléatoire de l’échantillonnage. Vide = défaut du modèle.",
+      "label": "Temperature",
+      "tip": "Sampling randomness. Blank uses the model default.",
       "tier": "essential",
       "kind": "number",
       "affects_vram": false,
@@ -94,20 +94,20 @@
     },
     {
       "id": "sysprompt",
-      "label": "Prompt système",
-      "tip": "Propre à ce modèle ou preset. Vide = celui des Réglages.",
+      "label": "System prompt",
+      "tip": "Specific to this model or preset. Blank uses the prompt from Settings.",
       "tier": "essential",
       "kind": "textarea",
       "affects_vram": false,
       "requires_reload": true,
       "key": "SYSPROMPT",
       "stack": true,
-      "placeholder": "Vide = prompt des Réglages"
+      "placeholder": "Blank = prompt from Settings"
     },
     {
       "id": "kv",
-      "label": "Cache KV",
-      "tip": "Compression du cache de contexte. f16 = qualité maximale ; q8/q4 réduisent la VRAM.",
+      "label": "KV cache",
+      "tip": "Context cache compression. f16 gives maximum quality; q8/q4 reduce VRAM use.",
       "tier": "advanced",
       "kind": "enum",
       "affects_vram": true,
@@ -146,8 +146,8 @@
     },
     {
       "id": "parallel",
-      "label": "Slots parallèles",
-      "tip": "Requêtes traitées en même temps par llama.cpp (batching continu).",
+      "label": "Parallel slots",
+      "tip": "Requests handled simultaneously by llama.cpp (continuous batching).",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": true,
@@ -160,8 +160,8 @@
     },
     {
       "id": "spec-type",
-      "label": "Décodage spéculatif",
-      "tip": "Anticipe des tokens (MTP, EAGLE, n-grammes) pour accélérer.",
+      "label": "Speculative decoding",
+      "tip": "Predicts tokens (MTP, EAGLE, n-grams) to speed up generation.",
       "tier": "advanced",
       "kind": "enum",
       "affects_vram": true,
@@ -170,7 +170,7 @@
       "choices": [
         [
           "",
-          "non"
+          "no"
         ],
         [
           "draft-mtp",
@@ -182,18 +182,18 @@
         ],
         [
           "draft-simple",
-          "Modèle brouillon"
+          "Draft model"
         ],
         [
           "ngram-simple",
-          "n-grammes"
+          "n-grams"
         ]
       ]
     },
     {
       "id": "flash-attn",
       "label": "Flash attention",
-      "tip": "Plus rapide et plus économe. Auto laisse llama.cpp décider.",
+      "tip": "Faster and more memory efficient. Auto lets llama.cpp decide.",
       "tier": "advanced",
       "kind": "enum",
       "affects_vram": true,
@@ -218,8 +218,8 @@
     {
       "id": "fit",
       "key": "FIT",
-      "label": "Ajuster à la VRAM",
-      "tip": "Laisse llama.cpp réduire ce qui n’est pas fixé pour tenir en mémoire.",
+      "label": "Fit to VRAM",
+      "tip": "Lets llama.cpp reduce unset parameters to fit in memory.",
       "tier": "advanced",
       "kind": "bool",
       "affects_vram": true,
@@ -231,7 +231,7 @@
     {
       "id": "batch-size",
       "label": "Batch",
-      "tip": "Taille logique de lot au prompt. Plus grand = plus rapide, plus de VRAM.",
+      "tip": "Logical batch size for prompts. Larger is faster but uses more VRAM.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": true,
@@ -243,7 +243,7 @@
     {
       "id": "ubatch-size",
       "label": "Micro-batch",
-      "tip": "Taille physique de micro-lot. 512 est un bon départ.",
+      "tip": "Physical micro-batch size. 512 is a good starting point.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": true,
@@ -254,8 +254,8 @@
     },
     {
       "id": "threads",
-      "label": "Threads CPU",
-      "tip": "0 = automatique.",
+      "label": "CPU threads",
+      "tip": "0 = automatic.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": false,
@@ -267,7 +267,7 @@
     {
       "id": "threads-batch",
       "label": "Threads (prompt)",
-      "tip": "0 = comme Threads CPU.",
+      "tip": "0 = same as CPU threads.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": false,
@@ -278,8 +278,8 @@
     },
     {
       "id": "n-cpu-moe",
-      "label": "Experts MoE sur CPU",
-      "tip": "Garde les N premières couches d’experts sur le CPU.",
+      "label": "MoE experts on CPU",
+      "tip": "Keeps the first N expert layers on the CPU.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": true,
@@ -291,7 +291,7 @@
     {
       "id": "top-p",
       "label": "top_p",
-      "tip": "1 = désactivé.",
+      "tip": "1 = disabled.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": false,
@@ -303,7 +303,7 @@
     {
       "id": "top-k",
       "label": "top_k",
-      "tip": "0 = désactivé.",
+      "tip": "0 = disabled.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": false,
@@ -315,7 +315,7 @@
     {
       "id": "min-p",
       "label": "min_p",
-      "tip": "0 = désactivé.",
+      "tip": "0 = disabled.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": false,
@@ -326,8 +326,8 @@
     },
     {
       "id": "repeat-penalty",
-      "label": "Pénalité de répétition",
-      "tip": "1 = neutre.",
+      "label": "Repetition penalty",
+      "tip": "1 = neutral.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": false,
@@ -338,8 +338,8 @@
     },
     {
       "id": "presence-penalty",
-      "label": "Pénalité de présence",
-      "tip": "0 = neutre.",
+      "label": "Presence penalty",
+      "tip": "0 = neutral.",
       "tier": "advanced",
       "kind": "number",
       "affects_vram": false,

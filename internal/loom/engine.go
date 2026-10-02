@@ -116,7 +116,7 @@ func (e llamaCppEngine) Load(ctx context.Context, c ModelConfig) error {
 	// Explicit transient input requires the existing router. Never write it to
 	// config.env merely to make a service restart consume it.
 	if !routerReachable() {
-		return fmt.Errorf("configuration temporaire : moteur router requis")
+		return fmt.Errorf("temporary configuration: router engine required")
 	}
 	args, err := e.BuildArgs(c)
 	if err != nil {
@@ -127,7 +127,7 @@ func (e llamaCppEngine) Load(ctx context.Context, c ModelConfig) error {
 		return err
 	}
 	_, err = llamaRouter().ActivateVariant(func() (routerEntry, error) {
-		return routerEntry{Name: routerEntryName(opts), Label: filepath.Base(resolveEngineConfig(c)["MODEL"]) + " · variante API", Options: opts}, nil
+		return routerEntry{Name: routerEntryName(opts), Label: filepath.Base(resolveEngineConfig(c)["MODEL"]) + " · API variant", Options: opts}, nil
 	})
 	return err
 }
@@ -140,7 +140,7 @@ func (llamaCppEngine) Unload(ctx context.Context, model string) error {
 		return unloadEngine()
 	}
 	if !routerReachable() {
-		return fmt.Errorf("déchargement ciblé : moteur router requis")
+		return fmt.Errorf("targeted unloading: router engine required")
 	}
 	return llamaRouter().Unload(model)
 }

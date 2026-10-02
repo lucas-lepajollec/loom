@@ -116,7 +116,7 @@ func (s *nativeSessionUsage) add(model string, n usageNumbers) {
 	s.cached += n.cached
 	s.total += n.total
 	if model == "" {
-		model = "inconnu"
+		model = "unknown"
 	}
 	s.models[model] += n.total
 	if n.cost == nil {
@@ -175,9 +175,9 @@ func readHarnessSessionFiles(ctx context.Context, root, harness string, now time
 		}
 		if walkErr != nil {
 			if path == root {
-				return errors.New("non disponible")
+				return errors.New("unavailable")
 			}
-			partial = errors.New("lecture partielle : certains journaux sont inaccessibles")
+			partial = errors.New("partial reading: some logs are inaccessible")
 			return nil
 		}
 		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || !strings.HasSuffix(entry.Name(), ".jsonl") {
@@ -185,19 +185,19 @@ func readHarnessSessionFiles(ctx context.Context, root, harness string, now time
 		}
 		info, err := entry.Info()
 		if err != nil {
-			partial = errors.New("lecture partielle : certains journaux sont inaccessibles")
+			partial = errors.New("partial reading: some logs are inaccessible")
 			return nil
 		}
 		if !info.Mode().IsRegular() || info.ModTime().Before(cutoff) {
 			return nil
 		}
 		if files == nativeUsageMaxFiles {
-			return errors.New("lecture partielle : limite de 2000 fichiers")
+			return errors.New("partial reading: 2000-file limit")
 		}
 		files++
 		f, err := os.Open(path)
 		if err != nil {
-			partial = errors.New("lecture partielle : certains journaux sont inaccessibles")
+			partial = errors.New("partial reading: some logs are inaccessible")
 			return nil
 		}
 		s, err := parseHarnessJSONL(ctx, f, harness, cutoff, now)
@@ -281,7 +281,7 @@ func parseHarnessJSONL(ctx context.Context, r io.Reader, harness string, cutoff,
 			}
 			n, ok := record.Payload.Info.Total.numbers(harness)
 			if !ok {
-				partial = errors.New("lecture partielle : compteurs natifs non reconnus")
+				partial = errors.New("partial reading: native counters not recognized")
 				continue
 			}
 			if !stamp.Before(cutoff) {
@@ -311,12 +311,12 @@ func parseHarnessJSONL(ctx context.Context, r io.Reader, harness string, cutoff,
 		}
 		n, ok := record.Message.Usage.numbers(harness)
 		if !ok {
-			partial = errors.New("lecture partielle : compteurs natifs non reconnus")
+			partial = errors.New("partial reading: native counters not recognized")
 			continue
 		}
 		if harness == "claude-code" && record.Message.ID != "" {
 			if len(messages) >= 100000 {
-				partial = errors.New("lecture partielle : trop de messages natifs")
+				partial = errors.New("partial reading: too many native messages")
 				break
 			}
 			messages[record.Message.ID] = messageUsage{record.Message.Model, n}
@@ -328,7 +328,7 @@ func parseHarnessJSONL(ctx context.Context, r io.Reader, harness string, cutoff,
 		s.add(m.model, m.numbers)
 	}
 	if readErr != nil {
-		partial = errors.New("lecture partielle : journal illisible")
+		partial = errors.New("partial reading: unreadable log")
 	}
 	return s, partial
 }

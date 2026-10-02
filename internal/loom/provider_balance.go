@@ -89,7 +89,7 @@ func (c *providerBalanceCache) read(ctx context.Context, p CloudProvider, key st
 			return q
 		case <-ctx.Done():
 			q, _, _ := providerBalanceDescriptor(p)
-			q.Error = "lecture interrompue"
+			q.Error = "reading interrupted"
 			return q
 		}
 	}
@@ -113,7 +113,7 @@ func providerBalanceDescriptor(p CloudProvider) (ProviderBalance, string, string
 	q := ProviderBalance{ProviderID: p.ID, Name: p.Name, FetchedAt: time.Now().Unix()}
 	u, err := url.Parse(p.Endpoint)
 	if err != nil || u.Scheme != "https" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Port() != "" && u.Port() != "443") {
-		q.Error = "API publique de solde non disponible pour cette destination"
+		q.Error = "public balance API unavailable for this destination"
 		return q, "", ""
 	}
 	host := strings.ToLower(u.Hostname())
@@ -130,7 +130,7 @@ func providerBalanceDescriptor(p CloudProvider) (ProviderBalance, string, string
 	case "api.siliconflow.com", "api.siliconflow.cn":
 		kind = "siliconflow"
 	default:
-		q.Error = "API publique de solde non disponible avec une clé API normale"
+		q.Error = "public balance API unavailable with a normal API key"
 		return q, "", ""
 	}
 	q.Supported = true
@@ -146,7 +146,7 @@ func readProviderBalance(ctx context.Context, p CloudProvider, key string, clien
 		return q
 	}
 	if key == "" || len(key) > 4096 || strings.ContainsAny(key, "\r\n") {
-		q.Error = "reconnectez ce provider : clé API de session indisponible ou invalide"
+		q.Error = "reconnect this provider: session API key unavailable or invalid"
 		return q
 	}
 	ctx, cancel := context.WithTimeout(ctx, providerBalanceTimeout)
@@ -158,7 +158,7 @@ func readProviderBalance(ctx context.Context, p CloudProvider, key string, clien
 	safeClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	switch kind {
 	case "openrouter":
-		q.Source = "OpenRouter · /api/v1/key (usage de la clé)"
+		q.Source = "OpenRouter · /api/v1/key (key usage)"
 		var keyData struct {
 			Data *struct {
 				Limit     *float64 `json:"limit"`
@@ -189,10 +189,10 @@ func readProviderBalance(ctx context.Context, p CloudProvider, key string, clien
 		}()
 		wg.Wait()
 		if keyErr == nil && keyData.Data == nil {
-			keyErr = errors.New("format de solde non reconnu")
+			keyErr = errors.New("unrecognized balance format")
 		}
 		if creditsErr == nil && credits.Data == nil {
-			creditsErr = errors.New("format de solde non reconnu")
+			creditsErr = errors.New("unrecognized balance format")
 		}
 		if keyErr == nil {
 			d := keyData.Data
@@ -203,11 +203,11 @@ func readProviderBalance(ctx context.Context, p CloudProvider, key string, clien
 			q.Error = "/api/v1/key : " + keyErr.Error()
 		}
 		if creditsErr == nil {
-			q.Source += " · /api/v1/credits (solde du compte)"
+			q.Source += " · /api/v1/credits (account balance)"
 			d := credits.Data
 			if d.Usage != nil {
 				q.Used = d.Usage
-				q.Source += " · used : compte"
+				q.Source += " · used: account"
 			}
 			if d.Credits != nil && d.Usage != nil {
 				balance := *d.Credits - *d.Usage
@@ -234,12 +234,12 @@ func readProviderBalance(ctx context.Context, p CloudProvider, key string, clien
 		}
 		// Never sum different currencies or silently choose one account balance.
 		if len(data.Infos) != 1 {
-			q.Error = "solde unique indisponible : aucune devise ou plusieurs devises communiquées"
+			q.Error = "single balance unavailable: no currency or multiple currencies reported"
 			break
 		}
 		d := data.Infos[0]
 		if d.Currency != "USD" && d.Currency != "CNY" {
-			q.Error = "devise du solde non reconnue"
+			q.Error = "unrecognized balance currency"
 			break
 		}
 		q.Currency, q.Balance, q.Granted = &d.Currency, d.Total.value, d.Granted.value
@@ -259,7 +259,7 @@ func readProviderBalance(ctx context.Context, p CloudProvider, key string, clien
 			break
 		}
 		if data.Data == nil || data.Code == nil || *data.Code != 0 || (data.Status != nil && !*data.Status) {
-			q.Error = "solde refusé ou format non reconnu"
+			q.Error = "balance rejected or unrecognized format"
 			break
 		}
 		q.Balance, q.Granted = data.Data.Available, data.Data.Voucher
@@ -278,14 +278,14 @@ func readProviderBalance(ctx context.Context, p CloudProvider, key string, clien
 			break
 		}
 		if data.Data == nil || data.Code == nil || *data.Code != 20000 || (data.Status != nil && !*data.Status) {
-			q.Error = "solde refusé ou format non reconnu"
+			q.Error = "balance rejected or unrecognized format"
 			break
 		}
 		// The documented schema gives no currency or meaning for promotional credit.
 		q.Balance = data.Data.Total.value
 	}
 	if ctx.Err() != nil {
-		q.Error = "lecture interrompue (limite de 10 secondes)"
+		q.Error = "reading interrupted (10-second limit)"
 	}
 	q.FetchedAt = time.Now().Unix()
 	return q
@@ -302,11 +302,11 @@ func (n *balanceNumber) UnmarshalJSON(b []byte) error {
 	}
 	var s string
 	if json.Unmarshal(b, &s) != nil {
-		return errors.New("montant non reconnu")
+		return errors.New("unrecognized amount")
 	}
 	v, err := strconv.ParseFloat(s, 64)
 	if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
-		return errors.New("montant non reconnu")
+		return errors.New("unrecognized amount")
 	}
 	n.value = &v
 	return nil
@@ -317,24 +317,24 @@ func (n *balanceNumber) UnmarshalJSON(b []byte) error {
 func providerBalanceJSON(ctx context.Context, client *http.Client, endpoint, key string, dst any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return errors.New("destination de solde invalide")
+		return errors.New("invalid balance destination")
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return errors.New("API de solde injoignable ou délai dépassé")
+		return errors.New("balance API unreachable or timed out")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("solde refusé (HTTP %d)", resp.StatusCode)
+		return fmt.Errorf("balance rejected (HTTP %d)", resp.StatusCode)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, providerBalanceMaxBody+1))
 	if err != nil || len(b) > providerBalanceMaxBody {
-		return errors.New("réponse de solde trop volumineuse ou interrompue")
+		return errors.New("balance response too large or interrupted")
 	}
 	if json.Unmarshal(b, dst) != nil {
-		return errors.New("format de solde non reconnu")
+		return errors.New("unrecognized balance format")
 	}
 	return nil
 }
@@ -390,7 +390,7 @@ func handleProviderBalanceRefresh(w http.ResponseWriter, r *http.Request) {
 		}
 		key := workspaceSessions.providerBalanceKey(p.ID)
 		if key == "" {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "reconnectez ce provider : clé API de session indisponible"})
+			sendJSON(w, 409, map[string]any{"ok": false, "error": "reconnect this provider: session API key unavailable"})
 			return
 		}
 		q := workspaceSessions.balances.read(r.Context(), p, key, true)
@@ -400,5 +400,5 @@ func handleProviderBalanceRefresh(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, map[string]any{"ok": true, "provider": q})
 		return
 	}
-	sendJSON(w, 404, map[string]any{"ok": false, "error": "provider introuvable"})
+	sendJSON(w, 404, map[string]any{"ok": false, "error": "provider not found"})
 }

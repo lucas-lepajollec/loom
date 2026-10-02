@@ -78,7 +78,7 @@ func TestSupervisorUnexpectedExit(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("exit cleanup missing")
 	}
-	if s.Running() || !strings.Contains(s.LastError(), "mémoire VRAM") {
+	if s.Running() || !strings.Contains(s.LastError(), "insufficient VRAM") {
 		t.Fatalf("unexpected exit: %q", s.LastError())
 	}
 	if err := s.WaitRouterUp(time.Second, func() bool { return false }); err == nil || !strings.Contains(err.Error(), s.LastError()) {

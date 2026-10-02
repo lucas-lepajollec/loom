@@ -78,7 +78,7 @@ func TestFluxCoupeRemonteUneErreur(t *testing.T) {
 	if gotErr == nil {
 		t.Fatal("flux coupé : aucune erreur poussée vers l'interface")
 	}
-	if !strings.Contains(err.Error(), "coupé") {
+	if !strings.Contains(err.Error(), "interrupted") {
 		t.Errorf("message peu clair pour l'utilisateur : %v", err)
 	}
 	// Le texte déjà reçu n'est pas jeté : on a bien affiché ce qui était arrivé.
@@ -133,7 +133,7 @@ func TestFluxAnnuleResteSilencieux(t *testing.T) {
 		}
 		return true
 	})
-	if gotErr != nil && strings.Contains(gotErr.Error(), "coupé") {
+	if gotErr != nil && strings.Contains(gotErr.Error(), "interrupted") {
 		t.Fatalf("un stop volontaire a été présenté comme une panne : %v", gotErr)
 	}
 }

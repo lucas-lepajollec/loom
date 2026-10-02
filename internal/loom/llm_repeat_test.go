@@ -25,7 +25,7 @@ func TestRepeatedCallResultEscalates(t *testing.T) {
 	page := strings.Repeat("contenu de la page ", 300)
 
 	first := repeatedCallResult(page, 1)
-	if !strings.HasPrefix(first, "[déjà fait]") {
+	if !strings.HasPrefix(first, "[already done]") {
 		t.Fatalf("1re redemande : l'avertissement doit ouvrir le résultat, obtenu %.40q", first)
 	}
 	if !strings.Contains(first, page) {
@@ -37,7 +37,7 @@ func TestRepeatedCallResultEscalates(t *testing.T) {
 		if strings.Contains(again, page) {
 			t.Fatalf("redemande n°%d : le contenu ne doit plus être renvoyé", n)
 		}
-		if !strings.HasPrefix(again, "[déjà fait]") {
+		if !strings.HasPrefix(again, "[already done]") {
 			t.Fatalf("redemande n°%d : avertissement manquant", n)
 		}
 	}

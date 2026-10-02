@@ -106,7 +106,7 @@ func TestExportOptionsTaillentLeMarkdown(t *testing.T) {
 	if strings.Contains(md, "addition simple") {
 		t.Error("raisonnement présent malgré --no-reasoning")
 	}
-	if !strings.Contains(md, "Export partiel") || !strings.Contains(md, "raisonnements retirés") {
+	if !strings.Contains(md, "Partial export") || !strings.Contains(md, "reasoning removed") {
 		t.Errorf("export allégé non signalé :\n%s", md)
 	}
 	if !strings.Contains(md, "echo 4") {
@@ -165,7 +165,7 @@ func TestExportDerniersEchanges(t *testing.T) {
 	if strings.Contains(md, "2+2") {
 		t.Errorf("le premier échange est encore là avec turns=1 :\n%s", md)
 	}
-	if !strings.Contains(md, "3+3") || !strings.Contains(md, "1 derniers échanges") {
+	if !strings.Contains(md, "3+3") || !strings.Contains(md, "only the last 1 exchanges") {
 		t.Errorf("dernier échange absent ou non signalé :\n%s", md)
 	}
 	// Demander plus d'échanges qu'il n'en existe rend tout le fil, sans erreur.
@@ -286,7 +286,7 @@ func TestExportJSONElideImages(t *testing.T) {
 	if len(b) > 10000 {
 		t.Errorf("JSON toujours énorme malgré l'élision : %d octets", len(b))
 	}
-	if !strings.Contains(string(b), "élidé") {
+	if !strings.Contains(string(b), "omitted") {
 		t.Error("marqueur d'élision absent du JSON")
 	}
 }

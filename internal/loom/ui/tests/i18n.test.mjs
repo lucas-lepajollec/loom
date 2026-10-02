@@ -107,9 +107,14 @@ test('language defaults, storage fallback, interpolation, plurals and document l
   assert.equal(r.t('n_models'), '{n} models');
   assert.equal(r.t('missing.key'), 'missing.key');
   assert.equal(r.t('runtime.copy.acp_custom', { command: '<ssh>' }), 'Custom ACP harness launched by <ssh>.');
-  assert.equal(r.tSource('Harness ACP personnalisé, lancé par ssh.'), 'Custom ACP harness launched by ssh.');
+  assert.equal(r.tSource('Custom ACP harness launched by ssh.'), 'Custom ACP harness launched by ssh.');
   assert.equal(r.tSource('An unknown native description'), 'An unknown native description');
-  assert.equal(r.tSource(fr['inspector.catalog.gpu-layers.tip']), en['inspector.catalog.gpu-layers.tip']);
+  assert.equal(r.tSource(en['inspector.catalog.gpu-layers.tip']), en['inspector.catalog.gpu-layers.tip']);
+  await r.setLang('fr');
+  assert.equal(r.tSource('Custom ACP harness launched by ssh.'), 'Harness ACP personnalisé, lancé par ssh.');
+  assert.equal(r.tSource('building (backend=CUDA)…'), 'compilation (backend=CUDA)…');
+  assert.equal(r.tSource(en['inspector.catalog.gpu-layers.tip']), fr['inspector.catalog.gpu-layers.tip']);
+  assert.equal(r.tSource('An unknown native description'), 'An unknown native description');
 });
 
 test('language changes immediately, saves only lang, notifies subscribers and serializes rapid changes', async () => {
@@ -140,13 +145,20 @@ test('saved server language wins on startup; a late read cannot overwrite an exp
   assert.equal(await failed.setLang('fr'), false); assert.equal(failed.getLang(), 'fr');
 });
 
-test('the curated parameter catalog is translated without changing native IDs or choices', () => {
+test('the English parameter catalog is translated into French without changing native IDs or choice values', async () => {
   const catalog = JSON.parse(fs.readFileSync(new URL('../../engine/llamacpp/params/llamacpp.json', import.meta.url), 'utf8'));
   const r = runtime();
   for (const param of catalog.params) {
-    assert.equal(r.tSource(param.label), en['inspector.catalog.' + param.id + '.label'], param.id);
-    assert.equal(r.tSource(param.tip), en['inspector.catalog.' + param.id + '.tip'], param.id);
+    assert.equal(param.label, en['inspector.catalog.' + param.id + '.label'], param.id);
+    assert.equal(param.tip, en['inspector.catalog.' + param.id + '.tip'], param.id);
   }
+  await r.setLang('fr');
+  for (const param of catalog.params) {
+    assert.equal(r.tSource(param.label), fr['inspector.catalog.' + param.id + '.label'], param.id);
+    assert.equal(r.tSource(param.tip), fr['inspector.catalog.' + param.id + '.tip'], param.id);
+    if (param.placeholder) assert.equal(r.tSource(param.placeholder), fr['inspector.catalog.' + param.id + '.placeholder'] ?? param.placeholder, param.id);
+  }
+  assert.equal(r.tSource('Draft model'), fr['inspector.catalog.spec-type.draft']);
   assert.equal(r.tSource('q8_0'), 'q8_0');
   assert.equal(r.tSource('--ctx-size'), '--ctx-size');
 });
@@ -186,4 +198,23 @@ test('language-aware component wrappers retain identity and subscribe to live ch
   assert.equal(after.type(after.props), 'Apparence');
   assert.equal(env.make('input', {}).type, 'input');
   await pending;
+});
+
+
+test('usage classifies English absence messages and Brain detects server consent requests', () => {
+  const usage = fs.readFileSync(new URL('../next/js/features/usage/page.js', import.meta.url), 'utf8');
+  const declaration = usage.match(/^const quiet = .*;$/m)[0];
+  const quiet = vm.runInNewContext(declaration + '\nquiet');
+  assert.equal(quiet('not installed on this machine'), true);
+  assert.equal(quiet('quota reading unavailable for this harness'), true);
+  assert.equal(quiet('native reading unavailable'), true);
+  assert.equal(quiet('reading interrupted'), false);
+  assert.equal(quiet('unrecognized Codex quota format'), false);
+  assert.equal(quiet(''), false);
+  const brain = fs.readFileSync(new URL('../next/js/features/resources/brain.js', import.meta.url), 'utf8');
+  const consent = vm.runInNewContext(brain.match(/(\/[^\n]+\/i)\.test\(r\.error\)/)[1]);
+  const server = fs.readFileSync(new URL('../../brain_distill.go', import.meta.url), 'utf8');
+  const error = server.match(/errors.New\("(consent required[^"\n]+)"\)/)[1];
+  assert.equal(consent.test(error), true);
+  assert.equal(consent.test('invalid discussion_id'), false);
 });

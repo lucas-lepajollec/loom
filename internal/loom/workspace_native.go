@@ -143,14 +143,14 @@ func (m *runtimeSessions) activateLocal(id string, c *Conversation) (RuntimeSess
 	generating := c.Generating
 	c.mu.Unlock()
 	if generating {
-		return RuntimeSession{}, errors.New("arrêtez la réponse locale avant de changer de discussion")
+		return RuntimeSession{}, errors.New("stop the local response before changing discussions")
 	}
 	c.upsertSession()
 	m.mu.Lock()
 	s, ok := m.getLocked(id)
 	if !ok || s.RuntimeID != "llama.cpp" || m.runs[id] != nil {
 		m.mu.Unlock()
-		return s, errors.New("discussion locale indisponible ou occupée")
+		return s, errors.New("local discussion unavailable or busy")
 	}
 	var a *convArchive
 	if s.NativeArchive != "" {
@@ -191,7 +191,7 @@ func (m *runtimeSessions) activateLocal(id string, c *Conversation) (RuntimeSess
 	c.mu.Lock()
 	if c.Generating {
 		c.mu.Unlock()
-		return s, errors.New("une réponse locale vient de démarrer ; réessayez après son arrêt")
+		return s, errors.New("a local response just started; try again after it stops")
 	}
 	c.ID, c.ActiveTitle, c.ActiveProject, c.ActiveFav = a.ID, a.Title, a.ProjectID, a.Fav
 	c.Messages, c.Log = append([]Message(nil), a.Messages...), append([]LogEvent(nil), a.Log...)

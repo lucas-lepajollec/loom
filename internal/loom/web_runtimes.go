@@ -19,7 +19,7 @@ func handleRuntimeConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	connector, ok := adapter.(Connectable)
 	if !ok || !hasRuntimeCapability(adapter.Descriptor(), "connect") {
-		sendJSON(w, http.StatusNotImplemented, map[string]any{"ok": false, "error": "connexion non disponible pour ce runtime"})
+		sendJSON(w, http.StatusNotImplemented, map[string]any{"ok": false, "error": "connection unavailable for this runtime"})
 		return
 	}
 	var req struct {
@@ -30,7 +30,7 @@ func handleRuntimeConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	// Refuse before invoking any adapter, even if it forgets its own check.
 	if !req.Consent {
-		sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "confirmez la lecture du catalogue natif"})
+		sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "confirm reading the native catalog"})
 		return
 	}
 	models, err := connector.Connect(r.Context(), req.Consent)
@@ -62,7 +62,7 @@ func handleRuntimeQuota(w http.ResponseWriter, r *http.Request) {
 func runtimeForAction(w http.ResponseWriter, id string) (RuntimeAdapter, bool) {
 	adapter, ok := registeredRuntimes.lookup(id)
 	if !ok {
-		sendJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "runtime introuvable"})
+		sendJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "runtime not found"})
 	}
 	return adapter, ok
 }
@@ -73,13 +73,13 @@ func refreshRuntimeQuota(w http.ResponseWriter, ctx context.Context, adapter Run
 	reader, ok := adapter.(QuotaReader)
 	d := adapter.Descriptor()
 	if !ok || !hasRuntimeCapability(d, "quota") {
-		sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "lecture des quotas non disponible pour ce harness"})
+		sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "quota reading unavailable for this harness"})
 		return
 	}
 	quotaCache.Lock()
 	defer quotaCache.Unlock()
 	if time.Since(quotaCache.attempts[d.ID]) < 30*time.Second {
-		sendJSON(w, http.StatusTooManyRequests, map[string]any{"ok": false, "error": "attendez 30 secondes entre deux lectures"})
+		sendJSON(w, http.StatusTooManyRequests, map[string]any{"ok": false, "error": "wait 30 seconds between reads"})
 		return
 	}
 	quotaCache.attempts[d.ID] = time.Now()
@@ -120,7 +120,7 @@ func sendRuntimeActionError(w http.ResponseWriter, err error) {
 
 func runtimeVaultError() error {
 	if memEncActive() && !memUnlocked() {
-		return runtimeActionError{status: http.StatusLocked, message: "déverrouillez le coffre Loom pour consulter les comptes"}
+		return runtimeActionError{status: http.StatusLocked, message: "unlock the Loom vault to view accounts"}
 	}
 	return nil
 }

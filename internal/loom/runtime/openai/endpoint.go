@@ -10,13 +10,13 @@ import (
 func ValidateEndpoint(raw string) (string, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" {
-		return "", errors.New("URL de base HTTPS requise, sans identifiants, paramètres ni fragment")
+		return "", errors.New("HTTPS base URL required, without credentials, query parameters or fragment")
 	}
 	if u.Scheme != "https" && !(u.Scheme == "http" && LocalNetworkHost(u.Hostname())) {
-		return "", errors.New("HTTPS requis (HTTP autorisé seulement sur cette machine ou le réseau local)")
+		return "", errors.New("HTTPS required (HTTP allowed only on this machine or the local network)")
 	}
 	if len(raw) > 2048 {
-		return "", errors.New("URL trop longue")
+		return "", errors.New("URL too long")
 	}
 	return strings.TrimRight(u.String(), "/"), nil
 }

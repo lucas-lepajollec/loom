@@ -105,7 +105,7 @@ func capLines(d []DiffLine) []DiffLine {
 	}
 	cut := len(d) - diffMaxShown
 	out := append([]DiffLine{}, d[:diffMaxShown]...)
-	return append(out, DiffLine{Op: " ", Text: "…(" + itoa(cut) + " lignes de plus)"})
+	return append(out, DiffLine{Op: " ", Text: "…(" + itoa(cut) + " more lines)"})
 }
 
 func itoa(n int) string {

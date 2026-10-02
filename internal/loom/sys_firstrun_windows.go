@@ -117,14 +117,14 @@ func appFirstRun() bool {
 		// Échec le plus courant : pas les droits sur %ProgramData%. Loom reste
 		// parfaitement utilisable depuis son emplacement actuel, le dossier de
 		// données étant ailleurs — on démarre donc au lieu d'abandonner.
-		messageBox("Installation impossible :\n\n"+err.Error()+"\n\nLoom va démarrer depuis l'emplacement actuel.", "Loom", mbIconInfo)
+		messageBox("Installation failed:\n\n"+err.Error()+"\n\nLoom will start from its current location.", "Loom", mbIconInfo)
 		return false
 	}
 	_, _ = addToUserPath(filepath.Dir(target))
 	shortcuts := ensureShortcuts(target)
 
-	messageBox("Loom est installé.\n\n"+target+"\n\n"+shortcuts+
-		"\n\nL'application va démarrer. Vous pouvez supprimer le fichier téléchargé.",
+	messageBox("Loom is installed.\n\n"+target+"\n\n"+shortcuts+
+		"\n\nThe application will start. You can delete the downloaded file.",
 		"Loom", mbIconInfo)
 
 	return launch(target)
@@ -224,12 +224,12 @@ func runAsInstaller(target string) bool {
 		// serait une régression silencieuse, et démarrer sans rien dire laisserait
 		// croire qu'on utilise la version qu'on vient de télécharger.
 		if messageBox(
-			"Une version plus récente d'Loom est déjà installée sur cet ordinateur.\n\n"+
-				"    installée : "+installed+"\n"+
-				"    ce fichier : "+Version+"\n\n"+
-				"Rien ne sera remplacé.\n\n"+
-				"Voulez-vous démarrer Loom (version "+installed+") ?\n"+
-				"Répondre Non ferme simplement cette fenêtre.",
+			"A newer version of Loom is already installed on this computer.\n\n"+
+				"    installed: "+installed+"\n"+
+				"    this file: "+Version+"\n\n"+
+				"Nothing will be replaced.\n\n"+
+				"Do you want to start Loom (version "+installed+") ?\n"+
+				"Choosing No simply closes this window.",
 			"Loom", mbYesNo|mbIconQuestion) != idYes {
 			return true // rien à faire, on quitte sans démarrer
 		}
@@ -242,18 +242,18 @@ func runAsInstaller(target string) bool {
 		// yeux : l'onglet qui s'ouvrirait serait servi par l'ancienne version. On
 		// pose donc la seule question qui compte.
 		if messageBox(
-			"Loom est déjà en cours d'exécution.\n\n"+
-				"    version en cours : "+verLabel(installed)+"\n"+
-				"    ce fichier : "+Version+" (plus récente)\n\n"+
-				"Fermer Loom et le redémarrer pour appliquer la mise à jour ?\n\n"+
-				"Répondre Non ouvre Loom dans sa version actuelle, sans rien mettre à jour.",
-			"Mise à jour d'Loom", mbYesNo|mbIconQuestion) != idYes {
+			"Loom is already running.\n\n"+
+				"    running version: "+verLabel(installed)+"\n"+
+				"    this file: "+Version+" (newer)\n\n"+
+				"Quit Loom and restart it to apply the update?\n\n"+
+				"Choosing No opens the current version of Loom without updating anything.",
+			"Loom update", mbYesNo|mbIconQuestion) != idYes {
 			ensureShortcuts(target)
 			return launch(target) // l'instance en cours reprend la main (port occupé)
 		}
 		stopProcesses(running)
 		if err := replaceInstalled(target); err != nil {
-			messageBox("La mise à jour a échoué :\n\n"+err.Error()+"\n\nLoom va redémarrer dans sa version actuelle.",
+			messageBox("Update failed:\n\n"+err.Error()+"\n\nLoom will restart with its current version.",
 				"Loom", mbIconInfo)
 		}
 		ensureShortcuts(target)
@@ -275,7 +275,7 @@ func runAsInstaller(target string) bool {
 // verLabel évite d'afficher un numéro de version vide dans une boîte de dialogue.
 func verLabel(v string) string {
 	if v == "" {
-		return "inconnue"
+		return "unknown"
 	}
 	return v
 }
@@ -476,7 +476,7 @@ foreach ($d in @($progs, [Environment]::GetFolderPath('Desktop'))) {
     $s=$w.CreateShortcut($lnk)
     $s.TargetPath=$t
     $s.WorkingDirectory=(Split-Path $t)
-    $s.Description='Loom, votre IA locale'
+    $s.Description='Loom, your local AI'
     # Minimisé (7) : le binaire étant en sous-système console, Windows lui alloue
     # une console au lancement. Loom la referme aussitôt, mais demander un
     # démarrage minimisé garantit qu'elle n'est jamais peinte à l'écran.
@@ -490,9 +490,9 @@ Write-Output ($done -join ';')`, psQuote(target))
 	cmd := hideCmd(exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps))
 	out, err := cmd.CombinedOutput()
 	if err != nil || strings.TrimSpace(string(out)) == "" {
-		return "(raccourcis non créés — lancez Loom depuis " + target + ")"
+		return "(shortcuts not created — launch Loom from " + target + ")"
 	}
-	return "Raccourci « Loom » ajouté au menu Démarrer et au Bureau."
+	return "“Loom” shortcut added to the Start menu and Desktop."
 }
 
 // removeShortcuts efface les raccourcis posés par ensureShortcuts. Renvoie true

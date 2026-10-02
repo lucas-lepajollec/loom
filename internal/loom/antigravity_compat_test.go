@@ -65,7 +65,7 @@ func TestAntigravityPersistedConnectionAndQuotaJSON(t *testing.T) {
 		want  string
 	}{
 		{antigravityConnection{Models: []string{"native"}}, `{"models":["native"]}`},
-		{QuotaSnapshot{RuntimeID: "antigravity", Name: "Antigravity", Source: "agy /usage · compte natif", Windows: []QuotaWindow{}}, `{"runtime_id":"antigravity","name":"Antigravity","source":"agy /usage · compte natif","fetched_at":0,"windows":[],"reset_credits":null,"credits":null}`},
+		{QuotaSnapshot{RuntimeID: "antigravity", Name: "Antigravity", Source: "agy /usage · native account", Windows: []QuotaWindow{}}, `{"runtime_id":"antigravity","name":"Antigravity","source":"agy /usage · native account","fetched_at":0,"windows":[],"reset_credits":null,"credits":null}`},
 	} {
 		got, err := json.Marshal(tc.value)
 		if err != nil || string(got) != tc.want {

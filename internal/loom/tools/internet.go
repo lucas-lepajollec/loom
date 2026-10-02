@@ -127,7 +127,7 @@ func ExtractOutline(lines []string) string {
 		}
 	}
 	if len(out) == 0 {
-		return "(aucun titre markdown trouvé)"
+		return "(no Markdown headings found)"
 	}
 	return strings.Join(out, "\n")
 }
@@ -245,7 +245,7 @@ func crawlAuth(source CrawlSource, req *http.Request) {
 func RunCrwl(source CrawlSource, client HTTPDoer, target string, opts CrawlOptions) (string, error) {
 	base := source.CrawlURL()
 	if base == "" {
-		return "", fmt.Errorf("aucun serveur Crawl4AI configuré (CRAWL4AI_URL)")
+		return "", fmt.Errorf("no Crawl4AI server configured (CRAWL4AI_URL)")
 	}
 	params := map[string]any{}
 	if len(opts.JSCode) > 0 {
@@ -301,13 +301,13 @@ func RunCrwl(source CrawlSource, client HTTPDoer, target string, opts CrawlOptio
 		}
 	}
 	if len(data.Results) == 0 {
-		return "", fmt.Errorf("Crawl4AI : réponse vide")
+		return "", fmt.Errorf("Crawl4AI: empty response")
 	}
 	r := data.Results[0]
 	if !r.Success {
 		msg := r.ErrorMessage
 		if msg == "" {
-			msg = "échec du crawl"
+			msg = "crawl failed"
 		}
 		return "", fmt.Errorf("Crawl4AI : %s", TailRunes(msg, 300))
 	}
@@ -326,7 +326,7 @@ func DuckduckgoSearch(source SearchSource, query string, limit int) ([]SearchRes
 		return nil, err
 	}
 	if strings.Contains(md, "anomaly-modal") || strings.Contains(md, "anomaly.js") {
-		return nil, fmt.Errorf("DuckDuckGo a renvoyé un défi anti-bot")
+		return nil, fmt.Errorf("DuckDuckGo returned an anti-bot challenge")
 	}
 	var results []SearchResult
 	lines := strings.Split(md, "\n")

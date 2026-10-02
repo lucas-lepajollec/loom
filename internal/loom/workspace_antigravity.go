@@ -18,7 +18,7 @@ func agyConnection() (antigravityConnection, bool) {
 
 func (antigravityAdapter) Connect(ctx context.Context, consent bool) (any, error) {
 	if !consent {
-		return nil, errors.New("confirmez l’utilisation du compte et des permissions natifs Antigravity")
+		return nil, errors.New("confirm use of the native Antigravity account and permissions")
 	}
 	models, err := discoverAgyModels(ctx)
 	if err != nil {
@@ -28,7 +28,7 @@ func (antigravityAdapter) Connect(ctx context.Context, consent bool) (any, error
 		return nil, err
 	}
 	if putStoreJSON(bkHarnessConnections, "antigravity", antigravityConnection{Models: models}) != nil {
-		return nil, runtimeActionError{status: 500, message: "enregistrement impossible"}
+		return nil, runtimeActionError{status: 500, message: "could not save"}
 	}
 	return models, nil
 }

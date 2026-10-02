@@ -120,7 +120,7 @@ func ExecServer(bin string, args []string) error {
 // fails; the caller re-checks availability afterwards.
 func AutoInstallTool(name string) error {
 	if _, err := exec.LookPath("winget"); err != nil {
-		return fmt.Errorf("winget introuvable — installe %s manuellement", name)
+		return fmt.Errorf("winget not found — install %s manually", name)
 	}
 	id, ok := wingetIDs[name]
 	if !ok {

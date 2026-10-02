@@ -84,7 +84,7 @@ func handleSkillSinks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !found {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "cible inconnue"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "unknown target"})
 		return
 	}
 	skillSinkMu.Lock()

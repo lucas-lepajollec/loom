@@ -113,7 +113,7 @@ func deleteArchive(id string) error {
 func renameArchive(id, title string) error {
 	a, ok := loadArchive(id)
 	if !ok {
-		return fmt.Errorf("conversation introuvable")
+		return fmt.Errorf("conversation not found")
 	}
 	custom := strings.TrimSpace(title)
 	if len([]rune(custom)) > 120 {
@@ -146,7 +146,7 @@ func deleteNonFavArchives(activeID string) int {
 func setArchiveFav(id string, fav bool) error {
 	a, ok := loadArchive(id)
 	if !ok {
-		return fmt.Errorf("conversation introuvable")
+		return fmt.Errorf("conversation not found")
 	}
 	a.Fav = fav
 	return saveArchive(a)
@@ -245,7 +245,7 @@ func (c *Conversation) NewSession() string {
 func (c *Conversation) OpenSession(id string) error {
 	a, ok := loadArchive(id)
 	if !ok {
-		return fmt.Errorf("session introuvable")
+		return fmt.Errorf("session not found")
 	}
 	// 1. Sauver la conversation en cours dans sa session (rien ne se perd).
 	c.upsertSession()

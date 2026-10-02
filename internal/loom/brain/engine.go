@@ -116,7 +116,7 @@ func validateSource(s Source) error {
 		return errors.New("source path must be absolute")
 	}
 	if len(s.Include) > 64 {
-		return errors.New("64 include globs maximum")
+		return errors.New("maximum 64 include globs")
 	}
 	for _, g := range s.Include {
 		if len(g) > 256 {
@@ -190,7 +190,7 @@ func (e *Engine) Update(s Source) error {
 			}
 		}
 		if count >= MaxSources {
-			return errors.New("100 sources maximum")
+			return errors.New("maximum 100 sources")
 		}
 		next = append(next, s)
 	}

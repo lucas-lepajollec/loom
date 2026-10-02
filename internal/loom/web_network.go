@@ -47,10 +47,10 @@ func webListenCheck(host string) error {
 	}
 	hash, err := webKeyHashErr()
 	if err != nil {
-		return errors.New("clé de pilotage illisible : Loom reste fermé au réseau")
+		return errors.New("control key unreadable: Loom remains closed to the network")
 	}
 	if hash == "" {
-		return fmt.Errorf("l’interface ne s’ouvre pas au réseau (%s) sans clé de pilotage : crée-en une avec `loom set-web-key`", host)
+		return fmt.Errorf("the interface cannot open to the network (%s) without a control key: create one with `loom set-web-key`", host)
 	}
 	return nil
 }
@@ -129,13 +129,13 @@ func handleWebNetwork(w http.ResponseWriter, r *http.Request) {
 	if req.Restart {
 		ok, msg := restartAfterUpdate()
 		if !ok {
-			msg = "Redémarre Loom pour appliquer (service ou commande `loom web`)."
+			msg = "Restart Loom to apply (service or `loom web` command)."
 		}
 		sendJSON(w, 200, map[string]any{"ok": true, "restarting": ok, "message": msg})
 		return
 	}
 	if req.Exposed == nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "exposed requis"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "exposed required"})
 		return
 	}
 	st, key, err := setWebExposure(*req.Exposed)

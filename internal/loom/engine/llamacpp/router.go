@@ -190,7 +190,7 @@ func (r *Router) ModelsWithTimeout(reload bool, timeout time.Duration) ([]Router
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("router /models illisible : %w", err)
+		return nil, fmt.Errorf("router /models unreadable: %w", err)
 	}
 	out := make([]RouterModel, 0, len(payload.Data))
 	for _, d := range payload.Data {
@@ -239,12 +239,12 @@ func (r *Router) EnsureLoaded(e RouterEntry) error {
 			if _, code, err := r.Do(http.MethodPost, "/models/load", map[string]string{"model": e.Name}, 30*time.Second); err != nil {
 				return err
 			} else if code != http.StatusOK {
-				return fmt.Errorf("le router refuse de charger %s (HTTP %d)", e.Label, code)
+				return fmt.Errorf("the router refused to load %s (HTTP %d)", e.Label, code)
 			}
 		}
 	}
 	if !found {
-		return fmt.Errorf("le router ne voit pas la configuration %s — preset invalide pour ce moteur ?", e.Name)
+		return fmt.Errorf("the router cannot see configuration %s — invalid preset for this engine?", e.Name)
 	}
 	deadline := time.Now().Add(RouterLoadBudget)
 	for time.Now().Before(deadline) {
@@ -254,13 +254,13 @@ func (r *Router) EnsureLoaded(e RouterEntry) error {
 			r.SetLastError("")
 			return nil
 		case ok && m.Failed:
-			msg := fmt.Sprintf("Le modèle n'a pas pu se charger (code %d) — mémoire VRAM insuffisante ou modèle incompatible avec ce moteur", m.ExitCode)
+			msg := fmt.Sprintf("The model could not load (code %d) — insufficient VRAM or model incompatible with this engine", m.ExitCode)
 			r.SetLastError(msg)
 			return fmt.Errorf("%s", msg)
 		}
 		time.Sleep(400 * time.Millisecond)
 	}
-	return fmt.Errorf("le chargement de %s dépasse %s", e.Label, RouterLoadBudget)
+	return fmt.Errorf("loading %s exceeds %s", e.Label, RouterLoadBudget)
 }
 
 func (r *Router) unloadLocked() error {

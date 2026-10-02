@@ -179,7 +179,7 @@ func uniquePresetID(name string) (string, error) {
 		}
 		cand = fmt.Sprintf("%s (%d)", base, n)
 	}
-	return "", fmt.Errorf("impossible de générer un nom de fichier unique")
+	return "", fmt.Errorf("could not generate a unique file name")
 }
 
 // validPresetName accepts any name (spaces, accents, parentheses…) as long as it
@@ -187,17 +187,17 @@ func uniquePresetID(name string) (string, error) {
 // reserved directory entry. Path containment is double-checked in safePresetPath.
 func validPresetName(name string) error {
 	if name == "" {
-		return fmt.Errorf("nom vide")
+		return fmt.Errorf("empty name")
 	}
 	if name == "." || name == ".." {
-		return fmt.Errorf("nom réservé")
+		return fmt.Errorf("reserved name")
 	}
 	if strings.ContainsAny(name, `/\`+"\x00") {
-		return fmt.Errorf(`le nom ne peut pas contenir / ni \`)
+		return fmt.Errorf(`the name cannot contain / or \`)
 	}
 	for _, r := range name {
 		if r < 0x20 {
-			return fmt.Errorf("le nom contient un caractère de contrôle invalide")
+			return fmt.Errorf("the name contains an invalid control character")
 		}
 	}
 	return nil
@@ -219,7 +219,7 @@ func safePresetPath(name string) (string, error) {
 		return "", err
 	}
 	if !strings.HasPrefix(abs, root+string(filepath.Separator)) {
-		return "", fmt.Errorf("path invalide")
+		return "", fmt.Errorf("invalid path")
 	}
 	return abs, nil
 }
@@ -317,7 +317,7 @@ func applyPresetFile(target string) error {
 func loadNakedModel(model string) error {
 	model = strings.TrimSpace(model)
 	if model == "" {
-		return fmt.Errorf("modèle requis")
+		return fmt.Errorf("model required")
 	}
 	return applyLiveConfig(formatEnv(nakedLoadEnv(model)), "")
 }
@@ -414,7 +414,7 @@ func rememberedNaked(model string) map[string]string {
 func rememberNakedFromContent(model, content string) error {
 	model = strings.TrimSpace(model)
 	if model == "" {
-		return fmt.Errorf("aucun modèle chargé")
+		return fmt.Errorf("no model loaded")
 	}
 	kv := map[string]string{}
 	for k, v := range parseEnv(content) {
@@ -475,7 +475,7 @@ func SwitchToPreset(target string) error {
 		return err
 	}
 	fmt.Printf("%s configuration <- %s\n", green("[ok]"), filepath.Base(target))
-	fmt.Println(dim("[info] application de la configuration..."))
+	fmt.Println(dim("[info] applying configuration..."))
 	if routerReachable() {
 		return routerActivate()
 	}
@@ -488,13 +488,13 @@ func cmdSwitch(args []string) error {
 		return err
 	}
 	if len(list) == 0 {
-		return fmt.Errorf("aucun preset dans %s", presetsDir())
+		return fmt.Errorf("no presets in %s", presetsDir())
 	}
-	fmt.Printf("\n  %s  (%s)\n\n", cyan("Presets disponibles"), presetsDir())
+	fmt.Printf("\n  %s  (%s)\n\n", cyan("Available presets"), presetsDir())
 	for i, p := range list {
 		mark := " "
 		if p.Active {
-			mark = green("●") + " actif"
+			mark = green("●") + " active"
 		}
 		fmt.Printf("  %2d) %-30s %s\n", i+1, p.Name, mark)
 	}
@@ -503,19 +503,19 @@ func cmdSwitch(args []string) error {
 	if len(args) > 0 {
 		choice = args[0]
 	} else {
-		fmt.Print("Numéro à activer (vide = annuler) : ")
+		fmt.Print("Number to activate (empty = cancel): ")
 		sc := bufio.NewScanner(os.Stdin)
 		if sc.Scan() {
 			choice = strings.TrimSpace(sc.Text())
 		}
 	}
 	if choice == "" {
-		fmt.Println(dim("[info] annulé"))
+		fmt.Println(dim("[info] cancelled"))
 		return nil
 	}
 	n, err := strconv.Atoi(choice)
 	if err != nil || n < 1 || n > len(list) {
-		return fmt.Errorf("choix invalide")
+		return fmt.Errorf("invalid choice")
 	}
 	return SwitchToPreset(list[n-1].Path)
 }
@@ -552,7 +552,7 @@ func newPresetSeed() map[string]string {
 func SavePreset(id, name, content string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", fmt.Errorf("nom requis")
+		return "", fmt.Errorf("name required")
 	}
 	content = withDisplayName(content, name)
 	if id == "" {
@@ -598,10 +598,10 @@ func DeletePreset(id string) error {
 	}
 	target, err := os.ReadFile(p)
 	if err != nil {
-		return fmt.Errorf("introuvable")
+		return fmt.Errorf("not found")
 	}
 	if presetFingerprint(target) == configFingerprint(ReadConfig()) {
-		return fmt.Errorf("preset actif, switche d'abord")
+		return fmt.Errorf("active preset, switch first")
 	}
 	return os.Remove(p)
 }

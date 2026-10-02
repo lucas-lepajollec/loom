@@ -263,7 +263,7 @@ func vllmQuantFamily(m vllmHFModel) string {
 
 func searchVLLMHub(ctx context.Context, query, quant string, gpus []map[string]any) ([]map[string]any, error) {
 	if quant != "" && quant != "awq" && quant != "gptq" && quant != "fp8" {
-		return nil, errors.New("filtre de quantification invalide")
+		return nil, errors.New("invalid quantization filter")
 	}
 	u, err := url.Parse(hubAPIBase)
 	if err != nil {
@@ -369,17 +369,17 @@ func vllmSafeFile(name string) bool {
 
 func deleteVLLMCache(model string) error {
 	if !validVLLMModel(model) {
-		return errors.New("modèle invalide")
+		return errors.New("invalid model")
 	}
 	vllm.mu.Lock()
 	defer vllm.mu.Unlock()
 	if (vllm.cmd != nil || vllm.job == "start") && vllm.model == model || vllm.job == "start" && vllm.pendingModel == model {
-		return errors.New("modèle utilisé par vLLM")
+		return errors.New("model used by vLLM")
 	}
 	vllmDownloads.mu.Lock()
 	defer vllmDownloads.mu.Unlock()
 	if vllmDownloads.state != nil && !vllmDownloads.state.Finished && vllmDownloads.state.Model == model {
-		return errors.New("téléchargement en cours")
+		return errors.New("download in progress")
 	}
 	root, err := os.OpenRoot(vllmHFCache())
 	if err != nil {
@@ -392,7 +392,7 @@ func deleteVLLMCache(model string) error {
 		return err
 	}
 	if !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
-		return errors.New("dossier de cache invalide")
+		return errors.New("invalid cache directory")
 	}
 	return root.RemoveAll(name)
 }

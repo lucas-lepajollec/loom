@@ -132,11 +132,11 @@ func flagToConfigKey(id string) (string, bool) { return llamacpp.FlagConfigKey(i
 func buildLlamaServerArgsForConfig(cfg map[string]string) ([]string, error) {
 	bin := cfg["BIN"]
 	if bin == "" {
-		return nil, fmt.Errorf("BIN non défini — lance « loom edit »")
+		return nil, fmt.Errorf("BIN not set — run “loom edit”")
 	}
 	model := cfg["MODEL"]
 	if model == "" {
-		return nil, fmt.Errorf("MODEL non défini — lance « loom edit »")
+		return nil, fmt.Errorf("MODEL not set — run “loom edit”")
 	}
 	// MODEL vaut soit un simple nom de fichier (le .gguf vit dans LOOM_HOME ou
 	// dans un dossier déclaré — disque externe…), soit un chemin absolu. Sous
@@ -150,13 +150,13 @@ func buildLlamaServerArgsForConfig(cfg map[string]string) ([]string, error) {
 	}
 	model = resolved
 	if _, err := os.Stat(model); err != nil {
-		return nil, fmt.Errorf("modèle introuvable : %s", model)
+		return nil, fmt.Errorf("model not found: %s", model)
 	}
 	// Modèle découpé en tranches : llama-server ouvre les suivantes tout seul, mais
 	// s'il en manque une il démarre puis meurt sur un tenseur introuvable — message
 	// incompréhensible, et systemd relance en boucle. On le dit ici, en clair.
 	if missing := shardFamilyMissing(filepath.Dir(model), filepath.Base(model)); len(missing) > 0 {
-		return nil, fmt.Errorf("modèle incomplet : il manque %s dans %s — ce modèle tient en %d fichiers, télécharge-les tous",
+		return nil, fmt.Errorf("incomplete model: missing %s in %s — this model has %d files; download them all",
 			strings.Join(missing, ", "), filepath.Dir(model), len(shardFamily(filepath.Base(model))))
 	}
 	if !filepath.IsAbs(bin) {
@@ -287,7 +287,7 @@ func routerActivate() error {
 }
 func routerActivateVariant() (string, error) {
 	return llamaRouter().ActivateVariant(func() (routerEntry, error) {
-		return buildRouterEntry(activeEntryLabel() + " · variante API")
+		return buildRouterEntry(activeEntryLabel() + " · API variant")
 	})
 }
 func routerUnloadAll() error    { return llamaRouter().UnloadAll() }

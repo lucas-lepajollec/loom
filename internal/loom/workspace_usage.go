@@ -49,16 +49,16 @@ var quotaCache = struct {
 // Read-only native JSON-RPC. Never login/logout, start a turn, send a nudge or
 // redeem a credit. Separate process: does not attach to the desktop's thread.
 func readCodexQuota(ctx context.Context) (QuotaSnapshot, error) {
-	q := QuotaSnapshot{RuntimeID: "codex", Name: "Codex", Source: "Codex app-server · compte natif", Windows: []QuotaWindow{}}
+	q := QuotaSnapshot{RuntimeID: "codex", Name: "Codex", Source: "Codex app-server · native account", Windows: []QuotaWindow{}}
 	path, err := exec.LookPath("codex")
 	if err != nil {
-		return q, errors.New("CLI Codex absent du PATH de Loom")
+		return q, errors.New("Codex CLI missing from Loom's PATH")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	dir, err := os.MkdirTemp("", "loom-codex-quota-")
 	if err != nil {
-		return q, errors.New("dossier temporaire indisponible")
+		return q, errors.New("temporary directory unavailable")
 	}
 	defer os.RemoveAll(dir)
 	cmd := exec.CommandContext(ctx, path, "app-server")
@@ -67,11 +67,11 @@ func readCodexQuota(ctx context.Context) (QuotaSnapshot, error) {
 	cmd.WaitDelay = time.Second
 	in, err := cmd.StdinPipe()
 	if err != nil {
-		return q, errors.New("lecture Codex indisponible")
+		return q, errors.New("Codex reading unavailable")
 	}
 	out, err := cmd.StdoutPipe()
 	if err != nil || cmd.Start() != nil {
-		return q, errors.New("lecture Codex indisponible")
+		return q, errors.New("Codex reading unavailable")
 	}
 	stopRead := context.AfterFunc(ctx, func() { _ = out.Close() })
 	defer stopRead()
@@ -80,13 +80,13 @@ func readCodexQuota(ctx context.Context) (QuotaSnapshot, error) {
 	scanner.Buffer(make([]byte, 4096), 512<<10)
 	encoder := json.NewEncoder(in)
 	if encoder.Encode(map[string]any{"id": 1, "method": "initialize", "params": map[string]any{"clientInfo": map[string]string{"name": "loom", "title": "Loom quotas", "version": "0.1"}}}) != nil {
-		return q, errors.New("initialisation Codex impossible")
+		return q, errors.New("Codex initialization failed")
 	}
 	if _, err = readRPCResult(scanner, 1); err != nil {
 		return q, err
 	}
 	if encoder.Encode(map[string]any{"method": "initialized"}) != nil || encoder.Encode(map[string]any{"id": 2, "method": "account/rateLimits/read"}) != nil {
-		return q, errors.New("lecture Codex impossible")
+		return q, errors.New("could not read Codex")
 	}
 	data, err := readRPCResult(scanner, 2)
 	if err != nil {
@@ -102,19 +102,19 @@ func readRPCResult(scanner *bufio.Scanner, id int) (json.RawMessage, error) {
 			Error  json.RawMessage `json:"error"`
 		}
 		if json.Unmarshal(scanner.Bytes(), &msg) != nil {
-			return nil, errors.New("protocole Codex non reconnu")
+			return nil, errors.New("unrecognized Codex protocol")
 		}
 		if msg.ID != nil && *msg.ID == id {
 			if len(msg.Error) > 0 && string(msg.Error) != "null" {
-				return nil, errors.New("quotas Codex indisponibles pour cette authentification/version")
+				return nil, errors.New("Codex quotas unavailable for this authentication/version")
 			}
 			return msg.Result, nil
 		}
 	}
-	return nil, errors.New("lecture Codex interrompue")
+	return nil, errors.New("Codex reading interrupted")
 }
 func parseCodexQuota(data []byte) (QuotaSnapshot, error) {
-	q := QuotaSnapshot{RuntimeID: "codex", Name: "Codex", Source: "Codex app-server · compte natif", Windows: []QuotaWindow{}}
+	q := QuotaSnapshot{RuntimeID: "codex", Name: "Codex", Source: "Codex app-server · native account", Windows: []QuotaWindow{}}
 	type window struct {
 		Used    *float64 `json:"usedPercent"`
 		Minutes *int     `json:"windowDurationMins"`
@@ -134,7 +134,7 @@ func parseCodexQuota(data []byte) (QuotaSnapshot, error) {
 		} `json:"rateLimitResetCredits"`
 	}
 	if json.Unmarshal(data, &r) != nil || len(r.ByID) > 128 {
-		return q, errors.New("format des quotas Codex non reconnu")
+		return q, errors.New("unrecognized Codex quota format")
 	}
 	if len(r.ByID) == 0 && r.RateLimits != nil {
 		r.ByID = map[string]bucket{"codex": *r.RateLimits}
@@ -154,7 +154,7 @@ func parseCodexQuota(data []byte) (QuotaSnapshot, error) {
 			if w == nil {
 				continue
 			}
-			name := []string{"Fenêtre principale", "Fenêtre secondaire"}[i]
+			name := []string{"Primary window", "Secondary window"}[i]
 			if w.Minutes != nil {
 				switch *w.Minutes {
 				case 300:
@@ -182,7 +182,7 @@ func parseCodexQuota(data []byte) (QuotaSnapshot, error) {
 		}
 	}
 	if len(q.Windows) == 0 {
-		return q, errors.New("aucune fenêtre de quota Codex communiquée")
+		return q, errors.New("no Codex quota windows reported")
 	}
 	q.FetchedAt = time.Now().Unix()
 	return q, nil
@@ -235,7 +235,7 @@ func handleUsage(w http.ResponseWriter, r *http.Request) {
 	if !usageVaultAccess(w) {
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "quotas": quotas, "models": usageSummaries(), "scope": "Loom uniquement · tokens communiqués par les runtimes"})
+	sendJSON(w, 200, map[string]any{"ok": true, "quotas": quotas, "models": usageSummaries(), "scope": "Loom only · tokens reported by runtimes"})
 }
 func handleUsageRefresh(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -253,7 +253,7 @@ func handleUsageRefresh(w http.ResponseWriter, r *http.Request) {
 	adapter, ok := registeredRuntimes.lookup(req.RuntimeID)
 	if !ok {
 		// Preserve this legacy endpoint's status for an unsupported body ID.
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "lecture des quotas non disponible pour ce harness"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "quota reading unavailable for this harness"})
 		return
 	}
 	refreshRuntimeQuota(w, r.Context(), adapter)
@@ -272,7 +272,7 @@ func handleUsagePrice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Input == nil || req.Output == nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "renseignez les deux tarifs ; une valeur absente n’est pas zéro"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "enter both prices; a missing value is not zero"})
 		return
 	}
 	p := UsagePrice{ChoiceID: req.ChoiceID, Input: *req.Input, Output: *req.Output, Currency: req.Currency}
@@ -283,12 +283,12 @@ func handleUsagePrice(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !valid || (p.Currency != "USD" && p.Currency != "EUR") || math.IsNaN(p.Input) || math.IsInf(p.Input, 0) || p.Input < 0 || p.Input > 10000 || math.IsNaN(p.Output) || math.IsInf(p.Output, 0) || p.Output < 0 || p.Output > 10000 {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "modèle cloud et tarifs valides requis (USD ou EUR)"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "cloud model and valid prices required (USD or EUR)"})
 		return
 	}
 	p.UpdatedAt = time.Now().Unix()
 	if putStoreJSON(bkUsagePrices, p.ChoiceID, p) != nil {
-		sendJSON(w, 500, map[string]any{"ok": false, "error": "enregistrement impossible"})
+		sendJSON(w, 500, map[string]any{"ok": false, "error": "could not save"})
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true})
@@ -302,7 +302,7 @@ func handleAgyConnect(w http.ResponseWriter, r *http.Request) {
 
 func usageVaultAccess(w http.ResponseWriter) bool {
 	if memEncActive() && !memUnlocked() {
-		sendJSON(w, 423, map[string]any{"ok": false, "error": "déverrouillez le coffre Loom pour consulter les comptes"})
+		sendJSON(w, 423, map[string]any{"ok": false, "error": "unlock the Loom vault to view accounts"})
 		return false
 	}
 	return true

@@ -30,7 +30,7 @@ func setAPIKeyRequired(on bool) error {
 		return putStr(bkState, "api_key_required", "1")
 	}
 	if lanExposed() {
-		return fmt.Errorf("la clé API reste obligatoire tant que le front OpenAI est exposé sur le réseau")
+		return fmt.Errorf("the API key remains required while the OpenAI endpoint is exposed on the network")
 	}
 	return putStr(bkState, "api_key_required", "")
 }
@@ -74,7 +74,7 @@ func genAPIKey() string {
 // c'est à l'appelant de choisir quand appliquer.
 func writeAPIKey(key string) error {
 	if strings.TrimSpace(key) == "" && lanExposed() {
-		return fmt.Errorf("impossible de retirer la clé API tant que le front OpenAI est exposé sur le réseau")
+		return fmt.Errorf("cannot remove the API key while the OpenAI endpoint is exposed on the network")
 	}
 	_ = SetConfigKey("API_KEY", "") // aucune ambiguïté avec une valeur résiduelle
 	return putStr(bkState, "api_key", key)
@@ -104,7 +104,7 @@ func cmdSetAPIKey(args []string) error {
 	switch {
 	case len(args) == 0:
 		key = genAPIKey()
-		fmt.Printf("%s clé générée : %s\n", green("[ok]"), bold(key))
+		fmt.Printf("%s generated key: %s\n", green("[ok]"), bold(key))
 	case args[0] == "" || args[0] == "off" || args[0] == "none":
 		key = ""
 	default:
@@ -114,15 +114,15 @@ func cmdSetAPIKey(args []string) error {
 		return err
 	}
 	if key == "" {
-		fmt.Printf("%s API_KEY supprimée — serveur ouvert (pas d'authentification)\n", yellow("[info]"))
+		fmt.Printf("%s API_KEY removed — open server (no authentication)\n", yellow("[info]"))
 	} else {
-		fmt.Printf("%s API_KEY enregistrée\n", green("[ok]"))
-		fmt.Printf("       les clients doivent envoyer : %s\n", dim("Authorization: Bearer "+key))
+		fmt.Printf("%s API_KEY saved\n", green("[ok]"))
+		fmt.Printf("       clients must send: %s\n", dim("Authorization: Bearer "+key))
 	}
-	fmt.Print(dim("[info] redémarrer le service pour appliquer ? [Y/n] "))
+	fmt.Print(dim("[info] restart the service to apply? [Y/n] "))
 	sc := bufio.NewScanner(os.Stdin)
 	if sc.Scan() && strings.HasPrefix(strings.ToLower(strings.TrimSpace(sc.Text())), "n") {
-		fmt.Println(dim("[info] pense à lancer 'loom restart'"))
+		fmt.Println(dim("[info] remember to run 'loom restart'"))
 		return nil
 	}
 	return serviceAction("restart")

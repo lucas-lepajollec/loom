@@ -30,7 +30,7 @@ func checkForUpdate() (updateInfo, error) {
 	}
 	latest := ensureV(rel.TagName)
 	if !semver.IsValid(latest) {
-		return info, fmt.Errorf("tag de release inattendu : %q", rel.TagName)
+		return info, fmt.Errorf("unexpected release tag: %q", rel.TagName)
 	}
 	info.Latest = strings.TrimPrefix(latest, "v")
 	info.URL = rel.HTMLURL
@@ -44,19 +44,19 @@ func checkForUpdate() (updateInfo, error) {
 func applyUpdate() (string, error) {
 	rel, err := fetchLatestRelease()
 	if err != nil {
-		return "", fmt.Errorf("impossible de contacter GitHub : %w", err)
+		return "", fmt.Errorf("could not contact GitHub: %w", err)
 	}
 	latest := ensureV(rel.TagName)
 	if !semver.IsValid(latest) {
-		return "", fmt.Errorf("tag de release inattendu : %q", rel.TagName)
+		return "", fmt.Errorf("unexpected release tag: %q", rel.TagName)
 	}
 	if semver.Compare(latest, ensureV(Version)) <= 0 {
-		return Version, fmt.Errorf("déjà à jour (%s)", Version)
+		return Version, fmt.Errorf("already up to date (%s)", Version)
 	}
 
 	want, url, size := pickAsset(rel)
 	if url == "" {
-		return "", fmt.Errorf("aucun binaire %s dans la release %s (os/arch %s/%s)",
+		return "", fmt.Errorf("no %s binary in release %s (os/arch %s/%s)",
 			updateAssetName(), latest, runtime.GOOS, runtime.GOARCH)
 	}
 
@@ -81,7 +81,7 @@ func applyUpdate() (string, error) {
 		if os.IsPermission(err) {
 			return "", updatePermissionError(exe)
 		}
-		return "", fmt.Errorf("téléchargement : %w", err)
+		return "", fmt.Errorf("download: %w", err)
 	}
 	if err := verifyChecksum(rel, want, tmp); err != nil {
 		os.Remove(tmp)
@@ -97,7 +97,7 @@ func applyUpdate() (string, error) {
 	}
 	if got := fileSize(tmp); size > 0 && got != size {
 		os.Remove(tmp)
-		return "", fmt.Errorf("taille inattendue (%d o reçus, %d attendus) — mise à jour annulée", got, size)
+		return "", fmt.Errorf("unexpected size (%d bytes received, %d expected) — update cancelled", got, size)
 	}
 	if err := replaceBinary(exe, tmp); err != nil {
 		os.Remove(tmp)
@@ -116,27 +116,27 @@ func cmdUpdate(args []string) error {
 			checkOnly = true
 		}
 	}
-	fmt.Println("recherche de la dernière version…")
+	fmt.Println("looking for the latest version…")
 	info, err := checkForUpdate()
 	if err != nil {
-		return fmt.Errorf("impossible de contacter GitHub : %w", err)
+		return fmt.Errorf("could not contact GitHub: %w", err)
 	}
 	if !info.Available {
-		fmt.Printf("loom est déjà à jour (%s).\n", Version)
+		fmt.Printf("loom is already up to date (%s).\n", Version)
 		return nil
 	}
-	fmt.Printf("nouvelle version disponible : %s  (actuelle : %s)\n", info.Latest, Version)
+	fmt.Printf("new version available: %s  (current: %s)\n", info.Latest, Version)
 	fmt.Printf("  %s\n", info.URL)
 	if checkOnly {
-		fmt.Println("lance 'loom update' pour l'installer.")
+		fmt.Println("run 'loom update' to install it.")
 		return nil
 	}
-	fmt.Printf("téléchargement de %s…\n", updateAssetName())
+	fmt.Printf("downloading %s…\n", updateAssetName())
 	newVer, err := applyUpdate()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("✓ loom mis à jour en %s\n", newVer)
+	fmt.Printf("✓ loom updated to %s\n", newVer)
 	printRestartHint()
 	return nil
 }
@@ -209,15 +209,15 @@ func restartAfterUpdate() (bool, string) {
 		}
 		_ = exec.Command(bin, args...).Run()
 	}()
-	return true, "Service " + uiServiceName() + " redémarré automatiquement — la page va se reconnecter seule (le modèle n'est pas rechargé)."
+	return true, "Service " + uiServiceName() + " restarted automatically — the page will reconnect itself (the model is not reloaded)."
 }
 
 func restartHintText() string {
 	if runtime.GOOS == "windows" {
-		return "Redémarre Loom (quitte puis relance) pour appliquer la mise à jour."
+		return "Restart Loom (quit and reopen) to apply the update."
 	}
-	return "Redémarre pour appliquer : sudo systemctl restart " + uiServiceName() +
-		" (ajoute " + serviceName() + " si la mise à jour touche le moteur)."
+	return "Restart to apply: sudo systemctl restart " + uiServiceName() +
+		" (ajoute " + serviceName() + " if the update affects the engine)."
 }
 
 func printRestartHint() { fmt.Println(restartHintText()) }

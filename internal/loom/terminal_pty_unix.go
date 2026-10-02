@@ -33,7 +33,7 @@ func (p *unixPTY) Read(b []byte) (int, error)  { return p.f.Read(b) }
 func (p *unixPTY) Write(b []byte) (int, error) { return p.f.Write(b) }
 func (p *unixPTY) Resize(cols, rows uint16) error {
 	if cols == 0 || rows == 0 || cols > 1000 || rows > 500 {
-		return errors.New("taille invalide")
+		return errors.New("invalid size")
 	}
 	return pty.Setsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
 }

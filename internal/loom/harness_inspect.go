@@ -99,7 +99,7 @@ var (
 func harnessInspectSpec(id string) (inspectSpec, bool) {
 	inspectSpecsOnce.Do(func() {
 		if json.Unmarshal(harnessInspectJSON, &inspectSpecs) != nil {
-			panic("harness/inspect.json invalide")
+			panic("invalid harness/inspect.json")
 		}
 	})
 	s, ok := inspectSpecs[id]
@@ -116,7 +116,7 @@ func expandHome(p string) string {
 
 func runInspect(ctx context.Context, argv []string) (string, error) {
 	if len(argv) == 0 {
-		return "", errors.New("commande vide")
+		return "", errors.New("empty command")
 	}
 	native, err := harnessNativeArgv(argv)
 	if err != nil {
@@ -262,7 +262,7 @@ func readSkills(dirs []string) []HarnessSkill {
 func inspectHarness(ctx context.Context, id string) (HarnessInspection, error) {
 	spec, ok := harnessInspectSpec(id)
 	if !ok {
-		return HarnessInspection{}, errors.New("inspection non décrite pour ce harness")
+		return HarnessInspection{}, errors.New("inspection not described for this harness")
 	}
 	r := HarnessInspection{At: time.Now().UnixMilli(), MCP: []HarnessMCP{}, Plugins: []string{}, Skills: []HarnessSkill{}, Env: []string{}}
 	path, err := lifecycleLookPath(spec.Binary)
@@ -311,7 +311,7 @@ func inspectHarness(ctx context.Context, id string) (HarnessInspection, error) {
 			if i := strings.Index(out, "{"); i >= 0 && json.Unmarshal([]byte(out[i:]), &m) == nil {
 				auth["connected"], auth["method"], auth["account"] = m[spec.Auth.Connected], m[spec.Auth.Method], m[spec.Auth.Account]
 			} else if err != nil {
-				fail("compte", err)
+				fail("account", err)
 			}
 		default:
 			out, err := runInspect(ctx, spec.Auth.Cmd)

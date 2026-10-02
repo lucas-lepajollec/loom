@@ -80,15 +80,15 @@ func TestStreamFailuresAndPartialEvents(t *testing.T) {
 		name, body, want string
 		abort            bool
 	}{
-		{"truncated", textChunk("Partial", ""), "flux interrompu avant la fin de la réponse", false},
-		{"malformed", "data: garbage\n\n", "événement provider invalide", false},
-		{"upstream", "data: {\"error\":{\"message\":\"secret\"}}\n\n", "le provider a signalé une erreur pendant la réponse", false},
-		{"tools", "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{}]}}]}\n\n", "ce connecteur texte n’exécute pas d’outils", false},
-		{"empty", "data: [DONE]\n\n", "le provider a terminé sans réponse textuelle", false},
-		{"length", textChunk("Partial", "length"), "réponse incomplète (fin : limite de longueur)", false},
-		{"unknown finish", textChunk("Partial", "secret"), "réponse incomplète (fin : fonction non prise en charge)", false},
-		{"text limit", textChunk(strings.Repeat("x", (256<<10)+1), "stop"), "réponse trop longue (256 Kio maximum)", false},
-		{"scan limit", "data: " + strings.Repeat("x", 512<<10), "flux interrompu : la réponse partielle est conservée", false},
+		{"truncated", textChunk("Partial", ""), "stream interrupted before the end of the response", false},
+		{"malformed", "data: garbage\n\n", "invalid provider event", false},
+		{"upstream", "data: {\"error\":{\"message\":\"secret\"}}\n\n", "the provider reported an error during the response", false},
+		{"tools", "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{}]}}]}\n\n", "this text connector does not execute tools", false},
+		{"empty", "data: [DONE]\n\n", "the provider finished without a text response", false},
+		{"length", textChunk("Partial", "length"), "incomplete response (finish: length limit)", false},
+		{"unknown finish", textChunk("Partial", "secret"), "incomplete response (finish: unsupported function)", false},
+		{"text limit", textChunk(strings.Repeat("x", (256<<10)+1), "stop"), "response too long (maximum 256 KiB)", false},
+		{"scan limit", "data: " + strings.Repeat("x", 512<<10), "stream interrupted: partial response preserved", false},
 		{"abort text", textChunk("Partial", "stop"), context.Canceled.Error(), true},
 		{"abort usage", "data: {\"usage\":{\"completion_tokens\":0}}\n\n", context.Canceled.Error(), true},
 	} {

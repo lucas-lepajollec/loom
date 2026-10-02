@@ -18,7 +18,7 @@ func TestControlJSONWireAndMethodGuard(t *testing.T) {
 		if ok != (method == "POST") || w.Header().Get("Cache-Control") != "no-store" {
 			t.Fatalf("method guard: %s %v %v", method, ok, w.Header())
 		}
-		if !ok && (w.Code != 405 || w.Header().Get("Allow") != "POST" || w.Body.String() != "{\"error\":\"méthode non autorisée\",\"ok\":false}\n") {
+		if !ok && (w.Code != 405 || w.Header().Get("Allow") != "POST" || w.Body.String() != "{\"error\":\"method not allowed\",\"ok\":false}\n") {
 			t.Fatalf("method rejection changed: %d %v %q", w.Code, w.Header(), w.Body.String())
 		}
 	}
@@ -31,18 +31,18 @@ func TestStrictJSONLimitsAndErrors(t *testing.T) {
 		errorText               string
 	}{
 		{"valid", "application/json; charset=utf-8", `{"text":"hello"}`, 200, ""},
-		{"missing type", "", `{}`, 415, "Content-Type application/json requis"},
-		{"wrong type", "text/plain", `{}`, 415, "Content-Type application/json requis"},
+		{"missing type", "", `{}`, 415, "Content-Type application/json required"},
+		{"wrong type", "text/plain", `{}`, 415, "Content-Type application/json required"},
 		// Historical decoding ignores parameter parse errors when the media type is recognized.
 		{"malformed type", "application/json; broken", `{}`, 200, ""},
-		{"unknown field", "application/json", `{"unknown":1}`, 400, "requête invalide ou trop volumineuse"},
-		{"empty", "application/json", "", 400, "requête invalide ou trop volumineuse"},
-		{"malformed", "application/json", `{"text":`, 400, "requête invalide ou trop volumineuse"},
-		{"trailing object", "application/json", `{} {}`, 400, "une seule requête JSON attendue"},
-		{"trailing junk", "application/json", `{} broken`, 400, "une seule requête JSON attendue"},
+		{"unknown field", "application/json", `{"unknown":1}`, 400, "invalid or oversized request"},
+		{"empty", "application/json", "", 400, "invalid or oversized request"},
+		{"malformed", "application/json", `{"text":`, 400, "invalid or oversized request"},
+		{"trailing object", "application/json", `{} {}`, 400, "expected a single JSON request"},
+		{"trailing junk", "application/json", `{} broken`, 400, "expected a single JSON request"},
 		{"null", "application/json", `null`, 200, ""},
 		{"at limit", "application/json", `{"text":"` + strings.Repeat("a", (128<<10)-11) + `"}`, 200, ""},
-		{"over limit", "application/json", `{"text":"` + strings.Repeat("a", (128<<10)-10) + `"}`, 400, "requête invalide ou trop volumineuse"},
+		{"over limit", "application/json", `{"text":"` + strings.Repeat("a", (128<<10)-10) + `"}`, 400, "invalid or oversized request"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()

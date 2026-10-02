@@ -175,7 +175,7 @@ func prebuiltPrune(keep string, logf func(string)) {
 			continue
 		}
 		if err := os.RemoveAll(d); err == nil && logf != nil {
-			logf("ancienne version supprimée : " + e.Name())
+			logf("old version deleted: " + e.Name())
 		}
 	}
 }
@@ -222,7 +222,7 @@ func newestBinaryRelease(rels []struct {
 			return rel.TagName, rel.Assets, nil
 		}
 	}
-	return "", nil, fmt.Errorf("aucune release llama.cpp avec des binaires")
+	return "", nil, fmt.Errorf("no llama.cpp release with binaries")
 }
 
 // driverCudaVersion renvoie la version CUDA max supportée par le pilote NVIDIA
@@ -336,7 +336,7 @@ func pickPrebuilt(assets []ghAsset) (main *ghAsset, cudart *ghAsset, label, cuda
 		label = "CPU (Linux " + arch + ")"
 	}
 	if main == nil {
-		return nil, nil, "", "", fmt.Errorf("aucun binaire précompilé adapté à cette machine dans la release officielle")
+		return nil, nil, "", "", fmt.Errorf("no prebuilt binary suitable for this machine in the official release")
 	}
 	return main, cudart, label, cudaVer, nil
 }
@@ -420,14 +420,14 @@ func recommendedMode(backend string) map[string]any {
 		return map[string]any{
 			"mode": "fast",
 			"code": "linux-cuda",
-			"why":  "Carte NVIDIA : le binaire officiel CUDA pour Linux s’installe en une minute. Compiler llama.cpp l’optimise pour ta carte précise (plusieurs minutes).",
+			"why":  "NVIDIA card: the official CUDA binary for Linux installs in a minute. Building llama.cpp tunes it for your exact card (several minutes).",
 		}
 	}
 	if runtime.GOOS == "linux" && backend == "hip" {
 		return map[string]any{
 			"mode": "fast",
 			"code": "linux-hip",
-			"why":  "GPU AMD : le zip Ubuntu ROCm est utilisé s’il est publié ; sinon compiler llama.cpp avec HIP.",
+			"why":  "AMD GPU: the Ubuntu ROCm zip is used if published; otherwise compile llama.cpp with HIP.",
 		}
 	}
 	return map[string]any{"mode": "fast", "why": ""}
@@ -437,24 +437,24 @@ func recommendedMode(backend string) map[string]any {
 // précompilés. logf reçoit chaque ligne de log ; phasef la phase courante.
 // Renvoie le chemin du binaire installé.
 func prebuiltInstall(logf, phasef func(string)) (string, error) {
-	phasef("récupération de la dernière release llama.cpp…")
+	phasef("retrieving the latest llama.cpp release…")
 	tag, assets, err := fetchLlamaLatest()
 	if err != nil {
-		return "", fmt.Errorf("impossible d'interroger les releases llama.cpp : %w", err)
+		return "", fmt.Errorf("could not query llama.cpp releases: %w", err)
 	}
 	curTag, curCuda := prebuiltVersion()
 	main, cudart, label, cudaVer, err := pickPrebuilt(assets)
 	if err != nil {
 		return "", err
 	}
-	logf(fmt.Sprintf("release %s — variant retenu : %s", tag, label))
+	logf(fmt.Sprintf("release %s — selected variant: %s", tag, label))
 
 	// Réinstaller à l'identique est inutile SAUF si l'extraction date d'une
 	// version de Loom qui ignorait les liens des archives (backend installé mais
 	// bibliothèques introuvables au lancement) : le marqueur de format force alors
 	// une ré-extraction propre au lieu d'un « déjà à jour » trompeur.
 	if cur := prebuiltServerBin(); curTag == tag && prebuiltVersionFormat() == prebuiltFormat && cur != "" {
-		logf("déjà à jour (" + tag + ")")
+		logf("already up to date (" + tag + ")")
 		prebuiltPrune(cur, logf) // ménage des versions laissées par les installs précédentes
 		return cur, nil
 	}
@@ -477,7 +477,7 @@ func prebuiltInstall(logf, phasef func(string)) (string, error) {
 			}
 		}
 		if len(haveDLL) > 0 && curCuda == cudaVer {
-			logf("cudart " + cudaVer + " déjà présent — téléchargement évité")
+			logf("cudart " + cudaVer + " already present — download skipped")
 			cudart = nil
 		}
 	}
@@ -486,16 +486,16 @@ func prebuiltInstall(logf, phasef func(string)) (string, error) {
 		if a == nil {
 			continue
 		}
-		phasef(fmt.Sprintf("téléchargement de %s (%d Mo)…", a.Name, a.Size/1_000_000))
+		phasef(fmt.Sprintf("downloading %s (%d MB)…", a.Name, a.Size/1_000_000))
 		tmp := filepath.Join(dir, a.Name+".part")
 		if err := downloadWithProgress(a.URL, tmp, a.Size, logf); err != nil {
 			_ = os.Remove(tmp)
-			return "", fmt.Errorf("téléchargement de %s : %w", a.Name, err)
+			return "", fmt.Errorf("downloading %s: %w", a.Name, err)
 		}
-		phasef("extraction de " + a.Name + "…")
+		phasef("extracting " + a.Name + "…")
 		if err := extractArchive(tmp, dir); err != nil {
 			_ = os.Remove(tmp)
-			return "", fmt.Errorf("extraction de %s : %w", a.Name, err)
+			return "", fmt.Errorf("extracting %s: %w", a.Name, err)
 		}
 		_ = os.Remove(tmp)
 	}
@@ -507,18 +507,18 @@ func prebuiltInstall(logf, phasef func(string)) (string, error) {
 	}
 	bin := prebuiltServerBin()
 	if bin == "" {
-		return "", fmt.Errorf("archives extraites mais llama-server introuvable sous %s", dir)
+		return "", fmt.Errorf("archives extracted but llama-server not found under %s", dir)
 	}
 	if runtime.GOOS != "windows" {
 		_ = os.Chmod(bin, 0o755)
 		// Linux : l'archive cudart s'extrait dans un dossier voisin ; ses
 		// bibliothèques doivent être à côté de libggml-cuda.so pour être chargées.
 		if n := linkCudaRuntime(dir, filepath.Dir(bin)); n > 0 {
-			logf(fmt.Sprintf("runtime CUDA lié au binaire (%d bibliothèques)", n))
+			logf(fmt.Sprintf("CUDA runtime linked to the binary (%d libraries)", n))
 		}
 	}
 	prebuiltPrune(bin, logf)
-	logf("binaire installé : " + bin + " (release " + tag + ")")
+	logf("binary installed: " + bin + " (release " + tag + ")")
 	return bin, nil
 }
 
@@ -554,9 +554,9 @@ func downloadWithProgress(url, dest string, total int64, logf func(string)) erro
 			if done-lastLog >= 25<<20 {
 				lastLog = done
 				if total > 0 {
-					logf(fmt.Sprintf("⬇ %d / %d Mo (%d%%)", done/1_000_000, total/1_000_000, done*100/total))
+					logf(fmt.Sprintf("⬇ %d / %d MB (%d%%)", done/1_000_000, total/1_000_000, done*100/total))
 				} else {
-					logf(fmt.Sprintf("⬇ %d Mo", done/1_000_000))
+					logf(fmt.Sprintf("⬇ %d MB", done/1_000_000))
 				}
 			}
 		}
@@ -575,13 +575,13 @@ func extractArchive(path, dir string) error {
 	safe := func(name string) (string, error) {
 		p := filepath.Join(dir, filepath.FromSlash(name))
 		if !archivePathWithin(dir, p) {
-			return "", fmt.Errorf("entrée d'archive suspecte : %s", name)
+			return "", fmt.Errorf("suspicious archive entry: %s", name)
 		}
 		// An earlier extraction may have left a symlink in this reused directory.
 		// Never let a later archive write through it, even if its own names are safe.
 		for parent := filepath.Dir(p); archivePathWithin(dir, parent) && parent != dir; parent = filepath.Dir(parent) {
 			if fi, err := os.Lstat(parent); err == nil && fi.Mode()&os.ModeSymlink != 0 {
-				return "", fmt.Errorf("dossier d'archive symbolique : %s", name)
+				return "", fmt.Errorf("symbolic archive directory: %s", name)
 			}
 		}
 		return p, nil
@@ -698,7 +698,7 @@ func extractArchive(path, dir string) error {
 				// Symlinks in official llama.cpp archives are relative library aliases.
 				// An absolute or escaping target would leave a link into the host.
 				if filepath.IsAbs(target) || !archivePathWithin(dir, filepath.Join(filepath.Dir(p), filepath.FromSlash(target))) {
-					return fmt.Errorf("cible de lien d'archive suspecte : %s", h.Linkname)
+					return fmt.Errorf("suspicious archive link target: %s", h.Linkname)
 				}
 			}
 			links = append(links, archiveLink{path: p, target: target})
@@ -724,10 +724,10 @@ func applyLinks(root string, links []archiveLink) error {
 			src = filepath.Join(filepath.Dir(l.path), filepath.FromSlash(src))
 		}
 		if !archivePathWithin(root, src) {
-			return fmt.Errorf("cible de lien d'archive suspecte : %s", l.target)
+			return fmt.Errorf("suspicious archive link target: %s", l.target)
 		}
 		if resolved, err := filepath.EvalSymlinks(src); err == nil && !archivePathWithin(root, resolved) {
-			return fmt.Errorf("cible de lien d'archive hors dossier : %s", l.target)
+			return fmt.Errorf("archive link target outside directory: %s", l.target)
 		}
 		_ = os.Remove(l.path)
 		if err := os.MkdirAll(filepath.Dir(l.path), 0o755); err != nil {

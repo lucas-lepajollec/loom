@@ -85,7 +85,7 @@ func migrateFrom07(home string) error {
 	if !needsMigration07(home) {
 		return nil
 	}
-	fmt.Printf("\n%s installation 0.7 détectée — reprise en cours\n", cyan("[migration]"))
+	fmt.Printf("\n%s 0.7 installation detected — migration in progress\n", cyan("[migration]"))
 
 	// 1. Arrêter les anciens services : ils tiennent les fichiers qu'on déplace,
 	//    et sous Windows un .gguf ouvert par llama-server refuse d'être renommé.
@@ -111,7 +111,7 @@ func migrateFrom07(home string) error {
 			// fait, fusionner devinerait qui gagne. On laisse les deux et on le
 			// dit — c'est le seul cas où quelqu'un doit trancher.
 			if n, _ := os.ReadDir(dst); len(n) > 0 {
-				fmt.Printf("  %s %s/ ET %s/ existent tous les deux — %s/ laissé tel quel, à supprimer à la main\n",
+				fmt.Printf("  %s %s/ AND %s/ both exist — %s/ left as is; delete it manually\n",
 					yellow("[info]"), m.from, m.to, m.from)
 				continue
 			}
@@ -125,7 +125,7 @@ func migrateFrom07(home string) error {
 	if n, err := moveModels(home); err != nil {
 		return err
 	} else if n > 0 {
-		fmt.Printf("  %s %d modèle(s) → models/\n", green("✓"), n)
+		fmt.Printf("  %s %d model(s) → models/\n", green("✓"), n)
 	}
 
 	// 3. Les réglages, vers la base.
@@ -138,7 +138,7 @@ func migrateFrom07(home string) error {
 	if hasEntry(home, "SKILLS") {
 		_ = os.Rename(filepath.Join(home, "SKILLS"), filepath.Join(home, "avant-0.8", "SKILLS"))
 	}
-	fmt.Printf("%s reprise terminée — les anciens fichiers sont dans avant-0.8/\n\n", green("[ok]"))
+	fmt.Printf("%s migration complete — old files are in avant-0.8/\n\n", green("[ok]"))
 	return nil
 }
 
@@ -187,7 +187,7 @@ func moveModels(home string) (int, error) {
 			}
 		}
 		if err := os.Rename(filepath.Join(home, name), filepath.Join(dst, name)); err != nil {
-			return n, fmt.Errorf("déplacement de %s : %w", name, err)
+			return n, fmt.Errorf("moving %s: %w", name, err)
 		}
 		n++
 	}
@@ -216,7 +216,7 @@ func importLegacyState(home string) error {
 		if err := WriteConfig(cfg); err != nil {
 			return err
 		}
-		fmt.Printf("  %s configuration (%d clés)\n", green("✓"), len(cfg))
+		fmt.Printf("  %s configuration (%d keys)\n", green("✓"), len(cfg))
 	}
 	if prefs := map[string]string{}; json.Unmarshal([]byte(read("webprefs.json")), &prefs) == nil && len(prefs) > 0 {
 		_ = replaceKV(bkPrefs, prefs)
@@ -279,7 +279,7 @@ func importLegacyState(home string) error {
 		if len(list) > 0 {
 			sort.Strings(list)
 			_ = putJSON(bkState, "authorized_users", list)
-			fmt.Printf("  %s %d identité(s) appairée(s)\n", green("✓"), len(list))
+			fmt.Printf("  %s %d paired identity/identities\n", green("✓"), len(list))
 		}
 	}
 	// .pair_codes n'est PAS repris : ces codes expirent au bout de 10 minutes,

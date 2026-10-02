@@ -53,12 +53,12 @@ func cmdLlamacpp(args []string) error {
 			return err
 		}
 		if err := SetConfigKey("BIN", bin); err != nil {
-			return fmt.Errorf("binaires installés mais échec d'écriture de BIN : %w", err)
+			return fmt.Errorf("binaries installed but failed to write BIN: %w", err)
 		}
-		fmt.Printf("%s BIN mis à jour — %s pour appliquer\n", green("✓"), bold("loom restart"))
+		fmt.Printf("%s BIN updated — %s to apply\n", green("✓"), bold("loom restart"))
 		return nil
 	default:
-		return fmt.Errorf("sous-commande inconnue: %s (install | update | prebuilt | status)", sub)
+		return fmt.Errorf("unknown subcommand: %s (install | update | prebuilt | status)", sub)
 	}
 }
 
@@ -127,14 +127,14 @@ func llamacppInstall(args []string) error {
 		case strings.HasPrefix(a, "--backend="):
 			backend = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(a, "--backend=")))
 			if !isKnownBuildBackend(backend) {
-				return fmt.Errorf("backend inconnu: %s (attendu cuda | hip | vulkan | cpu)", backend)
+				return fmt.Errorf("unknown backend: %s (expected cuda | hip | vulkan | cpu)", backend)
 			}
 		case a == "--force":
 			force = true
 		case a == "--no-switch":
 			noSwitch = true
 		default:
-			return fmt.Errorf("option inconnue: %s", a)
+			return fmt.Errorf("unknown option: %s", a)
 		}
 	}
 
@@ -150,8 +150,8 @@ func llamacppInstall(args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("\n%s backend custom compilé : %s\n", green("✓"), bin)
-		fmt.Printf("Pour l'utiliser : édite un modèle → section %s → « backend détecté » et choisis-le.\n", bold("Moteur"))
+		fmt.Printf("\n%s custom backend compiled: %s\n", green("✓"), bin)
+		fmt.Printf("To use it: edit a model → %s section → “detected backend” and select it.\n", bold("Engine"))
 		return nil
 	}
 
@@ -166,11 +166,11 @@ func llamacppInstall(args []string) error {
 	// Dépôt déjà présent ? On bascule sur update plutôt que de re-cloner.
 	if isDir(filepath.Join(repo, ".git")) {
 		if !force {
-			fmt.Printf("%s dépôt déjà présent dans %s\n", yellow("[info]"), repo)
-			fmt.Printf("       → %s pour le mettre à jour, ou --force pour repartir de zéro\n", bold("loom llamacpp update"))
+			fmt.Printf("%s repo already present in %s\n", yellow("[info]"), repo)
+			fmt.Printf("       → %s to update it, or --force to start from scratch\n", bold("loom llamacpp update"))
 			return nil
 		}
-		fmt.Printf("%s --force : suppression de %s\n", yellow("[info]"), repo)
+		fmt.Printf("%s --force: removing %s\n", yellow("[info]"), repo)
 		if err := os.RemoveAll(repo); err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func llamacppInstall(args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s clone de llama.cpp dans %s\n", cyan("▶"), repo)
+	fmt.Printf("%s cloning llama.cpp into %s\n", cyan("▶"), repo)
 	if err := runStep("git clone", "", "git", "clone", "--depth=1", llamacppRepoURL, repo); err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func llamacppInstall(args []string) error {
 
 	plan := buildPlanFor(backend)
 	if backend != "" {
-		fmt.Printf("%s backend forcé : %s\n", yellow("[info]"), bold(backend))
+		fmt.Printf("%s forced backend: %s\n", yellow("[info]"), bold(backend))
 	}
 	printPlan(plan, repo)
 
@@ -204,19 +204,19 @@ func llamacppInstall(args []string) error {
 
 	bin := llamaServerBin(repo)
 	if bin == "" {
-		return fmt.Errorf("build terminé mais binaire introuvable sous %s", filepath.Join(repo, "build"))
+		return fmt.Errorf("build complete but binary not found under %s", filepath.Join(repo, "build"))
 	}
-	fmt.Printf("\n%s binaire compilé : %s\n", green("✓"), bin)
+	fmt.Printf("\n%s binary compiled: %s\n", green("✓"), bin)
 
 	if noSwitch {
-		fmt.Printf("%s --no-switch : configuration inchangée (BIN à régler manuellement)\n", dim("[info]"))
+		fmt.Printf("%s --no-switch: configuration unchanged (set BIN manually)\n", dim("[info]"))
 		return nil
 	}
 	if err := SetConfigKey("BIN", bin); err != nil {
-		return fmt.Errorf("build ok mais échec d'écriture de BIN : %w", err)
+		return fmt.Errorf("build succeeded but failed to write BIN: %w", err)
 	}
-	fmt.Printf("%s BIN mis à jour\n", green("✓"))
-	fmt.Printf("\nProchaines étapes :\n  1. renseigne MODEL : %s\n  2. démarre        : %s\n",
+	fmt.Printf("%s BIN updated\n", green("✓"))
+	fmt.Printf("\nNext steps:\n  1. set MODEL: %s\n  2. start:     %s\n",
 		bold("loom edit"), bold("loom restart"))
 	return nil
 }
@@ -241,7 +241,7 @@ func llamacppUpdate(args []string) error {
 		case a == "--force":
 			force = true
 		default:
-			return fmt.Errorf("option inconnue: %s", a)
+			return fmt.Errorf("unknown option: %s", a)
 		}
 	}
 
@@ -255,9 +255,9 @@ func llamacppUpdate(args []string) error {
 
 	repo := llamacppRepoDir()
 	if !isDir(filepath.Join(repo, ".git")) {
-		return fmt.Errorf("aucun dépôt llama.cpp trouvé (%s).\n       → lance d'abord %s", repo, bold("loom llamacpp install"))
+		return fmt.Errorf("no llama.cpp repository found (%s).\n       → run %s first", repo, bold("loom llamacpp install"))
 	}
-	fmt.Printf("%s dépôt : %s\n", cyan("▶"), repo)
+	fmt.Printf("%s repo: %s\n", cyan("▶"), repo)
 
 	oldCommit := gitOutput(repo, "rev-parse", "--short", "HEAD")
 
@@ -278,8 +278,8 @@ func llamacppUpdate(args []string) error {
 	localRev := gitOutput(repo, "rev-parse", "HEAD")
 	remoteRev := gitOutput(repo, "rev-parse", "origin/"+branch)
 	if localRev != "" && localRev == remoteRev && !clean && !force && llamaServerBin(repo) != "" {
-		fmt.Printf("%s déjà à jour (%s) — rien à faire\n", green("[ok]"), oldCommit)
-		fmt.Printf("       (utilise %s pour forcer une recompilation)\n", dim("--force"))
+		fmt.Printf("%s already up to date (%s) — nothing to do\n", green("[ok]"), oldCommit)
+		fmt.Printf("       (use %s to force a rebuild)\n", dim("--force"))
 		return nil
 	}
 
@@ -290,7 +290,7 @@ func llamacppUpdate(args []string) error {
 		}
 	} else {
 		if err := runStep("git pull --ff-only", repo, "git", "pull", "--ff-only", "origin", branch); err != nil {
-			return fmt.Errorf("git pull a échoué (modifs locales ? essaie de résoudre à la main): %w", err)
+			return fmt.Errorf("git pull failed (local changes? try resolving manually): %w", err)
 		}
 	}
 	newCommit := gitOutput(repo, "rev-parse", "--short", "HEAD")
@@ -299,9 +299,9 @@ func llamacppUpdate(args []string) error {
 	// réécrit par l'étape de link (« Text file busy »).
 	svcWasUp := serviceIsActive()
 	if svcWasUp {
-		fmt.Printf("%s arrêt du service %s le temps du build…\n", yellow("[info]"), serviceName())
+		fmt.Printf("%s stopping service %s during the build…\n", yellow("[info]"), serviceName())
 		if err := serviceAction("stop"); err != nil {
-			fmt.Printf("%s impossible d'arrêter le service (%v) — le build peut échouer si le binaire est verrouillé\n", yellow("[warn]"), err)
+			fmt.Printf("%s could not stop the service (%v) — the build may fail if the binary is locked\n", yellow("[warn]"), err)
 		}
 	}
 
@@ -317,23 +317,23 @@ func llamacppUpdate(args []string) error {
 	}
 	bin := llamaServerBin(repo)
 	if bin == "" {
-		return fmt.Errorf("build terminé mais binaire introuvable sous %s", filepath.Join(repo, "build"))
+		return fmt.Errorf("build complete but binary not found under %s", filepath.Join(repo, "build"))
 	}
 	if err := SetConfigKey("BIN", bin); err != nil {
-		return fmt.Errorf("build ok mais échec écriture BIN dans config.env: %w", err)
+		return fmt.Errorf("build succeeded but failed to write BIN in config.env: %w", err)
 	}
 
-	fmt.Printf("\n%s mis à jour : %s → %s\n", green("✓"), oldCommit, newCommit)
+	fmt.Printf("\n%s updated: %s → %s\n", green("✓"), oldCommit, newCommit)
 
 	if noRestart {
-		fmt.Printf("%s --no-restart : pense à lancer %s\n", dim("[info]"), bold("loom restart"))
+		fmt.Printf("%s --no-restart: remember to run %s\n", dim("[info]"), bold("loom restart"))
 		return nil
 	}
 	if svcWasUp {
-		fmt.Printf("%s redémarrage du service…\n", cyan("▶"))
+		fmt.Printf("%s restarting service…\n", cyan("▶"))
 		return serviceAction("start")
 	}
-	fmt.Printf("%s service non démarré auparavant — lance %s quand tu veux\n", dim("[info]"), bold("loom start"))
+	fmt.Printf("%s service was not running — run %s whenever you want\n", dim("[info]"), bold("loom start"))
 	return nil
 }
 
@@ -344,9 +344,9 @@ func llamacppUpdate(args []string) error {
 func llamacppStatus(args []string) error {
 	repo := llamacppRepoDir()
 	fmt.Printf("%s\n", bold("llama.cpp"))
-	fmt.Printf("  dépôt    : %s\n", repo)
+	fmt.Printf("  repo:    %s\n", repo)
 	if !isDir(filepath.Join(repo, ".git")) {
-		fmt.Printf("  %s pas encore installé — %s\n", yellow("état"), bold("loom llamacpp install"))
+		fmt.Printf("  %s not installed yet — %s\n", yellow("state"), bold("loom llamacpp install"))
 		return nil
 	}
 	commit := gitOutput(repo, "log", "-1", "--format=%h %ci %s")
@@ -355,15 +355,15 @@ func llamacppStatus(args []string) error {
 	fmt.Printf("  commit   : %s\n", commit)
 
 	if bin := llamaServerBin(repo); bin != "" {
-		fmt.Printf("  binaire  : %s\n", green(bin))
+		fmt.Printf("  binary:  %s\n", green(bin))
 	} else {
-		fmt.Printf("  binaire  : %s (pas encore compilé)\n", yellow("absent"))
+		fmt.Printf("  binary:  %s (not compiled yet)\n", yellow("absent"))
 	}
 
 	// Retard sur origin (best-effort, sans fetch réseau).
 	if branch != "" && branch != "HEAD" {
 		if behind := gitOutput(repo, "rev-list", "--count", "HEAD..origin/"+branch); behind != "" && behind != "0" {
-			fmt.Printf("  maj      : %s commit(s) de retard sur origin/%s — %s\n", yellow(behind), branch, bold("loom llamacpp update"))
+			fmt.Printf("  update:  %s commit(s) behind origin/%s — %s\n", yellow(behind), branch, bold("loom llamacpp update"))
 		}
 	}
 
@@ -398,10 +398,10 @@ func installCustomBackend(url, name, ref string, phase func(string)) (string, er
 	}
 	url = strings.TrimSpace(url)
 	if url == "" {
-		return "", fmt.Errorf("URL du dépôt vide")
+		return "", fmt.Errorf("empty repository URL")
 	}
 	if !looksLikeGitURL(url) {
-		return "", fmt.Errorf("URL de dépôt invalide (attendu https://…, git@… ou ssh://…) : %s", url)
+		return "", fmt.Errorf("invalid repository URL (expected https://…, git@… or ssh://…): %s", url)
 	}
 	if strings.TrimSpace(name) == "" {
 		name = deriveBackendName(url)
@@ -411,7 +411,7 @@ func installCustomBackend(url, name, ref string, phase func(string)) (string, er
 		return "", err
 	}
 
-	phase("vérification des outils (git, cmake, compilateur)…")
+	phase("checking tools (git, cmake, compiler)…")
 	if err := requireTools("git", "cmake"); err != nil {
 		return "", err
 	}
@@ -422,7 +422,7 @@ func installCustomBackend(url, name, ref string, phase func(string)) (string, er
 
 	if isDir(filepath.Join(dir, ".git")) {
 		// Backend déjà cloné : on le met à jour plutôt que de re-cloner.
-		phase("dépôt déjà présent — mise à jour…")
+		phase("repository already present — updating…")
 		_ = runStep("git fetch", dir, "git", "fetch", "origin", "--quiet")
 		if ref != "" {
 			if err := runStep("git checkout", dir, "git", "checkout", ref); err != nil {
@@ -435,9 +435,9 @@ func installCustomBackend(url, name, ref string, phase func(string)) (string, er
 		if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 			return "", err
 		}
-		phase("clone de " + url + "…")
+		phase("cloning " + url + "…")
 		if err := runStep("git clone", "", "git", "clone", "--depth=1", url, dir); err != nil {
-			return "", fmt.Errorf("git clone a échoué : %w", err)
+			return "", fmt.Errorf("git clone failed: %w", err)
 		}
 		if ref != "" {
 			// --depth=1 ne récupère que HEAD ; on approfondit pour atteindre le ref.
@@ -449,13 +449,13 @@ func installCustomBackend(url, name, ref string, phase func(string)) (string, er
 	}
 
 	plan := detectBuildPlan()
-	phase(fmt.Sprintf("compilation (backend=%s)…", plan.backend))
+	phase(fmt.Sprintf("building (backend=%s)…", plan.backend))
 	if err := buildLlamacpp(dir, plan, false); err != nil {
 		return "", err
 	}
 	bin := llamaServerBin(dir)
 	if bin == "" {
-		return "", fmt.Errorf("build terminé mais binaire introuvable sous %s", filepath.Join(dir, "build"))
+		return "", fmt.Errorf("build complete but binary not found under %s", filepath.Join(dir, "build"))
 	}
 	return bin, nil
 }
@@ -525,7 +525,7 @@ func backendDir(name string) (string, error) {
 	}
 	p := filepath.Join(root, name)
 	if !strings.HasPrefix(p, root+string(filepath.Separator)) {
-		return "", fmt.Errorf("nom de backend invalide")
+		return "", fmt.Errorf("invalid backend name")
 	}
 	return p, nil
 }

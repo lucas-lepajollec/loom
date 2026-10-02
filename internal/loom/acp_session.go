@@ -98,7 +98,7 @@ func acpContextHash(messages []Message) string {
 }
 func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeSession, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
 	if !agent.available() {
-		return nil, errors.New("CLI du harness ou lanceur ACP indisponible")
+		return nil, errors.New("harness CLI or ACP launcher unavailable")
 	}
 	check := acpDirectory
 	if agent.Remote {
@@ -109,7 +109,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		return nil, err
 	}
 	if canonical != s.Workdir {
-		return nil, errors.New("le dossier choisi a changé ; configurez-le à nouveau")
+		return nil, errors.New("the selected directory changed; configure it again")
 	}
 	definitions, err := acpSessionMCPDefinitions(s)
 	if err != nil {
@@ -126,7 +126,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	encoded = append(encoded, []byte(strings.Join(env, "\n"))...)
 	mcpRevision := fmt.Sprintf("%x", sha256.Sum256(encoded))
 	if len(turn.Messages) == 0 {
-		return nil, errors.New("message ACP requis")
+		return nil, errors.New("ACP message required")
 	}
 	requestCtx, requestCancel := context.WithCancel(ctx)
 	defer requestCancel()
@@ -177,12 +177,12 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			canonical, err := acpDirectory(dir)
 			if err != nil || canonical != dir {
 				p.close()
-				return nil, errors.New("dossier autorisé inaccessible ou modifié")
+				return nil, errors.New("allowed directory inaccessible or changed")
 			}
 			root, err := os.OpenRoot(dir)
 			if err != nil {
 				p.close()
-				return nil, errors.New("dossier ACP inaccessible")
+				return nil, errors.New("ACP directory inaccessible")
 			}
 			p.roots = append(p.roots, root)
 		}
@@ -204,7 +204,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		cancel()
 		if err != nil || init.ProtocolVersion != 1 {
 			m.closeACP(s.ID)
-			return nil, errors.New("initialisation ACP incompatible ou échouée")
+			return nil, errors.New("ACP initialization incompatible or failed")
 		}
 		p.mu.Lock()
 		p.state.AgentCapabilities = init.AgentCapabilities
@@ -250,7 +250,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		}
 		if err != nil || response.SessionID == "" {
 			m.closeACP(s.ID)
-			return nil, errors.New("création de session ACP échouée ; vérifiez l’authentification native")
+			return nil, errors.New("ACP session creation failed; check native authentication")
 		}
 		p.mu.Lock()
 		p.state.NativeSessionID = response.SessionID
@@ -417,7 +417,7 @@ func (p *acpBinding) configure(ctx context.Context, mode string, config map[stri
 			}
 		}
 		if !found {
-			return errors.New("mode non annoncé par l’agent")
+			return errors.New("mode not advertised by the agent")
 		}
 		if err := p.client.call(ctx, "session/set_mode", map[string]any{"sessionId": sid, "modeId": mode}, nil); err != nil {
 			return err
@@ -435,7 +435,7 @@ func (p *acpBinding) configure(ctx context.Context, mode string, config map[stri
 			}
 		}
 		if found == nil {
-			return errors.New("option ou valeur non annoncée par l’agent")
+			return errors.New("option or value not advertised by the agent")
 		}
 		if found[acpLegacyModelKey] == true {
 			if err := p.client.call(ctx, "session/set_model", map[string]any{"sessionId": sid, "modelId": value}, nil); err != nil {
@@ -477,7 +477,7 @@ func (p *acpBinding) configure(ctx context.Context, mode string, config map[stri
 func acpMCPServers(caps map[string]any) ([]any, error) {
 	definitions, err := LoadMCPConfig()
 	if err != nil {
-		return nil, errors.New("définitions MCP indisponibles")
+		return nil, errors.New("MCP definitions unavailable")
 	}
 	return acpMCPServersFromDefinitions(caps, definitions)
 }
@@ -491,7 +491,7 @@ func acpMCPServersFromDefinitions(caps map[string]any, definitions map[string]MC
 		}
 		// Per-tool masks cannot be enforced by passing a whole server to a harness.
 		if len(d.DisabledTools) > 0 {
-			return nil, errors.New("MCP ACP exige un serveur activé sans outils masqués")
+			return nil, errors.New("ACP MCP requires an enabled server with no hidden tools")
 		}
 		pairs := func(values map[string]string) []any {
 			out := []any{}
@@ -503,13 +503,13 @@ func acpMCPServersFromDefinitions(caps map[string]any, definitions map[string]MC
 		if d.Command != "" {
 			command, err := resolveACPCommand(d.Command)
 			if err != nil {
-				return nil, errors.New("commande MCP indisponible")
+				return nil, errors.New("MCP command unavailable")
 			}
 			servers = append(servers, map[string]any{"name": name, "command": command, "args": append([]string{}, d.Args...), "env": pairs(d.Env)})
 		} else if httpCaps["http"] == true {
 			servers = append(servers, map[string]any{"type": "http", "name": name, "url": d.URL, "headers": pairs(d.Headers)})
 		} else {
-			return nil, errors.New("cet agent ne prend pas en charge le serveur MCP HTTP activé")
+			return nil, errors.New("this agent does not support the enabled HTTP MCP server")
 		}
 	}
 	return servers, nil
@@ -520,14 +520,14 @@ func acpMCPServersFromDefinitions(caps map[string]any, definitions map[string]MC
 func acpSessionMCPDefinitions(s RuntimeSession) (map[string]MCPServerConfig, error) {
 	definitions, err := LoadMCPConfig()
 	if err != nil {
-		return nil, errors.New("définitions MCP indisponibles")
+		return nil, errors.New("MCP definitions unavailable")
 	}
 	selected := s.MCPServers
 	if selected == nil && s.ProjectID != "" {
 		if project, ok := getProject(s.ProjectID); ok {
 			selected = project.MCPServers
 		} else {
-			return nil, errors.New("projet introuvable ou verrouillé")
+			return nil, errors.New("project not found or locked")
 		}
 	}
 	if selected == nil {
@@ -547,7 +547,7 @@ func acpSessionMCPDefinitions(s RuntimeSession) (map[string]MCPServerConfig, err
 	for _, name := range *selected {
 		definition, ok := definitions[name]
 		if !ok {
-			return nil, errors.New("serveur MCP sélectionné introuvable")
+			return nil, errors.New("selected MCP server not found")
 		}
 		out[name] = definition
 	}
@@ -555,15 +555,15 @@ func acpSessionMCPDefinitions(s RuntimeSession) (map[string]MCPServerConfig, err
 }
 func validateACPMCPSelection(names []string) error {
 	if len(names) > 128 {
-		return errors.New("128 serveurs MCP maximum")
+		return errors.New("maximum 128 MCP servers")
 	}
 	definitions, err := LoadMCPConfig()
 	if err != nil {
-		return errors.New("définitions MCP indisponibles")
+		return errors.New("MCP definitions unavailable")
 	}
 	for _, name := range names {
 		if _, ok := definitions[name]; !ok {
-			return errors.New("serveur MCP sélectionné introuvable")
+			return errors.New("selected MCP server not found")
 		}
 	}
 	return nil

@@ -59,7 +59,7 @@ func getProject(id string) (ChatProject, bool) {
 func createProject(name string) (ChatProject, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		name = "Nouveau projet"
+		name = "New project"
 	}
 	if len([]rune(name)) > 80 {
 		name = string([]rune(name)[:80])
@@ -76,11 +76,11 @@ func renameProject(id, name string) error {
 	defer workspaceMu.Unlock()
 	p, ok := getProject(id)
 	if !ok {
-		return fmt.Errorf("projet introuvable")
+		return fmt.Errorf("project not found")
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return fmt.Errorf("nom vide")
+		return fmt.Errorf("empty name")
 	}
 	if len([]rune(name)) > 80 {
 		name = string([]rune(name)[:80])
@@ -93,7 +93,7 @@ func deleteProject(id string) error {
 	workspaceMu.Lock()
 	defer workspaceMu.Unlock()
 	if _, ok := getProject(id); !ok {
-		return fmt.Errorf("projet introuvable")
+		return fmt.Errorf("project not found")
 	}
 	for _, m := range listArchives() {
 		if m.ProjectID == id {
@@ -109,7 +109,7 @@ func deleteProject(id string) error {
 func setArchiveProject(id, projectID string) error {
 	if projectID != "" {
 		if _, ok := getProject(projectID); !ok {
-			return fmt.Errorf("projet introuvable")
+			return fmt.Errorf("project not found")
 		}
 	}
 	a, ok := loadArchive(id)
@@ -119,7 +119,7 @@ func setArchiveProject(id, projectID string) error {
 			conv.upsertSession()
 			return nil
 		}
-		return fmt.Errorf("conversation introuvable")
+		return fmt.Errorf("conversation not found")
 	}
 	a.ProjectID = projectID
 	if err := saveArchive(a); err != nil {

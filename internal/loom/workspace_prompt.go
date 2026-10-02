@@ -14,7 +14,7 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 	if s.ProjectID != "" {
 		p, ok := getProject(s.ProjectID)
 		if !ok {
-			c.Problem = "Le projet est absent ou verrouillé. Choisissez un projet accessible ou détachez ce fil."
+			c.Problem = "The project is missing or locked. Choose an accessible project or detach this thread."
 		} else {
 			c.ProjectName, c.Instructions = p.Name, p.Instructions
 			if c.MCPServers == nil {
@@ -39,7 +39,7 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 					c.Skills = append(c.Skills, skill)
 					parts = append(parts, "Skill: "+skill.Name+"\n"+skill.Instructions)
 				} else {
-					c.Warning = "Un skill du projet n’est plus disponible et ne sera pas envoyé."
+					c.Warning = "A project skill is no longer available and will not be sent."
 				}
 			}
 		}
@@ -57,25 +57,25 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 	defer m.mu.Unlock()
 	s, ok := m.getLocked(id)
 	if !ok {
-		return s, errors.New("discussion introuvable ou verrouillée")
+		return s, errors.New("discussion not found or locked")
 	}
 	if m.runs[id] != nil || m.nativeRunning(s) {
-		return s, errors.New("attendez ou arrêtez la réponse avant de modifier ce fil")
+		return s, errors.New("wait for or stop the response before editing this thread")
 	}
 	if revision == "" || revision != discussionContext(s).Revision {
-		return s, errors.New("le fil ou son contexte a changé ; rouvrez la configuration avant d’enregistrer")
+		return s, errors.New("the thread or its context changed; reopen the configuration before saving")
 	}
 	title, instructions = strings.TrimSpace(title), strings.TrimSpace(instructions)
 	if title == "" || len([]rune(title)) > 100 || len(instructions) > maxDiscussionInstructions {
-		return s, errors.New("titre requis (100 caractères maximum) et consigne de 12000 octets maximum")
+		return s, errors.New("title required (maximum 100 characters) and instruction up to 12000 bytes")
 	}
 	if projectID != "" {
 		if _, ok := getProject(projectID); !ok {
-			return s, errors.New("projet introuvable ou verrouillé")
+			return s, errors.New("project not found or locked")
 		}
 	}
 	if s.RuntimeID != "llama.cpp" && (s.ProjectID != projectID || s.Instructions != instructions) && !consent {
-		return s, errors.New("confirmez le partage du nouveau contexte avec le provider sélectionné")
+		return s, errors.New("confirm sharing the new context with the selected provider")
 	}
 	if len(harness) > 0 && harness[0].present() {
 		if err := m.configureACPLocked(&s, harness[0], consent); err != nil {

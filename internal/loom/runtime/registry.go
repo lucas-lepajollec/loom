@@ -20,29 +20,29 @@ func NewRegistry[Message, Caps, Callback, Snapshot any]() *Registry[Message, Cap
 
 func (reg *Registry[Message, Caps, Callback, Snapshot]) Register(adapter RuntimeAdapter[Message, Caps, Callback]) error {
 	if adapter == nil {
-		return errors.New("adaptateur runtime requis")
+		return errors.New("runtime adapter required")
 	}
 	d := adapter.Descriptor()
 	if d.ID == "" || strings.TrimSpace(d.ID) != d.ID || strings.ContainsAny(d.ID, "/{}") {
-		return errors.New("identifiant runtime invalide")
+		return errors.New("invalid runtime ID")
 	}
 	if !d.Implemented && len(d.Capabilities) != 0 {
-		return errors.New("un runtime en préparation ne peut pas déclarer de capacités")
+		return errors.New("a planned runtime cannot declare capabilities")
 	}
 	if HasRuntimeCapability(d, "connect") {
 		if _, ok := adapter.(Connectable); !ok {
-			return errors.New("capacité connect sans interface Connectable")
+			return errors.New("connect capability without Connectable interface")
 		}
 	}
 	if HasRuntimeCapability(d, "quota") {
 		if _, ok := adapter.(QuotaReader[Snapshot]); !ok {
-			return errors.New("capacité quota sans interface QuotaReader")
+			return errors.New("quota capability without QuotaReader interface")
 		}
 	}
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 	if _, exists := reg.adapters[d.ID]; exists {
-		return errors.New("runtime déjà enregistré")
+		return errors.New("runtime already registered")
 	}
 	reg.adapters[d.ID] = adapter
 	reg.order = append(reg.order, d.ID)

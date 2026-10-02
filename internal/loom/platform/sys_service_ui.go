@@ -37,7 +37,7 @@ func CmdUI(args []string) error {
 		action = args[0]
 	}
 	if runtime.GOOS != "linux" {
-		return fmt.Errorf("la commande ui n'est disponible que sous Linux (systemd)")
+		return fmt.Errorf("the ui command is only available on Linux (systemd)")
 	}
 	svc := UIServiceName()
 	needsRoot := action == "start" || action == "stop" || action == "restart" || action == "enable" || action == "disable"

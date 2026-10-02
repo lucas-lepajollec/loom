@@ -22,25 +22,25 @@ func cmdAgent(args []string) error {
 		if err := setAgentEnabled(true); err != nil {
 			return err
 		}
-		fmt.Println(green("[ok]") + " mode agent activé — l'IA dispose du shell complet (" + shellName() + "), de l'écriture de fichiers et de sa mémoire")
+		fmt.Println(green("[ok]") + " agent mode enabled — the AI has full shell access (" + shellName() + "), file writing and its memory")
 	case "off":
 		if err := setAgentEnabled(false); err != nil {
 			return err
 		}
-		fmt.Println(green("[ok]") + " mode agent désactivé")
+		fmt.Println(green("[ok]") + " agent mode disabled")
 	case "", "status":
 		state := dim("off")
 		if agentEnabled() {
 			state = green("on")
 		}
-		fmt.Printf("%s  état: %s\n", cyan("Mode agent"), state)
-		fmt.Printf("  outils : %s (timeout %ds, max %ds) + write/edit + mémoire (mem_search/mem_read/mem_add/mem_edit)\n", shellName(), toolDefaultTimeout, toolMaxTimeout)
+		fmt.Printf("%s  state: %s\n", cyan("Agent mode"), state)
+		fmt.Printf("  tools: %s (timeout %ds, max %ds) + write/edit + memory (mem_search/mem_read/mem_add/mem_edit)\n", shellName(), toolDefaultTimeout, toolMaxTimeout)
 		mem := MemList()
 		if len(mem) == 0 {
-			fmt.Printf("  mémoire : aucune page — crée %s/<nom>.md\n", memoryDir())
+			fmt.Printf("  memory: no pages — create %s/<name>.md\n", memoryDir())
 			return nil
 		}
-		fmt.Printf("  mémoire (%s) :\n", memoryDir())
+		fmt.Printf("  memory (%s):\n", memoryDir())
 		for _, p := range mem {
 			fmt.Printf("    %s  %s\n", bold(p.Name), p.Title)
 		}

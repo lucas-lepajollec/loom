@@ -58,7 +58,7 @@ func vswherePath() string {
 	if base == "" {
 		base = os.Getenv("ProgramFiles")
 	}
-	return filepath.Join(base, "Microsoft Visual Studio", "Installer", "vswhere.exe")
+	return filepath.Join(base, "Microsoft Visual Studio", "Install", "vswhere.exe")
 }
 
 // msvcInstallVersion returns the major version of the newest MSVC install that
@@ -106,9 +106,9 @@ func ensureCompiler() error {
 		return nil
 	}
 	if _, err := exec.LookPath("winget"); err != nil {
-		return fmt.Errorf("compilateur C++ absent et winget introuvable — installe « Visual Studio Build Tools » (charge de travail C++) manuellement")
+		return fmt.Errorf("C++ compiler missing and winget not found — install “Visual Studio Build Tools” (C++ workload) manually")
 	}
-	fmt.Printf("%s compilateur C++ absent — installation des Build Tools MSVC (gros téléchargement, une seule fois)…\n", yellow("[info]"))
+	fmt.Printf("%s C++ compiler missing — installing MSVC Build Tools (large download, once only)…\n", yellow("[info]"))
 	cmd := hideCmd(exec.Command("winget", "install", "--id", "Microsoft.VisualStudio.2022.BuildTools", "-e",
 		"--accept-source-agreements", "--accept-package-agreements",
 		"--disable-interactivity",
@@ -116,12 +116,12 @@ func ensureCompiler() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("installation des Build Tools MSVC échouée: %w", err)
+		return fmt.Errorf("MSVC Build Tools installation failed: %w", err)
 	}
 	if msvcInstallVersion() == "" {
-		return fmt.Errorf("Build Tools installés mais toolchain C++ introuvable — relance la commande ou vérifie l'installation Visual Studio")
+		return fmt.Errorf("Build Tools installed but C++ toolchain not found — run the command again or check the Visual Studio installation")
 	}
-	fmt.Printf("%s compilateur C++ prêt.\n", green("✓"))
+	fmt.Printf("%s C++ compiler ready.\n", green("✓"))
 	return nil
 }
 
@@ -138,24 +138,24 @@ func ensureAccelerator() {
 		return // toolkit déjà présent
 	}
 	if _, err := exec.LookPath("winget"); err != nil {
-		fmt.Printf("%s GPU NVIDIA détecté mais CUDA Toolkit absent et winget introuvable — build CPU (installe le CUDA Toolkit pour l'accélération GPU)\n", yellow("[info]"))
+		fmt.Printf("%s NVIDIA GPU detected but CUDA Toolkit missing and winget not found — CPU build (install the CUDA Toolkit for GPU acceleration)\n", yellow("[info]"))
 		return
 	}
-	fmt.Printf("%s GPU NVIDIA détecté — installation du CUDA Toolkit pour l'accélération GPU (gros téléchargement, une seule fois)…\n", yellow("[info]"))
+	fmt.Printf("%s NVIDIA GPU detected — installing the CUDA Toolkit for GPU acceleration (large download, once only)…\n", yellow("[info]"))
 	cmd := hideCmd(exec.Command("winget", "install", "--id", "Nvidia.CUDA", "-e",
 		"--accept-source-agreements", "--accept-package-agreements",
 		"--disable-interactivity"))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("%s installation du CUDA Toolkit échouée (%v) — on continue en CPU\n", yellow("[warn]"), err)
+		fmt.Printf("%s CUDA Toolkit installation failed (%v) — continuing with CPU\n", yellow("[warn]"), err)
 		return
 	}
 	refreshToolPath()
 	if findNvcc() != "" {
-		fmt.Printf("%s CUDA Toolkit prêt — build GPU activé.\n", green("✓"))
+		fmt.Printf("%s CUDA Toolkit ready — GPU build enabled.\n", green("✓"))
 	} else {
-		fmt.Printf("%s CUDA Toolkit installé mais nvcc introuvable dans cette session — relance la commande pour activer le GPU\n", yellow("[info]"))
+		fmt.Printf("%s CUDA Toolkit installed but nvcc not found in this session — run the command again to enable the GPU\n", yellow("[info]"))
 	}
 }
 
@@ -212,14 +212,14 @@ func ensureCudaVSIntegration(toolkitDir string) error {
 		}
 	}
 	if copied > 0 {
-		fmt.Printf("%s intégration Visual Studio de CUDA absente — réparée (fichiers copiés depuis %s)\n", yellow("[fix]"), src)
+		fmt.Printf("%s CUDA Visual Studio integration missing — repaired (files copied from %s)\n", yellow("[fix]"), src)
 		return nil
 	}
-	return fmt.Errorf(`l'intégration Visual Studio de CUDA est absente : aucun fichier « CUDA x.y.props » sous
+	return fmt.Errorf(`CUDA Visual Studio integration is missing: no “CUDA x.y.props” file under
   %s\MSBuild\Microsoft\VC\<version>\BuildCustomizations
-Sans elle, CMake échoue sur « No CUDA toolset found ». Pour corriger, au choix :
-  1. relance l'installeur du CUDA Toolkit (installation personnalisée) et coche « CUDA → Visual Studio Integration » — Visual Studio doit déjà être installé à ce moment-là ;
-  2. ou copie (en admin) les fichiers de
+Without it, CMake fails with “No CUDA toolset found”. To fix it, either:
+  1. run the CUDA Toolkit installer again (custom installation) and select “CUDA → Visual Studio Integration” — Visual Studio must already be installed at that point;
+  2. or copy (as administrator) the files from
        %s
-     vers le dossier BuildCustomizations ci-dessus, puis relance loom llamacpp install`, installPath, src)
+     to the BuildCustomizations directory above, then run loom llamacpp install again`, installPath, src)
 }

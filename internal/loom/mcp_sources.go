@@ -14,7 +14,7 @@ const mcpSourcesState = "mcp_sources"
 func mcpSourcePath(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return "", fmt.Errorf("chemin MCP requis")
+		return "", fmt.Errorf("MCP path required")
 	}
 	if path == "~" || strings.HasPrefix(path, "~/") || strings.HasPrefix(path, `~\`) {
 		home, err := os.UserHomeDir()
@@ -41,12 +41,12 @@ func mcpSourcePath(path string) (string, error) {
 func loadMCPSourcesLocked() ([]MCPSource, error) {
 	data, err := getBytesErr(bkState, mcpSourcesState)
 	if err != nil {
-		return nil, fmt.Errorf("lecture des sources MCP impossible")
+		return nil, fmt.Errorf("could not read MCP sources")
 	}
 	sources := []MCPSource{}
 	if len(data) > 0 {
 		if err := json.Unmarshal(data, &sources); err != nil {
-			return nil, fmt.Errorf("liste des sources MCP invalide")
+			return nil, fmt.Errorf("invalid MCP source list")
 		}
 	}
 	return sources, nil
@@ -60,13 +60,13 @@ func linkMCPSource(source MCPSource, unlink bool) error {
 	if !unlink {
 		info, err := os.Stat(path)
 		if err != nil {
-			return fmt.Errorf("fichier source MCP inaccessible")
+			return fmt.Errorf("MCP source file inaccessible")
 		}
 		if !info.Mode().IsRegular() {
-			return fmt.Errorf("la source MCP doit être un fichier")
+			return fmt.Errorf("the MCP source must be a file")
 		}
 		if path == mcpFilePath() {
-			return fmt.Errorf("le fichier MCP Loom ne peut pas être une source liée")
+			return fmt.Errorf("the Loom MCP file cannot be a linked source")
 		}
 	}
 	mcpConfigMu.Lock()
@@ -156,7 +156,7 @@ func adoptLinkedMCP(source, name string, withEnv bool) (string, []string, error)
 		for _, entry := range entries {
 			if entry.Row.Source == source && entry.Row.Name == name {
 				if found != nil {
-					return "", nil, fmt.Errorf("serveur source MCP ambigu")
+					return "", nil, fmt.Errorf("ambiguous MCP source server")
 				}
 				cfg := entry.Config
 				found = &cfg
@@ -164,7 +164,7 @@ func adoptLinkedMCP(source, name string, withEnv bool) (string, []string, error)
 		}
 	}
 	if found == nil {
-		return "", nil, fmt.Errorf("serveur introuvable dans les sources MCP liées")
+		return "", nil, fmt.Errorf("server not found in linked MCP sources")
 	}
 	cfg, err := adoptedMCPDefinition(*found, withEnv)
 	if err != nil {
@@ -181,7 +181,7 @@ func storeAdoptedMCP(name string, cfg MCPServerConfig) (string, []string, error)
 		name = strings.ReplaceAll(name, "__", "_")
 	}
 	if name == "" {
-		return "", nil, fmt.Errorf("nom de serveur MCP vide après normalisation")
+		return "", nil, fmt.Errorf("MCP server name empty after normalization")
 	}
 	mcpConfigMu.Lock()
 	servers, err := loadMCPConfigForWriteLocked()
@@ -208,4 +208,4 @@ func storeAdoptedMCP(name string, cfg MCPServerConfig) (string, []string, error)
 	return name, missing, nil
 }
 
-var errMCPAdoptConflict = fmt.Errorf("un serveur MCP Loom porte déjà ce nom")
+var errMCPAdoptConflict = fmt.Errorf("a Loom MCP server already has this name")

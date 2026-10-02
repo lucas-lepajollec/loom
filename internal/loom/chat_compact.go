@@ -161,7 +161,7 @@ func compactWouldTrigger(msgs []Message, knownTokens int) bool {
 // UI on ne voit qu'une jauge qui reste haute, sans savoir si le seuil n'a pas
 // été atteint ou si la réduction a été refusée.
 func logCompact(phase string, used int, before, after []Message, changed bool) {
-	fmt.Fprintf(os.Stderr, "[compact] %s ctx=%d seuil=%d/%d est_avant=%d est_apres=%d msgs=%d→%d changé=%v\n",
+	fmt.Fprintf(os.Stderr, "[compact] %s ctx=%d threshold=%d/%d est_before=%d est_after=%d msgs=%d→%d changed=%v\n",
 		phase, used, int(float64(ctxWindow())*compactTriggerFrac), ctxWindow(),
 		estimateTokens(before), estimateTokens(after), len(before), len(after), changed)
 }
@@ -267,7 +267,7 @@ func compactMessages(ctx context.Context, msgs []Message, caps Caps) ([]Message,
 		forSummary[i] = m
 		if m.Role == "tool" {
 			if r := []rune(msgText(m)); len(r) > compactToolSummaryLen {
-				forSummary[i].Content = string(r[:compactToolSummaryLen]) + "\n[…suite coupée]"
+				forSummary[i].Content = string(r[:compactToolSummaryLen]) + "\n[…remainder cut off]"
 			}
 		}
 	}
@@ -414,14 +414,14 @@ Write the summary in the SAME language as the conversation.`
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
-		return "", fmt.Errorf("résumé: llama-server %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return "", fmt.Errorf("summary: llama-server %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 	var out summarizeResp
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return "", err
 	}
 	if len(out.Choices) == 0 {
-		return "", fmt.Errorf("résumé: réponse vide")
+		return "", fmt.Errorf("summary: empty response")
 	}
 	c := out.Choices[0].Message.Content
 	// Certains modèles à raisonnement préfixent un bloc <think>…</think> : on ne

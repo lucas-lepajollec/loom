@@ -15,7 +15,7 @@ import (
 // stays available while client requests (notably permission) await the user.
 const MaxFrame = 4 << 20
 
-var ErrClosed = errors.New("agent ACP déconnecté")
+var ErrClosed = errors.New("ACP agent disconnected")
 
 type Frame struct {
 	Replied func()          `json:"-"`
@@ -31,7 +31,7 @@ type RPCError struct {
 	Message string `json:"message"`
 }
 
-func (e *RPCError) Error() string { return "requête ACP refusée par l’agent" } // upstream errors can contain secrets
+func (e *RPCError) Error() string { return "ACP request rejected by the agent" } // upstream errors can contain secrets
 
 type Client struct {
 	cmd     *exec.Cmd
@@ -63,13 +63,13 @@ func NewClient(cmd *exec.Cmd) (*Client, error) {
 	c := &Client{cmd: cmd, stdout: out, stdin: in, pending: map[string]chan Frame{}, done: make(chan struct{})}
 	// Start/reader happen after handlers are installed by Start().
 	c.Notify = func(Frame) {}
-	c.Handler = func(*Frame) (any, error) { return nil, errors.New("méthode ACP non prise en charge") }
+	c.Handler = func(*Frame) (any, error) { return nil, errors.New("unsupported ACP method") }
 	return c, nil
 }
 func (c *Client) Start() error {
 	if err := c.cmd.Start(); err != nil {
 		c.Close()
-		return errors.New("impossible de lancer l’agent ACP")
+		return errors.New("could not launch the ACP agent")
 	}
 	go c.read(c.stdout)
 	go func() { _ = c.cmd.Wait(); c.Close() }()
@@ -81,7 +81,7 @@ func (c *Client) Close() {
 func (c *Client) Write(v any) error {
 	b, err := json.Marshal(v)
 	if err != nil || len(b) > MaxFrame {
-		return errors.New("message ACP trop long")
+		return errors.New("ACP message too long")
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
@@ -116,7 +116,7 @@ func (c *Client) Call(ctx context.Context, method string, params any, result any
 			return f.Error
 		}
 		if result != nil && json.Unmarshal(f.Result, result) != nil {
-			return errors.New("réponse ACP invalide")
+			return errors.New("invalid ACP response")
 		}
 		return nil
 	}
@@ -160,7 +160,7 @@ func (c *Client) read(out io.Reader) {
 					if errors.As(err, &rpcError) {
 						code = rpcError.Code
 					}
-					reply["error"] = &RPCError{Code: code, Message: "requête client refusée"}
+					reply["error"] = &RPCError{Code: code, Message: "client request rejected"}
 				} else {
 					reply["result"] = result
 				}

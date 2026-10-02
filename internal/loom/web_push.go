@@ -37,15 +37,15 @@ func handlePushKey(w http.ResponseWriter, r *http.Request) {
 func handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 	var s pushSub
 	if err := json.NewDecoder(r.Body).Decode(&s); err != nil || s.Endpoint == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "abonnement invalide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid subscription"})
 		return
 	}
 	if err := addSub(s); err != nil {
-		fmt.Printf("[push] abonnement REFUSÉ (stockage) : %v\n", err)
+		fmt.Printf("[push] subscription REJECTED (storage): %v\n", err)
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	fmt.Printf("[push] abonnement enregistré (%s) — %d au total\n", pushEndpointHost(s.Endpoint), len(loadSubs()))
+	fmt.Printf("[push] subscription saved (%s) — %d total\n", pushEndpointHost(s.Endpoint), len(loadSubs()))
 	sendJSON(w, 200, map[string]any{"ok": true})
 }
 

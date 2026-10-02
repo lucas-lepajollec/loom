@@ -106,7 +106,7 @@ func resolveHarnessTarget(target, id string) (string, *RemoteMachine, inspectSpe
 	}
 	spec, ok := harnessInspectSpec(id)
 	if !ok {
-		return target, nil, spec, runtimeActionError{404, "harness inconnu"}
+		return target, nil, spec, runtimeActionError{404, "unknown harness"}
 	}
 	if target == "local" {
 		return target, nil, spec, nil
@@ -120,7 +120,7 @@ func resolveHarnessTarget(target, id string) (string, *RemoteMachine, inspectSpe
 			return target, &valid, spec, nil
 		}
 	}
-	return target, nil, spec, runtimeActionError{404, "machine introuvable"}
+	return target, nil, spec, runtimeActionError{404, "machine not found"}
 }
 
 func lifecycleOS(m *RemoteMachine) string {
@@ -145,10 +145,10 @@ func lifecycleActionCommand(spec inspectSpec, osFamily, action string) ([]string
 			argv = spec.Install[osFamily]
 		}
 	default:
-		return nil, errors.New("action inconnue")
+		return nil, errors.New("unknown action")
 	}
 	if len(argv) == 0 {
-		return nil, errors.New("action non prise en charge sur cet OS")
+		return nil, errors.New("action not supported on this OS")
 	}
 	return append([]string{}, argv...), nil
 }
@@ -166,7 +166,7 @@ func lifecycleScriptArg(argv []string) int {
 
 func buildHarnessLifecycleCommand(m *RemoteMachine, key string, argv []string) ([]string, error) {
 	if len(argv) == 0 {
-		return nil, errors.New("commande vide")
+		return nil, errors.New("empty command")
 	}
 	if m == nil {
 		return append([]string{}, argv...), nil
@@ -263,7 +263,7 @@ func lifecycleWindowsShim(path string, args []string, read func(string) ([]byte,
 		}
 	}
 	if len(match) != 2 {
-		return nil, errors.New("lanceur Windows non exécutable sans shell")
+		return nil, errors.New("Windows launcher cannot execute without a shell")
 	}
 	node, err := lookup("node")
 	if err != nil {
@@ -275,7 +275,7 @@ func lifecycleWindowsShim(path string, args []string, read func(string) ([]byte,
 
 func harnessNativeArgv(argv []string) ([]string, error) {
 	if len(argv) == 0 {
-		return nil, errors.New("commande vide")
+		return nil, errors.New("empty command")
 	}
 	path, err := lifecycleLookPath(argv[0])
 	if err != nil {
@@ -289,7 +289,7 @@ func harnessNativeArgv(argv []string) ([]string, error) {
 
 func runHarnessLifecycleCommand(ctx context.Context, m *RemoteMachine, argv []string) (string, error) {
 	if len(argv) == 0 {
-		return "", errors.New("commande vide")
+		return "", errors.New("empty command")
 	}
 	if m == nil && argv[0] == "command" && len(argv) == 3 && argv[1] == "-v" {
 		return lifecycleLookPath(argv[2])
@@ -341,7 +341,7 @@ func runHarnessLifecycleCommand(ctx context.Context, m *RemoteMachine, argv []st
 func downloadHarnessInstaller(ctx context.Context, url string) (string, error) {
 	// Only the official https installers of the built-in catalog are run.
 	if !strings.HasPrefix(url, "https://") {
-		return "", errors.New("installeur non https refusé")
+		return "", errors.New("non-HTTPS installer refused")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -367,14 +367,14 @@ func downloadHarnessInstaller(ctx context.Context, url string) (string, error) {
 	closeErr := f.Close()
 	if copyErr != nil || closeErr != nil || n > 4<<20 {
 		_ = os.Remove(f.Name())
-		return "", errors.New("téléchargement du script impossible ou trop volumineux")
+		return "", errors.New("script download failed or too large")
 	}
 	return f.Name(), nil
 }
 
 func readHarnessGitHubLatest(ctx context.Context, repo string) (string, error) {
 	if !regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`).MatchString(repo) {
-		return "", errors.New("dépôt GitHub invalide")
+		return "", errors.New("invalid GitHub repository")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/"+repo+"/releases/latest", nil)
 	if err != nil {
@@ -455,7 +455,7 @@ func (s *harnessLifecycleService) check(ctx context.Context, target, id string, 
 	defer cancel()
 	_, err := run(probeCtx, m, []string{"command", "-v", spec.Binary})
 	if err != nil && !lifecycleMissingCommand(err) {
-		return state, fmt.Errorf("détection impossible : %w", err)
+		return state, fmt.Errorf("detection failed: %w", err)
 	}
 	state.Installed = err == nil
 	if state.Installed {
@@ -475,7 +475,7 @@ func (s *harnessLifecycleService) check(ctx context.Context, target, id string, 
 		if lifecycleMissingCommand(e) {
 			state.RequiresMissing = append(state.RequiresMissing, tool)
 		} else if e != nil {
-			return state, fmt.Errorf("prérequis : %w", e)
+			return state, fmt.Errorf("prerequisites: %w", e)
 		}
 	}
 	if spec.Latest != nil {
@@ -511,7 +511,7 @@ func (s *harnessLifecycleService) mutate(ctx context.Context, target, id, action
 	after, checkErr := s.check(ctx, target, id, m, spec)
 	after.Log = out
 	if runErr != nil {
-		return after, fmt.Errorf("%s a échoué : %w", action, runErr)
+		return after, fmt.Errorf("%s failed: %w", action, runErr)
 	}
 	if refreshErr != nil {
 		return after, fmt.Errorf("actualisation : %w", refreshErr)
@@ -525,10 +525,10 @@ func (s *harnessLifecycleService) action(ctx context.Context, target, id, action
 		return harnessLifecycleState{}, err
 	}
 	if action != "check" && action != "install" && action != "update" {
-		return harnessLifecycleState{}, errors.New("action inconnue")
+		return harnessLifecycleState{}, errors.New("unknown action")
 	}
 	if !s.acquire(target, id) {
-		return harnessLifecycleState{}, runtimeActionError{409, "une action est déjà en cours pour ce harness sur cette machine"}
+		return harnessLifecycleState{}, runtimeActionError{409, "an action is already in progress for this harness on this machine"}
 	}
 	defer s.release(target, id)
 	ctx, cancel := context.WithTimeout(ctx, harnessActionTimeout)

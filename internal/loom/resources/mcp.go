@@ -84,9 +84,9 @@ func (c MCPServerConfig) Validate() error {
 	hasURL := strings.TrimSpace(c.URL) != ""
 	switch {
 	case hasCmd && hasURL:
-		return fmt.Errorf("un serveur MCP ne peut avoir à la fois 'command' (stdio) et 'url' (http)")
+		return fmt.Errorf("an MCP server cannot have both 'command' (stdio) and 'url' (http)")
 	case !hasCmd && !hasURL:
-		return fmt.Errorf("un serveur MCP doit avoir soit 'command' (stdio) soit 'url' (http)")
+		return fmt.Errorf("an MCP server must have either 'command' (stdio) or 'url' (http)")
 	}
 	return nil
 }

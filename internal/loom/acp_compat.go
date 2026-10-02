@@ -32,7 +32,7 @@ type acpClient struct {
 func startACPClient(command string, args []string, cwd string, env ...string) (*acpClient, error) {
 	argv, err := harnessNativeArgv(append([]string{command}, args...))
 	if err != nil {
-		return nil, errors.New("impossible de trouver le lanceur ACP")
+		return nil, errors.New("could not find the ACP launcher")
 	}
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())

@@ -38,10 +38,10 @@ type windowsPTY struct {
 
 func startPTY(argv []string, dir string, env []string) (_ termProcess, err error) {
 	if !ptySupported {
-		return nil, errors.New("les terminaux ne sont pas encore disponibles sous Windows : ConPTY nécessite Windows 10 1809 ou ultérieur")
+		return nil, errors.New("terminals are not available on Windows yet: ConPTY requires Windows 10 1809 or later")
 	}
 	if len(argv) == 0 || argv[0] == "" {
-		return nil, errors.New("commande invalide")
+		return nil, errors.New("invalid command")
 	}
 	exe, err := exec.LookPath(argv[0])
 	if err != nil {
@@ -142,7 +142,7 @@ func startPTY(argv []string, dir string, env []string) (_ termProcess, err error
 			if p.waitErr == nil {
 				p.code = int(code)
 				if code != 0 {
-					p.waitErr = fmt.Errorf("processus terminé avec le code %d", code)
+					p.waitErr = fmt.Errorf("process exited with code %d", code)
 				}
 			}
 		}
@@ -157,7 +157,7 @@ func (p *windowsPTY) Read(b []byte) (int, error)  { return p.output.Read(b) }
 func (p *windowsPTY) Write(b []byte) (int, error) { return p.input.Write(b) }
 func (p *windowsPTY) Resize(cols, rows uint16) error {
 	if cols == 0 || rows == 0 || cols > 1000 || rows > 500 {
-		return errors.New("taille invalide")
+		return errors.New("invalid size")
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()

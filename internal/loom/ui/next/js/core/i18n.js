@@ -2,8 +2,8 @@ import fr from '../i18n/fr.js';
 import en from '../i18n/en.js';
 
 const dictionaries = { fr, en };
-const sourceKeys = new Map(Object.entries(fr).filter(([, value]) => typeof value === 'string').map(([key, value]) => [value, key]));
-const sourcePatterns = Object.entries(fr).filter(([key, value]) => /^(runtime|engine)\.copy\./.test(key) && typeof value === 'string' && /\{\w+\}/.test(value))
+const sourceKeys = new Map(Object.entries(en).filter(([, value]) => typeof value === 'string').map(([key, value]) => [value, key]));
+const sourcePatterns = Object.entries(en).filter(([key, value]) => /^(runtime|engine)\.copy\./.test(key) && typeof value === 'string' && /\{\w+\}/.test(value))
   .map(([key, value]) => {
     const names = [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]);
     const pattern = new RegExp('^' + value.split(/\{\w+\}/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('(.+?)') + '$');

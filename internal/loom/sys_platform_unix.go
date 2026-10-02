@@ -99,15 +99,15 @@ func ensureCompiler() error {
 		// Non-Debian: build-essential n'existe pas, on vise les paquets directs.
 		candidates = []string{"gcc", "gcc-c++", "make"}
 	}
-	fmt.Println(yellow("[info]") + " compilateur C/C++ absent — installation via le gestionnaire de paquets…")
+	fmt.Println(yellow("[info]") + " C/C++ compiler missing — installing via the package manager…")
 	for _, pkg := range candidates {
 		_ = autoInstallTool(pkg) // best-effort, paquets variables selon la distro
 	}
 	if (hasTool("cc") || hasTool("gcc")) && (hasTool("c++") || hasTool("g++")) && hasTool("make") {
-		fmt.Println(green("✓") + " compilateur C/C++ prêt.")
+		fmt.Println(green("✓") + " C/C++ compiler ready.")
 		return nil
 	}
-	return fmt.Errorf("compilateur C/C++ introuvable — installe gcc/g++/make (ou build-essential) manuellement")
+	return fmt.Errorf("C/C++ compiler not found — install gcc/g++/make (or build-essential) manually")
 }
 
 // ensureCudaVSIntegration is Windows-specific (MSBuild CUDA integration check);

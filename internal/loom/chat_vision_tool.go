@@ -23,29 +23,29 @@ const maxVisionBytes = 12 << 20 // 12 Mio
 // La partie image vaut nil en cas d'erreur : l'appelant n'injecte alors rien.
 func toolSeeImage(path string) (string, map[string]any) {
 	if !visionEnabled() {
-		return "[erreur] la vision n'est pas active sur ce modèle (aucun projecteur MMPROJ configuré) — impossible de voir une image", nil
+		return "[error] vision is not active for this model (no MMPROJ projector configured) — cannot view an image", nil
 	}
 	if path == "" {
-		return "[erreur] chemin de fichier manquant", nil
+		return "[error] missing file path", nil
 	}
 	abs := resolveAgentPath(path)
 	mime := imageMime(abs)
 	if mime == "" {
-		return "[erreur] format non reconnu comme image (attendu : png, jpg, gif, webp, bmp)", nil
+		return "[error] unrecognized image format (expected: png, jpg, gif, webp, bmp)", nil
 	}
 	st, err := os.Stat(abs)
 	if err != nil {
-		return "[erreur] fichier introuvable : " + path, nil
+		return "[error] file not found: " + path, nil
 	}
 	if st.IsDir() {
-		return "[erreur] c'est un dossier, pas une image : " + path, nil
+		return "[error] this is a directory, not an image: " + path, nil
 	}
 	if st.Size() > maxVisionBytes {
-		return fmt.Sprintf("[erreur] image trop lourde (%s, max %s)", humanBytes(st.Size()), humanBytes(maxVisionBytes)), nil
+		return fmt.Sprintf("[error] image too large (%s, max %s)", humanBytes(st.Size()), humanBytes(maxVisionBytes)), nil
 	}
 	b, err := os.ReadFile(abs)
 	if err != nil {
-		return "[erreur] lecture impossible : " + err.Error(), nil
+		return "[error] could not read: " + err.Error(), nil
 	}
 	imgPart := map[string]any{
 		"type": "image_url",
@@ -53,5 +53,5 @@ func toolSeeImage(path string) (string, map[string]any) {
 			"url": "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b),
 		},
 	}
-	return "[ok] image chargée : " + filepath.Base(abs), imgPart
+	return "[ok] image loaded: " + filepath.Base(abs), imgPart
 }

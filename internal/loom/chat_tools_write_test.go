@@ -34,7 +34,7 @@ func TestFileWriteOverwrites(t *testing.T) {
 		t.Fatalf("premier write: %s", res)
 	}
 	res := fileWrite(path, "nouveau")
-	if !strings.Contains(res, "réécrit") {
+	if !strings.Contains(res, "rewritten") {
 		t.Fatalf("attendu « réécrit », obtenu: %s", res)
 	}
 	got, _ := os.ReadFile(path)
@@ -44,7 +44,7 @@ func TestFileWriteOverwrites(t *testing.T) {
 }
 
 func TestFileWriteRejectsEmptyPath(t *testing.T) {
-	if res := fileWrite("  ", "x"); !strings.HasPrefix(res, "[erreur]") {
+	if res := fileWrite("  ", "x"); !strings.HasPrefix(res, "[error]") {
 		t.Fatalf("attendu une erreur, obtenu: %s", res)
 	}
 }

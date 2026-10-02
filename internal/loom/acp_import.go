@@ -24,13 +24,13 @@ type acpSessionInfo struct {
 
 func startACPReader(ctx context.Context, agent acpAgent, cwd string, notify func(acpFrame)) (*acpClient, map[string]any, error) {
 	if !agent.available() {
-		return nil, nil, errors.New("CLI du harness ou lanceur ACP indisponible")
+		return nil, nil, errors.New("harness CLI or ACP launcher unavailable")
 	}
 	c, err := startACPClient(agent.Command, agent.Args, cwd, acpLaunchEnv(agent.ID, "")...)
 	if err != nil {
 		return nil, nil, err
 	}
-	c.handler = func(*acpFrame) (any, error) { return nil, errors.New("lecture Loom") }
+	c.handler = func(*acpFrame) (any, error) { return nil, errors.New("Loom reading") }
 	c.notify = notify
 	if err := c.start(); err != nil {
 		c.close()
@@ -42,7 +42,7 @@ func startACPReader(ctx context.Context, agent acpAgent, cwd string, notify func
 	}
 	if err := c.call(ctx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": false, "writeTextFile": false}, "terminal": false}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init); err != nil || init.ProtocolVersion != 1 {
 		c.close()
-		return nil, nil, errors.New("l’agent ne répond pas au protocole ACP")
+		return nil, nil, errors.New("the agent does not respond to the ACP protocol")
 	}
 	return c, init.AgentCapabilities, nil
 }
@@ -56,7 +56,7 @@ func listACPSessions(ctx context.Context, agent acpAgent) ([]acpSessionInfo, err
 	defer c.close()
 	sc, _ := caps["sessionCapabilities"].(map[string]any)
 	if _, ok := sc["list"]; !ok {
-		return nil, errors.New("ce harness ne liste pas ses sessions")
+		return nil, errors.New("this harness does not list its sessions")
 	}
 	out := []acpSessionInfo{}
 	cursor := ""
@@ -73,7 +73,7 @@ func listACPSessions(ctx context.Context, agent acpAgent) ([]acpSessionInfo, err
 			if len(out) > 0 {
 				break
 			}
-			return nil, errors.New("liste des sessions refusée par le harness")
+			return nil, errors.New("session list rejected by the harness")
 		}
 		out = append(out, r.Sessions...)
 		if r.NextCursor == "" {
@@ -101,7 +101,7 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 	}
 	cwd, err := check(info.Cwd)
 	if err != nil {
-		return s, errors.New("le dossier de cette session n’existe plus sur cette machine")
+		return s, errors.New("this session's directory no longer exists on this machine")
 	}
 	for _, existing := range workspaceSessions.list() {
 		if existing.RuntimeID == agent.ID && existing.NativeSessionID == info.SessionID {
@@ -121,12 +121,12 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 	defer c.close()
 	var loaded acpSessionResponse
 	if err := c.call(ctx, "session/load", map[string]any{"sessionId": info.SessionID, "cwd": cwd, "mcpServers": []any{}}, &loaded); err != nil {
-		return s, errors.New("le harness n’a pas pu rouvrir cette session")
+		return s, errors.New("the harness could not reopen this session")
 	}
 	time.Sleep(300 * time.Millisecond) // trailing updates sent just after the response
 	messages, turns, commands := b.Finish(agent.ID, agent.Name, info.SessionID)
 	if len(messages) == 0 {
-		return s, errors.New("session vide : rien à importer")
+		return s, errors.New("empty session: nothing to import")
 	}
 	now := time.Now().UnixMilli()
 	title := strings.TrimSpace(info.Title)
@@ -159,7 +159,7 @@ func handleACPSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	agent, ok := acpAgentFor(r.PathValue("id"))
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness ACP introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "ACP harness not found"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
@@ -178,7 +178,7 @@ func handleACPImport(w http.ResponseWriter, r *http.Request) {
 	}
 	agent, ok := acpAgentFor(r.PathValue("id"))
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness ACP introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "ACP harness not found"})
 		return
 	}
 	var req struct {
@@ -189,7 +189,7 @@ func handleACPImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.SessionID == "" || len(req.SessionID) > 200 {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "session requise"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "session required"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)

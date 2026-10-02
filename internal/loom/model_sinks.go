@@ -81,7 +81,7 @@ func writePiProvider(path string, enabled bool, models []string, baseURL, key st
 	doc := map[string]any{}
 	if b, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(b, &doc); err != nil {
-			return errors.New("fichier de fournisseurs Pi illisible : Loom n’y touche pas")
+			return errors.New("Pi provider file unreadable: Loom will not modify it")
 		}
 	} else if !os.IsNotExist(err) {
 		return err
@@ -200,7 +200,7 @@ func handleModelSink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, ok := modelSinkFor(req.ID); !ok {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "ce harness ne peut pas encore utiliser les modèles de Loom"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "this harness cannot use Loom models yet"})
 		return
 	}
 	m := map[string]bool{}

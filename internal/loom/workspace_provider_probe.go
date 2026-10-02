@@ -21,13 +21,13 @@ func cloudModels(ctx context.Context, endpoint, key string, client *http.Client)
 	}
 	key = strings.TrimSpace(key)
 	if key == "" || len(key) > 4096 || strings.ContainsAny(key, "\r\n") {
-		return nil, errors.New("renseignez une clé API valide")
+		return nil, errors.New("enter a valid API key")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/models", nil)
 	if err != nil {
-		return nil, errors.New("destination invalide")
+		return nil, errors.New("invalid destination")
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Accept", "application/json")
@@ -38,16 +38,16 @@ func cloudModels(ctx context.Context, endpoint, key string, client *http.Client)
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, errors.New("catalogue injoignable ou délai dépassé")
+		return nil, errors.New("catalog unreachable or timed out")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("catalogue refusé (HTTP %d) ; vérifiez la clé et l’URL, ou saisissez les modèles manuellement", resp.StatusCode)
+		return nil, fmt.Errorf("catalog rejected (HTTP %d); check the key and URL, or enter models manually", resp.StatusCode)
 	}
 	const limit = 3 << 20
 	b, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil || len(b) > limit {
-		return nil, errors.New("catalogue trop volumineux ou interrompu")
+		return nil, errors.New("catalog too large or interrupted")
 	}
 	var catalog struct {
 		Data []struct {
@@ -55,10 +55,10 @@ func cloudModels(ctx context.Context, endpoint, key string, client *http.Client)
 		} `json:"data"`
 	}
 	if json.Unmarshal(b, &catalog) != nil || catalog.Data == nil {
-		return nil, errors.New("catalogue incompatible : liste data[].id attendue")
+		return nil, errors.New("incompatible catalog: data[].id list expected")
 	}
 	if len(catalog.Data) > 2048 {
-		return nil, errors.New("catalogue trop volumineux (2048 entrées maximum)")
+		return nil, errors.New("catalog too large (maximum 2048 entries)")
 	}
 	models := []string{}
 	seen := map[string]bool{}
@@ -90,7 +90,7 @@ func handleProviderModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !req.Consent {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "confirmez l’envoi de la clé à cette destination pour récupérer son catalogue"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "confirm sending the key to this destination to retrieve its catalog"})
 		return
 	}
 	if req.ID != "" {
@@ -102,7 +102,7 @@ func handleProviderModels(w http.ResponseWriter, r *http.Request) {
 		}
 		workspaceSessions.mu.Unlock()
 		if !found || (req.Endpoint != "" && req.Endpoint != p.Endpoint) {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "connexion introuvable ou destination différente"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "connection not found or destination differs"})
 			return
 		}
 		req.Endpoint = p.Endpoint

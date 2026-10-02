@@ -17,7 +17,7 @@ func cmdServe(args []string) error {
 	cfg := ReadConfig()
 	bin := strings.TrimSpace(cfg["BIN"])
 	if bin == "" {
-		return fmt.Errorf("BIN non défini — lance « loom edit »")
+		return fmt.Errorf("BIN not set — run “loom edit”")
 	}
 	_ = os.Chdir(LoomHome())
 
@@ -34,22 +34,22 @@ func cmdServe(args []string) error {
 			_ = os.Setenv("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
 		}
 		if err := ensureRouterINI(); err != nil {
-			return fmt.Errorf("presets du router : %w", err)
+			return fmt.Errorf("router presets: %w", err)
 		}
 		rArgs := routerServerArgs(engineBin)
-		fmt.Fprintf(os.Stderr, "[loom serve] llama-server router  /v1=:%d  llama=:%d  modèles max=%d\n",
+		fmt.Fprintf(os.Stderr, "[loom serve] llama-server router  /v1=:%d  llama=:%d  max models=%d\n",
 			LLMPort(), llamaBackendPort(), routerModelsMax())
 		if err := startOwnedLlama(rArgs[0], rArgs); err != nil {
-			return fmt.Errorf("démarrage du router llama-server : %w", err)
+			return fmt.Errorf("starting llama-server router: %w", err)
 		}
 		if model != "" {
 			go func() {
 				if err := waitRouterUp(2 * time.Minute); err != nil {
-					fmt.Fprintf(os.Stderr, "[loom serve] router injoignable : %v\n", err)
+					fmt.Fprintf(os.Stderr, "[loom serve] router unreachable: %v\n", err)
 					return
 				}
 				if err := routerActivate(); err != nil {
-					fmt.Fprintf(os.Stderr, "[loom serve] modèle non chargé au démarrage : %v\n", err)
+					fmt.Fprintf(os.Stderr, "[loom serve] model not loaded at startup: %v\n", err)
 				}
 			}()
 		} else {
@@ -59,16 +59,16 @@ func cmdServe(args []string) error {
 	} else if model != "" {
 		llmArgs, err := buildLlamaServerArgs()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[loom serve] modèle non chargé au démarrage : %v\n", err)
+			fmt.Fprintf(os.Stderr, "[loom serve] model not loaded at startup: %v\n", err)
 		} else {
 			fmt.Fprintf(os.Stderr, "[loom serve] %s  model=%s  /v1=:%d  llama=:%d\n",
 				llmArgs[0], filepath.Base(model), LLMPort(), llamaBackendPort())
 			if err := startOwnedLlama(llmArgs[0], llmArgs); err != nil {
-				fmt.Fprintf(os.Stderr, "[loom serve] échec démarrage llama-server : %v\n", err)
+				fmt.Fprintf(os.Stderr, "[loom serve] failed to start llama-server: %v\n", err)
 			}
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "[loom serve] moteur en veille (aucun modèle chargé, 0 VRAM)  /v1=:%d\n", LLMPort())
+		fmt.Fprintf(os.Stderr, "[loom serve] engine idle (no model loaded, 0 VRAM)  /v1=:%d\n", LLMPort())
 	}
 
 	errc := make(chan error, 2)

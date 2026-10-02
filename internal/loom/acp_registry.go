@@ -44,7 +44,7 @@ func (a acpAgent) available() bool {
 func builtinACPAgents() []acpAgent {
 	var entries []acpAgent
 	if json.Unmarshal(acpAgentsJSON, &entries) != nil {
-		panic("registre ACP invalide")
+		panic("invalid ACP registry")
 	}
 	return entries
 }
@@ -99,7 +99,7 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		cli, hint = "agy", "agy"
 	}
 	available := a.agent.available()
-	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, Machine: machineName(a.agent.Machine)}
+	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirm sharing the conversation, instructions and selected folder with this harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, Machine: machineName(a.agent.Machine)}
 }
 func joinACPArgs(args []string) string {
 	out := ""
@@ -121,11 +121,11 @@ func (a *acpAdapter) Quota(ctx context.Context) (QuotaSnapshot, error) {
 	case "antigravity":
 		return readAgyQuota(ctx)
 	}
-	return QuotaSnapshot{}, errors.New("quotas indisponibles")
+	return QuotaSnapshot{}, errors.New("quotas unavailable")
 }
 func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
 	if a.sessions == nil || a.session.ID == "" {
-		return nil, errors.New("discussion et dossier ACP requis")
+		return nil, errors.New("discussion and ACP directory required")
 	}
 	result, err := a.sessions.runACP(ctx, a.agent, a.session, turn, emit)
 	if ctx.Err() != nil {
@@ -137,12 +137,12 @@ func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallbac
 func acpDescription(a acpAgent) string {
 	switch {
 	case a.Remote:
-		return "Harness ACP sur une autre machine, lancé par " + a.Command + ". Il utilise ses propres fichiers et outils."
+		return "ACP harness on another machine, launched by " + a.Command + ". It uses its own files and tools."
 	case a.Custom:
-		return "Harness ACP personnalisé, lancé par " + a.Command + "."
+		return "Custom ACP harness launched by " + a.Command + "."
 	}
 	if a.ID == "antigravity" {
-		return "Agent de Google, piloté par Loom en mode sans interface : outils, dossier et modes natifs."
+		return "Google agent, controlled by Loom in headless mode with native tools, working folder and modes."
 	}
-	return "Agent de code via ACP. Authentification et outils natifs du harness."
+	return "Coding agent via ACP, using the harness's native authentication and tools."
 }

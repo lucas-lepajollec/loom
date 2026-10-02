@@ -43,10 +43,10 @@ func TestAuthenticationBoundaries(t *testing.T) {
 			if w.Code != tc.status || (calls == 1) != (tc.status == 204) || (reads == 0) != tc.e2e {
 				t.Fatalf("auth boundary changed: code=%d calls=%d reads=%d", w.Code, calls, reads)
 			}
-			if tc.status == 401 && (w.Header().Get("WWW-Authenticate") != `Bearer realm="loom"` || w.Body.String() != "{\"error\":\"non autorisé\"}\n") {
+			if tc.status == 401 && (w.Header().Get("WWW-Authenticate") != `Bearer realm="loom"` || w.Body.String() != "{\"error\":\"unauthorized\"}\n") {
 				t.Fatalf("401 wire changed: %v %q", w.Header(), w.Body.String())
 			}
-			if tc.status == 503 && w.Body.String() != "{\"error\":\"configuration illisible — réessaie dans un instant\"}\n" {
+			if tc.status == 503 && w.Body.String() != "{\"error\":\"configuration unreadable — try again in a moment\"}\n" {
 				t.Fatalf("503 wire changed: %q", w.Body.String())
 			}
 		})

@@ -48,24 +48,24 @@ func currentPaths() loomPaths {
 
 func cmdWhere(args []string) error {
 	p := currentPaths()
-	fmt.Printf("Emplacements Loom\n\n")
+	fmt.Printf("Loom locations\n\n")
 	for _, row := range [][2]string{
-		{"données (LOOM_HOME)", p.Home},
-		{"base", p.Database},
-		{"binaire en cours", p.Exe},
-		{"binaire installé", p.Installed},
-		{"travail de l'agent", p.Workspace},
+		{"data (LOOM_HOME)", p.Home},
+		{"database", p.Database},
+		{"running binary", p.Exe},
+		{"installed binary", p.Installed},
+		{"agent workspace", p.Workspace},
 		{"scripts", p.Scripts},
-		{"mémoire", p.Memory},
+		{"memory", p.Memory},
 		{"presets", p.Presets},
-		{"modèles", p.Models},
+		{"models", p.Models},
 		{"backends", p.Backends},
 	} {
 		fmt.Printf("  %-20s %s\n", row[0], row[1])
 	}
 	if p.Exe != p.Installed {
-		fmt.Printf("\n%s tu exécutes une copie qui n'est PAS le binaire installé.\n", dim("[info]"))
-		fmt.Printf("  Les mises à jour depuis l'application ne modifient que la copie lancée.\n")
+		fmt.Printf("\n%s you are running a copy that is NOT the installed binary.\n", dim("[info]"))
+		fmt.Printf("  Updates from the application only modify the running copy.\n")
 	}
 	return nil
 }

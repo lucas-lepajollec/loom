@@ -32,9 +32,9 @@ func serviceAction(action string) error {
 	case "status":
 		return directStatus()
 	case "enable", "disable":
-		return fmt.Errorf("pas d'unité systemd %s — lance loom install pour un service, ou utilise Démarrer ici", serviceName())
+		return fmt.Errorf("no systemd unit %s — run loom install for a service, or use Start here", serviceName())
 	default:
-		return fmt.Errorf("action inconnue: %s", action)
+		return fmt.Errorf("unknown action: %s", action)
 	}
 }
 
@@ -66,11 +66,11 @@ func systemdServiceAction(action string) error {
 	case "start", "restart":
 		return checkStarted(svc)
 	case "stop":
-		fmt.Println(green("[ok]") + " arrêté")
+		fmt.Println(green("[ok]") + " stopped")
 	case "enable":
-		fmt.Println(green("[ok]") + " démarrage auto activé")
+		fmt.Println(green("[ok]") + " automatic startup enabled")
 	case "disable":
-		fmt.Println(green("[ok]") + " démarrage auto désactivé")
+		fmt.Println(green("[ok]") + " automatic startup disabled")
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func checkStarted(svc string) error {
 		time.Sleep(2 * time.Second)
 		state, sub = unitState(svc)
 		if state == "active" {
-			fmt.Printf("%s %s: actif\n", green("[ok]"), svc)
+			fmt.Printf("%s %s: active\n", green("[ok]"), svc)
 			return nil
 		}
 		if state == "failed" || sub == "auto-restart" {
@@ -118,21 +118,21 @@ func checkStarted(svc string) error {
 	}
 	if state == "activating" && sub != "auto-restart" {
 		// Chargement en cours (un gros .gguf prend des minutes) : légitime.
-		fmt.Printf("%s %s: démarrage en cours (chargement du modèle) — %s pour suivre\n",
+		fmt.Printf("%s %s: starting (loading model) — %s to follow\n",
 			green("[ok]"), svc, bold("loom logs"))
 		return nil
 	}
 	what := state
 	if sub == "auto-restart" {
-		what = "redémarre en boucle (le moteur meurt au lancement)"
+		what = "restarting in a loop (engine dies at startup)"
 	}
-	fmt.Printf("%s %s: %s — derniers logs :\n", red("[ERREUR]"), svc, what)
+	fmt.Printf("%s %s: %s — latest logs:\n", red("[ERREUR]"), svc, what)
 	fmt.Println("------------------------------------------------")
 	logs, _ := exec.Command("journalctl", "-u", svc, "-n", "20", "--no-pager").Output()
 	fmt.Print(string(logs))
 	fmt.Println("------------------------------------------------")
-	fmt.Printf("→ loom logs   pour plus de détails\n→ loom edit   pour corriger la configuration (BIN, MODEL…)\n")
-	return fmt.Errorf("service %s non démarré", svc)
+	fmt.Printf("→ loom logs   for more details\n→ loom edit   to fix the configuration (BIN, MODEL…)\n")
+	return fmt.Errorf("service %s not started", svc)
 }
 
 func serviceLogs() error {
@@ -162,7 +162,7 @@ func serviceLogTail(n int) string {
 	if systemdUnitLoaded() {
 		out, err := exec.Command("journalctl", "-u", serviceName(), "-n", strconv.Itoa(n), "--no-pager").CombinedOutput()
 		if err != nil && len(out) == 0 {
-			return "journalctl indisponible : " + err.Error()
+			return "journalctl unavailable: " + err.Error()
 		}
 		return string(out)
 	}
@@ -208,7 +208,7 @@ func directStart() error {
 	}
 	logf, err := os.OpenFile(directLogPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return fmt.Errorf("ouverture du journal : %w", err)
+		return fmt.Errorf("opening journal: %w", err)
 	}
 	defer logf.Close()
 	// Loom systemd fait Restart=on-failure : premier essai OOM (VRAM encore
@@ -227,20 +227,20 @@ func directStart() error {
 		}
 		time.Sleep(3500 * time.Millisecond)
 		if processAlive(pid) {
-			fmt.Printf("%s %s: démarré (PID %d)\n", green("[ok]"), serviceName(), pid)
+			fmt.Printf("%s %s: started (PID %d)\n", green("[ok]"), serviceName(), pid)
 			return nil
 		}
 		_ = os.Remove(directPidPath())
 		last = lastEngineErr(tailFile(directLogPath(), 40))
 	}
-	return fmt.Errorf("le moteur s'est arrêté — %s", last)
+	return fmt.Errorf("the engine stopped — %s", last)
 }
 
 func lastEngineErr(log string) string {
 	var found []string
 	for _, l := range strings.Split(log, "\n") {
 		low := strings.ToLower(l)
-		if strings.Contains(l, "[err]") || strings.Contains(l, "BIN non défini") ||
+		if strings.Contains(l, "[err]") || strings.Contains(l, "BIN not set") ||
 			strings.Contains(low, "exiting due to model") || strings.Contains(low, "out of memory") {
 			found = append(found, strings.TrimSpace(l))
 		}
@@ -262,12 +262,12 @@ func spawnServe(self string, logf *os.File) (int, error) {
 	cmd.Env = append(os.Environ(), "LOOM_HOME="+LoomHome())
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
-		return 0, fmt.Errorf("démarrage de loom serve : %w", err)
+		return 0, fmt.Errorf("starting loom serve: %w", err)
 	}
 	pid := cmd.Process.Pid
 	if err := os.WriteFile(directPidPath(), []byte(strconv.Itoa(pid)), 0o644); err != nil {
 		_ = cmd.Process.Kill()
-		return 0, fmt.Errorf("écriture du PID : %w", err)
+		return 0, fmt.Errorf("writing PID: %w", err)
 	}
 	go func() {
 		_ = cmd.Wait()
@@ -283,13 +283,13 @@ func directStop(verbose bool) error {
 	if pid <= 0 || !processAlive(pid) {
 		_ = os.Remove(directPidPath())
 		if verbose {
-			fmt.Println(yellow("[info]") + " aucun moteur Loom en cours")
+			fmt.Println(yellow("[info]") + " no Loom engine running")
 		}
 		return nil
 	}
 	if !ownedEnginePID(pid) {
 		_ = os.Remove(directPidPath())
-		return fmt.Errorf("PID %d n'est pas un moteur Loom — refus d'arrêter", pid)
+		return fmt.Errorf("PID %d is not a Loom engine — refusing to stop it", pid)
 	}
 	_ = syscall.Kill(-pid, syscall.SIGTERM)
 	deadline := time.Now().Add(4 * time.Second)
@@ -301,7 +301,7 @@ func directStop(verbose bool) error {
 	}
 	_ = os.Remove(directPidPath())
 	if verbose {
-		fmt.Println(green("[ok]") + " arrêté")
+		fmt.Println(green("[ok]") + " stopped")
 	}
 	return nil
 }
@@ -309,9 +309,9 @@ func directStop(verbose bool) error {
 func directStatus() error {
 	pid := readServicePID()
 	if pid > 0 && processAlive(pid) && ownedEnginePID(pid) {
-		fmt.Printf("%s %s: actif (PID %d)\n", green("[ok]"), serviceName(), pid)
+		fmt.Printf("%s %s: active (PID %d)\n", green("[ok]"), serviceName(), pid)
 	} else {
-		fmt.Printf("%s %s: arrêté\n", yellow("[info]"), serviceName())
+		fmt.Printf("%s %s: stopped\n", yellow("[info]"), serviceName())
 	}
 	fmt.Printf("  logs : %s\n", directLogPath())
 	return nil

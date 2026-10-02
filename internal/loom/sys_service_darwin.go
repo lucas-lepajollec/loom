@@ -80,7 +80,7 @@ func serviceAction(action string) error {
 		if err := run("unload", "-w", plist); err != nil {
 			return err
 		}
-		fmt.Println(green("[ok]") + " arrêté")
+		fmt.Println(green("[ok]") + " stopped")
 		return nil
 	case "restart":
 		_ = run("unload", plist) // best-effort : peut ne pas être chargé
@@ -90,23 +90,23 @@ func serviceAction(action string) error {
 		return checkStarted(svc)
 	case "status":
 		if serviceIsActive() {
-			fmt.Printf("%s %s: actif (launchd)\n", green("[ok]"), svc)
+			fmt.Printf("%s %s: active (launchd)\n", green("[ok]"), svc)
 		} else {
-			fmt.Printf("%s %s: arrêté\n", yellow("[info]"), svc)
+			fmt.Printf("%s %s: stopped\n", yellow("[info]"), svc)
 		}
 		fmt.Printf("  logs   : %s\n", launchdLogPath())
 		return nil
 	}
-	return fmt.Errorf("action inconnue: %s", action)
+	return fmt.Errorf("unknown action: %s", action)
 }
 
 func checkStarted(svc string) error {
 	time.Sleep(2 * time.Second)
 	if serviceIsActive() {
-		fmt.Printf("%s %s: actif\n", green("[ok]"), svc)
+		fmt.Printf("%s %s: active\n", green("[ok]"), svc)
 		return nil
 	}
-	fmt.Printf("%s %s: non démarré — derniers logs :\n", red("[ERREUR]"), svc)
+	fmt.Printf("%s %s: not started — latest logs:\n", red("[ERREUR]"), svc)
 	fmt.Println("------------------------------------------------")
 	if b, err := os.ReadFile(launchdLogPath()); err == nil {
 		lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
@@ -116,8 +116,8 @@ func checkStarted(svc string) error {
 		fmt.Println(strings.Join(lines, "\n"))
 	}
 	fmt.Println("------------------------------------------------")
-	fmt.Printf("→ loom logs   pour plus de détails\n→ loom edit   pour corriger config.env\n")
-	return fmt.Errorf("service %s non démarré", svc)
+	fmt.Printf("→ loom logs   for more details\n→ loom edit   to fix config.env\n")
+	return fmt.Errorf("service %s not started", svc)
 }
 
 func serviceLogs() error {
@@ -165,23 +165,23 @@ func userSvcAction(action string) error {
 	case "status":
 		pid := readServicePID()
 		if pid > 0 && processAlive(pid) {
-			fmt.Printf("%s %s: actif (PID %d)\n", green("[ok]"), serviceName(), pid)
+			fmt.Printf("%s %s: active (PID %d)\n", green("[ok]"), serviceName(), pid)
 		} else {
-			fmt.Printf("%s %s: arrêté\n", yellow("[info]"), serviceName())
+			fmt.Printf("%s %s: stopped\n", yellow("[info]"), serviceName())
 		}
 		fmt.Printf("  logs   : %s\n", logFilePath())
 		return nil
 	case "enable", "disable":
-		fmt.Printf("%s '%s' réclame un service système : lance %s pour installer le LaunchDaemon.\n",
+		fmt.Printf("%s '%s' requires a system service: run %s to install the LaunchDaemon.\n",
 			yellow("[info]"), action, bold("sudo loom install"))
 		return nil
 	}
-	return fmt.Errorf("action inconnue: %s", action)
+	return fmt.Errorf("unknown action: %s", action)
 }
 
 func userSvcStart() error {
 	if pid := readServicePID(); pid > 0 && processAlive(pid) {
-		fmt.Printf("%s déjà démarré (PID %d)\n", yellow("[info]"), pid)
+		fmt.Printf("%s already started (PID %d)\n", yellow("[info]"), pid)
 		return nil
 	}
 	self, err := os.Executable()
@@ -193,7 +193,7 @@ func userSvcStart() error {
 	}
 	logf, err := os.OpenFile(logFilePath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return fmt.Errorf("ouverture du log %s: %w", logFilePath(), err)
+		return fmt.Errorf("opening log %s: %w", logFilePath(), err)
 	}
 	defer logf.Close()
 
@@ -205,11 +205,11 @@ func userSvcStart() error {
 	cmd.Dir = LoomHome()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("démarrage de 'loom serve': %w", err)
+		return fmt.Errorf("starting 'loom serve': %w", err)
 	}
 	pid := cmd.Process.Pid
 	if err := os.WriteFile(pidFilePath(), []byte(strconv.Itoa(pid)), 0o644); err != nil {
-		return fmt.Errorf("écriture du PID: %w", err)
+		return fmt.Errorf("writing PID: %w", err)
 	}
 	_ = cmd.Process.Release()
 	return userCheckStarted(pid)
@@ -218,17 +218,17 @@ func userSvcStart() error {
 func userCheckStarted(pid int) error {
 	time.Sleep(2 * time.Second)
 	if processAlive(pid) {
-		fmt.Printf("%s %s: démarré (PID %d)\n", green("[ok]"), serviceName(), pid)
-		fmt.Printf("       logs: %s  (loom logs pour suivre)\n", dim(logFilePath()))
+		fmt.Printf("%s %s: started (PID %d)\n", green("[ok]"), serviceName(), pid)
+		fmt.Printf("       logs: %s  (loom logs to follow)\n", dim(logFilePath()))
 		return nil
 	}
-	fmt.Printf("%s %s: le processus s'est arrêté — derniers logs :\n", red("[ERREUR]"), serviceName())
+	fmt.Printf("%s %s: process stopped — latest logs:\n", red("[ERREUR]"), serviceName())
 	fmt.Println("------------------------------------------------")
 	fmt.Print(tailFile(logFilePath(), 20))
 	fmt.Println("------------------------------------------------")
-	fmt.Printf("→ loom logs   pour plus de détails\n→ loom edit   pour corriger config.env\n")
+	fmt.Printf("→ loom logs   for more details\n→ loom edit   to fix config.env\n")
 	_ = os.Remove(pidFilePath())
-	return fmt.Errorf("service %s non démarré", serviceName())
+	return fmt.Errorf("service %s not started", serviceName())
 }
 
 func userSvcStop(verbose bool) error {
@@ -236,7 +236,7 @@ func userSvcStop(verbose bool) error {
 	if pid <= 0 || !processAlive(pid) {
 		_ = os.Remove(pidFilePath())
 		if verbose {
-			fmt.Println(yellow("[info]") + " aucun service en cours d'exécution")
+			fmt.Println(yellow("[info]") + " no service running")
 		}
 		return nil
 	}
@@ -253,7 +253,7 @@ func userSvcStop(verbose bool) error {
 	}
 	_ = os.Remove(pidFilePath())
 	if verbose {
-		fmt.Println(green("[ok]") + " arrêté")
+		fmt.Println(green("[ok]") + " stopped")
 	}
 	return nil
 }

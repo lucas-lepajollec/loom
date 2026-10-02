@@ -52,7 +52,7 @@ func oaiRuntimeApply(kv, extra map[string]string) error {
 		}
 		oaiRunKV[k] = v
 		changed = true
-		fmt.Printf("[loom serve] /v1 overlay %s=%s (requête, pas le preset)\n", k, v)
+		fmt.Printf("[loom serve] /v1 overlay %s=%s (request, not the preset)\n", k, v)
 	}
 	for k, v := range extra {
 		k = strings.TrimSpace(k)
@@ -62,7 +62,7 @@ func oaiRuntimeApply(kv, extra map[string]string) error {
 		}
 		oaiRunExtra[k] = v
 		changed = true
-		fmt.Printf("[loom serve] /v1 overlay --%s %s (requête, pas le preset)\n", k, v)
+		fmt.Printf("[loom serve] /v1 overlay --%s %s (request, not the preset)\n", k, v)
 	}
 	oaiRunMu.Unlock()
 	if !changed {

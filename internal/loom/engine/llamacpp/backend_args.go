@@ -108,10 +108,10 @@ func BuildServerArgs(cfg map[string]string, in ArgumentInputs) ([]string, error)
 	if mm := strings.TrimSpace(cfg["MMPROJ"]); mm != "" {
 		mmPath, err := in.ResolveModelPath(mm)
 		if err != nil {
-			return nil, fmt.Errorf("projecteur vision introuvable : %s (%v)", mm, err)
+			return nil, fmt.Errorf("vision projector not found: %s (%v)", mm, err)
 		}
 		if _, err := os.Stat(mmPath); err != nil {
-			return nil, fmt.Errorf("projecteur vision introuvable : %s", mmPath)
+			return nil, fmt.Errorf("vision projector not found: %s", mmPath)
 		}
 		llmArgs = append(llmArgs, "--mmproj", mmPath)
 	}
@@ -124,10 +124,10 @@ func BuildServerArgs(cfg map[string]string, in ArgumentInputs) ([]string, error)
 	if md := strings.TrimSpace(cfg["MODEL_DRAFT"]); md != "" {
 		mdPath, err := in.ResolveModelPath(md)
 		if err != nil {
-			return nil, fmt.Errorf("modèle de draft introuvable : %s (%v)", md, err)
+			return nil, fmt.Errorf("draft model not found: %s (%v)", md, err)
 		}
 		if _, err := os.Stat(mdPath); err != nil {
-			return nil, fmt.Errorf("modèle de draft introuvable : %s", mdPath)
+			return nil, fmt.Errorf("draft model not found: %s", mdPath)
 		}
 		llmArgs = append(llmArgs, "--model-draft", mdPath)
 	}
@@ -158,7 +158,7 @@ func BuildServerArgs(cfg map[string]string, in ArgumentInputs) ([]string, error)
 			// Vieux moteur (ou fork) qui ne connaît pas le drapeau : le lui passer
 			// le ferait sortir en erreur au démarrage, donc boucler. On le dit et on
 			// continue sans — mieux vaut un modèle qui réfléchit qu'un moteur mort.
-			fmt.Fprintf(in.Warnings, "[loom serve] ce moteur ne connaît pas --reasoning : impossible de désactiver le raisonnement\n")
+			fmt.Fprintf(in.Warnings, "[loom serve] this engine does not support --reasoning: cannot disable reasoning\n")
 		}
 	}
 	if eff := strings.TrimSpace(cfg["REASONING_EFFORT"]); eff != "" && in.HasFlag("reasoning-effort") {

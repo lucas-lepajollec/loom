@@ -87,7 +87,7 @@ func vllmLatest(ctx context.Context) (string, error) {
 	}
 	err = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&data)
 	if err == nil && data.Info.Version == "" {
-		err = fmt.Errorf("version PyPI inconnue")
+		err = fmt.Errorf("unknown PyPI version")
 	}
 	return data.Info.Version, err
 }

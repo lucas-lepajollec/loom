@@ -140,7 +140,7 @@ func TestBenchCloudMissingKey(t *testing.T) {
 		t.Fatal(w.Body.String())
 	}
 	j := awaitBenchQueue(t)
-	if j.Status != "done" || j.Index != 1 || j.Rows[0].Status != "err" || !strings.Contains(j.Rows[0].Error, "clé absente") || j.Rows[1].Status != "err" || !strings.Contains(j.Rows[1].Error, "introuvable") || calls.Load() != 0 {
+	if j.Status != "done" || j.Index != 1 || j.Rows[0].Status != "err" || !strings.Contains(j.Rows[0].Error, "missing key") || j.Rows[1].Status != "err" || !strings.Contains(j.Rows[1].Error, "not found") || calls.Load() != 0 {
 		t.Fatalf("missing provider/key: %+v", j)
 	}
 }

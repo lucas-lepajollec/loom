@@ -10,9 +10,9 @@ import (
 // Never echo JSON decoder errors: unknown field names may themselves be secrets.
 func MCPJSONError(err error) error {
 	if e, ok := err.(*json.SyntaxError); ok {
-		return fmt.Errorf("JSON MCP invalide (octet %d)", e.Offset)
+		return fmt.Errorf("invalid MCP JSON (byte %d)", e.Offset)
 	}
-	return fmt.Errorf("configuration MCP invalide : objet ou types de champs incorrects")
+	return fmt.Errorf("invalid MCP configuration: incorrect object or field types")
 }
 
 func ParseMCPFile(data []byte) (map[string]json.RawMessage, map[string]json.RawMessage, map[string]MCPServerConfig, error) {
@@ -21,18 +21,18 @@ func ParseMCPFile(data []byte) (map[string]json.RawMessage, map[string]json.RawM
 		return nil, nil, nil, MCPJSONError(err)
 	}
 	if top == nil {
-		return nil, nil, nil, fmt.Errorf("configuration MCP invalide : objet attendu")
+		return nil, nil, nil, fmt.Errorf("invalid MCP configuration: object expected")
 	}
 	raw, ok := top["mcpServers"]
 	if !ok {
-		return nil, nil, nil, fmt.Errorf("configuration MCP invalide : mcpServers manquant")
+		return nil, nil, nil, fmt.Errorf("invalid MCP configuration: missing mcpServers")
 	}
 	var entries map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		return nil, nil, nil, MCPJSONError(err)
 	}
 	if entries == nil {
-		return nil, nil, nil, fmt.Errorf("configuration MCP invalide : mcpServers doit être un objet")
+		return nil, nil, nil, fmt.Errorf("invalid MCP configuration: mcpServers must be an object")
 	}
 	servers := map[string]MCPServerConfig{}
 	for name, entry := range entries {
@@ -41,7 +41,7 @@ func ParseMCPFile(data []byte) (map[string]json.RawMessage, map[string]json.RawM
 			return nil, nil, nil, MCPJSONError(err)
 		}
 		if object == nil {
-			return nil, nil, nil, fmt.Errorf("configuration MCP invalide : serveur doit être un objet")
+			return nil, nil, nil, fmt.Errorf("invalid MCP configuration: server must be an object")
 		}
 		var cfg MCPServerConfig
 		if err := json.Unmarshal(entry, &cfg); err != nil {

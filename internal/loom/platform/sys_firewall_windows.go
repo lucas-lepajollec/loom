@@ -31,7 +31,7 @@ func firewallRuleName(port int) string {
 // sortie combinée.
 func netsh(inert bool, args ...string) (string, error) {
 	if inert {
-		return "", fmt.Errorf("pare-feu non piloté")
+		return "", fmt.Errorf("firewall not managed")
 	}
 	out, err := HideCmd(exec.Command("netsh", args...)).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
@@ -46,7 +46,7 @@ func FirewallOpen(port int, inert bool) error {
 		"name="+firewallRuleName(port), "dir=in", "action=allow",
 		"protocol=TCP", "localport="+strconv.Itoa(port), "profile=private,domain")
 	if err != nil {
-		return fmt.Errorf("règle de pare-feu refusée (droits administrateur requis) : %s", out)
+		return fmt.Errorf("firewall rule rejected (administrator permissions required): %s", out)
 	}
 	return nil
 }
@@ -73,7 +73,7 @@ func FirewallState(port int, inert bool) string {
 // firewallManualHint : la commande à coller dans un terminal ADMINISTRATEUR
 // quand Loom n'a pas pu poser la règle lui-même.
 func FirewallManualHint(port int) string {
-	return fmt.Sprintf("le pare-feu Windows bloque encore le port %d. Ouvre un terminal ADMINISTRATEUR et lance :\n"+
+	return fmt.Sprintf("the Windows firewall is still blocking port %d. Open an ADMINISTRATOR terminal and run:\n"+
 		`  netsh advfirewall firewall add rule name="%s" dir=in action=allow protocol=TCP localport=%d profile=private,domain`,
 		port, firewallRuleName(port), port)
 }

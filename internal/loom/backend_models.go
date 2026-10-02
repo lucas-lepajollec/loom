@@ -141,10 +141,10 @@ func trimDot(f float64) string {
 func downloadDestPath(name, dir string) (string, error) {
 	base := filepath.Base(strings.TrimSpace(name))
 	if base == "" || base == "." || base == string(filepath.Separator) {
-		return "", fmt.Errorf("nom de modèle invalide")
+		return "", fmt.Errorf("invalid model name")
 	}
 	if !strings.HasSuffix(strings.ToLower(base), ".gguf") {
-		return "", fmt.Errorf("seuls les fichiers .gguf sont acceptés")
+		return "", fmt.Errorf("only .gguf files are accepted")
 	}
 	d, err := resolveDownloadDir(dir)
 	if err != nil {
@@ -184,7 +184,7 @@ func deleteModelFile(name string) error {
 	}
 	if err := os.Remove(p); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("modèle introuvable: %s", filepath.Base(p))
+			return fmt.Errorf("model not found: %s", filepath.Base(p))
 		}
 		return err
 	}
@@ -281,14 +281,14 @@ const dlMinChunk = 16 << 20
 func normalizeHFURL(raw string) (string, string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "", "", fmt.Errorf("lien vide")
+		return "", "", fmt.Errorf("empty link")
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", "", fmt.Errorf("lien invalide: %v", err)
+		return "", "", fmt.Errorf("invalid link: %v", err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", "", fmt.Errorf("lien invalide (http/https attendu)")
+		return "", "", fmt.Errorf("invalid link (http/https expected)")
 	}
 	// huggingface.co/<repo>/blob/<rev>/<file> → /resolve/<rev>/<file>
 	if strings.Contains(u.Host, "huggingface.co") {
@@ -296,10 +296,10 @@ func normalizeHFURL(raw string) (string, string, error) {
 	}
 	name := path.Base(u.Path)
 	if name == "" || name == "/" || name == "." {
-		return "", "", fmt.Errorf("impossible de déduire le nom du fichier depuis le lien")
+		return "", "", fmt.Errorf("could not determine the file name from the link")
 	}
 	if !strings.HasSuffix(strings.ToLower(name), ".gguf") {
-		return "", "", fmt.Errorf("le lien doit pointer vers un fichier .gguf")
+		return "", "", fmt.Errorf("the link must point to a .gguf file")
 	}
 	return u.String(), name, nil
 }
@@ -334,7 +334,7 @@ func handleModelDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(dests[0]), 0o755); err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "dossier de destination inaccessible : " + err.Error()})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "destination directory inaccessible: " + err.Error()})
 		return
 	}
 
@@ -353,12 +353,12 @@ func handleModelDownload(w http.ResponseWriter, r *http.Request) {
 	dlMu.Lock()
 	if st, ok := dlDownloads[name]; ok && !st.Finished {
 		dlMu.Unlock()
-		sendJSON(w, 409, map[string]any{"ok": false, "error": "téléchargement déjà en cours pour " + name})
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "download already in progress for " + name})
 		return
 	}
 	if len(todoURLs) == 0 {
 		dlMu.Unlock()
-		sendJSON(w, 409, map[string]any{"ok": false, "error": "le modèle existe déjà: " + name})
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "the model already exists: " + name})
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -387,7 +387,7 @@ func checkDiskSpace(dir string, size int64) error {
 		return nil
 	}
 	if free < size+dlSpaceMargin {
-		return fmt.Errorf("espace insuffisant sur %s : %s libres, %s nécessaires", dir, humanBytes(free), humanBytes(size+dlSpaceMargin))
+		return fmt.Errorf("insufficient space on %s: %s free, %s required", dir, humanBytes(free), humanBytes(size+dlSpaceMargin))
 	}
 	return nil
 }
@@ -396,11 +396,11 @@ func checkDiskSpace(dir string, size int64) error {
 func humanBytes(n int64) string {
 	switch {
 	case n >= 1<<30:
-		return fmt.Sprintf("%.1f Go", float64(n)/float64(1<<30))
+		return fmt.Sprintf("%.1f GB", float64(n)/float64(1<<30))
 	case n >= 1<<20:
-		return fmt.Sprintf("%.0f Mo", float64(n)/float64(1<<20))
+		return fmt.Sprintf("%.0f MB", float64(n)/float64(1<<20))
 	default:
-		return fmt.Sprintf("%d o", n)
+		return fmt.Sprintf("%d bytes", n)
 	}
 }
 
@@ -505,7 +505,7 @@ func dlProbe(ctx context.Context, dlURL string) (total int64, ranged bool, err e
 		// Server ignored the Range: single stream, ContentLength is the size.
 		return resp.ContentLength, false, nil
 	default:
-		return 0, false, fmt.Errorf("HTTP %d depuis la source", resp.StatusCode)
+		return 0, false, fmt.Errorf("HTTP %d from source", resp.StatusCode)
 	}
 }
 
@@ -732,7 +732,7 @@ func dlChunk(ctx context.Context, f *os.File, dlURL string, start, end int64, wh
 		}
 		if resp.StatusCode != 200 && resp.StatusCode != 206 {
 			resp.Body.Close()
-			return fmt.Errorf("HTTP %d depuis la source", resp.StatusCode)
+			return fmt.Errorf("HTTP %d from source", resp.StatusCode)
 		}
 		if resp.StatusCode == 200 && pos > start {
 			// Resume refused: the body restarts from 0, rewind our bookkeeping.
@@ -792,7 +792,7 @@ func handleModelDownloadCancel(w http.ResponseWriter, r *http.Request) {
 	}
 	dlMu.Unlock()
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "aucun téléchargement pour " + name})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "no download for " + name})
 		return
 	}
 	if cancel != nil {
@@ -813,7 +813,7 @@ func cleanStalePartFiles() {
 		}
 		for _, p := range matches {
 			if err := os.Remove(p); err == nil {
-				fmt.Printf("[models] téléchargement incomplet supprimé : %s\n", p)
+				fmt.Printf("[models] incomplete download removed: %s\n", p)
 			}
 		}
 	}

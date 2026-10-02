@@ -130,7 +130,7 @@ func fetchVLLMFile(ctx context.Context, root *os.Root, dest, rawURL string, expe
 			var start, end, total int64
 			if _, err := fmt.Sscanf(resp.Header.Get("Content-Range"), "bytes %d-%d/%d", &start, &end, &total); err != nil || start != pos || end < start || total <= end || expected > 0 && expected != total {
 				resp.Body.Close()
-				return errors.New("plage de reprise Hugging Face invalide")
+				return errors.New("invalid Hugging Face resume range")
 			}
 			if expected <= 0 {
 				expected = total
@@ -138,7 +138,7 @@ func fetchVLLMFile(ctx context.Context, root *os.Root, dest, rawURL string, expe
 		} else if resp.ContentLength >= 0 {
 			if expected > 0 && expected != resp.ContentLength {
 				resp.Body.Close()
-				return errors.New("taille Hugging Face incohérente")
+				return errors.New("inconsistent Hugging Face size")
 			}
 			if expected <= 0 {
 				expected = resp.ContentLength
@@ -148,7 +148,7 @@ func fetchVLLMFile(ctx context.Context, root *os.Root, dest, rawURL string, expe
 		resp.Body.Close()
 		pos += n
 		if expected > 0 && pos > expected {
-			return errors.New("fichier Hugging Face trop long")
+			return errors.New("Hugging Face file too large")
 		}
 		if copyErr == nil && (expected <= 0 || pos == expected) {
 			if err := f.Sync(); err != nil {
@@ -185,7 +185,7 @@ func prefetchVLLM(ctx context.Context, st *vllmDownload) error {
 	}
 	config, weights, _ := vllmHFWeights(model)
 	if !config || !weights || !vllmRevision.MatchString(model.SHA) {
-		return errors.New("dépôt sans config.json, poids safetensors ou révision immuable")
+		return errors.New("repository missing config.json, safetensors weights or immutable revision")
 	}
 	files := []vllmHFSibling{}
 	var total int64
@@ -229,7 +229,7 @@ func prefetchVLLM(ctx context.Context, st *vllmDownload) error {
 		return err
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("dossier de cache invalide")
+		return errors.New("invalid cache directory")
 	}
 	root, err := cache.OpenRoot(name)
 	if err != nil {
@@ -309,13 +309,13 @@ func handleVLLMDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validVLLMModel(req.Model) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "modèle invalide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid model"})
 		return
 	}
 	vllmDownloads.mu.Lock()
 	defer vllmDownloads.mu.Unlock()
 	if vllmDownloads.state != nil && !vllmDownloads.state.Finished {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": "téléchargement déjà en cours"})
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "download already in progress"})
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -340,7 +340,7 @@ func handleVLLMDownloadCancel(w http.ResponseWriter, r *http.Request) {
 	defer vllmDownloads.mu.Unlock()
 	st := vllmDownloads.state
 	if st == nil || st.Model != req.Model || st.cancel == nil {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "téléchargement introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "download not found"})
 		return
 	}
 	st.cancel()

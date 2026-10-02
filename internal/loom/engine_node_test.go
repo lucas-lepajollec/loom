@@ -44,7 +44,7 @@ func TestEngineNodeLinkAndForward(t *testing.T) {
 	testHome(t)
 	t.Cleanup(func() { _ = setEngineNode(nil) })
 	ctl, _ := fakeNode(t, true)
-	if _, err := linkEngineNode(context.Background(), ctl.URL, "mauvaise"); err == nil || !strings.Contains(err.Error(), "refusée") {
+	if _, err := linkEngineNode(context.Background(), ctl.URL, "mauvaise"); err == nil || !strings.Contains(err.Error(), "rejected") {
 		t.Fatalf("mauvaise clé: %v", err)
 	}
 	n, err := linkEngineNode(context.Background(), ctl.URL, "web")

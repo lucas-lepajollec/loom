@@ -46,7 +46,7 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 		return out
 	}
 	if !agent.available() {
-		return fail(errors.New("CLI du harness ou lanceur ACP indisponible"))
+		return fail(errors.New("harness CLI or ACP launcher unavailable"))
 	}
 	dir, err := os.MkdirTemp("", "loom-acp-probe-")
 	if err != nil {
@@ -64,7 +64,7 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 	}
 	defer c.close()
 	// The probe never grants anything: every client request is refused.
-	c.handler = func(*acpFrame) (any, error) { return nil, errors.New("sonde Loom") }
+	c.handler = func(*acpFrame) (any, error) { return nil, errors.New("Loom probe") }
 	commands := make(chan []map[string]any, 4)
 	c.notify = func(f acpFrame) {
 		var params struct {
@@ -97,7 +97,7 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 		AuthMethods       []map[string]any `json:"authMethods"`
 	}
 	if err := c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": false, "writeTextFile": false}, "terminal": false}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init); err != nil || init.ProtocolVersion != 1 {
-		return fail(errors.New("l’agent ne répond pas au protocole ACP"))
+		return fail(errors.New("the agent does not respond to the ACP protocol"))
 	}
 	out.Agent, out.Auth, out.Caps = init.AgentInfo, init.AuthMethods, init.AgentCapabilities
 	probeDir := dir
@@ -112,7 +112,7 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 	}
 	var session acpSessionResponse
 	if err := c.call(initCtx, "session/new", map[string]any{"cwd": probeDir, "mcpServers": []any{}}, &session); err != nil || session.SessionID == "" {
-		return fail(errors.New("session refusée : vérifie que le CLI est connecté à ton compte"))
+		return fail(errors.New("session refused: check that the CLI is logged in to your account"))
 	}
 	if session.Modes != nil {
 		out.Modes, out.Mode = session.Modes.Available, session.Modes.Current
@@ -162,7 +162,7 @@ func handleACPProbe(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	agent, ok := acpAgentFor(id)
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness ACP introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "ACP harness not found"})
 		return
 	}
 	if r.Method == http.MethodGet {

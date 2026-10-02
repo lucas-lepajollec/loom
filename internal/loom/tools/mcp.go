@@ -45,7 +45,7 @@ func ConnectMCP(ctx context.Context, name string, cfg resources.MCPServerConfig,
 		}
 		transport = &mcpsdk.StreamableClientTransport{Endpoint: cfg.URL, HTTPClient: httpClient}
 	default:
-		return nil, fmt.Errorf("serveur MCP '%s' mal configuré (ni command ni url)", name)
+		return nil, fmt.Errorf("MCP server '%s' misconfigured (neither command nor url)", name)
 	}
 
 	sess, err := client.Connect(ctx, transport, nil)

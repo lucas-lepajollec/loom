@@ -27,29 +27,29 @@ func vllmParams(gpus int) []ParamSpec {
 		return ParamSpec{ID: id, Key: id, Flag: "--" + id, Label: label, Tier: "advanced", Kind: "bool", Default: def, RequiresReload: true, Available: true, Supported: true}
 	}
 	ps := []ParamSpec{
-		num("max-model-len", "Contexte maximal", "essential", "", 1, 2147483647, 1),
-		num("gpu-memory-utilization", "Fraction de VRAM", "essential", "0.9", 0.01, 1, 0.01),
+		num("max-model-len", "Maximum context", "essential", "", 1, 2147483647, 1),
+		num("gpu-memory-utilization", "VRAM fraction", "essential", "0.9", 0.01, 1, 0.01),
 	}
 	if gpus > 1 {
-		ps = append(ps, num("tensor-parallel-size", "GPU en parallèle", "advanced", "1", 1, float64(gpus), 1))
+		ps = append(ps, num("tensor-parallel-size", "GPUs in parallel", "advanced", "1", 1, float64(gpus), 1))
 	}
 	ps = append(ps,
-		enum("dtype", "Type des poids", "auto", "auto", "half", "float16", "bfloat16", "float", "float32"),
-		enum("quantization", "Quantification", "auto", "auto", "awq", "awq_marlin", "gptq", "gptq_marlin", "fp8", "compressed-tensors", "bitsandbytes", "modelopt", "quark"),
-		enum("kv-cache-dtype", "Type du cache KV", "auto", "auto", "fp8", "fp8_e4m3", "fp8_e5m2"),
-		boolean("enable-prefix-caching", "Cache des préfixes", "on"),
-		num("max-num-seqs", "Séquences simultanées", "advanced", "", 1, 2147483647, 1),
-		boolean("enforce-eager", "Exécution eager", "off"),
-		num("cpu-offload-gb", "Poids en RAM (Gio)", "advanced", "0", 0, 1048576, 0.1),
-		num("swap-space", "Swap CPU par GPU (Gio)", "advanced", "4", 0, 1048576, 0.1),
+		enum("dtype", "Weight type", "auto", "auto", "half", "float16", "bfloat16", "float", "float32"),
+		enum("quantization", "Quantization", "auto", "auto", "awq", "awq_marlin", "gptq", "gptq_marlin", "fp8", "compressed-tensors", "bitsandbytes", "modelopt", "quark"),
+		enum("kv-cache-dtype", "KV cache type", "auto", "auto", "fp8", "fp8_e4m3", "fp8_e5m2"),
+		boolean("enable-prefix-caching", "Prefix caching", "on"),
+		num("max-num-seqs", "Concurrent sequences", "advanced", "", 1, 2147483647, 1),
+		boolean("enforce-eager", "Eager execution", "off"),
+		num("cpu-offload-gb", "Weights in RAM (GiB)", "advanced", "0", 0, 1048576, 0.1),
+		num("swap-space", "CPU swap per GPU (GiB)", "advanced", "4", 0, 1048576, 0.1),
 	)
 	for _, id := range []string{"reasoning-parser", "tool-call-parser"} {
-		ps = append(ps, ParamSpec{ID: id, Key: id, Flag: "--" + id, Label: id, Tier: "advanced", Kind: "textarea", Default: "auto", Tip: "auto : famille connue ; none : désactivé ; sinon nom du parseur installé dans vLLM.", RequiresReload: true, Available: true, Supported: true})
+		ps = append(ps, ParamSpec{ID: id, Key: id, Flag: "--" + id, Label: id, Tier: "advanced", Kind: "textarea", Default: "auto", Tip: "auto: known family; none: disabled; otherwise the name of a parser installed in vLLM.", RequiresReload: true, Available: true, Supported: true})
 	}
-	ps = append(ps, boolean("enable-auto-tool-choice", "Choix automatique des outils", "off"), boolean("trust-remote-code", "Exécuter le code du modèle", "off"))
+	ps = append(ps, boolean("enable-auto-tool-choice", "Automatic tool choice", "off"), boolean("trust-remote-code", "Run the model's code", "off"))
 	ps[len(ps)-1].Dangerous = true
 	ps[len(ps)-1].Tier = "expert"
-	ps[len(ps)-1].Tip = "Dangereux : autorise l’exécution de code Python du dépôt Hugging Face avec les droits de Loom. Désactivé par défaut."
+	ps[len(ps)-1].Tip = "Dangerous: allows running Python code from the Hugging Face repository with Loom's rights. Off by default."
 	return ps
 }
 
@@ -64,7 +64,7 @@ func validateVLLMParams(values map[string]string, gpus int) (map[string]string, 
 	for k, s := range values {
 		p, ok := specs[k]
 		if !ok {
-			return nil, fmt.Errorf("paramètre vLLM inconnu ou indisponible : %s", k)
+			return nil, fmt.Errorf("unknown or unavailable vLLM parameter: %s", k)
 		}
 		if s == "" {
 			continue
@@ -73,7 +73,7 @@ func validateVLLMParams(values map[string]string, gpus int) (map[string]string, 
 		case "number":
 			n, err := strconv.ParseFloat(s, 64)
 			if err != nil || math.IsNaN(n) || math.IsInf(n, 0) || n < *p.Min || n > *p.Max || *p.Step == 1 && n != math.Trunc(n) {
-				return nil, fmt.Errorf("valeur invalide pour %s", k)
+				return nil, fmt.Errorf("invalid value for %s", k)
 			}
 			s = strconv.FormatFloat(n, 'f', -1, 64)
 		case "bool":
@@ -83,7 +83,7 @@ func validateVLLMParams(values map[string]string, gpus int) (map[string]string, 
 			case "off", "false":
 				s = "off"
 			default:
-				return nil, fmt.Errorf("booléen invalide pour %s", k)
+				return nil, fmt.Errorf("invalid boolean for %s", k)
 			}
 		case "enum":
 			found := false
@@ -91,11 +91,11 @@ func validateVLLMParams(values map[string]string, gpus int) (map[string]string, 
 				found = found || c[0] == s
 			}
 			if !found {
-				return nil, fmt.Errorf("choix invalide pour %s", k)
+				return nil, fmt.Errorf("invalid choice for %s", k)
 			}
 		default:
 			if !vllmParserName.MatchString(s) {
-				return nil, fmt.Errorf("nom de parseur invalide pour %s", k)
+				return nil, fmt.Errorf("invalid parser name for %s", k)
 			}
 		}
 		out[k] = s
@@ -109,7 +109,7 @@ func validVLLMModel(model string) bool {
 
 func buildVLLMArgs(model string, port int, values map[string]string, gpus int) ([]string, error) {
 	if !validVLLMModel(model) || port < 1 || port > 65535 {
-		return nil, fmt.Errorf("modèle ou port vLLM invalide")
+		return nil, fmt.Errorf("invalid vLLM model or port")
 	}
 	values, err := validateVLLMParams(values, gpus)
 	if err != nil {
@@ -147,7 +147,7 @@ func buildVLLMArgs(model string, port int, values map[string]string, gpus int) (
 			parser = vllmToolParser(model)
 		}
 		if parser == "" || parser == "none" {
-			return nil, fmt.Errorf("choix automatique des outils : préciser tool-call-parser pour cette famille")
+			return nil, fmt.Errorf("automatic tool choice: specify tool-call-parser for this family")
 		}
 		args = append(args, "--tool-call-parser", parser)
 	}
@@ -200,7 +200,7 @@ func handleVLLMParams(w http.ResponseWriter, r *http.Request) {
 		values := map[string]string{}
 		if model != "" {
 			if !validVLLMModel(model) {
-				sendJSON(w, 400, map[string]any{"ok": false, "error": "modèle invalide"})
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid model"})
 				return
 			}
 			var err error
@@ -224,7 +224,7 @@ func handleVLLMParams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validVLLMModel(req.Model) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "modèle invalide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid model"})
 		return
 	}
 	values, err := validateVLLMParams(req.Values, gpus)

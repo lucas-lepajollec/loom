@@ -224,7 +224,7 @@ func (m *MCPManager) Call(name string, args map[string]any) string {
 	ref, ok := m.registry[name]
 	m.mu.Unlock()
 	if !ok {
-		return "[erreur] outil MCP inconnu ou serveur non connecté: " + name
+		return "[error] unknown MCP tool or server not connected: " + name
 	}
 
 	result, err := m.callOnce(ref, args)
@@ -242,7 +242,7 @@ func (m *MCPManager) Call(name string, args map[string]any) string {
 				err = err2
 			}
 		}
-		return "[erreur MCP] " + err.Error()
+		return "[MCP error] " + err.Error()
 	}
 	return result
 }
@@ -252,7 +252,7 @@ func (m *MCPManager) callOnce(ref mcpToolRef, args map[string]any) (string, erro
 	s := m.sessions[ref.server]
 	m.mu.Unlock()
 	if s == nil || s.sess == nil {
-		return "", fmt.Errorf("serveur %s non connecté", ref.server)
+		return "", fmt.Errorf("server %s not connected", ref.server)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), mcpCallTimeout)
 	defer cancel()
@@ -262,13 +262,13 @@ func (m *MCPManager) callOnce(ref mcpToolRef, args map[string]any) (string, erro
 	}
 	out := FlattenMCPContent(res)
 	if r := []rune(out); len(r) > mcpMaxOutput {
-		out = string(r[:mcpMaxOutput]) + "\n…[tronqué]"
+		out = string(r[:mcpMaxOutput]) + "\n…[truncated]"
 	}
 	if res.IsError {
-		return "[l'outil a renvoyé une erreur]\n" + out, nil
+		return "[the tool returned an error]\n" + out, nil
 	}
 	if strings.TrimSpace(out) == "" {
-		return "[ok] (aucune sortie)", nil
+		return "[ok] (no output)", nil
 	}
 	return out, nil
 }

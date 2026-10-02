@@ -23,7 +23,7 @@ func handleDiscussionEvents(w http.ResponseWriter, r *http.Request) {
 	if !native {
 		s, ok := workspaceSessions.get(req.ID)
 		if !ok {
-			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion introuvable ou verrouillée"})
+			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found or locked"})
 			return
 		}
 		native = s.RuntimeID == "llama.cpp" && s.NativeArchive != ""
@@ -32,7 +32,7 @@ func handleDiscussionEvents(w http.ResponseWriter, r *http.Request) {
 			active := conv.ID == s.NativeArchive
 			conv.mu.Unlock()
 			if !active {
-				sendJSON(w, 409, map[string]any{"ok": false, "error": "ouvrez cette discussion locale avant de suivre son journal"})
+				sendJSON(w, 409, map[string]any{"ok": false, "error": "open this local discussion before following its journal"})
 				return
 			}
 		}

@@ -68,11 +68,11 @@ func windowsTerminalEnvironment(env []string) ([]uint16, error) {
 	for _, entry := range env {
 		// Windows may include drive-current-directory entries such as =C:=C:\.
 		if strings.ContainsRune(entry, 0) || len(entry) < 2 {
-			return nil, errors.New("environnement invalide")
+			return nil, errors.New("invalid environment")
 		}
 		i := strings.IndexByte(entry[1:], '=') + 1
 		if i == 0 {
-			return nil, errors.New("environnement invalide")
+			return nil, errors.New("invalid environment")
 		}
 		values[strings.ToUpper(entry[:i])] = entry
 	}

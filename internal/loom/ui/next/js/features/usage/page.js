@@ -49,7 +49,7 @@ function Price({ m, onSaved }) {
 
 // Usage natif : toutes les sessions du harness, dans Loom et en dehors, lues
 // dans ses journaux ou ses statistiques. Aucun prix n'est reconstruit.
-const quiet = e => /non disponible|non installé/.test(e || '');
+const quiet = e => /unavailable|not available|not installed/i.test(e || '');
 function NativeRow({ h, rt, onRefresh }) {
   const [busy, setBusy] = useState(false);
   const refresh = async () => { setBusy(true); try { await onRefresh(h.runtime_id); } finally { setBusy(false); } };
@@ -57,7 +57,7 @@ function NativeRow({ h, rt, onRefresh }) {
   const top = models.slice(0, 3), total = models.reduce((n, m) => n + m.tokens, 0) || 1;
   const machine = rt && rt.machine ? rt.machine : '';
   return html`<div class="tr">
-    <span class="cell-id"><${Logo} name=${(rt && rt.logo) || h.runtime_id} size="sm" /><span class="cell-main"><b>${(rt && rt.name) || h.runtime_id}${machine && html` <small class="q-m">${machine}</small>`}</b><small>${tSource((h.source || '').replace(' · machine SSH', ''))}</small></span></span>
+    <span class="cell-id"><${Logo} name=${(rt && rt.logo) || h.runtime_id} size="sm" /><span class="cell-main"><b>${(rt && rt.name) || h.runtime_id}${machine && html` <small class="q-m">${machine}</small>`}</b><small>${tSource((h.source || '').replace(' · SSH machine', ''))}</small></span></span>
     <span class="mono">${h.sessions || '—'}</span>
     <span class="mono">${fmtTok(h.input_tokens)}</span><span class="mono">${fmtTok(h.output_tokens)}</span><span class="mono">${h.cache_read_tokens ? fmtTok(h.cache_read_tokens) : '—'}</span>
     <span class="mono strong">${fmtTok(h.total_tokens)}</span>
@@ -91,7 +91,7 @@ function NativeUsage({ runtimes }) {
       ${shown.map(h => html`<${NativeRow} key=${h.runtime_id} h=${h} rt=${runtimes.find(r => r.id === h.runtime_id)} onRefresh=${refresh} />`)}</div>`
       : html`<div class="card"><${Empty} icon="chart" title=${t("usage.native.empty_title")} text=${t("usage.native.empty_text")} /></div>`}
     ${idle.length ? html`<p class="note">${t("usage.native.idle", { list: idle.map(h => name(h.runtime_id)).join(', ') })}</p>` : ''}
-    ${absent.length ? html`<p class="note">${t("usage.native.absent", { list: absent.map(h => name(h.runtime_id) + (/installé/.test(h.error) ? t("usage.native.not_installed") : '')).join(', ') })}</p>` : ''}
+    ${absent.length ? html`<p class="note">${t("usage.native.absent", { list: absent.map(h => name(h.runtime_id) + (/not installed/i.test(h.error) ? t("usage.native.not_installed") : '')).join(', ') })}</p>` : ''}
   </section>`;
 }
 

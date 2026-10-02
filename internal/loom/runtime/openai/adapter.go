@@ -54,7 +54,7 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 	}
 	key := a.Credentials.APIKey()
 	if strings.TrimSpace(key) == "" {
-		return "", errors.New("clé absente : reconnectez le provider dans Modèles → Providers")
+		return "", errors.New("missing key: reconnect the provider in Models → Providers")
 	}
 	payload := map[string]any{
 		"model": provider.Model, "messages": turn.Messages, "stream": true,
@@ -67,11 +67,11 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return "", errors.New("messages invalides")
+		return "", errors.New("invalid messages")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return "", errors.New("destination invalide")
+		return "", errors.New("invalid destination")
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
@@ -89,15 +89,15 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		return "", errors.New("provider injoignable ou délai dépassé ; vérifiez la connexion")
+		return "", errors.New("provider unreachable or timed out; check the connection")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		// Never echo a provider body: it may contain the credential or prompt.
-		return "", fmt.Errorf("le provider a refusé la requête (HTTP %d) ; vérifiez la clé, le modèle et votre quota", resp.StatusCode)
+		return "", fmt.Errorf("the provider rejected the request (HTTP %d); check the key, model and your quota", resp.StatusCode)
 	}
 	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
-		return "", errors.New("le provider ne renvoie pas un flux SSE compatible")
+		return "", errors.New("the provider is not returning a compatible SSE stream")
 	}
 	scanner := bufio.NewScanner(io.LimitReader(resp.Body, 2<<20))
 	scanner.Buffer(make([]byte, 4096), 512<<10)
@@ -128,10 +128,10 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 			Error json.RawMessage `json:"error"`
 		}
 		if json.Unmarshal([]byte(payload), &chunk) != nil {
-			return errors.New("événement provider invalide")
+			return errors.New("invalid provider event")
 		}
 		if len(chunk.Error) > 0 && string(chunk.Error) != "null" {
-			return errors.New("le provider a signalé une erreur pendant la réponse")
+			return errors.New("the provider reported an error during the response")
 		}
 		if chunk.Usage != nil && !emit(Event{Usage: chunk.Usage}) {
 			return context.Canceled
@@ -139,11 +139,11 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 		if len(chunk.Choices) > 0 {
 			c := chunk.Choices[0]
 			if len(c.Delta.ToolCalls) > 0 && string(c.Delta.ToolCalls) != "null" && string(c.Delta.ToolCalls) != "[]" {
-				return errors.New("ce connecteur texte n’exécute pas d’outils")
+				return errors.New("this text connector does not execute tools")
 			}
 			part := c.Delta.Content + c.Delta.Refusal
 			if answer.Len()+len(part) > 256<<10 {
-				return errors.New("réponse trop longue (256 Kio maximum)")
+				return errors.New("response too long (maximum 256 KiB)")
 			}
 			if part != "" {
 				answer.WriteString(part)
@@ -174,7 +174,7 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 		return "", ctx.Err()
 	}
 	if err := scanner.Err(); err != nil {
-		return "", errors.New("flux interrompu : la réponse partielle est conservée")
+		return "", errors.New("stream interrupted: partial response preserved")
 	}
 	if len(data) > 0 {
 		if err := consume(); err != nil {
@@ -182,14 +182,14 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 		}
 	}
 	if !done && finish == "" {
-		return "", errors.New("flux interrompu avant la fin de la réponse")
+		return "", errors.New("stream interrupted before the end of the response")
 	}
 	// Reaching an explicitly requested benchmark budget is a completed measurement.
 	if finish != "" && finish != "stop" && !(finish == "length" && turn.MaxTokens > 0) {
-		return "", fmt.Errorf("réponse incomplète (fin : %s)", SafeFinishReason(finish))
+		return "", fmt.Errorf("incomplete response (finish: %s)", SafeFinishReason(finish))
 	}
 	if answer.Len() == 0 {
-		return "", errors.New("le provider a terminé sans réponse textuelle")
+		return "", errors.New("the provider finished without a text response")
 	}
 	return answer.String(), nil
 }
@@ -197,10 +197,10 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 func SafeFinishReason(reason string) string {
 	switch reason {
 	case "length":
-		return "limite de longueur"
+		return "length limit"
 	case "content_filter":
-		return "filtre du provider"
+		return "provider filter"
 	default:
-		return "fonction non prise en charge"
+		return "unsupported function"
 	}
 }

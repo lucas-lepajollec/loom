@@ -68,10 +68,10 @@ func mdPages() []string {
 // déjà activé, renvoie une erreur claire.
 func EnableMemEncryption(password string) (recoveryKey string, err error) {
 	if strings.TrimSpace(password) == "" {
-		return "", fmt.Errorf("mot de passe vide")
+		return "", fmt.Errorf("empty password")
 	}
 	if memEncActive() {
-		return "", fmt.Errorf("le chiffrement est déjà activé")
+		return "", fmt.Errorf("encryption is already enabled")
 	}
 	// GARDE-FOU ANTI-PERTE : refuser de créer un nouveau coffre si un coffre existe
 	// DÉJÀ sur le disque, même quand le drapeau MEM_ENCRYPTED a disparu. Sinon un
@@ -81,31 +81,31 @@ func EnableMemEncryption(password string) (recoveryKey string, err error) {
 	// DÉVERROUILLER l'existant (unlock) au lieu de re-chiffrer. C'est ce bug qui a
 	// orphelin des pages le 2026-08-25.
 	if vaultExists() {
-		return "", fmt.Errorf("un coffre de chiffrement existe déjà : déverrouille la mémoire (unlock) au lieu de la re-chiffrer")
+		return "", fmt.Errorf("an encryption vault already exists: unlock memory (unlock) instead of encrypting it again")
 	}
 	if err := memCryptoSelfTest(); err != nil {
-		return "", fmt.Errorf("auto-test crypto échoué, chiffrement refusé : %w", err)
+		return "", fmt.Errorf("crypto self-test failed, encryption refused: %w", err)
 	}
 	if _, err := snapshotMemory("avant-chiffrement"); err != nil {
-		return "", fmt.Errorf("snapshot de sécurité impossible, chiffrement annulé : %w", err)
+		return "", fmt.Errorf("could not create safety snapshot, encryption cancelled: %w", err)
 	}
 
 	v, dek, err := newVault()
 	if err != nil {
 		return "", err
 	}
-	if err := v.addSecretWrap(dek, wrapPassword, "principal", password); err != nil {
+	if err := v.addSecretWrap(dek, wrapPassword, "primary", password); err != nil {
 		return "", err
 	}
 	recoveryKey, err = newRecoveryKey()
 	if err != nil {
 		return "", err
 	}
-	if err := v.addSecretWrap(dek, wrapRecovery, "récupération", normalizeRecovery(recoveryKey)); err != nil {
+	if err := v.addSecretWrap(dek, wrapRecovery, "recovery", normalizeRecovery(recoveryKey)); err != nil {
 		return "", err
 	}
 	if err := saveVault(v); err != nil {
-		return "", fmt.Errorf("écriture du keyvault : %w", err)
+		return "", fmt.Errorf("writing keyvault: %w", err)
 	}
 
 	// À partir d'ici la DEK est en RAM et le chiffrement est actif : writeMemFile
@@ -120,11 +120,11 @@ func EnableMemEncryption(password string) (recoveryKey string, err error) {
 	if err := reencryptPlaintextPages(); err != nil {
 		// Journal laissé en place : la reprise au démarrage réessaiera. Les pages
 		// déjà chiffrées sont valides, les pages claires restent lisibles.
-		return recoveryKey, fmt.Errorf("chiffrement partiel (sera repris) : %w", err)
+		return recoveryKey, fmt.Errorf("partial encryption (will resume): %w", err)
 	}
 	// Étend le chiffrement aux conversations (fil courant + archives + index).
 	if err := reencryptChatStores(); err != nil {
-		return recoveryKey, fmt.Errorf("chiffrement conversations partiel (sera repris) : %w", err)
+		return recoveryKey, fmt.Errorf("partial conversation encryption (will resume): %w", err)
 	}
 	clearMigrationJournal()
 	scrubPlaintextResidue() // sinon le texte en clair traînerait à côté du chiffré
@@ -163,18 +163,18 @@ func reencryptPlaintextPages() error {
 		p, _ := safeMemPath(name)
 		raw, err := os.ReadFile(p)
 		if err != nil {
-			return fmt.Errorf("lecture %s : %w", name, err)
+			return fmt.Errorf("reading %s: %w", name, err)
 		}
 		if looksEncrypted(raw) {
 			continue // déjà fait
 		}
 		if err := writeMemFile(name, raw); err != nil { // chiffre (actif+déverrouillé)
-			return fmt.Errorf("chiffrement %s : %w", name, err)
+			return fmt.Errorf("encrypting %s: %w", name, err)
 		}
 		// Vérifie que la page se relit à l'identique.
 		back, err := memReadPage(name)
 		if err != nil || string(back) != string(raw) {
-			return fmt.Errorf("vérification post-chiffrement de %s échouée", name)
+			return fmt.Errorf("post-encryption verification of %s failed", name)
 		}
 	}
 	return nil
@@ -185,13 +185,13 @@ func reencryptPlaintextPages() error {
 // écrite en clair et vérifiée ; enfin le keyvault est retiré.
 func DisableMemEncryption() error {
 	if !memEncActive() {
-		return fmt.Errorf("le chiffrement n'est pas activé")
+		return fmt.Errorf("encryption is not enabled")
 	}
 	if !memUnlocked() {
-		return fmt.Errorf("mémoire verrouillée : déverrouille-la avant de déchiffrer")
+		return fmt.Errorf("memory locked: unlock it before decrypting")
 	}
 	if _, err := snapshotMemory("avant-dechiffrement"); err != nil {
-		return fmt.Errorf("snapshot de sécurité impossible, déchiffrement annulé : %w", err)
+		return fmt.Errorf("could not create safety snapshot, decryption cancelled: %w", err)
 	}
 	if err := writeMigrationJournal("decrypt"); err != nil {
 		return err
@@ -226,21 +226,21 @@ func decryptAllPages() error {
 		p, _ := safeMemPath(name)
 		raw, err := os.ReadFile(p)
 		if err != nil {
-			return fmt.Errorf("lecture %s : %w", name, err)
+			return fmt.Errorf("reading %s: %w", name, err)
 		}
 		if !looksEncrypted(raw) {
 			continue // déjà en clair
 		}
 		plain, err := decodeMemContent(raw)
 		if err != nil {
-			return fmt.Errorf("déchiffrement %s impossible, on n'écrase rien : %w", name, err)
+			return fmt.Errorf("could not decrypt %s, nothing overwritten: %w", name, err)
 		}
 		if err := writeMemPlain(name, plain); err != nil {
-			return fmt.Errorf("écriture claire %s : %w", name, err)
+			return fmt.Errorf("writing plaintext %s: %w", name, err)
 		}
 		back, err := os.ReadFile(p)
 		if err != nil || looksEncrypted(back) || string(back) != string(plain) {
-			return fmt.Errorf("vérification post-déchiffrement de %s échouée", name)
+			return fmt.Errorf("post-decryption verification of %s failed", name)
 		}
 	}
 	return nil

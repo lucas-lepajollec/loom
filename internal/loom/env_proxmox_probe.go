@@ -28,7 +28,7 @@ func handleProxmoxFingerprint(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := url.Parse(strings.TrimSpace(req.URL))
 	if err != nil || u.Scheme != "https" || u.Host == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "adresse https attendue (ex. https://192.168.1.10:8006)"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "https address expected (e.g. https://192.168.1.10:8006)"})
 		return
 	}
 	host := u.Host
@@ -37,13 +37,13 @@ func handleProxmoxFingerprint(w http.ResponseWriter, r *http.Request) {
 	}
 	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", host, &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}) // inspection only, never used for requests
 	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "Proxmox injoignable : " + err.Error()})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "Proxmox unreachable: " + err.Error()})
 		return
 	}
 	defer conn.Close()
 	certs := conn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": errors.New("aucun certificat présenté").Error()})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": errors.New("no certificate presented").Error()})
 		return
 	}
 	c := certs[0]

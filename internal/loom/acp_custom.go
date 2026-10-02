@@ -34,14 +34,14 @@ func validCustomACPAgent(a acpAgent) (acpAgent, error) {
 	a.Name = strings.TrimSpace(a.Name)
 	a.Command = strings.TrimSpace(a.Command)
 	if a.Name == "" || len([]rune(a.Name)) > 40 || a.Command == "" || len(a.Command) > 512 || strings.ContainsAny(a.Command, "\n\r\x00") {
-		return a, errors.New("nom (40 caractères) et commande requis")
+		return a, errors.New("name (40 characters) and command required")
 	}
 	if len(a.Args) > 32 {
-		return a, errors.New("32 arguments maximum")
+		return a, errors.New("maximum 32 arguments")
 	}
 	for _, arg := range a.Args {
 		if len(arg) > 512 || strings.ContainsAny(arg, "\n\r\x00") {
-			return a, errors.New("argument invalide")
+			return a, errors.New("invalid argument")
 		}
 	}
 	if a.ID == "" {
@@ -52,7 +52,7 @@ func validCustomACPAgent(a acpAgent) (acpAgent, error) {
 		a.ID = "custom-" + slug
 	}
 	if !strings.HasPrefix(a.ID, "custom-") {
-		return a, errors.New("identifiant réservé")
+		return a, errors.New("reserved ID")
 	}
 	a.Logo = logoForCustom(a)
 	a.Detect, a.Docs, a.Custom = nil, "", true
@@ -89,7 +89,7 @@ func handleCustomACP(w http.ResponseWriter, r *http.Request) {
 	}
 	if existing, ok := registeredRuntimes.lookup(a.ID); ok {
 		if ad, isACP := existing.(*acpAdapter); !isACP || !ad.agent.Custom {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "un harness porte déjà ce nom"})
+			sendJSON(w, 409, map[string]any{"ok": false, "error": "a harness already has this name"})
 			return
 		}
 	}
@@ -102,7 +102,7 @@ func handleCustomACP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !replaced {
 		if len(list) >= 32 {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "32 harnesses personnalisés maximum"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "maximum 32 custom harnesses"})
 			return
 		}
 		list = append(list, a)
@@ -133,7 +133,7 @@ func handleCustomACPDelete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(kept) == len(list) {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness not found"})
 		return
 	}
 	if err := putStoreJSON(bkState, acpCustomState, kept); err != nil {
@@ -149,13 +149,13 @@ func handleCustomACPDelete(w http.ResponseWriter, r *http.Request) {
 func remoteWorkdir(p string) (string, error) {
 	p = strings.TrimSpace(p)
 	if strings.ContainsAny(p, "\n\r\x00") || len(p) > 1024 {
-		return "", errors.New("chemin absolu requis sur la machine distante")
+		return "", errors.New("absolute path required on the remote machine")
 	}
 	if regexp.MustCompile(`^[A-Za-z]:[\\/]`).MatchString(p) {
 		return strings.ToUpper(p[:1]) + path.Clean(strings.ReplaceAll(p[1:], `\`, "/")), nil
 	}
 	if !strings.HasPrefix(p, "/") {
-		return "", errors.New("chemin absolu requis sur la machine distante")
+		return "", errors.New("absolute path required on the remote machine")
 	}
 	return path.Clean(p), nil
 }

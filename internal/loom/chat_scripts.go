@@ -30,14 +30,14 @@ import (
 func scriptsPath(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", fmt.Errorf("nom de script vide")
+		return "", fmt.Errorf("empty script name")
 	}
 	// On interdit les chemins absolus et la remontée : un script vit dans
 	// scriptsDir, point. Les sous-dossiers relatifs restent permis. Un nom qui
 	// commence par un séparateur (« /etc/… ») est rejeté explicitement : sous
 	// Windows il n'est pas « absolu » au sens de filepath mais n'a rien à faire là.
 	if strings.HasPrefix(name, "/") || strings.HasPrefix(name, `\`) {
-		return "", fmt.Errorf("nom de script invalide (commence par un séparateur) : %s", name)
+		return "", fmt.Errorf("invalid script name (starts with a separator): %s", name)
 	}
 	// Caractères hostiles au shell : le nom finit dans une ligne de commande
 	// (scriptRunCommand l'entoure de guillemets) ; on refuse tout ce qui pourrait
@@ -46,16 +46,16 @@ func scriptsPath(name string) (string, error) {
 	// partout rend le comportement identique sur les deux plateformes. Un nom de
 	// fichier n'a de toute façon besoin d'aucun de ces caractères.
 	if i := strings.IndexAny(name, "\"'`$;&|<>*?\\\n\r"); i >= 0 {
-		return "", fmt.Errorf("nom de script invalide (caractère interdit %q) : %s", name[i:i+1], name)
+		return "", fmt.Errorf("invalid script name (forbidden character %q): %s", name[i:i+1], name)
 	}
 	clean := filepath.Clean(filepath.FromSlash(name))
 	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("nom de script invalide (pas de chemin absolu ni de ../) : %s", name)
+		return "", fmt.Errorf("invalid script name (no absolute path or ../): %s", name)
 	}
 	full := filepath.Join(scriptsDir(), clean)
 	// Ceinture et bretelles : vérifie que le résultat est bien SOUS scriptsDir.
 	if !underDir(full, scriptsDir()) {
-		return "", fmt.Errorf("nom de script hors du dossier scripts : %s", name)
+		return "", fmt.Errorf("script name outside the scripts directory: %s", name)
 	}
 	return full, nil
 }
@@ -69,10 +69,10 @@ func scriptExists(name string) error {
 	}
 	fi, err := os.Stat(full)
 	if err != nil {
-		return fmt.Errorf("script introuvable : %s", name)
+		return fmt.Errorf("script not found: %s", name)
 	}
 	if fi.IsDir() {
-		return fmt.Errorf("%s est un dossier, pas un script", name)
+		return fmt.Errorf("%s is a directory, not a script", name)
 	}
 	return nil
 }
@@ -123,7 +123,7 @@ func toolOnlyDirs() []string { return []string{memoryDir()} }
 // toolOnlyLabel donne le nom des outils à utiliser à la place d'un accès direct
 // (seule la mémoire est concernée aujourd'hui, voir toolOnlyDirs).
 func toolOnlyLabel() string {
-	return "les outils mem_* (mem_search/mem_read/mem_add/mem_edit/mem_delete)"
+	return "the mem_* tools (mem_search/mem_read/mem_add/mem_edit/mem_delete)"
 }
 
 // guardToolOnlyPath refuse un accès write/edit à un chemin (déjà résolu) situé
@@ -131,7 +131,7 @@ func toolOnlyLabel() string {
 func guardToolOnlyPath(path string) string {
 	for _, d := range toolOnlyDirs() {
 		if underDir(path, d) {
-			return fmt.Sprintf("[refusé] pas d'accès direct au dossier %s. Utilise %s.", d, toolOnlyLabel())
+			return fmt.Sprintf("[denied] no direct access to directory %s. Use %s.", d, toolOnlyLabel())
 		}
 	}
 	return ""
@@ -144,7 +144,7 @@ func guardToolOnlyCommand(command string) string {
 	lc := strings.ToLower(command)
 	for _, d := range toolOnlyDirs() {
 		if strings.Contains(lc, strings.ToLower(normPath(d))) {
-			return fmt.Sprintf("[refusé] pas d'accès direct au dossier %s via le shell. Utilise %s.", d, toolOnlyLabel())
+			return fmt.Sprintf("[denied] no direct access to directory %s through the shell. Use %s.", d, toolOnlyLabel())
 		}
 	}
 	return ""

@@ -77,7 +77,7 @@ func TestDiskFreeAndCheck(t *testing.T) {
 	if err == nil {
 		t.Fatal("téléchargement accepté alors qu'il remplit le disque")
 	}
-	if !strings.Contains(err.Error(), "espace insuffisant") {
+	if !strings.Contains(err.Error(), "insufficient space") {
 		t.Fatalf("message inattendu : %v", err)
 	}
 	// Taille inconnue (serveur sans Content-Length) : on laisse passer.

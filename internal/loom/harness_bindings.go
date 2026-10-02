@@ -57,7 +57,7 @@ func handleHarnessBindings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, ok := registeredRuntimes.lookup(req.ID); !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness not found"})
 		return
 	}
 	if err := setHarnessMCPBinding(req.ID, req.MCP); err != nil {
@@ -85,7 +85,7 @@ func handleSkillBinding(w http.ResponseWriter, r *http.Request) {
 		known = known || t.ID == req.Target
 	}
 	if !known || req.SkillID == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "skill ou cible inconnue"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown skill or target"})
 		return
 	}
 	m := skillBindings()
@@ -127,7 +127,7 @@ func handleHarnessMCPAdopt(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if found == nil {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "serveur MCP introuvable dans ce harness"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "MCP server not found in this harness"})
 		return
 	}
 	cfg, err := adoptedMCP(*found)

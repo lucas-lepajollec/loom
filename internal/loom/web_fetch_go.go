@@ -57,7 +57,7 @@ func webEngine() string {
 // reachability (l'état affiché dépend du moteur).
 func setWebEngine(engine string) error {
 	if engine != engineGo && engine != engineCrawl {
-		return fmt.Errorf("moteur web inconnu : %q", engine)
+		return fmt.Errorf("unknown web engine: %q", engine)
 	}
 	if err := SetConfigKey("WEB_ENGINE", engine); err != nil {
 		return err
@@ -80,7 +80,7 @@ var goHTTPClient = &http.Client{
 	Jar:     newCookieJar(),
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
-			return fmt.Errorf("trop de redirections")
+			return fmt.Errorf("too many redirects")
 		}
 		return nil
 	},

@@ -121,27 +121,27 @@ func cmdNetwork(args []string) error {
 			return err
 		}
 		if st.Exposed {
-			fmt.Printf("%s le moteur écoutera sur tout le réseau (%s)\n", green("[ok]"), st.URL)
+			fmt.Printf("%s the engine will listen on the entire network (%s)\n", green("[ok]"), st.URL)
 		} else {
-			fmt.Printf("%s le moteur n'écoutera plus que sur cette machine\n", green("[ok]"))
+			fmt.Printf("%s the engine will only listen on this machine\n", green("[ok]"))
 		}
 		printNetHint(st)
-		fmt.Printf("%s redémarre le moteur pour appliquer : %s\n", dim("[info]"), bold("loom restart"))
+		fmt.Printf("%s restart the engine to apply: %s\n", dim("[info]"), bold("loom restart"))
 		return nil
 	case "status", "":
 		st := networkStatus()
-		state := dim("cette machine seulement")
+		state := dim("this machine only")
 		if st.Exposed {
-			state = green("tout le réseau")
+			state = green("entire network")
 		}
-		fmt.Printf("%s  écoute: %s (HOST=%s, PORT=%d)\n", cyan("Réseau"), state, st.Host, st.Port)
+		fmt.Printf("%s  listening: %s (HOST=%s, PORT=%d)\n", cyan("Network"), state, st.Host, st.Port)
 		switch st.Firewall {
-		case "ouvert":
-			fmt.Printf("  pare-feu : %s\n", green("port autorisé"))
+		case "open":
+			fmt.Printf("  pare-feu : %s\n", green("port allowed"))
 		case "ferme":
-			fmt.Printf("  pare-feu : %s\n", yellow("aucune règle pour ce port"))
+			fmt.Printf("  pare-feu : %s\n", yellow("no rule for this port"))
 		default:
-			fmt.Printf("  pare-feu : %s\n", dim("non géré par Loom sur cette plateforme"))
+			fmt.Printf("  pare-feu : %s\n", dim("not managed by Loom on this platform"))
 		}
 		if st.Exposed {
 			fmt.Printf("  endpoint OpenAI : %s\n", bold(st.URL))

@@ -42,7 +42,7 @@ var skillSlugAllowed = func(r rune) rune {
 	return '-'
 }
 
-var ErrReadOnlySkill = errors.New("cette skill vient d’un dossier lié : modifie-la dans ce dossier, ou copie-la dans Loom")
+var ErrReadOnlySkill = errors.New("this skill comes from a linked directory: edit it there, or copy it into Loom")
 
 // ParseSkillMarkdown splits front matter (a small YAML subset: key: value and
 // one level of nested maps) from the body.

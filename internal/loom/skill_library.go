@@ -86,7 +86,7 @@ func handleSkillSources(w http.ResponseWriter, r *http.Request) {
 		skills := listCapabilities()
 		for i := range list {
 			if _, err := os.Stat(list[i].Path); err != nil && !list[i].Builtin {
-				list[i].Error = "dossier introuvable"
+				list[i].Error = "directory not found"
 			}
 			for _, c := range skills {
 				if c.Source == list[i].ID {
@@ -125,25 +125,25 @@ func handleSkillSources(w http.ResponseWriter, r *http.Request) {
 	}
 	path := filepath.Clean(strings.TrimSpace(req.Path))
 	if !filepath.IsAbs(path) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "chemin absolu requis"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "absolute path required"})
 		return
 	}
 	if info, err := os.Stat(path); err != nil || !info.IsDir() {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "dossier introuvable"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "directory not found"})
 		return
 	}
 	if path == filepath.Clean(loomSkillsDir()) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "c’est déjà le dossier de skills de Loom"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "this is already Loom's skills directory"})
 		return
 	}
 	for _, s := range list {
 		if s.Path == path {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "dossier déjà lié"})
+			sendJSON(w, 409, map[string]any{"ok": false, "error": "directory already linked"})
 			return
 		}
 	}
 	if len(list) >= 16 {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "16 dossiers liés maximum"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "maximum 16 linked directories"})
 		return
 	}
 	label := strings.TrimSpace(req.Label)

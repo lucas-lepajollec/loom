@@ -33,7 +33,7 @@ func effectiveSysPrompt() string {
 // moteur : le prompt est relu à chaque tour (chat_conversation.go).
 func handleModelSysPrompt(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		sendJSON(w, 405, map[string]any{"ok": false, "error": "méthode non autorisée"})
+		sendJSON(w, 405, map[string]any{"ok": false, "error": "method not allowed"})
 		return
 	}
 	var body struct {
@@ -72,6 +72,6 @@ func handleSysPrompt(w http.ResponseWriter, r *http.Request) {
 		}
 		sendJSON(w, 200, map[string]any{"ok": true, "text": readSysPrompt()})
 	default:
-		sendJSON(w, 405, map[string]any{"ok": false, "error": "méthode non autorisée"})
+		sendJSON(w, 405, map[string]any{"ok": false, "error": "method not allowed"})
 	}
 }

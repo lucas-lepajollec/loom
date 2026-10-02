@@ -203,7 +203,7 @@ func ensureOAIModel(id string) error {
 	clearOAIRuntime()
 	e, ok := resolveOAIModel(id)
 	if !ok {
-		return fmt.Errorf("modèle inconnu : %s", id)
+		return fmt.Errorf("unknown model: %s", id)
 	}
 	if err := applyOAIEntry(e); err != nil {
 		return err
@@ -254,7 +254,7 @@ func waitLlamaReady(budget time.Duration) error {
 	if last == nil {
 		last = fmt.Errorf("timeout")
 	}
-	return fmt.Errorf("le moteur n'est pas prêt : %v", last)
+	return fmt.Errorf("the engine is not ready: %v", last)
 }
 
 func oaiModelsJSON() []byte {
@@ -367,7 +367,7 @@ func newOAIRouter(injectKey string) http.Handler {
 		}
 	}
 	lp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, e error) {
-		oaiError(w, http.StatusBadGateway, "api_error", "llama-server injoignable: "+e.Error(), "", "server_error")
+		oaiError(w, http.StatusBadGateway, "api_error", "llama-server unreachable: "+e.Error(), "", "server_error")
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
@@ -420,7 +420,7 @@ func newOAIRouter(injectKey string) http.Handler {
 				llamaOwner.SwitchLock().Unlock()
 				if switchErr != nil {
 					err = switchErr
-					if strings.Contains(err.Error(), "inconnu") {
+					if strings.Contains(err.Error(), "unknown") {
 						oaiError(w, http.StatusNotFound, "invalid_request_error", "The model `"+want+"` does not exist", "model", "model_not_found")
 						return
 					}
@@ -446,7 +446,7 @@ func newOAIRouter(injectKey string) http.Handler {
 				// section Loom qui sert maintenant (modèle choisi ou variante API).
 				cur := routerCurrentName()
 				if cur == "" {
-					oaiError(w, http.StatusServiceUnavailable, "api_error", "aucun modèle chargé", "model", "model_unavailable")
+					oaiError(w, http.StatusServiceUnavailable, "api_error", "no model loaded", "model", "model_unavailable")
 					return
 				}
 				body = rewriteOAIModel(body, cur)
@@ -496,10 +496,10 @@ func serveOAIFront(errc chan<- error) {
 	addr := oaiListenAddr()
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		errc <- fmt.Errorf("écoute OpenAI %s : %w", addr, err)
+		errc <- fmt.Errorf("OpenAI listen %s: %w", addr, err)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "[loom serve] /v1 sur %s  → llama-server 127.0.0.1:%d\n", addr, llamaBackendPort())
+	fmt.Fprintf(os.Stderr, "[loom serve] /v1 on %s  → llama-server 127.0.0.1:%d\n", addr, llamaBackendPort())
 	srv := &http.Server{
 		Handler:           oaiPublicHandler(),
 		ReadHeaderTimeout: 10 * time.Second,

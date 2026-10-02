@@ -57,17 +57,17 @@ func (m *runtimeSessions) saveProvider(p CloudProvider, key string) (CloudProvid
 	p.Name = strings.TrimSpace(p.Name)
 	p.Model = strings.TrimSpace(p.Model)
 	if p.UsageMode != "" && p.UsageMode != "none" {
-		return p, errors.New("mode de décompte des tokens invalide")
+		return p, errors.New("invalid token counting mode")
 	}
 	if len(p.Models) > 32 {
-		return p, errors.New("32 modèles maximum par provider")
+		return p, errors.New("maximum 32 models per provider")
 	}
 	models := []string{}
 	seen := map[string]bool{}
 	for _, model := range append([]string{p.Model}, p.Models...) {
 		model = strings.TrimSpace(model)
 		if len(model) > 200 || strings.ContainsAny(model, "\r\n\x00") {
-			return p, errors.New("identifiant de modèle trop long")
+			return p, errors.New("model ID too long")
 		}
 		if model != "" && !seen[model] {
 			models = append(models, model)
@@ -76,10 +76,10 @@ func (m *runtimeSessions) saveProvider(p CloudProvider, key string) (CloudProvid
 	}
 	p.Models = models
 	if len(models) > 32 {
-		return p, errors.New("32 modèles maximum par provider")
+		return p, errors.New("maximum 32 models per provider")
 	}
 	if p.Name == "" || len(p.Name) > 100 || p.Model == "" || len(p.Model) > 200 {
-		return p, errors.New("nom et modèle requis (100 et 200 octets maximum)")
+		return p, errors.New("name and model required (maximum 100 and 200 bytes)")
 	}
 	endpoint, err := validateCloudEndpoint(p.Endpoint)
 	if err != nil {
@@ -87,22 +87,22 @@ func (m *runtimeSessions) saveProvider(p CloudProvider, key string) (CloudProvid
 	}
 	p.Endpoint = endpoint
 	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
-		return p, errors.New("clé invalide")
+		return p, errors.New("invalid key")
 	}
 	if p.ID == "" {
 		p.ID = newSessionID()
 	} else {
 		var old CloudProvider
 		if !getStoreJSON(bkProviders, p.ID, &old) {
-			return p, errors.New("provider introuvable")
+			return p, errors.New("provider not found")
 		}
 		if old.Endpoint != p.Endpoint {
-			return p, errors.New("créez une nouvelle connexion pour changer la destination")
+			return p, errors.New("create a new connection to change the destination")
 		}
 	}
 	p.Ready = false
 	if err := putStoreJSON(bkProviders, p.ID, p); err != nil {
-		return p, errors.New("connexion non enregistrée : stockage indisponible ou verrouillé")
+		return p, errors.New("connection not saved: storage unavailable or locked")
 	}
 	if strings.TrimSpace(key) != "" {
 		m.keys[p.ID] = strings.TrimSpace(key)
@@ -134,23 +134,23 @@ func (m *runtimeSessions) create(projectID, providerID string, consent bool) (Ru
 	defer m.mu.Unlock()
 	var s RuntimeSession
 	if providerID != "" && !consent {
-		return s, errors.New("confirmez l’envoi des messages et du contexte sélectionné vers ce provider")
+		return s, errors.New("confirm sending messages and selected context to this provider")
 	}
 	var p CloudProvider
 	if providerID != "" && !getStoreJSON(bkProviders, providerID, &p) {
-		return s, errors.New("provider introuvable")
+		return s, errors.New("provider not found")
 	}
 	if providerID != "" && m.keys[p.ID] == "" {
-		return s, errors.New("reconnectez ce provider dans Modèles → Providers")
+		return s, errors.New("reconnect this provider in Models → Providers")
 	}
 	if projectID != "" {
 		if _, ok := getProject(projectID); !ok {
-			return s, errors.New("projet introuvable")
+			return s, errors.New("project not found")
 		}
 	}
 	now := time.Now().UnixMilli()
-	s = RuntimeSession{ID: newSessionID(), ProjectID: projectID, RuntimeID: "openai-compatible", ProviderID: p.ID, ProviderName: p.Name, Endpoint: p.Endpoint, Model: p.Model, Title: "Nouvelle discussion cloud", CreatedAt: now, UpdatedAt: now, Status: "idle", Messages: []Message{}}
-	s.Title = "Nouvelle discussion"
+	s = RuntimeSession{ID: newSessionID(), ProjectID: projectID, RuntimeID: "openai-compatible", ProviderID: p.ID, ProviderName: p.Name, Endpoint: p.Endpoint, Model: p.Model, Title: "New cloud discussion", CreatedAt: now, UpdatedAt: now, Status: "idle", Messages: []Message{}}
+	s.Title = "New conversation"
 	if providerID == "" {
 		s.RuntimeID = "llama.cpp"
 		s.ProviderName = "llama.cpp"
@@ -171,7 +171,7 @@ func (m *runtimeSessions) getLocked(id string) (RuntimeSession, bool) {
 	}
 	if s.Status == "running" {
 		s.Status = "interrupted"
-		s.Error = "Loom a redémarré pendant la réponse. Aucun renvoi automatique."
+		s.Error = "Loom restarted during the response. No automatic resend."
 	}
 	return s, true
 }
@@ -200,11 +200,11 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 	defer m.mu.Unlock()
 	text = strings.TrimSpace(text)
 	if text == "" || len(text) > 24000 || len(requestID) < 8 || len(requestID) > 100 {
-		return errors.New("message requis (24000 octets maximum) et identifiant de requête valide")
+		return errors.New("message required (maximum 24000 bytes) and valid request ID")
 	}
 	s, ok := m.getLocked(id)
 	if !ok {
-		return errors.New("discussion introuvable ou verrouillée")
+		return errors.New("discussion not found or locked")
 	}
 	for _, seen := range s.RequestIDs {
 		if seen == requestID {
@@ -215,39 +215,39 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 		return nil
 	}
 	if harnessLifecycle.updatingRuntime(s.RuntimeID) {
-		return errors.New("une mise à jour automatique du harness est en cours ; attendez sa fin")
+		return errors.New("an automatic harness update is in progress; wait for it to finish")
 	}
 	if m.runs[id] != nil || m.nativeRunning(s) {
-		return errors.New("une réponse est déjà en cours")
+		return errors.New("a response is already in progress")
 	}
 	if s.RuntimeID == "llama.cpp" && s.NativeArchive != "" {
-		return errors.New("ce fil utilise le chat local natif ; envoyez depuis la discussion")
+		return errors.New("this thread uses native local chat; send from the discussion")
 	}
 	if len(m.runs) >= 4 {
-		return errors.New("quatre réponses sont déjà en cours ; attendez leur fin")
+		return errors.New("four responses are already running; wait for them to finish")
 	}
 	prepared := prepareDiscussion(s, text)
 	if len(expectedRevision) > 0 && (expectedRevision[0] == "" || expectedRevision[0] != prepared.Context.Revision) {
-		return errors.New("le modèle, le fil ou son contexte a changé ; vérifiez le panneau Contexte puis renvoyez votre message")
+		return errors.New("the model, thread or its context changed; check the Context panel then resend your message")
 	}
 	if prepared.Problem != "" {
 		return errors.New(prepared.Problem)
 	}
 	key := m.keys[s.ProviderID]
 	if s.RuntimeID == "openai-compatible" && key == "" {
-		return errors.New("clé absente : reconnectez le provider dans Modèles → Providers")
+		return errors.New("missing key: reconnect the provider in Models → Providers")
 	}
 	var adapter RuntimeAdapter
 	if s.RuntimeID == "llama.cpp" {
 		if s.Model == "" || !sameModelPath(s.Model, ReadConfig()["MODEL"]) {
-			return errors.New("chargez le modèle sélectionné depuis le panneau Modèle avant d’envoyer")
+			return errors.New("load the selected model from the Model panel before sending")
 		}
 		if !healthCheck() {
-			return errors.New("le modèle local n’est pas prêt ; chargez-le depuis le panneau Modèle")
+			return errors.New("the local model is not ready; load it from the Model panel")
 		}
 		for _, other := range m.runs {
 			if other.session.RuntimeID == "llama.cpp" {
-				return errors.New("le moteur local répond déjà dans une autre discussion")
+				return errors.New("the local engine is already responding in another discussion")
 			}
 		}
 		adapter = localChatRuntime()
@@ -259,7 +259,7 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 	} else if registered, exists := registeredRuntimes.lookup(s.RuntimeID); exists && hasRuntimeCapability(registered.Descriptor(), "chat") {
 		if acp, ok := registered.(*acpAdapter); ok {
 			if !acp.agent.available() {
-				return errors.New("CLI ou lanceur ACP indisponible")
+				return errors.New("CLI or ACP launcher unavailable")
 			}
 			check := acpDirectory
 			if acp.agent.Remote {
@@ -283,7 +283,7 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 			adapter = registered
 		}
 	} else {
-		return errors.New("cet adapter ne permet pas encore d’exécuter une discussion")
+		return errors.New("this adapter cannot execute a discussion yet")
 	}
 
 	messages := append(append([]Message{}, s.Messages...), Message{Role: "user", Content: text})
@@ -301,7 +301,7 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 	s.RequestIDs = append(s.RequestIDs, requestID)
 	s.UpdatedAt = time.Now().UnixMilli()
 	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
-		return errors.New("enregistrement impossible : stockage indisponible ou verrouillé")
+		return errors.New("could not save: storage unavailable or locked")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	if _, ok := adapter.(*acpAdapter); ok {
@@ -346,7 +346,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 			encoded, _ := json.Marshal(e)
 			run.acpBytes += len(encoded)
 			if (run.acpBytes > 64<<20 || len(run.session.Turns[len(run.session.Turns)-1].ACPEvents) >= 16384) && e["type"] != "approval_resolved" {
-				run.acpError = "Journal ACP trop volumineux ; tour arrêté, événements déjà reçus conservés."
+				run.acpError = "ACP journal too large; turn stopped, received events preserved."
 				run.cancel()
 				return false
 			}
@@ -422,7 +422,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 		s.Error = err.Error()
 		if errors.Is(err, context.Canceled) {
 			s.Status = "cancelled"
-			s.Error = "Réponse arrêtée. Le texte partiel est conservé."
+			s.Error = "Response stopped. Partial text is preserved."
 		}
 	}
 	// Keep a failed-to-persist result in memory for recovery, instead of silently
@@ -430,7 +430,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	if putStoreJSON(bkRuntimeSessions, s.ID, *s) != nil {
 		run.finalStatus, run.finalError = s.Status, s.Error
 		s.Status = "unsaved"
-		s.Error = "Réponse non enregistrée : déverrouillez le stockage puis réessayez."
+		s.Error = "Response not saved: unlock storage and try again."
 		m.finishDiscussionLocked(*s)
 		return
 	}
@@ -461,14 +461,14 @@ func (m *runtimeSessions) remove(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.runs[id] != nil {
-		return errors.New("arrêtez la réponse avant de supprimer la discussion")
+		return errors.New("stop the response before deleting the discussion")
 	}
 	s, ok := m.getLocked(id)
 	if !ok {
-		return errors.New("discussion introuvable")
+		return errors.New("discussion not found")
 	}
 	if m.nativeRunning(s) {
-		return errors.New("arrêtez la réponse locale avant de supprimer la discussion")
+		return errors.New("stop the local response before deleting the discussion")
 	}
 	m.closeACP(id)
 	return putBytes(bkRuntimeSessions, id, nil)

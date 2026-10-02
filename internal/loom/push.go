@@ -152,12 +152,12 @@ func hasPushSubs() bool { return len(loadSubs()) > 0 }
 func sendPushToAll(title, body string) {
 	subs := loadSubs()
 	if len(subs) == 0 {
-		fmt.Printf("[push] fin de tour : aucun abonné enregistré (rien à envoyer)\n")
+		fmt.Printf("[push] end of turn: no subscribers registered (nothing to send)\n")
 		return
 	}
 	priv, pub, err := vapidKeys()
 	if err != nil {
-		fmt.Printf("[push] clés VAPID indisponibles : %v\n", err)
+		fmt.Printf("[push] VAPID keys unavailable: %v\n", err)
 		return
 	}
 	msg, _ := json.Marshal(pushPayload{Title: title, Body: body, Tag: "loom-turn"})
@@ -172,12 +172,12 @@ func sendPushToAll(title, body string) {
 		TTL:             120, // périmé après 2 min : une notif « réponse prête » n'a pas de sens tardive
 		Urgency:         webpush.UrgencyHigh,
 	}
-	fmt.Printf("[push] envoi à %d abonné(s)…\n", len(subs))
+	fmt.Printf("[push] sending to %d subscriber(s)…\n", len(subs))
 	for _, s := range subs {
 		sub := &webpush.Subscription{Endpoint: s.Endpoint, Keys: s.Keys}
 		resp, err := webpush.SendNotification(msg, sub, opts)
 		if err != nil {
-			fmt.Printf("[push] échec envoi (%s) : %v\n", endpointHost(s.Endpoint), err)
+			fmt.Printf("[push] sending failed (%s): %v\n", endpointHost(s.Endpoint), err)
 			continue
 		}
 		// 201 Created = accepté par le service de push. 4xx = problème (VAPID,
@@ -187,7 +187,7 @@ func sendPushToAll(title, body string) {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 			fmt.Printf("[push] refus %d (%s) : %s\n", resp.StatusCode, endpointHost(s.Endpoint), strings.TrimSpace(string(body)))
 		} else {
-			fmt.Printf("[push] accepté %d (%s)\n", resp.StatusCode, endpointHost(s.Endpoint))
+			fmt.Printf("[push] accepted %d (%s)\n", resp.StatusCode, endpointHost(s.Endpoint))
 		}
 		// 404/410 = abonnement expiré côté service de push : on le retire.
 		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {

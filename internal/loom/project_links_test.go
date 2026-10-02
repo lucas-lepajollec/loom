@@ -19,7 +19,7 @@ func TestProjectContextFilesStayInsideFolder(t *testing.T) {
 			t.Fatalf("accepté: %s", bad)
 		}
 	}
-	p, err := saveProjectContext(ChatProject{Name: "Dépôt", Directory: dir, ContextFiles: []string{"AGENTS.md", "./AGENTS.md"}})
+	p, err := saveProjectContext(ChatProject{Name: "Repository", Directory: dir, ContextFiles: []string{"AGENTS.md", "./AGENTS.md"}})
 	if err != nil || len(p.ContextFiles) != 1 {
 		t.Fatalf("%v %v", err, p.ContextFiles)
 	}
@@ -87,7 +87,7 @@ func TestProjectFoldersFollowTheHarnessMachine(t *testing.T) {
 	if _, err := saveProjectContext(ChatProject{ID: remote.ID, Name: "Là-bas", Machine: "box", Directory: "/srv/app", ContextFiles: []string{"README.md"}}); err == nil {
 		t.Fatal("fichiers de contexte distants acceptés")
 	}
-	if _, err := saveProjectContext(ChatProject{Name: "X", Machine: "inconnue", Directory: "/a"}); err == nil {
+	if _, err := saveProjectContext(ChatProject{Name: "X", Machine: "unknown", Directory: "/a"}); err == nil {
 		t.Fatal("machine inconnue acceptée")
 	}
 }

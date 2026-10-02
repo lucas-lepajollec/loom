@@ -28,7 +28,7 @@ func TestProjectBrainContextReachesTheDiscussion(t *testing.T) {
 	if err := e.Refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := saveProjectContext(ChatProject{Name: "X", BrainSources: []string{"inconnue"}, BrainBudget: 500}); err == nil {
+	if _, err := saveProjectContext(ChatProject{Name: "X", BrainSources: []string{"unknown"}, BrainBudget: 500}); err == nil {
 		t.Fatal("source inconnue acceptée")
 	}
 	p, err := saveProjectContext(ChatProject{Name: "Infra", BrainSources: []string{"notes"}, BrainBudget: 800})

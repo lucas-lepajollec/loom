@@ -210,7 +210,7 @@ func hubPrepareReadme(md, base string) string {
 	body = strings.TrimSpace(body)
 	if len([]rune(body)) > hubReadmeChars {
 		r := []rune(body)
-		body = strings.TrimSpace(string(r[:hubReadmeChars])) + "\n\n---\n\nCarte tronquée. Le README complet est sur Hugging Face."
+		body = strings.TrimSpace(string(r[:hubReadmeChars])) + "\n\n---\n\nCard truncated. The full README is on Hugging Face."
 	}
 	return body
 }
@@ -304,7 +304,7 @@ func handleHubSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	author := strings.TrimSpace(r.URL.Query().Get("author"))
 	if author != "" && !hubValidRepo(author) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "auteur invalide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid author"})
 		return
 	}
 	sort := r.URL.Query().Get("sort")
@@ -349,7 +349,7 @@ func handleHubSearch(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := hubGET(u.String())
 	if err != nil {
-		sendJSON(w, 502, map[string]any{"ok": false, "error": "Hugging Face injoignable : " + err.Error()})
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "Hugging Face unreachable: " + err.Error()})
 		return
 	}
 	defer resp.Body.Close()
@@ -359,7 +359,7 @@ func handleHubSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	var raw []map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		sendJSON(w, 502, map[string]any{"ok": false, "error": "réponse Hugging Face illisible"})
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "unreadable Hugging Face response"})
 		return
 	}
 	out := make([]map[string]any, 0, len(raw))
@@ -405,18 +405,18 @@ func handleHubModel(w http.ResponseWriter, r *http.Request) {
 	}
 	id := strings.TrimSpace(r.URL.Query().Get("id"))
 	if !hubValidRepo(id) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "identifiant de dépôt invalide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid repository ID"})
 		return
 	}
 	rawURL := strings.TrimRight(hubAPIBase, "/") + "/" + id + "?blobs=true"
 	resp, err := hubGET(rawURL)
 	if err != nil {
-		sendJSON(w, 502, map[string]any{"ok": false, "error": "Hugging Face injoignable : " + err.Error()})
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "Hugging Face unreachable: " + err.Error()})
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 404 || resp.StatusCode == 401 || resp.StatusCode == 403 {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "dépôt introuvable ou restreint"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "repository not found or restricted"})
 		return
 	}
 	if resp.StatusCode != 200 {
@@ -437,7 +437,7 @@ func handleHubModel(w http.ResponseWriter, r *http.Request) {
 		Private      bool           `json:"private"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		sendJSON(w, 502, map[string]any{"ok": false, "error": "réponse Hugging Face illisible"})
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "unreadable Hugging Face response"})
 		return
 	}
 	if raw.ID == "" {
@@ -558,7 +558,7 @@ func handleHubAvatar(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Accept", "image/avif,image/webp,image/png,image/*;q=0.8")
 	resp, err := hubClient.Do(req)
 	if err != nil {
-		sendJSON(w, 502, map[string]any{"ok": false, "error": "avatar injoignable"})
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "avatar unreachable"})
 		return
 	}
 	defer resp.Body.Close()

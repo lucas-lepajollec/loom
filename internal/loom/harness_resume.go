@@ -41,7 +41,7 @@ func handleRuntimeSessionTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	s, ok := workspaceSessions.get(r.URL.Query().Get("id"))
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion introuvable ou verrouillée"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found or locked"})
 		return
 	}
 	runtimeID := s.NativeRuntimeID
@@ -51,12 +51,12 @@ func handleRuntimeSessionTerminal(w http.ResponseWriter, r *http.Request) {
 	adapter, found := registeredRuntimes.lookup(runtimeID)
 	acp, isACP := adapter.(*acpAdapter)
 	if !found || !isACP || s.NativeSessionID == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "cette discussion n’a pas de session native à reprendre"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "this discussion has no native session to resume"})
 		return
 	}
 	command := nativeResumeCommand(usageHarnessID(acp.agent), s.NativeSessionID)
 	if command == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "la reprise dans un terminal n’est pas disponible pour ce harness"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "terminal resume is not available for this harness"})
 		return
 	}
 	target := "local"

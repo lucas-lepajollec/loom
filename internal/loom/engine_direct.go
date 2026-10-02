@@ -61,11 +61,11 @@ func probeDirectEngine(ctx context.Context, base, key string) (directEngine, err
 	code, err := directGET(ctx, base, "/v1/models", key, &models)
 	switch {
 	case err != nil:
-		return directEngine{}, errors.New("moteur injoignable : vérifie l’adresse et que le serveur écoute sur le réseau")
+		return directEngine{}, errors.New("engine unreachable: check the address and that the server is listening on the network")
 	case code == 401 || code == 403:
-		return directEngine{}, errors.New("le moteur refuse la clé (HTTP " + fmt.Sprint(code) + ")")
+		return directEngine{}, errors.New("the engine rejected the key (HTTP " + fmt.Sprint(code) + ")")
 	case code != 200:
-		return directEngine{}, fmt.Errorf("ce n’est pas un serveur compatible OpenAI (/v1/models : HTTP %d)", code)
+		return directEngine{}, fmt.Errorf("this is not an OpenAI-compatible server (/v1/models: HTTP %d)", code)
 	}
 	e := directEngine{Kind: "openai"}
 	for _, m := range models.Data {
@@ -84,7 +84,7 @@ func probeDirectEngine(ctx context.Context, base, key string) (directEngine, err
 		}
 	}
 	if len(e.Models) == 0 {
-		return e, errors.New("le moteur ne sert aucun modèle")
+		return e, errors.New("the engine is not serving any models")
 	}
 	if e.Kind == "openai" {
 		var props struct {
@@ -125,7 +125,7 @@ func linkDirectEngine(ctx context.Context, rawURL, key, model string) (*engineNo
 		found = found || m == model
 	}
 	if !found {
-		return nil, errors.New("modèle non servi par ce moteur")
+		return nil, errors.New("model not served by this engine")
 	}
 	n := &engineNode{Direct: true, Kind: e.Kind, V1: base, APIKey: strings.TrimSpace(key), Hostname: u.Hostname(), Model: model,
 		Ctx: e.Ctx, Router: e.Router, LinkedAt: time.Now().UnixMilli()}
@@ -195,7 +195,7 @@ func serveDirectEngineRoute(w http.ResponseWriter, r *http.Request, n *engineNod
 			ok = ok || m == req.Model
 		}
 		if !ok {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "modèle non servi par ce moteur"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "model not served by this engine"})
 			return
 		}
 		n.Model = req.Model

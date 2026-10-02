@@ -37,7 +37,7 @@ func cmdApp(args []string) error {
 	if err != nil {
 		// Loom tourne déjà sur ce port : on ouvre juste l'UI sur l'instance
 		// existante plutôt que d'échouer.
-		fmt.Printf("Loom est déjà lancé — ouverture de %s\n", url)
+		fmt.Printf("Loom is already running — opening %s\n", url)
 		return openBrowser(url)
 	}
 
@@ -46,7 +46,7 @@ func cmdApp(args []string) error {
 	mux := newWebMux(ctx)
 	go func() { _ = http.Serve(ln, mux) }()
 
-	sp := showSplash("Lancement de Loom en cours…")
+	sp := showSplash("Starting Loom…")
 	waitServerReady(url)
 	_ = openBrowser(url)
 	time.Sleep(900 * time.Millisecond) // laisse le navigateur s'afficher par-dessus le splash

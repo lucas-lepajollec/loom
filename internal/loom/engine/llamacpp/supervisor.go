@@ -140,12 +140,12 @@ func (s *Supervisor) startLocked(launch Launch) error {
 		}
 		s.cmd = nil
 		if err != nil {
-			msg := fmt.Sprintf("Le modèle s'est arrêté (%v) — mémoire VRAM insuffisante ou crash", err)
+			msg := fmt.Sprintf("The model stopped (%v) — insufficient VRAM or crash", err)
 			s.lastError = msg
 			fmt.Fprintf(launch.Log, "[loom serve] %s\n", msg)
 		} else {
-			s.lastError = "Le modèle s'est arrêté inopinément"
-			fmt.Fprintf(launch.Log, "[loom serve] llama-server arrêté inopinément\n")
+			s.lastError = "The model stopped unexpectedly"
+			fmt.Fprintf(launch.Log, "[loom serve] llama-server stopped unexpectedly\n")
 		}
 		if launch.UnexpectedExit != nil {
 			go launch.UnexpectedExit()
@@ -181,11 +181,11 @@ func (s *Supervisor) WaitRouterUp(budget time.Duration, reachable func() bool) e
 			return nil
 		}
 		if !s.Running() {
-			return fmt.Errorf("llama-server s'est arrêté : %s", s.LastError())
+			return fmt.Errorf("llama-server stopped: %s", s.LastError())
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
-	return fmt.Errorf("délai dépassé")
+	return fmt.Errorf("timed out")
 }
 
 func BackendPortFor(public int) int {

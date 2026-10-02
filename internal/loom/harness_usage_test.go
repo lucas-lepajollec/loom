@@ -258,7 +258,7 @@ func TestHarnessNativeHTTP(t *testing.T) {
 				t.Fatal(w.Body.String())
 			}
 			for _, q := range result.Harnesses {
-				if q.Error != "non disponible" || q.CostUSD != nil || q.FetchedAt == 0 {
+				if q.Error != "unavailable" || q.CostUSD != nil || q.FetchedAt == 0 {
 					t.Fatal(q)
 				}
 			}

@@ -27,7 +27,7 @@ func TestRunShellObeitAuStop(t *testing.T) {
 	if d := time.Since(start); d > 5*time.Second {
 		t.Fatalf("la commande a survécu à l'annulation (%s) : %q", d, out)
 	}
-	if !strings.Contains(out, "interrompue") {
+	if !strings.Contains(out, "interrupted") {
 		t.Errorf("résultat attendu « interrompue », reçu %q", out)
 	}
 }

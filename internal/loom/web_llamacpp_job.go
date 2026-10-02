@@ -115,8 +115,8 @@ func lcRestore() {
 		OldCommit: p.OldCommit, NewCommit: p.NewCommit,
 	}
 	if p.Running {
-		j.Err = "interrompu : le service a redémarré pendant l'opération — relancez-la"
-		j.Phase = "interrompu"
+		j.Err = "interrupted: the service restarted during the operation — run it again"
+		j.Phase = "interrupted"
 		j.EndedAt = time.Now().Unix()
 	}
 	if logb, err := os.ReadFile(lcJobLogPath()); err == nil {
@@ -131,7 +131,7 @@ func lcRestore() {
 		j.lines = lines
 	}
 	if p.Running {
-		j.lines = append(j.lines, "✗ interrompu : le service a redémarré (la compilation ne survit pas au redémarrage)")
+		j.lines = append(j.lines, "✗ interrupted: the service restarted (compilation does not survive a restart)")
 	}
 	lcMu.Lock()
 	if lcCur == nil {

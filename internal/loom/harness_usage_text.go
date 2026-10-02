@@ -245,7 +245,7 @@ func parseHarnessStats(text, harness string, q *HarnessUsage) error {
 	}
 	sort.Slice(q.ByModel, func(i, j int) bool { return q.ByModel[i].Model < q.ByModel[j].Model })
 	if !seen["sessions"] || !seen["input"] || !seen["output"] {
-		return errors.New("format des statistiques " + harness + " non reconnu")
+		return errors.New("statistics format " + harness + " unrecognized")
 	}
 	return nil
 }

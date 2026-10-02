@@ -29,30 +29,30 @@ const (
 func projectFilePath(dir, rel string) (string, error) {
 	rel = filepath.Clean(strings.TrimSpace(rel))
 	if dir == "" || rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", errors.New("fichier hors du dossier du projet")
+		return "", errors.New("file outside the project directory")
 	}
 	full := filepath.Join(dir, rel)
 	real, err := filepath.EvalSymlinks(full)
 	if err != nil {
-		return "", errors.New("fichier introuvable : " + rel)
+		return "", errors.New("file not found: " + rel)
 	}
 	root, err := filepath.EvalSymlinks(dir)
 	if err != nil || (real != root && !strings.HasPrefix(real, root+string(filepath.Separator))) {
-		return "", errors.New("fichier hors du dossier du projet")
+		return "", errors.New("file outside the project directory")
 	}
 	info, err := os.Stat(real)
 	if err != nil || !info.Mode().IsRegular() {
-		return "", errors.New("pas un fichier : " + rel)
+		return "", errors.New("not a file: " + rel)
 	}
 	if info.Size() > maxProjectFileBytes {
-		return "", errors.New(rel + " dépasse 64 Ko")
+		return "", errors.New(rel + " exceeds 64 KB")
 	}
 	return real, nil
 }
 
 func validProjectContextFiles(dir string, files []string) ([]string, error) {
 	if len(files) > maxProjectContextFiles {
-		return nil, errors.New("8 fichiers de contexte maximum")
+		return nil, errors.New("maximum 8 context files")
 	}
 	out := []string{}
 	seen := map[string]bool{}
@@ -78,16 +78,16 @@ func projectContextFiles(p ChatProject) ([]string, string) {
 	for _, rel := range p.ContextFiles {
 		full, err := projectFilePath(p.Directory, rel)
 		if err != nil {
-			warning = "Un fichier de contexte du projet est introuvable et ne sera pas envoyé."
+			warning = "A project context file was not found and will not be sent."
 			continue
 		}
 		b, err := os.ReadFile(full)
 		if err != nil {
-			warning = "Un fichier de contexte du projet est illisible et ne sera pas envoyé."
+			warning = "A project context file is unreadable and will not be sent."
 			continue
 		}
 		if total+len(b) > maxProjectContextBytes {
-			warning = "Les fichiers de contexte du projet dépassent 48 Ko : les derniers ne sont pas envoyés."
+			warning = "Project context files exceed 48 KB: the last ones are not sent."
 			break
 		}
 		total += len(b)
@@ -104,10 +104,10 @@ func projectDir(machine, dir string) (string, error) {
 		return remoteWorkdir(dir)
 	}
 	if !filepath.IsAbs(dir) {
-		return "", errors.New("le dossier doit être un chemin absolu")
+		return "", errors.New("the directory must be an absolute path")
 	}
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		return "", errors.New("ce dossier n’existe pas ou n’est pas accessible : " + dir)
+		return "", errors.New("this directory does not exist or is not accessible: " + dir)
 	}
 	return filepath.Clean(dir), nil
 }
@@ -249,7 +249,7 @@ func projectCandidates(dir string) []projectFileCandidate {
 func handleProjectInfo(w http.ResponseWriter, r *http.Request) {
 	p, ok := getProject(r.URL.Query().Get("id"))
 	if !ok {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "projet introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "project not found"})
 		return
 	}
 	out := map[string]any{"ok": true, "directory": p.Directory, "machine": p.Machine}

@@ -51,7 +51,7 @@ type cloudRuntimeAdapter struct {
 }
 
 func (cloudRuntimeAdapter) Descriptor() RuntimeDescriptor {
-	return RuntimeDescriptor{ID: "openai-compatible", Name: "API compatible Chat Completions", Kind: "cloud", Description: "API cloud compatible Chat Completions, configurée explicitement.", Implemented: true, Capabilities: []string{"chat", "stream", "cancel", "usage"}}
+	return RuntimeDescriptor{ID: "openai-compatible", Name: "Chat Completions-compatible API", Kind: "cloud", Description: "An explicitly configured cloud Chat Completions API.", Implemented: true, Capabilities: []string{"chat", "stream", "cancel", "usage"}}
 }
 
 func (a cloudRuntimeAdapter) ProviderConfig() openai.Config {

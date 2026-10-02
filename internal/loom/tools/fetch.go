@@ -69,16 +69,16 @@ func GoFetch(client HTTPDoer, ctx context.Context, target string) (body []byte, 
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("échec de la requête : %v", err)
+		return nil, "", "", fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(io.LimitReader(resp.Body, goFetchMaxBytes))
 	if err != nil {
-		return nil, "", "", fmt.Errorf("lecture interrompue : %v", err)
+		return nil, "", "", fmt.Errorf("reading interrupted: %v", err)
 	}
 	if resp.StatusCode >= 400 {
-		return nil, "", "", fmt.Errorf("HTTP %d sur %s", resp.StatusCode, target)
+		return nil, "", "", fmt.Errorf("HTTP %d on %s", resp.StatusCode, target)
 	}
 	return b, resp.Header.Get("Content-Type"), resp.Request.URL.String(), nil
 }
@@ -118,12 +118,12 @@ func GoFetchMarkdown(client HTTPDoer, target string) (string, error) {
 		if strings.Contains(ct, "text/") || strings.Contains(ct, "json") || ct == "" {
 			return string(body), nil
 		}
-		return "", fmt.Errorf("type de contenu non lisible : %s", contentType)
+		return "", fmt.Errorf("unreadable content type: %s", contentType)
 	}
 
 	doc, err := GoParseHTML(body, contentType)
 	if err != nil {
-		return "", fmt.Errorf("HTML illisible : %v", err)
+		return "", fmt.Errorf("unreadable HTML: %v", err)
 	}
 
 	base, _ := url.Parse(finalURL)
@@ -149,10 +149,10 @@ func GoFetchMarkdown(client HTTPDoer, target string) (string, error) {
 	// Sans ce message le modèle relançait la même URL en boucle (cf. le garde-fou
 	// anti-boucle de chat_agent.go) : on lui dit explicitement de changer de source.
 	if len(strings.TrimSpace(md)) < jsShellTextMax && len(body) > jsShellHTMLMin {
-		return "", fmt.Errorf("page récupérée (%s de HTML) mais seulement %d caractères de texte : "+
-			"elle est très probablement rendue en JavaScript, ce que le moteur web intégré n'exécute pas. "+
-			"Ne réessaie PAS cette URL — cherche une autre source (documentation officielle, dépôt du projet, "+
-			"article qui en parle)", FormatBytes(len(body)), len(strings.TrimSpace(md)))
+		return "", fmt.Errorf("page retrieved (%s of HTML) but only %d text characters: "+
+			"it is most likely rendered using JavaScript, which the built-in web engine does not execute. "+
+			"Do NOT retry this URL — find another source (official documentation, project repository, "+
+			"an article about it)", FormatBytes(len(body)), len(strings.TrimSpace(md)))
 	}
 	return md, nil
 }
@@ -186,7 +186,7 @@ func GoConvert(node *html.Node, baseURL string) (string, error) {
 	}
 	b, err := htmltomarkdown.ConvertNode(node, opts...)
 	if err != nil {
-		return "", fmt.Errorf("conversion markdown : %v", err)
+		return "", fmt.Errorf("Markdown conversion: %v", err)
 	}
 	return string(b), nil
 }
@@ -223,11 +223,11 @@ func GoSearch(client HTTPDoer, query string, limit int) ([]SearchResult, error) 
 		return nil, err
 	}
 	if strings.Contains(string(body), "anomaly-modal") || strings.Contains(string(body), "anomaly.js") {
-		return nil, fmt.Errorf("DuckDuckGo a renvoyé un défi anti-bot")
+		return nil, fmt.Errorf("DuckDuckGo returned an anti-bot challenge")
 	}
 	doc, err := GoParseHTML(body, contentType)
 	if err != nil {
-		return nil, fmt.Errorf("HTML illisible : %v", err)
+		return nil, fmt.Errorf("unreadable HTML: %v", err)
 	}
 
 	var results []SearchResult

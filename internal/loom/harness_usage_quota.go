@@ -54,7 +54,7 @@ func readHarnessQuota(ctx context.Context, a acpAgent) (QuotaSnapshot, error) {
 	defer cancel()
 	switch usageHarnessID(a) {
 	case "claude-code":
-		q.Source = "claude /usage · compte natif"
+		q.Source = "claude /usage · native account"
 		out, err := harnessUsageCommand(ctx, a, []string{"claude", "-p", "/usage", "--output-format", "json", "--no-session-persistence"})
 		if err != nil {
 			return q, err
@@ -68,14 +68,14 @@ func readHarnessQuota(ctx context.Context, a acpAgent) (QuotaSnapshot, error) {
 		}
 		q.Windows, q.Note = parseClaudeUsage(result.Result, now)
 	case "hermes":
-		q.Source = "hermes usage · compte natif"
+		q.Source = "hermes usage · native account"
 		out, err := harnessUsageCommand(ctx, a, []string{"hermes", "usage"})
 		if err != nil {
 			return q, err
 		}
 		q.Windows, q.Note = parseHermesQuota(string(out))
 	default:
-		return q, errors.New("quotas indisponibles")
+		return q, errors.New("quotas unavailable")
 	}
 	return q, nil
 }

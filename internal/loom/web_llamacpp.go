@@ -64,7 +64,7 @@ func lcAppend(line string) {
 	}
 	if f := compiledFile(line); f != "" {
 		lcCur.Compiled++
-		lcCur.Phase = fmt.Sprintf("compilation… %d fichiers", lcCur.Compiled)
+		lcCur.Phase = fmt.Sprintf("building… %d files", lcCur.Compiled)
 	} else if p := phaseLabel(line); p != "" {
 		lcCur.Phase = p
 	}
@@ -90,9 +90,9 @@ func startLcJob(action string, run func()) error {
 	lcMu.Lock()
 	defer lcMu.Unlock()
 	if lcCur != nil && lcCur.Running {
-		return fmt.Errorf("un job %s est déjà en cours", lcCur.Action)
+		return fmt.Errorf("a %s job is already in progress", lcCur.Action)
 	}
-	lcCur = &lcJob{Action: action, Running: true, Phase: "démarrage…", StartedAt: time.Now().Unix()}
+	lcCur = &lcJob{Action: action, Running: true, Phase: "starting…", StartedAt: time.Now().Unix()}
 	lcResetLog()
 	lcSave(true)
 	setBuildSink(lcAppend)
@@ -114,7 +114,7 @@ func lcFail(err error) {
 	lcMu.Lock()
 	if lcCur != nil {
 		lcCur.Err = err.Error()
-		lcCur.Phase = "échec"
+		lcCur.Phase = "failed"
 		lcCur.lines = append(lcCur.lines, "✗ "+err.Error())
 		lcSaveLine("✗ " + err.Error())
 		lcSave(true)
@@ -233,7 +233,7 @@ func handleLlamacppCheck(w http.ResponseWriter, r *http.Request) {
 		repo = llamacppRepoDir()
 	}
 	if !isDir(filepath.Join(repo, ".git")) {
-		sendJSON(w, 200, map[string]any{"ok": false, "error": "pas de dépôt llama.cpp lié — mets à jour le binaire officiel, ou ajoute llama.cpp"})
+		sendJSON(w, 200, map[string]any{"ok": false, "error": "no linked llama.cpp repository — update the official binary, or add llama.cpp"})
 		return
 	}
 	branch := gitOutput(repo, "rev-parse", "--abbrev-ref", "HEAD")
@@ -241,7 +241,7 @@ func handleLlamacppCheck(w http.ResponseWriter, r *http.Request) {
 		branch = "master"
 	}
 	if err := runStep("git fetch", repo, "git", "fetch", "origin", "--quiet"); err != nil {
-		sendJSON(w, 200, map[string]any{"ok": false, "error": "git fetch a échoué : " + err.Error()})
+		sendJSON(w, 200, map[string]any{"ok": false, "error": "git fetch failed: " + err.Error()})
 		return
 	}
 	behind := 0
@@ -287,7 +287,7 @@ func handleLlamacppInstallCustom(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	if strings.TrimSpace(req.Repo) == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "URL du dépôt requise"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "repository URL required"})
 		return
 	}
 	if err := startLcJob("custom", func() { lcRunCustomInstall(req.Repo, req.Name, req.Ref) }); err != nil {
@@ -305,9 +305,9 @@ func lcRunCustomInstall(url, name, ref string) {
 		lcFail(err)
 		return
 	}
-	lcAppend("binaire compilé : " + bin)
-	lcAppend("→ pour l'utiliser : édite un modèle → section Moteur → « backend détecté » et choisis-le.")
-	lcDone("backend custom installé")
+	lcAppend("binary compiled: " + bin)
+	lcAppend("→ to use it: edit a model → Engine section → “detected backend” and select it.")
+	lcDone("custom backend installed")
 }
 
 // handleLlamacppUpdate lance le job de mise à jour (pull + rebuild + restart).
@@ -364,26 +364,26 @@ func handleLlamacppPrebuilt(w http.ResponseWriter, r *http.Request) {
 func lcRunPrebuilt() {
 	svcWasUp := serviceIsActive()
 	if svcWasUp {
-		lcPhase("arrêt du service le temps de l'installation…")
+		lcPhase("stopping service during installation…")
 		if err := serviceAction("stop"); err != nil {
-			lcAppend("[warn] impossible d'arrêter le service : " + err.Error())
+			lcAppend("[warn] could not stop service: " + err.Error())
 		}
 	}
 	bin, err := prebuiltInstall(lcAppend, lcPhase)
 	if err == nil {
 		if serr := SetConfigKey("BIN", bin); serr != nil {
-			err = fmt.Errorf("binaires installés mais échec d'écriture de BIN : %w", serr)
+			err = fmt.Errorf("binaries installed but failed to write BIN: %w", serr)
 		} else {
-			lcAppend("BIN mis à jour")
+			lcAppend("BIN updated")
 			if models := adoptModelsDirNearBin(bin); models != "" {
 				lcAppend("models : " + models)
 			}
 		}
 	}
 	if svcWasUp {
-		lcPhase("redémarrage du service…")
+		lcPhase("restarting service…")
 		if serr := serviceAction("start"); serr != nil {
-			lcAppend("[warn] redémarrage du service échoué : " + serr.Error())
+			lcAppend("[warn] service restart failed: " + serr.Error())
 		}
 	}
 	if err != nil {
@@ -391,7 +391,7 @@ func lcRunPrebuilt() {
 		return
 	}
 	tag, _ := prebuiltVersion()
-	lcDone("binaires précompilés installés (" + tag + ")")
+	lcDone("prebuilt binaries installed (" + tag + ")")
 }
 
 // handleLlamacppUse bascule BIN entre deux versions DÉJÀ installées, sans
@@ -413,23 +413,23 @@ func handleLlamacppUse(w http.ResponseWriter, r *http.Request) {
 	case "exist":
 		bin = strings.TrimSpace(req.Bin)
 		if !filepath.IsAbs(bin) {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "chemin absolu requis"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "absolute path required"})
 			return
 		}
 		if base := strings.ToLower(filepath.Base(bin)); base != "llama-server" && base != "llama-server.exe" {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "ce chemin n'est pas un llama-server"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "this path is not a llama-server"})
 			return
 		}
 		if !isFile(bin) {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "fichier introuvable : " + bin})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "file not found: " + bin})
 			return
 		}
 	default:
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "mode inconnu"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown mode"})
 		return
 	}
 	if bin == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "cette version n'est pas installée"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "this version is not installed"})
 		return
 	}
 	if err := SetConfigKey("BIN", bin); err != nil {
@@ -462,7 +462,7 @@ func handleLlamacppJobDismiss(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, map[string]any{"ok": true})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": false, "error": "opération en cours — impossible de masquer"})
+	sendJSON(w, 200, map[string]any{"ok": false, "error": "operation in progress — cannot hide"})
 }
 
 // lcJobSnapshot construit la vue JSON du job courant. withLines=false renvoie
@@ -512,7 +512,7 @@ func lcRunInstall(force bool, dir string) {
 		return
 	}
 
-	lcPhase("vérification des outils (git, cmake, compilateur)…")
+	lcPhase("checking tools (git, cmake, compiler)…")
 	if err := requireTools("git", "cmake"); err != nil {
 		lcFail(err)
 		return
@@ -526,11 +526,11 @@ func lcRunInstall(force bool, dir string) {
 	if isDir(filepath.Join(repo, ".git")) {
 		if !force {
 			// Dépôt déjà là : on bascule sur une mise à jour (même intention).
-			lcPhase("dépôt déjà présent — bascule en mise à jour")
+			lcPhase("repository already present — switching to update")
 			lcRunUpdate(false)
 			return
 		}
-		lcPhase("suppression du dépôt existant (--force)…")
+		lcPhase("removing existing repository (--force)…")
 		if err := os.RemoveAll(repo); err != nil {
 			lcFail(err)
 			return
@@ -541,20 +541,20 @@ func lcRunInstall(force bool, dir string) {
 		return
 	}
 
-	lcPhase("clone de llama.cpp…")
+	lcPhase("cloning llama.cpp…")
 	if err := runStep("git clone", "", "git", "clone", "--depth=1", llamacppRepoURL, repo); err != nil {
-		lcFail(fmt.Errorf("git clone a échoué : %w", err))
+		lcFail(fmt.Errorf("git clone failed: %w", err))
 		return
 	}
 
 	if !lcBuildAndSwitch(repo, true) {
 		return
 	}
-	lcDone("installation terminée")
+	lcDone("installation complete")
 }
 
 func lcRunUpdate(clean bool) {
-	lcPhase("vérification des outils (git, cmake, compilateur)…")
+	lcPhase("checking tools (git, cmake, compiler)…")
 	if err := requireTools("git", "cmake"); err != nil {
 		lcFail(err)
 		return
@@ -570,7 +570,7 @@ func lcRunUpdate(clean bool) {
 		repo = llamacppRepoDir()
 	}
 	if !isDir(filepath.Join(repo, ".git")) {
-		lcFail(fmt.Errorf("aucun dépôt llama.cpp lié (%s) — ajoute llama.cpp, ou mets à jour le binaire officiel", repo))
+		lcFail(fmt.Errorf("no linked llama.cpp repository (%s) — add llama.cpp, or update the official binary", repo))
 		return
 	}
 
@@ -586,19 +586,19 @@ func lcRunUpdate(clean bool) {
 
 	lcPhase("git fetch origin…")
 	if err := runStep("git fetch", repo, "git", "fetch", "origin", "--quiet"); err != nil {
-		lcFail(fmt.Errorf("git fetch a échoué : %w", err))
+		lcFail(fmt.Errorf("git fetch failed: %w", err))
 		return
 	}
 	localRev := gitOutput(repo, "rev-parse", "HEAD")
 	remoteRev := gitOutput(repo, "rev-parse", "origin/"+branch)
 	if localRev != "" && localRev == remoteRev && !clean && llamaServerBin(repo) != "" {
-		lcDone("déjà à jour (" + oldCommit + ") — rien à faire")
+		lcDone("already up to date (" + oldCommit + ") — nothing to do")
 		return
 	}
 	if localRev != remoteRev {
 		lcPhase("git pull origin/" + branch + "…")
 		if err := runStep("git pull --ff-only", repo, "git", "pull", "--ff-only", "origin", branch); err != nil {
-			lcFail(fmt.Errorf("git pull a échoué (modifs locales ?) : %w", err))
+			lcFail(fmt.Errorf("git pull failed (local changes?): %w", err))
 			return
 		}
 	}
@@ -611,26 +611,26 @@ func lcRunUpdate(clean bool) {
 	// pendant le build, redémarrage après (même en échec).
 	svcWasUp := serviceIsActive()
 	if svcWasUp {
-		lcPhase("arrêt du service le temps du build…")
+		lcPhase("stopping service during build…")
 		if err := serviceAction("stop"); err != nil {
-			lcAppend("[warn] impossible d'arrêter le service : " + err.Error())
+			lcAppend("[warn] could not stop service: " + err.Error())
 		}
 	}
 
 	ok := lcBuildAndSwitch(repo, clean)
 	if svcWasUp {
-		lcPhase("redémarrage du service…")
+		lcPhase("restarting service…")
 		if err := serviceAction("start"); err != nil {
-			lcAppend("[warn] redémarrage du service échoué : " + err.Error())
+			lcAppend("[warn] service restart failed: " + err.Error())
 		}
 	}
 	if !ok {
 		return
 	}
 	if oldCommit == newCommit {
-		lcDone("recompilé (" + newCommit + ")")
+		lcDone("recompiled (" + newCommit + ")")
 	} else {
-		lcDone("mis à jour : " + oldCommit + " → " + newCommit)
+		lcDone("updated: " + oldCommit + " → " + newCommit)
 	}
 }
 
@@ -638,8 +638,8 @@ func lcRunUpdate(clean bool) {
 // Renvoie false (job en échec) si une étape casse.
 func lcBuildAndSwitch(repo string, clean bool) bool {
 	plan := detectBuildPlan()
-	lcAppend(fmt.Sprintf("plan de build : backend=%s arch=%s jobs=%d", plan.backend, plan.cudaArch, plan.jobs))
-	lcPhase("configuration CMake…")
+	lcAppend(fmt.Sprintf("build plan: backend=%s arch=%s jobs=%d", plan.backend, plan.cudaArch, plan.jobs))
+	lcPhase("configuring CMake…")
 	if err := buildLlamacpp(repo, plan, clean); err != nil {
 		lcAppendLogTail(filepath.Join(repo, "configure.log"), filepath.Join(repo, "build.log"))
 		lcFail(err)
@@ -647,15 +647,15 @@ func lcBuildAndSwitch(repo string, clean bool) bool {
 	}
 	bin := llamaServerBin(repo)
 	if bin == "" {
-		lcFail(fmt.Errorf("build terminé mais binaire introuvable sous %s", filepath.Join(repo, "build")))
+		lcFail(fmt.Errorf("build complete but binary not found under %s", filepath.Join(repo, "build")))
 		return false
 	}
-	lcAppend("binaire compilé : " + bin)
+	lcAppend("binary compiled: " + bin)
 	if err := SetConfigKey("BIN", bin); err != nil {
-		lcFail(fmt.Errorf("build ok mais échec d'écriture de BIN : %w", err))
+		lcFail(fmt.Errorf("build succeeded but failed to write BIN: %w", err))
 		return false
 	}
-	lcAppend("BIN mis à jour")
+	lcAppend("BIN updated")
 	if models := adoptModelsDirNearBin(bin); models != "" {
 		lcAppend("models : " + models)
 	}
@@ -674,7 +674,7 @@ func lcAppendLogTail(paths ...string) {
 		if len(lines) > 30 {
 			lines = lines[len(lines)-30:]
 		}
-		lcAppend("--- fin de " + filepath.Base(p) + " ---")
+		lcAppend("--- end of " + filepath.Base(p) + " ---")
 		for _, l := range lines {
 			lcAppend(l)
 		}

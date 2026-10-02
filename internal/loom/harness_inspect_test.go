@@ -22,12 +22,12 @@ func TestHarnessInspectParsers(t *testing.T) {
 
 func TestHarnessSkillsMarkLoomCopies(t *testing.T) {
 	dir := t.TempDir()
-	for name, desc := range map[string]string{"loom-review": "Relire", "mine": "Perso"} {
+	for name, desc := range map[string]string{"loom-review": "Read again", "mine": "Perso"} {
 		_ = os.MkdirAll(filepath.Join(dir, name), 0o755)
 		_ = os.WriteFile(filepath.Join(dir, name, "SKILL.md"), []byte("---\nname: "+name+"\ndescription: \""+desc+"\"\n---\nbody"), 0o644)
 	}
 	skills := readSkills([]string{dir})
-	if len(skills) != 2 || !skills[0].FromLoom || skills[0].Description != "Relire" || skills[1].FromLoom {
+	if len(skills) != 2 || !skills[0].FromLoom || skills[0].Description != "Read again" || skills[1].FromLoom {
 		t.Fatalf("%+v", skills)
 	}
 }

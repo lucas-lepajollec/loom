@@ -98,7 +98,7 @@ func currentDEK() ([]byte, error) {
 	memKeyMu.RLock()
 	defer memKeyMu.RUnlock()
 	if memDEK == nil {
-		return nil, errors.New("mémoire verrouillée — aucune clé chargée")
+		return nil, errors.New("memory locked — no key loaded")
 	}
 	return append([]byte(nil), memDEK...), nil
 }
@@ -164,7 +164,7 @@ func (v *keyVault) removeWrap(kind, label string) (int, error) {
 		kept = append(kept, w)
 	}
 	if removed > 0 && len(kept) == 0 {
-		return 0, errors.New("refus : ce serait le dernier accès à la mémoire")
+		return 0, errors.New("refused: this would remove the last access to memory")
 	}
 	v.Wraps = kept
 	return removed, nil
@@ -175,7 +175,7 @@ func (v *keyVault) removeWrap(kind, label string) (int, error) {
 // qui a marché (utile pour l'UI).
 func (v *keyVault) unlockWith(secret string) ([]byte, string, error) {
 	if len(v.Wraps) == 0 {
-		return nil, "", errors.New("keyvault sans aucun wrap")
+		return nil, "", errors.New("keyvault without any wraps")
 	}
 	for _, w := range v.Wraps {
 		salt, err := base64.StdEncoding.DecodeString(w.Salt)
@@ -196,7 +196,7 @@ func (v *keyVault) unlockWith(secret string) ([]byte, string, error) {
 		}
 		return dek, w.Kind, nil
 	}
-	return nil, "", errors.New("secret incorrect (aucun wrap ne correspond)")
+	return nil, "", errors.New("incorrect secret (no matching wrap)")
 }
 
 // validate confirme qu'une DEK candidate ouvre bien le témoin du keyvault.
@@ -210,7 +210,7 @@ func (v *keyVault) validate(dek []byte) error {
 		return err
 	}
 	if subtle.ConstantTimeCompare(got, checkPlain) != 1 {
-		return errors.New("témoin du keyvault invalide")
+		return errors.New("invalid keyvault marker")
 	}
 	return nil
 }
@@ -256,7 +256,7 @@ func saveVault(v *keyVault) error {
 		errs = append(errs, "db: "+err.Error())
 	}
 	if !okAny {
-		return fmt.Errorf("aucune copie du keyvault écrite : %s", strings.Join(errs, " ; "))
+		return fmt.Errorf("no keyvault copy written: %s", strings.Join(errs, " ; "))
 	}
 	return nil
 }
@@ -296,7 +296,7 @@ func loadVault() (*keyVault, error) {
 	}
 	if found == nil {
 		if anyPresent {
-			return nil, errors.New("keyvault présent mais illisible dans toutes les copies")
+			return nil, errors.New("keyvault present but unreadable in all copies")
 		}
 		return nil, nil
 	}

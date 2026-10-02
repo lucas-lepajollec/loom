@@ -108,7 +108,7 @@ func cmdSetWebKey(args []string) error {
 			return err
 		}
 		key = "loom-web-" + hex.EncodeToString(buf)
-		fmt.Printf("%s clé générée : %s\n", green("[ok]"), bold(key))
+		fmt.Printf("%s generated key: %s\n", green("[ok]"), bold(key))
 	case args[0] == "" || args[0] == "off" || args[0] == "none":
 		key = ""
 	default:
@@ -118,11 +118,11 @@ func cmdSetWebKey(args []string) error {
 		return err
 	}
 	if key == "" {
-		fmt.Printf("%s clé de pilotage supprimée — l'API web n'est plus protégée\n", yellow("[info]"))
+		fmt.Printf("%s control key removed — the web API is no longer protected\n", yellow("[info]"))
 		return nil
 	}
-	fmt.Printf("%s clé de pilotage enregistrée\n", green("[ok]"))
-	fmt.Printf("       les clients doivent envoyer : %s\n", dim("Authorization: Bearer "+key))
-	fmt.Printf("       (relance 'loom web' si le serveur web tourne déjà — non requis, lu à chaud)\n")
+	fmt.Printf("%s control key saved\n", green("[ok]"))
+	fmt.Printf("       clients must send: %s\n", dim("Authorization: Bearer "+key))
+	fmt.Printf("       (restart 'loom web' if the web server is already running — not required, read dynamically)\n")
 	return nil
 }

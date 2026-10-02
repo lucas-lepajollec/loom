@@ -56,7 +56,7 @@ func handleChatSend(w http.ResponseWriter, r *http.Request) {
 	// Un envoi SANS texte mais AVEC pièce jointe est légitime (« tiens, regarde »).
 	files := attachFiles(body.Files)
 	if strings.TrimSpace(body.Message) == "" && len(files) == 0 {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "message vide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "empty message"})
 		return
 	}
 	if err := conv.StartTurn(body.Message, files, capsFromBody(body), body.Temperature); err != nil {

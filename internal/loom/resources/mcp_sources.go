@@ -79,23 +79,23 @@ func AdoptedMCPDefinition(cfg MCPServerConfig, withEnv bool) (MCPServerConfig, e
 func ReadMCPSource(source MCPSource) ([]LinkedMCPServer, error) {
 	file, err := os.Open(source.Path)
 	if err != nil {
-		return nil, fmt.Errorf("fichier source MCP inaccessible")
+		return nil, fmt.Errorf("MCP source file inaccessible")
 	}
 	defer file.Close()
 	const limit = 4 << 20
 	data, err := io.ReadAll(io.LimitReader(file, limit+1))
 	if err != nil {
-		return nil, fmt.Errorf("lecture du fichier source MCP impossible")
+		return nil, fmt.Errorf("could not read MCP source file")
 	}
 	if len(data) > limit {
-		return nil, fmt.Errorf("fichier source MCP trop volumineux (maximum 4 Mio)")
+		return nil, fmt.Errorf("MCP source file too large (maximum 4 MiB)")
 	}
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(data, &top); err != nil {
 		return nil, MCPJSONError(err)
 	}
 	if top == nil {
-		return nil, fmt.Errorf("source MCP invalide : objet attendu")
+		return nil, fmt.Errorf("invalid MCP source: object expected")
 	}
 	result := []LinkedMCPServer{}
 	add := func(raw json.RawMessage, project string) error {
@@ -104,7 +104,7 @@ func ReadMCPSource(source MCPSource) ([]LinkedMCPServer, error) {
 			return MCPJSONError(err)
 		}
 		if entries == nil {
-			return fmt.Errorf("source MCP invalide : serveurs doivent être un objet")
+			return fmt.Errorf("invalid MCP source: servers must be an object")
 		}
 		names := make([]string, 0, len(entries))
 		for n := range entries {
@@ -153,7 +153,7 @@ func ReadMCPSource(source MCPSource) ([]LinkedMCPServer, error) {
 		}
 	}
 	if !recognized {
-		return nil, fmt.Errorf("format de source MCP non reconnu")
+		return nil, fmt.Errorf("unrecognized MCP source format")
 	}
 	return result, nil
 }
@@ -164,7 +164,7 @@ func AdoptHarnessMCP(command, url string, args, envNames []string) (MCPServerCon
 		return AdoptedMCPDefinition(MCPServerConfig{URL: url}, false)
 	}
 	if command == "" {
-		return MCPServerConfig{}, fmt.Errorf("définition incomplète : ce harness ne dit pas comment lancer ce serveur")
+		return MCPServerConfig{}, fmt.Errorf("incomplete definition: this harness does not specify how to launch this server")
 	}
 	env := map[string]string{}
 	for _, n := range envNames {

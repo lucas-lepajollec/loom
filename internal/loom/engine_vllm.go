@@ -83,10 +83,10 @@ func (v *vllmState) runLogged(ctx context.Context, name string, args ...string) 
 // vllmRequirements explains what is missing on this machine, or "".
 func vllmServingRequirements() string {
 	if runtime.GOOS != "linux" {
-		return "vLLM local nécessite Linux et un GPU NVIDIA (CUDA) ou AMD (ROCm) ; utilisez llama.cpp ou un moteur distant sur macOS/Windows"
+		return "local vLLM requires Linux and an NVIDIA (CUDA) or AMD (ROCm) GPU; use llama.cpp or a remote engine on macOS/Windows"
 	}
 	if len(liveGPUs()) == 0 {
-		return "vLLM nécessite un GPU NVIDIA (CUDA) ou AMD (ROCm) détecté par nvidia-smi, amd-smi ou rocm-smi"
+		return "vLLM requires an NVIDIA (CUDA) or AMD (ROCm) GPU detected by nvidia-smi, amd-smi or rocm-smi"
 	}
 	return ""
 }
@@ -96,10 +96,10 @@ func vllmRequirements() string {
 		return missing
 	}
 	if !vllmInstalled() && !hasTool("uv") && !hasTool("python3") {
-		return "Python 3 (ou uv) est nécessaire pour installer vLLM"
+		return "Python 3 (or uv) is required to install vLLM"
 	}
 	if vllmROCm() && !hasTool("uv") {
-		return "L’installation/mise à jour AMD ROCm nécessite uv pour sélectionner les roues ROCm officielles"
+		return "AMD ROCm installation/update requires uv to select official ROCm wheels"
 	}
 	return ""
 }
@@ -146,7 +146,7 @@ func (v *vllmState) installOrUpdate(update bool) error {
 		}
 	}
 	if err == nil && !vllmInstalled() {
-		err = errors.New("commande vllm introuvable après installation")
+		err = errors.New("vllm command not found after installation")
 	}
 	v.mu.Lock()
 	if err != nil {
@@ -227,7 +227,7 @@ func (v *vllmState) start(ctx context.Context, model string, values map[string]s
 		if v.cmd == cmd {
 			v.cmd = nil
 			if err != nil && v.job == "" {
-				v.err = "vLLM s’est arrêté : " + err.Error()
+				v.err = "vLLM stopped: " + err.Error()
 			}
 		}
 		v.mu.Unlock()
@@ -243,7 +243,7 @@ func (v *vllmState) start(ctx context.Context, model string, values map[string]s
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			return errors.New("vLLM s’est arrêté pendant le chargement (voir le journal)")
+			return errors.New("vLLM stopped during loading (see the log)")
 		}
 		healthCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		code, err := directGET(healthCtx, base, "/health", "", nil)
@@ -266,7 +266,7 @@ func (v *vllmState) start(ctx context.Context, model string, values map[string]s
 		}
 	}
 	v.stop()
-	return errors.New("vLLM n’a pas répondu en 20 minutes")
+	return errors.New("vLLM did not respond within 20 minutes")
 }
 
 func (v *vllmState) stop() {
@@ -293,7 +293,7 @@ func (v *vllmState) reserve(action, model string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.job != "" || (action == "install" || action == "update") && v.cmd != nil {
-		return errors.New("vLLM est en service ou une action est déjà en cours")
+		return errors.New("vLLM is running or an action is already in progress")
 	}
 	v.job, v.err = action, ""
 	if action == "start" {
@@ -333,7 +333,7 @@ func handleVLLM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Action != "install" && req.Action != "update" && req.Action != "start" && req.Action != "stop" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "action inconnue"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown action"})
 		return
 	}
 	if req.Action == "stop" {
@@ -354,7 +354,7 @@ func handleVLLM(w http.ResponseWriter, r *http.Request) {
 	busy := vllm.job != "" || (req.Action == "install" || req.Action == "update") && vllm.cmd != nil
 	vllm.mu.Unlock()
 	if busy {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": "vLLM est en service ou une action est déjà en cours"})
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "vLLM is running or an action is already in progress"})
 		return
 	}
 	fail := func(err error) { sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()}) }
@@ -372,13 +372,13 @@ func handleVLLM(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.Action != "install" && !vllmInstalled() {
-			fail(errors.New("vLLM n’est pas installé"))
+			fail(errors.New("vLLM is not installed"))
 			return
 		}
 	}
 	if req.Action == "start" {
 		if !validVLLMModel(req.Model) {
-			fail(errors.New("identifiant de modèle invalide (ex. Qwen/Qwen3-8B)"))
+			fail(errors.New("invalid model ID (e.g. Qwen/Qwen3-8B)"))
 			return
 		}
 		var err error

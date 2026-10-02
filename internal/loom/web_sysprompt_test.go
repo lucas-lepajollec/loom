@@ -13,10 +13,10 @@ func TestEffectiveSysPromptFallback(t *testing.T) {
 	if got := effectiveSysPrompt(); got != "global" {
 		t.Fatalf("global = %q", got)
 	}
-	if err := SetConfigKey("SYSPROMPT", "modèle"); err != nil {
+	if err := SetConfigKey("SYSPROMPT", "model"); err != nil {
 		t.Fatal(err)
 	}
-	if got := effectiveSysPrompt(); got != "modèle" {
+	if got := effectiveSysPrompt(); got != "model" {
 		t.Fatalf("modèle = %q", got)
 	}
 	if err := SetConfigKey("SYSPROMPT", "  "); err != nil {

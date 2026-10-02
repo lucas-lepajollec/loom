@@ -147,7 +147,7 @@ func TestSummaryInputKeepsToolFindings(t *testing.T) {
 		forSummary[i] = m
 		if m.Role == "tool" {
 			if r := []rune(msgText(m)); len(r) > compactToolSummaryLen {
-				forSummary[i].Content = string(r[:compactToolSummaryLen]) + "\n[…suite coupée]"
+				forSummary[i].Content = string(r[:compactToolSummaryLen]) + "\n[…remainder cut off]"
 			}
 		}
 	}

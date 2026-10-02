@@ -36,10 +36,10 @@ type agySession struct {
 }
 
 var agyModes = []map[string]any{
-	{"id": "default", "name": "Prudent", "description": "Les actions risquées (commandes…) sont refusées : Antigravity ne peut pas demander en mode sans interface."},
-	{"id": "accept-edits", "name": "Modifs auto", "description": "Lectures et modifications de fichiers acceptées."},
-	{"id": "plan", "name": "Plan", "description": "Antigravity prépare un plan sans rien modifier."},
-	{"id": "full", "name": "Tout autoriser", "description": "Toutes les actions sont acceptées sans question."},
+	{"id": "default", "name": "Cautious", "description": "Risky actions (commands…) are denied: Antigravity cannot request approval in headless mode."},
+	{"id": "accept-edits", "name": "Auto edits", "description": "File reads and edits are allowed."},
+	{"id": "plan", "name": "Plan", "description": "Antigravity prepares a plan without making changes."},
+	{"id": "full", "name": "Allow everything", "description": "All actions are allowed without asking."},
 }
 
 func (b AgyBridge) Run(in io.Reader, out io.Writer) {
@@ -127,7 +127,7 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 			}
 			mu.Unlock()
 			if !ok {
-				fail(f.ID, "mode inconnu")
+				fail(f.ID, "unknown mode")
 				continue
 			}
 			reply(f.ID, map[string]any{})
@@ -141,7 +141,7 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 			}
 			mu.Unlock()
 			if !ok {
-				fail(f.ID, "option inconnue")
+				fail(f.ID, "unknown option")
 				continue
 			}
 			reply(f.ID, map[string]any{"configOptions": config(s)})
@@ -156,7 +156,7 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 			s := sessions[sid]
 			mu.Unlock()
 			if s == nil {
-				fail(f.ID, "session inconnue")
+				fail(f.ID, "unknown session")
 				continue
 			}
 			text := promptText(params["prompt"])
@@ -174,7 +174,7 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 				reply(id, map[string]any{"stopReason": stop})
 			}(f.ID, s)
 		default:
-			fail(f.ID, "méthode non prise en charge par Antigravity")
+			fail(f.ID, "method not supported by Antigravity")
 		}
 	}
 }
@@ -314,7 +314,7 @@ func agyToolCall(name string, params map[string]json.RawMessage, cwd string) map
 func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update func(map[string]any)) (string, error) {
 	path, err := exec.LookPath(b.Executable)
 	if err != nil {
-		return "", fmt.Errorf("CLI agy introuvable")
+		return "", fmt.Errorf("agy CLI not found")
 	}
 	input, _ := json.Marshal(map[string]any{"event": "user", "message": map[string]string{"content": text}})
 	cmd := exec.CommandContext(ctx, path, agyArgs(s)...)
@@ -327,7 +327,7 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 	cmd.WaitDelay = 2 * time.Second
 	stdout, err := cmd.StdoutPipe()
 	if err != nil || cmd.Start() != nil {
-		return "", fmt.Errorf("Antigravity n’a pas pu démarrer")
+		return "", fmt.Errorf("Antigravity could not start")
 	}
 	sc := bufio.NewScanner(stdout)
 	sc.Buffer(make([]byte, 64<<10), 4<<20)
@@ -382,7 +382,7 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 					update(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": ev.Step.Text}})
 				}
 			case "tool":
-				name := FirstNonEmpty(ev.Step.Tool, ev.Step.Info.Name, "outil")
+				name := FirstNonEmpty(ev.Step.Tool, ev.Step.Info.Name, "tool")
 				id := fmt.Sprintf("agy-%d", ev.Step.Index)
 				target := agyEditTarget(name, ev.Step.Info.Parameters, s.cwd)
 				if read := agyReadTarget(name, ev.Step.Info.Parameters, s.cwd); read != "" && ev.Step.State == "DONE" {
@@ -436,7 +436,7 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 		return "cancelled", nil
 	}
 	if status == "" && waitErr != nil {
-		return "", fmt.Errorf("Antigravity a interrompu le tour")
+		return "", fmt.Errorf("Antigravity interrupted the turn")
 	}
 	if status != "" && status != "SUCCESS" {
 		update(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "\n\n(Antigravity : " + strings.ToLower(status) + ")"}})

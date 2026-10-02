@@ -43,10 +43,10 @@ func LoadMCPConfig() (map[string]MCPServerConfig, error) {
 func SetMCPServer(name string, cfg MCPServerConfig) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return fmt.Errorf("nom de serveur vide")
+		return fmt.Errorf("empty server name")
 	}
 	if strings.Contains(name, "__") {
-		return fmt.Errorf("le nom ne peut pas contenir '__' (réservé au namespacing des outils)")
+		return fmt.Errorf("the name cannot contain '__' (reserved for tool namespacing)")
 	}
 	if err := cfg.Validate(); err != nil {
 		return err
@@ -80,7 +80,7 @@ func DeleteMCPServer(name string) error {
 	}
 	if _, ok := servers[name]; !ok {
 		mcpConfigMu.Unlock()
-		return fmt.Errorf("serveur MCP inconnu: %s", name)
+		return fmt.Errorf("unknown MCP server: %s", name)
 	}
 	delete(servers, name)
 	err = saveMCPConfigLocked(servers)
@@ -103,7 +103,7 @@ func SetMCPServerEnabled(name string, on bool) error {
 	cfg, ok := servers[name]
 	if !ok {
 		mcpConfigMu.Unlock()
-		return fmt.Errorf("serveur MCP inconnu: %s", name)
+		return fmt.Errorf("unknown MCP server: %s", name)
 	}
 	cfg.Enabled = on
 	servers[name] = cfg
@@ -128,7 +128,7 @@ func SetMCPToolEnabled(server, tool string, on bool) error {
 	cfg, ok := servers[server]
 	if !ok {
 		mcpConfigMu.Unlock()
-		return fmt.Errorf("serveur MCP inconnu: %s", server)
+		return fmt.Errorf("unknown MCP server: %s", server)
 	}
 	// Reconstruit la liste sans l'outil concerné, puis l'ajoute si on désactive.
 	next := cfg.DisabledTools[:0:0]

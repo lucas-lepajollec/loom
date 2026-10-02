@@ -26,10 +26,10 @@ func runTray(url string) {
 		// colore selon le thème. Indispensable depuis que la marque est noire —
 		// une icône noire « en dur » est illisible sur une barre de menus sombre.
 		systray.SetTemplateIcon(brandTemplatePNG(trayIconSize), BrandIconPNG(trayIconSize))
-		systray.SetTooltip("Loom — votre IA locale")
-		mOpen := systray.AddMenuItem("Ouvrir Loom", "Ouvrir l'interface")
+		systray.SetTooltip("Loom — your local AI")
+		mOpen := systray.AddMenuItem("Open Loom", "Open the interface")
 		systray.AddSeparator()
-		mQuit := systray.AddMenuItem("Quitter", "Arrêter Loom")
+		mQuit := systray.AddMenuItem("Quit", "Quit Loom")
 
 		go func() {
 			for {

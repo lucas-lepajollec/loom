@@ -17,22 +17,22 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 		}
 	}
 	if !found || !choice.Enabled {
-		return RuntimeSession{}, errors.New("modèle absent du sélecteur ; activez-le dans Modèles")
+		return RuntimeSession{}, errors.New("model missing from selector; enable it in Models")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s, ok := m.getLocked(id)
 	if !ok {
-		return s, errors.New("discussion introuvable")
+		return s, errors.New("discussion not found")
 	}
 	if m.runs[id] != nil || m.nativeRunning(s) {
-		return s, errors.New("attendez ou arrêtez la réponse avant de changer de modèle")
+		return s, errors.New("wait for or stop the response before changing models")
 	}
 	if (choice.Kind == "cloud" || choice.Kind == "harness") && !consent {
-		return s, errors.New("confirmez l’envoi du fil et du contexte à cette destination")
+		return s, errors.New("confirm sending the thread and context to this destination")
 	}
 	if choice.Kind == "cloud" && m.keys[choice.ProviderID] == "" {
-		return s, errors.New("connectez ce provider dans Modèles → Providers")
+		return s, errors.New("connect this provider in Models → Providers")
 	}
 	previousRuntime, previousModel := s.RuntimeID, s.Model
 	s.RuntimeID = "llama.cpp"
@@ -41,7 +41,7 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 	}
 	if choice.Kind == "harness" {
 		if !choice.Ready {
-			return s, errors.New("CLI du harness indisponible")
+			return s, errors.New("harness CLI unavailable")
 		}
 		s.RuntimeID = choice.RuntimeID
 		// A harness starts in the project folders of its machine unless chosen.
@@ -67,7 +67,7 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 			}
 		}
 		if !valid {
-			return s, errors.New("niveau de réflexion non supporté par ce modèle Codex")
+			return s, errors.New("reasoning level not supported by this Codex model")
 		}
 	}
 	s.ProviderID = choice.ProviderID
@@ -101,7 +101,7 @@ func (m *runtimeSessions) importArchive(id string) (RuntimeSession, error) {
 	}
 	a, ok := loadArchive(id)
 	if !ok {
-		return RuntimeSession{}, errors.New("archive introuvable ou verrouillée")
+		return RuntimeSession{}, errors.New("archive not found or locked")
 	}
 	messages := archivePortableText(a)
 	s := RuntimeSession{ID: newID, SourceArchive: id, ProjectID: a.ProjectID, Title: a.Title, CreatedAt: a.SavedAt, UpdatedAt: time.Now().UnixMilli(), RuntimeID: "llama.cpp", ProviderName: "llama.cpp", Model: ReadConfig()["MODEL"], Messages: messages, Status: "idle"}

@@ -253,7 +253,7 @@ func paintSplash(hdc uintptr) {
 
 	textX := ox + logo + 26
 	drawText(hdc, "Loom", -30, 700, rect{textX, 40, splashW - 20, 82})
-	drawText(hdc, "Lancement en cours…", -17, 400, rect{textX, 84, splashW - 20, 118})
+	drawText(hdc, "Starting…", -17, 400, rect{textX, 84, splashW - 20, 118})
 }
 
 func drawText(hdc uintptr, s string, height, weight int32, r rect) {

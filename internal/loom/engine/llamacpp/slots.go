@@ -249,7 +249,7 @@ func (o *Supervisor) NoteServerSlots(slots []Slot) ([]Recent, []map[string]any) 
 				Started: startedMs,
 				Ms:      ms,
 				TokS:    toks,
-				State:   "terminé",
+				State:   "completed",
 			}
 			o.recent = append(o.recent, rec)
 			if len(o.recent) > srvHistMax {

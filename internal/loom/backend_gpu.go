@@ -50,15 +50,15 @@ func cmdGPU(args []string) error {
 		}
 		n, err := strconv.Atoi(tok)
 		if err != nil {
-			return fmt.Errorf("index GPU invalide: %q (attendu un nombre)", tok)
+			return fmt.Errorf("invalid GPU index: %q (expected a number)", tok)
 		}
 		if n < 0 || n >= len(gpus) {
-			return fmt.Errorf("index GPU %d hors limites (0..%d) — voir « loom gpu »", n, len(gpus)-1)
+			return fmt.Errorf("GPU index %d out of bounds (0..%d) — see “loom gpu”", n, len(gpus)-1)
 		}
 		idx = append(idx, strconv.Itoa(n))
 	}
 	if len(idx) == 0 {
-		return fmt.Errorf("aucun index fourni")
+		return fmt.Errorf("no index provided")
 	}
 	return gpuSet(strings.Join(idx, ","))
 }
@@ -98,11 +98,11 @@ func gpuList() error {
 	}
 	fmt.Println()
 	if sel == "" {
-		fmt.Printf("  Sélection : %s (tous les GPU)\n", bold("auto"))
+		fmt.Printf("  Selection: %s (all GPUs)\n", bold("auto"))
 	} else {
-		fmt.Printf("  Sélection : %s (CUDA_VISIBLE_DEVICES=%s)\n", bold(sel), sel)
+		fmt.Printf("  Selection: %s (CUDA_VISIBLE_DEVICES=%s)\n", bold(sel), sel)
 	}
-	fmt.Printf("  %s loom gpu <index…>  pour choisir,  loom gpu all  pour réinitialiser\n", dim("→"))
+	fmt.Printf("  %s loom gpu <index…>  to select,  loom gpu all  to reset\n", dim("→"))
 	return nil
 }
 
@@ -113,14 +113,14 @@ func gpuSet(value string) error {
 		return err
 	}
 	if value == "" {
-		fmt.Printf("%s sélection GPU réinitialisée — tous les GPU seront visibles\n", green("[ok]"))
+		fmt.Printf("%s GPU selection reset — all GPUs will be visible\n", green("[ok]"))
 	} else {
-		fmt.Printf("%s GPU sélectionné(s) : %s\n", green("[ok]"), bold(value))
+		fmt.Printf("%s selected GPU(s): %s\n", green("[ok]"), bold(value))
 	}
-	fmt.Print(dim("[info] redémarrer le service pour appliquer ? [Y/n] "))
+	fmt.Print(dim("[info] restart the service to apply? [Y/n] "))
 	sc := bufio.NewScanner(os.Stdin)
 	if sc.Scan() && strings.HasPrefix(strings.ToLower(strings.TrimSpace(sc.Text())), "n") {
-		fmt.Println(dim("[info] pense à lancer 'loom restart'"))
+		fmt.Println(dim("[info] remember to run 'loom restart'"))
 		return nil
 	}
 	return serviceAction("restart")
@@ -135,16 +135,16 @@ func detectGPUs() ([]gpuInfo, error) {
 		// dit clairement plutôt que « uniquement sur NVIDIA », qui laissait croire
 		// qu'Loom ne gère pas du tout le GPU AMD (alors que l'inférence tourne bien).
 		if hasTool("rocm-smi") || hasTool("amd-smi") || isDir("/opt/rocm") {
-			return nil, fmt.Errorf("GPU AMD détecté : la sélection de carte se fait dans l'UI web " +
-				"(éditeur de modèle → « cartes graphiques »), pas via `loom gpu` — cette commande ne pilote que CUDA_VISIBLE_DEVICES (NVIDIA)")
+			return nil, fmt.Errorf("AMD GPU detected: select the card in the web UI " +
+				"(model editor → “graphics cards”), not through `loom gpu` — this command only controls CUDA_VISIBLE_DEVICES (NVIDIA)")
 		}
-		return nil, fmt.Errorf("nvidia-smi introuvable — sélection GPU par `loom gpu` disponible uniquement sur NVIDIA")
+		return nil, fmt.Errorf("nvidia-smi not found — GPU selection via `loom gpu` is only available on NVIDIA")
 	}
 	out, err := hideCmd(exec.Command("nvidia-smi",
 		"--query-gpu=index,name,memory.total,memory.used,compute_cap",
 		"--format=csv,noheader,nounits")).Output()
 	if err != nil {
-		return nil, fmt.Errorf("nvidia-smi a échoué: %w", err)
+		return nil, fmt.Errorf("nvidia-smi failed: %w", err)
 	}
 	var gpus []gpuInfo
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -161,7 +161,7 @@ func detectGPUs() ([]gpuInfo, error) {
 		})
 	}
 	if len(gpus) == 0 {
-		return nil, fmt.Errorf("aucun GPU NVIDIA détecté")
+		return nil, fmt.Errorf("no NVIDIA GPU detected")
 	}
 	return gpus, nil
 }

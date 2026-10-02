@@ -30,17 +30,17 @@ func serviceAction(action string) error {
 	case "status":
 		return svcStatus()
 	case "enable", "disable":
-		fmt.Printf("%s '%s' n'est pas géré sur Windows (pas de service système).\n", yellow("[info]"), action)
-		fmt.Printf("       Pour un démarrage au boot, crée une tâche planifiée ou un service via %s.\n", bold("sc.exe"))
+		fmt.Printf("%s '%s' is not managed on Windows (no system service).\n", yellow("[info]"), action)
+		fmt.Printf("       To start at boot, create a scheduled task or service using %s.\n", bold("sc.exe"))
 		return nil
 	default:
-		return fmt.Errorf("action inconnue: %s", action)
+		return fmt.Errorf("unknown action: %s", action)
 	}
 }
 
 func svcStart() error {
 	if pid := readServicePID(); pid > 0 && processAlive(pid) {
-		fmt.Printf("%s déjà démarré (PID %d)\n", yellow("[info]"), pid)
+		fmt.Printf("%s already started (PID %d)\n", yellow("[info]"), pid)
 		return nil
 	}
 	self, err := os.Executable()
@@ -52,7 +52,7 @@ func svcStart() error {
 	}
 	logf, err := os.OpenFile(logFilePath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return fmt.Errorf("ouverture du log %s: %w", logFilePath(), err)
+		return fmt.Errorf("opening log %s: %w", logFilePath(), err)
 	}
 	defer logf.Close()
 
@@ -67,11 +67,11 @@ func svcStart() error {
 		CreationFlags: createNewProcessGroup | detachedProcess | createNoWindow,
 	}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("démarrage de 'loom serve': %w", err)
+		return fmt.Errorf("starting 'loom serve': %w", err)
 	}
 	pid := cmd.Process.Pid
 	if err := os.WriteFile(pidFilePath(), []byte(strconv.Itoa(pid)), 0o644); err != nil {
-		return fmt.Errorf("écriture du PID: %w", err)
+		return fmt.Errorf("writing PID: %w", err)
 	}
 	// Don't wait — let it run detached.
 	_ = cmd.Process.Release()
@@ -81,17 +81,17 @@ func svcStart() error {
 func checkStarted(pid int) error {
 	time.Sleep(2 * time.Second)
 	if processAlive(pid) {
-		fmt.Printf("%s %s: démarré (PID %d)\n", green("[ok]"), serviceName(), pid)
-		fmt.Printf("       logs: %s  (loom logs pour suivre)\n", dim(logFilePath()))
+		fmt.Printf("%s %s: started (PID %d)\n", green("[ok]"), serviceName(), pid)
+		fmt.Printf("       logs: %s  (loom logs to follow)\n", dim(logFilePath()))
 		return nil
 	}
-	fmt.Printf("%s %s: le processus s'est arrêté — derniers logs :\n", red("[ERREUR]"), serviceName())
+	fmt.Printf("%s %s: process stopped — latest logs:\n", red("[ERREUR]"), serviceName())
 	fmt.Println("------------------------------------------------")
 	fmt.Print(tailFile(logFilePath(), 20))
 	fmt.Println("------------------------------------------------")
-	fmt.Printf("→ loom logs   pour plus de détails\n→ loom edit   pour corriger config.env\n")
+	fmt.Printf("→ loom logs   for more details\n→ loom edit   to fix config.env\n")
 	_ = os.Remove(pidFilePath())
-	return fmt.Errorf("service %s non démarré", serviceName())
+	return fmt.Errorf("service %s not started", serviceName())
 }
 
 func svcStop(verbose bool) error {
@@ -99,7 +99,7 @@ func svcStop(verbose bool) error {
 	if pid <= 0 || !processAlive(pid) {
 		_ = os.Remove(pidFilePath())
 		if verbose {
-			fmt.Println(yellow("[info]") + " aucun service en cours d'exécution")
+			fmt.Println(yellow("[info]") + " no service running")
 		}
 		return nil
 	}
@@ -107,11 +107,11 @@ func svcStop(verbose bool) error {
 	cmd := hideCmd(exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/T", "/F"))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("arrêt du PID %d: %w\n%s", pid, err, string(out))
+		return fmt.Errorf("stopping PID %d: %w\n%s", pid, err, string(out))
 	}
 	_ = os.Remove(pidFilePath())
 	if verbose {
-		fmt.Println(green("[ok]") + " arrêté")
+		fmt.Println(green("[ok]") + " stopped")
 	}
 	return nil
 }
@@ -119,9 +119,9 @@ func svcStop(verbose bool) error {
 func svcStatus() error {
 	pid := readServicePID()
 	if pid > 0 && processAlive(pid) {
-		fmt.Printf("%s %s: actif (PID %d)\n", green("[ok]"), serviceName(), pid)
+		fmt.Printf("%s %s: active (PID %d)\n", green("[ok]"), serviceName(), pid)
 	} else {
-		fmt.Printf("%s %s: arrêté\n", yellow("[info]"), serviceName())
+		fmt.Printf("%s %s: stopped\n", yellow("[info]"), serviceName())
 	}
 	fmt.Printf("  logs   : %s\n", logFilePath())
 	return nil
@@ -131,7 +131,7 @@ func serviceLogs() error {
 	path := logFilePath()
 	f, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("aucun log à %s (le service a-t-il déjà démarré ?): %w", path, err)
+		return fmt.Errorf("no log at %s (has the service ever started?): %w", path, err)
 	}
 	defer f.Close()
 	// Print the tail, then follow appended bytes (poor man's tail -f).

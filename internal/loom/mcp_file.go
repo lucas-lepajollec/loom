@@ -39,7 +39,7 @@ func loadMCPConfigLocked() (map[string]MCPServerConfig, error) {
 	if os.IsNotExist(err) && mcpFileCache.servers == nil {
 		migrated, readErr := getBytesErr(bkState, mcpFileMigrated)
 		if readErr != nil {
-			err = fmt.Errorf("lecture de migration MCP impossible")
+			err = fmt.Errorf("could not read MCP migration")
 		} else {
 			legacy := []byte(`{}`)
 			if len(migrated) == 0 {
@@ -49,7 +49,7 @@ func loadMCPConfigLocked() (map[string]MCPServerConfig, error) {
 				}
 			}
 			if readErr != nil {
-				err = fmt.Errorf("lecture de sauvegarde MCP impossible")
+				err = fmt.Errorf("could not read MCP backup")
 			} else {
 				data := append(append([]byte(`{"mcpServers":`), legacy...), '}')
 				_, _, _, err = parseMCPFile(data)
@@ -118,7 +118,7 @@ func saveMCPConfigLocked(servers map[string]MCPServerConfig) error {
 		return err
 	}
 	if checkRevision && !sameMCPFile(before, mcpFileCache.info) {
-		return fmt.Errorf("le fichier MCP a changé pendant la modification ; réessayez")
+		return fmt.Errorf("the MCP file changed during editing; try again")
 	}
 	data, err := resources.EncodeMCPFile(mcpFileCache.top, mcpFileCache.entries, servers)
 	if err != nil {

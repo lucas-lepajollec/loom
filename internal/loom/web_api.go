@@ -130,13 +130,13 @@ func parseModelLoadError(log string) string {
 		case strings.Contains(low, "model loaded"), strings.Contains(low, "server is listening"):
 			loaded = true
 		case strings.Contains(l, "has offset") && strings.Contains(l, "expected"):
-			reason = "format de quantification non reconnu par ce moteur"
+			reason = "quantization format not recognized by this engine"
 		case strings.Contains(low, "unknown model architecture"),
 			strings.Contains(low, "unknown ftype"),
 			strings.Contains(low, "unknown type"),
 			strings.Contains(low, "unsupported"):
 			if reason == "" {
-				reason = "type/architecture de modèle inconnu de ce moteur"
+				reason = "model type/architecture unknown to this engine"
 			}
 		case strings.Contains(low, "out of memory"),
 			strings.Contains(low, "cudamalloc failed"),
@@ -144,14 +144,14 @@ func parseModelLoadError(log string) string {
 			strings.Contains(low, "failed to create context"),
 			strings.Contains(low, "failed to create_context"):
 			if reason == "" {
-				reason = "mémoire GPU insuffisante"
+				reason = "insufficient GPU memory"
 			}
 		case strings.Contains(low, "error loading model"),
 			strings.Contains(low, "failed to load model"),
 			strings.Contains(low, "failed to read tensor data"),
 			strings.Contains(low, "exiting due to model loading error"):
 			if reason == "" {
-				reason = "échec du chargement du modèle"
+				reason = "model loading failed"
 			}
 		}
 	}
@@ -163,15 +163,15 @@ func parseModelLoadError(log string) string {
 	// chargement peut avoir bien d'autres causes (mémoire, fichier, tenseur) — on
 	// renvoie alors vers le journal plutôt que d'accuser à tort le moteur.
 	switch reason {
-	case "format de quantification non reconnu par ce moteur",
-		"type/architecture de modèle inconnu de ce moteur":
-		return "Modèle incompatible avec le moteur : " + reason +
-			". Choisis un autre backend (édite le modèle → Moteur)."
-	case "mémoire GPU insuffisante":
-		return "Pas assez de VRAM pour charger ce modèle avec ces paramètres."
+	case "quantization format not recognized by this engine",
+		"model type/architecture unknown to this engine":
+		return "Model incompatible with the engine: " + reason +
+			". Choose another backend (edit the model → Engine)."
+	case "insufficient GPU memory":
+		return "Not enough VRAM to load this model with these parameters."
 	default:
-		return "Le modèle n'a pas pu être chargé (" + reason +
-			"). Ouvre le journal du moteur pour le détail."
+		return "The model could not load (" + reason +
+			"). Open the engine log for details."
 	}
 }
 
@@ -276,7 +276,7 @@ func handleReasoning(w http.ResponseWriter, r *http.Request) {
 	switch eff {
 	case "", "low", "medium", "high", "xhigh":
 	default:
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "effort inconnu"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown effort"})
 		return
 	}
 	if err := SetConfigKey("REASONING_EFFORT", eff); err != nil {
@@ -357,11 +357,11 @@ func handleLlamacppUninstallCustom(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	name := sanitizeBackendName(req.Name)
 	if name == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "nom requis"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "name required"})
 		return
 	}
 	if name == filepath.Base(defaultRepoDir()) || name == filepath.Base(prebuiltDir()) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "ce moteur se gère depuis les cartes ⚡ / 🔧"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "this engine is managed from the ⚡ / 🔧 cards"})
 		return
 	}
 	dir, err := backendDir(name)
@@ -370,14 +370,14 @@ func handleLlamacppUninstallCustom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isDir(dir) {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "backend introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "backend not found"})
 		return
 	}
 	cfgBin := ReadConfig()["BIN"]
 	for _, b := range listBackendBins() {
 		if b["name"] == name {
 			if p, _ := b["path"].(string); samePath(p, cfgBin) {
-				sendJSON(w, 409, map[string]any{"ok": false, "error": "backend utilisé par le modèle actif — bascule d'abord ce modèle sur un autre moteur"})
+				sendJSON(w, 409, map[string]any{"ok": false, "error": "backend used by the active model — switch that model to another engine first"})
 				return
 			}
 		}
@@ -666,7 +666,7 @@ func handleAPIKey(w http.ResponseWriter, r *http.Request) {
 			restart = true
 		case "clear":
 			if apiKeyRequired() {
-				sendJSON(w, 400, map[string]any{"ok": false, "error": "clé obligatoire : désactive d'abord l'exigence"})
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "key required: disable the requirement first"})
 				return
 			}
 			if err := writeAPIKey(""); err != nil {
@@ -682,7 +682,7 @@ func handleAPIKey(w http.ResponseWriter, r *http.Request) {
 			}
 			restart = req.On && had != readAPIKey()
 		default:
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "action inconnue"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown action"})
 			return
 		}
 		if restart && serviceIsActive() {
@@ -915,7 +915,7 @@ func handleMCPTest(w http.ResponseWriter, r *http.Request) {
 func handleMem(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.URL.Query().Get("name"))
 	if name == "" {
-		sendJSON(w, 200, map[string]any{"name": "", "content": "# nouvelle page\n\nNote ici ce que loom doit retenir entre les sessions.\n"})
+		sendJSON(w, 200, map[string]any{"name": "", "content": "# new page\n\nWrite here what Loom should remember between sessions.\n"})
 		return
 	}
 	c := MemContent(name)
@@ -993,12 +993,12 @@ func handleMemUnlock(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	if strings.TrimSpace(req.Secret) == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "secret vide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "empty secret"})
 		return
 	}
 	v, err := loadVault()
 	if err != nil || v == nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "aucun keyvault (mémoire non chiffrée ?)"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "no keyvault (memory not encrypted?)"})
 		return
 	}
 	dek, kind, err := v.unlockWith(req.Secret)
@@ -1009,7 +1009,7 @@ func handleMemUnlock(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		sendJSON(w, 401, map[string]any{"ok": false, "error": "secret incorrect"})
+		sendJSON(w, 401, map[string]any{"ok": false, "error": "incorrect secret"})
 		return
 	}
 	setMemDEK(dek)
@@ -1035,24 +1035,24 @@ func handleMemAddKey(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	if strings.TrimSpace(req.Secret) == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "secret vide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "empty secret"})
 		return
 	}
 	dek, err := currentDEK()
 	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "mémoire verrouillée"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "memory locked"})
 		return
 	}
 	v, _ := loadVault()
 	if v == nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "aucun coffre"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "no vault"})
 		return
 	}
 	if _, _, e := v.unlockWith(req.Secret); e == nil {
 		sendJSON(w, 200, map[string]any{"ok": true}) // déjà un wrap pour ce secret
 		return
 	}
-	if err := v.addSecretWrap(dek, wrapPassword, "clé d'api", req.Secret); err != nil {
+	if err := v.addSecretWrap(dek, wrapPassword, "API key", req.Secret); err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
@@ -1100,7 +1100,7 @@ func handleSwitch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.N < 1 || req.N > len(list) {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "index hors limites"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "index out of bounds"})
 		return
 	}
 	target := list[req.N-1]
@@ -1115,10 +1115,10 @@ func handleSwitch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Printf("%s config.env <- %s\n", green("[ok]"), filepath.Base(target.Path))
-	fmt.Println(dim("[info] redémarrage du moteur..."))
+	fmt.Println(dim("[info] restarting engine..."))
 	go func() {
 		if err := localEngine().Load(context.Background(), ModelConfig{}); err != nil {
-			fmt.Printf("%s redémarrage après bascule: %v\n", red("[ERREUR]"), err)
+			fmt.Printf("%s restart after switching: %v\n", red("[ERREUR]"), err)
 		}
 	}()
 	sendJSON(w, 200, map[string]any{"ok": true, "preset": target.Name})
@@ -1137,11 +1137,11 @@ func handleLoadModel(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	fmt.Printf("%s modèle nu <- %s\n", green("[ok]"), filepath.Base(strings.TrimSpace(req.Model)))
-	fmt.Println(dim("[info] redémarrage du moteur..."))
+	fmt.Printf("%s bare model <- %s\n", green("[ok]"), filepath.Base(strings.TrimSpace(req.Model)))
+	fmt.Println(dim("[info] restarting engine..."))
 	go func() {
 		if err := localEngine().Load(context.Background(), ModelConfig{}); err != nil {
-			fmt.Printf("%s redémarrage après chargement: %v\n", red("[ERREUR]"), err)
+			fmt.Printf("%s restart after loading: %v\n", red("[ERREUR]"), err)
 		}
 	}()
 	sendJSON(w, 200, map[string]any{"ok": true, "model": strings.TrimSpace(req.Model)})
@@ -1153,7 +1153,7 @@ func handleUnload(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	fmt.Println(green("[ok]") + " modèle déchargé")
+	fmt.Println(green("[ok]") + " model unloaded")
 	sendJSON(w, 200, map[string]any{"ok": true})
 }
 
@@ -1167,7 +1167,7 @@ func handleApplyLive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(req.Content) == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "configuration vide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "empty configuration"})
 		return
 	}
 	id := strings.TrimSpace(req.PresetID)
@@ -1181,7 +1181,7 @@ func handleApplyLive(w http.ResponseWriter, r *http.Request) {
 	}
 	go func() {
 		if err := localEngine().Load(context.Background(), ModelConfig{}); err != nil {
-			fmt.Printf("%s redémarrage après configuration: %v\n", red("[ERREUR]"), err)
+			fmt.Printf("%s restart after configuration: %v\n", red("[ERREUR]"), err)
 		}
 	}()
 	sendJSON(w, 200, map[string]any{"ok": true, "preset_id": id})
@@ -1204,7 +1204,7 @@ func handleNakedRemember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != http.MethodPost {
-		sendJSON(w, 405, map[string]any{"ok": false, "error": "méthode non autorisée"})
+		sendJSON(w, 405, map[string]any{"ok": false, "error": "method not allowed"})
 		return
 	}
 	var req struct {
@@ -1220,7 +1220,7 @@ func handleNakedRemember(w http.ResponseWriter, r *http.Request) {
 		model = strings.TrimSpace(ReadConfig()["MODEL"])
 	}
 	if strings.TrimSpace(req.Content) == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "configuration vide"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "empty configuration"})
 		return
 	}
 	if err := rememberNakedFromContent(model, req.Content); err != nil {
@@ -1236,7 +1236,7 @@ func handleNakedDefaults(w http.ResponseWriter, r *http.Request) {
 		model = strings.TrimSpace(ReadConfig()["MODEL"])
 	}
 	if model == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "aucun modèle"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "no model"})
 		return
 	}
 	seed := nakedDefaults(model)
@@ -1269,7 +1269,7 @@ func handleModelCaps(w http.ResponseWriter, r *http.Request) {
 		model = strings.TrimSpace(ReadConfig()["MODEL"])
 	}
 	if model == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "aucun modèle"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "no model"})
 		return
 	}
 	c := capsForModel(model)
@@ -1295,7 +1295,7 @@ func handleEstimate(w http.ResponseWriter, r *http.Request) {
 		req.Model = strings.TrimSpace(ReadConfig()["MODEL"])
 	}
 	if strings.TrimSpace(req.Model) == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "aucun modèle"})
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "no model"})
 		return
 	}
 	if strings.TrimSpace(req.Content) == "" {

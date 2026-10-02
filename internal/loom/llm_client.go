@@ -350,7 +350,7 @@ const shownDisplayMax = 12000
 // shownResult prépare un résultat d'outil pour l'affichage.
 func shownResult(s string) string {
 	if r := []rune(s); len(r) > shownDisplayMax {
-		return string(r[:shownDisplayMax]) + "\n…[tronqué]"
+		return string(r[:shownDisplayMax]) + "\n…[truncated]"
 	}
 	return s
 }
@@ -384,13 +384,13 @@ func dedupableTool(name string) bool { return name != "bash" }
 // contexte consommé.
 func repeatedCallResult(prev string, repeats int) string {
 	if repeats >= 2 {
-		return "[déjà fait] Cet appel exact a déjà été exécuté " + strconv.Itoa(repeats) +
-			" fois dans ce tour ; son résultat est plus haut dans la conversation. " +
-			"Ne le redemande plus : réponds avec ce que tu as, ou change d'approche " +
-			"(autre URL, autres arguments, web_grep pour cibler)."
+		return "[already done] This exact call has already been executed " + strconv.Itoa(repeats) +
+			" times in this turn; its result is earlier in the conversation. " +
+			"Do not request it again: answer with what you have, or change your approach " +
+			"(another URL, different arguments, web_grep for targeted content)."
 	}
-	return "[déjà fait] Appel identique déjà exécuté dans ce tour — non rejoué. " +
-		"Voici à nouveau son résultat ; ne le redemande pas une troisième fois.\n\n" + prev
+	return "[already done] Identical call already executed in this turn — not replayed. " +
+		"Here is its result again; do not request it a third time.\n\n" + prev
 }
 
 // writeBodyKey returns the argument holding the text an écriture tool is about
@@ -530,7 +530,7 @@ func friendlyLLMError(err error) error {
 	case errors.Is(err, syscall.ECONNREFUSED):
 		return errEngineDown()
 	case errors.Is(err, context.DeadlineExceeded), isNetTimeout(err):
-		return fmt.Errorf("⚠️ Le moteur (llama-server) met trop de temps à répondre (port %d) — il est peut-être surchargé ou en plein chargement. Réessaie dans un instant.", LLMPort())
+		return fmt.Errorf("⚠️ The engine (llama-server) is taking too long to respond (port %d) — it may be overloaded or loading. Try again in a moment.", LLMPort())
 	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, syscall.ECONNRESET):
 		return errEngineReset()
 	}
@@ -541,7 +541,7 @@ func friendlyLLMError(err error) error {
 	case strings.Contains(low, "connection refused"), strings.Contains(low, "actively refused"), strings.Contains(low, "connectex"), strings.Contains(low, "no connection could be made"):
 		return errEngineDown()
 	case strings.Contains(low, "timeout"), strings.Contains(low, "deadline exceeded"):
-		return fmt.Errorf("⚠️ Le moteur (llama-server) met trop de temps à répondre (port %d) — il est peut-être surchargé ou en plein chargement. Réessaie dans un instant.", LLMPort())
+		return fmt.Errorf("⚠️ The engine (llama-server) is taking too long to respond (port %d) — it may be overloaded or loading. Try again in a moment.", LLMPort())
 	case strings.Contains(low, "eof"), strings.Contains(low, "connection reset"):
 		return errEngineReset()
 	}
@@ -549,11 +549,11 @@ func friendlyLLMError(err error) error {
 }
 
 func errEngineDown() error {
-	return fmt.Errorf("⚠️ Le moteur (llama-server) ne répond pas sur le port %d. Il est probablement en train de démarrer ou de charger le modèle — réessaie dans quelques secondes.", LLMPort())
+	return fmt.Errorf("⚠️ The engine (llama-server) is not responding on port %d. It is probably starting or loading the model — try again in a few seconds.", LLMPort())
 }
 
 func errEngineReset() error {
-	return fmt.Errorf("⚠️ Connexion au moteur (llama-server, port %d) interrompue — il a peut-être redémarré. Réessaie.", LLMPort())
+	return fmt.Errorf("⚠️ Connection to the engine (llama-server, port %d) interrupted — it may have restarted. Try again.", LLMPort())
 }
 
 // streamCutError explique un flux de complétion coupé en cours de route. Cas à
@@ -562,12 +562,12 @@ func errEngineReset() error {
 // répond pas » évite d'envoyer l'utilisateur vérifier un moteur qui va bien.
 func streamCutError(err error) error {
 	if errors.Is(err, bufio.ErrTooLong) {
-		return fmt.Errorf("⚠️ Réponse du moteur illisible : une ligne du flux dépasse la taille maximale (%d Mio). C'est presque toujours un appel d'outil démesuré (écriture d'un très gros fichier). Le tour est abandonné pour ne pas exécuter un appel tronqué.", 8)
+		return fmt.Errorf("⚠️ Unreadable engine response: a stream line exceeds the maximum size (%d MiB). This is almost always an oversized tool call (writing a very large file). The turn is abandoned to avoid executing a truncated call.", 8)
 	}
 	if hint := parseEngineCrash(serviceLogTail(80)); hint != "" {
 		return fmt.Errorf("⚠️ %s", hint)
 	}
-	return fmt.Errorf("⚠️ Le flux de réponse du moteur (llama-server, port %d) a été coupé en cours de route : %v. La réponse est incomplète et le tour est abandonné — réessaie.", LLMPort(), err)
+	return fmt.Errorf("⚠️ The engine response stream (llama-server, port %d) was interrupted: %v. The response is incomplete and the turn is abandoned — try again.", LLMPort(), err)
 }
 
 // parseEngineCrash lit la fin du journal llama-server : un abort CUDA pendant
@@ -579,10 +579,10 @@ func parseEngineCrash(log string) string {
 	}
 	low := strings.ToLower(log)
 	if strings.Contains(low, "cuda error") && strings.Contains(low, "out of memory") {
-		return "llama-server a planté pendant la génération : plus assez de VRAM (CUDA OOM). Le modèle tenait au chargement, le premier jeton a demandé un peu plus."
+		return "llama-server crashed during generation: insufficient VRAM (CUDA OOM). The model fit when loading; the first token required a little more."
 	}
 	if strings.Contains(low, "ggml_abort") || strings.Contains(low, "cuda error") {
-		return "llama-server a planté pendant la génération. Ouvre le journal du moteur pour le détail."
+		return "llama-server crashed during generation. Open the engine log for details."
 	}
 	return ""
 }
@@ -689,7 +689,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					// ⚠️ Journaliser AVANT d'installer le résultat : l'ancien ordre
 					// passait `messages` déjà remplacé comme état « avant », donc la
 					// ligne comparait le résultat à lui-même et n'apprenait rien.
-					logCompact("réactif", 0, messages, c, changed)
+					logCompact("responsive", 0, messages, c, changed)
 					messages = c
 					// Même publication qu'en cours de tour : sans elle, la compaction de
 					// secours ne survit pas à la fin du tour et le prompt re-déborde au
@@ -707,10 +707,10 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				// Nudge the model to answer in plain text from what it already
 				// gathered, so it doesn't immediately re-emit a tool call that
 				// llama.cpp would again fail to parse.
-				messages = append(messages, Message{Role: "system", Content: "N'appelle plus d'outil. Réponds maintenant directement en français à partir des informations déjà obtenues."})
+				messages = append(messages, Message{Role: "system", Content: "Do not call any more tools. Answer directly in English now using the information already obtained."})
 				continue
 			}
-			err := fmt.Errorf("llama-server a renvoyé %d : %s", resp.StatusCode, msg)
+			err := fmt.Errorf("llama-server returned %d: %s", resp.StatusCode, msg)
 			cb(StreamEvent{Err: err})
 			return extra, err
 		}
@@ -1051,7 +1051,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					}
 					hits := MemSearch(label, lim)
 					if len(hits) == 0 {
-						result = "[aucun résultat]"
+						result = "[no results]"
 					} else {
 						var b strings.Builder
 						for _, h := range hits {
@@ -1068,16 +1068,16 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 						lim = int(v)
 					}
 					if c, rerr := MemRead(label, off, lim); rerr != nil {
-						result = "[erreur] " + rerr.Error()
+						result = "[error] " + rerr.Error()
 					} else {
 						result = c
 					}
 				case "mem_add":
 					content, _ := args["content"].(string)
 					if werr := MemAdd(label, content); werr != nil {
-						result = "[erreur] " + werr.Error()
+						result = "[error] " + werr.Error()
 					} else {
-						result = fmt.Sprintf("[ok] page '%s' créée", label)
+						result = fmt.Sprintf("[ok] page '%s' created", label)
 						diff = addedDiff(content)
 					}
 				case "mem_edit":
@@ -1086,22 +1086,22 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if werr := MemEdit(label, oldText, newText); errors.Is(werr, errAlreadyApplied) {
 						result = fmt.Sprintf("[ok] page '%s' %s", label, werr.Error())
 					} else if werr != nil {
-						result = "[erreur] " + werr.Error()
+						result = "[error] " + werr.Error()
 					} else {
-						result = fmt.Sprintf("[ok] page '%s' modifiée", label)
+						result = fmt.Sprintf("[ok] page '%s' modified", label)
 						diff = lineDiff(oldText, newText)
 					}
 				case "write":
 					content, _ := args["content"].(string)
 					result = fileWrite(label, content)
-					if !strings.HasPrefix(result, "[erreur]") {
+					if !strings.HasPrefix(result, "[error]") {
 						diff = addedDiff(content)
 					}
 				case "edit":
 					oldText, _ := args["old"].(string)
 					newText, _ := args["new"].(string)
 					result = fileEdit(label, oldText, newText)
-					if !strings.HasPrefix(result, "[erreur]") {
+					if !strings.HasPrefix(result, "[error]") {
 						diff = lineDiff(oldText, newText)
 					}
 				case "bash":
@@ -1115,9 +1115,9 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					result = runShell(ctx, label, to)
 				case "mem_delete":
 					if werr := MemDelete(label); werr != nil {
-						result = "[erreur] " + werr.Error()
+						result = "[error] " + werr.Error()
 					} else {
-						result = fmt.Sprintf("[ok] page '%s' supprimée", label)
+						result = fmt.Sprintf("[ok] page '%s' deleted", label)
 					}
 				case "see_image":
 					result, visionImg = toolSeeImage(label)
@@ -1133,10 +1133,10 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if isMCPTool(tc.Function.Name) {
 						result = mcpCall(tc.Function.Name, args)
 					} else {
-						result = "[erreur] outil inconnu: " + tc.Function.Name
+						result = "[error] unknown tool: " + tc.Function.Name
 					}
 				}
-				if !strings.HasPrefix(result, "[erreur]") {
+				if !strings.HasPrefix(result, "[error]") {
 					doneCalls[callKey] = result
 				}
 				cb(StreamEvent{ToolUsed: &ToolUsedEvent{Name: tc.Function.Name, Label: label, Result: shownResult(result), Done: true, Diff: diff, ArgToks: flushArgToks()}})
@@ -1149,7 +1149,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				// jointes, compris par --mmproj), et le tour reprend en la voyant.
 				if visionImg != nil {
 					imgMsg := Message{Role: "user", Content: []map[string]any{
-						{"type": "text", "text": "Image demandée (" + label + ") :"},
+						{"type": "text", "text": "Requested image (" + label + ") :"},
 						visionImg,
 					}}
 					messages = append(messages, imgMsg)
@@ -1166,7 +1166,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				cb(StreamEvent{Compacting: &yes})
 				c, changed := compactMessages(ctx, messages, caps)
 				cb(StreamEvent{Compacting: &no})
-				logCompact("en-tour", used, messages, c, changed)
+				logCompact("mid-turn", used, messages, c, changed)
 				if changed {
 					messages = c
 					// La nouvelle base contient déjà tout ce tour : on la publie et on
@@ -1197,7 +1197,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				})
 				continue
 			}
-			cb(StreamEvent{Content: "_(le modèle n'a pas produit de réponse — finish: " + finishReason + ")_"})
+			cb(StreamEvent{Content: "_(the model did not produce a response — finish: " + finishReason + ")_"})
 		}
 		return extra, nil
 	}

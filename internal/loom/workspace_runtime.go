@@ -26,7 +26,7 @@ type plannedRuntimeAdapter struct{ descriptor RuntimeDescriptor }
 
 func (a plannedRuntimeAdapter) Descriptor() RuntimeDescriptor { return a.descriptor }
 func (plannedRuntimeAdapter) Run(context.Context, RuntimeTurn, ChatCallback) ([]Message, error) {
-	return nil, errors.New("adaptateur runtime en préparation")
+	return nil, errors.New("runtime adapter planned")
 }
 
 // The registry replaces the former standalone local adapter global. Existing
@@ -34,7 +34,7 @@ func (plannedRuntimeAdapter) Run(context.Context, RuntimeTurn, ChatCallback) ([]
 func localChatRuntime() RuntimeAdapter {
 	adapter, ok := registeredRuntimes.lookup("llama.cpp")
 	if !ok {
-		panic("runtime local non enregistré")
+		panic("local runtime not registered")
 	}
 	return adapter
 }

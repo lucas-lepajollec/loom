@@ -128,10 +128,10 @@ func TestClientBidirectionalOrderingCancellationAndSanitizedErrors(t *testing.T)
 	if !errors.As(err, &rpc) || rpc.Code != 42 || strings.Contains(err.Error(), "private") {
 		t.Fatalf("%v", err)
 	}
-	if err := c.Call(ctx, "bad-result", nil, &result); err == nil || err.Error() != "réponse ACP invalide" {
+	if err := c.Call(ctx, "bad-result", nil, &result); err == nil || err.Error() != "invalid ACP response" {
 		t.Fatal(err)
 	}
-	if err := c.Write(strings.Repeat("x", MaxFrame)); err == nil || err.Error() != "message ACP trop long" {
+	if err := c.Write(strings.Repeat("x", MaxFrame)); err == nil || err.Error() != "ACP message too long" {
 		t.Fatal(err)
 	}
 	// Unblock the handler and check the deferred callback runs after its reply.
@@ -147,7 +147,7 @@ func TestClientBidirectionalOrderingCancellationAndSanitizedErrors(t *testing.T)
 		if err := json.Unmarshal(f.Params, &got); err != nil {
 			t.Fatal(err)
 		}
-		if got.Code != -32601 || got.Message != "requête client refusée" {
+		if got.Code != -32601 || got.Message != "client request rejected" {
 			t.Fatalf("%+v", got)
 		}
 	case <-ctx.Done():

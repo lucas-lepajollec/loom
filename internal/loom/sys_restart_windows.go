@@ -45,7 +45,7 @@ func scheduleAppRestart() (bool, string) {
 		workspaceSessions.shutdownACP()
 		os.Exit(0)
 	}()
-	return true, "Loom redémarre — la page se reconnectera toute seule dans quelques secondes."
+	return true, "Loom is restarting — the page will reconnect itself in a few seconds."
 }
 
 // cmdRestartAfterUpdate est exécuté par l'accompagnateur détaché.
@@ -66,7 +66,7 @@ func cmdRestartAfterUpdate(args []string) error {
 		}
 	}
 	if !launch(target) {
-		return fmt.Errorf("relance de %s impossible", target)
+		return fmt.Errorf("could not restart %s", target)
 	}
 	return nil
 }

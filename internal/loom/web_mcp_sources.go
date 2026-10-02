@@ -28,7 +28,7 @@ func handleMCPSources(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.Action != "" && req.Action != "link" && req.Action != "unlink" {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "action attendue : link ou unlink"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "expected action: link or unlink"})
 			return
 		}
 		if err := linkMCPSource(MCPSource{Path: req.Path, Label: req.Label}, req.Action == "unlink"); err != nil {

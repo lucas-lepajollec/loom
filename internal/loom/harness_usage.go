@@ -56,7 +56,7 @@ func usageDays(days int) (int, error) {
 		return 7, nil
 	}
 	if days != 7 && days != 30 {
-		return 0, errors.New("days doit valoir 7 ou 30")
+		return 0, errors.New("days must be 7 or 30")
 	}
 	return days, nil
 }
@@ -73,7 +73,7 @@ func cachedHarnessUsage(ctx context.Context, id string, days int, refresh bool) 
 		case <-flight.done:
 			return flight.result
 		case <-ctx.Done():
-			return HarnessUsage{RuntimeID: id, Days: days, ByModel: []HarnessModelUsage{}, Error: "lecture interrompue", FetchedAt: time.Now().Unix()}
+			return HarnessUsage{RuntimeID: id, Days: days, ByModel: []HarnessModelUsage{}, Error: "reading interrupted", FetchedAt: time.Now().Unix()}
 		}
 	}
 	flight := &nativeUsageFlight{done: make(chan struct{})}
@@ -90,7 +90,7 @@ func cachedHarnessUsage(ctx context.Context, id string, days int, refresh bool) 
 }
 
 func readNativeHarnessUsage(ctx context.Context, id string, days int) HarnessUsage {
-	q := HarnessUsage{RuntimeID: id, Days: days, ByModel: []HarnessModelUsage{}, Source: "Usage natif du harness", FetchedAt: time.Now().Unix()}
+	q := HarnessUsage{RuntimeID: id, Days: days, ByModel: []HarnessModelUsage{}, Source: "Native harness usage", FetchedAt: time.Now().Unix()}
 	ctx, cancel := context.WithTimeout(ctx, nativeUsageTimeout)
 	defer cancel()
 	a := acpAgent{ID: id}
@@ -99,7 +99,7 @@ func readNativeHarnessUsage(ctx context.Context, id string, days int) HarnessUsa
 			a = acp.agent
 		}
 	} else {
-		q.Error = "non disponible"
+		q.Error = "unavailable"
 		return q
 	}
 	harness := usageHarnessID(a)
@@ -107,23 +107,23 @@ func readNativeHarnessUsage(ctx context.Context, id string, days int) HarnessUsa
 	switch harness {
 	case "claude-code", "codex", "pi":
 		if a.Remote {
-			q.Error = "non disponible"
+			q.Error = "unavailable"
 			return q
 		}
 		home, homeErr := os.UserHomeDir()
 		if homeErr != nil {
-			q.Error = "non disponible"
+			q.Error = "unavailable"
 			return q
 		}
 		roots := map[string]string{"claude-code": filepath.Join(home, ".claude", "projects"), "codex": filepath.Join(home, ".codex", "sessions"), "pi": filepath.Join(home, ".pi", "agent", "sessions")}
-		q.Source = map[string]string{"claude-code": "Claude Code · journaux natifs locaux", "codex": "Codex · journaux natifs locaux", "pi": "Pi · journaux natifs locaux"}[harness]
+		q.Source = map[string]string{"claude-code": "Claude Code · local native logs", "codex": "Codex · local native logs", "pi": "Pi · local native logs"}[harness]
 		err = readHarnessSessionFiles(ctx, roots[harness], harness, time.Now(), days, &q)
 	case "opencode", "hermes":
 		argv := []string{"opencode", "stats", "--days", strconv.Itoa(days), "--models"}
-		q.Source = "opencode stats · toutes les sessions natives"
+		q.Source = "opencode stats · every native session"
 		if harness == "hermes" {
 			argv = []string{"hermes", "insights", "--days", strconv.Itoa(days)}
-			q.Source = "hermes insights · toutes les sessions natives"
+			q.Source = "hermes insights · every native session"
 		}
 		var out []byte
 		out, err = harnessUsageCommand(ctx, a, argv)
@@ -131,16 +131,16 @@ func readNativeHarnessUsage(ctx context.Context, id string, days int) HarnessUsa
 			err = parseHarnessStats(string(out), harness, &q)
 		}
 	default:
-		q.Error = "non disponible"
+		q.Error = "unavailable"
 	}
 	if a.Remote {
-		q.Source += " · machine SSH"
+		q.Source += " · SSH machine"
 	}
 	if err != nil {
 		q.Error = err.Error()
 	}
 	if ctx.Err() != nil {
-		q.Error = "lecture interrompue (limite de 30 secondes)"
+		q.Error = "reading interrupted (30-second limit)"
 	}
 	q.FetchedAt = time.Now().Unix()
 	return q
@@ -152,7 +152,7 @@ type usageOutput struct{ bytes.Buffer }
 
 func (b *usageOutput) Write(p []byte) (int, error) {
 	if b.Len()+len(p) > 2<<20 {
-		return 0, errors.New("sortie native trop volumineuse")
+		return 0, errors.New("native output too large")
 	}
 	return b.Buffer.Write(p)
 }
@@ -168,11 +168,11 @@ func harnessUsageCommand(ctx context.Context, a acpAgent, argv []string) ([]byte
 			}
 		}
 		if machine == nil {
-			return nil, errors.New("machine non disponible")
+			return nil, errors.New("machine unavailable")
 		}
 		key, _, err := loomSSHKey()
 		if err != nil {
-			return nil, errors.New("clé SSH indisponible")
+			return nil, errors.New("SSH key unavailable")
 		}
 		if lifecycleOS(machine) == "windows" {
 			remote := windowsRemoteLifecycleCommand(*machine, key, argv)
@@ -196,13 +196,13 @@ func harnessUsageCommand(ctx context.Context, a acpAgent, argv []string) ([]byte
 	} else {
 		native, err := harnessNativeArgv(argv)
 		if err != nil {
-			return nil, errors.New("non installé sur cette machine")
+			return nil, errors.New("not installed on this machine")
 		}
 		cmd = exec.CommandContext(ctx, native[0], native[1:]...)
 	}
 	dir, err := os.MkdirTemp("", "loom-native-usage-")
 	if err != nil {
-		return nil, errors.New("dossier temporaire indisponible")
+		return nil, errors.New("temporary directory unavailable")
 	}
 	defer os.RemoveAll(dir)
 	cmd.Dir = dir
@@ -211,7 +211,7 @@ func harnessUsageCommand(ctx context.Context, a acpAgent, argv []string) ([]byte
 	cmd.Stdout = &out
 	cmd.Stderr = io.Discard
 	if err = cmd.Run(); err != nil {
-		return nil, errors.New("lecture native indisponible")
+		return nil, errors.New("native reading unavailable")
 	}
 	return out.Bytes(), nil
 }
@@ -225,7 +225,7 @@ func handleNativeUsage(w http.ResponseWriter, r *http.Request) {
 		var err error
 		days, err = strconv.Atoi(raw)
 		if err != nil {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": "days doit valoir 7 ou 30"})
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "days must be 7 or 30"})
 			return
 		}
 	}
@@ -272,7 +272,7 @@ func handleNativeUsageRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	adapter, ok := registeredRuntimes.lookup(req.RuntimeID)
 	if !ok || adapter.Descriptor().Kind != "harness" {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness introuvable"})
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness not found"})
 		return
 	}
 	q := cachedHarnessUsage(r.Context(), req.RuntimeID, days, true)

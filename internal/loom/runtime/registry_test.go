@@ -27,13 +27,13 @@ func TestRegistryValidation(t *testing.T) {
 		a    RuntimeAdapter[string, bool, testCallback]
 		want string
 	}{
-		{"nil", nil, "adaptateur runtime requis"},
-		{"empty", testAdapter{}, "identifiant runtime invalide"},
-		{"whitespace", testAdapter{RuntimeDescriptor{ID: " id"}}, "identifiant runtime invalide"},
-		{"path", testAdapter{RuntimeDescriptor{ID: "bad/id"}}, "identifiant runtime invalide"},
-		{"planned", testAdapter{RuntimeDescriptor{ID: "planned", Capabilities: []string{"chat"}}}, "un runtime en préparation ne peut pas déclarer de capacités"},
-		{"connect", testAdapter{RuntimeDescriptor{ID: "connect", Implemented: true, Capabilities: []string{"connect"}}}, "capacité connect sans interface Connectable"},
-		{"quota", testAdapter{RuntimeDescriptor{ID: "quota", Implemented: true, Capabilities: []string{"quota"}}}, "capacité quota sans interface QuotaReader"},
+		{"nil", nil, "runtime adapter required"},
+		{"empty", testAdapter{}, "invalid runtime ID"},
+		{"whitespace", testAdapter{RuntimeDescriptor{ID: " id"}}, "invalid runtime ID"},
+		{"path", testAdapter{RuntimeDescriptor{ID: "bad/id"}}, "invalid runtime ID"},
+		{"planned", testAdapter{RuntimeDescriptor{ID: "planned", Capabilities: []string{"chat"}}}, "a planned runtime cannot declare capabilities"},
+		{"connect", testAdapter{RuntimeDescriptor{ID: "connect", Implemented: true, Capabilities: []string{"connect"}}}, "connect capability without Connectable interface"},
+		{"quota", testAdapter{RuntimeDescriptor{ID: "quota", Implemented: true, Capabilities: []string{"quota"}}}, "quota capability without QuotaReader interface"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := reg.Register(tc.a); err == nil || err.Error() != tc.want {
@@ -45,12 +45,12 @@ func TestRegistryValidation(t *testing.T) {
 	if err := reg.Register(account); err != nil {
 		t.Fatal(err)
 	}
-	if err := reg.Register(account); err == nil || err.Error() != "runtime déjà enregistré" {
+	if err := reg.Register(account); err == nil || err.Error() != "runtime already registered" {
 		t.Fatalf("duplicate error = %v", err)
 	}
 	// A quota method with a different result type must not satisfy this registry.
 	other := NewRegistry[string, bool, testCallback, string]()
-	if err := other.Register(account); err == nil || err.Error() != "capacité quota sans interface QuotaReader" {
+	if err := other.Register(account); err == nil || err.Error() != "quota capability without QuotaReader interface" {
 		t.Fatalf("mismatched quota accepted: %v", err)
 	}
 	if HasRuntimeCapability(RuntimeDescriptor{Capabilities: []string{"chat"}}, "chat") {
