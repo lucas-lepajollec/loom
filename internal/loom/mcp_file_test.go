@@ -1,15 +1,15 @@
 package loom
 
 import (
-"bytes"
-"encoding/json"
-"net/http"
-"net/http/httptest"
-"os"
-"path/filepath"
-"runtime"
-"testing"
-"time"
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
+	"testing"
+	"time"
 )
 
 func writeMCPTestFile(t *testing.T, path, body string) {

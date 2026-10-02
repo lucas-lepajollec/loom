@@ -390,6 +390,7 @@ func (m *brainSemantic) configure(req brainSemanticRequest) error {
 	}
 	return nil
 }
+
 // download fetches the local embedding model in the background; progress is
 // reported by state() and the lock is never held while bytes flow.
 func (m *brainSemantic) download() error {

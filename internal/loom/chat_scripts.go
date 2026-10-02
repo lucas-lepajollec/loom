@@ -173,4 +173,3 @@ func normPath(p string) string {
 	}
 	return p
 }
-

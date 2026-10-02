@@ -1,17 +1,17 @@
 package loom
 
 import (
-"context"
-"errors"
-"fmt"
-"os"
-"os/exec"
-"os/user"
-"path/filepath"
-"runtime"
-"strconv"
-"strings"
-"time"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"os/user"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (

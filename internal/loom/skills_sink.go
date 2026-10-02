@@ -1,10 +1,10 @@
 package loom
 
 import (
-"net/http"
-"os"
-"path/filepath"
-"sync"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sync"
 )
 
 // Skill distribution: Loom owns the skills and writes them, on explicit opt-in,

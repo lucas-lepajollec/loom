@@ -1,13 +1,13 @@
 package loom
 
 import (
-"encoding/json"
-"fmt"
-"os"
-"path/filepath"
-"reflect"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
 
-"github.com/lucas-lepajollec/loom/internal/loom/resources"
+	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
 
 const mcpFileMigrated = "mcp_file_migrated"

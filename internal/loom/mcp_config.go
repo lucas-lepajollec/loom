@@ -1,9 +1,9 @@
 package loom
 
 import (
-"fmt"
-"strings"
-"sync"
+	"fmt"
+	"strings"
+	"sync"
 )
 
 // Configuration des serveurs MCP (Model Context Protocol).

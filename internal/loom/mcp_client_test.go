@@ -1,9 +1,9 @@
 package loom
 
 import (
-"os/exec"
-"strings"
-"testing"
+	"os/exec"
+	"strings"
+	"testing"
 )
 
 // TestMCPEndToEnd connecte le serveur MCP de référence (@modelcontextprotocol/

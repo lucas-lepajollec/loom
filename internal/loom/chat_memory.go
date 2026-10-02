@@ -1,8 +1,8 @@
 package loom
 
 import (
-"fmt"
-"strings"
+	"fmt"
+	"strings"
 )
 
 // La mémoire de loom = des fichiers Markdown plats sous memory/<nom>.md.

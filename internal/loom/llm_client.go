@@ -1,21 +1,21 @@
 package loom
 
 import (
-"bufio"
-"bytes"
-"context"
-"encoding/json"
-"errors"
-"fmt"
-"io"
-"net"
-"net/http"
-"sort"
-"strconv"
-"strings"
-"syscall"
-"time"
-"unicode/utf8"
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+	"unicode/utf8"
 )
 
 // Tool definitions: OpenAI-shaped function schemas advertised to the model when

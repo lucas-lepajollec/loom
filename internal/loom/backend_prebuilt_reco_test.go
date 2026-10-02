@@ -16,7 +16,7 @@ func TestRecommendedMode(t *testing.T) {
 		wantWhy  bool
 	}{
 		{"cuda", "opt", true}, // le cas qui motive toute la fonction
-		{"hip", "fast", true},  // zip ROCm Ubuntu si publié, sinon compile HIP
+		{"hip", "fast", true}, // zip ROCm Ubuntu si publié, sinon compile HIP
 		{"rocm", "fast", false},
 		{"vulkan", "fast", false},
 		{"cpu", "fast", false},

@@ -1,11 +1,11 @@
 package loom
 
 import (
-"fmt"
-"os"
-"strings"
-"sync"
-"time"
+	"fmt"
+	"os"
+	"strings"
+	"sync"
+	"time"
 )
 
 const maxProjectInstructions = 12000

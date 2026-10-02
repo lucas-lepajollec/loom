@@ -3,8 +3,8 @@
 package loom
 
 import (
-"fmt"
-"strings"
+	"fmt"
+	"strings"
 )
 
 // ─── exécution des outils (appelée par le dispatch de llm_client.go) ───────────────

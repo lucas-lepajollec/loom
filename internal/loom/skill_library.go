@@ -1,13 +1,13 @@
 package loom
 
 import (
-"crypto/sha256"
-"encoding/hex"
-"net/http"
-"os"
-"path/filepath"
-"strings"
-"sync"
+	"crypto/sha256"
+	"encoding/hex"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 )
 
 // Skills are folders in the Agent Skills format (<name>/SKILL.md plus any
