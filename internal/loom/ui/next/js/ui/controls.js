@@ -1,3 +1,4 @@
+import { t } from '../core/i18n.js';
 // Contrôles réutilisables : segmenté animé, onglets, interrupteur, curseur,
 // info-bulle ⓘ, popover ancré.
 import { html, render, useRef, useLayoutEffect, useEffect, useState, cls } from '../core/lib.js';
@@ -53,7 +54,7 @@ export function Tip({ text }) {
   };
   const hide = () => { if (tipLayer) render(null, tipLayer); };
   useEffect(() => hide, []);
-  return html`<span class="tip" tabindex="0" ref=${ref} onMouseEnter=${show} onMouseLeave=${hide} onFocus=${show} onBlur=${hide} aria-label=${text}>i</span>`;
+  return html`<span class="tip" tabindex="0" ref=${ref} onMouseEnter=${show} onMouseLeave=${hide} onFocus=${show} onBlur=${hide} aria-label=${text}>${t("ui.controls.i")}</span>`;
 }
 
 // Popover ancré sous (ou au-dessus de) son déclencheur, fermé par clic extérieur/Échap.

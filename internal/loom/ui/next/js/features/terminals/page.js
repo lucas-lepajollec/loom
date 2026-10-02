@@ -1,3 +1,4 @@
+import { t } from '../../core/i18n.js';
 // Terminaux : de vrais shells ouverts depuis Loom, sur cette machine ou sur une
 // machine distante, dans un dossier, avec une commande facultative (le CLI d'un
 // agent pour vérifier ou dépanner, une appli à lancer). Un terminal survit à
@@ -28,14 +29,14 @@ function loadXterm() {
 // Ouvre un terminal et y emmène l'utilisateur (projets, harnesses, machines).
 export async function openTerminalWith(spec) {
   const r = await post('/api/terminals', spec);
-  if (!r.ok) { toast(r.error || 'Terminal impossible', 'err'); return null; }
+  if (!r.ok) { toast(r.error || t("terminals.page.terminal_impossible"), 'err'); return null; }
   go('terminals', r.terminal.id);
   return r.terminal;
 }
 
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-function TermView({ t, onExit }) {
+function TermView({ t: localT, onExit }) {
   const box = useRef();
   const [state, setState] = useState('connexion');
   useEffect(() => {
@@ -51,27 +52,27 @@ function TermView({ t, onExit }) {
       term.loadAddon(fit);
       term.open(box.current);
       fit.fit();
-      if (!t.running) { setState('terminé'); }
-      const tk = await post('/api/terminals/ticket', { id: t.id });
+      if (!localT.running) { setState('finished'); }
+      const tk = await post('/api/terminals/ticket', { id: localT.id });
       if (!alive) return;
       if (!tk.ok) { setState('introuvable'); return; }
       ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/terminals/ws?ticket=' + encodeURIComponent(tk.ticket));
       ws.binaryType = 'arraybuffer';
       const size = () => { try { fit.fit(); if (ws.readyState === 1) ws.send(JSON.stringify({ resize: [term.cols, term.rows] })); } catch (_) {} };
-      ws.onopen = () => { setState(t.running ? 'ouvert' : 'terminé'); size(); term.focus(); };
+      ws.onopen = () => { setState(localT.running ? 'ouvert' : 'finished'); size(); term.focus(); };
       ws.onmessage = e => {
-        if (typeof e.data === 'string') { if (e.data.includes('"exit"')) { setState('terminé'); onExit && onExit(); } return; }
+        if (typeof e.data === 'string') { if (e.data.includes('"exit"')) { setState('finished'); onExit && onExit(); } return; }
         term.write(new Uint8Array(e.data));
       };
-      ws.onclose = () => alive && setState(s => s === 'ouvert' ? 'déconnecté' : s);
+      ws.onclose = () => alive && setState(s => s === 'ouvert' ? 'disconnected' : s);
       term.onData(d => { if (ws.readyState === 1) ws.send(d); });
       ro = new ResizeObserver(size); ro.observe(box.current);
     })().catch(() => setState('erreur'));
     return () => { alive = false; ro && ro.disconnect(); ws && ws.close(); term && term.dispose(); };
-  }, [t.id]);
+  }, [localT.id]);
   return html`<div class="term-view">
-    <div class="term-head"><b>${t.title}</b><span class="muted mono trunc">${t.target === 'local' ? 'cette machine' : t.target} · ${home(t.dir) || '~'}${t.command ? ' · ' + t.command : ''}</span>
-      <span class="grow"></span><span class=${cls('state', state === 'ouvert' && 'ok')}><i class=${'dot ' + (state === 'ouvert' ? 'green' : '')}></i>${state}</span></div>
+    <div class="term-head"><b>${localT.title}</b><span class="muted mono trunc">${localT.target === 'local' ? t("terminals.page.cette_machine") : localT.target} · ${home(localT.dir) || '~'}${localT.command ? ' · ' + localT.command : ''}</span>
+      <span class="grow"></span><span class=${cls('state', state === 'ouvert' && 'ok')}><i class=${'dot ' + (state === 'ouvert' ? 'green' : '')}></i>${{ connexion: t('terminals.status.connecting'), ouvert: t('terminals.status.open'), finished: t('terminals.status.finished'), disconnected: t('terminals.status.disconnected'), introuvable: t('common.not_found'), erreur: t('common.error') }[state] || state}</span></div>
     <div class="term-box" ref=${box}></div>
   </div>`;
 }
@@ -90,22 +91,22 @@ function NewTerminal({ onClose, preset }) {
   const projects = ((ws && ws.projects) || []).filter(p => p.directory);
   const remote = v.target !== 'local';
   const m = machines.find(x => x.id === v.target);
-  const submit = async () => { setBusy(true); const t = await openTerminalWith(v); setBusy(false); if (t) onClose(t); };
-  return html`<${Modal} title="Nouveau terminal" sub="Un shell sur cette machine ou une machine connectée." onClose=${() => onClose()}
-      foot=${html`<button class="btn ghost" onClick=${() => onClose()}>Annuler</button><button class="btn primary" disabled=${busy} onClick=${submit}>${busy ? 'Ouverture…' : 'Ouvrir'}</button>`}>
-    <div class="field"><span>Où</span><div class="chips">
-      <button type="button" class=${cls('chip-btn', !remote && 'on')} onClick=${() => setV({ ...v, target: 'local', dir: '' })}><${Icon} n="chip" />Cette machine</button>
+  const submit = async () => { setBusy(true); const localT = await openTerminalWith(v); setBusy(false); if (localT) onClose(localT); };
+  return html`<${Modal} title="${t("terminals.page.nouveau_terminal")}" sub="${t("terminals.page.un_shell_sur_cette_machine_ou_une_machine_connectee")}" onClose=${() => onClose()}
+      foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t("terminals.page.annuler")}</button><button class="btn primary" disabled=${busy} onClick=${submit}>${busy ? t("terminals.page.ouverture") : t("terminals.page.ouvrir")}</button>`}>
+    <div class="field"><span>${t("terminals.page.ou")}</span><div class="chips">
+      <button type="button" class=${cls('chip-btn', !remote && 'on')} onClick=${() => setV({ ...v, target: 'local', dir: '' })}><${Icon} n="chip" />${t("terminals.page.cette_machine_2")}</button>
       ${machines.map(x => html`<button type="button" class=${cls('chip-btn', v.target === x.id && 'on')} onClick=${() => setV({ ...v, target: x.id, dir: x.home || '' })}><${Icon} n="server" />${x.name}</button>`)}
-    </div><small>${machines.length ? '' : 'Pour une autre machine : '}<a href="#/settings/machines" onClick=${() => onClose()}>${machines.length ? 'Gérer les machines' : 'Réglages › Machines'}</a></small></div>
-    <div class="field"><span>Dossier</span>
+    </div><small>${machines.length ? '' : t("terminals.page.pour_une_autre_machine")}<a href="#/settings/machines" onClick=${() => onClose()}>${machines.length ? t("terminals.page.gerer_les_machines") : t("terminals.page.reglages_machines")}</a></small></div>
+    <div class="field"><span>${t("terminals.page.dossier")}</span>
       ${remote ? html`<input class="input mono" placeholder=${(m && m.home) || '/home/moi'} value=${v.dir} onInput=${e => setV({ ...v, dir: e.target.value })} />`
-        : html`<button class="hs-dir" onClick=${() => setPick(true)}><${Icon} n="folder" /><span class="mono trunc">${home(v.dir) || '~ (dossier personnel)'}</span><span class="muted">Changer</span></button>`}
+        : html`<button class="hs-dir" onClick=${() => setPick(true)}><${Icon} n="folder" /><span class="mono trunc">${home(v.dir) || t("terminals.page.dossier_personnel")}</span><span class="muted">${t("terminals.page.changer")}</span></button>`}
       ${favs.length > 0 && html`<div class="chips">${favs.map(f => html`<button type="button" class=${cls('chip-btn', v.dir === f && 'on')} onClick=${() => setV({ ...v, dir: f })}><${Icon} n="folder" />${f.split('/').pop() || f}</button>`)}</div>`}
       ${!remote && projects.length > 0 && html`<div class="chips">${projects.map(p => html`<button type="button" class=${cls('chip-btn', v.dir === p.directory && 'on')} onClick=${() => setV({ ...v, dir: p.directory, title: v.title || p.name })}>${p.name}</button>`)}</div>`}</div>
-    <div class="field"><span>Lancer<${Tip} text="Rien : un shell. Sinon la commande démarre dans le terminal, par exemple le CLI d’un agent pour vérifier ou dépanner quelque chose." /></span>
+    <div class="field"><span>${t("terminals.page.lancer")}<${Tip} text="${t("terminals.page.rien_un_shell_sinon_la_commande_demarre_dans_le_terminal_par_exem")}" /></span>
       <div class="chips">${QUICK.map(([c, l]) => html`<button type="button" class=${cls('chip-btn', v.command === c && 'on')} onClick=${() => setV({ ...v, command: c })}>${l}</button>`)}</div>
-      <input class="input mono" placeholder="ou une commande : npm run dev, htop…" value=${v.command} onInput=${e => setV({ ...v, command: e.target.value })} /></div>
-    <label class="field"><span>Nom</span><input class="input" placeholder="facultatif" value=${v.title} onInput=${e => setV({ ...v, title: e.target.value })} /></label>
+      <input class="input mono" placeholder="${t("terminals.page.ou_une_commande_npm_run_dev_htop")}" value=${v.command} onInput=${e => setV({ ...v, command: e.target.value })} /></div>
+    <label class="field"><span>${t("terminals.page.nom")}</span><input class="input" placeholder="${t("terminals.page.facultatif")}" value=${v.title} onInput=${e => setV({ ...v, title: e.target.value })} /></label>
     ${pick && html`<${FolderPicker} start=${v.dir} onClose=${() => setPick(false)} onPick=${d => { setPick(false); setV({ ...v, dir: d }); }} />`}
   </${Modal}>`;
 }
@@ -116,22 +117,22 @@ export function TerminalsPage({ route }) {
   const [dlg, setDlg] = useState(false);
   const load = () => get('/api/terminals').then(r => { setList(r.terminals || []); setSupported(r.supported !== false); }).catch(() => setList([]));
   useEffect(() => { load(); }, [route.sub]);
-  const cur = list && (list.find(t => t.id === route.sub) || list[list.length - 1]);
-  const close = async t => {
-    if (t.running && !await confirm('Fermer le terminal', 'Le processus en cours (' + (t.command || 'shell') + ') sera arrêté.', { ok: 'Fermer', danger: true })) return;
-    await post('/api/terminals/close', { id: t.id });
+  const cur = list && (list.find(localT => localT.id === route.sub) || list[list.length - 1]);
+  const close = async localT => {
+    if (localT.running && !await confirm(t("terminals.page.fermer_le_terminal"), t("terminals.page.le_processus_en_cours") + (localT.command || 'shell') + t("terminals.page.sera_arrete"), { ok: t("terminals.page.fermer"), danger: true })) return;
+    await post('/api/terminals/close', { id: localT.id });
     load();
   };
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>Terminaux</h1><p>Lance des applis, ou le CLI d’un agent pour vérifier ou dépanner, ici ou sur une machine connectée.</p></div>
-      <div class="acts"><button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />Nouveau terminal</button></div></div>
-    ${!supported ? html`<${Empty} icon="info" title="Pas encore disponible sur ce système" text="Les terminaux fonctionnent sous Linux et macOS ; Windows arrive plus tard." />`
+    <div class="page-head"><div><h1>${t("terminals.page.terminaux")}</h1><p>${t("terminals.page.lance_des_applis_ou_le_cli_d_un_agent_pour_verifier_ou_depanner_i")}</p></div>
+      <div class="acts"><button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.nouveau_terminal")}</button></div></div>
+    ${!supported ? html`<${Empty} icon="info" title="${t("terminals.page.pas_encore_disponible_sur_ce_systeme")}" text="${t("terminals.page.les_terminaux_fonctionnent_sous_linux_et_macos_windows_arrive_plu")}" />`
       : !list ? html`<div class="skeleton" style="height:320px"></div>`
-      : !list.length ? html`<${Empty} icon="terminal" title="Aucun terminal ouvert" text="Un terminal reste ouvert même si tu fermes l’onglet : tu le retrouves ici."><button class="btn" onClick=${() => setDlg(true)}>Ouvrir un terminal</button></${Empty}>`
+      : !list.length ? html`<${Empty} icon="terminal" title="${t("terminals.page.aucun_terminal_ouvert")}" text="${t("terminals.page.un_terminal_reste_ouvert_meme_si_tu_fermes_l_onglet_tu_le_retrouv")}"><button class="btn" onClick=${() => setDlg(true)}>${t("terminals.page.ouvrir_un_terminal")}</button></${Empty}>`
       : html`<div class="term-layout">
-          <div class="term-list card">${list.map(t => html`<div class=${cls('term-item', cur && cur.id === t.id && 'on')} key=${t.id}>
-              <button class="term-pick" onClick=${() => go('terminals', t.id)}><i class=${'dot ' + (t.running ? 'green' : '')}></i><span class="grow"><b class="trunc">${t.title}</b><small class="trunc">${t.target === 'local' ? 'cette machine' : t.target} · ${home(t.dir) || '~'}</small></span></button>
-              <button class="icon-btn" aria-label=${'Fermer ' + t.title} onClick=${() => close(t)}><${Icon} n="close" /></button></div>`)}</div>
+          <div class="term-list card">${list.map(localT => html`<div class=${cls('term-item', cur && cur.id === localT.id && 'on')} key=${localT.id}>
+              <button class="term-pick" onClick=${() => go('terminals', localT.id)}><i class=${'dot ' + (localT.running ? 'green' : '')}></i><span class="grow"><b class="trunc">${localT.title}</b><small class="trunc">${localT.target === 'local' ? t("terminals.page.cette_machine") : localT.target} · ${home(localT.dir) || '~'}</small></span></button>
+              <button class="icon-btn" aria-label=${t("terminals.page.fermer_2") + localT.title} onClick=${() => close(localT)}><${Icon} n="close" /></button></div>`)}</div>
           ${cur && html`<${TermView} key=${cur.id} t=${cur} onExit=${load} />`}
         </div>`}
     ${dlg && html`<${NewTerminal} onClose=${() => { setDlg(false); load(); }} />`}

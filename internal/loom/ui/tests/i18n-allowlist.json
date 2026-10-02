@@ -1,0 +1,7 @@
+[
+  {
+    "file": "features/settings/page.js",
+    "literal": "Français",
+    "reason": "Language names remain in their native language in the language selector."
+  }
+]

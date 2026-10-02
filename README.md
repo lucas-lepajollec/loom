@@ -26,7 +26,9 @@ The built-in OpenAI-compatible `/v1` proxy exposes `/v1/chat/completions` and `/
 
 ## Interface
 
-The sidebar includes Local, Cloud, Harnesses, Ressources, Bench and Usage, alongside discussions, projects and Settings. A common execution selector controls the next reply in a discussion. The side panel shows runtime-specific controls and shared context. Local has Library, Hub and Engine & API tabs; Cloud manages provider connections and model visibility. Shared skills and MCP definitions live in Ressources.
+The sidebar includes Local, Cloud, Harnesses, Resources, Bench and Usage, alongside discussions, projects and Settings. A common execution selector controls the next reply in a discussion. The side panel shows runtime-specific controls and shared context. Local has Library, Hub and Engine & API tabs; Cloud manages provider connections and model visibility. Shared skills and MCP definitions live in Resources.
+
+The interface supports English and French. Switch immediately in **Settings › General › Appearance › Langue / Language**; the choice is remembered in the browser and in Loom's preferences. The default follows the browser language (`fr*` → French, otherwise English). See [interface languages](docs/i18n.md).
 
 Discussions use the original chat and composer, with complete native local parameters, cloud connection/context or harness configuration in the side panel. Local replies use the rich conversation pipeline (files, tools, reasoning, presets and compaction). Cloud transfers carry **text only**; native attachments, tool state and private reasoning stay local. Returning a common thread to local appends its portable turns to a native archive while retaining the original source archive. Cloud keys stay in server memory unless you choose to remember them in the operating system's keychain. See the [context and adapter boundaries](docs/workspace-architecture.md).
 

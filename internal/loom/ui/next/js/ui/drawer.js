@@ -1,3 +1,4 @@
+import { t } from '../core/i18n.js';
 // Panneau latéral partagé : même rendu que le panneau de la discussion
 // (mêmes classes .insp), posé par-dessus la page.
 import { html, useEffect, useRef } from '../core/lib.js';
@@ -23,7 +24,7 @@ export function Drawer({ title, onClose, children }) {
   return html`<div class="drawer-scrim" onMouseDown=${e => e.target === e.currentTarget && onClose()}>
     <aside class="insp open drawer-panel" role="dialog" aria-modal="true" aria-label=${title} ref=${box}>
       <div class="insp-in">
-        <header class="insp-head"><span class="insp-title">${title}</span><button class="icon-btn" aria-label="Fermer" onClick=${onClose}><${Icon} n="close" /></button></header>
+        <header class="insp-head"><span class="insp-title">${title}</span><button class="icon-btn" aria-label="${t("ui.drawer.fermer")}" onClick=${onClose}><${Icon} n="close" /></button></header>
         <div class="insp-scroll">${children}</div>
       </div>
     </aside></div>`;

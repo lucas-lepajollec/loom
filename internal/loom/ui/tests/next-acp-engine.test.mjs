@@ -1,3 +1,4 @@
+import { french } from './i18n-fixture.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -7,6 +8,7 @@ function reducer() {
   const source = fs.readFileSync(new URL('../next/js/features/chat/engine.js', import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '').replace(/^export /gm, '');
   const context = vm.createContext({
+    t: french,
     createStore: state => ({ get: () => state, set: patch => Object.assign(state, patch) }),
     document: { addEventListener() {} }, refreshNav() {}, toast() {},
     setTimeout, Date, Map, Set,

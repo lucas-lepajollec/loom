@@ -1,3 +1,4 @@
+import { t } from '../core/i18n.js';
 // Registre des sections de l'application. Ajouter une page = une entrée ici :
 // `nav` la place dans la barre latérale, `page` est le composant rendu pour
 // #/<id>/<sub>/<id>. Rien d'autre à modifier dans la coquille.
@@ -15,14 +16,14 @@ import { EnvironmentPage } from '../features/environment/page.js';
 
 export const ROUTES = [
   { id: 'chat', page: ChatView },
-  { id: 'local', page: LocalPage, nav: { label: 'Local', icon: 'chip' } },
-  { id: 'cloud', page: CloudPage, nav: { label: 'Cloud', icon: 'cloud' } },
-  { id: 'harnesses', page: HarnessesPage, nav: { label: 'Harnesses', icon: 'terminal' } },
-  { id: 'resources', page: ResourcesPage, nav: { label: 'Ressources', icon: 'box' } },
-  { id: 'terminals', page: TerminalsPage, nav: { label: 'Terminaux', icon: 'prompt' } },
-  { id: 'environment', page: EnvironmentPage, nav: { label: 'Environnement', icon: 'globe' } },
-  { id: 'bench', page: BenchPage, nav: { label: 'Bench', icon: 'gauge' } },
-  { id: 'usage', page: UsagePage, nav: { label: 'Usage', icon: 'chart' } },
+  { id: 'local', page: LocalPage, nav: { get label() { return t("app.routes.local"); }, icon: 'chip' } },
+  { id: 'cloud', page: CloudPage, nav: { get label() { return t("app.routes.cloud"); }, icon: 'cloud' } },
+  { id: 'harnesses', page: HarnessesPage, nav: { get label() { return t("app.routes.harnesses"); }, icon: 'terminal' } },
+  { id: 'resources', page: ResourcesPage, nav: { get label() { return t("app.routes.ressources"); }, icon: 'box' } },
+  { id: 'terminals', page: TerminalsPage, nav: { get label() { return t("app.routes.terminaux"); }, icon: 'prompt' } },
+  { id: 'environment', page: EnvironmentPage, nav: { get label() { return t("app.routes.environnement"); }, icon: 'globe' } },
+  { id: 'bench', page: BenchPage, nav: { get label() { return t("app.routes.bench"); }, icon: 'gauge' } },
+  { id: 'usage', page: UsagePage, nav: { get label() { return t("app.routes.usage"); }, icon: 'chart' } },
   { id: 'project', page: ProjectPage },
   { id: 'settings', page: SettingsPage },
 ];

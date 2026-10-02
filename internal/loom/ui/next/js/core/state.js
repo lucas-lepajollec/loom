@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 // État global de l'application : route, moteur, matériel, espace de travail,
 // liste des discussions. Les pages lisent ce store ; les actions l'actualisent.
 import { createStore } from './lib.js';
@@ -24,12 +25,12 @@ export function go(section, sub, id) {
 addEventListener('hashchange', () => app.set({ route: parseRoute(), sideOpen: false }));
 
 // ---------- thème ----------
-export function setTheme(t) {
-  document.documentElement.dataset.theme = t;
-  try { localStorage.setItem('loom-theme', t); } catch (_) {}
+export function setTheme(localT) {
+  document.documentElement.dataset.theme = localT;
+  try { localStorage.setItem('loom-theme', localT); } catch (_) {}
   const meta = document.querySelector('meta[name=theme-color]');
-  if (meta) meta.content = t === 'light' ? '#f6f5f2' : '#141413';
-  app.set({ theme: t });
+  if (meta) meta.content = localT === 'light' ? '#f6f5f2' : '#141413';
+  app.set({ theme: localT });
 }
 
 // ---------- sondages ----------
@@ -77,12 +78,12 @@ export const runtimeCaps = id => ((((app.get().workspace && app.get().workspace.
 
 // État lisible du moteur local pour la carte et l'en-tête.
 export function engineState(s) {
-  if (!s) return { tone: '', label: 'Lecture de l’état…' };
-  if (s.load_error) return { tone: 'red', label: 'Erreur de chargement', detail: s.load_error };
+  if (!s) return { tone: '', label: t("core.state.lecture_de_l_etat") };
+  if (s.load_error) return { tone: 'red', label: t("core.state.erreur_de_chargement"), detail: s.load_error };
   if (s.health && s.model) return { tone: 'green', label: s.preset_name || s.model_name };
-  if (s.active && s.model) return { tone: 'amber', label: 'Chargement · ' + (s.preset_name || s.model_name) };
-  if (s.active) return { tone: 'blue', label: 'Moteur prêt · aucun modèle' };
-  return { tone: '', label: 'Moteur arrêté' };
+  if (s.active && s.model) return { tone: 'amber', label: t("core.state.chargement") + (s.preset_name || s.model_name) };
+  if (s.active) return { tone: 'blue', label: t("core.state.moteur_pret_aucun_modele") };
+  return { tone: '', label: t("core.state.moteur_arrete") };
 }
 
 export function startPolling() {

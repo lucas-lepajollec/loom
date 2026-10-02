@@ -1,3 +1,4 @@
+import { t } from '../../core/i18n.js';
 // Un flux de discussion et un seul traitement des événements.
 import { createStore } from '../../core/lib.js';
 import { get, post, stream } from '../../core/api.js';
@@ -63,7 +64,7 @@ function onEvent(d) {
   const replay = chat.get().replaying;
   if (d.compacting !== undefined) chat.set({ compacting: !!d.compacting });
   if (d.compacted) { chat.set({ compacting: false }); push({ k: 'compact' }); }
-  if (d.compact_noop) { chat.set({ compacting: false }); if (!replay) toast('Rien à compacter'); }
+  if (d.compact_noop) { chat.set({ compacting: false }); if (!replay) toast(t("chat.engine.rien_a_compacter")); }
   if (d.ctx_used !== undefined) chat.set({ ctxUsed: d.ctx_used });
   if (d.compact_count !== undefined) chat.set({ compactCount: d.compact_count });
   switch (d.type) {
@@ -182,7 +183,7 @@ export async function connectNative() {
     try {
       await stream('/api/discussion/events', { id: st.sessionId, from: lastSeq }, d => { if (ep === epoch) onEvent(d); }, abort.signal);
     } catch (_) {}
-    if (ep === epoch && !document.hidden) chat.set({ notice: 'Connexion interrompue, nouvelle tentative…' });
+    if (ep === epoch && !document.hidden) chat.set({ notice: t("chat.engine.connexion_interrompue_nouvelle_tentative") });
     await sleep(600);
   }
 }
@@ -210,7 +211,7 @@ export async function open(id, soft, quiet) {
       remember('');
       chat.set({ sessionId: '', session: null, context: null });
       const r = await post('/api/chat/history/restore', { id });
-      if (!r.ok) throw new Error(r.error || 'Ouverture impossible');
+      if (!r.ok) throw new Error(r.error || t("chat.engine.ouverture_impossible"));
       refreshNav();
       return;
     }
@@ -242,7 +243,7 @@ export async function newDiscussion(projectId) {
   let r;
   try { r = await post('/api/chat/reset', { project_id: projectId || '' }); }
   finally { opening = false; if (abort) abort.abort(); }
-  if (!r.ok) toast('Impossible de créer la discussion', 'err');
+  if (!r.ok) toast(t("chat.engine.impossible_de_creer_la_discussion"), 'err');
   refreshNav();
   go('chat');
 }
@@ -257,11 +258,11 @@ export async function send(text, opts = {}) {
     try {
       const r = await post('/api/chat/send', { message: text, files: opts.files || [], ctx_used: st.ctxUsed, internet: !!opts.internet, mcp: !!opts.mcp });
       if (r.ok || r.status === 409) return true;
-      if (r.status < 500) { dropPending(text); toast(r.error || 'Envoi refusé', 'err'); return false; }
+      if (r.status < 500) { dropPending(text); toast(r.error || t("chat.engine.envoi_refuse"), 'err'); return false; }
     } catch (_) {}
     await sleep(600);
   }
-  dropPending(text); toast('Échec de l’envoi', 'err'); return false;
+  dropPending(text); toast(t("chat.engine.echec_de_l_envoi"), 'err'); return false;
 }
 function dropPending(text) { chat.set({ items: items().filter(i => !(i.k === 'user' && i.pending && i.text === text)) }); }
 
@@ -287,9 +288,9 @@ export async function stop() {
 }
 
 export async function compact() {
-  if (!await confirm('Compacter le contexte', 'Les anciens tours sont résumés pour libérer de la place. La discussion continue normalement.', { ok: 'Compacter' })) return;
+  if (!await confirm(t("chat.engine.compacter_le_contexte"), t("chat.engine.les_anciens_tours_sont_resumes_pour_liberer_de_la_place_la_discus"), { ok: t("chat.engine.compacter") })) return;
   const r = await post('/api/chat/compact', {});
-  if (!r.ok) toast(r.error || 'Compactage impossible', 'err');
+  if (!r.ok) toast(r.error || t("chat.engine.compactage_impossible"), 'err');
 }
 
 // ---------------------------------------------------------------- exécution
@@ -297,10 +298,10 @@ export async function compact() {
 // explicite avant tout envoi vers l'extérieur.
 export async function chooseRemote(choice) {
   const st = chat.get();
-  if (st.busy) { toast('Attends la fin de la réponse avant de changer.'); return false; }
+  if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
   const dest = choice.kind === 'harness' ? choice.provider_name : choice.endpoint || choice.provider_name;
-  const ok = await confirm('Continuer avec ' + choice.name,
-    'Le texte de la discussion et le contexte du projet (instructions et fichiers choisis) seront envoyés à ' + dest + '. Les autres fichiers, les outils et la mémoire privée ne sont pas transférés.', { ok: 'Continuer' });
+  const ok = await confirm(t("chat.engine.continuer_avec") + choice.name,
+    t("chat.engine.le_texte_de_la_discussion_et_le_contexte_du_projet_instructions_e") + dest + t("chat.engine.les_autres_fichiers_les_outils_et_la_memoire_privee_ne_sont_pas_t"), { ok: t("chat.engine.continuer") });
   if (!ok) return false;
   try {
     let id = st.sessionId;
@@ -328,7 +329,7 @@ export async function chooseRemote(choice) {
 // modèle, puis on charge le modèle/preset dans le moteur.
 export async function chooseLocal(target) {
   const st = chat.get();
-  if (st.busy) { toast('Attends la fin de la réponse avant de changer.'); return false; }
+  if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
   if (st.sessionId) {
     const w = app.get().workspace || await refreshWorkspace();
     const choice = (w && w.models || []).find(m => m.kind === 'local' && m.model && target.model && baseName(m.model) === baseName(target.model));
@@ -339,8 +340,8 @@ export async function chooseLocal(target) {
     }
   }
   const r = target.presetIndex ? await post('/api/switch', { n: target.presetIndex }) : await post('/api/load-model', { model: target.model });
-  if (!r.ok) { toast(r.error || 'Chargement impossible', 'err'); return false; }
-  toast('Chargement de ' + target.name + '…');
+  if (!r.ok) { toast(r.error || t("chat.engine.chargement_impossible"), 'err'); return false; }
+  toast(t("chat.engine.chargement_de") + target.name + '…');
   return true;
 }
 const baseName = p => String(p || '').split(/[\\/]/).pop();

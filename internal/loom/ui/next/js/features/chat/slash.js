@@ -1,3 +1,4 @@
+import { t } from '../../core/i18n.js';
 // Menu « / » à deux niveaux. Premier niveau : les commandes annoncées par le
 // harness, plus ses réglages (modèle, effort, mode…) et ses sessions. Second
 // niveau : les choix possibles, construits à partir de ce que le harness
@@ -54,14 +55,14 @@ export function slashEntries({ commands, session, harness, rtId }) {
     if (o.category === 'mode' && modes.length) continue;
     const values = optionValues(o);
     if (o.type === 'boolean') {
-      add(name, o.name || o.id, { children: [true, false].map(v => ({ label: v ? 'Activé' : 'Désactivé', current: o.currentValue === v, run: { kind: 'config', id: o.id, value: v } })) });
+      add(name, o.name || o.id, { children: [true, false].map(v => ({ label: v ? t("chat.slash.active") : t("chat.slash.desactive"), current: o.currentValue === v, run: { kind: 'config', id: o.id, value: v } })) });
     } else if (values.length) {
       add(name, o.name || o.id, { children: values.map(v => ({ label: v.name || v.value, description: v.description, current: v.value === o.currentValue,
         run: o.category === 'model' ? { kind: 'model', value: v.value } : { kind: 'config', id: o.id, value: v.value } })) });
     }
   }
-  if (modes.length > 1) add('mode', 'Mode de l’agent', { children: modes.map(m => ({ label: m.name || m.id, description: m.description, current: m.id === harness.mode, run: { kind: 'mode', id: m.id } })) });
-  const sessions = { description: 'Ouvrir une autre discussion avec ce harness', load: () => agentSessions(rtId, session.id) };
+  if (modes.length > 1) add('mode', t("inspector.inspector.mode_de_l_agent"), { children: modes.map(m => ({ label: m.name || m.id, description: m.description, current: m.id === harness.mode, run: { kind: 'mode', id: m.id } })) });
+  const sessions = { description: t("chat.slash.ouvrir_une_autre_discussion_avec_ce_harness"), load: () => agentSessions(rtId, session.id) };
   for (const n of ['sessions', 'resume']) if (byName(n)) add(n, '', sessions);
   if (!byName('sessions') && !byName('resume')) add('sessions', sessions.description, sessions);
   return entries;
@@ -72,10 +73,10 @@ export function slashEntries({ commands, session, harness, rtId }) {
 export async function agentSessions(rtId, currentId) {
   const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
   const mine = ((app.get().nav && app.get().nav.conversations) || []).filter(c => c.runtime_id === rtId && c.id !== currentId);
-  const loom = mine.map(c => ({ label: c.title || 'Discussion', description: 'dans Loom', at: c.updated_at || 0, where: 'loom', run: { kind: 'open', id: c.id } }));
+  const loom = mine.map(c => ({ label: c.title || t("chat.slash.discussion"), description: t("chat.slash.dans_loom"), at: c.updated_at || 0, where: 'loom', run: { kind: 'open', id: c.id } }));
   const r = await get('/api/runtimes/' + rtId + '/sessions').catch(() => null);
   const native = (r && r.ok ? r.sessions : []).filter(x => x.imported !== currentId && !(x.imported && mine.some(c => c.id === x.imported)))
-    .map(x => ({ label: x.title || 'Session sans titre', description: 'dans le harness · ' + home(x.cwd), at: Date.parse(x.updatedAt || '') || 0, where: 'native',
+    .map(x => ({ label: x.title || t("chat.slash.session_sans_titre"), description: t("chat.slash.dans_le_harness") + home(x.cwd), at: Date.parse(x.updatedAt || '') || 0, where: 'native',
       run: x.imported ? { kind: 'open', id: x.imported } : { kind: 'import', x } }));
   return [...loom, ...native].sort((a, b) => b.at - a.at);
 }
@@ -83,7 +84,7 @@ export async function agentSessions(rtId, currentId) {
 // Exécute un choix du second niveau. Renvoie true si la commande est traitée
 // par Loom (rien à envoyer).
 export async function runChoice(run, { session, rtId }) {
-  const fail = r => { toast((r && r.error) || 'Action impossible', 'err'); return true; };
+  const fail = r => { toast((r && r.error) || t("chat.slash.action_impossible"), 'err'); return true; };
   if (run.kind === 'open') { open(run.id); go('chat'); return true; }
   if (run.kind === 'import') {
     const r = await post('/api/runtimes/' + rtId + '/sessions/import', { sessionId: run.x.sessionId, cwd: run.x.cwd, title: run.x.title || '' }).catch(e => ({ ok: false, error: e.message }));
@@ -93,10 +94,10 @@ export async function runChoice(run, { session, rtId }) {
   if (run.kind === 'model') {
     const r = await post('/api/runtime/sessions/select', { id: session.id, choice_id: rtId + ':' + run.value, consent: true });
     if (!r.ok) return fail(r);
-    await refreshWorkspace(); open(session.id, true); toast('Modèle changé'); return true;
+    await refreshWorkspace(); open(session.id, true); toast(t("chat.slash.modele_change")); return true;
   }
   const body = run.kind === 'mode' ? { id: session.id, mode: run.id } : { id: session.id, config: { [run.id]: run.value } };
   const r = await post('/api/runtime/sessions/configure', body);
   if (!r.ok) return fail(r);
-  toast('Réglage appliqué'); return true;
+  toast(t("chat.slash.reglage_applique")); return true;
 }

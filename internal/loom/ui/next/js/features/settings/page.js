@@ -1,3 +1,4 @@
+import { t, locale, getLang, setLang, tSource } from '../../core/i18n.js';
 // Réglages : Général, Moteur, Internet, Sécurité, À propos. Une ligne par
 // réglage, l'explication en ⓘ, jamais en paragraphe sous chaque option.
 import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../../core/lib.js';
@@ -12,13 +13,13 @@ import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
 import { MachinesSettings } from './machines.js';
 
-const SECTIONS = [['general', 'Général', 'gear'], ['machines', 'Machines', 'server'], ['engine', 'Moteurs', 'chip'], ['internet', 'Internet', 'globe'], ['security', 'Sécurité et données', 'lock'], ['about', 'À propos', 'info']];
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['machines', t("settings.page.machines"), 'server'], ['engine', t("settings.page.moteurs"), 'chip'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 function usePref() {
   const [p, setP] = useState(null);
   useEffect(() => { get('/api/prefs').then(r => setP(r.prefs || {})); }, []);
-  const set = (k, v) => { const n = { ...p, [k]: v }; setP(n); post('/api/prefs', n); try { localStorage.setItem('loom-' + k.replace('_', '-'), v); } catch (_) {} };
+  const set = (k, v) => { const n = { ...p, [k]: v }; setP(n); post('/api/prefs', { [k]: v }); try { localStorage.setItem('loom-' + k.replace('_', '-'), v); } catch (_) {} };
   return [p, set];
 }
 
@@ -28,22 +29,25 @@ function General() {
   const [sys, setSys] = useState(null);
   const [agent, setAgent] = useState(null);
   useEffect(() => { get('/api/sysprompt').then(r => setSys(r.text || '')); get('/api/agent').then(setAgent); }, []);
-  const saveSys = async () => { await post('/api/sysprompt', { text: sys }); toast('Prompt système enregistré'); };
+  const saveSys = async () => { await post('/api/sysprompt', { text: sys }); toast(t("settings.page.prompt_systeme_enregistre")); };
   return html`
-    <${Group} title="Apparence">
-      <${Line} label="Thème"><${Seg} size="sm" value=${theme} onChange=${t => { setTheme(t); setPref('theme', t); }} options=${[{ value: 'dark', label: 'Sombre' }, { value: 'light', label: 'Clair' }]} /></${Line}>
+    <${Group} title="${t("settings.page.apparence")}">
+      <${Line} label=${t('settings.language.label')}><select class="select sm" value=${getLang()} onChange=${e => setLang(e.target.value).then(ok => { if (!ok) toast(t('settings.language.save_failed'), 'err'); }).catch(() => toast(t('settings.language.save_failed'), 'err'))}>
+        <option value="fr">Français</option><option value="en">English</option>
+      </select></${Line}>
+      <${Line} label="${t("settings.page.theme")}"><${Seg} size="sm" value=${theme} onChange=${localT => { setTheme(localT); setPref('theme', localT); }} options=${[{ value: 'dark', label: t("settings.page.sombre") }, { value: 'light', label: t("settings.page.clair") }]} /></${Line}>
       ${p && html`
-        <${Line} label="Masquer la réflexion" tip="Les blocs de réflexion des modèles ne s’affichent plus dans le fil."><${Switch} checked=${p.hide_reasoning === '1'} onChange=${v => setPref('hide_reasoning', v ? '1' : '0')} /></${Line}>
-        <${Line} label="Masquer les appels d’outils"><${Switch} checked=${p.hide_tools === '1'} onChange=${v => setPref('hide_tools', v ? '1' : '0')} /></${Line}>
-        <${Line} label="Entrée pour aller à la ligne" tip="Par défaut, Entrée envoie et Maj+Entrée va à la ligne."><${Switch} checked=${p.enter_newline === '1'} onChange=${v => setPref('enter_newline', v ? '1' : '0')} /></${Line}>`}
+        <${Line} label="${t("settings.page.masquer_la_reflexion")}" tip="${t("settings.page.les_blocs_de_reflexion_des_modeles_ne_s_affichent_plus_dans_le_fi")}"><${Switch} checked=${p.hide_reasoning === '1'} onChange=${v => setPref('hide_reasoning', v ? '1' : '0')} /></${Line}>
+        <${Line} label="${t("settings.page.masquer_les_appels_d_outils")}"><${Switch} checked=${p.hide_tools === '1'} onChange=${v => setPref('hide_tools', v ? '1' : '0')} /></${Line}>
+        <${Line} label="${t("settings.page.entree_pour_aller_a_la_ligne")}" tip="${t("settings.page.par_defaut_entree_envoie_et_maj_entree_va_a_la_ligne")}"><${Switch} checked=${p.enter_newline === '1'} onChange=${v => setPref('enter_newline', v ? '1' : '0')} /></${Line}>`}
     </${Group}>
-    <${Group} title="Discussions">
+    <${Group} title="${t("settings.page.discussions")}">
       <${PushNotifications} />
-      ${agent && html`<${Line} label="Compactage automatique" tip="Vers 75 % du contexte, les anciens tours sont résumés pour laisser de la place. Le début et la fin restent intacts.">
+      ${agent && html`<${Line} label="${t("settings.page.compactage_automatique")}" tip="${t("settings.page.vers_75_du_contexte_les_anciens_tours_sont_resumes_pour_laisser_d")}">
         <${Switch} checked=${agent.compact} onChange=${async v => { await post('/api/agent/compact', { on: v }); setAgent({ ...agent, compact: v }); }} /></${Line}>`}
-      <${Line} label="Prompt système global" tip="Envoyé à tous les modèles locaux, sauf si un modèle ou un preset a le sien." stack>
-        ${sys !== null && html`<textarea class="textarea" rows="4" value=${sys} onInput=${e => setSys(e.target.value)} placeholder="ex. Réponds en français, de façon concise."></textarea>
-          <div><button class="btn sm" onClick=${saveSys}>Enregistrer</button></div>`}</${Line}>
+      <${Line} label="${t("settings.page.prompt_systeme_global")}" tip="${t("settings.page.envoye_a_tous_les_modeles_locaux_sauf_si_un_modele_ou_un_preset_a")}" stack>
+        ${sys !== null && html`<textarea class="textarea" rows="4" value=${sys} onInput=${e => setSys(e.target.value)} placeholder="${t("settings.page.ex_reponds_en_francais_de_facon_concise")}"></textarea>
+          <div><button class="btn sm" onClick=${saveSys}>${t("settings.page.enregistrer")}</button></div>`}</${Line}>
     </${Group}>`;
 }
 
@@ -51,14 +55,14 @@ function PushNotifications() {
   const supported = window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const [checked, setChecked] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState('Une notification à chaque réponse terminée, même si Loom est fermé.');
+  const [note, setNote] = useState("settings.page.une_notification_a_chaque_reponse_terminee_meme_si_loom_est_ferme");
   const running = useRef(false);
   const register = () => navigator.serviceWorker.register('/sw.js', { scope: '/' });
   useEffect(() => {
     if (!supported) return;
     let alive = true;
     register().then(r => r.pushManager.getSubscription()).then(s => { if (alive) setChecked(!!s); })
-      .catch(() => { if (alive) setNote('État des notifications inconnu. Réessaie en rouvrant ces réglages.'); });
+      .catch(() => { if (alive) setNote("settings.page.etat_des_notifications_inconnu_reessaie_en_rouvrant_ces_reglages"); });
     return () => { alive = false; };
   }, []);
   const toggle = async want => {
@@ -68,7 +72,7 @@ function PushNotifications() {
     try {
       // La demande de permission reste directement liée au clic.
       if (want && await Notification.requestPermission() !== 'granted') {
-        setNote('Notifications bloquées. Autorise-les dans les réglages du navigateur.');
+        setNote("settings.page.notifications_bloquees_autorise_les_dans_les_reglages_du_navigate");
         return;
       }
       const reg = await register();
@@ -95,32 +99,32 @@ function PushNotifications() {
         }
       }
       setChecked(want);
-      setNote('Une notification à chaque réponse terminée, même si Loom est fermé.');
-      toast(want ? 'Notifications activées' : 'Notifications désactivées');
+      setNote("settings.page.une_notification_a_chaque_reponse_terminee_meme_si_loom_est_ferme");
+      toast(want ? t("settings.page.notifications_activees") : t("settings.page.notifications_desactivees"));
     } catch (_) {
       if (created) await created.unsubscribe().catch(() => {});
-      setNote('La modification des notifications a échoué. Réessaie.');
-      toast('Notifications : échec de la modification', 'err');
+      setNote("settings.page.la_modification_des_notifications_a_echoue_reessaie");
+      toast(t("settings.page.notifications_echec_de_la_modification"), 'err');
     } finally { running.current = false; setBusy(false); }
   };
-  const tip = !window.isSecureContext ? 'Les notifications exigent HTTPS ou une adresse locale sécurisée.'
-    : !supported ? (/iphone|ipad|ipod/i.test(navigator.userAgent) ? 'Sur iPhone ou iPad, ajoute Loom à l’écran d’accueil et ouvre-le depuis son icône.' : 'Ce navigateur ne prend pas en charge les notifications.')
-    : Notification.permission === 'denied' ? 'Notifications bloquées. Autorise-les dans les réglages du navigateur.' : note;
-  return html`<${Line} label="Notifications" tip=${tip}>
-    ${supported && checked === null && html`<span class="state">État inconnu</span>`}
-    <${Switch} label="Notifications" checked=${checked === true} disabled=${!supported || checked === null || busy} onChange=${toggle} />
+  const tip = !window.isSecureContext ? t("settings.page.les_notifications_exigent_https_ou_une_adresse_locale_securisee")
+    : !supported ? (/iphone|ipad|ipod/i.test(navigator.userAgent) ? t("settings.page.sur_iphone_ou_ipad_ajoute_loom_a_l_ecran_d_accueil_et_ouvre_le_de") : t("settings.page.ce_navigateur_ne_prend_pas_en_charge_les_notifications"))
+    : Notification.permission === 'denied' ? t("settings.page.notifications_bloquees_autorise_les_dans_les_reglages_du_navigate") : t(note);
+  return html`<${Line} label="${t("settings.page.notifications")}" tip=${tip}>
+    ${supported && checked === null && html`<span class="state">${t("settings.page.etat_inconnu")}</span>`}
+    <${Switch} label="${t("settings.page.notifications")}" checked=${checked === true} disabled=${!supported || checked === null || busy} onChange=${toggle} />
   </${Line}>`;
 }
 
 function Job() {
   const [j, setJ] = useState(null);
-  useEffect(() => { const t = setInterval(async () => { try { setJ(await get('/api/llamacpp/job')); } catch (_) {} }, 1200); get('/api/llamacpp/job').then(setJ); return () => clearInterval(t); }, []);
+  useEffect(() => { const localT = setInterval(async () => { try { setJ(await get('/api/llamacpp/job')); } catch (_) {} }, 1200); get('/api/llamacpp/job').then(setJ); return () => clearInterval(localT); }, []);
   if (!j || !j.exists) return null;
   const lines = (j.lines || []).slice(-14).join('\n');
   return html`<div class=${cls('job', j.running && 'run', j.error && 'err')}>
     <div class="job-h">${j.running ? html`<span class="spinner"></span>` : j.error ? html`<${Icon} n="alert" />` : html`<${Icon} n="check" />`}
-      <b>${j.running ? (j.phase || 'Installation en cours…') : j.error ? 'Échec : ' + j.error : 'Terminé'}</b>
-      ${!j.running && html`<button class="btn sm ghost" onClick=${async () => { await post('/api/llamacpp/job/dismiss', {}); setJ(null); }}>Masquer</button>`}</div>
+      <b>${j.running ? (tSource(j.phase) || t("settings.page.installation_en_cours")) : j.error ? t("settings.page.echec") + j.error : t("settings.page.termine")}</b>
+      ${!j.running && html`<button class="btn sm ghost" onClick=${async () => { await post('/api/llamacpp/job/dismiss', {}); setJ(null); }}>${t("settings.page.masquer")}</button>`}</div>
     ${lines && html`<pre class="mono">${lines}</pre>`}</div>`;
 }
 
@@ -132,14 +136,14 @@ function EngineAuto() {
   const [a, setA] = useState(null);
   useEffect(() => { get('/api/engine/auto-update').then(r => setA(r.ok ? r.state : null)).catch(() => setA(null)); }, []);
   if (!a) return null;
-  const toggle = async on => { const r = await post('/api/engine/auto-update', { auto: on }); if (!r.ok) return toast(r.error || 'Réglage impossible', 'err'); setA(r.state); };
-  const when = t => t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-  const info = a.pending ? 'Version ' + a.pending + ' prête : installée dès qu’aucun modèle n’est chargé.'
-    : a.last_error ? 'Dernière tentative : ' + a.last_error
-    : a.last_at ? 'Mis à jour le ' + when(a.last_at) + (a.last_to ? ' (' + (a.last_from ? a.last_from + ' → ' : '') + a.last_to + ')' : '')
-    : a.checked_at ? 'Vérifié le ' + when(a.checked_at) + ' : à jour' : '';
-  return html`<${Line} label="Mise à jour automatique" tip="Vérifie les nouvelles versions de llama.cpp toutes les 6 h. Une mise à jour redémarre le moteur : elle n’est installée que s’il est arrêté ou sans modèle chargé, pour ne jamais couper une réponse.">
-    ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="Mise à jour automatique du moteur" onChange=${toggle} /></${Line}>`;
+  const toggle = async on => { const r = await post('/api/engine/auto-update', { auto: on }); if (!r.ok) return toast(r.error || t("settings.page.reglage_impossible"), 'err'); setA(r.state); };
+  const when = localT => localT ? new Date(localT).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const info = a.pending ? 'Version ' + a.pending + t("settings.page.prete_installee_des_qu_aucun_modele_n_est_charge")
+    : a.last_error ? t("settings.page.derniere_tentative") + a.last_error
+    : a.last_at ? t("settings.page.mis_a_jour_le") + when(a.last_at) + (a.last_to ? ' (' + (a.last_from ? a.last_from + ' → ' : '') + a.last_to + ')' : '')
+    : a.checked_at ? t("settings.page.verifie_le") + when(a.checked_at) + t("settings.page.a_jour") : '';
+  return html`<${Line} label="${t("settings.page.mise_a_jour_automatique")}" tip="${t("settings.page.verifie_les_nouvelles_versions_de_llama_cpp_toutes_les_6_h_une_mi")}">
+    ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="${t("settings.page.mise_a_jour_automatique_du_moteur")}" onChange=${toggle} /></${Line}>`;
 }
 
 // vLLM : second moteur, installé par Loom dans son propre environnement Python
@@ -150,34 +154,34 @@ function VLLMEngine() {
   const [logOpen, setLogOpen] = useState(false);
   const load = () => get('/api/engines/vllm').then(setX).catch(() => setX(null));
   useEffect(() => { load(); }, []);
-  useEffect(() => { if (!x || !x.job) return; const t = setInterval(load, 2500); return () => clearInterval(t); }, [x && x.job]);
+  useEffect(() => { if (!x || !x.job) return; const localT = setInterval(load, 2500); return () => clearInterval(localT); }, [x && x.job]);
   const act = async body => {
     const r = await post('/api/engines/vllm', body);
-    if (!r.ok) return toast(r.error || 'Action impossible', 'err');
+    if (!r.ok) return toast(r.error || t("settings.page.action_impossible"), 'err');
     setLogOpen(true); load();
   };
   const start = () => act({ action: 'start', model: f.model.trim(), gpu_memory_utilization: Number(f.util) || 0, max_model_len: Number(f.len) || 0 });
   useEffect(() => { if (x && !x.job && x.running) { refreshEngineNode(); refreshStatus(); } }, [x && x.running, x && x.job]);
   if (!x) return null;
-  return html`<${Group} title="vLLM">
-    <${Line} label="État" tip="vLLM sert des modèles Hugging Face (pas les GGUF) avec beaucoup de requêtes en parallèle. Loom l’installe dans son propre environnement Python et peut le lancer ici ; il reste utilisable sans Loom.">
-      ${x.job === 'install' ? html`<span class="state"><span class="spinner"></span>Installation… (plusieurs minutes)</span>`
-        : x.job === 'start' ? html`<span class="state"><span class="spinner"></span>Chargement de ${f.model || x.model}…</span>`
-        : x.running ? html`<span class="state"><i class="dot green"></i>sert <b class="mono">${x.model}</b></span><button class="btn sm ghost" onClick=${() => act({ action: 'stop' })}>Arrêter</button>`
-        : x.installed ? html`<span class="state">installé · arrêté</span>`
+  return html`<${Group} title="${t("settings.page.vllm")}">
+    <${Line} label="${t("settings.page.etat")}" tip="${t("settings.page.vllm_sert_des_modeles_hugging_face_pas_les_gguf_avec_beaucoup_de")}">
+      ${x.job === 'install' ? html`<span class="state"><span class="spinner"></span>${t("settings.page.installation_plusieurs_minutes")}</span>`
+        : x.job === 'start' ? html`<span class="state"><span class="spinner"></span>${t("settings.page.chargement_de")} ${f.model || x.model}…</span>`
+        : x.running ? html`<span class="state"><i class="dot green"></i>${t("settings.page.sert")} <b class="mono">${x.model}</b></span><button class="btn sm ghost" onClick=${() => act({ action: 'stop' })}>${t("settings.page.arreter")}</button>`
+        : x.installed ? html`<span class="state">${t("settings.page.installe_arrete")}</span>`
         : x.missing ? html`<span class="state err">${x.missing}</span>`
-        : html`<span class="state">non installé</span><button class="btn sm" onClick=${async () => { if (await confirm('Installer vLLM', 'Loom crée un environnement Python dans ' + x.dir + ' et y installe vLLM (plusieurs Go, quelques minutes). Rien n’est installé ailleurs sur la machine.', { ok: 'Installer' })) act({ action: 'install' }); }}>Installer vLLM</button>`}</${Line}>
-    ${x.error && html`<${Line} label="Dernière erreur"><span class="state err">${x.error}</span></${Line}>`}
+        : html`<span class="state">${t("settings.page.non_installe")}</span><button class="btn sm" onClick=${async () => { if (await confirm('Installer vLLM', t("settings.page.loom_cree_un_environnement_python_dans") + x.dir + t("settings.page.et_y_installe_vllm_plusieurs_go_quelques_minutes_rien_n_est_insta"), { ok: t("settings.page.installer") })) act({ action: 'install' }); }}>${t("settings.page.installer_vllm")}</button>`}</${Line}>
+    ${x.error && html`<${Line} label="${t("settings.page.derniere_erreur")}"><span class="state err">${x.error}</span></${Line}>`}
     ${x.installed && !x.running && !x.job && html`<div class="eng-link">
-      <label class="field"><span>Modèle Hugging Face</span><input class="input mono" placeholder="ex. Qwen/Qwen3-8B" value=${f.model} onInput=${e => setF({ ...f, model: e.target.value })} /><small>Téléchargé par vLLM au premier lancement.</small></label>
-      <div class="mx-fields"><label class="field"><span>Mémoire GPU utilisée</span><input class="input mono" value=${f.util} onInput=${e => setF({ ...f, util: e.target.value })} /><small>Part de la VRAM (0.5 à 0.95).</small></label>
-        <label class="field"><span>Contexte max</span><input class="input mono" placeholder="auto" value=${f.len} onInput=${e => setF({ ...f, len: e.target.value.replace(/\D/g, '') })} /></label></div>
-      <div class="form-foot"><span class="grow"></span><button class="btn primary" disabled=${!f.model.trim()} onClick=${start}>Lancer avec vLLM</button></div></div>`}
-    ${x.log && html`<details class="lc-log" open=${logOpen || !!x.job}><summary>Journal vLLM</summary><pre>${x.log.split('\n').slice(-80).join('\n')}</pre></details>`}
+      <label class="field"><span>${t("settings.page.modele_hugging_face")}</span><input class="input mono" placeholder="${t("settings.page.ex_qwen_qwen3_8b")}" value=${f.model} onInput=${e => setF({ ...f, model: e.target.value })} /><small>${t("settings.page.telecharge_par_vllm_au_premier_lancement")}</small></label>
+      <div class="mx-fields"><label class="field"><span>${t("settings.page.memoire_gpu_utilisee")}</span><input class="input mono" value=${f.util} onInput=${e => setF({ ...f, util: e.target.value })} /><small>${t("settings.page.part_de_la_vram_0_5_a_0_95")}</small></label>
+        <label class="field"><span>${t("settings.page.contexte_max")}</span><input class="input mono" placeholder="${t("settings.page.auto")}" value=${f.len} onInput=${e => setF({ ...f, len: e.target.value.replace(/\D/g, '') })} /></label></div>
+      <div class="form-foot"><span class="grow"></span><button class="btn primary" disabled=${!f.model.trim()} onClick=${start}>${t("settings.page.lancer_avec_vllm")}</button></div></div>`}
+    ${x.log && html`<details class="lc-log" open=${logOpen || !!x.job}><summary>${t("settings.page.journal_vllm")}</summary><pre>${x.log.split('\n').slice(-80).join('\n')}</pre></details>`}
   </${Group}>`;
 }
 
-const KIND_LABEL = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', openai: 'serveur compatible OpenAI' };
+const KIND_LABEL = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', get openai() { return t("local.page.serveur_compatible_openai"); } };
 
 // Lier un serveur d'inférence par son adresse (llama.cpp, vLLM…) : rien de
 // Loom n'est installé sur sa machine.
@@ -189,24 +193,24 @@ export function DirectEngineForm({ start, onDone }) {
     setBusy(true);
     const r = await post('/api/engine/node', { probe: true, url: f.url, key: f.key });
     setBusy(false);
-    if (!r.ok) { setProbe(null); return toast(r.error || 'Moteur injoignable', 'err'); }
+    if (!r.ok) { setProbe(null); return toast(r.error || t("settings.page.moteur_injoignable"), 'err'); }
     setProbe(r); setF({ ...f, model: r.models[0] });
   };
   const link = async () => {
     setBusy(true);
     const r = await post('/api/engine/node', { direct: true, url: f.url, key: f.key, model: f.model });
     setBusy(false);
-    if (!r.ok) return toast(r.error || 'Liaison impossible', 'err');
-    toast(KIND_LABEL[r.kind] + ' de ' + r.hostname + ' lié'); await refreshEngineNode(); refreshStatus(); refreshLibrary(); onDone && onDone();
+    if (!r.ok) return toast(r.error || t("settings.page.liaison_impossible"), 'err');
+    toast(KIND_LABEL[r.kind] + t("settings.page.de") + r.hostname + t("settings.page.lie")); await refreshEngineNode(); refreshStatus(); refreshLibrary(); onDone && onDone();
   };
   return html`<div class="eng-link">
-    <p class="note">Un serveur llama.cpp (llama-server), vLLM ou compatible OpenAI qui tourne sur une autre machine. Rien n’est installé là-bas : ses modèles et réglages se gèrent sur sa machine, Loom l’utilise pour tes discussions et tes harnesses.</p>
-    <label class="field"><span>Adresse du moteur</span><input class="input mono" placeholder="http://192.168.1.20:8080" value=${f.url} onInput=${e => { setF({ ...f, url: e.target.value }); setProbe(null); }} /></label>
-    <label class="field"><span>Clé API (si le moteur en exige une)</span><input class="input mono" type="password" value=${f.key} onInput=${e => { setF({ ...f, key: e.target.value }); setProbe(null); }} /></label>
-    ${probe && html`<label class="field"><span>${KIND_LABEL[probe.kind]} · ${probe.models.length} modèle${probe.models.length > 1 ? 's' : ''}${probe.ctx ? ' · contexte ' + probe.ctx : ''}</span>
+    <p class="note">${t("settings.page.un_serveur_llama_cpp_llama_server_vllm_ou_compatible_openai_qui_t")}</p>
+    <label class="field"><span>${t("settings.page.adresse_du_moteur")}</span><input class="input mono" placeholder="http://192.168.1.20:8080" value=${f.url} onInput=${e => { setF({ ...f, url: e.target.value }); setProbe(null); }} /></label>
+    <label class="field"><span>${t("settings.page.cle_api_si_le_moteur_en_exige_une")}</span><input class="input mono" type="password" value=${f.key} onInput=${e => { setF({ ...f, key: e.target.value }); setProbe(null); }} /></label>
+    ${probe && html`<label class="field"><span>${KIND_LABEL[probe.kind]} · ${probe.models.length} ${t("settings.page.modele")}${probe.models.length > 1 ? 's' : ''}${probe.ctx ? t("settings.page.contexte") + probe.ctx : ''}</span>
       <select class="select" value=${f.model} onChange=${e => setF({ ...f, model: e.target.value })}>${probe.models.map(m => html`<option value=${m}>${m}</option>`)}</select></label>`}
-    <div class="form-foot"><span class="grow"></span>${onDone && html`<button class="btn ghost" onClick=${onDone}>Annuler</button>`}
-      ${probe ? html`<button class="btn primary" disabled=${busy} onClick=${link}>Utiliser ce moteur</button>` : html`<button class="btn primary" disabled=${busy || !f.url} onClick=${identify}>${busy ? 'Connexion…' : 'Identifier le moteur'}</button>`}</div>
+    <div class="form-foot"><span class="grow"></span>${onDone && html`<button class="btn ghost" onClick=${onDone}>${t("settings.page.annuler")}</button>`}
+      ${probe ? html`<button class="btn primary" disabled=${busy} onClick=${link}>${t("settings.page.utiliser_ce_moteur")}</button>` : html`<button class="btn primary" disabled=${busy || !f.url} onClick=${identify}>${busy ? t("environment.page.connexion") : t("settings.page.identifier_le_moteur")}</button>`}</div>
   </div>`;
 }
 
@@ -216,16 +220,16 @@ function EngineLocation() {
   const node = useStore(app, a => a.engineNode);
   const [direct, setDirect] = useState(false);
   const unlink = async () => {
-    if (!await confirm('Revenir au moteur de cette machine', 'Loom n’utilisera plus le moteur de ' + node.hostname + '. Rien n’est modifié sur cette machine-là.', { ok: 'Revenir' })) return;
+    if (!await confirm(t("settings.page.revenir_au_moteur_de_cette_machine"), t("settings.page.loom_n_utilisera_plus_le_moteur_de") + node.hostname + t("settings.page.rien_n_est_modifie_sur_cette_machine_la"), { ok: t("settings.page.revenir") })) return;
     await post('/api/engine/node', { unlink: true });
     await refreshEngineNode(); refreshStatus(); refreshLibrary();
   };
-  return html`<${Group} title="Emplacement du moteur">
-    <${Line} label="Le moteur tourne" tip="Sur cette machine ; sur une machine où Loom est installé (Réglages › Machines) ; ou un serveur llama.cpp / vLLM lié directement par son adresse, sans Loom dessus.">
-      ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? KIND_LABEL[node.kind] + ' sur ' : 'sur '}<b>${node.hostname}</b></span><button class="btn sm ghost" onClick=${unlink}>Revenir à cette machine</button>`
-        : html`<span class="state">sur cette machine</span>${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>Lier un moteur par son adresse</button><a class="btn sm ghost" href="#/settings/machines">Loom d’une autre machine</a>`}`}</${Line}>
-    ${node && html`<${Line} label="Adresse"><code class="mono">${node.url}</code>${!node.reachable && html`<span class="tag amber">injoignable</span>`}</${Line}>`}
-    ${node && node.direct && html`<${Line} label="Modèle utilisé"><code class="mono">${node.model}</code></${Line}>`}
+  return html`<${Group} title="${t("settings.page.emplacement_du_moteur")}">
+    <${Line} label="${t("settings.page.le_moteur_tourne")}" tip="${t("settings.page.sur_cette_machine_sur_une_machine_ou_loom_est_installe_reglages_m")}">
+      ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? KIND_LABEL[node.kind] + t("settings.page.sur") : t("settings.page.sur_2")}<b>${node.hostname}</b></span><button class="btn sm ghost" onClick=${unlink}>${t("settings.page.revenir_a_cette_machine")}</button>`
+        : html`<span class="state">${t("settings.page.sur_cette_machine")}</span>${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.page.lier_un_moteur_par_son_adresse")}</button><a class="btn sm ghost" href="#/settings/machines">${t("settings.page.loom_d_une_autre_machine")}</a>`}`}</${Line}>
+    ${node && html`<${Line} label="${t("settings.page.adresse")}"><code class="mono">${node.url}</code>${!node.reachable && html`<span class="tag amber">${t("settings.page.injoignable")}</span>`}</${Line}>`}
+    ${node && node.direct && html`<${Line} label="${t("settings.page.modele_utilise")}"><code class="mono">${node.model}</code></${Line}>`}
     ${direct && !node && html`<${DirectEngineForm} onDone=${() => setDirect(false)} />`}
   </${Group}>`;
 }
@@ -235,28 +239,28 @@ function Engine() {
   const [lc, setLc] = useState(null);
   const load = async () => { setLc(await get('/api/llamacpp')); };
   useEffect(() => { load(); }, []);
-  const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || 'Échec', 'err'); if (ok) toast(ok); setTimeout(load, 800); };
-  const link = async () => { const bin = await prompt('Lier un llama-server existant', { message: 'Chemin complet du binaire llama-server déjà installé sur cette machine.', placeholder: '/chemin/vers/llama-server', ok: 'Lier' }); if (bin) run('/api/llamacpp/use', { mode: 'exist', bin }, 'Moteur lié'); };
+  const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || t("settings.page.echec_2"), 'err'); if (ok) toast(ok); setTimeout(load, 800); };
+  const link = async () => { const bin = await prompt(t("settings.page.lier_un_llama_server_existant"), { message: t("settings.page.chemin_complet_du_binaire_llama_server_deja_installe_sur_cette_ma"), placeholder: t("settings.page.chemin_vers_llama_server"), ok: t("settings.page.lier") }); if (bin) run('/api/llamacpp/use', { mode: 'exist', bin }, t("settings.page.moteur_lie")); };
   if (!lc) return html`<div class="skeleton" style="height:220px"></div>`;
   return html`
     <${EngineLocation} />
     <${VLLMEngine} />
-    <${Group} title=${node ? 'llama.cpp de cette machine' : 'Moteur actuel'}>
-      <${Line} label="llama.cpp"><span class="mono">${lc.commit || lc.prebuilt && lc.prebuilt.tag || '—'}</span>${lc.behind > 0 && html`<span class="tag amber">${lc.behind} commits de retard</span>`}</${Line}>
-      <${Line} label="Accélération"><span class="tag blue">${(lc.plan && lc.plan.backend || '—').toUpperCase()}</span></${Line}>
+    <${Group} title=${node ? t("settings.page.llama_cpp_de_cette_machine") : t("settings.page.moteur_actuel")}>
+      <${Line} label="${t("settings.page.llama_cpp")}"><span class="mono">${lc.commit || lc.prebuilt && lc.prebuilt.tag || '—'}</span>${lc.behind > 0 && html`<span class="tag amber">${lc.behind} ${t("settings.page.commits_de_retard")}</span>`}</${Line}>
+      <${Line} label="${t("settings.page.acceleration")}"><span class="tag blue">${(lc.plan && lc.plan.backend || '—').toUpperCase()}</span></${Line}>
       <${GpuDevices} bin=${lc.config_bin || lc.bin || ''} />
-      <${Line} label="Binaire" stack><code class="mono path">${lc.bin || 'aucun'}</code></${Line}>
+      <${Line} label="${t("settings.page.binaire")}" stack><code class="mono path">${lc.bin || t('settings.page.none')}</code></${Line}>
       <${EngineAuto} />
       <div class="set-actions">
-        ${lc.can_update && html`<button class="btn" onClick=${() => run('/api/llamacpp/update', { clean: false }, 'Mise à jour lancée')}><${Icon} n="refresh" />Mettre à jour</button>`}
-        <button class="btn ghost" onClick=${() => run('/api/llamacpp/check', {}, 'Vérification…')}>Vérifier</button>
-        <button class="btn ghost" onClick=${link}><${Icon} n="link" />Lier un binaire existant</button>
+        ${lc.can_update && html`<button class="btn" onClick=${() => run('/api/llamacpp/update', { clean: false }, t("settings.page.mise_a_jour_lancee"))}><${Icon} n="refresh" />${t("settings.page.mettre_a_jour")}</button>`}
+        <button class="btn ghost" onClick=${() => run('/api/llamacpp/check', {}, t("settings.page.verification"))}>${t("settings.page.verifier")}</button>
+        <button class="btn ghost" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button>
       </div>
       <${Job} />
     </${Group}>
-    ${!lc.installed && html`<${Group} title="Installer llama.cpp">
+    ${!lc.installed && html`<${Group} title="${t("settings.page.installer_llama_cpp")}">
       <div class="set-note">${lc.reco && lc.reco.why}</div>
-      <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/install', { dir: '' }, 'Compilation lancée')}>Compiler llama.cpp</button><button class="btn" onClick=${() => run('/api/llamacpp/prebuilt', {}, 'Téléchargement lancé')}>Binaire officiel</button></div>
+      <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/install', { dir: '' }, t("settings.page.compilation_lancee"))}>${t("settings.page.compiler_llama_cpp")}</button><button class="btn" onClick=${() => run('/api/llamacpp/prebuilt', {}, t("settings.page.telechargement_lance"))}>${t("settings.page.binaire_officiel")}</button></div>
     </${Group}>`}
     <${ModelDirs} />`;
 }
@@ -267,15 +271,15 @@ export function ModelDirs() {
   const [dirs, setDirs] = useState(null);
   const load = () => get('/api/models/dirs').then(setDirs).catch(() => setDirs(null));
   useEffect(() => { load(); }, []);
-  const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || 'Échec', 'err'); if (ok) toast(ok); setTimeout(load, 500); };
-  const addDir = async () => { const p = await prompt('Ajouter un dossier de modèles', { placeholder: '/chemin/vers/mes/modeles', ok: 'Ajouter' }); if (p) run('/api/models/dirs', { path: p, action: 'add' }, 'Dossier ajouté'); };
+  const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || t("settings.page.echec_2"), 'err'); if (ok) toast(ok); setTimeout(load, 500); };
+  const addDir = async () => { const p = await prompt(t("settings.page.ajouter_un_dossier_de_modeles"), { placeholder: t("settings.page.chemin_vers_mes_modeles"), ok: t("settings.page.ajouter") }); if (p) run('/api/models/dirs', { path: p, action: 'add' }, t("settings.page.dossier_ajoute")); };
   return html`
-    <${Group} title="Dossiers de modèles">
-      ${dirs && (dirs.dirs || []).map(d => html`<div class="set-line"><div class="set-l"><${Icon} n="folder" /><span class="mono path">${d.path}</span>${d.download && html`<span class="tag blue">téléchargements</span>`}</div>
-        <div class="set-c"><span class="muted mono">${d.count} modèle${d.count > 1 ? 's' : ''}</span>
-          ${!d.download && html`<button class="btn sm ghost" onClick=${() => run('/api/models/dirs', { path: d.path, action: 'download' }, 'Dossier de téléchargement changé')}>Télécharger ici</button>`}
-          ${!d.home && html`<button class="icon-btn" aria-label="Retirer" onClick=${async () => { if (await confirm('Retirer le dossier', 'Loom ne listera plus les modèles de ce dossier. Les fichiers restent sur le disque.', { ok: 'Retirer' })) run('/api/models/dirs', { path: d.path, action: 'remove' }); }}><${Icon} n="close" /></button>`}</div></div>`)}
-      <div class="set-actions"><button class="btn ghost" onClick=${addDir}><${Icon} n="plus" />Ajouter un dossier</button></div>
+    <${Group} title="${t("settings.page.dossiers_de_modeles")}">
+      ${dirs && (dirs.dirs || []).map(d => html`<div class="set-line"><div class="set-l"><${Icon} n="folder" /><span class="mono path">${d.path}</span>${d.download && html`<span class="tag blue">${t("settings.page.telechargements")}</span>`}</div>
+        <div class="set-c"><span class="muted mono">${d.count} ${t("settings.page.modele")}${d.count > 1 ? 's' : ''}</span>
+          ${!d.download && html`<button class="btn sm ghost" onClick=${() => run('/api/models/dirs', { path: d.path, action: 'download' }, t("settings.page.dossier_de_telechargement_change"))}>${t("settings.page.telecharger_ici")}</button>`}
+          ${!d.home && html`<button class="icon-btn" aria-label="${t("settings.page.retirer")}" onClick=${async () => { if (await confirm(t("settings.page.retirer_le_dossier"), t("settings.page.loom_ne_listera_plus_les_modeles_de_ce_dossier_les_fichiers_reste"), { ok: t("settings.page.retirer") })) run('/api/models/dirs', { path: d.path, action: 'remove' }); }}><${Icon} n="close" /></button>`}</div></div>`)}
+      <div class="set-actions"><button class="btn ghost" onClick=${addDir}><${Icon} n="plus" />${t("settings.page.ajouter_un_dossier")}</button></div>
     </${Group}>`;
 }
 
@@ -303,13 +307,13 @@ function GpuDevices({ bin }) {
   const pick = async (id, on) => {
     if (running.current || !src?.model || unknown) return;
     const ids = known.filter(k => k === id ? on : selected.includes(k));
-    if (!ids.length) return toast('Garde au moins un GPU', 'err');
+    if (!ids.length) return toast(t("settings.page.garde_au_moins_un_gpu"), 'err');
     running.current = true; setBusy(true);
     try {
-      if (!await confirm('Appliquer le choix GPU', 'Le modèle actif sera rechargé. Ce choix est enregistré dans ses paramètres.', { ok: 'Appliquer' })) return;
+      if (!await confirm(t("settings.page.appliquer_le_choix_gpu"), t("settings.page.le_modele_actif_sera_recharge_ce_choix_est_enregistre_dans_ses_pa"), { ok: t("settings.page.appliquer") })) return;
       const fresh = await liveSource();
       if (fresh.model !== src.model || fresh.presetId !== src.presetId || fresh.base !== src.base) {
-        setSrc(fresh); setDevices(null); toast('Les paramètres ont changé. Rouvre ces réglages.', 'err'); return;
+        setSrc(fresh); setDevices(null); toast(t("settings.page.les_parametres_ont_change_rouvre_ces_reglages"), 'err'); return;
       }
       const c = new Config(fresh.base).setArg('--device', ids.length === known.length ? '' : ids.join(','));
       if (ids.length < 2) c.setArg('--tensor-split', '');
@@ -319,18 +323,18 @@ function GpuDevices({ bin }) {
       if (!saved.ok) throw new Error();
       setSrc({ ...fresh, base: c.text }); refreshLibrary();
       const r = await post('/api/apply', { content: c.text, preset_id: fresh.presetId });
-      if (!r.ok) { toast('Choix GPU enregistré, mais application impossible', 'err'); return; }
-      toast('Choix GPU enregistré'); refreshStatus();
-    } catch (_) { toast('Choix GPU : échec de l’enregistrement', 'err'); }
+      if (!r.ok) { toast(t("settings.page.choix_gpu_enregistre_mais_application_impossible"), 'err'); return; }
+      toast(t("settings.page.choix_gpu_enregistre")); refreshStatus();
+    } catch (_) { toast(t("settings.page.choix_gpu_echec_de_l_enregistrement"), 'err'); }
     finally { running.current = false; setBusy(false); }
   };
-  const tip = 'Choix du modèle actif, enregistré dans EXTRA_ARGS avec --device, comme dans l’interface précédente. Toutes les cartes : aucune contrainte. Le binaire fournit les identifiants. Aucun modèle actif : lecture seule.';
-  if (!devices?.length) return html`<${Line} label="GPU" tip=${tip}><span class="state">Inconnu</span></${Line}>`;
-  return html`${unknown && html`<${Line} label="Choix GPU" tip="La sélection enregistrée ne correspond pas aux GPU détectés. Elle est conservée."><span class="state">Inconnu</span></${Line}>`}
-    ${devices.map(d => html`<${Line} key=${d.id} label=${d.name || d.id || 'GPU inconnu'} tip=${tip}>
-      <span class="tag">${d.id}</span><span class="num">${d.total_mib > 0 ? fmtBytes(d.total_mib * 1048576) : 'Mémoire inconnue'}</span>
-      ${devices.length > 1 && src?.model && !unknown ? html`<${Switch} label=${'Utiliser ' + (d.name || d.id)} checked=${selected.includes(d.id)} disabled=${busy} onChange=${on => pick(d.id, on)} />`
-        : html`<span class="state">${unknown ? 'Choix inconnu' : selected.includes(d.id) ? 'Sélectionné' : 'Non sélectionné'}</span>`}
+  const tip = t("settings.page.choix_du_modele_actif_enregistre_dans_extra_args_avec_device_comm");
+  if (!devices?.length) return html`<${Line} label="GPU" tip=${tip}><span class="state">${t("settings.page.inconnu")}</span></${Line}>`;
+  return html`${unknown && html`<${Line} label="${t("settings.page.choix_gpu")}" tip="${t("settings.page.la_selection_enregistree_ne_correspond_pas_aux_gpu_detectes_elle")}"><span class="state">${t("settings.page.inconnu")}</span></${Line}>`}
+    ${devices.map(d => html`<${Line} key=${d.id} label=${d.name || d.id || t("settings.page.gpu_inconnu")} tip=${tip}>
+      <span class="tag">${d.id}</span><span class="num">${d.total_mib > 0 ? fmtBytes(d.total_mib * 1048576) : t("settings.page.memoire_inconnue")}</span>
+      ${devices.length > 1 && src?.model && !unknown ? html`<${Switch} label=${t("settings.page.utiliser") + (d.name || d.id)} checked=${selected.includes(d.id)} disabled=${busy} onChange=${on => pick(d.id, on)} />`
+        : html`<span class="state">${unknown ? t("settings.page.choix_inconnu") : selected.includes(d.id) ? t("settings.page.selectionne") : t("settings.page.non_selectionne")}</span>`}
     </${Line}>`)}`;
 }
 
@@ -340,12 +344,12 @@ function Internet() {
   useEffect(() => { load(); }, []);
   if (!n) return html`<div class="skeleton" style="height:140px"></div>`;
   const save = async body => { const r = await post('/api/internet', body); if (r.ok === false) toast(r.error, 'err'); load(); };
-  return html`<${Group} title="Recherche web">
-    <${Line} label="Donner internet aux modèles locaux" tip="Outils de recherche et de lecture de pages. Ils s’activent ensuite par discussion, dans Outils."><${Switch} checked=${n.enabled} onChange=${v => save({ enabled: v, url: n.url })} /></${Line}>
-    <${Line} label="Moteur" tip="Intégré : aucune installation. Crawl4AI : navigateur headless, pour les pages qui demandent du JavaScript."><${Seg} size="sm" value=${n.engine} onChange=${v => save({ engine: v })} options=${[{ value: 'go', label: 'Intégré' }, { value: 'crawl4ai', label: 'Crawl4AI' }]} /></${Line}>
-    ${n.engine === 'crawl4ai' && html`<${Line} label="Adresse Crawl4AI"><input class="input sm" style="width:260px" value=${n.url} placeholder="http://localhost:11235" onChange=${e => save({ url: e.target.value })} /></${Line}>
-      <${Line} label="Clé Crawl4AI">${n.key_set ? html`<span class="muted mono">••••${n.key_hint}</span><button class="btn sm ghost" onClick=${() => save({ key: '' })}>Retirer</button>`
-        : html`<input class="input sm" type="password" style="width:220px" placeholder="facultative" onChange=${e => save({ key: e.target.value })} />`}</${Line}>`}
+  return html`<${Group} title="${t("settings.page.recherche_web")}">
+    <${Line} label="${t("settings.page.donner_internet_aux_modeles_locaux")}" tip="${t("settings.page.outils_de_recherche_et_de_lecture_de_pages_ils_s_activent_ensuite")}"><${Switch} checked=${n.enabled} onChange=${v => save({ enabled: v, url: n.url })} /></${Line}>
+    <${Line} label="${t("settings.page.moteur")}" tip="${t("settings.page.integre_aucune_installation_crawl4ai_navigateur_headless_pour_les")}"><${Seg} size="sm" value=${n.engine} onChange=${v => save({ engine: v })} options=${[{ value: 'go', label: t("settings.page.integre") }, { value: 'crawl4ai', label: t("settings.page.crawl4ai") }]} /></${Line}>
+    ${n.engine === 'crawl4ai' && html`<${Line} label="${t("settings.page.adresse_crawl4ai")}"><input class="input sm" style="width:260px" value=${n.url} placeholder="http://localhost:11235" onChange=${e => save({ url: e.target.value })} /></${Line}>
+      <${Line} label="${t("settings.page.cle_crawl4ai")}">${n.key_set ? html`<span class="muted mono">••••${n.key_hint}</span><button class="btn sm ghost" onClick=${() => save({ key: '' })}>${t("settings.page.retirer")}</button>`
+        : html`<input class="input sm" type="password" style="width:220px" placeholder="${t("settings.page.facultative")}" onChange=${e => save({ key: e.target.value })} />`}</${Line}>`}
   </${Group}>`;
 }
 
@@ -353,14 +357,14 @@ function SecretDialog({ title, tip, onClose, onSubmit }) {
   const [value, setValue] = useState('');
   const submit = () => { if (value.trim()) { const secret = value; setValue(''); onSubmit(secret); } };
   return html`<${Modal} title=${title} onClose=${onClose}
-    foot=${html`<button class="btn ghost" onClick=${onClose}>Annuler</button><button class="btn primary" disabled=${!value.trim()} onClick=${submit}>Continuer</button>`}>
-    <${Line} label="Secret" tip=${tip}><input class="input" type="password" autocomplete="off" aria-label="Secret" value=${value} onInput=${e => setValue(e.target.value)} onKeyDown=${e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} /></${Line}>
+    foot=${html`<button class="btn ghost" onClick=${onClose}>${t("settings.page.annuler")}</button><button class="btn primary" disabled=${!value.trim()} onClick=${submit}>${t("settings.page.continuer")}</button>`}>
+    <${Line} label="${t("settings.page.secret")}" tip=${tip}><input class="input" type="password" autocomplete="off" aria-label="${t("settings.page.secret")}" value=${value} onInput=${e => setValue(e.target.value)} onKeyDown=${e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} /></${Line}>
   </${Modal}>`;
 }
 
 const snapshotDate = s => {
   const d = s.when ? new Date(s.when) : null;
-  return d && !Number.isNaN(d.getTime()) && d.getFullYear() > 1 ? d.toLocaleString('fr-FR') : 'Date inconnue';
+  return d && !Number.isNaN(d.getTime()) && d.getFullYear() > 1 ? d.toLocaleString(locale()) : t("settings.page.date_inconnue");
 };
 
 // Accès réseau : l'interface (mode serveur, par ex. sur une VM) et l'API /v1
@@ -375,32 +379,32 @@ function NetworkAccess() {
   ]);
   useEffect(() => { load(); }, []);
   const toggleWeb = async on => {
-    if (on && !await confirm('Ouvrir l’interface au réseau', 'Loom sera accessible depuis les autres appareils de ton réseau, protégé par une clé de pilotage (créée maintenant si besoin). Ne l’expose pas directement sur internet : passe par un VPN ou un tunnel.', { ok: 'Ouvrir' })) return;
+    if (on && !await confirm(t("settings.page.ouvrir_l_interface_au_reseau"), t("settings.page.loom_sera_accessible_depuis_les_autres_appareils_de_ton_reseau_pr"), { ok: t("settings.page.ouvrir") })) return;
     setBusy(true);
     const r = await post('/api/network/web', { exposed: on });
     setBusy(false);
-    if (!r.ok) return toast(r.error || 'Réglage impossible', 'err');
+    if (!r.ok) return toast(r.error || t("settings.page.reglage_impossible"), 'err');
     if (r.key) {
       setToken(r.key);
       const copied = await copyText(r.key);
-      await confirm('Clé de pilotage', 'Note-la : elle sera demandée à la première ouverture de Loom sur chaque appareil. ' + (copied ? 'Elle est copiée dans le presse-papiers. ' : '') + r.key, { ok: 'C’est noté' });
+      await confirm(t("settings.page.cle_de_pilotage"), t("settings.page.note_la_elle_sera_demandee_a_la_premiere_ouverture_de_loom_sur_ch") + (copied ? t("settings.page.elle_est_copiee_dans_le_presse_papiers") : '') + r.key, { ok: t("settings.page.c_est_note") });
     }
     load(); // post() remplace r.status par le code HTTP : on relit l'état
   };
   const restart = async () => {
     const r = await post('/api/network/web', { restart: true });
-    toast(r.message || 'Redémarrage demandé', r.restarting ? '' : 'err');
+    toast(r.message || t("settings.page.redemarrage_demande"), r.restarting ? '' : 'err');
   };
   const toggleApi = async on => { const r = await post('/api/network', { exposed: on }); if (r.ok === false) return toast(r.error, 'err'); load(); };
-  return html`<${Group} title="Accès réseau">
-    <${Line} label="Interface sur le réseau" tip="Mode serveur : ouvre Loom depuis un autre appareil (Loom sur une VM, un serveur…). Toujours protégé par la clé de pilotage.">
-      ${web ? html`<${Switch} checked=${web.exposed} disabled=${busy} label="Interface sur le réseau" onChange=${toggleWeb} />` : html`<span class="state">…</span>`}</${Line}>
-    ${web && web.exposed && html`<${Line} label="Adresse">${web.url ? html`<code class="mono">${web.url}</code><button class="btn sm ghost" onClick=${async () => toast(await copyText(web.url) ? 'Adresse copiée' : 'Copie refusée')}>Copier</button>` : html`<span class="state">après redémarrage</span>`}</${Line}>`}
-    ${web && web.restart && html`<${Line} label="À appliquer" tip="L’adresse d’écoute ne change qu’au redémarrage de l’interface. Le modèle chargé n’est pas touché."><span class="state">Redémarrage nécessaire</span><button class="btn sm" onClick=${restart}>Redémarrer l’interface</button></${Line}>`}
-    ${web && web.exposed && web.firewall === 'ferme' && html`<${Line} label="Pare-feu"><span class="state">Port ${web.port} non autorisé : ouvre-le dans le pare-feu de la machine</span></${Line}>`}
-    <${Line} label="API /v1 sur le réseau" tip="Les logiciels et harnesses d’autres machines peuvent utiliser tes modèles locaux. La clé API ci-dessous devient obligatoire.">
-      ${api ? html`<${Switch} checked=${api.exposed} label="API /v1 sur le réseau" onChange=${toggleApi} />` : html`<span class="state">…</span>`}</${Line}>
-    ${api && api.exposed && html`<${Line} label="Adresse de l’API"><code class="mono">${api.url}</code></${Line}>`}
+  return html`<${Group} title="${t("settings.page.acces_reseau")}">
+    <${Line} label="${t("settings.page.interface_sur_le_reseau")}" tip="${t("settings.page.mode_serveur_ouvre_loom_depuis_un_autre_appareil_loom_sur_une_vm")}">
+      ${web ? html`<${Switch} checked=${web.exposed} disabled=${busy} label="${t("settings.page.interface_sur_le_reseau")}" onChange=${toggleWeb} />` : html`<span class="state">…</span>`}</${Line}>
+    ${web && web.exposed && html`<${Line} label="${t("settings.page.adresse")}">${web.url ? html`<code class="mono">${web.url}</code><button class="btn sm ghost" onClick=${async () => toast(await copyText(web.url) ? t("settings.page.adresse_copiee") : t("settings.page.copie_refusee"))}>${t("settings.page.copier")}</button>` : html`<span class="state">${t("settings.page.apres_redemarrage")}</span>`}</${Line}>`}
+    ${web && web.restart && html`<${Line} label="${t("settings.page.a_appliquer")}" tip="${t("settings.page.l_adresse_d_ecoute_ne_change_qu_au_redemarrage_de_l_interface_le")}"><span class="state">${t("settings.page.redemarrage_necessaire")}</span><button class="btn sm" onClick=${restart}>${t("settings.page.redemarrer_l_interface")}</button></${Line}>`}
+    ${web && web.exposed && web.firewall === 'ferme' && html`<${Line} label="${t("settings.page.pare_feu")}"><span class="state">${t("settings.page.port")} ${web.port} ${t("settings.page.non_autorise_ouvre_le_dans_le_pare_feu_de_la_machine")}</span></${Line}>`}
+    <${Line} label="${t("settings.page.api_v1_sur_le_reseau")}" tip="${t("settings.page.les_logiciels_et_harnesses_d_autres_machines_peuvent_utiliser_tes")}">
+      ${api ? html`<${Switch} checked=${api.exposed} label="${t("settings.page.api_v1_sur_le_reseau")}" onChange=${toggleApi} />` : html`<span class="state">…</span>`}</${Line}>
+    ${api && api.exposed && html`<${Line} label="${t("settings.page.adresse_de_l_api")}"><code class="mono">${api.url}</code></${Line}>`}
   </${Group}>`;
 }
 
@@ -421,78 +425,78 @@ function Security() {
     ]);
   };
   useEffect(() => { load(); }, []);
-  const key = async body => { const r = await post('/api/apikey', body); if (r.ok === false) return toast(r.error, 'err'); setK(r); if (body.action === 'generate' && r.key) { navigator.clipboard && navigator.clipboard.writeText(r.key); toast('Nouvelle clé copiée'); } };
+  const key = async body => { const r = await post('/api/apikey', body); if (r.ok === false) return toast(r.error, 'err'); setK(r); if (body.action === 'generate' && r.key) { navigator.clipboard && navigator.clipboard.writeText(r.key); toast(t("settings.page.nouvelle_cle_copiee")); } };
   const act = async fn => {
     if (running.current) return;
     running.current = true; setBusy(true);
     try { await fn(); }
-    catch (_) { toast('Données : échec de l’opération', 'err'); }
+    catch (_) { toast(t("settings.page.donnees_echec_de_l_operation"), 'err'); }
     finally { running.current = false; setBusy(false); }
   };
   const secret = action => setSecretForm({ action,
-    title: action === 'encrypt' ? 'Chiffrer les données' : action === 'unlock' ? 'Déverrouiller les données' : 'Ajouter une clé',
-    tip: action === 'unlock' ? 'Mot de passe ou clé de récupération. Le secret reste masqué et n’est pas mémorisé.'
-      : action === 'encrypt' ? 'Choisis une phrase secrète. Note la clé de récupération qui sera affichée une seule fois. Un snapshot de sécurité est pris avant.'
-      : 'Ajoute un secret pour ouvrir ce même coffre, par exemple ta clé de pilotage. Il remplace la clé supplémentaire précédente si elle existe. Aucun nouveau chiffrement des données.',
+    title: action === 'encrypt' ? t("settings.page.chiffrer_les_donnees") : action === 'unlock' ? t("settings.page.deverrouiller_les_donnees") : t("settings.page.ajouter_une_cle"),
+    tip: action === 'unlock' ? t("settings.page.mot_de_passe_ou_cle_de_recuperation_le_secret_reste_masque_et_n_e")
+      : action === 'encrypt' ? t("settings.page.choisis_une_phrase_secrete_note_la_cle_de_recuperation_qui_sera_a")
+      : t("settings.page.ajoute_un_secret_pour_ouvrir_ce_meme_coffre_par_exemple_ta_cle_de"),
   });
   const submitSecret = async value => {
     const action = secretForm.action; setSecretForm(null);
     await act(async () => {
-      if (action === 'addkey' && !await confirm('Ajouter une clé', 'La clé supplémentaire précédente sera remplacée si elle existe. Le mot de passe initial et la clé de récupération sont conservés.', { ok: 'Ajouter' })) return;
+      if (action === 'addkey' && !await confirm(t("settings.page.ajouter_une_cle"), t("settings.page.la_cle_supplementaire_precedente_sera_remplacee_si_elle_existe_le"), { ok: t("settings.page.ajouter") })) return;
       const r = await post('/api/mem/' + action, action === 'encrypt' ? { password: value } : { secret: value }, { retryAuth: action !== 'unlock' });
-      if (!r.ok) { toast(action === 'unlock' && r.status === 401 ? 'Secret incorrect ou accès refusé' : 'Données : échec de l’opération', 'err'); return; }
+      if (!r.ok) { toast(action === 'unlock' && r.status === 401 ? t("settings.page.secret_incorrect_ou_acces_refuse") : t("settings.page.donnees_echec_de_l_operation"), 'err'); return; }
       // Le dialogue global reste visible même si la page change pendant l’appel.
-      if (action === 'encrypt' && r.recovery) await confirm('Clé de récupération', 'Note cette clé maintenant et garde-la hors ligne. Elle ne sera plus affichée : ' + r.recovery, { ok: 'C’est noté' });
-      toast(action === 'encrypt' ? 'Chiffrement activé' : action === 'unlock' ? 'Données déverrouillées' : 'Clé ajoutée');
+      if (action === 'encrypt' && r.recovery) await confirm(t("settings.page.cle_de_recuperation"), t("settings.page.note_cette_cle_maintenant_et_garde_la_hors_ligne_elle_ne_sera_plu") + r.recovery, { ok: t("settings.page.c_est_note") });
+      toast(action === 'encrypt' ? t("settings.page.chiffrement_active") : action === 'unlock' ? t("settings.page.donnees_deverrouillees") : t("settings.page.cle_ajoutee"));
       await load(); refreshNav();
     });
   };
   const lock = () => act(async () => {
     const r = await post('/api/mem/lock', {});
     if (!r.ok) throw new Error();
-    await load(); refreshNav(); toast('Données verrouillées');
+    await load(); refreshNav(); toast(t("settings.page.donnees_verrouillees"));
   });
   const decrypt = () => act(async () => {
-    if (!await confirm('Déchiffrer les données', 'La mémoire et les discussions seront réécrites en clair sur le disque. Un snapshot de sécurité est pris avant.', { ok: 'Déchiffrer', danger: true })) return;
+    if (!await confirm(t("settings.page.dechiffrer_les_donnees"), t("settings.page.la_memoire_et_les_discussions_seront_reecrites_en_clair_sur_le_di"), { ok: t("settings.page.dechiffrer"), danger: true })) return;
     const r = await post('/api/mem/decrypt', {});
     if (!r.ok) throw new Error();
-    await load(); refreshNav(); toast('Chiffrement désactivé');
+    await load(); refreshNav(); toast(t("settings.page.chiffrement_desactive"));
   });
   const restore = s => act(async () => {
-    if (!await confirm('Restaurer le snapshot', snapshotDate(s) + ' : les fichiers mémoire actuels seront remplacés par cette copie, coffre compris. Un snapshot de sécurité est pris avant. Les discussions, presets et réglages ne sont pas restaurés.', { ok: 'Restaurer', danger: true })) return;
+    if (!await confirm(t("settings.page.restaurer_le_snapshot"), snapshotDate(s) + t("settings.page.les_fichiers_memoire_actuels_seront_remplaces_par_cette_copie_cof"), { ok: t("settings.page.restaurer"), danger: true })) return;
     const r = await post('/api/mem/snapshots', { id: s.id });
     if (!r.ok) throw new Error();
-    await load(); refreshNav(); refreshLibrary(); toast('Snapshot restauré');
+    await load(); refreshNav(); refreshLibrary(); toast(t("settings.page.snapshot_restaure"));
   });
   const vault = mem && (mem.encrypted || mem.vault_copies > 0);
   const blocked = busy || !!secretForm;
   return html`
     <${NetworkAccess} />
-    <${Group} title="API /v1">
-      <${Line} label="Clé API exigée" tip="Les applications qui utilisent le serveur devront envoyer cette clé. Obligatoire si le serveur est exposé sur le réseau."><${Switch} checked=${k && k.required} onChange=${v => key({ action: 'require', on: v })} /></${Line}>
-      <${Line} label="Clé">${k && k.set ? html`<code class="mono">${k.masked}</code><button class="btn sm ghost" onClick=${() => key({ action: 'generate' })}>Régénérer</button><button class="btn sm ghost" onClick=${() => key({ action: 'clear' })}>Supprimer</button>`
-        : html`<button class="btn sm" onClick=${() => key({ action: 'generate' })}>Créer une clé</button>`}</${Line}>
+    <${Group} title="${t("settings.page.api_v1")}">
+      <${Line} label="${t("settings.page.cle_api_exigee")}" tip="${t("settings.page.les_applications_qui_utilisent_le_serveur_devront_envoyer_cette_c")}"><${Switch} checked=${k && k.required} onChange=${v => key({ action: 'require', on: v })} /></${Line}>
+      <${Line} label="${t("settings.page.cle")}">${k && k.set ? html`<code class="mono">${k.masked}</code><button class="btn sm ghost" onClick=${() => key({ action: 'generate' })}>${t("settings.page.regenerer")}</button><button class="btn sm ghost" onClick=${() => key({ action: 'clear' })}>${t("settings.page.supprimer")}</button>`
+        : html`<button class="btn sm" onClick=${() => key({ action: 'generate' })}>${t("settings.page.creer_une_cle")}</button>`}</${Line}>
     </${Group}>
-    <${Group} title="Mémoire et données">
-      <${Line} label="Mémoire des modèles locaux" tip="Désactivée : rien n’est retenu entre les discussions. Sur demande : le modèle peut lire et écrire des notes quand tu le lui demandes.">
-        ${mode && html`<${Seg} size="sm" value=${mode} onChange=${async v => { await post('/api/memory', { mode: v }); setMode(v); }} options=${[{ value: 'off', label: 'Désactivée' }, { value: 'ondemand', label: 'Sur demande' }]} />`}</${Line}>
-      <${Line} label="Chiffrement au repos" tip="AES-256 sur la mémoire et les discussions, protégé par ta phrase secrète.">
-        ${!mem ? html`<span class="state">État inconnu</span>` : vault ? html`
-          <span class=${'tag ' + (mem.fully ? 'green' : 'amber')}>${!mem.encrypted ? 'État à vérifier' : mem.fully ? 'Chiffré' : 'Chiffrement partiel'}</span>
-          <span class="state">${mem.locked ? 'Verrouillé' : mem.encrypted ? 'Déverrouillé' : 'État inconnu'}</span>
-          ${(mem.locked || !mem.encrypted || !mem.fully) && html`<button class="btn sm" disabled=${blocked} onClick=${() => secret('unlock')}>Déverrouiller</button>`}
-          ${mem.encrypted && !mem.locked && html`<button class="btn sm ghost" disabled=${blocked} onClick=${lock}>Verrouiller</button><button class="btn sm ghost" disabled=${blocked} onClick=${decrypt}>Déchiffrer</button>`}`
-          : html`<span class="state">En clair</span><button class="btn sm" disabled=${blocked} onClick=${() => secret('encrypt')}>Activer</button>`}</${Line}>
-      ${mem?.encrypted && !mem.locked && html`<${Line} label="Clé supplémentaire" tip="Ajoute ou remplace le secret d’ouverture supplémentaire du coffre déjà déverrouillé, sans réécrire les données."><button class="btn sm ghost" disabled=${blocked} onClick=${() => secret('addkey')}>Ajouter une clé</button></${Line}>`}
-      <${Line} label="Exporter la discussion"><button class="btn sm ghost" onClick=${() => download('/api/chat/export?format=md', 'discussion.md').catch(() => toast('Export impossible', 'err'))}>Markdown</button><button class="btn sm ghost" onClick=${() => download('/api/chat/export?format=json', 'discussion.json').catch(() => toast('Export impossible', 'err'))}>JSON</button></${Line}>
+    <${Group} title="${t("settings.page.memoire_et_donnees")}">
+      <${Line} label="${t("settings.page.memoire_des_modeles_locaux")}" tip="${t("settings.page.desactivee_rien_n_est_retenu_entre_les_discussions_sur_demande_le")}">
+        ${mode && html`<${Seg} size="sm" value=${mode} onChange=${async v => { await post('/api/memory', { mode: v }); setMode(v); }} options=${[{ value: 'off', label: t("settings.page.desactivee") }, { value: 'ondemand', label: t("settings.page.sur_demande") }]} />`}</${Line}>
+      <${Line} label="${t("settings.page.chiffrement_au_repos")}" tip="${t("settings.page.aes_256_sur_la_memoire_et_les_discussions_protege_par_ta_phrase_s")}">
+        ${!mem ? html`<span class="state">${t("settings.page.etat_inconnu")}</span>` : vault ? html`
+          <span class=${'tag ' + (mem.fully ? 'green' : 'amber')}>${!mem.encrypted ? t("settings.page.etat_a_verifier") : mem.fully ? t("settings.page.chiffre") : t("settings.page.chiffrement_partiel")}</span>
+          <span class="state">${mem.locked ? t("settings.page.verrouille") : mem.encrypted ? t("settings.page.deverrouille") : t("settings.page.etat_inconnu")}</span>
+          ${(mem.locked || !mem.encrypted || !mem.fully) && html`<button class="btn sm" disabled=${blocked} onClick=${() => secret('unlock')}>${t("settings.page.deverrouiller")}</button>`}
+          ${mem.encrypted && !mem.locked && html`<button class="btn sm ghost" disabled=${blocked} onClick=${lock}>${t("settings.page.verrouiller")}</button><button class="btn sm ghost" disabled=${blocked} onClick=${decrypt}>${t("settings.page.dechiffrer")}</button>`}`
+          : html`<span class="state">${t("settings.page.en_clair")}</span><button class="btn sm" disabled=${blocked} onClick=${() => secret('encrypt')}>${t("settings.page.activer")}</button>`}</${Line}>
+      ${mem?.encrypted && !mem.locked && html`<${Line} label="${t("settings.page.cle_supplementaire")}" tip="${t("settings.page.ajoute_ou_remplace_le_secret_d_ouverture_supplementaire_du_coffre")}"><button class="btn sm ghost" disabled=${blocked} onClick=${() => secret('addkey')}>${t("settings.page.ajouter_une_cle")}</button></${Line}>`}
+      <${Line} label="${t("settings.page.exporter_la_discussion")}"><button class="btn sm ghost" onClick=${() => download('/api/chat/export?format=md', 'discussion.md').catch(() => toast(t("settings.page.export_impossible"), 'err'))}>${t("settings.page.markdown")}</button><button class="btn sm ghost" onClick=${() => download('/api/chat/export?format=json', 'discussion.json').catch(() => toast(t("settings.page.export_impossible"), 'err'))}>JSON</button></${Line}>
     </${Group}>
-    <${Group} title="Snapshots locaux">
-      <${Line} label="Sauvegardes" tip="Copies locales des fichiers mémoire, coffre compris. La taille n’est pas fournie par le serveur. La restauration ne remplace pas les discussions, presets ou réglages."><button class="btn sm ghost" disabled=${blocked} onClick=${load}>Actualiser</button></${Line}>
-      ${snapshots === null ? html`<${Line} label="Liste"><span class="state">Inconnue</span></${Line}>`
-        : snapshots.length === 0 ? html`<${Line} label="Liste"><span class="state">Aucun snapshot</span></${Line}>`
-        : snapshots.map(s => html`<${Line} key=${s.id} label=${snapshotDate(s)} tip=${s.reason || 'Snapshot local'}>
-          <span class="num">${typeof s.size === 'number' && s.size > 0 ? fmtBytes(s.size) : 'Taille inconnue'}</span>
-          <button class="btn sm ghost" disabled=${blocked} onClick=${() => restore(s)}>Restaurer</button>
+    <${Group} title="${t("settings.page.snapshots_locaux")}">
+      <${Line} label="${t("settings.page.sauvegardes")}" tip="${t("settings.page.copies_locales_des_fichiers_memoire_coffre_compris_la_taille_n_es")}"><button class="btn sm ghost" disabled=${blocked} onClick=${load}>${t("settings.page.actualiser")}</button></${Line}>
+      ${snapshots === null ? html`<${Line} label="${t("settings.page.liste")}"><span class="state">${t("settings.page.inconnue")}</span></${Line}>`
+        : snapshots.length === 0 ? html`<${Line} label="${t("settings.page.liste")}"><span class="state">${t("settings.page.aucun_snapshot")}</span></${Line}>`
+        : snapshots.map(s => html`<${Line} key=${s.id} label=${snapshotDate(s)} tip=${s.reason || t("settings.page.snapshot_local")}>
+          <span class="num">${typeof s.size === 'number' && s.size > 0 ? fmtBytes(s.size) : t("settings.page.taille_inconnue")}</span>
+          <button class="btn sm ghost" disabled=${blocked} onClick=${() => restore(s)}>${t("settings.page.restaurer")}</button>
         </${Line}>`)}
     </${Group}>
     ${secretForm && html`<${SecretDialog} key=${secretForm.action} title=${secretForm.title} tip=${secretForm.tip} onClose=${() => setSecretForm(null)} onSubmit=${submitSecret} />`}`;
@@ -504,20 +508,20 @@ function About() {
   const [upd, setUpd] = useState(null);
   useEffect(() => { get('/api/paths').then(setPaths); }, []);
   return html`
-    <${Group} title="Loom">
-      <${Line} label="Version"><span class="mono">${status ? status.version : '—'}</span></${Line}>
-      <${Line} label="Mises à jour">${upd ? html`<span class="muted">${upd.available ? 'Version ' + upd.latest + ' disponible' : 'À jour'}</span>` : html`<button class="btn sm" onClick=${async () => setUpd(await get('/api/update'))}>Vérifier</button>`}</${Line}>
+    <${Group} title="${t("settings.page.loom")}">
+      <${Line} label="${t("settings.page.version")}"><span class="mono">${status ? status.version : '—'}</span></${Line}>
+      <${Line} label="${t("settings.page.mises_a_jour")}">${upd ? html`<span class="muted">${upd.available ? 'Version ' + upd.latest + t("settings.page.disponible") : t("settings.page.a_jour_2")}</span>` : html`<button class="btn sm" onClick=${async () => setUpd(await get('/api/update'))}>${t("settings.page.verifier")}</button>`}</${Line}>
     </${Group}>
-    ${paths && html`<${Group} title="Emplacements">${[['Données', paths.home], ['Base', paths.database], ['Modèles', paths.models], ['Presets', paths.presets], ['Moteurs', paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
+    ${paths && html`<${Group} title="${t("settings.page.emplacements")}">${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
 }
 
 export function SettingsPage({ route }) {
-  const sec = SECTIONS.some(s => s[0] === route.sub) ? route.sub : 'general';
+  const sec = SECTIONS().some(s => s[0] === route.sub) ? route.sub : 'general';
   const View = { general: General, machines: MachinesSettings, engine: Engine, internet: Internet, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
-    <div class="page-head"><div><h1>Réglages</h1></div></div>
+    <div class="page-head"><div><h1>${t("settings.page.reglages")}</h1></div></div>
     <div class="settings">
-      <nav class="set-nav">${SECTIONS.map(([id, label, ico]) => html`<a href=${'#/settings/' + id} aria-current=${id === sec ? 'page' : undefined}><${Icon} n=${ico} />${label}</a>`)}</nav>
+      <nav class="set-nav">${SECTIONS().map(([id, label, ico]) => html`<a href=${'#/settings/' + id} aria-current=${id === sec ? 'page' : undefined}><${Icon} n=${ico} />${label}</a>`)}</nav>
       <div class="set-body" key=${sec}><${View} route=${route} /></div>
     </div>
   </div></div>`;

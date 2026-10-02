@@ -17,6 +17,7 @@ var webPrefsMu sync.Mutex
 // webPrefsAllowed liste les clés de préférence acceptées et, pour chacune, les
 // valeurs valides. On ne stocke que ce qui est connu (pas de champ libre).
 var webPrefsAllowed = map[string]map[string]bool{
+	"lang":           {"en": true, "fr": true},
 	"theme":          {"light": true, "dark": true},
 	"hide_reasoning": {"0": true, "1": true},
 	"hide_tools":     {"0": true, "1": true},

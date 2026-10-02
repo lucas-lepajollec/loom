@@ -1,3 +1,4 @@
+import { t } from '../../core/i18n.js';
 // Markdown des réponses. Le HTML brut écrit par un modèle est ÉCHAPPÉ : une
 // réponse ne peut pas injecter de balises ou de scripts dans l'interface.
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -22,7 +23,7 @@ function setup() {
       code(code, lang) {
         if (typeof code === 'object') { lang = code.lang; code = code.text; }
         const l = String(lang || '').split(/\s/)[0];
-        return `<div class="code"><div class="code-h"><span>${esc(l || 'texte')}</span><button type="button" class="code-copy" data-copy>Copier</button></div><pre><code>${esc(code)}</code></pre></div>`;
+        return `<div class="code"><div class="code-h"><span>${esc(l || t('chat.md.text'))}</span><button type="button" class="code-copy" data-copy>${esc(t('chat.md.copier'))}</button></div><pre><code>${esc(code)}</code></pre></div>`;
       },
     },
   });
@@ -46,5 +47,5 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-copy]');
   if (!b) return;
   const code = b.closest('.code').querySelector('code').textContent;
-  navigator.clipboard && navigator.clipboard.writeText(code).then(() => { b.textContent = 'Copié'; setTimeout(() => { b.textContent = 'Copier'; }, 1400); });
+  navigator.clipboard && navigator.clipboard.writeText(code).then(() => { b.textContent = t("chat.md.copie"); setTimeout(() => { b.textContent = t("chat.md.copier"); }, 1400); });
 });

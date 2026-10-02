@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 // Client de l'API Loom. La clé de pilotage (si le serveur en exige une) est
 // envoyée en Bearer ; sur 401 on la demande une fois, puis on rejoue.
 import { ask } from '../ui/dialog.js';
@@ -17,7 +18,7 @@ export function setToken(k) { token = k || ''; try { localStorage.setItem('loom.
 
 async function askKey() {
   if (!asking) {
-    asking = ask({ title: 'Authentification', message: 'Ce Loom exige sa clé de pilotage.', input: { placeholder: 'clé…', type: 'password' }, ok: 'Continuer' })
+    asking = ask({ title: t("core.api.authentification"), message: t("core.api.ce_loom_exige_sa_cle_de_pilotage"), input: { placeholder: t("core.api.cle"), type: 'password' }, ok: t("core.api.continuer") })
       .then(k => { asking = null; if (k) { token = k.trim(); localStorage.setItem('loom.key', token); } return k; });
   }
   return asking;
@@ -30,7 +31,7 @@ export async function request(url, opts = {}) {
   if (!o.signal) { const ac = new AbortController(); o.signal = ac.signal; timer = setTimeout(() => ac.abort(), TIMEOUT); }
   let r;
   try { r = await fetch(url, o); }
-  catch (e) { if (e.name === 'AbortError' && timer) throw new Error('Le serveur ne répond pas.'); throw e; }
+  catch (e) { if (e.name === 'AbortError' && timer) throw new Error(t("core.api.le_serveur_ne_repond_pas")); throw e; }
   finally { if (timer) clearTimeout(timer); }
   if (r.status === 401 && retryAuth && await askKey()) { o.headers = headers(opts.headers); r = await fetch(url, o); }
   return r;

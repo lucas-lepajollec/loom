@@ -1,3 +1,4 @@
+import { french } from './i18n-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -31,6 +32,7 @@ function harness(source, view, overrides = {}) {
     '/api/mem/snapshots': { ok: true, snapshots: [] },
   };
   const env = {
+    t: french, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu',
     Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub',
@@ -256,7 +258,7 @@ test('preset moves preserve the complete filtered catalog, boundaries and failed
 test('vault 401 skips API authentication retry; ordinary API requests retain it', async () => {
   const source = fs.readFileSync(new URL('../next/js/core/api.js', import.meta.url), 'utf8');
   const calls = [], asks = [];
-  const env = { localStorage: { getItem: () => 'synthetic-access', setItem() {} }, AbortController,
+  const env = { t: french, localStorage: { getItem: () => 'synthetic-access', setItem() {} }, AbortController,
     setTimeout: () => 1, clearTimeout() {},
     ask: async spec => { asks.push(spec); return 'synthetic-new-access'; },
     fetch: async (url, opts) => { calls.push([url, opts]); return { status: 401, ok: false, json: async () => ({ ok: false }) }; },
@@ -268,4 +270,28 @@ test('vault 401 skips API authentication retry; ordinary API requests retain it'
   assert.ok(!('retryAuth' in calls[0][1]));
   await env.api.post('/api/other', {});
   assert.equal(asks.length, 1); assert.equal(calls.length, 3);
+});
+
+test('language selector applies immediately and preserves a system prompt draft', async () => {
+  let lang = 'fr'; const choices = [];
+  const dictionaries = { fr: (await import('../next/js/i18n/fr.js')).default, en: (await import('../next/js/i18n/en.js')).default };
+  const h = harness(settings, 'General', {
+    t: key => dictionaries[lang][key], getLang: () => lang,
+    setLang: async value => { lang = value; choices.push(value); return true; },
+    get: async url => url === '/api/prefs' ? { prefs: { lang: 'fr' } } : url === '/api/sysprompt' ? { text: 'Original prompt' } : { compact: true },
+    state: { theme: 'dark' },
+  });
+  let tree = await h.ready();
+  assert.equal(nodes(tree, 'select')[0].props.value, 'fr');
+  assert.deepEqual(nodes(tree, 'option').map(n => textOf(n)), ['Français', 'English']);
+  nodes(tree, 'textarea')[0].props.onInput({ target: { value: 'Unsaved prompt' } });
+  await nodes(h.render(), 'select')[0].props.onChange({ target: { value: 'en' } });
+  tree = h.render();
+  assert.equal(nodes(tree, 'select')[0].props.value, 'en');
+  assert.equal(nodes(tree, 'textarea')[0].props.value, 'Unsaved prompt');
+  assert.ok(button(tree, 'Save'));
+  assert.deepEqual(choices, ['en']);
+  const switchNode = nodes(tree, 'Switch').find(n => n.props.checked === false);
+  await switchNode.props.onChange(true);
+  assert.deepEqual(Object.keys(h.posts.at(-1)[1]), ['hide_reasoning']);
 });

@@ -1,3 +1,4 @@
+import { t, getLang } from '../../core/i18n.js';
 // Fil de discussion : rendu des éléments produits par le moteur.
 import { html, useState, useEffect, useRef, useMemo, cls, fmtTok, fmtSecs } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
@@ -7,22 +8,22 @@ import { post } from '../../core/api.js';
 import { toast } from '../../ui/dialog.js';
 import { runtimeKind } from '../../core/state.js';
 
-const TOOL = {
-  bash: ['terminal', 'Terminal'], write: ['file', 'Écriture'], edit: ['edit', 'Édition'],
-  web_search: ['search', 'Recherche web'], web_open: ['globe', 'Page web'], web_read: ['globe', 'Lecture de page'], web_grep: ['globe', 'Recherche dans la page'],
-  mem_search: ['brain', 'Recherche mémoire'], mem_read: ['brain', 'Lecture mémoire'], mem_add: ['brain', 'Nouvelle note'], mem_edit: ['brain', 'Note modifiée'], mem_delete: ['brain', 'Note supprimée'],
+const TOOL = () => ({
+  bash: ['terminal', 'Terminal'], write: ['file', t("chat.messages.ecriture")], edit: ['edit', t("chat.messages.edition")],
+  web_search: ['search', t("chat.messages.recherche_web")], web_open: ['globe', t("chat.messages.page_web")], web_read: ['globe', t("chat.messages.lecture_de_page")], web_grep: ['globe', t("chat.messages.recherche_dans_la_page")],
+  mem_search: ['brain', t("chat.messages.recherche_memoire")], mem_read: ['brain', t("chat.messages.lecture_memoire")], mem_add: ['brain', t("chat.messages.nouvelle_note")], mem_edit: ['brain', t("chat.messages.note_modifiee")], mem_delete: ['brain', t("chat.messages.note_supprimee")],
   see_image: ['eye', 'Vision'],
-};
+});
 function toolMeta(name) {
-  if (TOOL[name]) return TOOL[name];
+  if (TOOL()[name]) return TOOL()[name];
   if (name && name.startsWith('mcp__')) { const [srv, ...rest] = name.slice(5).split('__'); return ['plug', rest.join('__') + ' · ' + srv]; }
-  return ['tool', name || 'Outil'];
+  return ['tool', name || t("chat.messages.outil")];
 }
 
 // Markdown mémorisé sur la longueur du texte : un bloc qui ne bouge plus n'est
 // pas re-parsé à chaque frame du bloc voisin.
 function Body({ text, isPlain, live }) {
-  const out = useMemo(() => (isPlain ? plain(text) : md(text)), [text, isPlain]);
+  const out = useMemo(() => (isPlain ? plain(text) : md(text)), [text, isPlain, getLang()]);
   return html`<div class=${cls('md', live && 'streaming')} dangerouslySetInnerHTML=${{ __html: out }}></div>`;
 }
 
@@ -42,11 +43,11 @@ function Tool({ tu, live }) {
   let add = 0, del = 0;
   if (tu.diff && tu.diff.length) tu.diff.forEach(l => { if (l.op === '+') add++; else if (l.op === '-') del++; });
   else if (tu.body) add = tu.body.split('\n').length;
-  const label = html`${name}${add || del ? html` <em class="plus">+${add}</em>${del ? html` <em class="minus">−${del}</em>` : ''}` : ''}${tu.result ? html` <em>· ${Math.max(1, Math.round(tu.result.length / 4))} tok</em>` : ''}`;
+  const label = html`${name}${add || del ? html` <em class="plus">+${add}</em>${del ? html` <em class="minus">−${del}</em>` : ''}` : ''}${tu.result ? html` <em>· ${Math.max(1, Math.round(tu.result.length / 4))} ${t("chat.messages.tok")}</em>` : ''}`;
   return html`<${Collapsible} icon=${ico} label=${label} live=${live} cls="tool">
     ${tu.label && html`<pre class="tool-cmd"><code>${tu.label}${tu.typing ? html`<span class="caret-blink">▋</span>` : ''}</code></pre>`}
     ${tu.diff && tu.diff.length ? html`<pre class="diff">${tu.diff.map(l => html`<span class=${'dl ' + (l.op === '+' ? 'add' : l.op === '-' ? 'del' : '')}><b>${l.op === ' ' ? ' ' : l.op}</b>${l.t != null ? l.t : l.text}</span>`)}</pre>` :
-      tu.body ? html`<pre class="diff">${tu.body.split('\n').map(t => html`<span class="dl add"><b>+</b>${t}</span>`)}</pre>` : ''}
+      tu.body ? html`<pre class="diff">${tu.body.split('\n').map(localT => html`<span class="dl add"><b>+</b>${localT}</span>`)}</pre>` : ''}
     ${tu.result && html`<pre class="tool-out">${tu.result.length > 4000 ? tu.result.slice(0, 4000) + '\n…' : tu.result}</pre>`}
   </${Collapsible}>`;
 }
@@ -60,29 +61,29 @@ function Foot({ it }) {
   const rt = it.rt || {};
   const parts = [];
   const prov = provenance(rt); if (prov) parts.push(prov);
-  if (it.running) parts.push('en cours');
+  if (it.running) parts.push(t("chat.messages.en_cours"));
   if (it.ms > 0) parts.push(fmtSecs(it.ms / 1000));
   else if (rt.duration_seconds > 0) parts.push(fmtSecs(rt.duration_seconds));
   const u = rt.usage;
   if (it.tok > 0) parts.push(fmtTok(it.tok) + ' tok');
   else if (u && u.completion_tokens) parts.push(fmtTok(u.completion_tokens) + ' tok');
   if (it.rate) parts.push(it.rate.toFixed(1) + ' tok/s');
-  if (rt.runtime_id === 'llama.cpp' || (!rt.runtime_id && it.rate)) parts.push('sans coût API');
+  if (rt.runtime_id === 'llama.cpp' || (!rt.runtime_id && it.rate)) parts.push(t("chat.messages.sans_cout_api"));
   if (!parts.length) return null;
   const events = rt.events || [];
   return html`<div class="turn-foot anim-fade">
     <${Icon} n=${rt.runtime_id && rt.runtime_id !== 'llama.cpp' ? (runtimeKind(rt.runtime_id) === 'harness' ? 'terminal' : 'cloud') : 'chip'} />
     <span>${parts.join(' · ')}</span>
-    ${events.length ? html`<span class="muted"> · ${events.length} outil${events.length > 1 ? 's' : ''} natif${events.length > 1 ? 's' : ''}</span>` : ''}
+    ${events.length ? html`<span class="muted"> · ${events.length} ${t("chat.messages.outil_2")}${events.length > 1 ? 's' : ''} ${t("chat.messages.natif")}${events.length > 1 ? 's' : ''}</span>` : ''}
   </div>`;
 }
 
 function Gen({ gen, compacting }) {
   const [, tick] = useState(0);
-  useEffect(() => { const t = setInterval(() => tick(x => x + 1), 500); return () => clearInterval(t); }, []);
+  useEffect(() => { const localT = setInterval(() => tick(x => x + 1), 500); return () => clearInterval(localT); }, []);
   const secs = (Date.now() - gen.start) / 1000;
   return html`<div class="gen"><span class="gen-mark"><${Icon} n="loom" /></span>
-    <span>${compacting ? 'Compactage du contexte…' : [fmtSecs(secs), gen.tok ? fmtTok(gen.tok) + ' tok' : ''].filter(Boolean).join(' · ')}</span></div>`;
+    <span>${compacting ? t("chat.messages.compactage_du_contexte") : [fmtSecs(secs), gen.tok ? fmtTok(gen.tok) + ' tok' : ''].filter(Boolean).join(' · ')}</span></div>`;
 }
 
 // Regroupe les lectures/recherches consécutives d'un harness et ne garde que le
@@ -131,9 +132,9 @@ function workLabel(raw, foot) {
   const tools = raw.filter(i => i.k === 'tool').length;
   const think = raw.some(i => i.k === 'reasoning');
   const parts = [];
-  if (think) parts.push('Réflexion');
+  if (think) parts.push(t("chat.messages.reflexion"));
   if (tools) parts.push(tools + ' action' + (tools > 1 ? 's' : ''));
-  if (!parts.length) parts.push('Étapes intermédiaires');
+  if (!parts.length) parts.push(t("chat.messages.etapes_intermediaires"));
   const rt = foot && foot.rt || {};
   const secs = foot && foot.ms > 0 ? foot.ms / 1000 : rt.duration_seconds;
   return parts.join(' · ') + (secs > 0 ? ' · ' + fmtSecs(secs) : '');
@@ -150,7 +151,7 @@ function Work({ it, render }) {
 
 async function answer(sessionId, approvalId, optionId) {
   const r = await post('/api/runtime/sessions/approval', { id: sessionId, approval_id: approvalId, option_id: optionId });
-  if (!r.ok) toast(r.error || 'Réponse impossible', 'err');
+  if (!r.ok) toast(r.error || t("chat.messages.reponse_impossible"), 'err');
 }
 
 export function Messages({ items, gen, compacting, root, sessionId }) {
@@ -166,12 +167,12 @@ export function Messages({ items, gen, compacting, root, sessionId }) {
         ${it.files && it.files.length ? html`<div class="msg-files">${it.files.map(f => html`<span class="file-pill"><${Icon} n="file" />${f.name || String(f).split('/').pop()}</span>`)}</div>` : ''}
         <div class="bubble">${it.text}</div></div>`;
       case 'reasoning': return html`<${Collapsible} key=${i} icon="brain" live=${it.live} cls="reason"
-        label=${it.live ? 'Réflexion en cours…' : it.summary ? 'Résumé de réflexion' : it.tok > 0 ? 'Réflexion · ' + fmtTok(it.tok) + ' tok' : 'Réflexion'}>
+        label=${it.live ? t("chat.messages.reflexion_en_cours") : it.summary ? t("chat.messages.resume_de_reflexion") : it.tok > 0 ? t("chat.messages.reflexion_2") + fmtTok(it.tok) + ' tok' : t("chat.messages.reflexion")}>
         <${Body} text=${it.text} isPlain=${it.summary} live=${it.live} /></${Collapsible}>`;
       case 'assistant': return html`<div key=${i} class="msg-ai"><${Body} text=${it.text} isPlain=${it.plain} live=${it.live} /></div>`;
       case 'foot': return html`<${Foot} key=${i} it=${it} />`;
       case 'error': return html`<div key=${i} class="msg-err"><${Icon} n="alert" /><span>${it.text}</span></div>`;
-      case 'compact': return html`<div key=${i} class="compact-mark"><span>Contexte compacté · anciens tours résumés</span></div>`;
+      case 'compact': return html`<div key=${i} class="compact-mark"><span>${t("chat.messages.contexte_compacte_anciens_tours_resumes")}</span></div>`;
       default: return null;
     }
   };
