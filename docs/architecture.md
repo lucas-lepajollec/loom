@@ -286,7 +286,7 @@ break everything; do it **leaf-first, one package per PR, zero behavior change**
 2. `store/` (bbolt helpers, crypto, snapshots) — pure leaf.
 3. `platform/` (`sys_*`) — depends on store only.
 4. `engine/llamacpp/` (`backend_*`, `llm_oai_*`, `backend_router.go`).
-5. `runtime/` + `runtime/{local,openai,antigravity,codex}/`.
+5. `runtime/` + `runtime/{local,openai,antigravity,acp}/`.
 6. `discussion/` (`workspace_*`, native conversation bridge) and unify events.
 7. `tools/` (internet, MCP, memory) and `resources/`.
 8. `web/` last: handlers become thin files per domain.
@@ -482,8 +482,56 @@ Still in Loom, deliberately:
   and risk changing the existing native pipeline. Local engine lifecycle and
   supervision remain at their established engine/application boundaries.
 
-Next slice: ACP runtime with explicit application inputs and compatibility
-wrappers, then `discussion/` (sessions, context and native conversation bridge).
+The ninth slice extracts the ACP protocol layer into
+`internal/loom/runtime/acp`, with historical names delegated through
+`acp_compat.go`:
+
+- `protocol.go` and per-OS process helpers: bounded NDJSON JSON-RPC frames,
+  bidirectional calls/notifications, ordered update reading, sanitized errors,
+  cancellation and termination of the owned process group. `NewClient` receives
+  the already-resolved `exec.Cmd`; Loom keeps native launcher/PATH/environment
+  preparation. The local reply-completion callback is excluded from wire JSON.
+- `session.go` and `events.go`: unchanged session-response JSON, legacy model
+  option projection, nested select/boolean validation, session/update decoding,
+  live event projection and tool-call merging/clipping limits. Tool maps are
+  supplied explicitly; live filtering and state application remain in Loom.
+- `diffs.go`: bounded line LCS, addition/deletion counts and unified diff text,
+  independent of file access or persisted baselines.
+- `replay.go`: a self-contained replay builder owns only its buffer, lock and
+  tool map. Generic message/turn/event constructors preserve the original Loom
+  types without importing application state or converting their JSON. Replay
+  keeps its historical event mapping (including tool_delta for an unfinished
+  initial tool call), command payloads and trailing-update flush behavior.
+- `agy.go`: the Antigravity ACP bridge, its private agent sessions, modes,
+  native stream translation and existing file-observation/diff behavior. Loom
+  injects the `agyRead` function and `agy` executable. No bridge operation reads
+  Loom's session manager, store, account configuration or runtime registry.
+
+The independent Antigravity bridge and replay tests move with their code.
+Socket-free leaf tests cover bidirectional framing while a request handler waits,
+ordered notifications, cancellation, malformed frames/results, error sanitization,
+wire/null/empty shapes, detached tool snapshots, legacy model options and bounded
+line diffs. Loom retains fake-agent lifecycle/permission integration and
+file-confinement tests; a compatibility test verifies original discussion JSON.
+
+Still in Loom, deliberately:
+
+- `acp_session.go`, `acp_permissions.go`, `acp_shutdown.go` and
+  `acp_registry.go`: live bindings, consent, approvals, managed session lifecycle,
+  context hashes, configuration application and runtime registration require
+  `workspaceSessions`, prepared discussions and application security state.
+- `acp_files.go`, per-OS `acpOpenRead`, and the remainder of `acp_events.go`:
+  authorized roots/symlink checks, bounded filesystem access, persisted baselines,
+  changed-file records and publication belong to the discussion. Pure protocol
+  projection cannot grant file access or persist agent-reported diffs.
+- `acp_import.go`, `acp_probe.go`, `acp_custom.go` and `acp_http.go`: native
+  listing/import orchestration, duplicate detection, store writes, probes/cache,
+  launcher resolution, custom agent records and authenticated HTTP actions depend
+  on Loom state. Session import now delegates only replay construction.
+- `acp_fake.go` remains the existing Loom fixture agent used by lifecycle tests.
+  Codex app-server quota execution and shared usage accounting remain unchanged.
+
+Next slice: `discussion/` (sessions, context and native conversation bridge).
 Service policy, installed-binary/environment resolution, application cleanup and
 web/proxy orchestration remain in Loom until their own coherent migration.
 This extraction does not restart an engine, alter flags or change stored

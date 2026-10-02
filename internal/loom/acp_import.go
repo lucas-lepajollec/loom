@@ -2,12 +2,10 @@ package loom
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -95,92 +93,6 @@ func listACPSessions(ctx context.Context, agent acpAgent) ([]acpSessionInfo, err
 	return out, nil
 }
 
-// replayBuilder turns the session/update stream of a session/load into Loom
-// messages and turn records (same event vocabulary as a live turn).
-type replayBuilder struct {
-	mu       sync.Mutex
-	binding  *acpBinding
-	messages []Message
-	turns    []RuntimeTurnRecord
-	user     strings.Builder
-	answer   strings.Builder
-	events   []DiscussionEvent
-	inAgent  bool
-	commands []map[string]any
-}
-
-func (b *replayBuilder) flush(agent acpAgent, native string) {
-	if b.user.Len() == 0 && b.answer.Len() == 0 && len(b.events) == 0 {
-		return
-	}
-	user := strings.TrimSpace(b.user.String())
-	if user == "" {
-		user = "(suite)"
-	}
-	b.messages = append(b.messages, Message{Role: "user", Content: user}, Message{Role: "assistant", Content: b.answer.String()})
-	b.turns = append(b.turns, RuntimeTurnRecord{MessageIndex: len(b.messages) - 1, RuntimeID: agent.ID, ProviderName: agent.Name, Model: "default", NativeSessionID: native, ACPEvents: b.events})
-	b.user.Reset()
-	b.answer.Reset()
-	b.events, b.inAgent = nil, false
-}
-
-func (b *replayBuilder) notify(agent acpAgent, native string) func(acpFrame) {
-	return func(f acpFrame) {
-		var params struct {
-			Update map[string]any `json:"update"`
-		}
-		if json.Unmarshal(f.Params, &params) != nil {
-			return
-		}
-		u := params.Update
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		text := func() string {
-			c, _ := u["content"].(map[string]any)
-			t, _ := c["text"].(string)
-			return t
-		}
-		switch u["sessionUpdate"] {
-		case "user_message_chunk":
-			if b.inAgent {
-				b.flush(agent, native)
-			}
-			b.user.WriteString(text())
-		case "agent_message_chunk":
-			b.inAgent = true
-			t := text()
-			b.answer.WriteString(t)
-			b.events = append(b.events, DiscussionEvent{"type": "text_delta", "text": t})
-		case "agent_thought_chunk":
-			b.inAgent = true
-			b.events = append(b.events, DiscussionEvent{"type": "reasoning_delta", "text": text()})
-		case "tool_call", "tool_call_update":
-			b.inAgent = true
-			if u["sessionUpdate"] == "tool_call" {
-				id, _ := u["toolCallId"].(string)
-				delete(b.binding.tools, id)
-			}
-			t := b.binding.tool(u)
-			kind := "tool_delta"
-			if t["status"] == "completed" || t["status"] == "failed" {
-				kind = "tool_end"
-			}
-			b.events = append(b.events, DiscussionEvent{"type": kind, "tool": t})
-		case "plan", "plan_update":
-			b.events = append(b.events, DiscussionEvent{"type": "plan", "entries": u["entries"]})
-		case "available_commands_update":
-			if list, ok := u["availableCommands"].([]any); ok {
-				b.commands = nil
-				for _, raw := range list {
-					if m, ok := raw.(map[string]any); ok {
-						b.commands = append(b.commands, m)
-					}
-				}
-			}
-		}
-	}
-}
-
 func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, projectID string) (RuntimeSession, error) {
 	var s RuntimeSession
 	check := acpDirectory
@@ -197,12 +109,12 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 			return full, nil
 		}
 	}
-	b := &replayBuilder{binding: &acpBinding{tools: map[string]map[string]any{}}}
+	b := newReplayBuilder()
 	processDir := cwd
 	if agent.Remote {
 		processDir, _ = os.UserHomeDir()
 	}
-	c, _, err := startACPReader(ctx, agent, processDir, b.notify(agent, info.SessionID))
+	c, _, err := startACPReader(ctx, agent, processDir, b.Notify(agent.ID, agent.Name, info.SessionID))
 	if err != nil {
 		return s, err
 	}
@@ -212,10 +124,7 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 		return s, errors.New("le harness n’a pas pu rouvrir cette session")
 	}
 	time.Sleep(300 * time.Millisecond) // trailing updates sent just after the response
-	b.mu.Lock()
-	b.flush(agent, info.SessionID)
-	messages, turns, commands := b.messages, b.turns, b.commands
-	b.mu.Unlock()
+	messages, turns, commands := b.Finish(agent.ID, agent.Name, info.SessionID)
 	if len(messages) == 0 {
 		return s, errors.New("session vide : rien à importer")
 	}

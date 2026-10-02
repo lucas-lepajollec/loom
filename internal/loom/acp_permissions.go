@@ -38,7 +38,7 @@ func (p *acpBinding) handleRequest(f *acpFrame) (any, error) {
 	active := p.active
 	if ctx != nil && active && params.SessionID == sid && sid != "" {
 		p.requestWG.Add(1)
-		f.replied = p.requestWG.Done
+		f.Replied = p.requestWG.Done
 	} else {
 		p.mu.Unlock()
 		return nil, errors.New("session ACP inactive")

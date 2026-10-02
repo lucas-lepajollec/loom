@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 )
@@ -156,51 +155,6 @@ func probeMissingACPAgents() {
 		refreshACPProbe(ctx, agent)
 		cancel()
 	}
-}
-
-// acpModelOption returns the agent's model selector, if it announced one.
-func acpModelOption(config []map[string]any) map[string]any {
-	for _, o := range config {
-		if o["category"] == "model" {
-			return o
-		}
-	}
-	for _, o := range config {
-		if id, _ := o["id"].(string); strings.EqualFold(id, "model") {
-			return o
-		}
-	}
-	return nil
-}
-
-type acpOptionValue struct{ Value, Name, Description string }
-
-func acpOptionValues(option map[string]any) []acpOptionValue {
-	out := []acpOptionValue{}
-	var walk func(any)
-	walk = func(raw any) {
-		list, _ := raw.([]any)
-		for _, item := range list {
-			m, _ := item.(map[string]any)
-			if m == nil {
-				continue
-			}
-			if inner, ok := m["options"]; ok {
-				walk(inner)
-				continue
-			}
-			v, _ := m["value"].(string)
-			n, _ := m["name"].(string)
-			d, _ := m["description"].(string)
-			if v != "" {
-				out = append(out, acpOptionValue{v, n, d})
-			}
-		}
-	}
-	if option != nil {
-		walk(option["options"])
-	}
-	return out
 }
 
 // GET: cached probe. POST: run a new probe now.

@@ -2,7 +2,6 @@ package loom
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -238,100 +237,4 @@ func (p *acpBinding) writeFile(path, content string) (any, error) {
 	p.mu.Unlock()
 	p.publish(DiscussionEvent{"type": "files", "files": files})
 	return map[string]any{}, nil
-}
-func acpLines(text string) []string {
-	if text == "" {
-		return nil
-	}
-	lines := strings.SplitAfter(text, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-	return lines
-}
-
-type acpDiffLine struct {
-	kind byte
-	text string
-}
-
-// Line LCS on the changed middle; equal prefixes/suffixes are retained. A
-// bounded fallback is still a valid diff for very large unrelated rewrites.
-func acpLineDiff(before, after string) []acpDiffLine {
-	a, b := acpLines(before), acpLines(after)
-	out := []acpDiffLine{}
-	first := 0
-	for first < len(a) && first < len(b) && a[first] == b[first] {
-		out = append(out, acpDiffLine{' ', a[first]})
-		first++
-	}
-	last := 0
-	for last < len(a)-first && last < len(b)-first && a[len(a)-1-last] == b[len(b)-1-last] {
-		last++
-	}
-	x, y := a[first:len(a)-last], b[first:len(b)-last]
-	if len(x) > 0 && len(y) > 0 && len(x) <= 1000000/len(y) {
-		width := len(y) + 1
-		dp := make([]int, (len(x)+1)*width)
-		for i := len(x) - 1; i >= 0; i-- {
-			for j := len(y) - 1; j >= 0; j-- {
-				if x[i] == y[j] {
-					dp[i*width+j] = dp[(i+1)*width+j+1] + 1
-				} else {
-					dp[i*width+j] = max(dp[(i+1)*width+j], dp[i*width+j+1])
-				}
-			}
-		}
-		i, j := 0, 0
-		for i < len(x) || j < len(y) {
-			if i < len(x) && j < len(y) && x[i] == y[j] {
-				out = append(out, acpDiffLine{' ', x[i]})
-				i++
-				j++
-			} else if i < len(x) && (j == len(y) || dp[(i+1)*width+j] >= dp[i*width+j+1]) {
-				out = append(out, acpDiffLine{'-', x[i]})
-				i++
-			} else {
-				out = append(out, acpDiffLine{'+', y[j]})
-				j++
-			}
-		}
-	} else {
-		for _, line := range x {
-			out = append(out, acpDiffLine{'-', line})
-		}
-		for _, line := range y {
-			out = append(out, acpDiffLine{'+', line})
-		}
-	}
-	for _, line := range a[len(a)-last:] {
-		out = append(out, acpDiffLine{' ', line})
-	}
-	return out
-}
-func acpLineCounts(before, after string) (add, del int) {
-	for _, line := range acpLineDiff(before, after) {
-		if line.kind == '+' {
-			add++
-		}
-		if line.kind == '-' {
-			del++
-		}
-	}
-	return
-}
-func acpUnifiedDiff(path, before, after string) string {
-	if before == after {
-		return ""
-	}
-	var out strings.Builder
-	fmt.Fprintf(&out, "--- %s\n+++ %s\n@@ -%d,%d +%d,%d @@\n", path, path, min(1, len(acpLines(before))), len(acpLines(before)), min(1, len(acpLines(after))), len(acpLines(after)))
-	for _, line := range acpLineDiff(before, after) {
-		out.WriteByte(line.kind)
-		out.WriteString(line.text)
-		if !strings.HasSuffix(line.text, "\n") {
-			out.WriteString("\n\\ No newline at end of file\n")
-		}
-	}
-	return out.String()
 }

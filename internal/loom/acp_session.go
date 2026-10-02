@@ -411,47 +411,6 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	return []Message{{Role: "assistant", Content: answer}}, nil
 }
 
-type acpSessionResponse struct {
-	SessionID string `json:"sessionId"`
-	Modes     *struct {
-		Current   string           `json:"currentModeId"`
-		Available []map[string]any `json:"availableModes"`
-	} `json:"modes"`
-	Config []map[string]any `json:"configOptions"`
-	// Older "session model" API (still used by Hermes and others): a model
-	// list outside configOptions, changed with session/set_model.
-	Models *struct {
-		Current   string `json:"currentModelId"`
-		Available []struct {
-			ID          string `json:"modelId"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		} `json:"availableModels"`
-	} `json:"models"`
-}
-
-// acpLegacyModelKey marks the model option Loom built from the older API.
-const acpLegacyModelKey = "loomLegacyModel"
-
-// options returns configOptions plus, when the agent only uses the older
-// model API, an equivalent "model" option so the rest of Loom sees one shape.
-func (r acpSessionResponse) options() []map[string]any {
-	out := r.Config
-	if r.Models == nil || len(r.Models.Available) == 0 || acpModelOption(out) != nil {
-		return out
-	}
-	values := []any{}
-	for _, m := range r.Models.Available {
-		name := m.Name
-		if name == "" {
-			name = m.ID
-		}
-		values = append(values, map[string]any{"value": m.ID, "name": name, "description": m.Description})
-	}
-	return append(append([]map[string]any{}, out...), map[string]any{"id": "model", "name": "Model", "category": "model", "type": "select",
-		"currentValue": r.Models.Current, "options": values, acpLegacyModelKey: true})
-}
-
 func (p *acpBinding) applySessionResponse(r acpSessionResponse) {
 	if r.Modes != nil {
 		p.state.Mode = r.Modes.Current
@@ -582,38 +541,6 @@ func acpMCPServersFromDefinitions(caps map[string]any, definitions map[string]MC
 		}
 	}
 	return servers, nil
-}
-
-func acpConfigValueAllowed(option map[string]any, value any) bool {
-	if option["type"] == "boolean" {
-		_, ok := value.(bool)
-		return ok
-	}
-	v, ok := value.(string)
-	if !ok || option["type"] != "select" {
-		return false
-	}
-	var matches func(any) bool
-	matches = func(raw any) bool {
-		choices, ok := raw.([]any)
-		if !ok {
-			return false
-		}
-		for _, rawChoice := range choices {
-			choice, ok := rawChoice.(map[string]any)
-			if !ok {
-				continue
-			}
-			if choice["value"] == v {
-				return true
-			}
-			if matches(choice["options"]) {
-				return true
-			}
-		}
-		return false
-	}
-	return matches(option["options"])
 }
 
 // Explicit session selection overrides the project's selection. Nil inherits

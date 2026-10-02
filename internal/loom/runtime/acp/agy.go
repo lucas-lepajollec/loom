@@ -1,4 +1,4 @@
-package loom
+package acp
 
 import (
 	"bufio"
@@ -42,7 +42,7 @@ var agyModes = []map[string]any{
 	{"id": "full", "name": "Tout autoriser", "description": "Toutes les actions sont acceptées sans question."},
 }
 
-func runAgyACP(in io.Reader, out io.Writer) {
+func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 	var writeMu, mu sync.Mutex
 	sessions := map[string]*agySession{}
 	send := func(v any) {
@@ -51,14 +51,16 @@ func runAgyACP(in io.Reader, out io.Writer) {
 		_, _ = out.Write(append(b, '\n'))
 		writeMu.Unlock()
 	}
-	reply := func(id json.RawMessage, result any) { send(map[string]any{"jsonrpc": "2.0", "id": id, "result": result}) }
+	reply := func(id json.RawMessage, result any) {
+		send(map[string]any{"jsonrpc": "2.0", "id": id, "result": result})
+	}
 	fail := func(id json.RawMessage, msg string) {
 		send(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": -32000, "message": msg}})
 	}
 	update := func(sid string, u map[string]any) {
 		send(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": sid, "update": u}})
 	}
-	models, _ := discoverAgyModelsNamed(context.Background())
+	models, _ := DiscoverAgyModelsNamed(context.Background(), b.Read)
 	defaultModel := ""
 	if len(models) > 0 {
 		defaultModel = models[0][0]
@@ -86,9 +88,9 @@ func runAgyACP(in io.Reader, out io.Writer) {
 		return s
 	}
 	sc := bufio.NewScanner(in)
-	sc.Buffer(make([]byte, 64<<10), acpMaxFrame)
+	sc.Buffer(make([]byte, 64<<10), MaxFrame)
 	for sc.Scan() {
-		var f acpFrame
+		var f Frame
 		if json.Unmarshal(sc.Bytes(), &f) != nil || f.Method == "" {
 			continue // responses to our (none) requests, or noise
 		}
@@ -97,7 +99,7 @@ func runAgyACP(in io.Reader, out io.Writer) {
 		sid, _ := params["sessionId"].(string)
 		switch f.Method {
 		case "initialize":
-			ver, _ := agyRead(context.Background(), "--version")
+			ver, _ := b.Read(context.Background(), "--version")
 			reply(f.ID, map[string]any{"protocolVersion": 1,
 				"agentInfo":         map[string]any{"name": "Antigravity", "version": strings.TrimSpace(string(ver))},
 				"agentCapabilities": map[string]any{"loadSession": true, "promptCapabilities": map[string]any{}}})
@@ -164,7 +166,7 @@ func runAgyACP(in io.Reader, out io.Writer) {
 			mu.Unlock()
 			go func(id json.RawMessage, s *agySession) {
 				defer cancel()
-				stop, err := agyTurn(ctx, s, text, func(u map[string]any) { update(sid, u) })
+				stop, err := b.turn(ctx, s, text, func(u map[string]any) { update(sid, u) })
 				if err != nil && ctx.Err() == nil {
 					fail(id, err.Error())
 					return
@@ -216,8 +218,8 @@ func promptText(p any) string {
 }
 
 // discoverAgyModelsNamed returns [id, display name] in agy's order.
-func discoverAgyModelsNamed(ctx context.Context) ([][2]string, error) {
-	out, err := agyRead(ctx, "models")
+func DiscoverAgyModelsNamed(ctx context.Context, read AgyRead) ([][2]string, error) {
+	out, err := read(ctx, "models")
 	if err != nil {
 		return nil, err
 	}
@@ -309,8 +311,8 @@ func agyToolCall(name string, params map[string]json.RawMessage, cwd string) map
 }
 
 // agyTurn runs one prompt and translates agy's stream into ACP updates.
-func agyTurn(ctx context.Context, s *agySession, text string, update func(map[string]any)) (string, error) {
-	path, err := exec.LookPath("agy")
+func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update func(map[string]any)) (string, error) {
+	path, err := exec.LookPath(b.Executable)
 	if err != nil {
 		return "", fmt.Errorf("CLI agy introuvable")
 	}
@@ -369,7 +371,7 @@ func agyTurn(ctx context.Context, s *agySession, text string, update func(map[st
 		if json.Unmarshal(sc.Bytes(), &ev) != nil {
 			continue
 		}
-		if c := firstNonEmpty(ev.Conv, ev.Step.Conv, ev.Result.Conv); c != "" {
+		if c := FirstNonEmpty(ev.Conv, ev.Step.Conv, ev.Result.Conv); c != "" {
 			s.conv = c
 		}
 		switch ev.Event {
@@ -380,7 +382,7 @@ func agyTurn(ctx context.Context, s *agySession, text string, update func(map[st
 					update(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": ev.Step.Text}})
 				}
 			case "tool":
-				name := firstNonEmpty(ev.Step.Tool, ev.Step.Info.Name, "outil")
+				name := FirstNonEmpty(ev.Step.Tool, ev.Step.Info.Name, "outil")
 				id := fmt.Sprintf("agy-%d", ev.Step.Index)
 				target := agyEditTarget(name, ev.Step.Info.Parameters, s.cwd)
 				if read := agyReadTarget(name, ev.Step.Info.Parameters, s.cwd); read != "" && ev.Step.State == "DONE" {
@@ -489,11 +491,20 @@ func readSmallText(path string) *string {
 	return &text
 }
 
-func firstNonEmpty(v ...string) string {
+func FirstNonEmpty(v ...string) string {
 	for _, s := range v {
 		if s != "" {
 			return s
 		}
 	}
 	return ""
+}
+
+// AgyRead is an explicit native account/CLI read supplied by the application.
+type AgyRead func(context.Context, ...string) ([]byte, error)
+
+// AgyBridge owns only its in-process ACP agent state, independent of Loom sessions.
+type AgyBridge struct {
+	Read       AgyRead
+	Executable string
 }

@@ -1,12 +1,14 @@
 //go:build !windows
 
-package loom
+package acp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -44,7 +46,12 @@ func TestAgyBridgeSpeaksACP(t *testing.T) {
 	work := t.TempDir()
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
-	go func() { runAgyACP(inR, outW); outW.Close() }()
+	go func() {
+		(AgyBridge{Executable: filepath.Join(bin, "agy"), Read: func(ctx context.Context, args ...string) ([]byte, error) {
+			return exec.CommandContext(ctx, filepath.Join(bin, "agy"), args...).Output()
+		}}).Run(inR, outW)
+		outW.Close()
+	}()
 	frames := make(chan map[string]any, 64)
 	go func() {
 		sc := bufio.NewScanner(outR)
