@@ -90,12 +90,14 @@ function runtime({ browser = 'en-US', saved, blockedStorage = false, api = {} } 
 }
 
 test('language defaults, storage fallback, interpolation, plurals and document language', async () => {
-  assert.equal(runtime({ browser: 'fr-CA' }).getLang(), 'fr');
+  // English by default whatever the browser language; a saved choice wins.
+  assert.equal(runtime({ browser: 'fr-CA' }).getLang(), 'en');
   assert.equal(runtime({ browser: 'de-DE' }).getLang(), 'en');
-  assert.equal(runtime({ browser: 'fr', saved: 'en' }).getLang(), 'en');
+  assert.equal(runtime({ browser: 'en', saved: 'fr' }).getLang(), 'fr');
   assert.equal(runtime({ browser: 'en', saved: 'bogus' }).getLang(), 'en');
   const r = runtime({ browser: 'fr', blockedStorage: true });
-  assert.equal(r.getLang(), 'fr');
+  assert.equal(r.getLang(), 'en');
+  assert.equal(await r.setLang('fr'), true);
   assert.equal(r.t('n_models', { n: 2 }), '2 modèles');
   assert.equal(await r.setLang('en'), true);
   assert.equal(r.document.documentElement.lang, 'en');
