@@ -14,14 +14,6 @@ import (
 const acpMaxFile = 1 << 20
 const acpMaxBaselines = 16 << 20
 
-type ACPChangedFile struct {
-	Path string `json:"path"`
-	Op   string `json:"op"`
-	Add  int    `json:"add"`
-	Del  int    `json:"del"`
-	At   int64  `json:"at"`
-}
-
 func acpDirectory(path string) (string, error) {
 	if path == "" || !filepath.IsAbs(path) {
 		return "", errors.New("choisissez un dossier de travail absolu existant")

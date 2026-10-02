@@ -531,7 +531,64 @@ Still in Loom, deliberately:
 - `acp_fake.go` remains the existing Loom fixture agent used by lifecycle tests.
   Codex app-server quota execution and shared usage accounting remain unchanged.
 
-Next slice: `discussion/` (sessions, context and native conversation bridge).
+The tenth slice extracts the portable discussion model and pure logic into
+`internal/loom/discussion`, with historical names and signatures preserved by
+`discussion_compat.go`:
+
+- `model.go`: `Message` and tool-call wire metadata, `RuntimeSession`,
+  `RuntimeTurnRecord`, `DiscussionEvent`, the inert persisted `ACPState` and
+  changed-file records, plus the existing snapshot-copy behavior. Session/turn
+  types accept Loom's usage and timing types through generic aliases, retaining
+  private usage-presence flags without converting JSON. ACP state remains
+  runtime-private display metadata; moving its schema does not make it portable.
+- `prompt.go`: context/preview read models, portable message preparation and
+  limits, and the identical ordered JSON/SHA-256 context revision. Loom supplies
+  the assembled context explicitly. Preparation still rejects non-text/tool
+  history, omits empty answers and never truncates or mutates stored history.
+- `turn.go`: the historical 70-rune automatic title, portable prefix comparison
+  and construction of resolved turn provenance. Clock reads and live state
+  application stay at the application boundary.
+- `events.go`: native/runtime event projection, display metrics and snapshot
+  replay. Loom injects context reads at the same two replay boundaries; event
+  order, provenance, running markers and unknown historical metrics are unchanged.
+- `usage.go`: retained-turn token aggregation, last-turn usage fallback,
+  cumulative native-session cost attribution, optional manual-price estimates
+  and summary ordering. Loom supplies catalog/price rows, session snapshots,
+  runtime classification, choice IDs and the historical token/cost arithmetic.
+  The leaf introduces no store, registry, mutable global or account reads.
+
+Independent prompt-limit and event-projection tests move with their code.
+Leaf tests also cover ordered revision compatibility, snapshot isolation and
+empty/null shapes, rune titles, turn provenance, unknown/zero/negative usage,
+last-turn fallback, cumulative costs and replay metrics. Loom compatibility tests
+freeze the persisted wire shape and check private usage flags; existing consent,
+stale-context, cloud/native/ACP and HTTP integration tests remain in Loom.
+
+Still in Loom, deliberately:
+
+- `workspace_sessions.go`, `workspace_routing.go` and `workspace_runtime.go`:
+  `workspaceSessions`, locks, storage/vault checks, idempotency, selection,
+  consent, adapter resolution and generation lifecycle need application state.
+  Live turn updates and publication retain their cancellation/persistence order.
+- `workspace_prompt.go`, `workspace_context.go`, project files, Brain and skill
+  helpers: project/skill lookup, selected-file reads and Brain retrieval assemble
+  the context under Loom's existing lock. Pure preparation and hashing receive
+  only the resulting read model; there is no parallel memory engine.
+- `workspace_native.go` and the existing Conversation/archive pipeline: native
+  activation, journal projection/annotation, tools, compaction, archive binding
+  and persistence use the native archive/Conversation types and ownership. Only
+  portable prefix comparison delegates in this slice. Native archive title
+  derivation retains its separate historical 80-rune/ellipsis policy.
+- `openai_compat.go`, `llm_client.go` and `workspace_usage.go`: shared
+  `RuntimeUsage` retains private field-presence flags; native `StatsEvent`
+  remains the inference timing schema. Provider prices/catalog persistence,
+  native quota execution/cache and account identity remain application-owned.
+  Their inert discussion containers and pure aggregation use aliases/wrappers.
+- ACP bindings, permissions, file confinement/baselines, resource assembly,
+  subscription fan-out and all HTTP handlers stay in Loom because they require
+  live runtime, security, filesystem or transport state.
+
+Next slices: `tools/` and `resources/`, then `web/` last.
 Service policy, installed-binary/environment resolution, application cleanup and
 web/proxy orchestration remain in Loom until their own coherent migration.
 This extraction does not restart an engine, alter flags or change stored

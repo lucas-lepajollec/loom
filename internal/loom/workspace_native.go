@@ -204,20 +204,6 @@ func (m *runtimeSessions) activateLocal(id string, c *Conversation) (RuntimeSess
 	return s, nil
 }
 
-func portablePrefix(prefix, messages []Message) bool {
-	if len(prefix) > len(messages) {
-		return false
-	}
-	for i, msg := range prefix {
-		text, ok := msg.Content.(string)
-		other, otherOK := messages[i].Content.(string)
-		if !ok || !otherOK || msg.Role != messages[i].Role || text != other {
-			return false
-		}
-	}
-	return true
-}
-
 func (m *runtimeSessions) nativeRunning(s RuntimeSession) bool {
 	conv.mu.Lock()
 	defer conv.mu.Unlock()

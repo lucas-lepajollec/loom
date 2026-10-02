@@ -12,34 +12,6 @@ import (
 	"time"
 )
 
-// ACPState is runtime-private display state, never part of prepared messages.
-// MCP definitions/env values are deliberately absent from this persisted state.
-type ACPState struct {
-	MCPServers             *[]string         `json:"mcp_servers,omitempty"`
-	NativeSessionID        string            `json:"native_session_id,omitempty"`
-	NativeRuntimeID        string            `json:"native_runtime_id,omitempty"`
-	NativeContext          string            `json:"native_context,omitempty"`
-	Workdir                string            `json:"workdir,omitempty"`
-	AdditionalDirs         []string          `json:"additional_dirs,omitempty"`
-	Permission             string            `json:"permission,omitempty"`
-	Mode                   string            `json:"mode,omitempty"`
-	ConfigOptions          map[string]any    `json:"config_options,omitempty"`
-	AvailableModes         []map[string]any  `json:"available_modes,omitempty"`
-	AvailableConfigOptions []map[string]any  `json:"available_config_options,omitempty"`
-	FileBaselines          map[string]string `json:"file_baselines,omitempty"`
-	Files                  []ACPChangedFile  `json:"changed_files,omitempty"`
-	ACPUsage               map[string]any    `json:"harness_usage,omitempty"`
-	Commands               []map[string]any  `json:"commands,omitempty"`
-	AgentCapabilities      map[string]any    `json:"agent_capabilities,omitempty"`
-}
-
-func cloneACPState(s ACPState) ACPState {
-	b, _ := json.Marshal(s)
-	var out ACPState
-	_ = json.Unmarshal(b, &out)
-	return out
-}
-
 type acpApproval struct {
 	options []map[string]any
 	answer  chan acpDecision

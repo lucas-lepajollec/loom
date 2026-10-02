@@ -187,29 +187,6 @@ func parseCodexQuota(data []byte) (QuotaSnapshot, error) {
 	return q, nil
 }
 
-type UsagePrice struct {
-	ChoiceID  string  `json:"choice_id"`
-	Input     float64 `json:"input_per_million"`
-	Output    float64 `json:"output_per_million"`
-	Currency  string  `json:"currency"`
-	UpdatedAt int64   `json:"updated_at"`
-}
-type ModelUsageSummary struct {
-	ChoiceID      string       `json:"choice_id"`
-	Name          string       `json:"name"`
-	Provider      string       `json:"provider"`
-	RuntimeID     string       `json:"runtime_id"`
-	Turns         int          `json:"turns"`
-	Reported      int          `json:"reported_turns"`
-	Usage         RuntimeUsage `json:"usage"`
-	Price         *UsagePrice  `json:"price"`
-	EstimatedCost *float64     `json:"estimated_cost"`
-	// Cost declared by the harness itself (ACP usage_update), summed over
-	// discussions; nil when no harness reported one.
-	ReportedCost *float64 `json:"reported_cost"`
-	Currency     string   `json:"currency,omitempty"`
-}
-
 func harnessRuntime(id string) bool {
 	a, ok := registeredRuntimes.lookup(id)
 	return ok && a.Descriptor().Kind == "harness"
@@ -228,67 +205,11 @@ func usageSummaries() []ModelUsageSummary {
 		}
 		rows[c.ID] = row
 	}
-	for _, s := range workspaceSessions.list() {
-		for i, t := range s.Turns {
-			if t.RuntimeID == "llama.cpp" {
-				continue
-			}
-			id := cloudChoiceID(t.ProviderID, t.Model)
-			if harnessRuntime(t.RuntimeID) {
-				id = t.RuntimeID + ":" + t.Model
-			}
-			row := rows[id]
-			if row == nil {
-				row = &ModelUsageSummary{ChoiceID: id, Name: t.Model, Provider: t.ProviderName, RuntimeID: t.RuntimeID}
-				rows[id] = row
-			}
-			row.Turns++
-			u := t.Usage
-			if u == nil && i == len(s.Turns)-1 {
-				u = s.Usage
-			}
-			if u != nil && u.Input >= 0 && u.Output >= 0 && u.Total >= 0 {
-				row.Reported++
-				row.Usage.Input += u.Input
-				row.Usage.Output += u.Output
-				row.Usage.Total += u.Total
-				row.Usage.Thinking += u.Thinking
-				row.Usage.Cached += u.Cached
-			}
-		}
-	}
-	// The harness cost is cumulative per native session: attribute it to the
-	// choice of the discussion's last harness turn.
-	for _, s := range workspaceSessions.list() {
-		cost, _ := s.ACPUsage["cost"].(map[string]any)
-		amount, ok := cost["amount"].(float64)
-		if !ok || len(s.Turns) == 0 {
-			continue
-		}
-		t := s.Turns[len(s.Turns)-1]
-		if row := rows[t.RuntimeID+":"+t.Model]; row != nil && harnessRuntime(t.RuntimeID) {
-			v := amount
-			if row.ReportedCost != nil {
-				v += *row.ReportedCost
-			}
-			row.ReportedCost = &v
-			row.Currency, _ = cost["currency"].(string)
-		}
-	}
-	out := []ModelUsageSummary{}
-	for _, r := range rows {
-		if harnessRuntime(r.RuntimeID) && r.Turns == 0 {
-			continue
-		}
-		if r.Price != nil && r.Reported > 0 {
-			v := estimatedCloudCost(r.Usage.Input, r.Usage.Output, r.Price.Input, r.Price.Output)
-			r.EstimatedCost = &v
-		}
-		out = append(out, *r)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Provider+out[i].Name < out[j].Provider+out[j].Name })
-	return out
+	accumulateDiscussionUsage(rows, workspaceSessions.list())
+	accumulateDiscussionCosts(rows, workspaceSessions.list())
+	return discussionUsageSummaries(rows)
 }
+
 func handleUsage(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodGet) {
 		return

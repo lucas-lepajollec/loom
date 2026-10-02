@@ -18,25 +18,6 @@ import (
 	"unicode/utf8"
 )
 
-// Message is one entry in the chat history sent to llama.cpp.
-// `Content` may be nil when an assistant message only contains tool_calls.
-type Message struct {
-	Role       string     `json:"role"`
-	Content    any        `json:"content,omitempty"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
-}
-
-type ToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Function ToolCallFunc `json:"function"`
-}
-type ToolCallFunc struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
-
 type Tool struct {
 	Type     string       `json:"type"`
 	Function ToolFunction `json:"function"`

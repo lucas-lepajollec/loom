@@ -1,45 +1,10 @@
 package loom
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 )
-
-const maxDiscussionInstructions = 12000
-const maxPortableBytes = 128 << 10
-const maxPortableMessages = 200
-
-// DiscussionContext is a fresh read model, not a second memory store. Revision
-// binds the route, portable history and instructions seen by the client.
-type DiscussionContext struct {
-	MCPServers   *[]string    `json:"mcp_servers,omitempty"`
-	ProjectID    string       `json:"project_id"`
-	ProjectName  string       `json:"project_name"`
-	Instructions string       `json:"project_instructions"`
-	// BrainCitations: where the Brain passages of this context come from.
-	BrainCitations []string `json:"brain_citations,omitempty"`
-	Skills       []Capability `json:"skills"`
-	Discussion   string       `json:"discussion_instructions"`
-	System       string       `json:"system"`
-	Revision     string       `json:"revision"`
-	Warning      string       `json:"warning,omitempty"`
-	Problem      string       `json:"problem,omitempty"`
-}
-
-type DiscussionPreview struct {
-	Context      DiscussionContext `json:"context"`
-	Messages     []Message         `json:"messages"`
-	TextBytes    int               `json:"text_bytes"`
-	HistoryCount int               `json:"history_count"`
-	DraftAdded   bool              `json:"draft_added"`
-	MaxBytes     int               `json:"max_bytes"`
-	MaxMessages  int               `json:"max_messages"`
-	Problem      string            `json:"problem,omitempty"`
-}
 
 func discussionContext(s RuntimeSession) DiscussionContext {
 	workspaceMu.Lock()
@@ -83,46 +48,8 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 		parts = append(parts, "Discussion instructions:\n"+s.Instructions)
 	}
 	c.System = strings.Join(parts, "\n\n")
-	// No credentials, unchosen folder contents, global/local-only prompt or hidden state.
-	encoded, _ := json.Marshal([]any{s.ID, s.Title, s.ProjectID, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.Mode, s.ConfigOptions, c.MCPServers, s.Messages, c.System, c.Problem, c.Warning})
-	digest := sha256.Sum256(encoded)
-	c.Revision = hex.EncodeToString(digest[:])
+	c.Revision = discussionContextRevision(s, c)
 	return c
-}
-
-// prepareDiscussion is shared by the read-only preview and execution. It never
-// truncates, summarizes, calls a model or mutates the stored history.
-func prepareDiscussion(s RuntimeSession, draft string) DiscussionPreview {
-	c := discussionContext(s)
-	p := DiscussionPreview{Context: c, Messages: []Message{}, MaxBytes: maxPortableBytes, MaxMessages: maxPortableMessages, Problem: c.Problem}
-	if c.System != "" {
-		p.Messages = append(p.Messages, Message{Role: "system", Content: c.System})
-	}
-	for _, msg := range s.Messages {
-		content, ok := msg.Content.(string)
-		if !ok || (msg.Role != "user" && msg.Role != "assistant") || len(msg.ToolCalls) > 0 || msg.ToolCallID != "" {
-			p.Problem = "Ce fil contient un format non portable ; aucun envoi automatique."
-			continue
-		}
-		if content != "" {
-			p.Messages = append(p.Messages, Message{Role: msg.Role, Content: content})
-			p.HistoryCount++
-		}
-	}
-	draft = strings.TrimSpace(draft)
-	if draft != "" {
-		p.Messages = append(p.Messages, Message{Role: "user", Content: draft})
-		p.DraftAdded = true
-	}
-	for _, msg := range p.Messages {
-		p.TextBytes += len(msg.Content.(string))
-	}
-	if len(draft) > 24000 {
-		p.Problem = "Message trop long (24000 octets maximum)."
-	} else if p.TextBytes > maxPortableBytes || len(p.Messages) > maxPortableMessages {
-		p.Problem = "Contexte trop long : 128 Kio de texte et 200 messages maximum, instructions comprises. Aucun texte n’a été tronqué."
-	}
-	return p
 }
 
 func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions, revision string, consent bool, harness ...acpConfiguration) (RuntimeSession, error) {

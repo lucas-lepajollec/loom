@@ -10,57 +10,6 @@ import (
 	"time"
 )
 
-// RuntimeSession is a Loom-owned conversation. Its portable transcript outlives
-// any execution route. A route change never replaces or forks this history.
-type RuntimeSession struct {
-	ACPState
-	ID              string        `json:"id"`
-	ProjectID       string        `json:"project_id"`
-	RuntimeID       string        `json:"runtime_id"`
-	ProviderID      string        `json:"provider_id"`
-	ProviderName    string        `json:"provider_name"`
-	Endpoint        string        `json:"endpoint"`
-	Model           string        `json:"model"`
-	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
-	Title           string        `json:"title"`
-	CreatedAt       int64         `json:"created_at"`
-	UpdatedAt       int64         `json:"updated_at"`
-	MessageCount    int           `json:"message_count,omitempty"` // filled in lists, where messages are left out
-	Status          string        `json:"status"`
-	Messages        []Message     `json:"messages"`
-	Usage           *RuntimeUsage `json:"usage,omitempty"`
-	Error           string        `json:"error,omitempty"`
-	Instructions    string        `json:"instructions,omitempty"`
-	CustomTitle     bool          `json:"custom_title,omitempty"`
-	// Last request identity prevents retries from charging the same turn twice.
-	LastRequestID string              `json:"last_request_id,omitempty"`
-	RequestIDs    []string            `json:"request_ids,omitempty"`
-	Turns         []RuntimeTurnRecord `json:"turns,omitempty"`
-	SourceArchive string              `json:"source_archive,omitempty"`
-	NativeArchive string              `json:"native_archive,omitempty"`
-}
-
-type RuntimeTurnRecord struct {
-	ACPEvents        []DiscussionEvent `json:"acp_events,omitempty"`
-	MessageIndex     int               `json:"message_index"`
-	RuntimeID        string            `json:"runtime_id"`
-	ProviderName     string            `json:"provider_name"`
-	ProviderID       string            `json:"provider_id,omitempty"`
-	Endpoint         string            `json:"endpoint,omitempty"`
-	Model            string            `json:"model"`
-	ContextBytes     int               `json:"context_bytes"`
-	ContextRevision  string            `json:"context_revision,omitempty"`
-	InputBytes       int               `json:"input_bytes,omitempty"`
-	Usage            *RuntimeUsage     `json:"usage,omitempty"`
-	NativeSessionID  string            `json:"native_session_id,omitempty"`
-	Events           []HarnessEvent    `json:"events,omitempty"`
-	DurationSeconds  float64           `json:"duration_seconds,omitempty"`
-	StartedAt        int64             `json:"started_at,omitempty"`
-	Stats            *StatsEvent       `json:"stats,omitempty"`
-	ReasoningSummary string            `json:"reasoning_summary,omitempty"`
-	ReasoningEffort  string            `json:"reasoning_effort,omitempty"`
-}
-
 type runtimeRun struct {
 	session     RuntimeSession
 	cancel      context.CancelFunc
@@ -209,36 +158,6 @@ func (m *runtimeSessions) create(projectID, providerID string, consent bool) (Ru
 	return s, putStoreJSON(bkRuntimeSessions, s.ID, s)
 }
 
-func cloneRuntimeSession(s RuntimeSession) RuntimeSession {
-	s.ACPState = cloneACPState(s.ACPState)
-	s.Messages = append([]Message{}, s.Messages...)
-	s.RequestIDs = append([]string{}, s.RequestIDs...)
-	s.Turns = append([]RuntimeTurnRecord{}, s.Turns...)
-	for i := range s.Turns {
-		if s.Turns[i].ACPEvents != nil {
-			b, _ := json.Marshal(s.Turns[i].ACPEvents)
-			s.Turns[i].ACPEvents = nil
-			_ = json.Unmarshal(b, &s.Turns[i].ACPEvents)
-		}
-		if s.Turns[i].Stats != nil {
-			stats := *s.Turns[i].Stats
-			s.Turns[i].Stats = &stats
-		}
-		if s.Turns[i].Events != nil {
-			s.Turns[i].Events = append([]HarnessEvent{}, s.Turns[i].Events...)
-		}
-		if s.Turns[i].Usage != nil {
-			u := *s.Turns[i].Usage
-			s.Turns[i].Usage = &u
-		}
-	}
-	if s.Usage != nil {
-		u := *s.Usage
-		s.Usage = &u
-	}
-	return s
-}
-
 func (m *runtimeSessions) getLocked(id string) (RuntimeSession, bool) {
 	// Reading the stored record also checks vault access before exposing a live
 	// in-memory session, so locking memory doesn't leave an API read backdoor.
@@ -368,14 +287,10 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 
 	messages := append(append([]Message{}, s.Messages...), Message{Role: "user", Content: text})
 	if len(s.Messages) == 0 && !s.CustomTitle {
-		title := []rune(text)
-		if len(title) > 70 {
-			title = title[:70]
-		}
-		s.Title = string(title)
+		s.Title = discussionTitle(text)
 	}
 	s.Messages = append(messages, Message{Role: "assistant", Content: ""})
-	s.Turns = append(s.Turns, RuntimeTurnRecord{MessageIndex: len(s.Messages) - 1, RuntimeID: s.RuntimeID, ProviderName: s.ProviderName, ProviderID: s.ProviderID, Endpoint: s.Endpoint, Model: s.Model, ContextBytes: len(prepared.Context.System), ContextRevision: prepared.Context.Revision, InputBytes: prepared.TextBytes})
+	s.Turns = append(s.Turns, discussionTurnRecord(s, prepared, len(s.Messages)-1))
 	s.Turns[len(s.Turns)-1].ReasoningEffort = s.ReasoningEffort
 	s.Turns[len(s.Turns)-1].StartedAt = time.Now().UnixMilli()
 	s.Status = "running"
