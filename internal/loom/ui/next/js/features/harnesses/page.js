@@ -314,7 +314,7 @@ function AcpDetail({ rt, models, onEdit }) {
   const missing = rt.available === false;
   return html`<div class="h-detail anim-fade">
     <div class="h-head"><div style="display:flex;gap:14px;align-items:center"><${Logo} name=${rt.logo || rt.id} size="lg" />
-        <div><h2>${rt.name}${ver && html` <span class="tag" title="Version de l’adaptateur ACP utilisé par Loom">ACP ${ver}</span>`}</h2><p>${rt.description || ''}</p></div></div>
+        <div><h2>${rt.name}${ver && (rt.id === 'antigravity' ? html` <span class="tag" title="Antigravity est piloté par le pont ACP intégré à Loom">pont Loom</span>` : html` <span class="tag" title="Version de l’adaptateur ACP utilisé par Loom">ACP ${ver}</span>`)}</h2><p>${rt.description || ''}</p></div></div>
       <div class="acts">${rt.custom && html`<button class="btn ghost" onClick=${() => onEdit(custom)}>Modifier</button><button class="icon-btn" aria-label="Supprimer" onClick=${del}><${Icon} n="trash" /></button>`}
         <button class="btn" disabled=${busy || missing} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}Actualiser</button>
         <button class="btn primary" disabled=${missing || !choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />Nouvelle discussion</button></div></div>
