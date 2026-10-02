@@ -155,4 +155,4 @@ Loom is licensed under the [MIT License](LICENSE). Engines, models and other dep
 
 ### GPU machine without another full Loom
 
-Run `loom node` on Linux to expose only engine management and inference, with separate data and a machine credential. Keep discussions, Brain and harnesses on the main Loom. Starting with v0.1.3, use the same release installer with `sh -s -- --node`; it creates a separate user service and binary. See [Engine node](docs/engine-node.md) for installation, control coverage and updates. The main interface now defaults to port **2510**; explicit `loom web PORT` values remain supported.
+Run `loom node` on Linux to expose only engine management and inference, with separate data and a machine credential. Keep discussions, Brain and harnesses on the main Loom. Starting with v0.1.4, use the same release installer with `sh -s -- --node`; it creates a separate user service and binary. See [Engine node](docs/engine-node.md) for installation, control coverage and updates. The main interface now defaults to port **2510**; explicit `loom web PORT` values remain supported.

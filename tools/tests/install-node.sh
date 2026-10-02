@@ -6,7 +6,18 @@ set -eu
 [ "$(id -u)" != 0 ] || { echo 'Run this acceptance test as a normal user.' >&2; exit 1; }
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT INT TERM
+cleanup() {
+  status=$?
+  if [ "$status" != 0 ]; then
+    for log in "$TMP"/*.log; do
+      [ ! -f "$log" ] || { printf '\n%s\n' "Installer fixture: $(basename "$log")"; tail -30 "$log"; }
+    done
+  fi
+  rm -rf "$TMP"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM
 mkdir -p "$TMP/bin" "$TMP/home" "$TMP/models"
 cp "$LOOM_TEST_BINARY" "$TMP/candidate"
 sha256sum "$TMP/candidate" | awk '{print $1 "  loom-linux"}' > "$TMP/sums"
@@ -32,12 +43,14 @@ case "$2" in
 esac
 SH
 chmod +x "$TMP/bin/curl" "$TMP/bin/systemctl"
+export LOOM_HOME="$TMP/main-fixture"
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" XDG_DATA_HOME="$TMP/home/.local/share"
 export PATH="$TMP/bin:$PATH" LOOM_INSTALL_DIR="$TMP/installed" LOOM_VERSION=v99.0.0
 export FIXTURE_ARTIFACT="$TMP/candidate" FIXTURE_SUMS="$TMP/sums" FIXTURE_SYSTEMD_LOG="$TMP/systemd.log" FIXTURE_ACTIVE="$TMP/active"
 sh "$ROOT/install.sh" --node --listen 127.0.0.1:2622 --home "$TMP/data" --models "$TMP/models" --bin /bin/true > "$TMP/install.log"
 [ -f "$TMP/active" ]
 [ ! -e "$HOME/.local/share/loom" ]
+[ ! -e "$TMP/main-fixture" ]
 [ ! -e "$TMP/data/memory" ]
 [ ! -e "$XDG_CONFIG_HOME/systemd/user/loom-ui.service" ]
 [ -f "$TMP/data/node.token" ]

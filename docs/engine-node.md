@@ -17,7 +17,7 @@ claimed without measurements.
 
 ## Install from a release
 
-The node ships in the **same repository and release binary as Loom**. Starting with **v0.1.3**, run on Linux without sudo:
+The node ships in the **same repository and release binary as Loom**. Starting with **v0.1.4**, run on Linux without sudo:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh -s -- --node

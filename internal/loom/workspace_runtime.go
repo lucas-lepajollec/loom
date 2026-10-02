@@ -3,6 +3,7 @@ package loom
 import (
 	"context"
 	"errors"
+	"os"
 )
 
 var registeredRuntimes = newRuntimeRegistry()
@@ -16,6 +17,12 @@ func registerRuntime(adapter RuntimeAdapter) {
 }
 
 func init() {
+	// Registration inspects harness descriptors and saved machine names. Node
+	// and privileged-update entry points must not open the main application DB
+	// or probe harnesses before Main selects their isolated execution context.
+	if len(os.Args) > 1 && (os.Args[1] == "node" || os.Args[1] == "system-update") {
+		return
+	}
 	registerRuntime(llamaRuntimeAdapter{})
 	registerRuntime(cloudRuntimeAdapter{})
 	registerACPAgents()
