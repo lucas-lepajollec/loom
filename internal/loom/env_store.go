@@ -262,6 +262,7 @@ func (e *environment) register(api func(string, http.HandlerFunc)) {
 	api("/api/env/docker", e.docker)
 	api("/api/env/proxmox", e.proxmox)
 	api("/api/env/proxmox/resources", e.proxmoxResources)
+	api("/api/env/proxmox/fingerprint", handleProxmoxFingerprint)
 	api("/api/env/check", e.checkHandler)
 	api("/api/env/matrix", e.matrixHandler)
 }

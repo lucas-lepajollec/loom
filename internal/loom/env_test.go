@@ -449,3 +449,23 @@ func TestEnvMatrixBoundsAndCancellation(t *testing.T) {
 		<-e.checks
 	}
 }
+
+func TestProxmoxFingerprintProbeMatchesPin(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/env/proxmox/fingerprint", strings.NewReader(`{"url":"`+srv.URL+`"}`))
+	req.Header.Set("Content-Type", "application/json")
+	handleProxmoxFingerprint(rec, req)
+	var out struct {
+		OK          bool   `json:"ok"`
+		Fingerprint string `json:"fingerprint"`
+		Trusted     bool   `json:"trusted"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &out)
+	sum := sha256.Sum256(srv.Certificate().Raw)
+	pin, _ := envFingerprint(out.Fingerprint)
+	if !out.OK || out.Trusted || pin != hex.EncodeToString(sum[:]) {
+		t.Fatalf("%s", rec.Body.String())
+	}
+}
