@@ -25,20 +25,6 @@ func (w QuotaWindow) MarshalJSON() ([]byte, error) {
 	}{legacy(w), fraction})
 }
 
-// Local Hermes observations do not enable its still-unimplemented local chat.
-type hermesUsageAdapter struct{}
-
-func (hermesUsageAdapter) Descriptor() RuntimeDescriptor {
-	available := (acpAgent{Command: "hermes"}).available()
-	return RuntimeDescriptor{ID: "hermes", Name: "Hermes", Kind: "harness", CLI: "hermes", Logo: "hermes", Implemented: true, Available: &available, Capabilities: []string{"quota"}, Description: "Quotas et usage natifs ; exécution locale en préparation."}
-}
-func (hermesUsageAdapter) Run(context.Context, RuntimeTurn, ChatCallback) ([]Message, error) {
-	return nil, errors.New("adaptateur runtime en préparation")
-}
-func (hermesUsageAdapter) Quota(ctx context.Context) (QuotaSnapshot, error) {
-	return readHarnessQuota(ctx, acpAgent{ID: "hermes", Name: "Hermes", Command: "hermes"})
-}
-
 // Only exact saved-machine IDs are recognized. Arbitrary custom launchers must
 // never accidentally read this computer's account based on a suffix or logo.
 func usageHarnessID(a acpAgent) string {

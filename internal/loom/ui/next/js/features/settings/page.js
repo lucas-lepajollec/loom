@@ -209,14 +209,16 @@ function Engine() {
   const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || t("settings.page.echec_2"), 'err'); if (ok) toast(ok); setTimeout(load, 800); };
   const link = async () => { const bin = await prompt(t("settings.page.lier_un_llama_server_existant"), { message: t("settings.page.chemin_complet_du_binaire_llama_server_deja_installe_sur_cette_ma"), placeholder: t("settings.page.chemin_vers_llama_server"), ok: t("settings.page.lier") }); if (bin) run('/api/llamacpp/use', { mode: 'exist', bin }, t("settings.page.moteur_lie")); };
   if (!lc) return html`<div class="skeleton" style="height:220px"></div>`;
+  // Compiled, linked or official binary: whichever the engine actually uses.
+  const lcBin = lc.config_bin || lc.bin || (lc.prebuilt && lc.prebuilt.bin) || '';
   return html`
     <${EngineLocation} />
     <${VLLMEngine} />
     <${Group} title=${node ? t("settings.page.llama_cpp_de_cette_machine") : t("settings.page.moteur_actuel")}>
       <${Line} label="${t("settings.page.llama_cpp")}"><span class="mono">${lc.commit || lc.prebuilt && lc.prebuilt.tag || '—'}</span>${lc.behind > 0 && html`<span class="tag amber">${lc.behind} ${t("settings.page.commits_de_retard")}</span>`}</${Line}>
       <${Line} label="${t("settings.page.acceleration")}"><span class="tag blue">${(lc.plan && lc.plan.backend || '—').toUpperCase()}</span></${Line}>
-      <${GpuDevices} bin=${lc.config_bin || lc.bin || ''} />
-      <${Line} label="${t("settings.page.binaire")}" stack><code class="mono path">${lc.bin || t('settings.page.none')}</code></${Line}>
+      <${GpuDevices} bin=${lcBin} />
+      <${Line} label="${t("settings.page.binaire")}" stack><code class="mono path">${lcBin || t('settings.page.none')}</code></${Line}>
       <${EngineAuto} />
       <div class="set-actions">
         ${lc.can_update && html`<button class="btn" onClick=${() => run('/api/llamacpp/update', { clean: false }, t("settings.page.mise_a_jour_lancee"))}><${Icon} n="refresh" />${t("settings.page.mettre_a_jour")}</button>`}

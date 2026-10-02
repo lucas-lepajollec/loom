@@ -19,7 +19,6 @@ func init() {
 	registerRuntime(llamaRuntimeAdapter{})
 	registerRuntime(cloudRuntimeAdapter{})
 	registerACPAgents()
-	registerRuntime(hermesUsageAdapter{})
 }
 
 // Planned entries describe direction and can never execute or connect.

@@ -200,12 +200,10 @@ func TestHarnessQuotaCapabilities(t *testing.T) {
 			t.Fatal(tc)
 		}
 	}
-	a := hermesUsageAdapter{}
-	if !hasRuntimeCapability(a.Descriptor(), "quota") || hasRuntimeCapability(a.Descriptor(), "chat") {
-		t.Fatal("Hermes observation enabled chat")
-	}
-	if _, err := a.Run(context.Background(), RuntimeTurn{}, nil); err == nil {
-		t.Fatal("preview executed")
+	// Local Hermes is a full ACP harness with quotas.
+	h := &acpAdapter{agent: acpAgent{ID: "hermes", Command: "hermes", Args: []string{"acp"}}}
+	if !hasRuntimeCapability(h.Descriptor(), "quota") || !hasRuntimeCapability(h.Descriptor(), "chat") {
+		t.Fatal("Hermes must chat and expose quotas")
 	}
 }
 func resetNativeUsageCache(t *testing.T) {
@@ -273,7 +271,7 @@ func TestHarnessNativeCacheAndCommands(t *testing.T) {
 	}
 	testHome(t)
 	resetNativeUsageCache(t)
-	isolateRuntimeRegistry(t, hermesUsageAdapter{})
+	isolateRuntimeRegistry(t, &acpAdapter{agent: acpAgent{ID: "hermes", Name: "Hermes", Command: "hermes", Args: []string{"acp"}}})
 	dir := t.TempDir()
 	count := filepath.Join(dir, "calls")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + shellQuote(count) + "\ncat <<'STATS'\n" + harnessUsageFixture(t, "hermes_insights.txt") + "STATS\n"

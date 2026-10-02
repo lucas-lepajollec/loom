@@ -141,7 +141,7 @@ func TestHarnessProfilesDoNotPretendToExecute(t *testing.T) {
 		t.Fatal("profile missing")
 	}
 	for _, r := range runtimeCatalog() {
-		if r.ID == "hermes" && hasRuntimeCapability(r, "chat") {
+		if r.Kind == "harness" && hasRuntimeCapability(r, "chat") && !r.Implemented {
 			t.Fatal("unimplemented harness advertised as executable")
 		}
 	}

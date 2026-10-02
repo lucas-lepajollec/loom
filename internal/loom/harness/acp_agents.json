@@ -1,7 +1,83 @@
 [
- {"id":"codex","name":"Codex","logo":"codex","command":"npx","args":["-y","@agentclientprotocol/codex-acp@2.1.0"],"detect":["codex"],"docs":"https://github.com/agentclientprotocol/codex-acp"},
- {"id":"claude-code","name":"Claude Code","logo":"claudecode","command":"npx","args":["-y","@agentclientprotocol/claude-agent-acp@0.84.0"],"detect":["claude"],"docs":"https://github.com/agentclientprotocol/claude-agent-acp"},
- {"id":"pi","name":"Pi","logo":"pi","command":"npx","args":["-y","pi-acp@0.0.33"],"detect":["pi"],"docs":"https://github.com/svkozak/pi-acp"},
- {"id":"gemini","name":"Gemini","logo":"gemini","command":"gemini","args":["--acp"],"detect":["gemini"],"docs":"https://github.com/google-gemini/gemini-cli"},
- {"id":"opencode","name":"OpenCode","logo":"opencode","command":"opencode","args":["acp"],"detect":["opencode"],"docs":"https://opencode.ai/docs/acp/"}
+  {
+    "id": "codex",
+    "name": "Codex",
+    "logo": "codex",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@agentclientprotocol/codex-acp@2.1.0"
+    ],
+    "detect": [
+      "codex"
+    ],
+    "docs": "https://github.com/agentclientprotocol/codex-acp"
+  },
+  {
+    "id": "claude-code",
+    "name": "Claude Code",
+    "logo": "claudecode",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@agentclientprotocol/claude-agent-acp@0.84.0"
+    ],
+    "detect": [
+      "claude"
+    ],
+    "docs": "https://github.com/agentclientprotocol/claude-agent-acp"
+  },
+  {
+    "id": "pi",
+    "name": "Pi",
+    "logo": "pi",
+    "command": "npx",
+    "args": [
+      "-y",
+      "pi-acp@0.0.33"
+    ],
+    "detect": [
+      "pi"
+    ],
+    "docs": "https://github.com/svkozak/pi-acp"
+  },
+  {
+    "id": "gemini",
+    "name": "Gemini",
+    "logo": "gemini",
+    "command": "gemini",
+    "args": [
+      "--acp"
+    ],
+    "detect": [
+      "gemini"
+    ],
+    "docs": "https://github.com/google-gemini/gemini-cli"
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "logo": "opencode",
+    "command": "opencode",
+    "args": [
+      "acp"
+    ],
+    "detect": [
+      "opencode"
+    ],
+    "docs": "https://opencode.ai/docs/acp/"
+  },
+  {
+    "id": "hermes",
+    "name": "Hermes",
+    "logo": "hermes",
+    "command": "hermes",
+    "args": [
+      "acp"
+    ],
+    "detect": [
+      "hermes"
+    ],
+    "docs": "https://hermes-agent.nousresearch.com/docs/"
+  }
 ]
