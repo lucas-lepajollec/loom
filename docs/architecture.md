@@ -4,8 +4,8 @@ Target architecture and migration plan. Read with
 [`architecture-principles.md`](architecture-principles.md) (the rules),
 [`workspace-architecture.md`](workspace-architecture.md) (discussion/runtime
 contracts and historical slices), and [`ROADMAP.md`](ROADMAP.md) (current work).
-The diagram includes packages that have not yet been extracted; the migration
-notes in §4 distinguish the current layout from that target.
+The leaf package split is complete; §4 records the extracted boundaries and
+the application orchestration that deliberately remains in `loom`.
 The goal: Loom stays easy to extend at 50 000+ lines. Adding a harness, an
 engine, a cloud provider or a page must touch **one new folder plus one registry
 entry**, never the core.
@@ -18,7 +18,7 @@ entry**, never the core.
                        └───────────────┬──────────────────────────────┘
                                        │ HTTP /api/* (+ SSE)
 ┌──────────────────────────── Go server (loom web) ─────────────────────────┐
-│ web/        handlers, one file per domain, thin (decode → call → encode)  │
+│ web/        HTTP primitives, auth, public assets, SSE/WebSocket helpers  │
 │ discussion/ Loom-owned conversations, routing, shared context, usage      │
 │ runtime/    RuntimeAdapter registry: local · openai-compatible · harness  │
 │ engine/     Engine registry: llamacpp (router mode) · later vllm          │
@@ -289,7 +289,7 @@ break everything; do it **leaf-first, one package per PR, zero behavior change**
 5. `runtime/` + `runtime/{local,openai,antigravity,acp}/`.
 6. `discussion/` (`workspace_*`, native conversation bridge) and unify events.
 7. `tools/` (internet, MCP, memory) and `resources/`.
-8. `web/` last: handlers become thin files per domain.
+8. `web/` last — done: generic HTTP plumbing; application handlers stay in Loom.
 
 Package-level globals (`conv`, bucket helpers, owned process state) move into
 small structs passed explicitly; do not add new globals.
@@ -653,11 +653,54 @@ Still in Loom, deliberately:
   authenticated requests, cancellation, application state or native permissions.
   No parallel memory engine or public workflow/API change is introduced.
 
-Next slice: `web/` and the last remaining application globals.
-Service policy, installed-binary/environment resolution, application cleanup and
-web/proxy orchestration remain in Loom until their own coherent migration.
-This extraction does not restart an engine, alter flags or change stored
-configuration.
+The twelfth and final leaf slice extracts generic HTTP plumbing into
+`internal/loom/web`, with historical names delegated by `web_compat.go`.
+Roadmap step 1 is done: every planned leaf package now exists. This is a package
+boundary extraction, not removal of all application orchestration or globals.
+
+Moved into `web`:
+
+- `http.go`: JSON response encoding, the no-store method guard and strict
+  application/json decoding with the existing 128 KiB limit, unknown-field and
+  trailing-value rejection, status codes and French error bodies.
+- `auth.go` and `routes.go`: SHA-256 control-key hashing, constant-time Bearer
+  validation, unforgeable E2E request context, fail-closed middleware and the
+  protected API registrar. Loom supplies the key reader and node-aware wrapper;
+  authentication stays outermost and rereads the key for every ordinary request.
+  Standard cross-origin protection remains limited to the Brain MCP transport.
+- `assets.go`: root and `/next` UI routing, module MIME types, SPA fallback,
+  public PWA/brand/font routes, redirects, GET/HEAD guards and cache policies.
+  `Assets` receives filesystems and icon bytes explicitly. The obsolete mutable
+  MIME table is replaced by a fixed lookup; the leaf has no mutable globals.
+- `sse.go` and `websocket.go`: SSE headers, serialized data frames and the
+  existing four-second heartbeat, plus WebSocket acceptance with the library's
+  default same-origin check and an explicit route read limit.
+
+Socket-free leaf tests freeze JSON/error/status/header behavior, decoding limits,
+key rotation and E2E bypass, middleware order, origin rejection, all public asset
+routes and cache policies, supplied-filesystem isolation, SSE framing and heartbeat.
+Existing Loom tests retain persistence, PWA manifest and discussion integration
+coverage. No route, JSON shape, public workflow or UI file changes.
+
+Still in Loom, deliberately:
+
+- `web_compat.go`: `go:embed` declarations must remain beside `ui/` (Go embedding
+  cannot reference a parent directory); brand PNG generation and its existing
+  lazy cache remain at that boundary. Serving delegates to `web.Assets`.
+- `web_auth.go` and `web_network.go`: key persistence/migration, CLI commands,
+  configured exposure and listener state require Loom's store and service policy.
+- `web_server.go`: startup, conversation loading, migrations, MCP prewarm,
+  background jobs, lifecycle/listener ownership and the domain route list remain
+  application orchestration. Only registration plumbing moves.
+- Domain HTTP handlers, `nodeAware`, engine/API proxies, tunnel/E2E crypto,
+  Brain transport construction and terminal handlers: these resolve application
+  configuration, sessions, consent, vault state, tickets, owned processes or
+  remote machines. WebSocket frame/PTY coupling and SSE subscriptions/payloads
+  therefore stay with their application owner, using generic transport helpers.
+- Earlier slices' active stores, registry, conversation/session owners, process
+  supervisor, caches and locks remain live application state. No unused runtime
+  global is removed speculatively; service/environment resolution and application
+  cleanup remain in Loom for future coherent changes.
 
 ## 5. Front-end layout (`internal/loom/ui/next`)
 

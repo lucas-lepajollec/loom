@@ -2,8 +2,6 @@ package loom
 
 import (
 	"context"
-	"embed"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,9 +9,6 @@ import (
 	"sync"
 	"time"
 )
-
-//go:embed ui/marked.min.js ui/sw.js ui/manifest.webmanifest ui/offline.html ui/fonts
-var uiFS embed.FS
 
 // cmdWeb starts the HTTP server on the given port (default 8091).
 // 8090 belongs to a live Loom. Loom listens on loopback unless WEB_HOST opens
@@ -105,37 +100,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 		brainCtx = lifecycle[0]
 	}
 	registerBrainRoutes(mux, brainCtx)
-	// Pages publiques : le HTML et le JS ne contiennent aucun secret. Toute la
-	// donnée et toutes les actions passent par /api/* qui, lui, exige la clé.
-	mux.HandleFunc("/", handleIndex)
-	mux.HandleFunc("/next/", handleNext)
-	mux.HandleFunc("/next", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/next/", http.StatusFound) })
-	registerPWAAssets(mux)
-	mux.HandleFunc("/marked.min.js", func(w http.ResponseWriter, r *http.Request) {
-		b, _ := uiFS.ReadFile("ui/marked.min.js")
-		w.Header().Set("Content-Type", "application/javascript")
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		w.Write(b)
-	})
-	// Service worker et manifeste PWA, avec notifications Web Push (push.go / sw.js).
-	// PUBLICS (aucun secret) et servis en clair à la RACINE : un service worker doit
-	// venir de l'origine même, et son scope est celui de son URL. no-store sur le SW
-	// pour qu'une mise à jour du worker soit toujours reprise (pas de cache figé).
-	mux.HandleFunc("/sw.js", func(w http.ResponseWriter, r *http.Request) {
-		b, _ := uiFS.ReadFile("ui/sw.js")
-		w.Header().Set("Content-Type", "application/javascript")
-		w.Header().Set("Cache-Control", "no-store, max-age=0")
-		w.Header().Set("Service-Worker-Allowed", "/")
-		w.Write(b)
-	})
-	mux.HandleFunc("/manifest.webmanifest", func(w http.ResponseWriter, r *http.Request) {
-		b, _ := uiFS.ReadFile("ui/manifest.webmanifest")
-		w.Header().Set("Content-Type", "application/manifest+json")
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-		w.Write(b)
-	})
-	// api enregistre une route /api/* protégée par la clé de pilotage (web_auth.go).
-	api := func(path string, h http.HandlerFunc) { mux.HandleFunc(path, requireWebAuth(nodeAware(path, h))) }
+	registerWebAssets(mux)
+	api := webAPI(mux)
 	newEnvironment().register(api)
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)
@@ -335,26 +301,6 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/push/unsubscribe", handlePushUnsubscribe) // retire un abonnement
 	return mux
 }
-
-// handleIndex sert l'interface à la racine.
-func handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
-		http.NotFound(w, r)
-		return
-	}
-	r2 := r.Clone(r.Context())
-	r2.URL.Path = "/next/"
-	handleNext(w, r2)
-}
-
-func sendJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(v)
-}
-
-// handlePing is a lightweight authenticated endpoint a client hits to verify
-// connectivity AND that its key is valid (200 = bonne clé, 401 = mauvaise clé).
 
 // resyncModelSinks refreshes the "loom" provider of harnesses (Pi) after the
 // local library changes, so they list the same models as Loom.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -299,7 +300,7 @@ func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	}
 	server := brain.MCPServer(s)
 	transport := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
-	protected := http.NewCrossOriginProtection().Handler(transport)
+	protected := web.ProtectOrigin(transport)
 	authed := requireWebAuth(protected.ServeHTTP)
 	mux.HandleFunc("/mcp/brain", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")

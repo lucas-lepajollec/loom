@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
 )
 
 // capsFromBody dérive les capacités d'un tour à partir de la configuration
@@ -33,41 +33,6 @@ func capsFromBody(body chatReq) Caps {
 		caps.MCP = *body.MCP
 	}
 	return caps
-}
-
-// sseHeartbeat garde la réponse SSE active en écrivant un commentaire (`: ping`,
-// ignoré par le parseur côté navigateur, aucun contenu donc rien à chiffrer)
-// toutes les ~15 s. Sans ça, un long silence (exécution d'outil en mode agent,
-// gros prefill) laisse la réponse inactive et un proxy intermédiaire (Cloudflare,
-// ~100 s) la coupe → le fetch navigateur échoue (« Load failed »). Retourne un
-// mutex à partager avec l'émetteur (writes concurrents sur le même w) et une
-// fonction d'arrêt à différer.
-func sseHeartbeat(w http.ResponseWriter, flusher http.Flusher) (*sync.Mutex, func()) {
-	mu := &sync.Mutex{}
-	done := make(chan struct{})
-	go func() {
-		// 4 s (et non 15) : borne le temps qu'un dernier bout de flux peut rester
-		// coincé dans un buffer proxy (Cloudflare) faute d'octets pour le pousser.
-		t := time.NewTicker(4 * time.Second)
-		defer t.Stop()
-		for {
-			select {
-			case <-done:
-				return
-			case <-t.C:
-				mu.Lock()
-				_, err := w.Write([]byte(": ping\n\n"))
-				if flusher != nil {
-					flusher.Flush()
-				}
-				mu.Unlock()
-				if err != nil {
-					return
-				}
-			}
-		}
-	}()
-	return mu, func() { close(done) }
 }
 
 // runChatStream est désormais un pur ABONNÉ au journal de la conversation serveur :
@@ -319,23 +284,13 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache, no-transform")
-	w.Header().Set("X-Accel-Buffering", "no")
+	web.SSEHeaders(w, "no-cache, no-transform")
 	flusher, _ := w.(http.Flusher)
 	mu, stop := sseHeartbeat(w, flusher)
 	defer stop()
 	emit := func(obj map[string]any) bool {
 		b, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"delta": obj}}})
-		mu.Lock()
-		defer mu.Unlock()
-		if _, err := w.Write([]byte("data: " + string(b) + "\n\n")); err != nil {
-			return false
-		}
-		if flusher != nil {
-			flusher.Flush()
-		}
-		return true
+		return web.WriteSSE(w, flusher, mu, b) == nil
 	}
 	runChatStream(r.Context(), body, emit)
 }

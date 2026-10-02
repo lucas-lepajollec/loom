@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
 )
 
 // Terminals: real shells opened from Loom, on this machine or on a connected
@@ -405,11 +406,10 @@ func handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Same-origin only (the default check), against cross-site hijacking.
-	conn, err := websocket.Accept(w, r, nil)
+	conn, err := web.AcceptWebSocket(w, r, 1<<20)
 	if err != nil {
 		return
 	}
-	conn.SetReadLimit(1 << 20)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	out, scroll := t.attach()

@@ -1,13 +1,9 @@
 package loom
 
 import (
-	"context"
 	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
-	"net/http"
 	"strings"
 )
 
@@ -16,11 +12,6 @@ import (
 // Bearer présenté (il compare les empreintes) mais ne détient jamais la clé
 // elle-même — condition pour que cette même clé serve à ouvrir le coffre du
 // chiffrement sans que le serveur puisse l'ouvrir seul.
-
-func hashWebKey(k string) string {
-	sum := sha256.Sum256([]byte(k))
-	return hex.EncodeToString(sum[:])
-}
 
 // webKeyHashErr renvoie l'empreinte stockée, ou celle d'une ancienne clé en
 // clair encore en attente de migration. Il distingue « aucune clé » d'une
@@ -75,27 +66,6 @@ func migrateWebKeyToHash() {
 	_ = putStr(bkState, "web_key", "") // le clair ne doit plus jamais traîner
 }
 
-// --- Authentification par identité E2E (contexte, non falsifiable) ------------
-//
-// Une requête arrivée par le tunnel loom.local est DÉJÀ authentifiée par
-// l'identité E2E de l'utilisateur (voir handleE2EReq → e2eAuthOpenReq). On la
-// marque alors via le CONTEXTE de la requête — impossible à forger par un client
-// HTTP externe, contrairement à un en-tête. requireWebAuth l'accepte donc sans
-// exiger la clé de pilotage : plus besoin que le serveur détienne cette clé.
-
-type ctxKey int
-
-const e2eAuthedKey ctxKey = 1
-
-func markE2EAuthed(r *http.Request) *http.Request {
-	return r.WithContext(context.WithValue(r.Context(), e2eAuthedKey, true))
-}
-
-func isE2EAuthed(r *http.Request) bool {
-	v, _ := r.Context().Value(e2eAuthedKey).(bool)
-	return v
-}
-
 // web_auth.go protège l'API de pilotage (loom web) quand elle est exposée sur
 // internet — c.-à-d. l'API que tout client (navigateur, app mobile, script…)
 // utilise pour switcher de preset, redémarrer le service, lire le status, etc.
@@ -120,51 +90,6 @@ func readWebKeyErr() (string, error) {
 // illisible). Réservé à l'affichage ; toute décision d'accès passe par
 // readWebKeyErr.
 func readWebKey() string { k, _ := readWebKeyErr(); return k }
-
-// requireWebAuth wraps an HTTP handler, rejecting requests that don't present
-// the configured Bearer token. When no key is configured the handler is left
-// open (pratique en local) — cmdWeb avertit alors bruyamment au démarrage.
-func requireWebAuth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Requête arrivée par le tunnel loom.local : déjà authentifiée par l'identité
-		// E2E de l'utilisateur (contexte non falsifiable). On n'exige pas la clé.
-		if isE2EAuthed(r) {
-			next(w, r)
-			return
-		}
-		hash, err := webKeyHashErr()
-		if err != nil {
-			// On ne sait pas si une clé protège cette API : on ferme.
-			sendJSON(w, http.StatusServiceUnavailable,
-				map[string]any{"error": "configuration illisible — réessaie dans un instant"})
-			return
-		}
-		if hash == "" {
-			next(w, r)
-			return
-		}
-		if !checkBearer(r, hash) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="loom"`)
-			sendJSON(w, http.StatusUnauthorized, map[string]any{"error": "non autorisé"})
-			return
-		}
-		next(w, r)
-	}
-}
-
-// checkBearer reports whether the request carries a Bearer whose EMPREINTE égale
-// wantHash. On ne compare jamais la clé en clair (le serveur ne la détient pas) :
-// on hache le Bearer présenté et on compare à temps constant. PAS de repli
-// ?key=<clé> en query string (fuite dans les logs proxy / l'historique).
-func checkBearer(r *http.Request, wantHash string) bool {
-	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-		got := hashWebKey(strings.TrimSpace(h[len("Bearer "):]))
-		if subtle.ConstantTimeCompare([]byte(got), []byte(wantHash)) == 1 {
-			return true
-		}
-	}
-	return false
-}
 
 // cmdSetWebKey sets (or clears) the control-API key in $LOOM_HOME/.web_key.
 //

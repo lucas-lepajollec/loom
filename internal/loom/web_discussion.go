@@ -3,6 +3,8 @@ package loom
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
 )
 
 // Both routes use the existing SSE envelope; subscriptions never send a turn.
@@ -39,9 +41,7 @@ func handleDiscussionEvents(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 423, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-store, no-transform")
-	w.Header().Set("X-Accel-Buffering", "no")
+	web.SSEHeaders(w, "no-store, no-transform")
 	flusher, _ := w.(http.Flusher)
 	mu, stop := sseHeartbeat(w, flusher)
 	defer stop()
@@ -53,15 +53,7 @@ func handleDiscussionEvents(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return false
 		}
-		mu.Lock()
-		defer mu.Unlock()
-		if _, err := w.Write(append(append([]byte("data: "), b...), '\n', '\n')); err != nil {
-			return false
-		}
-		if flusher != nil {
-			flusher.Flush()
-		}
-		return true
+		return web.WriteSSE(w, flusher, mu, b) == nil
 	}
 	if native {
 		var stats any
