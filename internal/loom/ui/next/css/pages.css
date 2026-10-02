@@ -569,3 +569,7 @@
 .vl-others summary{cursor:pointer;font-size:12.5px;color:var(--text-3);padding:4px 0}
 .vl-others .card{margin-top:8px}
 @media (max-width:700px){.h-head{flex-wrap:wrap}.h-head .acts{width:100%;flex-wrap:wrap}.h-head .acts .btn.primary{flex:1;justify-content:center}}
+.bal-v{display:flex;align-items:baseline;gap:8px}
+.bal-v b{font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.bal-grid{align-items:start}
+.bal-grid .kv{padding:7px 0}

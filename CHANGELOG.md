@@ -6,6 +6,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Usage page: cloud provider balances and key limits (OpenRouter, DeepSeek, Moonshot/Kimi, SiliconFlow), with the providers that expose none listed as such.
 - "Resume in a terminal" for harness discussions: opens the harness CLI on the same native session, in its working folder, on the machine that runs it.
 - Read-only cloud balances API for connected OpenRouter, DeepSeek, Moonshot/Kimi and SiliconFlow providers, with control-key/vault protection, concurrent ten-second reads, five-minute session caching, nullable amounts and sanitized per-provider errors. Unsupported providers expose no balance capability; OpenRouter key limits survive account-credits access refusal. No UI changes. See `docs/usage.md`.
 
