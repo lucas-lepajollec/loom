@@ -1824,4 +1824,10 @@ export default {
   "usage.native.idle": "Aucune session sur la période pour {list}.",
   "usage.native.absent": "Pas de source native pour {list}.",
   "usage.native.not_installed": " (non installé)",
+  "usage.source.claude": "Claude Code · journaux natifs locaux",
+  "usage.source.codex": "Codex · journaux natifs locaux",
+  "usage.source.pi": "Pi · journaux natifs locaux",
+  "usage.source.opencode": "opencode stats · toutes les sessions natives",
+  "usage.source.hermes": "hermes insights · toutes les sessions natives",
+  "usage.source.native": "Usage natif du harness",
 };

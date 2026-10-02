@@ -1,4 +1,4 @@
-import { t, locale } from '../../core/i18n.js';
+import { t, tSource, locale } from '../../core/i18n.js';
 // Usage : quotas des abonnements (lecture explicite, sans génération) et
 // tokens/coûts estimés des discussions. Une donnée absente reste « inconnue ».
 import { Logo } from '../../ui/logo.js';
@@ -57,7 +57,7 @@ function NativeRow({ h, rt, onRefresh }) {
   const top = models.slice(0, 3), total = models.reduce((n, m) => n + m.tokens, 0) || 1;
   const machine = rt && rt.machine ? rt.machine : '';
   return html`<div class="tr">
-    <span class="cell-id"><${Logo} name=${(rt && rt.logo) || h.runtime_id} size="sm" /><span class="cell-main"><b>${(rt && rt.name) || h.runtime_id}${machine && html` <small class="q-m">${machine}</small>`}</b><small>${(h.source || '').replace(' · machine SSH', '')}</small></span></span>
+    <span class="cell-id"><${Logo} name=${(rt && rt.logo) || h.runtime_id} size="sm" /><span class="cell-main"><b>${(rt && rt.name) || h.runtime_id}${machine && html` <small class="q-m">${machine}</small>`}</b><small>${tSource((h.source || '').replace(' · machine SSH', ''))}</small></span></span>
     <span class="mono">${h.sessions || '—'}</span>
     <span class="mono">${fmtTok(h.input_tokens)}</span><span class="mono">${fmtTok(h.output_tokens)}</span><span class="mono">${h.cache_read_tokens ? fmtTok(h.cache_read_tokens) : '—'}</span>
     <span class="mono strong">${fmtTok(h.total_tokens)}</span>
