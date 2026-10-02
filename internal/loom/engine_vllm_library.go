@@ -148,7 +148,9 @@ func listVLLMCache(cache string) ([]vllmCachedModel, error) {
 				return err
 			}
 			if d.Type().IsRegular() {
-				st, err := d.Info()
+				// repo.Lstat, not d.Info(): with Go 1.25 a nested Root's
+				// DirEntry.Info resolves the path from the wrong directory.
+				st, err := repo.Lstat(p)
 				if err != nil {
 					return err
 				}
