@@ -7,6 +7,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 ### Added
 
 - Brain V1 backend: stored context/personal/repository sources, read-only conversation/memory providers, incremental local BM25 indexing with heading chunks and accent folding, budgeted cited context packs, authenticated `/api/brain/*` endpoints and read-only Streamable HTTP MCP tools at `/mcp/brain`. Personal access requires explicit source IDs plus opt-in; built-in private text is never persisted in the derived cache. No UI or automatic discussion integration in this slice. See `docs/brain.md`.
+- Control-key protected Environment APIs for declared services, opt-in local/SSH Docker observation, Proxmox resources with OS-keychain-only tokens and confirmed SHA-256 TLS certificate pins, and HTTP/TCP reachability matrices bounded to eight concurrent checks and twenty seconds. No Environment UI or background discovery.
 
 - Editable `LOOM_HOME/mcp.json` MCP definitions with one-time database migration, retained recovery backup, atomic mode-0600 writes, preservation of unknown fields, editor reload and last-good recovery for invalid files. Authenticated MCP file/source APIs link Claude Code, Cursor, standard MCP and VS Code configurations read-only, suggest existing paths and adopt servers disabled with explicit opt-in for environment values. Existing MCP endpoints remain available.
 

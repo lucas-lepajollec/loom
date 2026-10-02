@@ -32,6 +32,13 @@ Discussions use the original chat and composer, with complete native local param
 
 The common discussion's context section lets you rename it, attach or detach a project and add instructions without rewriting exchanged messages. **View prepared text** previews its portable instructions/history and draft without contacting a model or saving the draft. Cloud sends and common-context edits reject stale revisions. Native local replies retain their existing prompt, tool and compaction processing; the portable preview is not a full native wire dump. Byte limits are not model token-window estimates.
 
+Environment is available through the control-key protected `/api/env/*` APIs:
+declare services, opt into Docker observations per local/SSH machine, link
+Proxmox with a token in the OS keychain and an explicitly confirmed certificate
+pin when needed, and check HTTP/TCP reachability or a bounded machine matrix.
+There is no Environment UI yet. See the [Environment API](docs/architecture.md#environment-api-roadmap-step-6)
+for payloads, activation and limits.
+
 ### Cloud connections
 
 In **Cloud**, create a connection using the OpenAI, OpenRouter or Mistral URL preset, or a custom **Chat Completions-compatible** endpoint. Enter its API key and explicitly request **Verify and retrieve models**: this sends the key only to that destination's `/models` endpoint, without sending a conversation or generating a reply. Choose up to 32 model IDs to save; manual IDs remain available when catalog discovery is unsupported. A returned catalog does not guarantee chat compatibility, account access or quota. The usage-reporting option can be disabled for providers that reject `stream_options`.

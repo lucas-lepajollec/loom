@@ -221,6 +221,48 @@ the Loom adapter). A provider with a different
 protocol (Anthropic Messages, Responses API) is a new `runtime/` adapter, not a
 branch inside the existing one.
 
+### Environment API (roadmap step 6)
+
+`env_*.go` owns declared services and optional observations, independently of
+discussion execution. All `/api/env/*` routes use the control-key middleware
+(`Authorization: Bearer …` when configured), never the inference API key.
+Responses are `no-store`. Nothing is discovered in the background.
+
+| Route | Request and response |
+| --- | --- |
+| `GET /api/env/services` | `{ok, services: [{id,name,url,machine,kind,notes}]}` |
+| `POST /api/env/services` | A service object; creates an ID when empty or replaces that ID. Returns `{ok,service}`. `machine` defaults to `local`, otherwise a saved SSH machine ID; `kind` is `web`, `api`, `db` or `other`. |
+| `POST /api/env/services/delete` | `{id}` → `{ok}`; unknown ID returns 404. |
+| `POST /api/env/docker` | `{machine,enabled}` explicitly enables/disables observation per machine (off by default). |
+| `GET /api/env/docker?machine=local` | `{ok,machine,enabled,containers:[{name,image,state,status,ports}],error}`. Runs `docker ps -a --format '{{json .}}'` only when enabled; local execution uses argv, SSH uses Loom's key and existing PATH preamble. Missing Docker, permissions and unreachable machines return a per-machine error with HTTP 200. |
+| `GET/POST /api/env/proxmox` | GET returns `{ok,config:{enabled,url,token_id,fingerprint}}`. POST accepts these config fields plus optional `token_secret` and `confirm_fingerprint`. An empty/omitted secret keeps the existing keychain entry. A new/changed nonempty fingerprint requires `confirm_fingerprint:true`. |
+| `GET /api/env/proxmox/resources` | `{ok,enabled,resources:[{vmid,name,node,type,status,cpu,maxmem,mem,uptime}]}`; only `node`, `qemu` and `lxc` from `/api2/json/cluster/resources`. Unreported numeric fields are null. Provider errors return 502 (unavailable keychain: 503). |
+| `POST /api/env/check` | `{target,from}` → `{from,ok,status,latency_ms,error}`. `from` defaults to `local`, otherwise a saved machine ID. `target` is an HTTP(S) URL without embedded credentials, or `host:port` (IPv6: `[host]:port`). |
+| `GET /api/env/matrix` | `{ok,results:[{service_id,target,from,ok,status,latency_ms,error}]}` for every service from Loom and every saved machine, including unreachable machines. |
+
+Services (at most 256) and provider settings are stored in Loom's database;
+the Proxmox token secret is stored **only** in the OS keychain through the
+existing keyring helpers, with a separate Environment identity. Failure to
+save it is reported; there is no file or in-memory persistence fallback.
+Proxmox requires an HTTPS origin and uses normal OS certificate verification
+unless the user explicitly confirms a SHA-256 leaf certificate fingerprint
+(hex, optionally colon-separated). Pinning checks that exact certificate and
+its validity period on every connection; certificate changes are rejected.
+The pin supplies identity verification in place of CA/hostname verification.
+Obtain and verify the fingerprint independently before confirming it. Redirects
+are never followed and provider error bodies are never returned.
+
+Checks use a five-second timeout, HTTP GET without following redirects, or TCP
+dial. HTTP 2xx/3xx is `ok`; other status codes are retained with an error.
+Successful TCP checks have `status:0`. SSH HTTP checks use curl with
+`--max-time 5`; when curl is absent, bash `/dev/tcp` tests only the socket,
+also reported as `status:0`. Remote observation/checks require a POSIX shell
+(and curl or bash for checks); Loom itself builds on Linux, macOS and Windows.
+Matrices use eight workers and a shared eight-check concurrency limit per web
+router, with a twenty-second overall deadline. Unfinished cells retain their
+service/source and report cancellation/deadline errors. Reachability describes
+the machine's network path, not an individual harness's sandbox permissions.
+
 ## 3. Data ownership
 
 | Data | Owner | Store |

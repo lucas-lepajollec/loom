@@ -135,6 +135,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	})
 	// api enregistre une route /api/* protégée par la clé de pilotage (web_auth.go).
 	api := func(path string, h http.HandlerFunc) { mux.HandleFunc(path, requireWebAuth(nodeAware(path, h))) }
+	newEnvironment().register(api)
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)
 	api("/api/usage", handleUsage)
