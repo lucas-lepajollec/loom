@@ -20,6 +20,8 @@ type DiscussionContext struct {
 	ProjectID    string       `json:"project_id"`
 	ProjectName  string       `json:"project_name"`
 	Instructions string       `json:"project_instructions"`
+	// BrainCitations: where the Brain passages of this context come from.
+	BrainCitations []string `json:"brain_citations,omitempty"`
 	Skills       []Capability `json:"skills"`
 	Discussion   string       `json:"discussion_instructions"`
 	System       string       `json:"system"`
@@ -61,6 +63,11 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 			parts = append(parts, files...)
 			if warning != "" {
 				c.Warning = warning
+			}
+			// Brain passages relevant to the latest message.
+			if text, cites := projectBrainContext(p, lastUserText(s.Messages)); text != "" {
+				parts = append(parts, text)
+				c.BrainCitations = cites
 			}
 			for _, id := range p.CapabilityIDs {
 				if skill, ok := getCapability(id); ok && skill.Instructions != "" {

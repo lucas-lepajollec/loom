@@ -51,6 +51,32 @@ func words(s string) []word {
 	}
 	return out
 }
+// stopWords are frequent French and English words that say nothing about a
+// passage; they are dropped from queries (unless the query is only them).
+var stopWords = map[string]bool{}
+
+func init() {
+	for _, w := range strings.Fields(`a au aux avec ce ces cet cette d de des du dans en et est etre il ils elle elles je j l la le les leur lui ma mais me meme mes moi mon ne nos notre nous on ou par pas pour qu que qui sa se ses son sur ta te tes toi ton tu un une vos votre vous y c s n m t comment quel quelle quels quelles est-ce
+		the a an and or of to in on at for with by from is are was were be been it its this that these those as not no do does did how what which who whom i you he she we they my your our their me us them`) {
+		stopWords[w] = true
+	}
+}
+
+// queryTerms are the meaningful terms of a query.
+func queryTerms(s string) []string {
+	all := terms(s)
+	out := []string{}
+	for _, t := range all {
+		if !stopWords[t] {
+			out = append(out, t)
+		}
+	}
+	if len(out) == 0 {
+		return all
+	}
+	return out
+}
+
 func terms(s string) []string {
 	out := []string{}
 	seen := map[string]bool{}

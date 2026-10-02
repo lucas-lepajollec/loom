@@ -132,6 +132,17 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 		}
 	}
 	p.ExtraDirs = extra
+	if p.BrainBudget < 0 || p.BrainBudget > maxProjectBrainBudget || len(p.BrainSources) > 16 {
+		return p, fmt.Errorf("budget du Brain entre 0 et 8000 tokens, 16 sources maximum")
+	}
+	if len(p.BrainSources) > 0 {
+		kinds := brainSourceKinds()
+		for _, id := range p.BrainSources {
+			if _, ok := kinds[id]; !ok {
+				return p, fmt.Errorf("source du Brain inconnue : %s", id)
+			}
+		}
+	}
 	if p.Machine != "" && len(p.ContextFiles) > 0 {
 		return p, fmt.Errorf("les fichiers de contexte ne sont lus que pour un dossier de cette machine")
 	}

@@ -11,6 +11,7 @@ import { get, post } from '../../core/api.js';
 import { app, go, refreshNav, refreshWorkspace } from '../../core/state.js';
 import { open, newDiscussion, chooseRemote } from '../chat/engine.js';
 import { openTerminalWith } from '../terminals/page.js';
+import { brainLabel } from '../resources/brain.js';
 
 const kb = b => b < 1024 ? b + ' o' : (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' Ko';
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
@@ -47,8 +48,10 @@ export function ProjectPage({ route }) {
   const [info, setInfo] = useState(null);
   const [pick, setPick] = useState(false);
   const [machines, setMachines] = useState([]);
+  const [brainSources, setBrainSources] = useState(null);
+  useEffect(() => { get('/api/brain/sources').then(r => setBrainSources(r.sources || [])).catch(() => setBrainSources([])); }, []);
   useEffect(() => { get('/api/machines').then(r => setMachines(r.ok ? r.machines : [])).catch(() => {}); }, []);
-  const reset = () => p && setF({ name: p.name, directory: p.directory || '', machine: p.machine || '', extra: p.extra_dirs || [], instructions: p.instructions || '', skills: new Set(p.capability_ids || []), files: new Set(p.context_files || []), def: p.default_choice || '' });
+  const reset = () => p && setF({ name: p.name, directory: p.directory || '', machine: p.machine || '', extra: p.extra_dirs || [], brain: new Set(p.brain_sources || []), budget: p.brain_budget || 0, instructions: p.instructions || '', skills: new Set(p.capability_ids || []), files: new Set(p.context_files || []), def: p.default_choice || '' });
   useEffect(reset, [p && p.id]);
   const loadInfo = () => p && get('/api/projects/info?id=' + encodeURIComponent(p.id)).then(setInfo, () => setInfo({}));
   useEffect(() => { setInfo(null); loadInfo(); }, [p && p.id, p && p.directory]);
@@ -57,9 +60,9 @@ export function ProjectPage({ route }) {
   if (!f) return null;
   const chats = nav.conversations.filter(c => c.project_id === p.id);
   const same = (a, b) => [...a].sort().join('\n') === [...b].sort().join('\n');
-  const dirty = f.name !== p.name || f.directory !== (p.directory || '') || f.machine !== (p.machine || '') || f.extra.join('\n') !== (p.extra_dirs || []).join('\n') || f.instructions !== (p.instructions || '') || !same(f.skills, p.capability_ids || []) || !same(f.files, p.context_files || []) || f.def !== (p.default_choice || '');
+  const dirty = f.name !== p.name || f.directory !== (p.directory || '') || f.machine !== (p.machine || '') || f.extra.join('\n') !== (p.extra_dirs || []).join('\n') || !same(f.brain, p.brain_sources || []) || f.budget !== (p.brain_budget || 0) || f.instructions !== (p.instructions || '') || !same(f.skills, p.capability_ids || []) || !same(f.files, p.context_files || []) || f.def !== (p.default_choice || '');
   const save = async () => {
-    const r = await post('/api/projects/context', { id: p.id, name: f.name, directory: f.directory, machine: f.machine, extra_dirs: f.extra, instructions: f.instructions, capability_ids: [...f.skills], context_files: !f.machine && f.directory === (p.directory || '') ? [...f.files] : [], default_choice: f.def });
+    const r = await post('/api/projects/context', { id: p.id, name: f.name, directory: f.directory, machine: f.machine, extra_dirs: f.extra, brain_sources: [...f.brain], brain_budget: f.budget, instructions: f.instructions, capability_ids: [...f.skills], context_files: !f.machine && f.directory === (p.directory || '') ? [...f.files] : [], default_choice: f.def });
     if (!r.ok) return toast(r.error, 'err');
     toast('Projet enregistré · appliqué aux prochains messages'); await refreshWorkspace(); refreshNav();
   };
@@ -103,6 +106,13 @@ export function ProjectPage({ route }) {
             ${filesBytes > 48 * 1024 && html`<small class="note warn">Au-delà de 48 Ko, les derniers fichiers ne sont pas envoyés.</small>`}</div>
           <div class="field"><span>Skills</span>${(ws.capabilities || []).length ? html`<div class="chips">${ws.capabilities.map(c => html`<button type="button" class=${cls('chip-btn', f.skills.has(c.id) && 'on')} onClick=${() => toggle('skills', c.id)}>${f.skills.has(c.id) && html`<${Icon} n="check" />`}${c.name}</button>`)}</div>`
             : html`<small>Aucun skill. <a href="#/resources/skills">Créer un skill</a></small>`}</div>
+        </section>
+
+        <section class="card pad pj-sec">
+          <div class="sec-h"><h2>Brain<${Tip} text="À chaque message, Loom cherche dans ces sources les passages utiles à la question et les ajoute au contexte, sans dépasser le budget. Les sources personnelles ne sont lues que si tu les coches ici." /></h2><a class="btn sm ghost" href="#/resources/brain">Gérer les sources</a></div>
+          ${!brainSources ? html`<small class="muted">Lecture…</small>` : brainSources.length === 0 ? html`<small class="muted">Aucune source. Ajoute tes notes ou docs dans Ressources › Brain.</small>`
+            : html`<div class="chips">${brainSources.map(b => html`<button type="button" class=${cls('chip-btn', f.brain.has(b.id) && 'on')} onClick=${() => { const s = new Set(f.brain); s.has(b.id) ? s.delete(b.id) : s.add(b.id); setF({ ...f, brain: s, budget: s.size && !f.budget ? 1500 : s.size ? f.budget : 0 }); }}>${f.brain.has(b.id) && html`<${Icon} n="check" />`}${brainLabel(b)}${b.kind === 'personal' && html` <${Icon} n="lock" />`}</button>`)}</div>`}
+          ${f.brain.size > 0 && html`<label class="field"><span>Budget par message</span><select class="select" value=${String(f.budget)} onChange=${e => setF({ ...f, budget: Number(e.target.value) })}>${[500, 1000, 1500, 3000, 5000, 8000].map(n => html`<option value=${n} selected=${n === f.budget}>${n} tokens</option>`)}</select></label>`}
         </section>
 
         <section class="card pad pj-sec">

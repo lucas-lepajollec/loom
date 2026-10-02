@@ -55,7 +55,7 @@ func (e *Engine) searchLocked(r SearchRequest) ([]Hit, error) {
 		r.Limit = 10
 	}
 	r.Limit = min(r.Limit, 100)
-	query := terms(r.Query)
+	query := queryTerms(r.Query)
 	hits := []Hit{}
 	if len(query) == 0 {
 		return hits, nil

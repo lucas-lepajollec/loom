@@ -24,6 +24,10 @@ type ChatProject struct {
 	Machine string `json:"machine,omitempty"`
 	// ExtraDirs: more folders of the same machine the project's harnesses may use.
 	ExtraDirs []string `json:"extra_dirs,omitempty"`
+	// BrainSources and BrainBudget: Brain sources searched for each message and
+	// the token budget of the passages added (0 = Brain off).
+	BrainSources []string `json:"brain_sources,omitempty"`
+	BrainBudget  int      `json:"brain_budget,omitempty"`
 }
 
 func listProjects() []ChatProject {

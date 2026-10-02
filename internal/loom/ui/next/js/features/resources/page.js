@@ -8,6 +8,7 @@ import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace } from '../../core/state.js';
 import { Memory } from './memory.js';
+import { Brain } from './brain.js';
 import { FolderPicker } from '../../ui/folder.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
@@ -207,11 +208,11 @@ function McpSources({ onAdopted }) {
 }
 
 export function ResourcesPage({ route }) {
-  const tab = ['mcp', 'memory'].includes(route.sub) ? route.sub : 'skills';
+  const tab = ['mcp', 'brain', 'memory'].includes(route.sub) ? route.sub : 'skills';
   const ws = useStore(app, s => s.workspace);
   return html`<div class="view page"><div class="page-in">
     <div class="page-head"><div><h1>Ressources</h1><p>Définies une fois dans Loom, utilisées par tes projets et tes discussions.</p></div></div>
-    <${Tabs} value=${tab} onChange=${t => go('resources', t)} label="Ressources" options=${[{ value: 'skills', label: 'Skills', count: ws ? (ws.capabilities || []).length : null }, { value: 'mcp', label: 'Serveurs MCP' }, { value: 'memory', label: 'Mémoire' }]} />
-    <div class="tab-body" key=${tab}>${tab === 'skills' ? html`<${Skills} />` : tab === 'mcp' ? html`<${Mcp} />` : html`<${Memory} />`}</div>
+    <${Tabs} value=${tab} onChange=${t => go('resources', t)} label="Ressources" options=${[{ value: 'skills', label: 'Skills', count: ws ? (ws.capabilities || []).length : null }, { value: 'mcp', label: 'Serveurs MCP' }, { value: 'brain', label: 'Brain' }, { value: 'memory', label: 'Mémoire' }]} />
+    <div class="tab-body" key=${tab}>${tab === 'skills' ? html`<${Skills} />` : tab === 'mcp' ? html`<${Mcp} />` : tab === 'brain' ? html`<${Brain} />` : html`<${Memory} />`}</div>
   </div></div>`;
 }

@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"fmt"
 	"context"
 	"errors"
 	"net/http"
@@ -126,6 +127,21 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 		}
 		switch req.Action {
 		case "add", "":
+			if req.ID == "" {
+				// A stable id from the name, unique among sources.
+				base := skillDirSlug(firstNonEmpty(req.Label, filepath.Base(req.Path)))
+				req.ID = base
+				for i := 2; ; i++ {
+					taken := false
+					for _, existing := range e.Sources() {
+						taken = taken || existing.ID == req.ID
+					}
+					if !taken && req.ID != "conversations" && req.ID != "memory" {
+						break
+					}
+					req.ID = fmt.Sprintf("%s-%d", base, i)
+				}
+			}
 			err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include})
 		case "remove":
 			err = e.Remove(req.ID)
@@ -193,8 +209,23 @@ func (s *brainService) read(w http.ResponseWriter, r *http.Request) {
 	chunk, err := s.Read(brain.ReadRequest{ChunkID: q.Get("chunk_id"), Source: q.Get("source"), Path: q.Get("path"), Heading: q["heading"], Sources: brainFilter(r), Personal: q.Get("personal") == "true"})
 	brainResponse(w, chunk, err)
 }
+// brainSvc is the process-wide Brain (one index per LOOM_HOME).
+var (
+	brainSvcMu sync.Mutex
+	brainSvc   *brainService
+)
+
+func theBrain() *brainService {
+	brainSvcMu.Lock()
+	defer brainSvcMu.Unlock()
+	if brainSvc == nil {
+		brainSvc = newBrainService(LoomHome())
+	}
+	return brainSvc
+}
+
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
-	s := newBrainService(LoomHome())
+	s := theBrain()
 	for route, handler := range map[string]http.HandlerFunc{"sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read} {
 		protected := requireWebAuth(handler)
 		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
