@@ -16,7 +16,7 @@
 
 ## Overview
 
-Loom is a conversation-first AI workspace: the discussion and its explicit project context stay together when you switch between local models, cloud APIs and harnesses. Local manages GGUFs, the download Hub and the engine; Cloud manages providers and their model lists. Harnesses manages native configurations and ACP adapters for Codex, Claude Code, Pi and Gemini. Antigravity uses its own discovered account catalog and experimental text bridge. Interactive terminals are not implemented. See [runtime actions](#runtime-actions) for capabilities and prerequisites.
+Loom is a conversation-first AI workspace: the discussion and its explicit project context stay together when you switch between local models, cloud APIs and harnesses. Local manages GGUFs, the download Hub and the engine; Cloud manages providers and their model lists. Harnesses manages native configurations and ACP adapters for Codex, Claude Code, Pi and Gemini. Antigravity uses its own discovered account catalog and experimental text bridge. Interactive [terminals](docs/terminals.md) run locally on Linux/macOS/Windows 10 1809+ and over SSH on connected machines, including Windows OpenSSH servers. See [runtime actions](#runtime-actions) for capabilities and prerequisites.
 
 Loom operates **one** owned `llama-server` instance and preserves its existing model library, settings, continuous batching and benchmarking. Local inference stays on the workstation. Explicitly selecting a cloud destination allows the discussion text and selected project instructions/skills to be sent there; Hub, downloads and updates also use the network when requested.
 

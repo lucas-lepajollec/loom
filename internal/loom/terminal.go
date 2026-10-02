@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -96,6 +97,9 @@ func terminalCommand(target, dir, command string) ([]string, string, error) {
 		if err != nil || !info.IsDir() {
 			return nil, "", errors.New("dossier introuvable sur cette machine")
 		}
+		if runtime.GOOS == "windows" {
+			return windowsTerminalShellCommand(windowsTerminalShell(exec.LookPath, os.Getenv("ComSpec")), command), dir, nil
+		}
 		shell := os.Getenv("SHELL")
 		if shell == "" {
 			shell = "/bin/sh"
@@ -129,6 +133,12 @@ func terminalCommand(target, dir, command string) ([]string, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	args := remoteTerminalArgs(m, key, dir, command)
+	home, _ := os.UserHomeDir()
+	return append([]string{"ssh"}, args...), home, nil
+}
+
+func remoteTerminalArgs(m RemoteMachine, key, dir, command string) []string {
 	script := "exec \"${SHELL:-/bin/sh}\" -l"
 	if command != "" {
 		script = "exec \"${SHELL:-/bin/sh}\" -lc " + shellQuote(command)
@@ -137,14 +147,31 @@ func terminalCommand(target, dir, command string) ([]string, string, error) {
 		script = "cd " + shellQuote(dir) + " && " + script
 	}
 	args := sshArgs(m, key, script)
+	if lifecycleOS(&m) == "windows" {
+		args = windowsRemoteSSHArgs(m, key, windowsRemoteTerminalScript(dir, command))
+		// A terminal must keep stdin interactive, unlike lifecycle commands.
+		for i, a := range args {
+			if a == "-NonInteractive" {
+				args = append(args[:i], args[i+1:]...)
+				break
+			}
+		}
+		if command == "" {
+			for i, a := range args {
+				if a == "-EncodedCommand" {
+					args = append(args[:i], append([]string{"-NoExit"}, args[i:]...)...)
+					break
+				}
+			}
+		}
+	}
 	// Interactive: force a remote PTY; sshArgs starts with -T (no PTY).
 	for i, a := range args {
 		if a == "-T" {
 			args[i] = "-tt"
 		}
 	}
-	home, _ := os.UserHomeDir()
-	return append([]string{"ssh"}, args...), home, nil
+	return args
 }
 
 func openTerminal(target, dir, command, title string) (*Terminal, error) {
