@@ -37,7 +37,7 @@ export function useStore(store, select = s => s) {
 }
 
 export const cls = (...xs) => xs.filter(Boolean).join(' ');
-export const fmtTok = n => { n = Math.max(0, Math.round(n || 0)); return n < 1000 ? String(n) : (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K'; };
+export const fmtTok = n => { n = Math.max(0, Math.round(n || 0)); const u = n >= 1e9 ? [1e9, 'B'] : n >= 1e6 ? [1e6, 'M'] : n >= 1e3 ? [1e3, 'K'] : null; return u ? (n / u[0]).toFixed(1).replace(/\.0$/, '') + u[1] : String(n); };
 export const fmtBytes = b => { if (!b) return '—'; const g = b / 1073741824; return g >= 1 ? g.toFixed(1) + ' Go' : (b / 1048576).toFixed(0) + ' Mo'; };
 export const fmtSecs = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60; return h ? h + 'h ' + String(m).padStart(2, '0') + 'm' : m ? m + 'm ' + String(r).padStart(2, '0') + 's' : r + 's'; };
 export const baseName = p => String(p || '').split(/[\\/]/).pop();
