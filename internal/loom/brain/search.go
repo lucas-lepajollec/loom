@@ -12,7 +12,7 @@ import (
 // Its corpus is also used for BM25 statistics, keeping personal documents out
 // of default ranking as well as out of results.
 func (e *Engine) allowed(ids []string, personal bool) (map[string]bool, error) {
-	if len(ids) > MaxSources+2 {
+	if len(ids) > MaxSources+3 {
 		return nil, errors.New("too many source filters")
 	}
 	explicit := map[string]bool{}
@@ -188,6 +188,36 @@ func (e *Engine) Pack(r PackRequest) (Pack, error) {
 	if err != nil {
 		return out, err
 	}
+	return e.packHitsLocked(r, hits), nil
+}
+
+// PackHits rechecks source authorization against the current snapshot.
+func (e *Engine) PackHits(r PackRequest, hits []Hit) (Pack, error) {
+	if err := e.available(); err != nil {
+		return Pack{}, err
+	}
+	if r.BudgetTokens == 0 {
+		r.BudgetTokens = 1500
+	}
+	if r.BudgetTokens < 1 || r.BudgetTokens > 8000 {
+		return Pack{}, errors.New("budget_tokens must be between 1 and 8000")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	allowed, err := e.allowed(r.Sources, r.Personal)
+	if err != nil {
+		return Pack{}, err
+	}
+	filtered := []Hit{}
+	for _, h := range hits {
+		if allowed[h.Source] {
+			filtered = append(filtered, h)
+		}
+	}
+	return e.packHitsLocked(r, filtered), nil
+}
+func (e *Engine) packHitsLocked(r PackRequest, hits []Hit) Pack {
+	out := Pack{Citations: []Citation{}, Chunks: []Chunk{}}
 	byID := map[string]*Chunk{}
 	for _, d := range e.docs {
 		byID[d.chunk.ID] = d.chunk
@@ -196,6 +226,9 @@ func (e *Engine) Pack(r PackRequest) (Pack, error) {
 	text := "Context from the user's Brain:\n"
 	for _, hit := range hits {
 		c := byID[hit.ChunkID]
+		if c == nil || c.Source != hit.Source {
+			continue
+		}
 		normalized := strings.Join(strings.Fields(c.Text), " ")
 		if seen[normalized] {
 			continue
@@ -221,5 +254,5 @@ func (e *Engine) Pack(r PackRequest) (Pack, error) {
 		out.Text = text
 		out.TokensUsed = Tokens(text)
 	}
-	return out, nil
+	return out
 }

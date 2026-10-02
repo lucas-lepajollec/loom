@@ -17,9 +17,11 @@ import (
 
 // Each mux owns its Brain service; no new application global is introduced.
 type brainService struct {
-	mu      sync.Mutex
-	storage brainStorage
-	engine  *brain.Engine
+	mu        sync.Mutex
+	storage   brainStorage
+	engine    *brain.Engine
+	semantic  *brainSemantic
+	distillMu sync.Mutex
 }
 
 func newBrainService(home string) *brainService {
@@ -32,7 +34,7 @@ func (s *brainService) get() (*brain.Engine, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.engine == nil {
-		e, err := brain.New(brain.Options{Storage: s.storage, Conversations: brainConversations, Memory: brainMemory, Available: brainAvailable})
+		e, err := brain.New(brain.Options{Storage: s.storage, Conversations: brainConversations, Memory: brainMemory, Distilled: s.distilledDocuments, Available: brainAvailable})
 		if err != nil {
 			return nil, err
 		}
@@ -41,6 +43,14 @@ func (s *brainService) get() (*brain.Engine, error) {
 	return s.engine, nil
 }
 func (s *brainService) run(ctx context.Context) {
+	defer func() {
+		s.mu.Lock()
+		m := s.semantic
+		s.mu.Unlock()
+		if m != nil {
+			m.close()
+		}
+	}()
 	refresh := func() {
 		if e, err := s.get(); err == nil {
 			_ = e.Refresh(ctx)
@@ -59,18 +69,70 @@ func (s *brainService) run(ctx context.Context) {
 	}
 }
 func (s *brainService) Search(r brain.SearchRequest) ([]brain.Hit, error) {
+	return s.SearchContext(context.Background(), r)
+}
+func (s *brainService) SearchContext(ctx context.Context, r brain.SearchRequest) ([]brain.Hit, error) {
 	e, err := s.get()
 	if err != nil {
 		return nil, err
 	}
-	return e.Search(r)
+	lexical, err := e.Search(r)
+	if err != nil || strings.TrimSpace(r.Query) == "" {
+		return lexical, err
+	}
+	m, err := s.semanticManager()
+	if err != nil {
+		return lexical, nil
+	}
+	cfg := m.configCopy()
+	if !cfg.Enabled {
+		return lexical, nil
+	}
+	chunks, chunkErr := e.Chunks(r)
+	if chunkErr != nil {
+		return nil, chunkErr
+	}
+	m.mu.Lock()
+	ready := false
+	for _, c := range chunks {
+		if _, ok := m.vectors.Values[c.ID]; ok {
+			ready = true
+			break
+		}
+	}
+	m.mu.Unlock()
+	if !ready {
+		return lexical, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	query, err := m.embed(ctx, []string{r.Query}, true)
+	if err != nil {
+		return lexical, brainAvailable()
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.config.Enabled || m.config.Model != cfg.Model || m.config.ProviderID != cfg.ProviderID || m.config.ProviderEndpoint != cfg.ProviderEndpoint {
+		return lexical, brainAvailable()
+	}
+	return e.HybridSearch(r, query[0], m.vectors.Values)
 }
 func (s *brainService) Pack(r brain.PackRequest) (brain.Pack, error) {
+	return s.PackContext(context.Background(), r)
+}
+func (s *brainService) PackContext(ctx context.Context, r brain.PackRequest) (brain.Pack, error) {
 	e, err := s.get()
 	if err != nil {
 		return brain.Pack{}, err
 	}
-	return e.Pack(r)
+	if r.BudgetTokens < 0 || r.BudgetTokens > 8000 {
+		return brain.Pack{}, errors.New("budget_tokens must be between 1 and 8000")
+	}
+	hits, err := s.SearchContext(ctx, brain.SearchRequest{Query: r.Query, Sources: r.Sources, Personal: r.Personal, Limit: 100})
+	if err != nil {
+		return brain.Pack{}, err
+	}
+	return e.PackHits(r, hits)
 }
 func (s *brainService) Read(r brain.ReadRequest) (brain.Chunk, error) {
 	e, err := s.get()
@@ -136,7 +198,7 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 					for _, existing := range e.Sources() {
 						taken = taken || existing.ID == req.ID
 					}
-					if !taken && req.ID != "conversations" && req.ID != "memory" {
+					if !taken && req.ID != "conversations" && req.ID != "memory" && req.ID != "distilled" {
 						break
 					}
 					req.ID = fmt.Sprintf("%s-%d", base, i)
@@ -187,7 +249,7 @@ func (s *brainService) search(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	hits, err := s.Search(brain.SearchRequest{Query: r.URL.Query().Get("query"), Sources: brainFilter(r), Personal: r.URL.Query().Get("personal") == "true", Limit: limit})
+	hits, err := s.SearchContext(r.Context(), brain.SearchRequest{Query: r.URL.Query().Get("query"), Sources: brainFilter(r), Personal: r.URL.Query().Get("personal") == "true", Limit: limit})
 	brainResponse(w, map[string]any{"hits": hits}, err)
 }
 func (s *brainService) pack(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +260,7 @@ func (s *brainService) pack(w http.ResponseWriter, r *http.Request) {
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	pack, err := s.Pack(req)
+	pack, err := s.PackContext(r.Context(), req)
 	brainResponse(w, pack, err)
 }
 func (s *brainService) read(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +290,7 @@ func theBrain() *brainService {
 
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	s := theBrain()
-	for route, handler := range map[string]http.HandlerFunc{"sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read} {
+	for route, handler := range map[string]http.HandlerFunc{"sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP} {
 		protected := requireWebAuth(handler)
 		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")

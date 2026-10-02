@@ -94,13 +94,16 @@ func New(opts Options) (*Engine, error) {
 		}
 	}
 	e.sources = append(e.sources, Source{ID: "conversations", Label: "Conversations", Kind: "conversations", ReadOnly: true}, Source{ID: "memory", Label: "Memory", Kind: "memory", ReadOnly: true})
+	if opts.Distilled != nil {
+		e.sources = append(e.sources, Source{ID: "distilled", Label: "Distilled", Kind: "distilled", ReadOnly: true})
+	}
 	e.buildIndexLocked()
 	return e, nil
 }
 
 func validateSource(s Source) error {
 	ok, _ := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`, s.ID)
-	if !ok || s.ID == "memory" || s.ID == "conversations" {
+	if !ok || s.ID == "memory" || s.ID == "conversations" || s.ID == "distilled" {
 		return errors.New("invalid or reserved source id")
 	}
 	if strings.TrimSpace(s.Label) == "" || len(s.Label) > 200 {
@@ -180,7 +183,13 @@ func (e *Engine) Update(s Source) error {
 		}
 	}
 	if !found {
-		if len(next)-2 >= MaxSources {
+		count := 0
+		for _, source := range next {
+			if !source.ReadOnly {
+				count++
+			}
+		}
+		if count >= MaxSources {
 			return errors.New("100 sources maximum")
 		}
 		next = append(next, s)
@@ -404,6 +413,9 @@ func (e *Engine) Refresh(ctx context.Context) error {
 			if s.ID == "conversations" {
 				provider = e.opts.Conversations
 			}
+			if s.ID == "distilled" {
+				provider = e.opts.Distilled
+			}
 			if provider != nil {
 				err = provider(ctx, func(d Document) bool {
 					if ctx.Err() != nil {
@@ -514,7 +526,7 @@ func (e *Engine) Refresh(ctx context.Context) error {
 			}
 		}
 		for _, f := range next {
-			if f.Source != "memory" && f.Source != "conversations" {
+			if f.Source != "memory" && f.Source != "conversations" && f.Source != "distilled" {
 				snap.Files = append(snap.Files, f)
 			}
 		}

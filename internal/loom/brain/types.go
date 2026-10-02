@@ -115,6 +115,7 @@ type Options struct {
 	Storage       Storage
 	Conversations Provider
 	Memory        Provider
+	Distilled     Provider
 	// Available is checked on every read and refresh (e.g. vault locking).
 	Available func() error
 }

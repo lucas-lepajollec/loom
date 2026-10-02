@@ -1,7 +1,8 @@
-# Brain V1 / Context Service
+# Brain / Context Service
 
-Brain indexes local text and returns cited context without calling a model,
-embedding service or external API. The package `internal/loom/brain` receives
+Brain indexes local text and returns cited context. By default it uses BM25
+without model calls or external APIs. Optional semantic indexing and explicit
+distillation are described below. The package `internal/loom/brain` receives
 its storage, document providers and availability check explicitly. Thin
 `brain_*.go` adapters connect it to Loom's storage and web server. It does not
 change discussion prompts or automatically send context to an executor.
@@ -22,16 +23,19 @@ Includes are relative to the root and support `*`, `?`, character classes,
 and recursive `**`: e.g. `**/*.md`, `docs/**`, `notes/*.txt`.
 They narrow the normal file selection; at most 64 globs, 256 bytes each.
 
-Two built-ins are read-only:
+Three built-ins are read-only:
 
 - `conversations`: user and assistant text from Loom's native display journal,
   archives and common discussions. No system instructions, hidden reasoning,
   approvals, tool results or runtime metadata. Bound native discussions are
   not indexed twice. Paths identify the discussion and individual message.
+- `distilled`: durable decisions, facts, todos and preferences extracted only
+  on request, with discussion/message provenance. Items can be deleted through
+  the dedicated endpoint; source definitions and item text cannot be edited.
 - `memory`: the existing local agent's Markdown pages, read through Loom's
   decryption layer. Brain does not create another memory store or write pages.
 
-Default requests include context, repositories, conversations and memory.
+Default requests include context, repositories, conversations, memory and distilled items.
 Personal sources are excluded even when `personal=true` alone is supplied:
 the request must **also explicitly name each personal source ID**. This rule
 applies to search, packs and reads, including a previously known chunk ID.
@@ -46,8 +50,8 @@ uses Loom's existing encryption codec when vault encryption is active, on
 each successful refresh. Enabling encryption therefore requires a Brain
 refresh to replace any older plaintext file cache. All Brain text access is
 blocked while that vault is locked. After unlocking, reindex to restore
-built-in results immediately. Memory and discussion text is **never persisted
-in Brain's cache**, including while the vault is unlocked.
+built-in results immediately. Original memory and discussion text is **never persisted
+in Brain's BM25 cache**, including while the vault is unlocked.
 
 The saved index retains file mtime/size and source-scope fingerprints. At
 restart, unchanged file chunks are reused and the inverted index is rebuilt
@@ -88,7 +92,7 @@ keys return 401; unreadable authentication configuration fails closed (503).
 Paths are relative to their source. `heading` is an array of Markdown titles.
 `highlights` contains `{start,end}` ranges in the **snippet**, measured as
 Unicode code points, with an exclusive end. Clients must escape text and apply
-ranges themselves; snippets never contain injected HTML. Scores are lexical
+ranges themselves; snippets never contain injected HTML. Scores are BM25 or reciprocal rank fusion
 ranking values, not confidence estimates. Chunk IDs are deterministic hashes
 of source/path/heading/position/text and can change after edits.
 
@@ -172,6 +176,123 @@ Markdown chunks follow ATX/setext headings, preserve ancestry, ignore fenced
 code headings, treat titles longer than 512 characters as ordinary text, and contain at most approximately 1200 characters with a
 100-character overlap inside a section. BM25 uses word frequencies with a
 filename/heading boost, case/accent folding (French and English), no stemming,
-and a boost for quoted exact phrases. V1 has no semantic embeddings, graph,
-distillation, file watching or automatic prompt integration. The implementation
+and a boost for quoted exact phrases. There is no graph, file watching or automatic prompt integration.
+Semantic indexing and distillation are opt-in additions to this same engine. The implementation
 is Go-only and supports Linux, macOS and Windows without CGO.
+
+
+## Optional semantic index
+
+Semantic indexing is off by default. Loom downloads an embedding GGUF only
+when `download` is requested, into `LOOM_HOME/brain/embed/`, using the existing
+Hugging Face downloader. It resolves the installed `llama-server` through
+`resolvedEngineBin`; no second engine installation or chat-engine restart occurs.
+
+| Model ID | Hugging Face repository | Quantization | Approximate size |
+| --- | --- | --- | --- |
+| `nomic` (default) | [nomic-ai/nomic-embed-text-v1.5-GGUF](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF) | Q8_0 | 140 MiB |
+| `bge-small` | [CompendiumLabs/bge-small-en-v1.5-gguf](https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf) | Q8_0 | 37 MB |
+
+Both choices target English text. Nomic uses the `search_document:` and
+`search_query:` task prefixes; BGE uses its retrieval query instruction.
+A dedicated child process listens only on loopback at an allocated free port:
+`--embedding --ctx-size 2048 -ngl 0`, model-specific pooling (Nomic mean, BGE CLS) and 2048-token batch buffers.
+It runs on CPU, starts when indexing or searching needs it, and stops after ten
+minutes without an embedding request, on disable, or on service shutdown.
+Loom kills only the child it owns. No provider credentials are inherited.
+The port reservation is released before launching; a competing bind produces
+a readiness error rather than falling back to the chat engine.
+
+Indexing is explicitly started, with at most one request and two chunks per
+batch. Each completed batch appends a durable checkpoint. Requests resume
+missing chunk IDs; they never run generation or restart automatically after a
+crash. A partial last checkpoint is ignored and compacted on the next index
+request. `LOOM_HOME/brain/vectors.bin` stores little-endian float32 vectors,
+chunk IDs and model identity in framed records, encrypted with the existing
+vault codec when active. It contains no chunk text. IDs include chunk contents,
+so changed/deleted chunks stop matching immediately; explicit indexing prunes
+obsolete vectors. Changing models/providers discards the previous vectors.
+Vector dimensions must remain consistent, finite and nonzero. The vector file
+is limited to 256 MiB, with at most 60,000 vectors and 4096 dimensions.
+
+Search (HTTP and MCP `brain_search`) and context packs fuse the top 100 BM25
+and cosine candidates with reciprocal rank fusion (`k=60`). Source filters and
+personal-note authorization apply to both rankings. BM25 alone is used when
+disabled, when no matching vectors are ready, or when embedding fails. Partial
+indexes are usable. Source access is checked again after the model request.
+An enable request's `sources` and `personal` control the indexing scope; personal
+sources still require their explicit IDs plus `personal:true`. They are excluded
+from default indexing, including cloud indexing.
+
+A connected provider can instead supply an OpenAI-compatible `/v1/embeddings`
+endpoint. Choosing its saved `provider_id` and embedding `model` requires
+`consent:true`: indexed note contents and subsequent search queries leave this
+machine. Consent is stored in `semantic.json`, tied to the provider destination
+and model. Credentials remain in the existing provider/keychain layer. Redirects
+are refused; disconnecting the provider prevents further requests. No provider
+is contacted by merely reading state, and default BM25 never sends text.
+Selecting a local model clears the cloud selection and its consent.
+
+All additional routes use the same control-key, no-store, method and strict JSON
+rules as the APIs above:
+
+| Method / path | Input | Output |
+| --- | --- | --- |
+| `GET /api/brain/semantic` | — | `{enabled,model,provider_id?,consent,models,model_present,server_running,indexing,chunks_embedded,chunks_total,error?}` |
+| `POST /api/brain/semantic` | `{"action":"enable","model":"nomic","sources":["project"]}` | Current state; no download/index yet |
+| `POST /api/brain/semantic` | `{"action":"enable","provider_id":"saved-id","model":"embedding-model","consent":true}` | Current state; explicit cloud selection |
+| `POST /api/brain/semantic` | `{"action":"download"}` | State after downloading the selected local model |
+| `POST /api/brain/semantic` | `{"action":"index"}` | State; indexing continues in the background (two-hour maximum); poll GET |
+| `POST /api/brain/semantic` | `{"action":"disable"}` | Disabled state; cancels indexing and stops the owned child |
+
+Enable/configuration changes during indexing require disabling first. Model or
+provider errors are available in state; missing models require the explicit
+`download` action. A locked vault blocks state, search and checkpoints. Enabling
+vault encryption requires another semantic index request to rewrite older
+plaintext vector checkpoints, just as the BM25 cache requires refreshing.
+
+## Explicit discussion distillation
+
+`POST /api/brain/distill` accepts exactly one of `discussion_id` or `since`.
+`since` accepts `YYYY-MM-DD` (UTC) or RFC3339 and selects entire discussions
+updated/saved on or after that date. It does not guess individual message dates.
+Common discussions bound to a native archive are processed once, under their
+common discussion ID; unbound archives use their native ID. Only visible user
+and assistant text is projected, without system instructions, tools, hidden
+reasoning, approvals or runtime state. Native message indexes refer to the
+portable display-journal text projection; common indexes retain their original
+zero-based transcript positions.
+
+The active chat engine (`engineBase`, `engineRequestModel`, its own API key)
+receives bounded batches with low temperature and a JSON-object output format.
+Loom validates exact fields, item kinds, text bounds and a supplied message index;
+invalid JSON/provenance is retried once, then fails. The model never chooses the
+source discussion ID or date. A non-loopback linked engine additionally requires
+`consent:true` in each distillation request before any transcript is sent.
+There is no automatic or scheduled distillation, no automatic model load, and
+no use of provider keys by the local embedding process.
+
+Items have `{id,kind,text,source:{discussion_id,message_index},date}`, with `kind`
+being `decision`, `fact`, `todo` or `preference`. The date is the discussion's
+update/archive-save date (the snapshot date for an active native discussion),
+not an invented event date. Content-derived IDs dedupe
+identical items. The durable store `LOOM_HOME/brain/distilled.json` uses the existing
+vault codec and private file modes. It is a built-in Brain source, indexed on
+startup/refresh and immediately after a successful distillation/deletion; it is
+excluded from the rebuildable BM25 text cache. Model-generated summaries remain
+untrusted and can be deleted item by item.
+
+| Method / path | Input | Output |
+| --- | --- | --- |
+| `POST /api/brain/distill` | `{"discussion_id":"id"}` or `{"since":"2026-09-01"}`; optional explicit remote-engine `consent:true` | `{ok,items}` after generation, persistence and refresh |
+| `GET /api/brain/distilled` | — | `{items:[...]}` |
+| `POST /api/brain/distilled/delete` | `{"id":"item-id"}` | `{ok}` after deletion and refresh |
+
+Limits: ten minutes per request, 1000 selected discussions / 64 MiB of retained
+text, 24,000 JSON bytes / 100 messages per chat batch, 64 items per model output,
+4000 bytes per durable item, 10,000 newly extracted items per request and a 4 MiB
+durable store. Oversized messages fail without truncation. Upstream bodies and
+credentials are never echoed in errors; model responses are bounded to 4 MiB.
+Saving a new distilled item list rewrites it with the currently active vault
+codec; older plaintext distilled data requires such a write after encryption
+is enabled. As with other local data, vault locking blocks access immediately.
