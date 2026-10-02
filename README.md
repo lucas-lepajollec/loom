@@ -263,6 +263,14 @@ and stop after 2,000 files. Errors stay per harness; unknown costs are null and
 Gemini/Antigravity native usage is currently unavailable. These observations
 do not import conversations. See [native usage](docs/harness-usage.md).
 
+`GET /api/usage/providers` reads balances and limits for connected OpenRouter,
+DeepSeek, Moonshot/Kimi and SiliconFlow providers concurrently (ten-second budget,
+five-minute cache). `POST /api/usage/providers/refresh` with `{"provider_id":"id"}`
+refreshes one connection. Both use the control key and vault checks; missing
+amounts remain null and unsupported providers expose no balance capability.
+OpenRouter account credits can require a management key independently of key
+limits. See [cloud balances](docs/usage.md).
+
 
 ACP discussions require an existing absolute workdir before sending. Session
 configuration, approval routing, confined fs writes/diffs and ordered display

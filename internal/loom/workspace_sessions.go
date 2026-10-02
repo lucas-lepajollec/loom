@@ -25,12 +25,13 @@ type runtimeSessions struct {
 	nativeMu     sync.Mutex
 	mu           sync.Mutex
 	keys         map[string]string
+	balances     *providerBalanceCache
 	runs         map[string]*runtimeRun
 	subscribers  map[string]map[*discussionSubscriber]bool
 }
 
 func newRuntimeSessions() *runtimeSessions {
-	return &runtimeSessions{acp: map[string]*acpBinding{}, keys: map[string]string{}, runs: map[string]*runtimeRun{}, subscribers: map[string]map[*discussionSubscriber]bool{}}
+	return &runtimeSessions{acp: map[string]*acpBinding{}, keys: map[string]string{}, balances: newProviderBalanceCache(nil), runs: map[string]*runtimeRun{}, subscribers: map[string]map[*discussionSubscriber]bool{}}
 }
 
 var workspaceSessions = newRuntimeSessions()
