@@ -4,6 +4,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-02
+
+### Fixed
+
+- Linux/macOS installation: `sudo loom install` and later `sudo loom …` commands created the user's data folder and `loom.db` as root, so the services (running as the user) could not use them and the web UI answered every request with 503. Data is now created for the user, and installations affected by 0.1.0 are repaired by running any `sudo loom` command (for example `sudo loom ui restart`).
+
 ## [0.1.0] - 2026-10-02
 
 First public release.

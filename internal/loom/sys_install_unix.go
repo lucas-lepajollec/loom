@@ -43,6 +43,10 @@ func cmdInstall(args []string) error {
 	if v := os.Getenv("LOOM_HOME"); v != "" {
 		loomHome = v
 	}
+	// Every step below (migration, folders, configuration) must target the
+	// user's data, not root's: /etc/default/loom does not exist yet.
+	_ = os.Setenv("LOOM_HOME", loomHome)
+	adoptUserLoomHome()
 
 	fmt.Printf("Installing for user %s\n", cyan(targetUser))
 	fmt.Printf("  LOOM_HOME  = %s\n", loomHome)

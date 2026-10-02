@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 // Main est le vrai main() du binaire (cmd/loom ne fait que l'appeler).
 func Main() {
@@ -38,6 +38,8 @@ func Main() {
 		runFakeACP(os.Stdin, os.Stdout)
 		return
 	}
+	// Run as root (sudo loom …): never leave the user's data owned by root.
+	adoptUserLoomHome()
 	workspaceSessions.installACPShutdown()
 	defer workspaceSessions.shutdownACP()
 	args := os.Args[1:]
