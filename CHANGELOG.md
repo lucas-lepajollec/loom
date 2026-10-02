@@ -6,6 +6,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Usage page: native usage of every harness (sessions, tokens, cache, models, reported cost) over 7 or 30 days, "Read all" for subscription quotas, machine labels for harnesses on connected machines.
+- Brain UI for advanced memory: search by meaning (local model download with progress, index computation, cloud provider with consent) and distilled memory (distill one conversation or since a date, filter by kind, open the source, forget an item). Distilled items are written in the conversation's language; the embedding download no longer blocks the state endpoint.
 - Read-only Claude Code and Hermes subscription quotas (including Hermes over saved-machine SSH), with fractional remaining limits and raw notes for unknown formats. Control-key protected native usage APIs observe Claude Code/Codex/Pi journals and OpenCode/Hermes CLI statistics inside and outside Loom over 7 or 30 days, with concurrent reads, five-minute caching, bounded scans and per-harness errors. No UI changes; local Hermes chat remains unavailable.
 - Optional Brain semantic indexing with explicitly downloaded CPU GGUF embeddings, a separately owned idle-stopped llama-server, resumable float32 vector checkpoints and BM25/cosine reciprocal rank fusion for HTTP/MCP search and packs. Connected cloud embedding sources require saved consent. Explicit discussion distillation adds searchable, individually deletable durable items with validated provenance. Control-key protected semantic/distillation APIs share Brain vault and personal-source access rules; no automatic generation or UI changes.
 

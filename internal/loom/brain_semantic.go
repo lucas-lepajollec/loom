@@ -69,6 +69,9 @@ type brainSemanticState struct {
 	ModelPresent  bool              `json:"model_present"`
 	ServerRunning bool              `json:"server_running"`
 	Indexing      bool              `json:"indexing"`
+	Downloading   bool              `json:"downloading"`
+	DownloadDone  int64             `json:"download_done,omitempty"`
+	DownloadTotal int64             `json:"download_total,omitempty"`
 	Embedded      int               `json:"chunks_embedded"`
 	Total         int               `json:"chunks_total"`
 	Error         string            `json:"error,omitempty"`
@@ -85,6 +88,7 @@ type brainSemantic struct {
 	cancel    context.CancelFunc
 	indexing  bool
 	lastError string
+	dl        *dlState // embedding model download in flight
 }
 
 func newBrainSemantic(storage brainStorage) (*brainSemantic, error) {
@@ -303,7 +307,12 @@ func (m *brainSemantic) state(chunks []brain.Chunk) brainSemanticState {
 	}
 	if model, err := brainEmbeddingModel(m.config.Model); err == nil && m.config.ProviderID == "" {
 		info, err := os.Stat(filepath.Join(m.storage.dir, "embed", model.File))
-		out.ModelPresent = err == nil && info.Mode().IsRegular() && info.Size() > 0
+		out.ModelPresent = err == nil && info.Mode().IsRegular() && info.Size() > 0 && m.dl == nil
+	}
+	if m.dl != nil {
+		dlMu.Lock()
+		out.Downloading, out.DownloadDone, out.DownloadTotal = true, m.dl.Done, m.dl.Total
+		dlMu.Unlock()
 	}
 	return out
 }
@@ -381,11 +390,16 @@ func (m *brainSemantic) configure(req brainSemanticRequest) error {
 	}
 	return nil
 }
-func (m *brainSemantic) download(ctx context.Context) error {
+// download fetches the local embedding model in the background; progress is
+// reported by state() and the lock is never held while bytes flow.
+func (m *brainSemantic) download() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.config.Enabled || m.config.ProviderID != "" {
 		return errors.New("enable a local embedding model first")
+	}
+	if m.dl != nil {
+		return nil
 	}
 	model, err := brainEmbeddingModel(m.config.Model)
 	if err != nil {
@@ -400,18 +414,22 @@ func (m *brainSemantic) download(ctx context.Context) error {
 		return err
 	}
 	st := &dlState{}
-	runDownloadSet(ctx, st, []string{"https://huggingface.co/" + model.Repo + "/resolve/main/" + model.File}, []string{dest})
-	dlMu.Lock()
-	errText := st.Err
-	canceled := st.Canceled
-	dlMu.Unlock()
-	if canceled {
-		return ctx.Err()
-	}
-	if errText != "" {
-		m.lastError = errText
-		return errors.New(errText)
-	}
+	m.dl = st
+	m.lastError = ""
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+		defer cancel()
+		runDownloadSet(ctx, st, []string{"https://huggingface.co/" + model.Repo + "/resolve/main/" + model.File}, []string{dest})
+		dlMu.Lock()
+		errText := st.Err
+		dlMu.Unlock()
+		m.mu.Lock()
+		m.dl = nil
+		if errText != "" {
+			m.lastError = errText
+		}
+		m.mu.Unlock()
+	}()
 	return nil
 }
 func (m *brainSemantic) startLocked(ctx context.Context) error {
@@ -714,9 +732,7 @@ func (s *brainService) semanticHTTP(w http.ResponseWriter, r *http.Request) {
 		case "index":
 			err = s.startSemanticIndex()
 		case "download":
-			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
-			err = m.download(ctx)
-			cancel()
+			err = m.download()
 		case "disable":
 			err = m.configure(req)
 		default:

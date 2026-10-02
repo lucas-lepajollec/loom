@@ -486,6 +486,14 @@
 .brain-hit{text-align:left;width:100%}
 .brain-hit .s{white-space:normal;line-height:1.45}
 .brain-hit mark{background:var(--surface-3);color:var(--text);border-radius:3px;padding:0 2px}
+.dist-filter{display:flex}
+.dist-filter .seg{flex:none}
+.dist-filter .seg button{flex:none}
+.dist-item{align-items:flex-start}
+.dist-item .tag{flex:none;min-width:86px;justify-content:center;margin-top:1px}
+.dist-t{white-space:normal;line-height:1.45}
+.linkish{padding:0;border:0;background:none;font:inherit;color:var(--text-2);text-decoration:underline;text-decoration-color:var(--line-2,var(--line));text-underline-offset:2px;cursor:pointer}
+.linkish:hover{color:var(--text)}
 .brain-read{margin:0;max-height:60vh;overflow:auto;white-space:pre-wrap;font:12.5px/1.55 var(--mono);color:var(--text-2)}
 
 /* Environnement */

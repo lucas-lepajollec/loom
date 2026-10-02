@@ -1,10 +1,12 @@
-import { t } from '../../core/i18n.js';
+import { t, locale } from '../../core/i18n.js';
 // Brain : les sources de contexte de Loom (notes, docs, dépôts, discussions,
 // mémoire), indexées sur cette machine. Les projets y puisent à chaque
 // message ; les harnesses peuvent l'interroger par MCP.
-import { html, useState, useEffect, cls } from '../../core/lib.js';
+import { html, useState, useEffect, useStore, cls, fmtBytes } from '../../core/lib.js';
+import { app, go } from '../../core/state.js';
+import { open as openDiscussion } from '../chat/engine.js';
 import { Icon } from '../../ui/icons.js';
-import { Tip, Empty } from '../../ui/controls.js';
+import { Tip, Empty, Seg, Switch } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
@@ -13,7 +15,7 @@ import { copyText } from '../../ui/clipboard.js';
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
 const KINDS = () => ([['context', t("resources.brain.contexte"), t("resources.brain.notes_et_docs_utilisables_par_defaut")], ['repo', t("resources.brain.depot"), t("resources.brain.le_readme_docs_et_les_fichiers_md_d_un_depot_de_code")], ['personal', t("resources.brain.personnel"), t("resources.brain.jamais_lu_sauf_si_un_projet_ou_une_demande_le_choisit_expliciteme")]]);
 // Sources intégrées : noms affichés en français.
-export const brainLabel = s => ({ conversations: t("resources.brain.discussions_de_loom"), memory: t("resources.brain.memoire_de_l_agent_local") })[s.id] || s.label;
+export const brainLabel = s => ({ conversations: t("resources.brain.discussions_de_loom"), memory: t("resources.brain.memoire_de_l_agent_local"), distilled: t("resources.dist.section") })[s.id] || s.label;
 const kindLabel = k => (KINDS().find(x => x[0] === k) || [k, k])[1];
 const ago = localT => { const d = Date.parse(localT || ''); if (!d || d < 0) return t("resources.brain.jamais"); const m = Math.round((Date.now() - d) / 60000); return m < 1 ? t("resources.brain.a_l_instant") : m < 60 ? t('common.relative.minutes', { n: m }) : m < 1440 ? t('common.relative.hours', { n: Math.round(m / 60) }) : t('common.relative.days', { n: Math.round(m / 1440) }); };
 
@@ -57,6 +59,116 @@ function Search({ sources }) {
   </section>`;
 }
 
+// Recherche par le sens : un petit modèle d'embedding tourne sur cette machine
+// (téléchargé à la demande), ou un fournisseur cloud choisi avec consentement.
+// Sans lui, le Brain reste en recherche par mots-clés.
+const EMBED_NAMES = { nomic: 'nomic-embed-text v1.5', 'bge-small': 'bge-small-en v1.5' };
+function Semantic() {
+  const ws = useStore(app, x => x.workspace);
+  const providers = ((ws && ws.providers) || []).filter(p => p.ready);
+  const [st, setSt] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [cloud, setCloud] = useState({ provider: '', model: '', consent: false });
+  const load = () => get('/api/brain/semantic').then(setSt).catch(() => setSt({ error: t('resources.sem.unavailable') }));
+  useEffect(() => { load(); }, []);
+  useEffect(() => { if (!st || !(st.downloading || st.indexing)) return; const id = setTimeout(load, 1500); return () => clearTimeout(id); }, [st]);
+  const send = async body => {
+    setBusy(true);
+    const r = await post('/api/brain/semantic', body).catch(e => ({ error: e.message }));
+    setBusy(false);
+    if (r.ok === false || (r.error && !r.enabled && body.action !== 'disable')) toast(r.error || t('resources.sem.failed'), 'err');
+    load();
+    return r;
+  };
+  if (!st) return html`<div class="skeleton" style="height:120px"></div>`;
+  const local = !st.provider_id;
+  const mode = st.enabled ? (local ? 'local' : 'cloud') : null;
+  const pct = st.chunks_total ? Math.round(st.chunks_embedded / st.chunks_total * 100) : 0;
+  const ready = st.enabled && (local ? st.model_present : true);
+  const provName = id => (providers.find(p => p.id === id) || {}).name || id;
+  return html`<section class="sec"><div class="sec-h"><h2>${t('resources.sem.title')}<${Tip} text=${t('resources.sem.tip')} /></h2></div>
+    <div class="card rows">
+      <div class="row"><div class="grow"><div class="t">${t('resources.sem.enable')}</div><div class="s">${st.enabled ? (local ? t('resources.sem.local_on', { model: EMBED_NAMES[st.model] || st.model }) : t('resources.sem.cloud_on', { provider: provName(st.provider_id), model: st.model })) : t('resources.sem.off')}</div></div>
+        <${Switch} label=${t('resources.sem.enable')} checked=${st.enabled} disabled=${busy} onChange=${on => send(on ? { action: 'enable', model: st.model || 'nomic' } : { action: 'disable' })} /></div>
+      ${st.enabled && html`
+        <div class="row"><div class="grow"><div class="t">${t('resources.sem.where')}</div><div class="s">${local ? t('resources.sem.where_local') : t('resources.sem.where_cloud')}</div></div>
+          <${Seg} size="sm" label=${t('resources.sem.where')} value=${mode} onChange=${v => v === 'local' ? send({ action: 'enable', model: 'nomic' }) : setCloud({ ...cloud, open: true })} options=${[{ value: 'local', label: t('resources.sem.this_machine') }, { value: 'cloud', label: t('resources.sem.cloud'), disabled: !providers.length }]} /></div>
+        ${local && html`<div class="row"><div class="grow"><div class="t">${t('resources.sem.model')}</div><div class="s">${st.downloading ? t('resources.sem.downloading', { done: fmtBytes(st.download_done), total: fmtBytes(st.download_total) }) : st.model_present ? t('resources.sem.model_here') : t('resources.sem.model_missing')}</div>
+            ${st.downloading && html`<div class="meter" style="margin-top:8px"><i style=${`width:${st.download_total ? Math.round(st.download_done / st.download_total * 100) : 2}%;background:var(--text)`}></i></div>`}</div>
+          <select class="select sm" style="min-width:190px" value=${st.model} disabled=${busy || st.downloading || st.indexing} onChange=${e => send({ action: 'enable', model: e.target.value })}>${(st.models || []).map(m => html`<option value=${m.id}>${EMBED_NAMES[m.id] || m.id}</option>`)}</select>
+          ${!st.model_present && !st.downloading && html`<button class="btn sm primary" disabled=${busy} onClick=${() => send({ action: 'download' })}><${Icon} n="download" />${t('resources.sem.download')}</button>`}</div>`}
+        <div class="row"><div class="grow"><div class="t">${t('resources.sem.index')} ${st.server_running && html`<span class="tag green">${t('resources.sem.server_on')}</span>`}</div>
+            <div class="s">${t('resources.sem.progress', { done: st.chunks_embedded, total: st.chunks_total })}</div>
+            <div class="meter" style="margin-top:8px"><i style=${`width:${pct}%;background:${pct === 100 ? 'var(--green)' : 'var(--text)'}`}></i></div></div>
+          <button class="btn sm" disabled=${busy || !ready || st.indexing || st.downloading} onClick=${() => send({ action: 'index' })}>${st.indexing ? html`<span class="spinner"></span>${t('resources.sem.indexing')}` : html`<${Icon} n="refresh" />${t('resources.sem.index_now')}`}</button></div>`}
+    </div>
+    ${st.error && html`<p class="note err">${st.error}</p>`}
+    ${cloud.open && html`<${Modal} title=${t('resources.sem.cloud_title')} sub=${t('resources.sem.cloud_sub')} onClose=${() => setCloud({ provider: '', model: '', consent: false })}
+        foot=${html`<button class="btn ghost" onClick=${() => setCloud({ provider: '', model: '', consent: false })}>${t('resources.brain.annuler')}</button><button class="btn primary" disabled=${!cloud.provider || !cloud.model.trim() || !cloud.consent} onClick=${async () => { const r = await send({ action: 'enable', provider_id: cloud.provider, model: cloud.model.trim(), consent: true }); if (r.ok !== false) setCloud({ provider: '', model: '', consent: false }); }}>${t('resources.sem.use')}</button>`}>
+      <label class="field"><span>${t('resources.sem.provider')}</span><select class="select" value=${cloud.provider} onChange=${e => setCloud({ ...cloud, provider: e.target.value })}><option value="">—</option>${providers.map(p => html`<option value=${p.id}>${p.name}</option>`)}</select></label>
+      <label class="field"><span>${t('resources.sem.embed_model')}</span><input class="input mono" placeholder="text-embedding-3-small" value=${cloud.model} onInput=${e => setCloud({ ...cloud, model: e.target.value })} /></label>
+      <label class="check"><input type="checkbox" checked=${cloud.consent} onChange=${e => setCloud({ ...cloud, consent: e.target.checked })} /><span>${t('resources.sem.consent')}</span></label>
+    </${Modal}>`}
+  </section>`;
+}
+
+// Mémoire distillée : décisions, faits, tâches et préférences tirés des
+// discussions par le moteur de chat, uniquement à la demande. Chaque élément
+// garde sa provenance et se supprime un par un.
+const DKINDS = () => ({ decision: t('resources.dist.decision'), fact: t('resources.dist.fact'), todo: t('resources.dist.todo'), preference: t('resources.dist.preference') });
+function DistillDialog({ onClose }) {
+  const convs = useStore(app, x => (x.nav && x.nav.conversations) || []);
+  const [mode, setMode] = useState('one');
+  const [id, setId] = useState(convs[0] ? convs[0].id : '');
+  const [since, setSince] = useState(new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+  const run = async consent => {
+    setBusy(true);
+    const body = mode === 'one' ? { discussion_id: id } : { since };
+    const r = await post('/api/brain/distill', consent ? { ...body, consent: true } : body).catch(e => ({ ok: false, error: e.message }));
+    setBusy(false);
+    if (r.error && /consent required/i.test(r.error) && !consent) {
+      if (await confirm(t('resources.dist.remote_title'), t('resources.dist.remote_text'), { ok: t('resources.dist.send') })) return run(true);
+      return;
+    }
+    if (r.ok === false || r.error) return toast(r.error || t('resources.dist.failed'), 'err');
+    toast(t('resources.dist.done', { n: (r.items || []).length }));
+    // Les nouveaux éléments rejoignent l'index sémantique s'il est actif.
+    post('/api/brain/semantic', { action: 'index' }).catch(() => {});
+    onClose(true);
+  };
+  return html`<${Modal} title=${t('resources.dist.title')} sub=${t('resources.dist.sub')} onClose=${() => onClose()}
+      foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t('resources.brain.annuler')}</button><button class="btn primary" disabled=${busy || (mode === 'one' && !id)} onClick=${() => run(false)}>${busy ? html`<span class="spinner"></span>${t('resources.dist.running')}` : t('resources.dist.run')}</button>`}>
+    <${Seg} label=${t('resources.dist.what')} value=${mode} onChange=${setMode} options=${[{ value: 'one', label: t('resources.dist.one') }, { value: 'since', label: t('resources.dist.since') }]} />
+    ${mode === 'one' ? html`<label class="field"><span>${t('resources.dist.discussion')}</span><select class="select" value=${id} onChange=${e => setId(e.target.value)}>${convs.map(c => html`<option value=${c.id}>${c.title || t('app.palette.nouvelle_discussion')}</option>`)}</select></label>`
+      : html`<label class="field"><span>${t('resources.dist.since_date')}</span><input class="input" type="date" value=${since} onInput=${e => setSince(e.target.value)} /></label>`}
+    <p class="note">${t('resources.dist.engine_note')}</p>
+  </${Modal}>`;
+}
+function Distilled() {
+  const [items, setItems] = useState(null);
+  const [dlg, setDlg] = useState(false);
+  const [kind, setKind] = useState('all');
+  const load = () => get('/api/brain/distilled').then(r => setItems(r.items || [])).catch(() => setItems([]));
+  useEffect(() => { load(); }, []);
+  const del = async it => { const r = await post('/api/brain/distilled/delete', { id: it.id }).catch(e => ({ ok: false, error: e.message })); if (r.ok === false || r.error) return toast(r.error, 'err'); load(); };
+  const openSource = async it => { await openDiscussion(it.source.discussion_id); go('chat'); };
+  const kinds = DKINDS();
+  const list = (items || []).filter(it => kind === 'all' || it.kind === kind).slice().sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+  const count = k => (items || []).filter(it => it.kind === k).length;
+  return html`<section class="sec"><div class="sec-h"><h2>${t('resources.dist.section')}<${Tip} text=${t('resources.dist.tip')} /></h2>
+      <button class="btn sm" onClick=${() => setDlg(true)}><${Icon} n="sparkle" />${t('resources.dist.open')}</button></div>
+    ${items === null ? html`<div class="skeleton" style="height:100px"></div>` : items.length ? html`
+      <div class="dist-filter"><${Seg} size="sm" label=${t('resources.dist.filter')} value=${kind} onChange=${setKind} options=${[{ value: 'all', label: t('resources.dist.all'), count: items.length }, ...Object.keys(kinds).map(k => ({ value: k, label: kinds[k], count: count(k) || '' }))]} /></div>
+      <div class="card rows" style="margin-top:10px">${list.map(it => html`<div class="row dist-item" key=${it.id}>
+        <span class=${cls('tag', 'dk-' + it.kind)}>${kinds[it.kind] || it.kind}</span>
+        <div class="grow"><div class="t dist-t">${it.text}</div><div class="s"><button class="linkish" onClick=${() => openSource(it)}>${t('resources.dist.from', { n: it.source.message_index + 1 })}</button> · ${new Date(it.date).toLocaleDateString(locale())}</div></div>
+        <button class="icon-btn" aria-label=${t('resources.dist.delete')} title=${t('resources.dist.delete')} onClick=${() => del(it)}><${Icon} n="close" /></button></div>`)}</div>`
+      : html`<div class="card"><${Empty} icon="brain" title=${t('resources.dist.empty_title')} text=${t('resources.dist.empty_text')}><button class="btn primary" onClick=${() => setDlg(true)}>${t('resources.dist.open')}</button></${Empty}></div>`}
+    ${dlg && html`<${DistillDialog} onClose=${ok => { setDlg(false); if (ok) load(); }} />`}
+  </section>`;
+}
+
 export function Brain() {
   const [data, setData] = useState(null);
   const [dlg, setDlg] = useState(false);
@@ -80,6 +192,8 @@ export function Brain() {
         ${!s.read_only && html`<button class="icon-btn" aria-label=${t("resources.brain.retirer") + s.label} onClick=${() => remove(s)}><${Icon} n="close" /></button>`}</div>`)}</div>`
       : html`<div class="card" style="margin-top:14px"><${Empty} icon="brain" title="${t("resources.brain.aucune_source")}" text="${t("resources.brain.ajoute_un_dossier_de_notes_ou_de_docs_tes_projets_pourront_s_en_s")}"><button class="btn primary" onClick=${() => setDlg(true)}>${t("resources.brain.ajouter_une_source")}</button></${Empty}></div>`}
     <${Search} sources=${sources} />
+    <${Semantic} />
+    <${Distilled} />
     <section class="sec"><div class="sec-h"><h2>${t("resources.brain.pour_les_harnesses_mcp")}<${Tip} text="${t("resources.brain.les_harnesses_peuvent_interroger_le_brain_eux_memes_meme_sans_pas")}" /></h2></div>
       <div class="card rows">
         <div class="row"><div class="grow"><div class="t">${t("resources.brain.adresse_mcp")}</div><div class="s mono">${mcpURL}</div></div><button class="btn sm ghost" onClick=${() => copyCmd(mcpURL)}>${t("resources.brain.copier")}</button></div>
