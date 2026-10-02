@@ -407,12 +407,10 @@ func pickCuda(assets []ghAsset, frag, suffix string) (*ghAsset, string) {
 }
 
 // recommendedMode dit laquelle des deux installations conseiller sur CETTE
-// machine, et pourquoi. Le précompilé convient presque partout — sauf dans un
-// cas qui concerne beaucoup de monde : **Linux avec une carte NVIDIA**.
-// llama.cpp ne publie AUCUN binaire CUDA pour Linux (vérifié release b10299 :
-// seuls Windows a bin-win-cuda-*), donc pickPrebuilt y retombe sur Vulkan, qui
-// marche mais laisse une bonne part de la carte inexploitée. Conseiller le
-// précompilé dans ce cas revenait à pousser vers l'option la plus lente.
+// machine, et pourquoi. Le précompilé convient partout : llama.cpp publie des
+// binaires CUDA pour Linux depuis 2026 (avant, seul Vulkan y était proposé).
+// Sous Linux avec CUDA ou HIP, une note rappelle que compiler optimise pour la
+// carte précise.
 //
 // `backend` est celui qu'une compilation LOCALE produirait (detectBuildPlan).
 // Renvoie {mode: "fast"|"opt", why: "…"} — le libellé est affiché sous la carte

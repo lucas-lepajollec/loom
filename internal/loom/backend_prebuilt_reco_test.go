@@ -5,17 +5,16 @@ import (
 	"testing"
 )
 
-// Le seul cas où compiler vaut mieux que télécharger : Linux + CUDA. llama.cpp
-// ne publie pas de binaire CUDA pour Linux (seul Windows a bin-win-cuda-*), donc
-// le précompilé y retombe sur Vulkan. Ailleurs, l'asset officiel exploite bien
-// la machine (CUDA sous Windows, Metal sous macOS, ROCm sous Linux).
+// llama.cpp publie désormais des binaires CUDA pour Linux : le précompilé est
+// conseillé partout ; sous Linux avec CUDA ou HIP, une note explique que
+// compiler reste possible pour optimiser.
 func TestRecommendedMode(t *testing.T) {
 	cases := []struct {
 		backend  string
 		wantMode string
 		wantWhy  bool
 	}{
-		{"cuda", "opt", true}, // le cas qui motive toute la fonction
+		{"cuda", "fast", true}, // binaire CUDA officiel, compilation possible
 		{"hip", "fast", true}, // zip ROCm Ubuntu si publié, sinon compile HIP
 		{"rocm", "fast", false},
 		{"vulkan", "fast", false},
