@@ -9,6 +9,7 @@ import { Placeholder } from './placeholder.js';
 import { pageFor } from './routes.js';
 import { Palette } from './palette.js';
 import { initLang } from '../core/i18n.js';
+import { Welcome, initWelcome } from '../features/onboarding/welcome.js';
 
 
 function Main() {
@@ -27,6 +28,7 @@ function App() {
     <${Main} />
     <${Palette} />
     <${Layers} />
+    <${Welcome} />
   </div>`;
 }
 
@@ -34,4 +36,5 @@ setTheme(app.get().theme);
 initLang();
 startPolling();
 initChat();
+initWelcome();
 render(html`<${App} />`, document.getElementById('app'));

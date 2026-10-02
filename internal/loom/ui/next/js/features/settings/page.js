@@ -1,6 +1,7 @@
 import { t, locale, getLang, setLang, tSource } from '../../core/i18n.js';
 // Réglages : Général, Moteur, Internet, Sécurité, À propos. Une ligne par
 // réglage, l'explication en ⓘ, jamais en paragraphe sous chaque option.
+import { openWelcome } from '../onboarding/welcome.js';
 import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Switch, Tip, Seg, Empty } from '../../ui/controls.js';
@@ -258,7 +259,7 @@ function Engine() {
       </div>
       <${Job} />
     </${Group}>
-    ${!lc.installed && html`<${Group} title="${t("settings.page.installer_llama_cpp")}">
+    ${!lc.installed && !(lc.prebuilt && lc.prebuilt.bin) && html`<${Group} title="${t("settings.page.installer_llama_cpp")}">
       <div class="set-note">${lc.reco && lc.reco.why}</div>
       <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/install', { dir: '' }, t("settings.page.compilation_lancee"))}>${t("settings.page.compiler_llama_cpp")}</button><button class="btn" onClick=${() => run('/api/llamacpp/prebuilt', {}, t("settings.page.telechargement_lance"))}>${t("settings.page.binaire_officiel")}</button></div>
     </${Group}>`}
@@ -510,6 +511,7 @@ function About() {
   return html`
     <${Group} title="${t("settings.page.loom")}">
       <${Line} label="${t("settings.page.version")}"><span class="mono">${status ? status.version : '—'}</span></${Line}>
+      <${Line} label=${t('welcome.about.label')}><button class="btn sm" onClick=${openWelcome}>${t('welcome.about.open')}</button></${Line}>
       <${Line} label="${t("settings.page.mises_a_jour")}">${upd ? html`<span class="muted">${upd.available ? 'Version ' + upd.latest + t("settings.page.disponible") : t("settings.page.a_jour_2")}</span>` : html`<button class="btn sm" onClick=${async () => setUpd(await get('/api/update'))}>${t("settings.page.verifier")}</button>`}</${Line}>
     </${Group}>
     ${paths && html`<${Group} title="${t("settings.page.emplacements")}">${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;

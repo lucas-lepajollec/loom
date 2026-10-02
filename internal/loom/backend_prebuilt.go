@@ -29,7 +29,9 @@ import (
 	"time"
 )
 
-const llamaReleasesAPI = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+// Builds bNNNNN are published as prereleases; "latest" may be a versioned
+// release without binaries, so the newest release carrying binaries is used.
+const llamaReleasesAPI = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=15"
 
 type ghAsset struct {
 	Name string `json:"name"`
@@ -194,17 +196,33 @@ func fetchLlamaLatest() (string, []ghAsset, error) {
 	if resp.StatusCode != 200 {
 		return "", nil, fmt.Errorf("GitHub API : HTTP %d", resp.StatusCode)
 	}
-	var rel struct {
+	var rels []struct {
 		TagName string    `json:"tag_name"`
+		Draft   bool      `json:"draft"`
 		Assets  []ghAsset `json:"assets"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&rels); err != nil {
 		return "", nil, err
 	}
-	if rel.TagName == "" {
-		return "", nil, fmt.Errorf("release invalide (tag vide)")
+	return newestBinaryRelease(rels)
+}
+
+// newestBinaryRelease returns the first (newest) release that ships llama.cpp
+// binaries; GitHub lists releases newest first.
+func newestBinaryRelease(rels []struct {
+	TagName string    `json:"tag_name"`
+	Draft   bool      `json:"draft"`
+	Assets  []ghAsset `json:"assets"`
+}) (string, []ghAsset, error) {
+	for _, rel := range rels {
+		if rel.Draft || rel.TagName == "" {
+			continue
+		}
+		if len(assetMatch(rel.Assets, "llama-", "-bin-")) > 0 {
+			return rel.TagName, rel.Assets, nil
+		}
 	}
-	return rel.TagName, rel.Assets, nil
+	return "", nil, fmt.Errorf("aucune release llama.cpp avec des binaires")
 }
 
 // driverCudaVersion renvoie la version CUDA max supportée par le pilote NVIDIA
@@ -263,29 +281,8 @@ func pickPrebuilt(assets []ghAsset) (main *ghAsset, cudart *ghAsset, label, cuda
 			// haute supportée par le pilote (sinon la plus basse, la plus compatible).
 			// NB : les archives cudart-llama-bin-win-cuda-… contiennent aussi ces
 			// fragments — on les écarte explicitement du choix du binaire principal.
-			var cand []ghAsset
-			for _, a := range assetMatch(assets, "llama-", "bin-win-cuda-", "-x64.zip") {
-				if !strings.HasPrefix(a.Name, "cudart") {
-					cand = append(cand, a)
-				}
-			}
-			maxV := driverCudaVersion()
 			var best *ghAsset
-			bestV := 0.0
-			for i := range cand {
-				m := reCudaAssetVer.FindStringSubmatch(cand[i].Name)
-				if m == nil {
-					continue
-				}
-				v, _ := strconv.ParseFloat(m[1], 64)
-				ok := maxV == 0 && (best == nil || v < bestV) || // pilote inconnu → la plus basse
-					maxV > 0 && v <= maxV && v > bestV // sinon la plus haute compatible
-				if ok {
-					best = &cand[i]
-					bestV = v
-					cudaVer = m[1]
-				}
-			}
+			best, cudaVer = pickCuda(assets, "bin-win-cuda-", "-x64.zip")
 			if best != nil {
 				main = best
 				cudart = pickOne(assetMatch(assets, "cudart-", "win-cuda-"+cudaVer))
@@ -311,20 +308,27 @@ func pickPrebuilt(assets []ghAsset) (main *ghAsset, cudart *ghAsset, label, cuda
 		if runtime.GOARCH == "arm64" {
 			arch = "arm64"
 		}
-		if hasTool("hipcc") || isDir("/opt/rocm") {
+		// llama.cpp publie désormais des builds CUDA Linux (ubuntu-cuda-*) avec
+		// leur archive cudart ; à défaut, Vulkan fonctionne via le pilote.
+		if hasNvidiaGPU() {
+			if best, v := pickCuda(assets, "bin-ubuntu-cuda-", "-"+arch+".tar.gz"); best != nil {
+				main, cudaVer = best, v
+				cudart = pickOne(assetMatch(assets, "cudart-", "bin-ubuntu-cuda-"+v+"-"+arch))
+				label = "CUDA " + v + " (Linux " + arch + ")"
+				break
+			}
+		}
+		// ROCm seulement avec une carte AMD : un toolkit ROCm installé sur une
+		// machine NVIDIA ne doit pas l'emporter sur CUDA.
+		if hasAMDGPU() && (hasTool("hipcc") || isDir("/opt/rocm")) {
 			if a := pickOne(assetMatch(assets, "llama-", "bin-ubuntu-rocm-", arch)); a != nil {
 				main, label = a, "ROCm (Linux "+arch+")"
 				break
 			}
 		}
-		// Pas de build CUDA officiel pour Linux : sur GPU NVIDIA le variant Vulkan
-		// fonctionne via le pilote (moins optimal que le build CUDA local).
 		if hasNvidiaGPU() || hasTool("vulkaninfo") {
 			if a := pickOne(assetMatch(assets, "llama-", "bin-ubuntu-vulkan-"+arch)); a != nil {
 				main, label = a, "Vulkan (Linux "+arch+")"
-				if hasNvidiaGPU() {
-					label += " — pas de build CUDA officiel Linux ; compile localement pour du CUDA natif"
-				}
 				break
 			}
 		}
@@ -335,6 +339,71 @@ func pickPrebuilt(assets []ghAsset) (main *ghAsset, cudart *ghAsset, label, cuda
 		return nil, nil, "", "", fmt.Errorf("aucun binaire précompilé adapté à cette machine dans la release officielle")
 	}
 	return main, cudart, label, cudaVer, nil
+}
+
+// linkCudaRuntime place les bibliothèques CUDA (cudart, cublas) trouvées sous
+// root à côté du binaire, par lien physique ou à défaut par copie. Renvoie le
+// nombre de fichiers ajoutés.
+func linkCudaRuntime(root, binDir string) int {
+	var libs []string
+	for _, pat := range []string{"*/libcudart.so*", "*/libcublas*.so*"} {
+		m, _ := filepath.Glob(filepath.Join(root, pat))
+		libs = append(libs, m...)
+	}
+	added := 0
+	for _, src := range libs {
+		if filepath.Dir(src) == binDir {
+			continue
+		}
+		dst := filepath.Join(binDir, filepath.Base(src))
+		if _, err := os.Lstat(dst); err == nil {
+			continue
+		}
+		if err := os.Link(src, dst); err != nil {
+			in, err := os.ReadFile(src)
+			if err != nil || os.WriteFile(dst, in, 0o755) != nil {
+				continue
+			}
+		}
+		added++
+	}
+	return added
+}
+
+// hasAMDGPU dit si une carte AMD est présente (Linux : vendeur PCI 0x1002).
+func hasAMDGPU() bool {
+	vendors, _ := filepath.Glob("/sys/class/drm/card*/device/vendor")
+	for _, v := range vendors {
+		if b, err := os.ReadFile(v); err == nil && strings.TrimSpace(string(b)) == "0x1002" {
+			return true
+		}
+	}
+	return false
+}
+
+// pickCuda choisit, parmi les binaires CUDA publiés (hors archives cudart), la
+// version la plus haute supportée par le pilote (pilote inconnu : la plus basse).
+func pickCuda(assets []ghAsset, frag, suffix string) (*ghAsset, string) {
+	var cand []ghAsset
+	for _, a := range assetMatch(assets, "llama-", frag, suffix) {
+		if !strings.HasPrefix(a.Name, "cudart") {
+			cand = append(cand, a)
+		}
+	}
+	maxV := driverCudaVersion()
+	var best *ghAsset
+	bestV, ver := 0.0, ""
+	for i := range cand {
+		m := reCudaAssetVer.FindStringSubmatch(cand[i].Name)
+		if m == nil {
+			continue
+		}
+		v, _ := strconv.ParseFloat(m[1], 64)
+		if maxV == 0 && (best == nil || v < bestV) || maxV > 0 && v <= maxV && v > bestV {
+			best, bestV, ver = &cand[i], v, m[1]
+		}
+	}
+	return best, ver
 }
 
 // recommendedMode dit laquelle des deux installations conseiller sur CETTE
@@ -351,13 +420,15 @@ func pickPrebuilt(assets []ghAsset) (main *ghAsset, cudart *ghAsset, label, cuda
 func recommendedMode(backend string) map[string]any {
 	if runtime.GOOS == "linux" && backend == "cuda" {
 		return map[string]any{
-			"mode": "opt",
-			"why":  "Sur Linux, le zip officiel n’inclut pas CUDA (NVIDIA) : il arrive en Vulkan. Compiler llama.cpp donne le CUDA natif (plusieurs minutes).",
+			"mode": "fast",
+			"code": "linux-cuda",
+			"why":  "Carte NVIDIA : le binaire officiel CUDA pour Linux s’installe en une minute. Compiler llama.cpp l’optimise pour ta carte précise (plusieurs minutes).",
 		}
 	}
 	if runtime.GOOS == "linux" && backend == "hip" {
 		return map[string]any{
 			"mode": "fast",
+			"code": "linux-hip",
 			"why":  "GPU AMD : le zip Ubuntu ROCm est utilisé s’il est publié ; sinon compiler llama.cpp avec HIP.",
 		}
 	}
@@ -402,6 +473,11 @@ func prebuiltInstall(logf, phasef func(string)) (string, error) {
 		if len(haveDLL) == 0 {
 			haveDLL, _ = filepath.Glob(filepath.Join(dir, "cudart64*.dll"))
 		}
+		for _, pat := range []string{"libcudart.so*", "*/libcudart.so*", "*/*/libcudart.so*"} {
+			if len(haveDLL) == 0 {
+				haveDLL, _ = filepath.Glob(filepath.Join(dir, pat))
+			}
+		}
 		if len(haveDLL) > 0 && curCuda == cudaVer {
 			logf("cudart " + cudaVer + " déjà présent — téléchargement évité")
 			cudart = nil
@@ -437,6 +513,11 @@ func prebuiltInstall(logf, phasef func(string)) (string, error) {
 	}
 	if runtime.GOOS != "windows" {
 		_ = os.Chmod(bin, 0o755)
+		// Linux : l'archive cudart s'extrait dans un dossier voisin ; ses
+		// bibliothèques doivent être à côté de libggml-cuda.so pour être chargées.
+		if n := linkCudaRuntime(dir, filepath.Dir(bin)); n > 0 {
+			logf(fmt.Sprintf("runtime CUDA lié au binaire (%d bibliothèques)", n))
+		}
 	}
 	prebuiltPrune(bin, logf)
 	logf("binaire installé : " + bin + " (release " + tag + ")")

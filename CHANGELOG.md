@@ -6,6 +6,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- First-run guide: language, detected hardware, engine (install llama.cpp or vLLM, link an engine by address, or none), a first model sized to the machine, then harnesses, cloud providers and machines. Shown once on a fresh install; Settings › About reopens it.
 - Usage page: native usage of every harness (sessions, tokens, cache, models, reported cost) over 7 or 30 days, "Read all" for subscription quotas, machine labels for harnesses on connected machines.
 - Brain UI for advanced memory: search by meaning (local model download with progress, index computation, cloud provider with consent) and distilled memory (distill one conversation or since a date, filter by kind, open the source, forget an item). Distilled items are written in the conversation's language; the embedding download no longer blocks the state endpoint.
 - Read-only Claude Code and Hermes subscription quotas (including Hermes over saved-machine SSH), with fractional remaining limits and raw notes for unknown formats. Control-key protected native usage APIs observe Claude Code/Codex/Pi journals and OpenCode/Hermes CLI statistics inside and outside Loom over 7 or 30 days, with concurrent reads, five-minute caching, bounded scans and per-harness errors. No UI changes; local Hermes chat remains unavailable.
@@ -76,6 +77,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Fixed
 
+- llama.cpp official binaries: use the newest release that ships binaries (builds are now prereleases), install the official Linux CUDA build with its runtime libraries next to the binary, and pick ROCm only when an AMD card is present.
 - Repository onboarding now documents direct UI embedding, current navigation,
   router model loading, optional OS keychain storage and the real Makefile
   targets. Release builds no longer call the removed UI assembler; the security

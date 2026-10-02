@@ -25,6 +25,7 @@ var webPrefsAllowed = map[string]map[string]bool{
 	"hide_side":      {"0": true, "1": true},
 	"hide_stats":     {"0": true, "1": true},
 	"enter_newline":  {"0": true, "1": true},
+	"onboarded":      {"0": true, "1": true},
 }
 
 // loadWebPrefs lit les préférences enregistrées (map vide si aucune).

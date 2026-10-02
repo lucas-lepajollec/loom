@@ -275,6 +275,9 @@ func TestOAIPublicProxyRejectsUnauthorizedBeforeBackend(t *testing.T) {
 	}
 	front := httptest.NewServer(oaiPublicHandler())
 	defer front.Close()
+	// The router-mode probe may query the backend once; only proxied requests count.
+	routerModeCached()
+	backendCalls.Store(0)
 
 	request := func(auth string) int {
 		t.Helper()
