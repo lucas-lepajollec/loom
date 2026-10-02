@@ -18,6 +18,8 @@ Once a private reporting channel is agreed, include the affected version or comm
 ## Local deployment guidance
 
 - Do not expose the Loom web dashboard or API endpoints directly to the public internet without a secure TLS reverse proxy and authentication.
-- Network access to the dashboard requires a control key, separate from the inference API key used for `/v1`. Configure both before exposing their respective services.
+- Set an access password for browser sign-in. Network access requires a password or an existing control key; automation control keys and `/v1` inference keys remain separate. Use TLS for remote access and see [Interface access](docs/access.md) for migration, session protection and local password recovery.
 - Keep the optional encrypted vault and OS keychain recovery requirements in mind when backing up. The vault does not encrypt external project files or native harness stores. Harnesses, terminals and MCP tools execute with their own permissions on the selected machine.
 - Keep API keys and local configuration out of commits, screenshots and public issue reports. Back up the resolved `LOOM_HOME` data directory before changing installation or storage settings.
+
+Interface updates require authenticated owner access and use official GitHub release binaries with checksum verification. The optional Linux system updater accepts no command arguments or arbitrary destinations; it validates root-owned installation paths before privileged execution. See [Updating Loom](docs/updates.md) for setup, trust and rollback boundaries.

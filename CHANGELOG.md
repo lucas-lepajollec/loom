@@ -4,6 +4,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Added
+
+- Install official Loom releases from Settings → About, with confirmation, checksum verification, a retained rollback binary and verified reconnect after the interface restart. Linux system installs provision a narrowly scoped, clean-environment updater for the service user; existing installs require one-time administrator setup.
+
+- Single-owner interface access password with browser session cookies, Settings controls for setup/change/sign-out, and masked `loom password` CLI setup/recovery. Browser passwords use salted Argon2id; persistent sessions are hashed, expire and are revoked on password changes. Existing control keys and `/v1` inference keys remain independent. Browser keys are removed from localStorage; login and browser mutations have origin protection and password attempts are rate-limited.
+
 ### Fixed
 
 - `install.sh` can update a running Loom: the binary is replaced by rename instead of an in-place copy (which failed with "Text file busy"), and running `loom-ui` / `loom-engine` services restart on the new version.

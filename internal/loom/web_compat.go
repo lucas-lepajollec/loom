@@ -31,7 +31,9 @@ func handleNext(w http.ResponseWriter, r *http.Request)  { webAssets().Next(w, r
 func registerPWAAssets(mux *http.ServeMux)               { webAssets().RegisterPWA(mux) }
 func registerWebAssets(mux *http.ServeMux)               { webAssets().Register(mux) }
 func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
-	return web.API(mux, webKeyHashErr, nodeAware)
+	return func(path string, handler http.HandlerFunc) {
+		mux.HandleFunc(path, requireWebAuth(nodeAware(path, handler)))
+	}
 }
 func sendJSON(w http.ResponseWriter, code int, v any) { web.SendJSON(w, code, v) }
 func workspaceMethod(w http.ResponseWriter, r *http.Request, method string) bool {
@@ -45,7 +47,7 @@ func checkBearer(r *http.Request, hash string) bool { return web.CheckBearer(r, 
 func markE2EAuthed(r *http.Request) *http.Request   { return web.MarkE2EAuthed(r) }
 func isE2EAuthed(r *http.Request) bool              { return web.IsE2EAuthed(r) }
 func requireWebAuth(next http.HandlerFunc) http.HandlerFunc {
-	return web.RequireAuth(next, webKeyHashErr)
+	return requireBrowserOrWebKey(next)
 }
 func sseHeartbeat(w http.ResponseWriter, flusher http.Flusher) (*sync.Mutex, func()) {
 	return web.SSEHeartbeat(w, flusher)

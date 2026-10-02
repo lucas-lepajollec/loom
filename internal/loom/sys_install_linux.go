@@ -86,6 +86,9 @@ func installServices(targetUser, loomHome string) error {
 		}
 		fmt.Printf("  %s %s\n", green("✓"), sudoersPath)
 	}
+	if err := installSystemUpdater(targetUser); err != nil {
+		return err
+	}
 	_ = exec.Command("systemctl", "daemon-reload").Run()
 	return nil
 }
@@ -104,6 +107,7 @@ func uninstallServices() {
 		"/etc/systemd/system/" + uiUnitName + ".service",
 		"/etc/sudoers.d/" + svc,
 		"/etc/sudoers.d/" + uiUnitName,
+		systemUpdateRule, systemUpdateHelper,
 	} {
 		if err := os.Remove(p); err == nil {
 			fmt.Printf("  %s %s\n", green("✓"), p)

@@ -1,0 +1,61 @@
+import { html, useState, useRef, useEffect } from '../../core/lib.js';
+import { t } from '../../core/i18n.js';
+import { get, post } from '../../core/api.js';
+import { confirm } from '../../ui/dialog.js';
+import { Line, Group } from './kit.js';
+
+export async function waitForUpdatedVersion(version, read = get, pause = ms => new Promise(resolve => setTimeout(resolve, ms)), alive = () => true) {
+  for (let i = 0; i < 30 && alive(); i++) {
+    await pause(2000);
+    if (!alive()) return false;
+    try { if ((await read('/api/ping')).version === version) return true; } catch (_) {}
+  }
+  return false;
+}
+
+export function LoomUpdates() {
+  const [info, setInfo] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const running = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const check = async () => {
+    if (running.current) return;
+    running.current = true; setBusy(true); setError(''); setMessage('');
+    try {
+      const result = await get('/api/update');
+      if (result.error) throw new Error(result.error);
+      setInfo(result);
+    } catch (err) { setInfo(null); setError(err.message); }
+    finally { running.current = false; setBusy(false); }
+  };
+  const install = async () => {
+    if (running.current || !info?.available || !info.can_apply) return;
+    running.current = true;
+    try {
+      if (!await confirm(t('updates.install'), t('updates.confirm', { version: info.latest }), { ok: t('updates.install') })) return;
+      setBusy(true); setError(''); setMessage(t('updates.installing'));
+      const result = await post('/api/update/apply', { version: info.latest }, { timeout: 8 * 60 * 1000 });
+      if (!result.ok) throw new Error(result.error || t('updates.failed'));
+      if (result.restarting) {
+        setMessage(t('updates.reconnecting'));
+        if (await waitForUpdatedVersion(result.version, get, undefined, () => alive.current)) location.reload();
+        else if (alive.current) setMessage(t('updates.restart_pending'));
+      } else setMessage(t('updates.restart_manual') + ' ' + (result.restart || ''));
+    } catch (err) { setMessage(''); setError(err.message); }
+    finally { running.current = false; if (alive.current) setBusy(false); }
+  };
+  return html`<${Group} title=${t('settings.page.mises_a_jour')}>
+    <${Line} label=${t('updates.source')}><a href="https://github.com/lucas-lepajollec/loom/releases" target="_blank" rel="noopener noreferrer">${t('updates.releases')}</a></${Line}>
+    <${Line} label=${t('updates.version')}>
+      ${info && html`<span class="state">${info.available ? t('updates.available', { version: info.latest }) : t('updates.current', { version: info.current })}</span>`}
+      <button class="btn sm" disabled=${busy} onClick=${check}>${t('settings.page.verifier')}</button>
+      ${info?.available && html`<button class="btn sm primary" disabled=${busy || !info.can_apply} onClick=${install}>${t('updates.install')}</button>`}
+    </${Line}>
+    ${info?.available && !info.can_apply && html`<p class="set-note">${info.apply_reason || t('updates.setup')}</p>`}
+    ${message && html`<p class="set-note" role="status">${message}</p>`}
+    ${error && html`<p class="set-note" role="alert">${error}</p>`}
+  </${Group}>`;
+}

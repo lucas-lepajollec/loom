@@ -49,9 +49,12 @@ func cmdWeb(args []string) error {
 	go harnessLifecycle.autoLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
 	fmt.Printf("[loom web] http://%s  (Ctrl-C to stop)\n", addr)
-	if !webKeyConfigured() {
+	p, _, _ := readWebPassword()
+	if p != nil {
+		fmt.Printf("%s Browser access protected by a password and session cookie\n", green("[ok]"))
+	} else if !webKeyConfigured() {
 		fmt.Printf("%s control API is NOT protected (no key). Before exposing it to the internet:\n", yellow("[!]"))
-		fmt.Printf("       %s\n", bold("loom set-web-key"))
+		fmt.Printf("       %s\n", bold("loom password"))
 	} else {
 		fmt.Printf("%s API protected by a key (Authorization: Bearer …)\n", green("[ok]"))
 	}
@@ -101,6 +104,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	}
 	registerBrainRoutes(mux, brainCtx)
 	registerWebAssets(mux)
+	registerWebLogin(mux)
 	api := webAPI(mux)
 	newEnvironment().register(api)
 	api("/api/ping", handlePing)

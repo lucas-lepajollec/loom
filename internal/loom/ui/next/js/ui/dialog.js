@@ -62,7 +62,7 @@ function AskDialog({ d }) {
   return html`<${Modal} title=${d.title} onClose=${() => d.close(null)}
     foot=${html`<button class="btn ghost" onClick=${() => d.close(null)}>${t("ui.dialog.annuler")}</button><button class=${cls('btn primary', d.danger && 'danger')} onClick=${ok}>${d.ok || t("ui.dialog.continuer")}</button>`}>
     ${d.message && html`<p style="margin:0;color:var(--text-2);line-height:1.55">${d.message}</p>`}
-    ${d.input && html`<input class="input" type=${d.input.type || 'text'} placeholder=${d.input.placeholder || ''} value=${v} onInput=${e => setV(e.target.value)} onKeyDown=${e => e.key === 'Enter' && ok()} />`}
+    ${d.input && html`<input class="input" type=${d.input.type || 'text'} autocomplete=${d.input.autocomplete} placeholder=${d.input.placeholder || ''} value=${v} onInput=${e => setV(e.target.value)} onKeyDown=${e => e.key === 'Enter' && ok()} />`}
   </${Modal}>`;
 }
 

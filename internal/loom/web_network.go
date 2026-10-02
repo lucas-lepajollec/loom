@@ -12,7 +12,7 @@ import (
 
 // Server mode: Loom's interface (and its control API) listening on the local
 // network, for example on a server or a VM, used from other machines. It is
-// never opened without a control key: enabling it creates one when missing.
+// never opened without a password or a legacy control key.
 // The /v1 model API keeps its own switch (sys_network.go).
 
 const webHostKey = "WEB_HOST"
@@ -40,7 +40,7 @@ func isLoopbackHost(h string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// webListenCheck refuses to expose the interface without a control key.
+// webListenCheck refuses to expose the interface without authentication.
 func webListenCheck(host string) error {
 	if isLoopbackHost(host) {
 		return nil
@@ -49,26 +49,33 @@ func webListenCheck(host string) error {
 	if err != nil {
 		return errors.New("control key unreadable: Loom remains closed to the network")
 	}
-	if hash == "" {
-		return fmt.Errorf("the interface cannot open to the network (%s) without a control key: create one with `loom set-web-key`", host)
+	p, _, err := readWebPassword()
+	if err != nil {
+		return errors.New("access password unreadable: Loom remains closed to the network")
+	}
+	if hash == "" && p == nil {
+		return fmt.Errorf("the interface cannot open to the network (%s) without an access password or control key: run `loom password`", host)
 	}
 	return nil
 }
 
 type webNetStatus struct {
-	Exposed  bool   `json:"exposed"`  // configured to listen on the network
-	Running  bool   `json:"running"`  // the running interface already listens on it
-	Host     string `json:"host"`     // configured address
-	Port     int    `json:"port"`     // interface port
-	URL      string `json:"url"`      // address to open from another machine
-	KeySet   bool   `json:"key_set"`  // a control key protects the interface
-	Restart  bool   `json:"restart"`  // a restart is needed to apply the setting
-	Firewall string `json:"firewall"` // "ouvert", "ferme", "inconnu"
+	Exposed     bool   `json:"exposed"` // configured to listen on the network
+	Running     bool   `json:"running"` // the running interface already listens on it
+	Host        string `json:"host"`    // configured address
+	Port        int    `json:"port"`    // interface port
+	URL         string `json:"url"`     // address to open from another machine
+	KeySet      bool   `json:"key_set"` // a control key protects the interface
+	PasswordSet bool   `json:"password_set"`
+	Restart     bool   `json:"restart"`  // a restart is needed to apply the setting
+	Firewall    string `json:"firewall"` // "ouvert", "ferme", "inconnu"
 }
 
 func webNetworkStatus() webNetStatus {
 	host := webHost()
 	st := webNetStatus{Exposed: !isLoopbackHost(host), Host: host, Port: webBound.port, KeySet: webKeyConfigured()}
+	p, _, err := readWebPassword()
+	st.PasswordSet = err == nil && p != nil
 	st.Running = webBound.host != "" && !isLoopbackHost(webBound.host)
 	st.Restart = webBound.host != "" && webBound.host != host
 	if st.Port > 0 {
@@ -78,14 +85,18 @@ func webNetworkStatus() webNetStatus {
 	return st
 }
 
-// setWebExposure writes WEB_HOST. Opening creates a control key when none
-// exists and returns it once, so the browser can keep using the interface.
+// setWebExposure writes WEB_HOST. Legacy callers without a password still
+// receive a control key; password-based access does not create one.
 func setWebExposure(on bool) (webNetStatus, string, error) {
 	created := ""
 	host := hostLocalOnly
 	if on {
 		host = hostAllInterfaces
-		if !webKeyConfigured() {
+		p, _, err := readWebPassword()
+		if err != nil {
+			return webNetStatus{}, "", err
+		}
+		if p == nil && !webKeyConfigured() {
 			buf := make([]byte, 24)
 			if _, err := rand.Read(buf); err != nil {
 				return webNetStatus{}, "", err
@@ -145,7 +156,7 @@ func handleWebNetwork(w http.ResponseWriter, r *http.Request) {
 	}
 	out := map[string]any{"ok": true, "status": st}
 	if key != "" {
-		out["key"] = key // shown once; the browser keeps it to stay signed in
+		out["key"] = key // legacy caller receives this once
 	}
 	sendJSON(w, 200, out)
 }

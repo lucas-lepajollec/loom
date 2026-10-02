@@ -10,6 +10,8 @@ import { pageFor } from './routes.js';
 import { Palette } from './palette.js';
 import { initLang } from '../core/i18n.js';
 import { Welcome, initWelcome } from '../features/onboarding/welcome.js';
+import { authStatus } from '../core/api.js';
+import { AccessScreen } from './access.js';
 
 
 function Main() {
@@ -33,8 +35,15 @@ function App() {
 }
 
 setTheme(app.get().theme);
-initLang();
-startPolling();
-initChat();
-initWelcome();
-render(html`<${App} />`, document.getElementById('app'));
+async function boot() {
+  const root = document.getElementById('app');
+  try {
+    const status = await authStatus();
+    if (!status.authenticated) { render(html`<${AccessScreen} status=${status} onDone=${boot} />`, root); return; }
+    render(html`<${App} />`, root);
+    initLang(); startPolling(); initChat(); initWelcome();
+  } catch (_) {
+    render(html`<div class="welcome" style="min-height:100dvh"><h1>Loom</h1><p role="alert">${t('access.unavailable')}</p><button class="btn" onClick=${boot}>${t('access.retry')}</button></div>`, root);
+  }
+}
+boot();

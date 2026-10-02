@@ -10,6 +10,11 @@ The design goal is to keep extensions focused on a domain folder and a
 registry entry. Current lifecycle and domain integration still require Loom
 application handlers; §4 distinguishes those from the extracted leaf packages.
 
+Human interface access uses the single-owner password/session flow in
+[`access.md`](access.md). `web_login.go` owns credential/session persistence and
+the CLI recovery flow; `web/` supplies origin protection. Control keys retain
+compatibility for automation, independently of browser cookies and `/v1` keys.
+
 ## 1. What Loom is made of
 
 ```
@@ -761,3 +766,5 @@ page = new `features/x/page.js` + one entry in `app/routes.js`. No build step.
 The classic UI (`ui/src`, `/classic`, `tools/assemble-ui`) is already removed.
 Its features live in `ui/next` (multi-GPU split through Expert parameters);
 the release build embeds these files directly without an assembler.
+
+Application release updates are separate from engine updates. `sys_update.go` shares verified binary installation between the CLI and authenticated interface; `sys_update_linux.go` confines system-install updates to a root-owned fixed target and helper, without user configuration or arbitrary command arguments. The interface reports installation separately from confirmed restart. See [Updating Loom](updates.md).

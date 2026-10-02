@@ -258,10 +258,16 @@ test('preset moves preserve the complete filtered catalog, boundaries and failed
 test('vault 401 skips API authentication retry; ordinary API requests retain it', async () => {
   const source = fs.readFileSync(new URL('../next/js/core/api.js', import.meta.url), 'utf8');
   const calls = [], asks = [];
-  const env = { t: french, localStorage: { getItem: () => 'synthetic-access', setItem() {} }, AbortController,
+  const removed = [];
+  const env = { t: french, localStorage: { getItem: () => 'synthetic-access', removeItem: key => removed.push(key) }, AbortController,
     setTimeout: () => 1, clearTimeout() {},
     ask: async spec => { asks.push(spec); return 'synthetic-new-access'; },
-    fetch: async (url, opts) => { calls.push([url, opts]); return { status: 401, ok: false, json: async () => ({ ok: false }) }; },
+    fetch: async (url, opts) => {
+      calls.push([url, opts]);
+      if (url === '/api/auth/status') return { status: 200, ok: true, json: async () => ({ password_set: true }) };
+      if (url === '/api/auth/login') return { status: 200, ok: true, json: async () => ({ ok: true }) };
+      return { status: 401, ok: false, json: async () => ({ ok: false }) };
+    },
   };
   vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.api = {post};', env);
   await env.api.post('/api/mem/unlock', { secret: 'synthetic-secret' }, { retryAuth: false });
@@ -269,7 +275,12 @@ test('vault 401 skips API authentication retry; ordinary API requests retain it'
   assert.equal(calls[0][1].headers.Authorization, 'Bearer synthetic-access');
   assert.ok(!('retryAuth' in calls[0][1]));
   await env.api.post('/api/other', {});
-  assert.equal(asks.length, 1); assert.equal(calls.length, 3);
+  assert.equal(asks.length, 1); assert.equal(calls.length, 5);
+  assert.equal(asks[0].input.type, 'password');
+  assert.equal(calls[3][0], '/api/auth/login');
+  assert.equal(JSON.parse(calls[3][1].body).password, 'synthetic-new-access');
+  assert.ok(!('Authorization' in calls[4][1].headers));
+  assert.ok(removed.includes('loom.key'));
 });
 
 test('language selector applies immediately and preserves a system prompt draft', async () => {
@@ -294,4 +305,54 @@ test('language selector applies immediately and preserves a system prompt draft'
   const switchNode = nodes(tree, 'Switch').find(n => n.props.checked === false);
   await switchNode.props.onChange(true);
   assert.deepEqual(Object.keys(h.posts.at(-1)[1]), ['hide_reasoning']);
+});
+
+const updates = fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8')
+  + fs.readFileSync(new URL('../next/js/features/settings/updates.js', import.meta.url), 'utf8');
+
+test('Loom update checks official releases, requires consent and sends reviewed version', async () => {
+  const h = harness(updates, 'LoomUpdates', { location: { reload() {} } });
+  h.data['/api/update'] = { current: '0.1.1', latest: '0.1.2', available: true, can_apply: true };
+  await button(h.render(), 'Vérifier').props.onClick();
+  assert.ok(textOf(h.render()).includes('0.1.2'));
+  h.env.accept = false;
+  await button(h.render(), 'Installer la mise à jour').props.onClick();
+  assert.equal(h.posts.length, 0);
+  h.env.accept = true;
+  h.env.post = async (...args) => { h.posts.push(args); return { ok: true, version: '0.1.2', restarting: false, restart: 'Restart manually' }; };
+  await button(h.render(), 'Installer la mise à jour').props.onClick();
+  assert.equal(h.posts[0][0], '/api/update/apply');
+  assert.equal(h.posts[0][1].version, '0.1.2');
+  assert.equal(h.posts[0][2].timeout, 8 * 60 * 1000);
+  assert.ok(textOf(h.render()).includes('Redémarre Loom'));
+});
+
+test('Loom update failures are not shown as up to date; blocked installations explain setup', async () => {
+  const h = harness(updates, 'LoomUpdates');
+  h.data['/api/update'] = { error: 'GitHub unavailable' };
+  await button(h.render(), 'Vérifier').props.onClick();
+  assert.ok(textOf(h.render()).includes('GitHub unavailable'));
+  assert.ok(!textOf(h.render()).includes('À jour'));
+  h.data['/api/update'] = { latest: '0.1.2', available: true, can_apply: false, apply_reason: 'One-time setup required' };
+  await button(h.render(), 'Vérifier').props.onClick();
+  assert.equal(button(h.render(), 'Installer la mise à jour').props.disabled, true);
+  assert.ok(textOf(h.render()).includes('One-time setup required'));
+  h.data['/api/update'].can_apply = true;
+  await button(h.render(), 'Vérifier').props.onClick();
+  h.env.post = async () => ({ ok: false, error: 'Checksum failed' });
+  await button(h.render(), 'Installer la mise à jour').props.onClick();
+  assert.ok(textOf(h.render()).includes('Checksum failed'));
+  assert.ok(!textOf(h.render()).includes('Mise à jour installée'));
+});
+
+test('reconnect accepts only the new running version, with bounded failures', async () => {
+  const env = {};
+  vm.runInNewContext(updates.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.wait = waitForUpdatedVersion;', env);
+  let reads = 0;
+  assert.equal(await env.wait('0.1.2', async () => ({ version: ++reads === 3 ? '0.1.2' : '0.1.1' }), async () => {}), true);
+  assert.equal(reads, 3);
+  reads = 0;
+  assert.equal(await env.wait('0.1.2', async () => { reads++; throw new Error('offline'); }, async () => {}), false);
+  assert.equal(reads, 30);
+  assert.equal(await env.wait('0.1.2', async () => { throw new Error('should not read'); }, async () => {}, () => false), false);
 });

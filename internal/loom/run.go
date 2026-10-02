@@ -14,6 +14,12 @@ const Version = "0.1.1"
 
 // Main est le vrai main() du binaire (cmd/loom ne fait que l'appeler).
 func Main() {
+	// Privileged updater never loads local dotenv, user data or harness state.
+	if len(os.Args) > 1 && os.Args[1] == "system-update" {
+		mustExit(cmdSystemUpdate(os.Args[2:]))
+		return
+	}
+
 	// Rattache la console du terminal parent si on est lancé depuis un shell
 	// (Windows : binaire GUI). Retourne false au double-clic (aucune console) →
 	// on bascule alors sur l'expérience « application ». Hors Windows : toujours
@@ -77,6 +83,8 @@ func Main() {
 		mustExit(cmdSetAPIKey(args))
 	case "set-web-key":
 		mustExit(cmdSetWebKey(args))
+	case "password":
+		mustExit(cmdPassword(args))
 	case "vram":
 		mustExit(showVram())
 	case "gpu":
@@ -154,6 +162,7 @@ Engine (loom-engine):
 Interface (loom-ui):
   ui [start|stop|restart|status]  manage the interface service
   web [PORT]                    serve the interface in the foreground (default :8091)
+  password [--stdin]            set/reset the access password; revokes browser sessions
   set-web-key [key]              protect the control API; omitted = generate, "" = remove
 
 Interaction:

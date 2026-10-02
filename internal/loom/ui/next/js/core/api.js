@@ -1,9 +1,10 @@
 import { t } from './i18n.js';
-// Client de l'API Loom. La clé de pilotage (si le serveur en exige une) est
-// envoyée en Bearer ; sur 401 on la demande une fois, puis on rejoue.
+// Human access uses an HttpOnly session cookie. Keep an existing legacy key
+// in memory only until the operator sets the first password.
 import { ask } from '../ui/dialog.js';
 
-let token = localStorage.getItem('loom.key') || '';
+let token = '';
+try { token = localStorage.getItem('loom.key') || ''; localStorage.removeItem('loom.key'); } catch (_) {}
 let asking = null;
 const TIMEOUT = 30000;
 
@@ -12,32 +13,50 @@ function headers(extra) {
   if (token) h.Authorization = 'Bearer ' + token;
   return h;
 }
-
-// Clé reçue du serveur (ouverture au réseau) : gardée pour rester connecté.
-export function setToken(k) { token = k || ''; try { localStorage.setItem('loom.key', token); } catch (_) {} }
-
-async function askKey() {
+export async function authStatus() {
+  const r = await fetch('/api/auth/status', { headers: headers(), credentials: 'same-origin', cache: 'no-store' });
+  if (!r.ok) throw new Error(t('access.unavailable'));
+  return r.json();
+}
+export async function authAction(path, body, key = '') {
+  const r = await fetch('/api/auth/' + path, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : headers()) },
+    body: JSON.stringify(body || {}) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(r.status === 429 ? t('access.too_many') : r.status === 401 ? t('access.incorrect') : data.error || t('access.unavailable'));
+  token = '';
+  try { localStorage.removeItem('loom.key'); } catch (_) {}
+  return data;
+}
+async function askPassword() {
   if (!asking) {
-    asking = ask({ title: t("core.api.authentification"), message: t("core.api.ce_loom_exige_sa_cle_de_pilotage"), input: { placeholder: t("core.api.cle"), type: 'password' }, ok: t("core.api.continuer") })
-      .then(k => { asking = null; if (k) { token = k.trim(); localStorage.setItem('loom.key', token); } return k; });
+    asking = (async () => {
+      const status = await authStatus();
+      if (!status.password_set) { location.reload(); return false; }
+      const password = await ask({ title: t('access.sign_in'), message: t('access.enter_password'),
+        input: { type: 'password', autocomplete: 'current-password' }, ok: t('access.sign_in') });
+      if (!password) return false;
+      await authAction('login', { password });
+      return true;
+    })().finally(() => { asking = null; });
   }
   return asking;
 }
 
 export async function request(url, opts = {}) {
-  const { retryAuth = true, ...fetchOpts } = opts;
+  const { retryAuth = true, timeout = TIMEOUT, ...fetchOpts } = opts;
   const o = { ...fetchOpts, headers: headers(opts.headers) };
   let timer = null;
-  if (!o.signal) { const ac = new AbortController(); o.signal = ac.signal; timer = setTimeout(() => ac.abort(), TIMEOUT); }
+  if (!o.signal) { const ac = new AbortController(); o.signal = ac.signal; timer = setTimeout(() => ac.abort(), timeout); }
   let r;
-  try { r = await fetch(url, o); }
+  try { r = await fetch(url, { ...o, credentials: 'same-origin' }); }
   catch (e) { if (e.name === 'AbortError' && timer) throw new Error(t("core.api.le_serveur_ne_repond_pas")); throw e; }
   finally { if (timer) clearTimeout(timer); }
-  if (r.status === 401 && retryAuth && await askKey()) { o.headers = headers(opts.headers); r = await fetch(url, o); }
+  if (r.status === 401 && retryAuth && await askPassword()) { o.headers = headers(opts.headers); r = await fetch(url, { ...o, credentials: 'same-origin' }); }
   return r;
 }
 
-// Téléchargement authentifié (un lien <a href> ne porte pas la clé).
+// Téléchargement authentifié, avec les mêmes sessions/reprises que l'API.
 export async function download(url, name) {
   const r = await request(url);
   if (!r.ok) throw new Error('HTTP ' + r.status);

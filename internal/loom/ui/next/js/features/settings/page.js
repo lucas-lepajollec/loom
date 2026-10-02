@@ -6,13 +6,15 @@ import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../.
 import { Icon } from '../../ui/icons.js';
 import { Switch, Tip, Seg, Empty } from '../../ui/controls.js';
 import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
-import { get, post, download, setToken } from '../../core/api.js';
+import { get, post, download, authStatus, authAction } from '../../core/api.js';
+import { PasswordForm } from '../../app/access.js';
 import { copyText } from '../../ui/clipboard.js';
 import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav, refreshEngineNode } from '../../core/state.js';
 import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
 import { MachinesSettings } from './machines.js';
+import { LoomUpdates } from './updates.js';
 import { VLLMEngine } from './vllm.js';
 
 const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['machines', t("settings.page.machines"), 'server'], ['engine', t("settings.page.moteurs"), 'chip'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
@@ -337,7 +339,7 @@ const snapshotDate = s => {
 };
 
 // Accès réseau : l'interface (mode serveur, par ex. sur une VM) et l'API /v1
-// des modèles, chacune avec sa clé. Jamais ouvert sans clé.
+// des modèles : mot de passe pour l'interface, clé séparée pour /v1.
 function NetworkAccess() {
   const [web, setWeb] = useState(null);
   const [api, setApi] = useState(null);
@@ -348,16 +350,14 @@ function NetworkAccess() {
   ]);
   useEffect(() => { load(); }, []);
   const toggleWeb = async on => {
+    if (on && web && !web.password_set) {
+      toast(t('access.set_first'), 'err'); return;
+    }
     if (on && !await confirm(t("settings.page.ouvrir_l_interface_au_reseau"), t("settings.page.loom_sera_accessible_depuis_les_autres_appareils_de_ton_reseau_pr"), { ok: t("settings.page.ouvrir") })) return;
     setBusy(true);
     const r = await post('/api/network/web', { exposed: on });
     setBusy(false);
     if (!r.ok) return toast(r.error || t("settings.page.reglage_impossible"), 'err');
-    if (r.key) {
-      setToken(r.key);
-      const copied = await copyText(r.key);
-      await confirm(t("settings.page.cle_de_pilotage"), t("settings.page.note_la_elle_sera_demandee_a_la_premiere_ouverture_de_loom_sur_ch") + (copied ? t("settings.page.elle_est_copiee_dans_le_presse_papiers") : '') + r.key, { ok: t("settings.page.c_est_note") });
-    }
     load(); // post() remplace r.status par le code HTTP : on relit l'état
   };
   const restart = async () => {
@@ -374,6 +374,27 @@ function NetworkAccess() {
     <${Line} label="${t("settings.page.api_v1_sur_le_reseau")}" tip="${t("settings.page.les_logiciels_et_harnesses_d_autres_machines_peuvent_utiliser_tes")}">
       ${api ? html`<${Switch} checked=${api.exposed} label="${t("settings.page.api_v1_sur_le_reseau")}" onChange=${toggleApi} />` : html`<span class="state">…</span>`}</${Line}>
     ${api && api.exposed && html`<${Line} label="${t("settings.page.adresse_de_l_api")}"><code class="mono">${api.url}</code></${Line}>`}
+  </${Group}>`;
+}
+
+function AccessSettings() {
+  const [status, setStatus] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const load = () => authStatus().then(setStatus).catch(() => setStatus(null));
+  useEffect(() => { load(); }, []);
+  const logout = async () => {
+    try { await authAction('logout'); location.reload(); }
+    catch (err) { toast(err.message, 'err'); }
+  };
+  return html`<${Group} title=${t('access.title')}>
+    <${Line} label=${t('access.password')}>
+      <span class="state">${status ? status.password_set ? t('access.configured') : t('access.not_set') : '…'}</span>
+      ${status && html`<button class="btn sm" onClick=${() => setEditing(true)}>${status.password_set ? t('access.change') : t('access.set')}</button>`}
+      ${status?.password_set && html`<button class="btn sm ghost" onClick=${logout}>${t('access.sign_out')}</button>`}
+    </${Line}>
+    ${editing && html`<${Modal} title=${status.password_set ? t('access.change') : t('access.set')} onClose=${() => setEditing(false)}>
+      <${PasswordForm} mode=${status.password_set ? 'change' : 'setup'} onDone=${() => { setEditing(false); location.reload(); }} />
+    </${Modal}>`}
   </${Group}>`;
 }
 
@@ -440,6 +461,7 @@ function Security() {
   const vault = mem && (mem.encrypted || mem.vault_copies > 0);
   const blocked = busy || !!secretForm;
   return html`
+    <${AccessSettings} />
     <${NetworkAccess} />
     <${Group} title="${t("settings.page.api_v1")}">
       <${Line} label="${t("settings.page.cle_api_exigee")}" tip="${t("settings.page.les_applications_qui_utilisent_le_serveur_devront_envoyer_cette_c")}"><${Switch} checked=${k && k.required} onChange=${v => key({ action: 'require', on: v })} /></${Line}>
@@ -474,14 +496,13 @@ function Security() {
 function About() {
   const status = useStore(app, s => s.status);
   const [paths, setPaths] = useState(null);
-  const [upd, setUpd] = useState(null);
   useEffect(() => { get('/api/paths').then(setPaths); }, []);
   return html`
     <${Group} title="${t("settings.page.loom")}">
       <${Line} label="${t("settings.page.version")}"><span class="mono">${status ? status.version : '—'}</span></${Line}>
       <${Line} label=${t('welcome.about.label')}><button class="btn sm" onClick=${openWelcome}>${t('welcome.about.open')}</button></${Line}>
-      <${Line} label="${t("settings.page.mises_a_jour")}">${upd ? html`<span class="muted">${upd.available ? 'Version ' + upd.latest + t("settings.page.disponible") : t("settings.page.a_jour_2")}</span>` : html`<button class="btn sm" onClick=${async () => setUpd(await get('/api/update'))}>${t("settings.page.verifier")}</button>`}</${Line}>
     </${Group}>
+    <${LoomUpdates} />
     ${paths && html`<${Group} title="${t("settings.page.emplacements")}">${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
 }
 
