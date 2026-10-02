@@ -218,7 +218,8 @@ var (
 func theBrain() *brainService {
 	brainSvcMu.Lock()
 	defer brainSvcMu.Unlock()
-	if brainSvc == nil {
+	dir := filepath.Join(LoomHome(), "brain")
+	if brainSvc == nil || brainSvc.storage.dir != dir {
 		brainSvc = newBrainService(LoomHome())
 	}
 	return brainSvc
