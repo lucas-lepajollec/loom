@@ -17,7 +17,7 @@ func TestWebOccupiedPortDoesNotTakeOverListener(t *testing.T) {
 	port := strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
 
 	err = cmdWeb([]string{port})
-	if err == nil || !strings.Contains(err.Error(), "choisis un autre port") {
+	if err == nil || !strings.Contains(err.Error(), "choose another port") {
 		t.Fatalf("expected an actionable occupied-port error, got %v", err)
 	}
 	probe, err := net.Dial("tcp", listener.Addr().String())
