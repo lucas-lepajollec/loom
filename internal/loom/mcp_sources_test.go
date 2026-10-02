@@ -33,10 +33,10 @@ func TestLinkedMCPFormatsAndNoSecretValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "mcp.json")
 			writeMCPTestFile(t, path, tc.body)
-			if err := linkMCPSource(MCPSource{path, tc.name}, false); err != nil {
+			if err := linkMCPSource(MCPSource{Path: path, Label: tc.name}, false); err != nil {
 				t.Fatal(err)
 			}
-			entries, err := readMCPSource(MCPSource{path, tc.name})
+			entries, err := readMCPSource(MCPSource{Path: path, Label: tc.name})
 			if err != nil || len(entries) != tc.count {
 				t.Fatal("format parse failed", err)
 			}
@@ -73,7 +73,7 @@ func TestLinkedMCPFormatsAndNoSecretValues(t *testing.T) {
 				t.Fatal("project scopes conflated")
 			}
 			before, _ := os.ReadFile(path)
-			if err := linkMCPSource(MCPSource{path, ""}, true); err != nil {
+			if err := linkMCPSource(MCPSource{Path: path, Label: ""}, true); err != nil {
 				t.Fatal(err)
 			}
 			after, _ := os.ReadFile(path)
@@ -91,7 +91,7 @@ func TestMCPSourceAdoptAndExplicitEnvironment(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "external.json")
 			original := `{"mcpServers":{"my.server":{"command":"node","args":["server.js"],"env":{"TOKEN":"env-private","PATH":"path-private"},"type":"stdio"},"remote":{"url":"https://example.test/mcp","headers":{"Authorization":"header-private"},"env":{"TOKEN":"env-private"},"type":"http"}}}`
 			writeMCPTestFile(t, path, original)
-			if err := linkMCPSource(MCPSource{path, "External"}, false); err != nil {
+			if err := linkMCPSource(MCPSource{Path: path, Label: "External"}, false); err != nil {
 				t.Fatal(err)
 			}
 			for _, name := range []string{"my.server", "remote"} {
@@ -150,7 +150,7 @@ func TestMCPClaudeProjectAdopt(t *testing.T) {
 	testHome(t)
 	path := filepath.Join(t.TempDir(), ".claude.json")
 	writeMCPTestFile(t, path, `{"mcpServers":{"same":{"command":"global"}},"projects":{"/one":{"mcpServers":{"same":{"command":"project"}}},"/two":{"mcpServers":{"same":{"command":"other"}}}}}`)
-	if err := linkMCPSource(MCPSource{path, "Claude"}, false); err != nil {
+	if err := linkMCPSource(MCPSource{Path: path, Label: "Claude"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := adoptLinkedMCP(mcpSourceSelector(path, "/one"), "same", false); err != nil {
@@ -188,7 +188,7 @@ func TestMCPSourcesLinkUnlinkSuggestReloadAndErrors(t *testing.T) {
 		t.Fatal(rr.Body.String())
 	}
 	// Relinking updates the label, without duplicating the source.
-	if err := linkMCPSource(MCPSource{path, "Updated"}, false); err != nil {
+	if err := linkMCPSource(MCPSource{Path: path, Label: "Updated"}, false); err != nil {
 		t.Fatal(err)
 	}
 	list, suggested, err = mcpSourcesSnapshot()
@@ -221,7 +221,7 @@ func TestMCPSourcesLinkUnlinkSuggestReloadAndErrors(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal("unlink deleted user file")
 	}
-	if err := linkMCPSource(MCPSource{mcpFilePath(), "Loom"}, false); err == nil {
+	if err := linkMCPSource(MCPSource{Path: mcpFilePath(), Label: "Loom"}, false); err == nil {
 		t.Fatal("linked Loom to itself")
 	}
 }

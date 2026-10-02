@@ -588,7 +588,72 @@ Still in Loom, deliberately:
   subscription fan-out and all HTTP handlers stay in Loom because they require
   live runtime, security, filesystem or transport state.
 
-Next slices: `tools/` and `resources/`, then `web/` last.
+The eleventh slice extracts the native tool and shared resource logic into
+`internal/loom/tools` and `internal/loom/resources`, with historical names and
+wire types delegated through `tools_compat.go` and `resources_compat.go`.
+Neither leaf imports `loom` or owns mutable application globals.
+
+Moved into `tools`, deliberately:
+
+- `model.go` and `memory.go`: unchanged tool schemas and memory modes, page-name
+  validation, page listing/ranking/snippets, bounded line reads and exact edits,
+  add/save/delete operations and output truncation. `MemoryStore` supplies the
+  resolved directory and the original encrypted page reads/writes/locked error;
+  Loom's vault and verified writes remain the only storage implementation.
+- `internet.go`, `fetch.go` and `web_tools.go`: Crawl4AI request/response parsing,
+  DuckDuckGo search, served-HTML extraction/conversion, URL/line normalization,
+  cache-key formatting, tool schemas and open/read/grep results. Small source
+  interfaces supply current engine/key/URL, cached pages and HTTP clients.
+  Cookies, headers, budgets, DOM limitations and French tool output are unchanged.
+- `mcp.go` and `mcp_pool.go`: SDK transports, header injection, schema/content
+  projection and an explicit `MCPManager` with parallel connection deduplication,
+  namespaced tools, disabled-tool filtering, one reconnect, status and prompt
+  projection. Loom supplies the configuration loader, resolved subprocess,
+  version, connector and HTTP client; the manager owns only its sessions/lock.
+
+Moved into `resources`, deliberately:
+
+- `mcp.go`, `mcp_file.go` and `mcp_sources.go`: original server/source/status JSON,
+  default-enabled decoding, validation, bounded linked-file reads, project-scope
+  selectors, sanitized errors, credential placeholders/adoption and the MCP file
+  codec preserving unknown extension fields.
+- `skills.go` and `sinks.go`: `Capability`/source/target wire types, front-matter
+  parsing/formatting, slugs, folder reads/scans/writes, owned-link detection and
+  manifest-driven skill distribution/cleanup. `Library` receives its root and
+  ID generator; sink synchronization receives skills, bindings, manifests and
+  path display explicitly. Foreign folders and linked sources keep their policy.
+- `bindings.go`: historical default/all-versus-empty selections, skill binding
+  lookup and persistence through `JSONStore`; native MCP-selection validation is
+  supplied by Loom, in the same read/validate/write order.
+
+Independent ranking, front-matter, adoption and MCP deduplication tests move with
+these implementations. Leaf tests cover supplied HTTP/protocol requests,
+Markdown shapes, page reads/grep, memory storage/locked behavior, unknown MCP
+fields, skill binding/cleanup and in-memory MCP discovery/calls/reconnection.
+Loom retains storage/vault/migration/HTTP/native integration tests and freezes
+compatibility JSON, including empty/null/omitted fields.
+
+Still in Loom, deliberately:
+
+- Internet configuration, keys, enablement, reachability/page caches, the HTTP
+  client/cookie jar and CLI: their globals, settings and native lifecycle are
+  application-owned. Pure protocols receive those resolved inputs.
+- MCP configuration locks, authoritative file cache, revision checks, legacy
+  migration/backup marker, atomic publication and invalidation policy; linked
+  source registration/adoption/collision writes and native path suggestions:
+  these coordinate Loom storage and the one live pool. Only the codecs/readers
+  move. MCP prewarm/shutdown and command hiding/environment preparation also
+  remain native application policy.
+- Skill migration (`sync.Once` and legacy buckets), source/sink registration,
+  manifests/opt-in writes, global locks and capability/project CRUD: these need
+  Loom's store, shared project context and security policy. Resource bindings
+  retain runtime lookup and native selection checks at the compatibility boundary.
+- All HTTP handlers, native tool-loop registration/dispatch, shell/file tools,
+  workspace resolution, vault/encryption and Brain integration: these require
+  authenticated requests, cancellation, application state or native permissions.
+  No parallel memory engine or public workflow/API change is introduced.
+
+Next slice: `web/` and the last remaining application globals.
 Service policy, installed-binary/environment resolution, application cleanup and
 web/proxy orchestration remain in Loom until their own coherent migration.
 This extraction does not restart an engine, alter flags or change stored

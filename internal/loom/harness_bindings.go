@@ -17,46 +17,6 @@ const (
 	skillBindingsState = "skill_target_bindings" // map[skillID]map[targetID]bool (false = excluded)
 )
 
-func harnessMCPBinding(id string) *[]string {
-	m := map[string][]string{}
-	if !getStoreJSON(bkState, harnessMCPState, &m) {
-		return nil
-	}
-	if names, ok := m[id]; ok {
-		return &names
-	}
-	return nil
-}
-
-func setHarnessMCPBinding(id string, names *[]string) error {
-	m := map[string][]string{}
-	_ = getStoreJSON(bkState, harnessMCPState, &m)
-	if names == nil {
-		delete(m, id)
-	} else {
-		if err := validateACPMCPSelection(*names); err != nil {
-			return err
-		}
-		m[id] = append([]string{}, *names...)
-	}
-	return putStoreJSON(bkState, harnessMCPState, m)
-}
-
-func skillBindings() map[string]map[string]bool {
-	m := map[string]map[string]bool{}
-	_ = getStoreJSON(bkState, skillBindingsState, &m)
-	return m
-}
-
-func skillBound(b map[string]map[string]bool, skillID, target string) bool {
-	if t, ok := b[skillID]; ok {
-		if v, set := t[target]; set {
-			return v
-		}
-	}
-	return true
-}
-
 // GET ?id=harness: Loom MCP servers with their binding for this harness.
 // POST {id, mcp: [...] | null}: set the harness binding (null = all enabled).
 func handleHarnessBindings(w http.ResponseWriter, r *http.Request) {
@@ -185,21 +145,4 @@ func handleHarnessMCPAdopt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "name": name, "env_to_fill": missing})
-}
-
-func adoptedMCP(m HarnessMCP) (MCPServerConfig, error) {
-	if m.URL != "" {
-		return adoptedMCPDefinition(MCPServerConfig{URL: m.URL}, false)
-	}
-	if m.Command == "" {
-		return MCPServerConfig{}, errors.New("définition incomplète : ce harness ne dit pas comment lancer ce serveur")
-	}
-	env := map[string]string{}
-	for _, n := range m.EnvNames {
-		if n != "PATH" && n != "HOME" {
-			env[n] = ""
-		}
-	}
-	// Disabled until the user checks it: an adopted server is not trusted blindly.
-	return adoptedMCPDefinition(MCPServerConfig{Command: m.Command, Args: m.Args, Env: env}, false)
 }

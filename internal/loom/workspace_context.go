@@ -1,11 +1,11 @@
 package loom
 
 import (
-	"fmt"
-	"os"
-	"strings"
-	"sync"
-	"time"
+"fmt"
+"os"
+"strings"
+"sync"
+"time"
 )
 
 const maxProjectInstructions = 12000
@@ -13,21 +13,6 @@ const maxCapabilityInstructions = 8000
 const maxProjectCapabilities = 8
 
 var workspaceMu sync.Mutex
-
-// Capability is user-authored instruction content, not a permission grant or
-// executable tool. Selection is explicit per project, with no default injection.
-// Skills live in folders (skill_library.go): Loom's own, and linked ones.
-type Capability struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Instructions string `json:"instructions"`
-	Source       string `json:"source,omitempty"`       // "loom" or a linked folder id
-	SourceLabel  string `json:"source_label,omitempty"` // for display
-	Dir          string `json:"dir,omitempty"`          // the skill's folder
-	Files        int    `json:"files,omitempty"`        // other files next to SKILL.md
-	ReadOnly     bool   `json:"read_only,omitempty"`    // from a linked folder
-}
 
 func listCapabilities() []Capability {
 	migrateSkillsToFolders()

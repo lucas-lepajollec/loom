@@ -1,15 +1,15 @@
 package loom
 
 import (
-	"bytes"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"runtime"
-	"testing"
-	"time"
+"bytes"
+"encoding/json"
+"net/http"
+"net/http/httptest"
+"os"
+"path/filepath"
+"runtime"
+"testing"
+"time"
 )
 
 func writeMCPTestFile(t *testing.T, path, body string) {
@@ -120,21 +120,15 @@ func TestMCPFileRoundTripAndExternalEdit(t *testing.T) {
 		t.Fatal("unknown fields lost")
 	}
 	// Hold an inert session to verify external changes invalidate pooled sessions.
-	ready := make(chan struct{})
-	close(ready)
-	mcpMgr.mu.Lock()
-	mcpMgr.sessions["local"] = &mcpSession{ready: ready}
-	mcpMgr.mu.Unlock()
+	inert := MCPServerConfig{Command: "loom-binaire-inexistant-pour-test"}
+	session := mcpMgr.ensure("local", inert)
 	t.Cleanup(mcpCloseAll)
 	writeMCPTestFile(t, mcpFilePath(), `{"mcpServers":{"local":{"command":"changed","enabled":false}}}`)
 	cfg, err = LoadMCPConfig()
 	if err != nil || cfg["local"].Command != "changed" || len(cfg) != 1 {
 		t.Fatal("external edit not loaded", err)
 	}
-	mcpMgr.mu.Lock()
-	session := mcpMgr.sessions["local"]
-	mcpMgr.mu.Unlock()
-	if session != nil {
+	if mcpMgr.ensure("local", inert) == session {
 		t.Fatal("external edit retained stale session")
 	}
 }

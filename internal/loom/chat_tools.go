@@ -1,17 +1,17 @@
 package loom
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"os"
-	"os/exec"
-	"os/user"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
-	"time"
+"context"
+"errors"
+"fmt"
+"os"
+"os/exec"
+"os/user"
+"path/filepath"
+"runtime"
+"strconv"
+"strings"
+"time"
 )
 
 const (
@@ -292,13 +292,4 @@ func fileEdit(path, oldText, newText string) string {
 		return "[erreur] " + err.Error()
 	}
 	return fmt.Sprintf("[ok] %s modifié (1 remplacement)", path)
-}
-
-// tailRunes returns the last n runes of s (used to cap tool output).
-func tailRunes(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[len(r)-n:])
 }

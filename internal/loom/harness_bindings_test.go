@@ -58,16 +58,3 @@ func TestSkillTargetBindingExcludesOneFolder(t *testing.T) {
 		t.Fatal("skill missing in the other folder")
 	}
 }
-
-func TestAdoptedMCPNeverCopiesSecretsAndStartsDisabled(t *testing.T) {
-	cfg, err := adoptedMCP(HarnessMCP{Name: "gh", Command: "node", Args: []string{"s.js"}, EnvNames: []string{"GITHUB_TOKEN", "PATH"}})
-	if err != nil || cfg.Enabled || cfg.Env["GITHUB_TOKEN"] != "" || len(cfg.Env) != 1 || cfg.Command != "node" {
-		t.Fatalf("%+v %v", cfg, err)
-	}
-	if _, err := adoptedMCP(HarnessMCP{Name: "x"}); err == nil {
-		t.Fatal("incomplete definition adopted")
-	}
-	if c, _ := adoptedMCP(HarnessMCP{URL: "https://m"}); c.URL != "https://m" {
-		t.Fatal("http server")
-	}
-}

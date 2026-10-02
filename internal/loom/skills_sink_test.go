@@ -107,13 +107,3 @@ func TestSkillFoldersLinkedSourcesAndMigration(t *testing.T) {
 		t.Fatal("dossier de l'utilisateur remplacé")
 	}
 }
-
-func TestSkillFrontMatterParsing(t *testing.T) {
-	meta, body := parseSkillMarkdown("\uFEFF---\nname: x\ndescription: 'a: b'\nmetadata:\n  title: Titre\n  loom-id: 7\n---\n\nCorps\n")
-	if meta["name"] != "x" || meta["description"] != "a: b" || meta["metadata.title"] != "Titre" || meta["metadata.loom-id"] != "7" || body != "Corps" {
-		t.Fatalf("%v %q", meta, body)
-	}
-	if _, body := parseSkillMarkdown("Sans en-tête"); body != "Sans en-tête" {
-		t.Fatal(body)
-	}
-}

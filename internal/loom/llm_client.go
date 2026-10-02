@@ -1,110 +1,26 @@
 package loom
 
 import (
-	"bufio"
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net"
-	"net/http"
-	"sort"
-	"strconv"
-	"strings"
-	"syscall"
-	"time"
-	"unicode/utf8"
+"bufio"
+"bytes"
+"context"
+"encoding/json"
+"errors"
+"fmt"
+"io"
+"net"
+"net/http"
+"sort"
+"strconv"
+"strings"
+"syscall"
+"time"
+"unicode/utf8"
 )
-
-type Tool struct {
-	Type     string       `json:"type"`
-	Function ToolFunction `json:"function"`
-}
-type ToolFunction struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Parameters  any    `json:"parameters"`
-}
 
 // Tool definitions: OpenAI-shaped function schemas advertised to the model when
 // the agent mode is on. The memory tools (mem_*) let the model keep persistent
 // Markdown notes across sessions; bash is its real access to the machine.
-
-func memSearchTool() Tool {
-	return Tool{
-		Type: "function",
-		Function: ToolFunction{
-			Name:        "mem_search",
-			Description: "Search your memory for pages matching a query.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"query": map[string]any{"type": "string", "description": "Keywords"},
-					"limit": map[string]any{"type": "integer", "description": "Default 8, max 30"},
-				},
-				"required": []string{"query"},
-			},
-		},
-	}
-}
-
-func memReadTool() Tool {
-	return Tool{
-		Type: "function",
-		Function: ToolFunction{
-			Name:        "mem_read",
-			Description: "Read the content of a memory page.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"file":   map[string]any{"type": "string", "description": "Page name"},
-					"offset": map[string]any{"type": "integer", "description": "Start line (default 1)"},
-					"limit":  map[string]any{"type": "integer", "description": "Lines (max 500)"},
-				},
-				"required": []string{"file"},
-			},
-		},
-	}
-}
-
-func memAddTool() Tool {
-	return Tool{
-		Type: "function",
-		Function: ToolFunction{
-			Name:        "mem_add",
-			Description: "Create a new memory page.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"file":    map[string]any{"type": "string", "description": "Kebab-case page name"},
-					"content": map[string]any{"type": "string", "description": "Markdown, first line = title #"},
-				},
-				"required": []string{"file", "content"},
-			},
-		},
-	}
-}
-
-func memEditTool() Tool {
-	return Tool{
-		Type: "function",
-		Function: ToolFunction{
-			Name:        "mem_edit",
-			Description: "Replace an exact, unique snippet of text in a memory page.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"file": map[string]any{"type": "string", "description": "Page name"},
-					"old":  map[string]any{"type": "string", "description": "Exact text to replace (unique)"},
-					"new":  map[string]any{"type": "string", "description": "Replacement"},
-				},
-				"required": []string{"file", "old", "new"},
-			},
-		},
-	}
-}
 
 func seeImageTool() Tool {
 	return Tool{

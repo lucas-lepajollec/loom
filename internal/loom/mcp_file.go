@@ -1,12 +1,13 @@
 package loom
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-	"reflect"
-	"time"
+"encoding/json"
+"fmt"
+"os"
+"path/filepath"
+"reflect"
+
+"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
 
 const mcpFileMigrated = "mcp_file_migrated"
@@ -23,58 +24,6 @@ var mcpFileCache struct {
 }
 
 func mcpFilePath() string { return filepath.Join(LoomHome(), "mcp.json") }
-
-// Never echo JSON decoder errors: unknown field names may themselves be secrets.
-func mcpJSONError(err error) error {
-	if e, ok := err.(*json.SyntaxError); ok {
-		return fmt.Errorf("JSON MCP invalide (octet %d)", e.Offset)
-	}
-	return fmt.Errorf("configuration MCP invalide : objet ou types de champs incorrects")
-}
-
-func parseMCPFile(data []byte) (map[string]json.RawMessage, map[string]json.RawMessage, map[string]MCPServerConfig, error) {
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal(data, &top); err != nil {
-		return nil, nil, nil, mcpJSONError(err)
-	}
-	if top == nil {
-		return nil, nil, nil, fmt.Errorf("configuration MCP invalide : objet attendu")
-	}
-	raw, ok := top["mcpServers"]
-	if !ok {
-		return nil, nil, nil, fmt.Errorf("configuration MCP invalide : mcpServers manquant")
-	}
-	var entries map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &entries); err != nil {
-		return nil, nil, nil, mcpJSONError(err)
-	}
-	if entries == nil {
-		return nil, nil, nil, fmt.Errorf("configuration MCP invalide : mcpServers doit être un objet")
-	}
-	servers := map[string]MCPServerConfig{}
-	for name, entry := range entries {
-		var object map[string]json.RawMessage
-		if err := json.Unmarshal(entry, &object); err != nil {
-			return nil, nil, nil, mcpJSONError(err)
-		}
-		if object == nil {
-			return nil, nil, nil, fmt.Errorf("configuration MCP invalide : serveur doit être un objet")
-		}
-		var cfg MCPServerConfig
-		if err := json.Unmarshal(entry, &cfg); err != nil {
-			return nil, nil, nil, mcpJSONError(err)
-		}
-		if err := cfg.Validate(); err != nil {
-			return nil, nil, nil, err
-		}
-		servers[name] = cfg
-	}
-	return top, entries, servers, nil
-}
-
-func sameMCPFile(a, b os.FileInfo) bool {
-	return a != nil && b != nil && a.ModTime().Equal(b.ModTime()) && a.Size() == b.Size() && os.SameFile(a, b)
-}
 
 func loadMCPConfigLocked() (map[string]MCPServerConfig, error) {
 	path := mcpFilePath()
@@ -171,39 +120,7 @@ func saveMCPConfigLocked(servers map[string]MCPServerConfig) error {
 	if checkRevision && !sameMCPFile(before, mcpFileCache.info) {
 		return fmt.Errorf("le fichier MCP a changé pendant la modification ; réessayez")
 	}
-	top := map[string]json.RawMessage{}
-	for k, v := range mcpFileCache.top {
-		top[k] = v
-	}
-	entries := map[string]json.RawMessage{}
-	for name, cfg := range servers {
-		fields := map[string]json.RawMessage{}
-		if old := mcpFileCache.entries[name]; old != nil {
-			_ = json.Unmarshal(old, &fields)
-		}
-		for _, k := range []string{"command", "args", "env", "url", "headers", "enabled", "disabledTools", "type"} {
-			delete(fields, k)
-		}
-		data, err := json.Marshal(cfg)
-		if err != nil {
-			return err
-		}
-		var known map[string]json.RawMessage
-		_ = json.Unmarshal(data, &known)
-		for k, v := range known {
-			fields[k] = v
-		}
-		entries[name], err = json.Marshal(fields)
-		if err != nil {
-			return err
-		}
-	}
-	data, err := json.Marshal(entries)
-	if err != nil {
-		return err
-	}
-	top["mcpServers"] = data
-	data, err = json.MarshalIndent(top, "", "  ")
+	data, err := resources.EncodeMCPFile(mcpFileCache.top, mcpFileCache.entries, servers)
 	if err != nil {
 		return err
 	}
@@ -217,13 +134,6 @@ func saveMCPConfigLocked(servers map[string]MCPServerConfig) error {
 	mcpFileCache.info, _ = os.Stat(path)
 	mcpFileCache.err = nil
 	return nil
-}
-
-// MCPFileStatus contains metadata only, never configuration secrets.
-type MCPFileStatus struct {
-	Path  string     `json:"path"`
-	Error string     `json:"error,omitempty"`
-	Mtime *time.Time `json:"mtime"`
 }
 
 func mcpFileStatus() MCPFileStatus {
