@@ -12,7 +12,7 @@ import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
 import { MachinesSettings } from './machines.js';
 
-const SECTIONS = [['general', 'Général', 'gear'], ['machines', 'Machines', 'server'], ['engine', 'Moteur llama.cpp', 'chip'], ['internet', 'Internet', 'globe'], ['security', 'Sécurité et données', 'lock'], ['about', 'À propos', 'info']];
+const SECTIONS = [['general', 'Général', 'gear'], ['machines', 'Machines', 'server'], ['engine', 'Moteurs', 'chip'], ['internet', 'Internet', 'globe'], ['security', 'Sécurité et données', 'lock'], ['about', 'À propos', 'info']];
 
 
 function usePref() {
@@ -142,6 +142,41 @@ function EngineAuto() {
     ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="Mise à jour automatique du moteur" onChange=${toggle} /></${Line}>`;
 }
 
+// vLLM : second moteur, installé par Loom dans son propre environnement Python
+// et lancé ici ; Loom l'utilise alors comme moteur (lien direct local).
+function VLLMEngine() {
+  const [x, setX] = useState(null);
+  const [f, setF] = useState({ model: '', util: '0.85', len: '' });
+  const [logOpen, setLogOpen] = useState(false);
+  const load = () => get('/api/engines/vllm').then(setX).catch(() => setX(null));
+  useEffect(() => { load(); }, []);
+  useEffect(() => { if (!x || !x.job) return; const t = setInterval(load, 2500); return () => clearInterval(t); }, [x && x.job]);
+  const act = async body => {
+    const r = await post('/api/engines/vllm', body);
+    if (!r.ok) return toast(r.error || 'Action impossible', 'err');
+    setLogOpen(true); load();
+  };
+  const start = () => act({ action: 'start', model: f.model.trim(), gpu_memory_utilization: Number(f.util) || 0, max_model_len: Number(f.len) || 0 });
+  useEffect(() => { if (x && !x.job && x.running) { refreshEngineNode(); refreshStatus(); } }, [x && x.running, x && x.job]);
+  if (!x) return null;
+  return html`<${Group} title="vLLM">
+    <${Line} label="État" tip="vLLM sert des modèles Hugging Face (pas les GGUF) avec beaucoup de requêtes en parallèle. Loom l’installe dans son propre environnement Python et peut le lancer ici ; il reste utilisable sans Loom.">
+      ${x.job === 'install' ? html`<span class="state"><span class="spinner"></span>Installation… (plusieurs minutes)</span>`
+        : x.job === 'start' ? html`<span class="state"><span class="spinner"></span>Chargement de ${f.model || x.model}…</span>`
+        : x.running ? html`<span class="state"><i class="dot green"></i>sert <b class="mono">${x.model}</b></span><button class="btn sm ghost" onClick=${() => act({ action: 'stop' })}>Arrêter</button>`
+        : x.installed ? html`<span class="state">installé · arrêté</span>`
+        : x.missing ? html`<span class="state err">${x.missing}</span>`
+        : html`<span class="state">non installé</span><button class="btn sm" onClick=${async () => { if (await confirm('Installer vLLM', 'Loom crée un environnement Python dans ' + x.dir + ' et y installe vLLM (plusieurs Go, quelques minutes). Rien n’est installé ailleurs sur la machine.', { ok: 'Installer' })) act({ action: 'install' }); }}>Installer vLLM</button>`}</${Line}>
+    ${x.error && html`<${Line} label="Dernière erreur"><span class="state err">${x.error}</span></${Line}>`}
+    ${x.installed && !x.running && !x.job && html`<div class="eng-link">
+      <label class="field"><span>Modèle Hugging Face</span><input class="input mono" placeholder="ex. Qwen/Qwen3-8B" value=${f.model} onInput=${e => setF({ ...f, model: e.target.value })} /><small>Téléchargé par vLLM au premier lancement.</small></label>
+      <div class="mx-fields"><label class="field"><span>Mémoire GPU utilisée</span><input class="input mono" value=${f.util} onInput=${e => setF({ ...f, util: e.target.value })} /><small>Part de la VRAM (0.5 à 0.95).</small></label>
+        <label class="field"><span>Contexte max</span><input class="input mono" placeholder="auto" value=${f.len} onInput=${e => setF({ ...f, len: e.target.value.replace(/\D/g, '') })} /></label></div>
+      <div class="form-foot"><span class="grow"></span><button class="btn primary" disabled=${!f.model.trim()} onClick=${start}>Lancer avec vLLM</button></div></div>`}
+    ${x.log && html`<details class="lc-log" open=${logOpen || !!x.job}><summary>Journal vLLM</summary><pre>${x.log.split('\n').slice(-80).join('\n')}</pre></details>`}
+  </${Group}>`;
+}
+
 const KIND_LABEL = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', openai: 'serveur compatible OpenAI' };
 
 // Lier un serveur d'inférence par son adresse (llama.cpp, vLLM…) : rien de
@@ -196,6 +231,7 @@ function EngineLocation() {
 }
 
 function Engine() {
+  const node = useStore(app, a => a.engineNode);
   const [lc, setLc] = useState(null);
   const load = async () => { setLc(await get('/api/llamacpp')); };
   useEffect(() => { load(); }, []);
@@ -204,7 +240,8 @@ function Engine() {
   if (!lc) return html`<div class="skeleton" style="height:220px"></div>`;
   return html`
     <${EngineLocation} />
-    <${Group} title="Moteur actuel">
+    <${VLLMEngine} />
+    <${Group} title=${node ? 'llama.cpp de cette machine' : 'Moteur actuel'}>
       <${Line} label="llama.cpp"><span class="mono">${lc.commit || lc.prebuilt && lc.prebuilt.tag || '—'}</span>${lc.behind > 0 && html`<span class="tag amber">${lc.behind} commits de retard</span>`}</${Line}>
       <${Line} label="Accélération"><span class="tag blue">${(lc.plan && lc.plan.backend || '—').toUpperCase()}</span></${Line}>
       <${GpuDevices} bin=${lc.config_bin || lc.bin || ''} />

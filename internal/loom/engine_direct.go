@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"os"
 	"context"
 	"encoding/json"
 	"errors"
@@ -158,12 +159,12 @@ func engineRequestModel() string {
 // serveDirectEngineRoute answers Loom's engine routes for a directly linked
 // server: state and models are read from it, management actions are refused
 // with an explanation.
-func serveDirectEngineRoute(w http.ResponseWriter, r *http.Request, n *engineNode) {
+func serveDirectEngineRoute(w http.ResponseWriter, r *http.Request, n *engineNode, local http.HandlerFunc) {
 	switch r.URL.Path {
 	case "/api/status":
 		healthy := directEngineHealthy(n)
 		sendJSON(w, 200, map[string]any{"active": healthy, "health": healthy, "state": map[bool]string{true: "active", false: "inactive"}[healthy],
-			"model": n.Model, "model_name": path.Base(n.Model), "ctx": n.Ctx, "ctx_native": n.Ctx, "ctx_effective": nil, "hostname": n.Hostname,
+			"model": n.Model, "model_name": path.Base(n.Model), "ctx": n.Ctx, "ctx_native": n.Ctx, "ctx_effective": nil, "hostname": directHostname(n),
 			"port": 0, "version": Version, "boot": procBoot, "preset_id": "", "preset_name": "", "load_error": "", "warn": "",
 			"engine_direct": true, "engine_kind": n.Kind, "engine_url": n.V1})
 	case "/api/models":
@@ -177,10 +178,6 @@ func serveDirectEngineRoute(w http.ResponseWriter, r *http.Request, n *engineNod
 			}
 		}
 		sendJSON(w, 200, list)
-	case "/api/presets":
-		sendJSON(w, 200, []any{})
-	case "/api/vram", "/api/ram":
-		sendJSON(w, 200, []any{})
 	case "/api/load-model", "/api/switch":
 		var req struct {
 			Model string `json:"model"`
@@ -208,10 +205,18 @@ func serveDirectEngineRoute(w http.ResponseWriter, r *http.Request, n *engineNod
 		}
 		sendJSON(w, 200, map[string]any{"ok": true, "model": req.Model})
 	default:
-		if r.Method == http.MethodGet {
-			sendJSON(w, 200, map[string]any{"ok": false, "engine_direct": true, "error": "moteur lié directement : ce réglage se fait sur sa machine"})
-			return
-		}
-		sendJSON(w, 409, map[string]any{"ok": false, "error": "moteur lié directement (" + n.Kind + " sur " + n.Hostname + ") : ce réglage se fait sur sa machine"})
+		// Everything else is about this machine (its llama.cpp, model files,
+		// presets, GPU): handled here as usual.
+		local(w, r)
 	}
+}
+
+// directHostname names the engine's machine; a server on this machine is
+// shown with this machine's name.
+func directHostname(n *engineNode) string {
+	if n.Hostname == "127.0.0.1" || n.Hostname == "localhost" || n.Hostname == "::1" {
+		h, _ := os.Hostname()
+		return h
+	}
+	return n.Hostname
 }

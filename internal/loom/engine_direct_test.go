@@ -66,10 +66,11 @@ func TestDirectEngineVLLMAndLlamaCpp(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"health":true`) || !strings.Contains(rec.Body.String(), `"model_name":"b.gguf"`) {
 		t.Fatal(rec.Body.String())
 	}
-	rec = httptest.NewRecorder()
-	nodeAware("/api/models/delete", func(http.ResponseWriter, *http.Request) { t.Fatal("local") })(rec, httptest.NewRequest("POST", "/api/models/delete", nil))
-	if rec.Code != 409 {
-		t.Fatalf("gestion acceptée: %d", rec.Code)
+	// This machine's own engine management keeps working.
+	called := false
+	nodeAware("/api/llamacpp", func(http.ResponseWriter, *http.Request) { called = true })(httptest.NewRecorder(), httptest.NewRequest("GET", "/api/llamacpp", nil))
+	if !called {
+		t.Fatal("la gestion de llama.cpp de cette machine doit rester locale")
 	}
 	rec = httptest.NewRecorder()
 	nodeAware("/api/load-model", nil)(rec, httptest.NewRequest("POST", "/api/load-model", strings.NewReader(`{"model":"a.gguf"}`)))

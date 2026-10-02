@@ -246,6 +246,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/network/web", handleWebNetwork)
 	api("/api/engine/node", handleEngineNode)
 	api("/api/engine/auto-update", handleEngineAuto)
+	api("/api/engines/vllm", handleVLLM)
 	api("/api/terminals", handleTerminals)
 	api("/api/terminals/close", handleTerminalClose)
 	api("/api/terminals/ticket", handleTerminalTicket)

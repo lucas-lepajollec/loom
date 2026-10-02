@@ -313,7 +313,7 @@ func nodeAware(path string, local http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if n.Direct {
-			serveDirectEngineRoute(w, r, n)
+			serveDirectEngineRoute(w, r, n, local)
 			return
 		}
 		target, err := url.Parse(n.URL)
@@ -346,7 +346,7 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if n.Direct {
-			sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "direct": true, "kind": n.Kind, "url": n.V1, "hostname": n.Hostname,
+			sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "direct": true, "kind": n.Kind, "url": n.V1, "hostname": directHostname(n),
 				"model": n.Model, "ctx": n.Ctx, "reachable": directEngineHealthy(n)})
 			return
 		}
