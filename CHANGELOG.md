@@ -6,6 +6,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Brain V1 backend: stored context/personal/repository sources, read-only conversation/memory providers, incremental local BM25 indexing with heading chunks and accent folding, budgeted cited context packs, authenticated `/api/brain/*` endpoints and read-only Streamable HTTP MCP tools at `/mcp/brain`. Personal access requires explicit source IDs plus opt-in; built-in private text is never persisted in the derived cache. No UI or automatic discussion integration in this slice. See `docs/brain.md`.
+
 - Editable `LOOM_HOME/mcp.json` MCP definitions with one-time database migration, retained recovery backup, atomic mode-0600 writes, preservation of unknown fields, editor reload and last-good recovery for invalid files. Authenticated MCP file/source APIs link Claude Code, Cursor, standard MCP and VS Code configurations read-only, suggest existing paths and adopt servers disabled with explicit opt-in for environment values. Existing MCP endpoints remain available.
 
 - Data-driven harness install/check/update API for local and saved SSH targets, Windows npm execution without a local shell, refreshed machine offers/ACP probes, exclusive actions with bounded logs, and opt-in six-hour idle auto-updates with persisted results. Native Windows SSH probes and commands are supported; CGO-free macOS builds retain CLI/web access without the menu-bar icon; Pi's requested npm package remains marked unverified and Antigravity updates remain manual.

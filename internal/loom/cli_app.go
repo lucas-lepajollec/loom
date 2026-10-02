@@ -9,6 +9,7 @@ package loom
 // (« Ouvrir Loom » / « Quitter »).
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -40,7 +41,9 @@ func cmdApp(args []string) error {
 		return openBrowser(url)
 	}
 
-	mux := newWebMux()
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	mux := newWebMux(ctx)
 	go func() { _ = http.Serve(ln, mux) }()
 
 	sp := showSplash("Lancement de Loom en cours…")

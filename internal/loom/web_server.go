@@ -51,7 +51,7 @@ func cmdWeb(args []string) error {
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	defer stopLifecycle()
 	go harnessLifecycle.autoLoop(lifecycleCtx)
-	mux := newWebMux()
+	mux := newWebMux(lifecycleCtx)
 	fmt.Printf("[loom web] http://%s  (Ctrl-C pour arrêter)\n", addr)
 	if !webKeyConfigured() {
 		fmt.Printf("%s API de pilotage NON protégée (aucune clé). Avant de l'exposer sur internet :\n", yellow("[!]"))
@@ -73,7 +73,7 @@ func cmdWeb(args []string) error {
 // repasser par un écouteur TCP local.
 var convLoadOnce sync.Once
 
-func newWebMux() *http.ServeMux {
+func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	// Charge l'état de conversation persisté (une fois par process : loom web ET
 	// loom link serve appellent newWebMux).
 	convLoadOnce.Do(LoadConversation)
@@ -99,6 +99,11 @@ func newWebMux() *http.ServeMux {
 	// convertit une ancienne valeur en clair une fois pour toutes.
 	migrateWebKeyToHash()
 	mux := http.NewServeMux()
+	var brainCtx context.Context
+	if len(lifecycle) > 0 {
+		brainCtx = lifecycle[0]
+	}
+	registerBrainRoutes(mux, brainCtx)
 	// Pages publiques : le HTML et le JS ne contiennent aucun secret. Toute la
 	// donnée et toutes les actions passent par /api/* qui, lui, exige la clé.
 	mux.HandleFunc("/", handleIndex)
