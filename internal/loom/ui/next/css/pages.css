@@ -515,7 +515,7 @@
 .env-node small{font-size:12px}
 
 /* guide de premier lancement */
-.welcome{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;text-align:left;padding:24px 16px;background:var(--bg);overflow-y:auto}
+.onboard{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;text-align:left;padding:24px 16px;background:var(--bg);overflow-y:auto}
 .wl-card{width:100%;max-width:620px;margin:auto 0;display:flex;flex-direction:column;gap:22px}
 .wl-steps{display:flex;gap:6px}
 .wl-steps i{flex:1;height:3px;border-radius:3px;background:var(--surface-3);transition:background-color var(--mid)}
@@ -551,7 +551,7 @@
 .wl-acts{display:flex;gap:8px;flex-wrap:wrap}
 .wl-foot{display:flex;align-items:center;gap:8px;padding-top:6px}
 .wl-foot.center{justify-content:center}
-@media (max-width:600px){.welcome{align-items:flex-start}.wl-body h1{font-size:25px}}
+@media (max-width:600px){.onboard{align-items:flex-start}.wl-body h1{font-size:25px}}
 
 /* vLLM */
 .vl-lib{display:flex;flex-direction:column;gap:10px;padding:14px 0 4px}

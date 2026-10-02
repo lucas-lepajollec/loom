@@ -240,7 +240,7 @@ export function Welcome() {
     return Math.min(n, STEPS.length - 1);
   });
   const back = () => setStep(s => { let n = s - 1; if (STEPS[n] === 'model' && choice !== 'llama') n--; return Math.max(0, n); });
-  return html`<div class="welcome" role="dialog" aria-modal="true" aria-label=${t('welcome.hello.title')}>
+  return html`<div class="onboard" role="dialog" aria-modal="true" aria-label=${t('welcome.hello.title')}>
     <div class="wl-card anim-rise" key=${name}>
       ${step > 0 && step < STEPS.length - 1 && html`<div class="wl-steps" aria-hidden="true">${STEPS.slice(1, -1).map((s, i) => html`<i class=${cls(i + 1 < step && 'past', i + 1 === step && 'now')}></i>`)}</div>`}
       ${!m && step > 0 ? html`<div class="skeleton" style="height:240px"></div>`
