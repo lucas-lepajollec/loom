@@ -4,110 +4,57 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+These notes describe development work. A version in source is not a published release; move the notes into a versioned section when that release ships.
+
 ### Added
 
-- Usage page: cloud provider balances and key limits (OpenRouter, DeepSeek, Moonshot/Kimi, SiliconFlow), with the providers that expose none listed as such.
-- "Resume in a terminal" for harness discussions: opens the harness CLI on the same native session, in its working folder, on the machine that runs it.
-- Read-only cloud balances API for connected OpenRouter, DeepSeek, Moonshot/Kimi and SiliconFlow providers, with control-key/vault protection, concurrent ten-second reads, five-minute session caching, nullable amounts and sanitized per-provider errors. Unsupported providers expose no balance capability; OpenRouter key limits survive account-credits access refusal. No UI changes. See `docs/usage.md`.
+- Shared discussions across local models, cloud providers and coding harnesses, with explicit context-sharing consent, per-response provenance, cancellation and non-destructive archive import. Local discussions retain the original Conversation pipeline, attachments, tools, reasoning, presets and compaction.
+- Projects linking local or connected-machine folders, with shared instructions, selected context files, skills, MCP selections, default execution choices and opt-in Brain retrieval within a token budget. Discussion titles, project associations and additional instructions can be edited without rewriting history; a prepared-text preview includes the draft.
+- Generic ACP v1 execution for Codex, Claude Code, Pi, Gemini and OpenCode, plus custom/SSH launchers including Hermes. Native tools, diffs, plans, settings, working roots, permission requests and reported usage appear in the shared journal. A deterministic development agent exercises these events without model calls.
+- Antigravity through Loom's ACP bridge to its native CLI, with native models, access modes, tool observations, sessions and reported usage. Native authentication remains with the CLI; Loom supplies no provider keys or MCP servers. Codex app-server is retained for quota reads only.
+- Native harness-session import and supported resumption, including **Resume in a terminal** on the harness's machine and in its working folder. Protocol-compatible Native / Loom model sources use launch configuration/environment; Pi's opt-in provider file uses environment references.
+- Harness inspection and install/check/update controls for local and saved SSH machines, with bounded logs, refreshed offers/probes and opt-in idle automatic updates. Windows npm launchers and OpenSSH targets are supported. Unknown upstream versions remain unknown; Pi's installer package remains marked unverified and Antigravity updates are manual.
+- Manifest-driven, opt-in distribution of owned `loom-*` skills, read-only linked skill folders and per-harness resource selections. Editable `LOOM_HOME/mcp.json` preserves extension fields, reloads editor changes and retains the last good configuration after invalid edits. Linked MCP sources can be adopted disabled, with explicit opt-in for environment values.
+- Brain BM25 search over local sources, discussions and memory pages, incremental indexing, cited context packs, authenticated HTTP APIs and read-only Streamable HTTP MCP tools at `/mcp/brain`. Personal sources require explicit IDs and opt-in. See [Brain](docs/brain.md).
+- Optional Brain semantic search using downloaded CPU GGUF embeddings, resumable vector checkpoints and hybrid ranking, or connected cloud embeddings with stored consent. On-request distillation stores individually deletable decisions, facts, todos and preferences with discussion/message provenance. Resources › Brain exposes source/search, indexing and distillation controls.
+- Environment page and protected APIs for declared services, HTTP/TCP reachability matrices, opt-in local/SSH Docker observation and read-only Proxmox resources. Proxmox tokens use the OS keychain; certificate pinning requires explicit confirmation.
+- Local and SSH terminals that replay recent output while Loom runs. Linux/macOS use PTY; Windows 10 1809+ uses native ConPTY with resizing, Unicode arguments/environment and owned process-tree cleanup. Connected Windows OpenSSH machines use interactive PowerShell. See [terminals](docs/terminals.md).
+- vLLM installation in a Loom-managed Python environment on supported Linux NVIDIA CUDA / AMD ROCm hardware, with validated per-model parameters, Hugging Face safetensors library/search, advisory VRAM sizing, resumable downloads and idle upgrades. Settings › Engines exposes library, model settings, version, update and auto-update controls. See [engines](docs/engines.md).
+- Direct links to running llama-server, vLLM or OpenAI-compatible servers, and remote management of another Loom's engine. llama.cpp installation, compilation, binary updates and opt-in idle automatic updates remain available.
+- Usage page with retained Loom token counts, manual-price estimates, native harness activity over 7 or 30 days, and explicitly refreshed Codex/Claude Code/Antigravity/Hermes subscription quotas. Unknown metrics stay unknown and refresh never redeems resets. See [native usage](docs/harness-usage.md).
+- Read-only cloud provider balances and key limits for connected OpenRouter, DeepSeek, Moonshot/Kimi and SiliconFlow accounts, displayed in Usage. Protected readers use bounded concurrent requests, five-minute session caching and sanitized errors; unsupported providers expose no balance capability. See [provider balances](docs/usage.md).
+- Bench tests for local and cloud models, including local prefill/decode throughput, streamed cloud timing, reported token rates and cancellation. Cloud benchmarks require sharing consent.
+- First-run guide for language, hardware, engine setup, a first llama.cpp model sized to the machine, harnesses, providers and machines; reopen it in Settings › About. English is the default UI language, with French available and saved through browser/shared preferences.
+- PWA manifest, brand icons, contextual installation guidance and a public offline fallback. Conversations, credentials and API traffic are never cached; offline messages are not queued.
+- Settings for vault locking/unlocking, decryption, recovery keys, additional key wraps, memory snapshots, opt-in Web Push and native GPU device selection. Optional OS keychain storage restores remembered cloud provider keys when available.
+- OpenAI-compatible `/v1/models` and `/v1/chat/completions` server with native slots, live observations and request history; local GGUF library, Hugging Face downloads, saved presets and Essential/Advanced/Expert parameter controls with VRAM estimates.
 
-- vLLM in Settings › Engines: Hugging Face model library (search with VRAM estimate, download with progress and cancel, start, delete), settings saved per model, version, update and auto-update. MLX/GGUF/bitsandbytes repositories are left out of vLLM search.
-- First-run guide: language, detected hardware, engine (install llama.cpp or vLLM, link an engine by address, or none), a first model sized to the machine, then harnesses, cloud providers and machines. Shown once on a fresh install; Settings › About reopens it.
-- Usage page: native usage of every harness (sessions, tokens, cache, models, reported cost) over 7 or 30 days, "Read all" for subscription quotas, machine labels for harnesses on connected machines.
-- Brain UI for advanced memory: search by meaning (local model download with progress, index computation, cloud provider with consent) and distilled memory (distill one conversation or since a date, filter by kind, open the source, forget an item). Distilled items are written in the conversation's language; the embedding download no longer blocks the state endpoint.
-- Windows terminals through native ConPTY (Windows 10 1809+), with PowerShell shell selection, Unicode environment/arguments, resizing and owned process-tree cleanup. Connected Windows OpenSSH machines open interactive PowerShell in the chosen folder; Linux/macOS terminal behavior is preserved.
-- vLLM backend: shared ParamSpec controls and validated per-model saved settings, Hugging Face safetensors cache library/search with advisory GPU sizing, pinned resumable prefetch/progress/cancel/delete, installed version, manual upgrades and opt-in idle auto-updates. Local serving requires Linux with supported NVIDIA CUDA or AMD ROCm hardware; no UI changes. See `docs/engines.md`.
+### Changed
 
-- Read-only Claude Code and Hermes subscription quotas (including Hermes over saved-machine SSH), with fractional remaining limits and raw notes for unknown formats. Control-key protected native usage APIs observe Claude Code/Codex/Pi journals and OpenCode/Hermes CLI statistics inside and outside Loom over 7 or 30 days, with concurrent reads, five-minute caching, bounded scans and per-harness errors. No UI changes; local Hermes chat remains unavailable.
-- Optional Brain semantic indexing with explicitly downloaded CPU GGUF embeddings, a separately owned idle-stopped llama-server, resumable float32 vector checkpoints and BM25/cosine reciprocal rank fusion for HTTP/MCP search and packs. Connected cloud embedding sources require saved consent. Explicit discussion distillation adds searchable, individually deletable durable items with validated provenance. Control-key protected semantic/distillation APIs share Brain vault and personal-source access rules; no automatic generation or UI changes.
-
-- Complete English and French web interface with an immediate language selector in Settings › General › Appearance, browser-language defaults, localStorage and shared `lang` preferences. Existing French copy and styles are preserved. Translation tests cover dictionary completeness, interpolation/plurals, remaining French template copy and language persistence.
-
-- Brain V1 backend: stored context/personal/repository sources, read-only conversation/memory providers, incremental local BM25 indexing with heading chunks and accent folding, budgeted cited context packs, authenticated `/api/brain/*` endpoints and read-only Streamable HTTP MCP tools at `/mcp/brain`. Personal access requires explicit source IDs plus opt-in; built-in private text is never persisted in the derived cache. No UI or automatic discussion integration in this slice. See `docs/brain.md`.
-- Control-key protected Environment APIs for declared services, opt-in local/SSH Docker observation, Proxmox resources with OS-keychain-only tokens and confirmed SHA-256 TLS certificate pins, and HTTP/TCP reachability matrices bounded to eight concurrent checks and twenty seconds. No Environment UI or background discovery.
-
-- Editable `LOOM_HOME/mcp.json` MCP definitions with one-time database migration, retained recovery backup, atomic mode-0600 writes, preservation of unknown fields, editor reload and last-good recovery for invalid files. Authenticated MCP file/source APIs link Claude Code, Cursor, standard MCP and VS Code configurations read-only, suggest existing paths and adopt servers disabled with explicit opt-in for environment values. Existing MCP endpoints remain available.
-
-- Data-driven harness install/check/update API for local and saved SSH targets, Windows npm execution without a local shell, refreshed machine offers/ACP probes, exclusive actions with bounded logs, and opt-in six-hour idle auto-updates with persisted results. Native Windows SSH probes and commands are supported; CGO-free macOS builds retain CLI/web access without the menu-bar icon; Pi's requested npm package remains marked unverified and Antigravity updates remain manual.
-
-- The previous interface (`/classic`, `ui/src`, `tools/assemble-ui`) is removed; `make check-ui` replaces the assembled-UI check in CI.
-- Generic ACP v1 harness execution for Codex, Claude Code, Pi and Gemini through an embedded pinned agent registry; explicit working roots, native session lifecycle, confined filesystem writes/diffs, per-discussion permission policies and approvals, enabled MCP definitions, persisted discussion events and a token-free development/test agent. Codex app-server remains quota-only. Frontend changes store the new events/state without adding rendering or CSS; skills sinks are deferred.
-
-- New Settings controls for vault unlock/lock/decryption, one-time recovery keys and an additional key wrap, local snapshot listing/restoration, secure-context Web Push, and active-model GPU selection using native `--device` identifiers. Local preset ordering uses up/down buttons and the complete catalog even when filtered. Existing components/styles are reused; snapshot sizes remain unknown because the current API does not report them.
-
-- Bench queue supports cloud model choices with explicit consent, streamed TTFT/reported token throughput and request cancellation, preserving local benchmarks.
-
-- Unified discussion SSE events and one chat reducer for local, cloud and harness turns; replay/reconnection replaces polling without resubmitting generation. Legacy endpoints, provenance, reported usage and cancellation remain available.
-
-- Contextual selection drawers on Local models/presets, Cloud models and Harnesses/model names, reusing existing styles with keyboard/focus support. Inspection does not load/connect/select an executor. Filtered presets retain the correct load index.
-- Bare-model `--fit on` on supported llama.cpp builds, leaving CTX/NGL unset while preserving explicit settings and older-engine fallback. Nullable `ctx_effective` reports native router context per slot without auto-loading or persisting fitted values. Untouched drafts no longer freeze a VRAM estimate or create remembered settings on load.
-
-- In-package `Engine` wrapper over the existing llama.cpp lifecycle, router, argument builder and VRAM estimator; authenticated read-only `GET /api/engine/params` merges curated JSON controls with installed native help. Essential/Advanced/Expert reuse the same UI components and design; generic Advanced additions require only a catalogue entry and rebuild.
-
-- Ordered runtime registry with descriptor-driven harness and quota pages, optional native connection/quota actions, and authenticated generic `POST /api/runtimes/{id}/connect|quota` endpoints. Existing routes remain aliases; planned runtimes stay capability-less and native quota reads retain explicit consent/action, caching and throttling.
-
-- New interface, rebuilt from scratch on the approved design: one discussion view with an execution picker (Local · Cloud · Harness), a contextual right panel (llama.cpp parameters with live VRAM estimate and Essential/Advanced/Expert tiers, cloud model, harness session, shared context), and dedicated Local (library, Hub, engine & API, bench), Cloud, Harnesses, Ressources, Usage, project and Settings pages. Dark by default, embedded fonts, native ES modules without a build step. Pre-load tuning provides an advisory VRAM estimate; native fitting resolves unset memory settings at load time.
+- One native ES-module UI with vendored Preact + htm and embedded fonts, directly included in the Go binary. The classic interface, `/classic` and the UI assembler are removed; `make check-ui` validates modules and regression tests.
+- Common execution selector and contextual side panel, responsive dialogs/touch controls, preset ordering and contextual model drawers. Merely inspecting a model does not load it, connect a runtime or change the executor. Motion respects `prefers-reduced-motion`.
+- Unified discussion SSE vocabulary, replay and one chat reducer for local/cloud/harness turns. Reconnection does not resubmit generation. Revision-checked sends/context edits and combined input bounds reject stale or oversized requests without silent truncation.
+- llama.cpp router mode starts the engine once, then loads models through its API. Request-time load parameters create ephemeral variants without changing saved settings. Older engines or explicit single mode retain the legacy process-replacement path.
+- Bare models use native `--fit on` when supported, leaving context/GPU layers unset unless explicitly configured. Nullable observed context per slot never loads a model or persists an advisory estimate.
+- Ordered runtime registry with descriptor-driven capabilities and optional connect/quota dispatch; generic protected routes retain legacy aliases. Unsupported descriptors do not claim execution.
+- Leaf packages extracted for store, platform, llama.cpp helpers, runtime protocols, discussions, tools, resources and generic web plumbing. Application state, lifecycle policy and domain handlers remain in Loom.
+- Public README, contributor and architecture guidance updated for current workflows, English copy and new screenshot paths; private deployment references and obsolete screenshots removed.
 
 ### Security
 
-- Markdown produced by models is rendered with raw HTML escaped and unsafe link schemes neutralized in the new interface.
-
-- Interface restructure: sidebar Local · Cloud · Harnesses · Ressources · Usage with projects, recents and a live engine card; Local groups Library, Hub, Engine & API and Bench as tabs; Ressources groups skills and MCP servers; Usage is a full page. The model picker becomes an execution selector with Local/Cloud/Harness tabs and search; the right panel gains Parameters/Context tabs.
-- New visual system: dark theme by default, embedded Geist and Geist Mono fonts (OFL, no font CDN), warm neutral surfaces, functional-only colour, and motion for pages, popovers, dialogs, toasts, tabs and new messages that respects `prefers-reduced-motion`.
-
-- llama.cpp router mode: when the engine supports `--models-preset`, Loom starts `llama-server` once without a model and loads, switches and unloads models through its API instead of restarting the process. Each resolved configuration becomes a generated INI section; concurrent `/v1` requests reach native slots directly. `ENGINE_MODE=single` or an older engine keeps the previous one-process-per-model mode.
-- Load-time parameters sent by an API client (`num_ctx`, `parallel`, KV cache types…) now create an ephemeral router variant beside the user's configuration instead of restarting the engine with a global overlay.
-
-- Grouped Antigravity reasoning variants, an adjacent composer effort selector, collapsible harness model management and persistent per-response runtime/model/token/duration attribution across native replay.
-- Reported Antigravity thinking-token counts, end-to-end average throughput and bounded native tool success/failure/write-target metadata; local response footers explicitly distinguish no API charge from hardware/electricity cost.
-
-- Experimental Antigravity `agy` text bridge: explicit native catalog connection, same-discussion context handoff, streamed text, per-turn usage/session provenance and cancellation. No private-memory migration, provider key export or interactive tool approval bridge.
-- Composer usage sheet with read-only native Antigravity/Codex quotas, reset dates and available reset credits when reported; retained Loom token totals and explicitly indicative, manual-price cloud cost estimates.
-- Harmonized workspace pages using Loom's native visual language, responsive dialogs/touch targets and landscape/safe-area handling without replacing the original chat or local parameter editor.
-- Explicit cloud connection presets, bounded `/models` catalog discovery and selective model registration; optional streamed usage requests for compatible providers.
-- PWA manifest/brand icons, contextual installation guidance and a public-only offline fallback; no cached conversations, credentials or background sends.
-- Editable discussion titles, project association and discussion-specific instructions; a local-only prepared-text preview including the draft, with no model call or draft persistence.
-- Revision-checked discussion edits and sends, prompt provenance and combined context limits that reject oversized inputs without silent truncation.
-- Conversation-first navigation: Discussions, Models, Harnesses, Projects, Skills, Connections, Services and Settings; a shared model selector and Model/Context side panel.
-- Persistent project instructions, optional working-directory references and explicitly selected reusable skills; context is injected into the next local chat turn without rewriting history.
-- Persistent common text discussions with explicit local/cloud switching, per-turn model attribution, cancellation and idempotent send requests; non-destructive text import of existing archives.
-- Thin llama.cpp and Chat Completions-compatible adapters, multi-model providers, in-memory-only cloud credentials and model selector visibility controls.
-- Persistent harness/model configurations; adapters other than the experimental Antigravity text bridge remain non-executable.
-- Protected workspace/context/capability APIs with bounded JSON requests and validation.
-- Support for local `.env.local` dynamic dev configuration.
-- Real-time task activity & background job indicator in UI.
-- Initial private-development version of Loom as a workstation control plane and test bench for llama.cpp.
-- Single-process ownership model for external `llama-server`.
-- OpenAI-compatible `/v1` proxy with dynamic model loading, slot-level continuous batching, and real-time token throughput metrics.
-- Server dashboard with live slots inspection, active/pending request queue, and configurable request history limit.
-- Model library with local GGUF catalog, three-tier parameter editing (Essentials, Advanced, Expert), and direct Hugging Face Hub integration.
-- Hardware test bench for automated prompt testing and raw prefill/decode throughput measurement.
-- Local-first privacy architecture with data isolated in `$LOOM_HOME` and zero telemetry.
+- Model Markdown escapes raw HTML and neutralizes unsafe link schemes.
+- Management APIs retain control-key authentication, vault-lock checks, bounded JSON and no-store responses. Network exposure requires a control key distinct from the inference key.
+- ACP delegated filesystem operations enforce working-root confinement and bounded regular-file access; native commands/MCP execution retain upstream permissions. Full Loom permission mode requires explicit confirmation.
+- Local storage and inference remain local by default; Loom adds no telemetry. External transcript/context sharing, cloud embeddings and remote distillation retain explicit consent requirements.
 
 ### Fixed
 
-- Dialogs render at the top of the page: one opened from an animated settings section could be covered by the page and not receive clicks.
-- llama.cpp official binaries: use the newest release that ships binaries (builds are now prereleases), install the official Linux CUDA build with its runtime libraries next to the binary, and pick ROCm only when an AMD card is present.
-- Repository onboarding now documents direct UI embedding, current navigation,
-  router model loading, optional OS keychain storage and the real Makefile
-  targets. Release builds no longer call the removed UI assembler; the security
-  policy no longer assumes a private repository. Historical migration briefs
-  identify delivered work and point to the current roadmap.
-
-- Viewport-centered confirmations on phone/tablet and low-height screens, bounded scrolling, compact actions and keyboard focus containment/return.
-- Imported display metadata no longer inherits the currently selected local model or treats a replayed text chunk as a measured output token.
-
-- Cloud send controls report missing in-memory credentials after disconnect/restart; the panel refreshes reported usage after each turn.
-- Offline send guards preserve the current draft instead of dispatching a request.
-- Restored the original discussion/composer and complete native model/preset parameter panel; removed the redundant workspace header. The same sidebar now adapts to local, cloud and preparatory harness states.
-- Returning a common discussion to local reuses the rich native conversation pipeline and preserves original archives, tools, reasoning and compaction state instead of relegating them to a separate advanced-chat page.
-
-- Memory snapshot restoration rejects invalid identifiers, empty snapshots, and non-regular entries before changing current files.
-- An older plaintext web key continues to protect the control API until its hash migration succeeds.
-- The web UI reports an occupied port without attempting to stop the process using it.
-- Prebuilt llama.cpp archive extraction rejects escaping links and cannot write through stale symlinks in its destination.
-- The demo introduction opens at its heading on narrow screens instead of jumping to its off-screen action buttons.
-- Release installers verify the matching SHA-256 manifest before installing and Windows keeps only Loom's canonical binary.
-- In-app binary updates reject releases that lack a checksum manifest.
-- Release automation prepares an unpublished draft only after an explicit tagged-source check; a pushed tag no longer publishes a release by itself.
-
-No version has been tagged or published yet. Move these notes into a versioned section only when a release is actually shipped.
+- Dialog placement and viewport-centered confirmations, including bounded scrolling and keyboard focus handling on small screens.
+- Official llama.cpp binary selection, Linux CUDA runtime library installation and AMD-only ROCm selection.
+- Historical response attribution no longer inherits the current model or fabricates metrics. Antigravity reasoning variants use discovered native IDs; end-to-end output-token rates remain distinct from llama.cpp decode throughput.
+- Cloud send controls report missing credentials after disconnect/restart; offline guards preserve the current draft. Returning a shared thread to local preserves its original archive and rich pipeline.
+- Snapshot restoration rejects invalid identifiers, empty snapshots and non-regular entries. Legacy plaintext control keys remain protective until hash migration succeeds.
+- Occupied web ports are reported without stopping unrelated processes. Prebuilt engine extraction rejects escaping links and stale destination symlinks.
+- Installer and in-app binary updates reject missing or invalid SHA-256 manifests. Windows retains only Loom's canonical installed binary.
+- Release automation validates tagged source and prepares an unpublished draft; pushing a tag alone does not publish a release.
+- Demo introduction starts at its heading on narrow screens. Public build instructions document direct UI embedding and the actual Makefile checks.

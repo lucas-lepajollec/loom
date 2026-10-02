@@ -5,13 +5,20 @@ without model calls or external APIs. Optional semantic indexing and explicit
 distillation are described below. The package `internal/loom/brain` receives
 its storage, document providers and availability check explicitly. Thin
 `brain_*.go` adapters connect it to Loom's storage and web server. It does not
-change discussion prompts or automatically send context to an executor.
+retrieve context for a discussion unless its project explicitly selects Brain
+sources and a token budget. Those projects add cited passages for the latest
+user message to the prepared context; external execution shares that context
+under the normal destination-consent rules.
 
 Run `loom web 8091` (or the desktop app). The process must remain running;
 the browser can be closed. Indexing runs at startup and every three minutes.
 `POST /api/brain/reindex` also refreshes synchronously. Changes to source
 definitions take effect immediately; new file content appears on the next
 refresh. No harness settings are changed automatically.
+
+The **Resources › Brain** page manages sources, search, semantic indexing and
+distilled items. Projects select which sources to retrieve and the context
+budget; the HTTP/MCP APIs retain explicit source and personal-access rules.
 
 ## Sources and storage
 
@@ -176,7 +183,9 @@ Markdown chunks follow ATX/setext headings, preserve ancestry, ignore fenced
 code headings, treat titles longer than 512 characters as ordinary text, and contain at most approximately 1200 characters with a
 100-character overlap inside a section. BM25 uses word frequencies with a
 filename/heading boost, case/accent folding (French and English), no stemming,
-and a boost for quoted exact phrases. There is no graph, file watching or automatic prompt integration.
+and a boost for quoted exact phrases. There is no graph or file watching.
+Project source selection enables discussion context retrieval; without it,
+Brain does not add text to prompts.
 Semantic indexing and distillation are opt-in additions to this same engine. The implementation
 is Go-only and supports Linux, macOS and Windows without CGO.
 

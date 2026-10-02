@@ -8,7 +8,9 @@ Thank you for contributing. Search existing issues and pull requests first, open
 
 - Go 1.25 or later
 - GNU Make
-- A local installation or build of `llama.cpp` (`llama-server`)
+- Node for `make check-ui` (no UI build step)
+- An engine or harness for real execution checks; Loom can install llama.cpp or link an existing server
+- Git, CMake and a C/C++ toolchain if compiling llama.cpp; macOS native menu-bar builds also need a C toolchain
 
 ### Build from source
 
@@ -26,7 +28,7 @@ This embeds the web UI (`internal/loom/ui/next`, no build step) and outputs the 
 ./bin/loom web 8091
 ```
 
-Access the UI at `http://127.0.0.1:8091`. Configure `BIN=` to point to your `llama-server` binary via Settings → Engine or via `./bin/loom edit`.
+Access the UI at `http://127.0.0.1:8091`. Use the first-run guide to install or link an engine, or use cloud providers/harnesses. Settings › Engines manages engines; `./bin/loom edit` can configure `BIN` for an existing `llama-server`. Read the [architecture principles](docs/architecture-principles.md) before runtime changes.
 
 ## Validation
 
@@ -41,7 +43,10 @@ make build
 
 `make test` runs the full Go suite (`go test ./...`); it is not the short-mode
 command above. Node is required for `make check-ui`, not for `make build`.
-Use `make help` to list all targets.
+Use `make help` to list all targets. For documentation changes, run
+`python3 tools/check-doc-links.py` (Python 3, standard library only) to check
+local Markdown/HTML file targets; remote URLs and heading fragments are not
+checked.
 
 ## Pull requests
 

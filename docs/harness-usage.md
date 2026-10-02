@@ -56,7 +56,7 @@ manual prices are never applied to native activity.
 | Pi | `~/.pi/agent/sessions/**/*.jsonl` | Assistant `usage.input/output/cacheRead/cacheWrite/totalTokens` and `usage.cost.total`, filtered by entry timestamp. |
 | OpenCode | `opencode stats --days N --models` | CLI totals and model statistics; padded tables and native model blocks are supported. Compact CLI numbers can be rounded. Message counts are not session counts. |
 | Hermes | `hermes insights --days N` | Native totals, estimated USD cost and Models Used table, locally or via saved-machine SSH. |
-| Gemini / Antigravity | No reliable integrated native source | `error:"non disponible"`; costs remain null. |
+| Gemini / Antigravity | No reliable integrated native source | An unavailability error is reported; costs remain null. |
 
 Local journal discovery skips files whose mtime predates the requested window,
 reads at most 2,000 recent regular files, and does not follow directory symlinks.

@@ -1,6 +1,6 @@
 # Loom Interactive Public Demo
 
-Isolated browser simulation of [Loom](https://loom.lucas-homelab.fr). The demo interface is in French, even when linked from another locale of the site.
+Isolated browser simulation of [Loom](../README.md). The demo interface is in French, even when linked from another locale of the site.
 
 ## Security & Isolation Contract
 
@@ -20,4 +20,4 @@ Serves the demo on `http://127.0.0.1:2499`.
 
 ## Hosted deployment
 
-For Vercel, connect the `loom` GitHub mirror with `demo/` as the project Root Directory and the **Other** preset. Leave the Build Command empty to serve this static directory as-is. The checked-in `demo/vercel.json` applies noindex and baseline security headers. Attach `demo.loom.lucas-homelab.fr` and verify the intro, reset button and that no real engine or model download starts.
+For Vercel, connect the GitHub repository with `demo/` as the project Root Directory and the **Other** preset. Leave the Build Command empty to serve this static directory as-is. The checked-in `demo/vercel.json` applies noindex and baseline security headers. Use your deployment URL and verify the intro, reset button and that no real engine or model download starts.

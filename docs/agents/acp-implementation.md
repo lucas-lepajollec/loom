@@ -1,12 +1,17 @@
 # ACP harness execution in Loom
 
-The in-package ACP client implements NDJSON JSON-RPC v1 from the vendored
+The ACP protocol package and Loom session integration implement NDJSON
+JSON-RPC v1 from the vendored
 [`acp-schema/schema.json`](acp-schema/schema.json). The embedded registry is
 [`internal/loom/harness/acp_agents.json`](../../internal/loom/harness/acp_agents.json).
-Codex, Claude Code, Pi and Gemini use generic `acpAdapter` entries. The npm
-bridges have pinned versions; the direct Gemini command uses the installed CLI.
+Codex, Claude Code, Pi, Gemini and OpenCode use generic `acpAdapter` entries.
+Custom and SSH launchers can register other ACP agents, including Hermes.
+Hermes runs through `hermes acp`, locally or on an SSH machine. The npm bridges have pinned versions; the direct Gemini command uses the installed CLI.
 Availability requires both the registry launcher and every `detect` executable.
-Antigravity retains its native adapter. Codex app-server is used only for quotas.
+Antigravity runs through Loom’s `agy-acp` bridge to the native CLI. Its
+native access modes remain authoritative; Loom passes neither provider keys
+nor MCP servers, and there is no interactive Loom approval RPC for that bridge.
+Codex app-server is used only for quotas.
 
 ## Selecting and configuring a discussion
 
@@ -35,8 +40,9 @@ also accepted; portable edits still require a revision):
 ```
 
 Boolean options use JSON booleans. Modes and values are checked against the
-agent's advertised options before the native RPC. Native settings cannot be
-queried until the first session handshake. An inactive process applies settings
+agent's advertised options before the native RPC. Native settings require a
+session handshake; the explicit no-prompt probe can discover supported
+model/settings choices without generation. An inactive process applies settings
 through `session/set_mode` / `session/set_config_option` without a prompt. If
 there is no process, requested settings are applied during the next handshake.
 Changing filesystem roots closes the process and clears the native session and
@@ -88,7 +94,8 @@ Loom replays its own persisted event journal. An incompatible or non-resumable
 binding starts a fresh native session whose first prompt contains the portable
 role/content transcript, without tool results.
 
-Currently enabled shared Loom MCP definitions are passed to `session/new` and
+Selected enabled shared Loom MCP definitions for supported local agents are
+passed to `session/new` and
 `session/load`; a changed shared definition restarts the binding before the next
 turn, with stdio env/header pairs using exact ACP `name` / `value`
 fields. HTTP requires negotiated `mcpCapabilities.http`. Unsupported enabled
@@ -100,9 +107,11 @@ selection; absent selections inherit global enabled definitions, and `[]` sends
 none. Session `mcp_servers:null` restores inheritance. A globally disabled server
 is always excluded. No definition/env/header values are copied into the scope
 selection. Existing project edits preserve an omitted MCP selection.
-This ACP integration does not modify native harness configuration or skills
-directories (brief §7
-skills sinks remain deferred).
+Remote launchers receive no local MCP commands and advertise no delegated
+local filesystem access. Shared skills have a separate opt-in, manifest-driven
+sink workflow for owned `loom-*` resources; unrelated native folders and
+linked read-only sources are preserved. See [workspace contracts](../workspace-architecture.md)
+for protocol-specific Native / Loom model sources and credential handoff.
 
 `session/update`, permissions and fs writes publish through the existing
 `/api/discussion/events` SSE envelope. `RuntimeTurnRecord.acp_events` preserves
@@ -113,10 +122,11 @@ state uses the existing optional encrypted discussion store and never enters the
 portable prompt. Events are saved before live publication. A turn stops explicitly
 at 64 MiB or 16,384 journal events, preserving the events already received.
 
-The only production frontend change is the reducer/store plumbing in
-`features/chat/engine.js`: full `tool` objects on ACP tool items, plan/approval
-items, and `harness: {mode,modes,config,files,usage,commands,permission,workdir}`.
-No rendering or CSS is supplied by this backend slice.
+The common chat reducer in `features/chat/engine.js` retains full tool objects,
+plans/approvals and `harness: {mode,modes,config,files,usage,commands,permission,workdir}`.
+The UI renders native work events, permission requests and harness settings
+using the existing components. Supported native sessions can also be resumed
+in a [terminal](../terminals.md).
 
 ## Deterministic development agent and verification
 

@@ -1,12 +1,15 @@
 # Terminals
 
 Loom opens real shells on this machine or a saved SSH machine, optionally in a
-chosen folder and with a command to run. Open them from Terminaux, a project,
+chosen folder and with a command to run. Open them from Terminals, a project,
 a harness discussion or a machine. A terminal survives closing its browser tab
 and replays up to 256 KiB of recent output when reattached. It ends when its shell
 exits, when explicitly closed or when Loom exits; sessions do not survive a Loom
-restart. At most 16 terminals may run at once. Native harness-session resume is
-still a separate roadmap item.
+restart. At most 16 terminals may run at once. **Resume in a terminal** reopens
+a supported harness’s native session on its original machine and in its working
+folder: Claude Code, Codex, OpenCode, Pi, Gemini and Hermes have known resume
+commands; Antigravity does not currently have one in Loom. The discussion must
+already have a native session ID.
 
 ## Platforms and shells
 
@@ -27,7 +30,7 @@ still a separate roadmap item.
   `Set-Location -LiteralPath`, preserving spaces, apostrophes, Unicode and
   wildcard characters. An empty command leaves PowerShell open; a supplied
   command runs as PowerShell code and returns its exit status. Folder paths
-  must be absolute, for example `C:\Users\alice\project`. SSH must be installed
+  must be absolute, for example `C:\work\project`. SSH must be installed
   locally and Loom's key or an existing user key must be authorized remotely.
 
 The native lifecycle follows Microsoft's
@@ -45,6 +48,7 @@ The control key protects terminal management. WebSockets use a single-use
 | `POST /api/terminals` | Opens `{target,dir,command,title}`; `target` is `local` or a saved machine ID. |
 | `POST /api/terminals/ticket` | `{id}` returns the one-time attachment ticket. |
 | `GET /api/terminals/ws?ticket=…` | Binary output, keystroke input and text `{"resize":[cols,rows]}` messages. |
+| `GET /api/runtime/sessions/terminal?id=<discussion>` | Returns `{ok,target,dir,command,title}` for a supported native resume; the UI then opens the terminal. |
 | `POST /api/terminals/close` | `{id}` closes the owned session and removes its snapshot. |
 
 ## Validation

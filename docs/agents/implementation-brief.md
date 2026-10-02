@@ -1,109 +1,68 @@
-# Implementation brief (for any coding agent)
+# Implementation guide for coding agents
 
-You are continuing Loom. Read, in order: `AGENTS.md`, `docs/architecture-principles.md`,
-`docs/architecture.md`, `docs/workspace-architecture.md`. Then inspect
-`git status` — earlier work may be uncommitted; never discard it.
+Read [AGENTS.md](../../AGENTS.md), the
+[architecture principles](../architecture-principles.md),
+[architecture](../architecture.md), [workspace contracts](../workspace-architecture.md)
+and [roadmap](../ROADMAP.md). Inspect the branch, working tree, code and
+configuration before editing; preserve unrelated work.
 
-This brief records the initial migration sequence. Steps 1–5 below are delivered;
-do not recreate them. Use [`../ROADMAP.md`](../ROADMAP.md) for current priorities
-and architecture §4 for the remaining package split. ACP work has its own
-[`acp-implementation.md`](acp-implementation.md) notes.
+## Boundaries
 
-## Hard rules
+1. Reuse the existing UI components, CSS and tokens. The visual design belongs
+   to the design owner. Keep the common discussion/composer and complete local
+   parameter editor; do not introduce a second chat or redundant header.
+2. Keep changes focused. The leaf package split is delivered; application
+   state, lifecycle policy and HTTP domain handlers deliberately remain in Loom.
+   Do not recreate completed migrations described in architecture §4.
+3. Engines own inference. Keep llama.cpp router mode, native slots and one
+   argument builder; do not add scheduling or restart a router for model changes.
+   Temporary API overrides never alter saved model settings.
+4. Descriptors must match implemented capabilities. Native runtime state,
+   approvals and hidden reasoning remain private. Unknown metrics stay unknown.
+5. Keep credentials out of logs and public records. Provider keys may be
+   explicitly remembered in the OS keychain. Preserve vault checks, bounded
+   input, model-output escaping and consent before external context handoff.
+6. Add UI copy in both English and French dictionaries. English is the default;
+   use short sentence-case labels and existing Tip components for explanations.
+7. Keep one Brain/context engine. Project retrieval is opt-in, personal sources
+   require explicit selection, and cloud embeddings require stored consent.
+8. Terminals and harness processes must retain their ownership, authentication,
+   native permissions and shutdown rules. Never kill unrelated processes.
 
-1. **Do not touch the visual design.** `internal/loom/ui/next/css/*`, tokens,
-   colors, spacing, typography, animations and the layout of existing screens
-   belong to the design owner. You may only *use* existing classes and
-   components (`ui/controls.js`, `ui/dialog.js`, `.card`, `.btn`, `.tag`, `.row`,
-   `.tr`, `.set-line`, `.prow`, `.gauge`, `.mono-tile`, `.state`, `.dot`…). The design is
-   "Mono": no brand color; color only for state (green ready, amber warning, red error). If a new component truly needs CSS, add the
-   smallest rule in the relevant CSS file using existing tokens only
-   (`var(--…)`), no new colors, no gradients, no emojis, no new fonts, and list
-   it in your final report.
-2. **No big-bang refactor.** One step of the plan per change set. Zero behavior
-   change unless the step says otherwise. Keep every commit building and green.
-3. **llama.cpp owns execution** (router mode, slots, batching). Never add a
-   request queue, never restart the engine to change a model when the router
-   is available, never mutate saved configs from API requests.
-4. **Honesty in the UI**: a capability is shown as supported only if implemented
-   and tested. Unknown data is displayed as unknown, never zero.
-5. **Security**: never log or persist API keys; keep model output HTML escaped
-   (`features/chat/md.js`); keep consent before sending a discussion to an
-   external provider or harness.
-6. French UI copy, sentence case, short labels, explanations in `<Tip>` (ⓘ),
-   not in paragraphs under each control.
+## Validation
 
-## Commands
-
-```bash
-make build                                   # builds bin/loom with ui/next embedded
-go test -short ./...                         # Go suite (must stay green)
+```sh
+make build
+go test -short ./...
 go vet ./...
-make check-ui                                # module syntax check of ui/next + UI unit tests
-# never use plain `node --check file.js`: it parses .js as CommonJS and misses errors
+make check-ui
+python3 tools/check-doc-links.py
 ```
 
-Dev instance (does not touch the installed Loom on 8091):
+`make build` directly embeds `ui/next`; Node is needed for UI checks, not an
+asset build. Use the Makefile’s module-aware syntax check. Go HTTP tests need
+loopback sockets. Native accounts, GPUs, keychains and ConPTY require separate
+real-platform checks.
 
-```bash
+Use an isolated development data directory and port:
+
+```sh
 LOOM_HOME="$PWD/.project-local/runtime" LOOM_SERVICE=loom-dev-engine \
-LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594   # http://127.0.0.1:2594/
+LOOM_UI_SERVICE=loom-dev-ui ./bin/loom web 2594
 ```
 
-## Initial migration sequence (historical, steps 1–5 delivered)
+Keep local notes in ignored `AGENTS.override.md` and `.project-local/`. Never
+publish private paths, infrastructure, logs, keys, databases or model files.
 
-### 1. Runtime registry — DONE (contracts now in `runtime/`)
-- Add `registerRuntime(RuntimeAdapter)` and a registry map; build
-  `runtimeCatalog()` from it. Keep planned-only descriptors (claude-code, pi,
-  hermes) as registered descriptors with empty capabilities.
-- Extend `RuntimeDescriptor` with `Description`, `CLI`, `Consent` strings.
-- Add generic routes `POST /api/runtimes/{id}/connect` and
-  `POST /api/runtimes/{id}/quota` dispatching through optional interfaces
-  (`Connectable`, `QuotaReader`); keep old routes as aliases.
-- Tests: registry order, unknown id → 404, capability-less runtime cannot connect.
-- Front: `features/harnesses/page.js` reads description/CLI/consent from
-  `workspace.runtimes` and calls the generic route; delete the `INFO` map.
+## Current integration references
 
-### 2. Engine interface + ParamSpec — DONE
-- Define `Engine` (architecture §2.1) and wrap the current llama.cpp functions
-  (`restartLlamaEngine`, `unloadEngine`, `buildLlamaServerArgs`, estimate) in a
-  `llamaCppEngine` type. No file moves yet.
-- Create `internal/loom/engine/llamacpp/params/llamacpp.json` with the curated Essential/Advanced
-  entries now hard-coded in `features/inspector/params.js` (`META`, `KV_OPTS`,
-  `SPEC_OPTS`, the advanced list). Serve merged with the `--help` catalog at
-  `GET /api/engine/params`.
-- Front: `params.js` renders rows from that endpoint; the component look stays
-  identical (same `Row`, `Slider`, `Switch`, `Select`).
-- Acceptance: screenshots of the panel before/after are identical; adding a
-  flag to Advanced requires only a JSON edit.
+- [ACP execution and development agent](acp-implementation.md).
+- [ACP design reference](harness-acp-brief.md).
+- [Engines and vLLM](../engines.md).
+- [Brain sources, semantic indexing and distillation](../brain.md).
+- [MCP files](../mcp-files.md), [terminals](../terminals.md) and
+  [native usage](../harness-usage.md).
 
-### 3. Auto configuration with `--fit` — DONE (real-GPU acceptance separate)
-- When a bare model has no remembered config, do not force native `CTX` and
-  `NGL=999`; pass `--fit on` and leave them unset. After load, read the actual
-  context from the router (`/models` or `/props?model=`) and expose it in
-  `/api/status` (`ctx_effective`).
-- Keep explicit user values untouched. Tests with the fake router in
-  `backend_router_test.go`.
-
-### 4. Unified discussion events — DONE
-- Emit the event vocabulary of architecture §2.3 for cloud/harness turns over
-  SSE (same shape as the native journal), then make the native journal map to
-  it. Remove polling from `features/chat/engine.js` once both paths stream.
-- Acceptance: one renderer, local → cloud → local in one discussion still works,
-  existing tests green, new Go tests for the event mapping.
-
-### 5. Port the remaining classic features, then delete `ui/src` — DONE
-Global search (Ctrl+K palette over discussions/projects/models), activity
-center (downloads + engine jobs), memory pages editor, preset ordering,
-encryption unlock and backups, push notifications, GPU device selection, web
-key. Reuse existing components; ask the design owner before any new visual
-pattern. `/classic`, `ui/src`, `tools/assemble-ui` CSS/JS concatenation and old
-UI tests have been removed. `make check-ui` validates the embedded modules.
-
-### 6. Go package split (architecture §4), leaf-first
-`store/` → `platform/` → `engine/llamacpp/` → `runtime/…` → `discussion/` →
-`tools/` + `resources/` → `web/`. One package per change set.
-
-## Final report for every change set
-What changed (files), what was verified (commands + results), what was not
-verified, any CSS you had to add, and the exact next step.
+Report the concrete change, checks and results, unverified behavior and any
+remaining decision. Update public workflow documentation and the changelog when
+behavior, API endpoints or CLI flags change.

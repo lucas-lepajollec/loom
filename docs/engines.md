@@ -6,8 +6,9 @@ router-capable llama-server starts once and loads models through its API.
 The existing llama.cpp parameter/preset and automatic-update workflows are
 unchanged.
 
-The vLLM backend is available through authenticated APIs. Its parameter and
-model-library UI is a separate slice. **Local vLLM requires Linux and a
+Settings › Engines exposes vLLM installation, its Hugging Face model library,
+per-model parameters, version and updates. The authenticated APIs below back
+those controls. **Local vLLM requires Linux and a
 supported NVIDIA GPU with CUDA or AMD GPU with ROCm.** This Loom workflow does
 not install native vLLM on macOS or Windows. Those Loom installations can use
 llama.cpp or link a Linux inference server by address (or another Loom).

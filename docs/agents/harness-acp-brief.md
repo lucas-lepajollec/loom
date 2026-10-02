@@ -1,5 +1,12 @@
 # Harness brief — Loom as an ACP client
 
+Historical design reference for the initial ACP integration. The lifecycle,
+event vocabulary and permission rationale remain useful to contributors. For
+current launchers, delivered skill sinks, model sources and remote limitations,
+read [ACP integration](acp-implementation.md) and
+[workspace contracts](../workspace-architecture.md). Examples below are design
+examples, not an inventory of pending work.
+
 Goal: every coding harness (Claude Code, Codex, Pi, then Gemini, Hermes Agent,
 Cursor…) runs inside a Loom discussion with its real tools, reasoning, diffs,
 plans and permission requests visible, a chosen working folder, a permission
@@ -9,7 +16,8 @@ Loom implements the client side of the Agent Client Protocol (ACP,
 <https://agentclientprotocol.com>). One generic adapter replaces per-harness
 bridges. The JSON schema is vendored in `@agentclientprotocol/sdk`
 (`schema/schema.json`, protocol version 1); treat it as the reference for every
-field name. Antigravity has no ACP endpoint and keeps its native adapter.
+field name. Antigravity has no native ACP endpoint; Loom now provides its
+`agy-acp` bridge to the CLI, as described in the current integration notes.
 
 ## 1. Agent registry (data, not code)
 
@@ -125,7 +133,7 @@ cards. Text stays Markdown (escaped by the UI); tool output is plain text.
 - Skills: `SkillSink` per harness. Loom writes enabled skills into the
   harness's native skills folder under a `loom-` prefix only
   (`~/.claude/skills/loom-<slug>/SKILL.md`, `~/.codex/skills/loom-<slug>/…`,
-  Pi via `--skill` paths), with an explicit per-harness toggle in Ressources,
+  Pi via `--skill` paths), with an explicit per-harness toggle in Resources,
   a manifest of what Loom wrote, and removal when untoggled. Never touch files
   without the `loom-` prefix.
 

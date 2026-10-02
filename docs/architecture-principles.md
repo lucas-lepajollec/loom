@@ -5,7 +5,7 @@ that seems to conflict with them should be discussed before it is implemented.
 
 ## Loom controls, engines execute
 
-1. **llama.cpp owns inference.** Model loading, slots, batching, KV cache,
+1. **Engines own inference.** For llama.cpp, model loading, slots, batching, KV cache,
    sampling and GPU offload stay in `llama-server`. Loom resolves the user's
    intent into native arguments and observes the result; it never adds its own
    request queue, scheduler or token path.

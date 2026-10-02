@@ -10,4 +10,4 @@ Harassment, discrimination, threats, sexualized attention, deliberate intimidati
 
 ## Enforcement
 
-Report conduct concerns privately to the maintainers at `contact@lucas-homelab.fr` or through GitHub private reporting channels. Maintainers may edit, reject or remove contributions and temporarily or permanently restrict participation when necessary to protect the community.
+Report conduct concerns privately to the maintainers through the [maintainer contact page](https://lucaslepajollec.com/#contact). Ask for a private channel without disclosing sensitive details. Maintainers may edit, reject or remove contributions and temporarily or permanently restrict participation when necessary to protect the community.

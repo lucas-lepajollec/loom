@@ -4,7 +4,7 @@ A version in source is not a release. Publish installation instructions only wit
 
 ## Before creating a tag
 
-1. Confirm the intended commit is on the authoritative Forgejo `main` and that its GitHub mirror is identical. Work from a clean checkout; do not create a separate GitHub merge.
+1. Confirm the intended commit is on the repository’s `main` branch. Work from a clean checkout and verify the exact source commit to be tagged.
 2. Choose the version with the maintainer. Set the same version in `internal/loom/run.go` and `cmd/loom/versioninfo.json`, then move user-visible changes from `[Unreleased]` into `## [X.Y.Z]` in `CHANGELOG.md`.
 3. Run `go test -short ./...`, `go vet ./...`, `make check-ui`, `npm --prefix demo run check` and `make build`. The UI is embedded directly from `internal/loom/ui/next`; there is no asset assembly step. Check that validation leaves no generated tracked-file diff.
 4. Review installation, migration and removal instructions against the tagged source. Back up an existing `LOOM_HOME` before upgrade tests. Test loopback and authenticated LAN behavior with sanitized fixtures.
@@ -12,11 +12,11 @@ A version in source is not a release. Publish installation instructions only wit
 
 ## Prepare a draft, then decide whether to publish
 
-1. After approval, create an **annotated** `vX.Y.Z` tag on the verified `main` commit and push it through Forgejo. Check that the exact tag commit reaches GitHub.
+1. After approval, create an **annotated** `vX.Y.Z` tag on the verified `main` commit through the maintainer’s release process. Check that the tag available on GitHub resolves to the exact verified commit.
 2. In GitHub Actions, manually run **Prepare release draft** with that tag. Pushing a tag alone does not publish anything. The workflow checks the version, changelog, tests and demo; builds Linux, Windows and macOS assets; writes `SHA256SUMS.txt`; and creates an **unpublished draft**.
 3. Download or inspect each draft artifact. Verify checksums, executable architecture, startup, install/update commands, and platform-specific limitations. Test `install.sh`, `install.ps1` and `loom update` against the candidate release in controlled environments. In particular, the scripts must fail closed if a checksum is missing or wrong.
-4. Only then decide whether the draft should become a public release. Confirm repository visibility and the intended audience first: a private GitHub repository cannot serve as a public download source. Publishing requires Lucas's explicit decision.
-5. After publication, test the installation flow as a visitor without repository access, verify the site/docs links, and keep `CHANGELOG.md` and the Control Center release record current.
+4. Only then decide whether the draft should become a public release. Confirm repository visibility and the intended audience first: a private GitHub repository cannot serve as a public download source. Publishing requires explicit maintainer approval.
+5. After publication, test the installation flow as a visitor without repository access, verify the site/docs links, and keep `CHANGELOG.md` and the GitHub release notes current.
 
 ## If verification fails
 

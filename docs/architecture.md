@@ -6,9 +6,9 @@ Target architecture and migration plan. Read with
 contracts and historical slices), and [`ROADMAP.md`](ROADMAP.md) (current work).
 The leaf package split is complete; §4 records the extracted boundaries and
 the application orchestration that deliberately remains in `loom`.
-The goal: Loom stays easy to extend at 50 000+ lines. Adding a harness, an
-engine, a cloud provider or a page must touch **one new folder plus one registry
-entry**, never the core.
+The design goal is to keep extensions focused on a domain folder and a
+registry entry. Current lifecycle and domain integration still require Loom
+application handlers; §4 distinguishes those from the extracted leaf packages.
 
 ## 1. What Loom is made of
 
@@ -21,7 +21,7 @@ entry**, never the core.
 │ web/        HTTP primitives, auth, public assets, SSE/WebSocket helpers  │
 │ discussion/ Loom-owned conversations, routing, shared context, usage      │
 │ runtime/    RuntimeAdapter registry: local · openai-compatible · harness  │
-│ engine/     Engine registry: llamacpp (router mode) · later vllm          │
+│ engine/     llama.cpp router helpers; vLLM lifecycle stays in loom       │
 │ resources/  projects, skills, MCP definitions (shared across runtimes)    │
 │ tools/      internet, MCP client, memory tools for the local tool loop    │
 │ store/      bbolt + encryption + snapshots                                │
@@ -69,9 +69,10 @@ legacy service/router job is not provided by this wrapper.
 
 The contract above is schematic: the current caps expose router, presets, slots
 and estimate; status exposes active/ready/model; `Estimate` retains the existing
-VRAM estimate type. This is a migration boundary, not a delivered second-engine
-registry or complete execution package split. A later engine (vLLM) implements the interface in its
-own folder.
+VRAM estimate type. This wrapper is not a generic multi-engine registry.
+vLLM is implemented separately in `engine_vllm*.go`, with its own lifecycle,
+ParamSpec catalog and Settings UI; direct and linked Loom engines use
+`engine_direct.go` and `engine_node.go`. See [engines](engines.md).
 
 **ParamSpec** now replaces hard-coded UI tables (`META`, `KV_OPTS`… in
 `features/inspector/params.js`): `{id, flag, key, label, tip, tier
@@ -207,8 +208,8 @@ reconnection never submit a turn. Slow readers reconnect from a fresh snapshot.
 Native journal names map at the stream boundary; existing archives and classic
 `/api/chat` remain compatible. Replay/reset, context and compaction controls sit
 beside typed events. `turn_done` retains provenance and reported metrics. Native
-tool output stays native; harness tools remain bounded metadata. Codex reasoning
-is a reported summary. Missing usage stays unknown; no approval stream is invented.
+tool output stays native; harness tools remain bounded metadata. Reasoning is shown only when reported by the runtime. Missing usage stays
+unknown; ACP approval requests are native events, not inferred from tool cards.
 
 `features/chat/engine.js` uses one reducer and one SSE subscription, without
 session/state polling. Its route flag remains for existing composer/inspector
@@ -216,17 +217,22 @@ controls. Send/stop and legacy session endpoints remain available.
 
 ### 2.4 Provider — cloud APIs
 
-Chat Completions today (`runtime/openai/`, with `openai_compat.go` preserving
+The common discussion adapter uses Chat Completions today (`runtime/openai/`, with `openai_compat.go` preserving
 the Loom adapter). A provider with a different
 protocol (Anthropic Messages, Responses API) is a new `runtime/` adapter, not a
-branch inside the existing one.
+branch inside the existing one. Harness model-source routing in
+`harness_providers.go` can already select protocol-compatible Responses or
+Anthropic endpoints for native harness launch; that is separate from a common
+cloud discussion adapter.
 
 ### Environment API (roadmap step 6)
 
 `env_*.go` owns declared services and optional observations, independently of
 discussion execution. All `/api/env/*` routes use the control-key middleware
 (`Authorization: Bearer …` when configured), never the inference API key.
-Responses are `no-store`. Nothing is discovered in the background.
+Responses are `no-store`. The Environment page exposes these services,
+reachability matrices, Docker observations and Proxmox resources. Resources
+are read on request; automatic service discovery remains future work.
 
 | Route | Request and response |
 | --- | --- |
@@ -272,10 +278,15 @@ the machine's network path, not an individual harness's sandbox permissions.
 | MCP definitions | Loom | `LOOM_HOME/mcp.json`; linked read-only sources/bindings in bbolt (see [MCP files](mcp-files.md)) |
 | Model configs, presets | Loom `engine/` | presets/*.env + bbolt |
 | Cloud provider API keys | server memory; optional OS keychain (`provider_keyring.go`) | absent from Loom provider records and browser storage |
+| Linked engine credentials | Loom | node record in the optionally encrypted Loom store; never returned to the browser |
 | Native sessions, approvals, private memory | each harness | upstream |
 | KV cache, slots, loaded instances | the engine | upstream |
 
 ## 4. Target Go layout and migration
+
+The sequence below is a record of completed leaf extractions. It is not a
+list of packages still to create; application state and orchestration remain
+in Loom as described for each slice.
 
 Much of the application still lives in package `internal/loom`. Splitting it in one pass would
 break everything; do it **leaf-first, one package per PR, zero behavior change**:
@@ -711,7 +722,7 @@ js/core/              lib (Preact/htm, store, format helpers) · api · state
 js/ui/                kit: icons, dialog/toast, controls (Seg, Tabs, Switch, Slider, Tip, Popover, Menu, Empty)
 js/app/               main, shell (sidebar), routes.js (registry), placeholder
 js/features/<name>/   one folder per domain: chat, inspector, local, cloud,
-                      harnesses, bench, resources, usage, settings, projects
+                      harnesses, bench, resources, usage, settings, projects, environment, terminals, onboarding
 logos/                provider/harness logos (lobehub, MIT), used by ui/logo.js
 ```
 
@@ -729,7 +740,8 @@ page = new `features/x/page.js` + one entry in `app/routes.js`. No build step.
   page, picker and Usage read descriptors.
 - **An engine**: `engine/<id>/` implementing `Engine`; register; declare
   capabilities; provide `ParamSpec` JSON is the target. Today `engine.go` exposes
-  the llama.cpp wrapper; a second-engine registry and adaptive pages remain work.
+  the llama.cpp wrapper; vLLM uses separate lifecycle handlers and an existing
+  Settings › Engines UI. A generic multi-engine registry remains work.
 - **A llama.cpp parameter in Advanced**: one entry in the curated ParamSpec JSON.
 - **A page**: `features/<x>/page.js` + one line in `app/routes.js`.
 - **A cloud protocol**: new runtime adapter (see 2.4).
@@ -740,7 +752,8 @@ page = new `features/x/page.js` + one entry in `app/routes.js`. No build step.
 ## 7. Known debt (ordered)
 
 1. Unified SSE events are implemented (2.3); durable native archives and portable text snapshots still have separate storage formats.
-2. In-package Engine/ParamSpec and runtime metadata are implemented; the engine leaf subset is extracted; execution boundaries and a second engine remain future work.
+2. In-package Engine/ParamSpec and runtime metadata are implemented; the engine leaf subset is extracted; further execution-boundary extraction and a generic engine registry remain
+   future work. vLLM and linked inference servers are already implemented.
 3. Real-GPU acceptance of native `--fit` and observed context remains separate
    from the implemented automatic defaults and fixture tests (§2.1).
 4. Real-platform acceptance of optional cloud-provider OS keychain storage.

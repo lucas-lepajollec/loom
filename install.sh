@@ -4,7 +4,7 @@ set -e
 # ==============================================================================
 # Loom Installer (Linux & macOS)
 # ==============================================================================
-# Installs Loom — Workstation control plane and test bench for llama.cpp.
+# Installs Loom — A local AI control station for models and coding agents.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh
