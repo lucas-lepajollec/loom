@@ -82,6 +82,13 @@ async function openHarnessTerminal(s, dir, remote) {
   openTerminalWith({ target, dir, title: s.provider_name });
 }
 
+// Reprendre la session native du harness dans sa propre CLI, dans un terminal.
+async function resumeInTerminal(s) {
+  const r = await get('/api/runtime/sessions/terminal?id=' + encodeURIComponent(s.id)).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok) return toast(r.error, 'err');
+  openTerminalWith({ target: r.target, dir: r.dir, command: r.command, title: r.title });
+}
+
 function HarnessPanel() {
   const { s, h } = useStore(chat, c => ({ s: c.session, h: c.harness || {} }));
   const runtimes = useStore(app, a => (a.workspace && a.workspace.runtimes) || []);
@@ -119,7 +126,8 @@ function HarnessPanel() {
     ${canDir && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.dossier_de_travail")}</div>
       ${workdir ? html`<button class="hs-dir" onClick=${chooseDir} title=${workdir}><${Icon} n="folder" /><span class="mono trunc">${workdir.replace(/^\/home\/[^/]+/, '~')}</span><span class="muted">${t("inspector.inspector.changer")}</span></button>`
         : html`<button class="btn" onClick=${chooseDir}><${Icon} n="folder" />${remote ? t("inspector.inspector.indiquer_le_dossier_distant") : t("inspector.inspector.choisir_un_dossier")}</button>`}
-      ${workdir && html`<button class="btn sm ghost hs-term" onClick=${() => openHarnessTerminal(s, workdir, remote)}><${Icon} n="prompt" />${t("inspector.inspector.ouvrir_un_terminal_ici")}</button>`}</div>`}
+      ${workdir && html`<button class="btn sm ghost hs-term" onClick=${() => openHarnessTerminal(s, workdir, remote)}><${Icon} n="prompt" />${t("inspector.inspector.ouvrir_un_terminal_ici")}</button>`}
+      ${s.native_session_id && html`<button class="btn sm ghost hs-term" title=${t('inspector.resume.tip')} onClick=${() => resumeInTerminal(s)}><${Icon} n="terminal" />${t('inspector.resume.label')}</button>`}</div>`}
 
     ${canAsk && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.autorisations")}<${Tip} text=${LEVEL_TIP()} /></div>
       <${Seg} value=${level} onChange=${setLevel} label="${t("inspector.inspector.niveau_d_autorisation")}" options=${LEVELS()} /></div>`}

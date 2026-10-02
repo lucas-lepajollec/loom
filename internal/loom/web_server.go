@@ -170,6 +170,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/providers/disconnect", handleProviderDisconnect)
 	api("/api/discussion/events", handleDiscussionEvents)
 	api("/api/runtime/sessions", handleRuntimeSessions)
+	api("/api/runtime/sessions/terminal", handleRuntimeSessionTerminal)
 	api("/api/runtime/sessions/select", handleRuntimeSessionSelect)
 	api("/api/runtime/sessions/import", handleRuntimeSessionImport)
 	api("/api/runtime/sessions/local", handleRuntimeSessionLocal)

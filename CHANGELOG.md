@@ -6,6 +6,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- "Resume in a terminal" for harness discussions: opens the harness CLI on the same native session, in its working folder, on the machine that runs it.
 - vLLM in Settings › Engines: Hugging Face model library (search with VRAM estimate, download with progress and cancel, start, delete), settings saved per model, version, update and auto-update. MLX/GGUF/bitsandbytes repositories are left out of vLLM search.
 - First-run guide: language, detected hardware, engine (install llama.cpp or vLLM, link an engine by address, or none), a first model sized to the machine, then harnesses, cloud providers and machines. Shown once on a fresh install; Settings › About reopens it.
 - Usage page: native usage of every harness (sessions, tokens, cache, models, reported cost) over 7 or 30 days, "Read all" for subscription quotas, machine labels for harnesses on connected machines.

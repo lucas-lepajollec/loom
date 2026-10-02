@@ -2001,4 +2001,6 @@ export default {
   "vllm.src.remote_tip": "Dangereux : autorise l’exécution de code Python du dépôt Hugging Face avec les droits de Loom. Désactivé par défaut.",
   "vllm.src.tp": "GPU en parallèle",
   "vllm.lib.others": "{n} autres entrées du cache, non servables par vLLM",
+  "inspector.resume.label": "Reprendre dans un terminal",
+  "inspector.resume.tip": "Ouvre la CLI du harness sur la même session, dans un terminal, pour continuer en dehors de Loom.",
 };
