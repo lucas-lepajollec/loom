@@ -26,6 +26,11 @@ func Main() {
 	// Nettoie un éventuel binaire .old laissé par une mise à jour Windows.
 	cleanupOldBinary()
 
+	// ACP bridge for Antigravity, launched by Loom as a harness process.
+	if len(os.Args) > 1 && os.Args[1] == "agy-acp" {
+		runAgyACP(os.Stdin, os.Stdout)
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "loom-fake-acp" {
 		if os.Getenv("LOOM_DEV_FAKE_ACP") != "1" {
 			return

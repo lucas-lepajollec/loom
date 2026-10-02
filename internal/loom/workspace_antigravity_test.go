@@ -85,8 +85,11 @@ func TestAntigravityModelSelectionRequiresConsent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if putStoreJSON(bkHarnessConnections, "antigravity", antigravityConnection{Models: []string{"native-test"}}) != nil {
-		t.Fatal("connection write failed")
+	// Models come from the ACP bridge's probe, like every harness.
+	probe := acpProbe{Config: []map[string]any{{"id": "model", "category": "model", "type": "select", "currentValue": "native-test",
+		"options": []any{map[string]any{"value": "native-test", "name": "Native"}}}}}
+	if putStoreJSON(bkState, acpProbeKey+"antigravity", probe) != nil {
+		t.Fatal("probe write failed")
 	}
 	if _, err = m.selectModel(s.ID, "antigravity:native-test", false); err == nil {
 		t.Fatal("external handoff without consent")

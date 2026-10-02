@@ -50,6 +50,11 @@ func builtinACPAgents() []acpAgent {
 }
 
 func registerACPAgents() {
+	// Antigravity speaks no ACP: Loom's own bridge (loom agy-acp) drives agy.
+	if executable, err := os.Executable(); err == nil {
+		registerRuntime(&acpAdapter{agent: acpAgent{ID: "antigravity", Name: "Antigravity", Logo: "antigravity", Command: executable,
+			Args: []string{"agy-acp"}, Detect: []string{"agy"}, Docs: "https://antigravity.google/"}})
+	}
 	for _, entry := range builtinACPAgents() {
 		registerRuntime(&acpAdapter{agent: entry})
 	}
@@ -80,11 +85,18 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		caps = append(caps, "resume")
 	}
 	a.negotiatedMu.RUnlock()
-	if a.agent.ID == "codex" {
+	cli, hint := a.agent.Command, a.agent.Command+" "+joinACPArgs(a.agent.Args)
+	switch a.agent.ID {
+	case "codex":
 		caps = append(caps, "quota")
+	case "antigravity":
+		// Driven headless through Loom's bridge: agy cannot ask for permission
+		// (access is a mode) and receives no MCP servers from Loom.
+		caps = []string{"chat", "stream", "cancel", "tools", "plan", "usage", "workdir", "resume", "quota"}
+		cli, hint = "agy", "agy"
 	}
 	available := a.agent.available()
-	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: a.agent.Command, Description: acpDescription(a.agent), Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: &available, InstallHint: a.agent.Command + " " + joinACPArgs(a.agent.Args), Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, Machine: machineName(a.agent.Machine)}
+	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirmez le partage du fil, des instructions et du dossier choisi avec ce harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, Machine: machineName(a.agent.Machine)}
 }
 func joinACPArgs(args []string) string {
 	out := ""
@@ -97,10 +109,13 @@ func joinACPArgs(args []string) string {
 	return out
 }
 func (a *acpAdapter) Quota(ctx context.Context) (QuotaSnapshot, error) {
-	if a.agent.ID != "codex" {
-		return QuotaSnapshot{}, errors.New("quotas indisponibles")
+	switch a.agent.ID {
+	case "codex":
+		return readCodexQuota(ctx)
+	case "antigravity":
+		return readAgyQuota(ctx)
 	}
-	return readCodexQuota(ctx)
+	return QuotaSnapshot{}, errors.New("quotas indisponibles")
 }
 func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
 	if a.sessions == nil || a.session.ID == "" {
@@ -119,6 +134,9 @@ func acpDescription(a acpAgent) string {
 		return "Harness ACP sur une autre machine, lancé par " + a.Command + ". Il utilise ses propres fichiers et outils."
 	case a.Custom:
 		return "Harness ACP personnalisé, lancé par " + a.Command + "."
+	}
+	if a.ID == "antigravity" {
+		return "Agent de Google, piloté par Loom en mode sans interface : outils, dossier et modes natifs."
 	}
 	return "Agent de code via ACP. Authentification et outils natifs du harness."
 }

@@ -336,18 +336,6 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 		getStoreJSON(bkProviders, s.ProviderID, &provider)
 		provider.ID, provider.Endpoint, provider.Model = s.ProviderID, s.Endpoint, s.Model
 		adapter = cloudRuntimeAdapter{provider: provider, key: key}
-	} else if s.RuntimeID == "antigravity" {
-		c, connected := agyConnection()
-		found := false
-		for _, model := range c.Models {
-			if model == s.Model {
-				found = true
-			}
-		}
-		if !connected || !found {
-			return errors.New("reconnectez Antigravity dans Harnesses")
-		}
-		adapter = antigravityAdapter{model: s.Model}
 	} else if registered, exists := registeredRuntimes.lookup(s.RuntimeID); exists && hasRuntimeCapability(registered.Descriptor(), "chat") {
 		if acp, ok := registered.(*acpAdapter); ok {
 			if !acp.agent.available() {

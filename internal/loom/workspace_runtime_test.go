@@ -123,7 +123,7 @@ func TestRuntimeRegistryStartupCatalog(t *testing.T) {
 			t.Fatalf("missing UI description: %s", d.ID)
 		}
 		if d.ID == "antigravity" {
-			if d.CLI == "" || d.Consent == "" || !hasRuntimeCapability(d, "connect") || !hasRuntimeCapability(d, "quota") {
+			if d.CLI != "agy" || d.Consent == "" || !hasRuntimeCapability(d, "workdir") || !hasRuntimeCapability(d, "quota") || hasRuntimeCapability(d, "approvals") {
 				t.Fatalf("incomplete native action descriptor: %+v", d)
 			}
 		}

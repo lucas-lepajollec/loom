@@ -18,7 +18,6 @@ func registerRuntime(adapter RuntimeAdapter) {
 func init() {
 	registerRuntime(llamaRuntimeAdapter{})
 	registerRuntime(cloudRuntimeAdapter{})
-	registerRuntime(antigravityAdapter{})
 	registerACPAgents()
 	registerRuntime(plannedRuntimeAdapter{RuntimeDescriptor{ID: "hermes", Name: "Hermes", Kind: "harness", Description: "Agent toujours actif, souvent sur une autre machine.", CLI: "hermes", Capabilities: []string{}}})
 }

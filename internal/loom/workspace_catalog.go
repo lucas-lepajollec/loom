@@ -72,11 +72,6 @@ func modelCatalog(providers []CloudProvider) []ModelChoice {
 			}
 		}
 	}
-	if c, ok := agyConnection(); ok {
-		for _, model := range c.Models {
-			add(ModelChoice{ID: "antigravity:" + model, Name: model, Kind: "harness", ProviderName: "Antigravity", Model: model, RuntimeID: "antigravity", Ready: agyInstalled()})
-		}
-	}
 	for _, d := range runtimeCatalog() {
 		adapter, _ := registeredRuntimes.lookup(d.ID)
 		if _, ok := adapter.(*acpAdapter); ok {
