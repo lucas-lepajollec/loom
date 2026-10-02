@@ -51,6 +51,7 @@ func words(s string) []word {
 	}
 	return out
 }
+
 // stopWords are frequent French and English words that say nothing about a
 // passage; they are dropped from queries (unless the query is only them).
 var stopWords = map[string]bool{}

@@ -2,6 +2,7 @@ package loom
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -102,6 +103,13 @@ func newNativeSessionUsage() nativeSessionUsage {
 	return nativeSessionUsage{models: map[string]int64{}}
 }
 func (s *nativeSessionUsage) add(model string, n usageNumbers) {
+	// "<synthetic>" entries are messages the harness wrote itself (no model call).
+	if strings.HasPrefix(model, "<") && n.total == 0 && n.input == 0 && n.output == 0 {
+		return
+	}
+	if strings.HasPrefix(model, "<") {
+		model = ""
+	}
 	s.counted = true
 	s.input += n.input
 	s.output += n.output
@@ -209,11 +217,22 @@ func readHarnessSessionFiles(ctx context.Context, root, harness string, now time
 
 func parseHarnessJSONL(ctx context.Context, r io.Reader, harness string, cutoff, now time.Time) (nativeSessionUsage, error) {
 	s := newNativeSessionUsage()
-	// Limit both total bytes and a single line; no transcript is retained.
-	const maxBytes = 128 << 20
-	limited := &io.LimitedReader{R: r, N: maxBytes + 1}
-	scanner := bufio.NewScanner(limited)
-	scanner.Buffer(make([]byte, 64<<10), 8<<20)
+	// Lines are read one by one and dropped: huge lines (pasted files,
+	// images) are skipped, never buffered whole; no transcript is retained.
+	reader := bufio.NewReaderSize(r, 1<<20)
+	readLine := func() ([]byte, bool, error) {
+		line, err := reader.ReadSlice('\n')
+		if err == bufio.ErrBufferFull {
+			for err == bufio.ErrBufferFull {
+				_, err = reader.ReadSlice('\n')
+			}
+			if err != nil && err != io.EOF {
+				return nil, false, err
+			}
+			return nil, true, err
+		}
+		return line, false, err
+	}
 	type messageUsage struct {
 		model   string
 		numbers usageNumbers
@@ -223,13 +242,29 @@ func parseHarnessJSONL(ctx context.Context, r io.Reader, harness string, cutoff,
 	var previous usageNumbers
 	havePrevious := false
 	var partial error
-	for scanner.Scan() {
+	var readErr error
+	for {
 		if ctx.Err() != nil {
 			return s, ctx.Err()
 		}
+		line, skipped, err := readLine()
+		if err != nil && err != io.EOF {
+			readErr = err
+			break
+		}
+		last := err == io.EOF
+		// Usage lines are small; anything else (or a skipped huge line) is ignored.
+		if skipped || len(bytes.TrimSpace(line)) == 0 || !(bytes.Contains(line, []byte(`usage`)) || bytes.Contains(line, []byte(`token_count`)) || bytes.Contains(line, []byte(`turn_context`))) {
+			if last {
+				break
+			}
+			continue
+		}
 		var record nativeUsageRecord
-		if json.Unmarshal(scanner.Bytes(), &record) != nil {
-			partial = errors.New("lecture partielle : ligne JSONL non reconnue")
+		if json.Unmarshal(line, &record) != nil {
+			if last {
+				break
+			}
 			continue
 		}
 		stamp, err := time.Parse(time.RFC3339Nano, record.Timestamp)
@@ -292,8 +327,8 @@ func parseHarnessJSONL(ctx context.Context, r io.Reader, harness string, cutoff,
 	for _, m := range messages {
 		s.add(m.model, m.numbers)
 	}
-	if scanner.Err() != nil || limited.N <= 0 {
-		partial = errors.New("lecture partielle : journal trop volumineux ou illisible")
+	if readErr != nil {
+		partial = errors.New("lecture partielle : journal illisible")
 	}
 	return s, partial
 }

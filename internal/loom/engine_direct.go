@@ -1,13 +1,13 @@
 package loom
 
 import (
-	"os"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 	"time"

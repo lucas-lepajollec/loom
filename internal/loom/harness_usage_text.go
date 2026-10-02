@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 var usageANSI = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
@@ -18,7 +19,7 @@ func cleanUsageText(s string) string {
 var usageNumeric = regexp.MustCompile(`^\$?([0-9]+(?:[,.][0-9]+)*)([kKmMbB]?)$`)
 
 func usageNumber(s string) (float64, bool) {
-	s = strings.TrimSpace(strings.Trim(s, "$€"))
+	s = strings.TrimSpace(strings.TrimLeft(strings.Trim(s, "$€"), "~$"))
 	m := usageNumeric.FindStringSubmatch(s)
 	if m == nil {
 		return 0, false
@@ -38,7 +39,7 @@ func usageNumber(s string) (float64, bool) {
 	return n, !math.IsInf(n, 0) && n <= 1e15
 }
 
-var usageStatLine = regexp.MustCompile(`(?i)^(sessions|total sessions|input(?: tokens)?|output(?: tokens)?|cache read(?: tokens)?|cached(?: tokens)?|cache write(?: tokens)?|total tokens|tokens|total cost|estimated cost|cost)\s*:?\s+(\$?\S+)`)
+var usageStatLine = regexp.MustCompile(`(?i)^(sessions|total sessions|input(?: tokens)?|output(?: tokens)?|cache read(?: tokens)?|cached(?: tokens)?|cache write(?: tokens)?|total tokens|tokens|total cost|estimated cost|estimated|cost)\s*:?\s+(\$?\S+)`)
 var usageColumns = regexp.MustCompile(`\s{2,}|\t+`)
 
 func statKey(s string) string {
@@ -58,7 +59,7 @@ func statKey(s string) string {
 		return "write"
 	case "total", "tokens":
 		return "total"
-	case "total cost", "estimated cost", "cost":
+	case "total cost", "estimated cost", "estimated", "cost":
 		return "cost"
 	}
 	return s
@@ -78,6 +79,8 @@ func usageCells(line string) []string {
 }
 
 // Both CLIs provide observations, not an invoice. No prices are reconstructed.
+var multiStatPair = regexp.MustCompile(`[A-Za-z][A-Za-z ./()-]*?:\s+\S+`)
+
 func parseHarnessStats(text, harness string, q *HarnessUsage) error {
 	seen := map[string]bool{}
 	models := map[string]HarnessModelUsage{}
@@ -101,9 +104,27 @@ func parseHarnessStats(text, harness string, q *HarnessUsage) error {
 		block = nil
 		blockParts = map[string]int64{}
 	}
+	// Hermes prints two stats per line ("Input tokens: 1  Output tokens: 2"):
+	// split such lines into one stat each.
+	var lines []string
 	for _, raw := range strings.Split(cleanUsageText(text), "\n") {
 		line := strings.TrimSpace(strings.Trim(raw, " │┃|"))
+		if parts := multiStatPair.FindAllString(line, -1); len(parts) > 1 && usageStatLine.MatchString(parts[0]) {
+			lines = append(lines, parts...)
+			continue
+		}
+		lines = append(lines, line)
+	}
+	for _, line := range lines {
 		if line == "" {
+			continue
+		}
+		// A section title starting with an emoji (Hermes) ends a models table.
+		if r := []rune(line)[0]; r > 0x2000 && !(r >= 0x2500 && r <= 0x259F) && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			finishBlock()
+			l := strings.ToLower(line)
+			inModels = strings.Contains(l, "model")
+			headers = nil
 			continue
 		}
 		lower := strings.ToLower(line)

@@ -315,7 +315,6 @@ func handleVLLM(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 // vllmReasoningParser picks vLLM's reasoning parser for known model families.
 func vllmReasoningParser(model string) string {
 	m := strings.ToLower(model)

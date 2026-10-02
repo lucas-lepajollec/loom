@@ -393,3 +393,11 @@ func TestHarnessClaudeQuotaCommand(t *testing.T) {
 		t.Fatal("output bound ignored")
 	}
 }
+
+func TestHermesInsightsTwoColumns(t *testing.T) {
+	raw := "  📊 Overview\n  Sessions:          26            Messages:        1,869\n  Input tokens:      2,656,262     Output tokens:   466,039\n  Total tokens:      56,172,925\n\n  💰 Cost\n  Estimated:          ~$0.0077\n  Included:           24 session(s)\n\n  🤖 Models Used\n  Model                          Sessions       Tokens\n  gpt-5.6-sol                          23   56,127,955\n  mimo-v2.6-pro                         1       17,439\n\n  📱 Platforms\n  Platform       Sessions   Messages         Tokens\n  tui                  23      1,861     50,388,168\n"
+	q := HarnessUsage{}
+	if err := parseHarnessStats(raw, "hermes", &q); err != nil || q.Sessions != 26 || q.InputTokens != 2656262 || q.OutputTokens != 466039 || q.TotalTokens != 56172925 || q.CostUSD == nil || len(q.ByModel) != 2 || q.ByModel[0].Tokens != 56127955 {
+		t.Fatalf("%+v %v", q, err)
+	}
+}

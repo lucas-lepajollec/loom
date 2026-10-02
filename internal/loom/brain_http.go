@@ -1,9 +1,9 @@
 package loom
 
 import (
-	"fmt"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -209,6 +209,7 @@ func (s *brainService) read(w http.ResponseWriter, r *http.Request) {
 	chunk, err := s.Read(brain.ReadRequest{ChunkID: q.Get("chunk_id"), Source: q.Get("source"), Path: q.Get("path"), Heading: q["heading"], Sources: brainFilter(r), Personal: q.Get("personal") == "true"})
 	brainResponse(w, chunk, err)
 }
+
 // brainSvc is the process-wide Brain (one index per LOOM_HOME).
 var (
 	brainSvcMu sync.Mutex

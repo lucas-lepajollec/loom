@@ -196,7 +196,7 @@ func harnessUsageCommand(ctx context.Context, a acpAgent, argv []string) ([]byte
 	} else {
 		native, err := harnessNativeArgv(argv)
 		if err != nil {
-			return nil, errors.New("CLI du harness indisponible")
+			return nil, errors.New("non installé sur cette machine")
 		}
 		cmd = exec.CommandContext(ctx, native[0], native[1:]...)
 	}
