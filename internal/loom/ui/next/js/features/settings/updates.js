@@ -4,16 +4,17 @@ import { get, post } from '../../core/api.js';
 import { confirm } from '../../ui/dialog.js';
 import { Line, Group } from './kit.js';
 
-export async function waitForUpdatedVersion(version, read = get, pause = ms => new Promise(resolve => setTimeout(resolve, ms)), alive = () => true) {
+export async function waitForUpdatedVersion(version, read = get, pause = ms => new Promise(resolve => setTimeout(resolve, ms)), alive = () => true, ping = '/api/ping') {
   for (let i = 0; i < 30 && alive(); i++) {
     await pause(2000);
     if (!alive()) return false;
-    try { if ((await read('/api/ping')).version === version) return true; } catch (_) {}
+    try { if ((await read(ping)).version === version) return true; } catch (_) {}
   }
   return false;
 }
 
-export function LoomUpdates() {
+export function LoomUpdates({ node = false } = {}) {
+ const base = node ? '/api/engine/node/update' : '/api/update';
   const [info, setInfo] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -25,7 +26,7 @@ export function LoomUpdates() {
     if (running.current) return;
     running.current = true; setBusy(true); setError(''); setMessage('');
     try {
-      const result = await get('/api/update');
+      const result = await get(base);
       if (result.error) throw new Error(result.error);
       setInfo(result);
     } catch (err) { setInfo(null); setError(err.message); }
@@ -35,19 +36,21 @@ export function LoomUpdates() {
     if (running.current || !info?.available || !info.can_apply) return;
     running.current = true;
     try {
-      if (!await confirm(t('updates.install'), t('updates.confirm', { version: info.latest }), { ok: t('updates.install') })) return;
+      if (!await confirm(t('updates.install'), t(node ? 'node.update_confirm' : 'updates.confirm', { version: info.latest }), { ok: t('updates.install') })) return;
       setBusy(true); setError(''); setMessage(t('updates.installing'));
-      const result = await post('/api/update/apply', { version: info.latest }, { timeout: 8 * 60 * 1000 });
+      const result = await post(base + '/apply', { version: info.latest }, { timeout: 8 * 60 * 1000 });
       if (!result.ok) throw new Error(result.error || t('updates.failed'));
       if (result.restarting) {
         setMessage(t('updates.reconnecting'));
-        if (await waitForUpdatedVersion(result.version, get, undefined, () => alive.current)) location.reload();
+        if (await waitForUpdatedVersion(result.version, get, undefined, () => alive.current, node ? base + '/ping' : '/api/ping')) {
+          if (node) { setInfo(await get(base)); setMessage(t('node.updated')); } else location.reload();
+        }
         else if (alive.current) setMessage(t('updates.restart_pending'));
       } else setMessage(t('updates.restart_manual') + ' ' + (result.restart || ''));
     } catch (err) { setMessage(''); setError(err.message); }
     finally { running.current = false; if (alive.current) setBusy(false); }
   };
-  return html`<${Group} title=${t('settings.page.mises_a_jour')}>
+  return html`<${Group} title=${t(node ? 'node.updates' : 'settings.page.mises_a_jour')}>
     <${Line} label=${t('updates.source')}><a href="https://github.com/lucas-lepajollec/loom/releases" target="_blank" rel="noopener noreferrer">${t('updates.releases')}</a></${Line}>
     <${Line} label=${t('updates.version')}>
       ${info && html`<span class="state">${info.available ? t('updates.available', { version: info.latest }) : t('updates.current', { version: info.current })}</span>`}

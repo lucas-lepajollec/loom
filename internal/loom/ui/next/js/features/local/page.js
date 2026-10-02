@@ -185,7 +185,7 @@ function Engine() {
   const copy = localT => navigator.clipboard && navigator.clipboard.writeText(localT).then(() => toast(t("local.page.copie")));
   const slots = (srv && srv.slots && srv.slots.items) || [];
   const busy = slots.filter(s => s.busy).length;
-  const curl = srv ? `curl ${srv.url}/chat/completions \\\n  -H 'Content-Type: application/json' \\\n  -d '{"model":"${srv.model_name || 'loom'}","messages":[{"role":"user","content":"Bonjour"}]}'` : '';
+  const curl = srv ? `curl ${srv.url}/chat/completions ${srv.key_required ? '-H \'Authorization: Bearer YOUR_API_KEY\' ' : ''}\\\n  -H 'Content-Type: application/json' \\\n  -d '{"model":"loom","messages":[{"role":"user","content":"Bonjour"}]}'` : '';
   return html`<div class="engine stagger">
     <div class="card engine-hero">
       <div class="eh-main"><div class="eh-state"><i class=${'dot ' + st.tone}></i><b>${status && status.active ? (status.health ? t("local.page.moteur_actif") : status.model ? t("local.page.chargement_du_modele") : t("local.page.moteur_pret")) : t("local.page.moteur_arrete")}</b></div>
@@ -206,16 +206,16 @@ function Engine() {
         <div class="slots">${slots.map(s => html`<div class=${cls('slot', s.busy && 'busy')}><span class="mono">#${s.id}</span>
           <div class="meter"><i style=${`width:${s.busy && s.ctx ? Math.min(100, (s.prompt + s.tokens) * 100 / s.ctx) : 0}%;background:var(--blue)`}></i></div>
           <span class="mono">${s.busy ? (s.toks || 0).toFixed(1) + ' tok/s' : t('local.page.free')}</span></div>`)}</div>
-        <div class="np-row"><span>${t("local.page.slots_paralleles")}<${Tip} text="${t("local.page.requetes_traitees_en_meme_temps_le_contexte_est_partage_entre_les")}" /></span>
+        <div class="np-row">${srv?.np_supported === false ? html`<a class="btn sm" href="#/settings/engine">${t("node.vllm_parameters")}</a>` : html`<span>${t("local.page.slots_paralleles")}<${Tip} text="${t("local.page.requetes_traitees_en_meme_temps_le_contexte_est_partage_entre_les")}" /></span>
           <input class="input sm num" type="number" min="1" max="32" value=${np} onInput=${e => setNp(e.target.value)} />
-          <button class="btn sm" onClick=${async () => { const r = await post('/api/server', { np: +np }); if (!r.ok) toast(r.error, 'err'); else toast(t("local.page.rechargement_avec") + np + ' slots…'); }}>${t("local.page.appliquer")}</button></div>
+          <button class="btn sm" onClick=${async () => { const r = await post('/api/server', { np: +np }); if (!r.ok) toast(r.error, 'err'); else toast(t("local.page.rechargement_avec") + np + ' slots…'); }}>${t("local.page.appliquer")}</button>`}</div>
       </div>
       <div class="card pad">
         <div class="sec-h"><h2>${t("local.page.api_compatible_openai")}</h2>${srv && html`<span class=${'tag ' + (srv.lan ? 'amber' : 'green')}>${srv.lan ? t("local.page.reseau_local_2") : t("local.page.cette_machine")}</span>`}</div>
         <div class="url-row"><code class="mono">${srv ? srv.url : '…'}</code><button class="icon-btn" aria-label="${t("local.page.copier_l_url")}" onClick=${() => copy(srv.url)}><${Icon} n="copy" /></button></div>
         <div class="kv"><span>${t("local.page.cle_api")}</span><span>${srv && srv.key_required ? html`<span class="tag green">${t("local.page.exigee")}</span>` : html`<span class="tag">${t("local.page.aucune")}</span>`}</span></div>
         <div class="kv"><span>${t("local.page.expose_sur_le_reseau")}<${Tip} text="${t("local.page.allume_un_autre_appareil_du_reseau_local_peut_utiliser_ce_serveur")}" /></span>
-          <${Switch} checked=${srv && srv.lan} label="${t("local.page.reseau_local")}" onChange=${async on => { const r = await post('/api/network', { exposed: on }); if (r.ok === false) toast(r.error, 'err'); load(); }} /></div>
+          ${srv?.node_managed ? html`<span class="muted">${t("node.network_managed")}</span>` : html`<${Switch} checked=${srv && srv.lan} label="${t("local.page.reseau_local")}" onChange=${async on => { const r = await post('/api/network', { exposed: on }); if (r.ok === false) toast(r.error, 'err'); load(); }} />`}</div>
         <details class="curl"><summary>${t("local.page.exemple_curl")}</summary><pre class="mono">${curl}</pre><button class="btn sm" onClick=${() => copy(curl)}>${t("local.page.copier")}</button></details>
       </div>
     </div>

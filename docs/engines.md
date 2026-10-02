@@ -141,3 +141,9 @@ against GPU total memory at a default 90% budget, with conservative equal
 partitions for multiple GPUs. Unknown weight/VRAM data stays unknown. Actual
 requirements depend on context, concurrency, hardware, dtype and quantization;
 the estimate is advisory and does not apply tensor parallelism automatically.
+
+## Installation permissions
+
+Engine installations stay in user-owned Loom directories; vLLM uses a private Python environment, never global pip. A read-only linked llama.cpp source/build or managed engine directory is rejected before fetching/building. Repair ownership with an administrator or install in a new user-owned location; do not run the interface as root. Missing system build dependencies may require administrator installation. In a noninteractive service, package-manager sudo uses `-n` and fails instead of waiting for a password.
+
+For a GPU machine without a second full control plane, use [Loom node](engine-node.md). Direct servers and legacy full-Loom engine links remain compatible.

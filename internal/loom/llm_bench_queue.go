@@ -213,6 +213,9 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 	seen := map[string]bool{}
 	for _, p := range picks {
 		if choiceID := strings.TrimSpace(p.ChoiceID); choiceID != "" {
+			if isEngineWorker() {
+				return nil, fmt.Errorf("engine nodes support local benchmarks only; cloud choices belong to the main Loom")
+			}
 			if seen[choiceID] {
 				continue
 			}

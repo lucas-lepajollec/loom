@@ -1,15 +1,18 @@
 package loom
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,13 +29,14 @@ import (
 const engineNodeState = "engine_node"
 
 type engineNode struct {
-	URL      string `json:"url"`       // control API of the remote Loom, e.g. http://tour:8091
-	WebKey   string `json:"web_key"`   // its control key
-	V1       string `json:"v1"`        // its /v1 base, e.g. http://tour:8080
-	APIKey   string `json:"api_key"`   // its /v1 key
-	Hostname string `json:"hostname"`  // for display
-	Version  string `json:"version"`   // remote Loom version
-	LinkedAt int64  `json:"linked_at"` // unix ms
+	URL      string `json:"url"`            // control API of the remote Loom, e.g. http://tour:2510
+	WebKey   string `json:"web_key"`        // its control key
+	V1       string `json:"v1"`             // its /v1 base, e.g. http://tour:8080
+	APIKey   string `json:"api_key"`        // its /v1 key
+	Hostname string `json:"hostname"`       // for display
+	Role     string `json:"role,omitempty"` // engine-node or legacy full Loom
+	Version  string `json:"version"`        // remote Loom version
+	LinkedAt int64  `json:"linked_at"`      // unix ms
 	// Direct link (engine_direct.go): an inference server used by address,
 	// without Loom on its machine.
 	Direct bool   `json:"direct,omitempty"`
@@ -204,7 +208,7 @@ func cleanNodeURL(raw string) (string, *url.URL, error) {
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
-		return "", nil, errors.New("invalid address (e.g. http://192.168.1.20:8091)")
+		return "", nil, errors.New("invalid address (e.g. http://192.168.1.20:2510)")
 	}
 	if u.Scheme == "http" && !localNetworkHost(u.Hostname()) {
 		return "", nil, errors.New("http is only accepted on the local network; use https elsewhere")
@@ -232,14 +236,16 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	}
 	defer resp.Body.Close()
 	var info struct {
-		OK       bool   `json:"ok"`
-		Error    string `json:"error"`
-		Hostname string `json:"hostname"`
-		Version  string `json:"version"`
-		LLMPort  int    `json:"llm_port"`
-		Exposed  bool   `json:"v1_exposed"`
-		APIKey   string `json:"api_key"`
-		Engine   bool   `json:"engine"`
+		OK         bool   `json:"ok"`
+		Error      string `json:"error"`
+		Hostname   string `json:"hostname"`
+		Version    string `json:"version"`
+		LLMPort    int    `json:"llm_port"`
+		SameOrigin bool   `json:"v1_same_origin"`
+		Role       string `json:"role"`
+		Exposed    bool   `json:"v1_exposed"`
+		APIKey     string `json:"api_key"`
+		Engine     bool   `json:"engine"`
 	}
 	_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&info)
 	switch {
@@ -256,11 +262,14 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 		return nil, errors.New("this Loom itself uses a remote engine: link directly to the machine hosting the engine")
 	case !info.Exposed:
 		return nil, errors.New("remote Loom's /v1 API is not listening on the network: enable “API /v1 on the network” in its Settings › Network access")
-	case info.LLMPort <= 0:
+	case !info.SameOrigin && info.LLMPort <= 0:
 		return nil, errors.New("unknown remote Loom /v1 port")
 	}
-	v1 := fmt.Sprintf("%s://%s:%d", u.Scheme, u.Hostname(), info.LLMPort)
-	n := &engineNode{URL: base, WebKey: webKey, V1: v1, APIKey: info.APIKey, Hostname: info.Hostname, Version: info.Version, LinkedAt: time.Now().UnixMilli()}
+	v1 := u.Scheme + "://" + net.JoinHostPort(u.Hostname(), strconv.Itoa(info.LLMPort))
+	if info.SameOrigin {
+		v1 = base
+	}
+	n := &engineNode{URL: base, WebKey: webKey, V1: v1, APIKey: info.APIKey, Hostname: info.Hostname, Version: info.Version, Role: info.Role, LinkedAt: time.Now().UnixMilli()}
 	// The /v1 API must answer with that key before the link is kept.
 	hreq, _ := http.NewRequestWithContext(ctx, http.MethodGet, v1+"/v1/models", nil)
 	if n.APIKey != "" {
@@ -319,24 +328,8 @@ func nodeAware(path string, local http.HandlerFunc) http.HandlerFunc {
 			serveDirectEngineRoute(w, r, n, local)
 			return
 		}
-		target, err := url.Parse(n.URL)
-		if err != nil {
-			sendJSON(w, 502, map[string]any{"ok": false, "error": "invalid engine link"})
-			return
-		}
-		proxy := httputil.NewSingleHostReverseProxy(target)
-		proxy.FlushInterval = -1
-		base := proxy.Director
-		proxy.Director = func(req *http.Request) {
-			base(req)
-			req.Host = target.Host
-			req.Header.Set("Authorization", "Bearer "+n.WebKey)
-			req.Header.Del("Cookie")
-		}
-		proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) {
-			sendJSON(w, 502, map[string]any{"ok": false, "error": "remote engine unreachable (" + n.Hostname + ")"})
-		}
-		proxy.ServeHTTP(w, r)
+
+		proxyEngineNode(w, r, n)
 	}
 }
 
@@ -361,7 +354,7 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 			resp.Body.Close()
 			reachable = resp.StatusCode == 200
 		}
-		sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "url": n.URL, "v1": n.V1, "hostname": n.Hostname, "version": n.Version, "reachable": reachable})
+		sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "url": n.URL, "v1": n.V1, "hostname": n.Hostname, "version": n.Version, "role": n.Role, "reachable": reachable})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -419,4 +412,106 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "url": n.URL, "hostname": n.Hostname, "version": n.Version})
+}
+
+func proxyEngineNode(w http.ResponseWriter, r *http.Request, n *engineNode) {
+	target, err := url.Parse(n.URL)
+	if err != nil {
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "invalid engine link"})
+		return
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.FlushInterval = -1
+	base := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		base(req)
+		req.Host = target.Host
+		req.Header.Set("Authorization", "Bearer "+n.WebKey)
+		req.Header.Del("Cookie")
+		req.Header.Del("Origin")
+		req.Header.Del("Referer")
+	}
+	if n.Role == "engine-node" && r.URL.Path == "/api/server" {
+		proxy.ModifyResponse = func(resp *http.Response) error {
+			if resp.StatusCode != http.StatusOK {
+				return nil
+			}
+			defer resp.Body.Close()
+			var status map[string]any
+			if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&status); err != nil {
+				return err
+			}
+			// A TLS reverse proxy or SSH tunnel can differ from the worker listener.
+			// Show the negotiated client endpoint, never a private backend address.
+			endpoint := strings.TrimRight(n.V1, "/") + "/v1"
+			status["url"], status["url_local"] = endpoint, endpoint
+			body, err := json.Marshal(status)
+			if err != nil {
+				return err
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			resp.ContentLength = int64(len(body))
+			resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+			return nil
+		}
+	}
+	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) {
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "remote engine unreachable (" + n.Hostname + ")"})
+	}
+	proxy.ServeHTTP(w, r)
+}
+
+func handleEngineNodeUpdate(w http.ResponseWriter, r *http.Request) {
+	n := currentEngineNode()
+	if n == nil || n.Direct || n.Role != "engine-node" {
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "Connect an engine node first"})
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, "/api/engine/node/update")
+	switch path {
+	case "":
+		path = "/api/update"
+	case "/apply":
+		path = "/api/update/apply"
+	case "/ping":
+		path = "/api/ping"
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	cloned := r.Clone(r.Context())
+	cloned.URL.Path, cloned.URL.RawPath = path, ""
+	proxyEngineNode(w, cloned, n)
+}
+
+// A linked engine owns its sampling configuration. Never apply the VM's stale
+// local preset to requests headed for the GPU machine. Fail visibly if that
+// configuration cannot be read; do not silently substitute local defaults.
+func engineExecutionConfig(ctx context.Context) (map[string]string, error) {
+	n := currentEngineNode()
+	if n == nil || n.Direct {
+		return ReadConfig(), nil
+	}
+	path := "/api/config"
+	if n.Role == "engine-node" {
+		path = "/api/engine/execution-config"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, n.URL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+n.WebKey)
+	resp, err := nodeClient.Do(req)
+	if err != nil {
+		return nil, errors.New("remote engine configuration unavailable")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("remote engine configuration unavailable (HTTP %d)", resp.StatusCode)
+	}
+	var cfg map[string]string
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&cfg); err != nil {
+		return nil, errors.New("invalid remote engine configuration")
+	}
+	return cfg, nil
 }

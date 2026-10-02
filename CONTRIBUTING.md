@@ -25,10 +25,10 @@ This embeds the web UI (`internal/loom/ui/next`, no build step) and outputs the 
 ### Running in development
 
 ```bash
-./bin/loom web 8091
+./bin/loom web 2510
 ```
 
-Access the UI at `http://127.0.0.1:8091`. Use the first-run guide to install or link an engine, or use cloud providers/harnesses. Settings › Engines manages engines; `./bin/loom edit` can configure `BIN` for an existing `llama-server`. Read the [architecture principles](docs/architecture-principles.md) before runtime changes.
+Access the UI at `http://127.0.0.1:2510`. Use the first-run guide to install or link an engine, or use cloud providers/harnesses. Settings › Engines manages engines; `./bin/loom edit` can configure `BIN` for an existing `llama-server`. Read the [architecture principles](docs/architecture-principles.md) before runtime changes.
 
 ## Validation
 
@@ -57,3 +57,9 @@ checked.
 - Report vulnerabilities through [SECURITY.md](SECURITY.md), not a public issue.
 
 By participating, you agree to follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Contributions are made under the repository's `LICENSE`.
+
+For the Linux node installer acceptance check, build the candidate and run as a
+normal user: `LOOM_TEST_BINARY="$PWD/bin/loom" sh tools/tests/install-node.sh`.
+It uses verified local artifacts and a simulated systemd user bus, never real
+host services or upstream installation. Native GPUs, vLLM environments and actual
+service boot/restart behavior still need separate platform acceptance.

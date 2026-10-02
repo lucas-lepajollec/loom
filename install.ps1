@@ -70,7 +70,7 @@ try {
     Write-Host "Loom installed. Open a new terminal and run 'loom where' to inspect its paths." -ForegroundColor Green
     Write-Host "==========================================================================" -ForegroundColor Green
     Write-Host "To start the web interface:"
-    Write-Host "   loom web 8091"
+    Write-Host "   loom web 2510"
     Write-Host "=========================================================================="
 }
 finally {

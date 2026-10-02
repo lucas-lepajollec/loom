@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/term"
 )
 
 // defaultLoomHome is user-local Loom data. Never /etc/loom (that's Loom).
@@ -125,7 +127,11 @@ func AutoInstallTool(name string) error {
 			if _, err := exec.LookPath("sudo"); err != nil {
 				return fmt.Errorf("%s requires root (neither root nor sudo available)", m.bin)
 			}
-			argv = append([]string{"sudo"}, argv...)
+			sudoArgs := []string{"sudo"}
+			if !term.IsTerminal(int(os.Stdin.Fd())) {
+				sudoArgs = append(sudoArgs, "-n")
+			}
+			argv = append(sudoArgs, argv...)
 		}
 		cmd := exec.Command(argv[0], argv[1:]...)
 		cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin

@@ -356,3 +356,56 @@ test('reconnect accepts only the new running version, with bounded failures', as
   assert.equal(reads, 30);
   assert.equal(await env.wait('0.1.2', async () => { throw new Error('should not read'); }, async () => {}, () => false), false);
 });
+
+const machines = fs.readFileSync(new URL('../next/js/features/harnesses/machines.js', import.meta.url), 'utf8');
+test('SSH machine can finish with no harnesses, including editing a machine without a harness list', async () => {
+  for (const editing of [false, true]) {
+    let closed;
+    const checked = { ok: true, machine: { id: 'gpu', hostname: 'GPU', host: 'fixture', os: 'Linux', home: '/home/fixture' }, offers: [
+      { id: 'codex', installed: true, ready: true, name: 'Codex' },
+      { id: 'claude-code', installed: true, ready: true, name: 'Claude Code' },
+    ] };
+    const h = harness(machines, 'MachineDialog', {
+      refreshWorkspace: async () => {}, copyText: async () => true,
+      post: async (url, body) => { h.posts.push([url, body]); return body.check_only ? checked : { ok: true, machine: { ...body.machine, harnesses: [] } }; },
+    });
+    h.data['/api/machines'] = { ok: true, setup: 'synthetic setup' };
+    const props = { machine: editing ? { id: 'gpu', name: 'GPU', host: 'fixture', user: 'fixture' } : null, onClose: value => closed = value };
+    let tree = await h.ready(props);
+    if (!editing) {
+      const inputs = nodes(tree, 'input');
+      inputs[1].props.onInput({ target: { value: 'fixture' } }); tree = h.render();
+      nodes(tree, 'input')[2].props.onInput({ target: { value: 'fixture' } }); tree = h.render();
+    }
+    assert.equal(button(tree, 'Tester la connexion').props.disabled, false);
+    await button(tree, 'Tester la connexion').props.onClick(); tree = h.render();
+    for (;;) {
+      const selected = nodes(tree, 'input').find(n => n.props.type === 'checkbox' && n.props.checked);
+      if (!selected) break;
+      selected.props.onChange(); tree = h.render();
+    }
+    const save = button(tree, 'Enregistrer la machine');
+    assert.equal(save.props.disabled, false);
+    await save.props.onClick();
+    assert.equal(h.posts.at(-1)[0], '/api/machines');
+    assert.deepEqual(Array.from(h.posts.at(-1)[1].harnesses), []);
+    assert.equal(closed.id, editing ? 'gpu' : '');
+  }
+});
+
+test('node updates target only the node and warn about stopping engines', async () => {
+  const h = harness(updates, 'LoomUpdates');
+  h.data['/api/engine/node/update'] = { current: '0.1.2', latest: '0.1.3', available: true, can_apply: true };
+  await button(h.render({ node: true }), 'Vérifier').props.onClick();
+  await button(h.render(), 'Installer la mise à jour').props.onClick();
+  assert.equal(h.posts[0][0], '/api/engine/node/update/apply');
+  assert.match(h.confirmations[0][1], /arrêtera ses moteurs/);
+});
+
+test('node server view uses its protected endpoint without an ineffective network toggle', async () => {
+  const h = harness(local, 'Engine', { setInterval: () => 1, clearInterval: () => {}, engineState: () => ({ tone: 'muted' }) });
+  h.data['/api/server'] = { node_managed: true, key_required: true, url: 'http://fixture:2511/v1', slots: { items: [] }, stats: {} };
+  const tree = await h.ready();
+  assert.equal(nodes(tree, 'Switch').length, 0);
+  assert.match(textOf(tree), /2511\/v1/);
+});

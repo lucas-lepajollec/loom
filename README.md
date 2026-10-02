@@ -87,15 +87,15 @@ To build from source, install Go 1.25+ and GNU Make. The web UI is embedded dire
 git clone https://github.com/lucas-lepajollec/loom.git
 cd loom
 make build
-./bin/loom web 8091
+./bin/loom web 2510
 ```
 
 Local inference needs an engine: install one from Loom or link an existing server. Compiling llama.cpp requires Git, CMake and a C/C++ toolchain.
 
 ## Quick start
 
-1. Run `loom web 8091` (or `./bin/loom web 8091` after a source build).
-2. Open [http://localhost:8091](http://localhost:8091).
+1. Run `loom web 2510` (or `./bin/loom web 2510` after a source build).
+2. Open [http://localhost:2510](http://localhost:2510).
 3. Follow the first-run guide: choose a language, review detected hardware, install or link an engine, or continue with cloud/harnesses only. The llama.cpp path offers a first GGUF model sized to available memory; vLLM models are managed in **Local**.
 4. Create a discussion and choose its execution target. Confirm external sharing when prompted. Attach a project when you need a working folder or shared context.
 
@@ -152,3 +152,7 @@ Update Loom from **Settings → About → Updates** using official GitHub releas
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development and checks, [SUPPORT.md](SUPPORT.md) for bug reports, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. Release maintainers use [RELEASING.md](RELEASING.md).
 
 Loom is licensed under the [MIT License](LICENSE). Engines, models and other dependencies retain their own licenses and terms.
+
+### GPU machine without another full Loom
+
+Run `loom node` on Linux to expose only engine management and inference, with separate data and a machine credential. Keep discussions, Brain and harnesses on the main Loom. Starting with v0.1.3, use the same release installer with `sh -s -- --node`; it creates a separate user service and binary. See [Engine node](docs/engine-node.md) for installation, control coverage and updates. The main interface now defaults to port **2510**; explicit `loom web PORT` values remain supported.

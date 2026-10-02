@@ -287,6 +287,7 @@ func applyLiveConfig(content, presetID string) error {
 		}
 		next[k] = v
 	}
+	preserveNodeFront(next, ReadConfig())
 	if err := WriteConfig(next); err != nil {
 		return err
 	}
@@ -450,6 +451,7 @@ func unloadEngine() error {
 			next[k] = v
 		}
 	}
+	preserveNodeFront(next, ReadConfig())
 	if err := WriteConfig(next); err != nil {
 		return err
 	}

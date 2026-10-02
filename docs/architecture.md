@@ -195,7 +195,11 @@ tracks main and upstream still owns source updates. Antigravity has no verified
 read-only latest-version source in this catalog, so only manual lifecycle
 updates run for it. Upstream installers, package permissions and supported OS
 versions remain upstream's responsibility; Loom never adds sudo or changes
-native global permissions.
+native global permissions. On Unix, npm install/update probes the global prefix;
+if it is not writable, an explicit per-command `--prefix ~/.local` is used.
+No npm configuration file is modified. Installation, version inspection and ACP
+launches prefer user-installed binaries. SSH probes the target's own prefix.
+OpenCode's Unix catalog update uses the same npm path as its installation.
 
 ### 2.3 Event — one vocabulary for every runtime
 
@@ -768,3 +772,7 @@ Its features live in `ui/next` (multi-GPU split through Expert parameters);
 the release build embeds these files directly without an assembler.
 
 Application release updates are separate from engine updates. `sys_update.go` shares verified binary installation between the CLI and authenticated interface; `sys_update_linux.go` confines system-install updates to a root-owned fixed target and helper, without user configuration or arbitrary command arguments. The interface reports installation separately from confirmed restart. See [Updating Loom](updates.md).
+
+## Engine-only execution mode
+
+`loom node` enters before dotenv/user adoption/ACP lifecycle setup and uses a separate data root. `engine_routes.go` registers the shared engine control handlers in either the main authenticated web mux or the node-only mux. The latter never calls `newWebMux`, so it does not load conversations, prewarm MCP or start Brain/harness services. `engine_worker.go` owns the machine-only auth boundary and streaming local inference proxy; `engine_worker_routes.go` adapts native management while a loopback vLLM link serves inference; `engine_worker_install.go` writes a user service. The release installer has a separate user-only node mode. Node release updates are proxied through dedicated main-side endpoints and restart only the node user service. Local-only benchmarks reuse native handlers and reject cloud choices. The main `engine_node.go` client negotiates a same-origin `/v1` address while retaining older full-Loom links. See [Engine node](engine-node.md) for capability and platform limits.

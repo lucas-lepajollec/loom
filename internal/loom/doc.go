@@ -7,7 +7,7 @@
 //	store/        base bbolt (loom.db) : configuration, préférences, conversation,
 //	              clés, jetons, interrupteurs — tout l'état non éditable à la main
 //	cli_*         expérience application (double-clic : UI + tray + splash)
-//	web_*         serveur HTTP :8091 (UI embarquée via go:embed ui/, auth, prefs)
+//	web_*         serveur HTTP :2510 (UI embarquée via go:embed ui/, auth, prefs)
 //	chat_*        chat CLI + conversation partagée, compaction, outils
 //	llm_*         client llama-server (complétions, endpoint OpenAI /v1, bench)
 //	backend_*     gestion llama.cpp : build, GPU, modèles et téléchargements,

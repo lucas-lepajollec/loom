@@ -3,6 +3,7 @@ package loom
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -95,5 +96,46 @@ func TestUpdateAPIRequiresAuthenticationAndMethods(t *testing.T) {
 	}
 	if got := authCall(mux, "POST", "/api/update/apply", "broken-json", nil, "synthetic-updater-key", "").Code; got != 400 {
 		t.Fatal("invalid update body accepted", got)
+	}
+}
+
+func TestNodeReleaseUpdateChecksCapabilityBeforeReplacingBinary(t *testing.T) {
+	t.Setenv("LOOM_UI_SERVICE", "loom-node")
+	for _, supported := range []bool{false, true} {
+		dir := t.TempDir()
+		exe := filepath.Join(dir, "loom")
+		_ = os.WriteFile(exe, []byte("previous node"), 0755)
+		content := []byte("#!/bin/sh\nexit 1\n")
+		if supported {
+			content = []byte("#!/bin/sh\nprintf '%s\\n' engine-node-v1\n")
+		}
+		hash := sha256.Sum256(content)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/binary" {
+				w.Write(content)
+			} else {
+				fmt.Fprintf(w, "%x  %s\n", hash, updateAssetName())
+			}
+		}))
+		var release ghRelease
+		metadata := fmt.Sprintf(`{"tag_name":"v99.0.0","assets":[{"name":%q,"browser_download_url":%q,"size":%d},{"name":"SHA256SUMS.txt","browser_download_url":%q}]}`, updateAssetName(), server.URL+"/binary", len(content), server.URL+"/sums")
+		if err := json.Unmarshal([]byte(metadata), &release); err != nil {
+			t.Fatal(err)
+		}
+		_, err := installReleaseUpdate(&release, exe)
+		server.Close()
+		installed, _ := os.ReadFile(exe)
+		if supported {
+			if err != nil || string(installed) != string(content) {
+				t.Fatal("valid node update failed", err)
+			}
+		} else {
+			if err == nil || string(installed) != "previous node" {
+				t.Fatal("unsupported release replaced node")
+			}
+			if _, err := os.Stat(exe + ".previous"); !os.IsNotExist(err) {
+				t.Fatal("failed check changed rollback state")
+			}
+		}
 	}
 }

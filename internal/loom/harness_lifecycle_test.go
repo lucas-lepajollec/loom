@@ -74,7 +74,7 @@ func TestHarnessLifecycleCommandArgv(t *testing.T) {
 	}
 	m := RemoteMachine{ID: "box", Host: "host.example", User: "user", Port: 2222, OS: "Linux"}
 	remote, err := buildHarnessLifecycleCommand(&m, "/key with space", argv)
-	want := []string{"ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new", "-i", "/key with space", "-p", "2222", "user@host.example", "sh", "-c", shellQuote(remotePathPreamble + "exec npm install -g @openai/codex@latest")}
+	want := []string{"ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new", "-i", "/key with space", "-p", "2222", "user@host.example", "sh", "-c", shellQuote(remotePathPreamble + remoteNPMPrefixScript(argv) + "exec npm install -g --prefix \"$loom_npm_prefix\" @openai/codex@latest")}
 	if err != nil || !reflect.DeepEqual(remote, want) {
 		t.Fatalf("got %q\nwant %q\n%v", remote, want, err)
 	}

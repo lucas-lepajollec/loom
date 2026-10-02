@@ -32,7 +32,7 @@ export function MachineDialog({ machine, onClose }) {
   const [paste, setPaste] = useState('');
   const [v, setV] = useState(machine ? { id: machine.id, name: machine.name, host: machine.host, user: machine.user, port: String(machine.port || 22) } : { name: '', host: '', user: '', port: '22' });
   const [check, setCheck] = useState(null);
-  const [chosen, setChosen] = useState(machine ? machine.harnesses.map(id => id.slice(('custom-' + machine.id + '-').length)) : []);
+  const [chosen, setChosen] = useState(machine ? (machine.harnesses || []).map(id => id.slice(('custom-' + machine.id + '-').length)) : []);
   const [busy, setBusy] = useState('');
   useEffect(() => { get('/api/machines').then(r => r.ok && setSetup(r.setup)); }, []);
   const set = patch => { setV({ ...v, ...patch }); setCheck(null); };
@@ -63,7 +63,7 @@ export function MachineDialog({ machine, onClose }) {
   const offers = check && check.offers ? check.offers.filter(o => o.installed) : [];
   return html`<${Modal} wide title=${machine ? t("environment.page.modifier_prefix") + machine.name : t("harnesses.machines.connecter_une_machine")} sub="${t("harnesses.machines.un_autre_ordinateur_ou_tournent_des_harnesses_joint_en_ssh")}" onClose=${() => onClose()}
       foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t("harnesses.machines.annuler")}</button>
-        ${check && check.ok ? html`<button class="btn primary" disabled=${!!busy || !chosen.length} onClick=${save}>${busy === 'save' ? t("environment.page.connexion") : t("harnesses.machines.ajouter") + (chosen.length > 1 ? chosen.length + ' harnesses' : t("harnesses.machines.le_harness"))}</button>`
+        ${check && check.ok ? html`<button class="btn primary" disabled=${!!busy} onClick=${save}>${busy === 'save' ? t("environment.page.connexion") : t("harnesses.machines.enregistrer_machine")}</button>`
           : html`<button class="btn primary" disabled=${!!busy || !ready} onClick=${test}>${busy === 'check' ? t("harnesses.machines.test") : t("harnesses.machines.tester_la_connexion")}</button>`}`}>
     <div class="mx-steps">
       <div class="mx-step"><span class="mx-n">1</span><div class="mx-body">
@@ -85,6 +85,7 @@ export function MachineDialog({ machine, onClose }) {
       ${check && html`<div class="mx-step"><span class="mx-n">3</span><div class="mx-body">
         ${check.error ? html`<b>${t("harnesses.machines.connexion_impossible")}</b><p class="note err">${check.error}</p>`
           : html`<b>${t("harnesses.machines.connectee_a")} ${check.machine.hostname || check.machine.host}<span class="muted"> · ${check.machine.os} · ${check.machine.home}</span></b>
+            <p class="note">${t("harnesses.machines.harnesses_facultatifs")}</p>
             ${offers.length ? html`<div class="mx-offers">${offers.map(o => html`<label class=${cls('mx-offer', !o.ready && 'off')} key=${o.id}>
                 <input type="checkbox" disabled=${!o.ready} checked=${chosen.includes(o.id)} onChange=${() => toggle(o.id)} />
                 <${Logo} name=${o.logo} /><span class="grow"><b>${o.name}</b><small>${o.ready ? o.version || t("harnesses.machines.installe") : o.missing}</small></span></label>`)}</div>`

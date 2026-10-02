@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"context"
 	"fmt"
 	"golang.org/x/mod/semver"
 	"net/http"
@@ -64,7 +65,7 @@ func applyUpdateVersion(expected string) (string, error) {
 		return "", err
 	}
 	if err := checkUpdateWritable(exe); err != nil {
-		if canUseSystemUpdater(exe) {
+		if !isEngineWorker() && canUseSystemUpdater(exe) {
 			version, err := runSystemUpdater(expected)
 			if err == nil {
 				loomInstalledUpdate = version
@@ -104,8 +105,11 @@ func updateCapability() (bool, string) {
 		return false, err.Error()
 	}
 	if err := checkUpdateWritable(exe); err != nil {
-		if canUseSystemUpdater(exe) {
+		if !isEngineWorker() && canUseSystemUpdater(exe) {
 			return true, ""
+		}
+		if isEngineWorker() {
+			return false, "Node updates need a user-owned binary in a writable directory; reinstall with install.sh --node or use a separate user-owned copy."
 		}
 		return false, "System installation needs one-time administrator setup: sudo loom install. Portable installations need a writable binary directory."
 	}
@@ -151,6 +155,14 @@ func installReleaseUpdate(rel *ghRelease, exe string) (string, error) {
 	}
 	if err := os.Chmod(tmp, mode); err != nil {
 		return "", err
+	}
+	if isEngineWorker() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		capabilities, err := exec.CommandContext(ctx, tmp, "node", "capabilities").Output()
+		if err != nil || strings.TrimSpace(string(capabilities)) != "engine-node-v1" {
+			return "", fmt.Errorf("release does not support this engine node; update cancelled")
+		}
 	}
 	// A separate copy keeps the running inode intact and preserves rollback.
 	if err := backupUpdateBinary(exe); err != nil {
@@ -285,6 +297,16 @@ func restartAfterUpdate() (bool, string) {
 	if runtime.GOOS == "windows" {
 		return scheduleAppRestart()
 	}
+	if isEngineWorker() {
+		if runtime.GOOS != "linux" || exec.Command("systemctl", "--user", "is-active", "--quiet", "loom-node").Run() != nil {
+			return false, ""
+		}
+		go func() {
+			time.Sleep(1500 * time.Millisecond)
+			_ = exec.Command("systemctl", "--user", "restart", "loom-node").Run()
+		}()
+		return true, "Engine node restart scheduled; its owned engines will stop."
+	}
 	if runtime.GOOS != "linux" || !uiServiceActive() {
 		return false, ""
 	}
@@ -315,6 +337,9 @@ func restartAfterUpdate() (bool, string) {
 }
 
 func restartHintText() string {
+	if isEngineWorker() {
+		return "Restart the node: systemctl --user restart loom-node (or stop and start node serve). This stops its owned engines."
+	}
 	if runtime.GOOS == "windows" {
 		return "Restart Loom (quit and reopen) to apply the update."
 	}

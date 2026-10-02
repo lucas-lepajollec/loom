@@ -27,6 +27,9 @@ func fakeNode(t *testing.T, exposed bool) (*httptest.Server, *httptest.Server) {
 			w.WriteHeader(401)
 			return
 		}
+		if r.Header.Get("Origin") != "" || r.Header.Get("Cookie") != "" {
+			t.Error("browser credentials/origin forwarded to engine")
+		}
 		switch r.URL.Path {
 		case "/api/node/info":
 			json.NewEncoder(w).Encode(map[string]any{"ok": true, "hostname": "tour", "version": "9", "llm_port": port, "v1_exposed": exposed, "api_key": "v1key", "engine": true})
@@ -63,6 +66,8 @@ func TestEngineNodeLinkAndForward(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
 	req.Header.Set("Authorization", "Bearer cle-du-navigateur")
+	req.Header.Set("Origin", "http://localhost:2510")
+	req.Header.Set("Cookie", "loom_session=browser-fixture")
 	h(rec, req)
 	if !strings.Contains(rec.Body.String(), `"hostname":"tour"`) {
 		t.Fatalf("proxy: %d %s", rec.Code, rec.Body.String())
@@ -85,10 +90,10 @@ func TestEngineNodeRefusesUnexposedV1AndPublicHTTP(t *testing.T) {
 	if _, err := linkEngineNode(context.Background(), ctl.URL, "web"); err == nil || !strings.Contains(err.Error(), "API /v1") {
 		t.Fatalf("v1 fermée: %v", err)
 	}
-	if _, _, err := cleanNodeURL("http://example.com:8091"); err == nil {
+	if _, _, err := cleanNodeURL("http://example.com:2510"); err == nil {
 		t.Fatal("http public accepté")
 	}
-	if _, _, err := cleanNodeURL("http://user:pass@192.168.1.2:8091"); err == nil {
+	if _, _, err := cleanNodeURL("http://user:pass@192.168.1.2:2510"); err == nil {
 		t.Fatal("identifiants dans l'URL acceptés")
 	}
 }

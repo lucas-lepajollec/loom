@@ -382,6 +382,10 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 		}
 		agents = append(agents, a)
 	}
+	m.Harnesses = []string{}
+	for _, a := range agents {
+		m.Harnesses = append(m.Harnesses, a.ID)
+	}
 	if err := saveRemoteMachine(m, agents); err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return

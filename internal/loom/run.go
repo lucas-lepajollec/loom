@@ -10,13 +10,21 @@ import (
 	"strings"
 )
 
-const Version = "0.1.2"
+const Version = "0.1.3"
 
 // Main est le vrai main() du binaire (cmd/loom ne fait que l'appeler).
 func Main() {
 	// Privileged updater never loads local dotenv, user data or harness state.
 	if len(os.Args) > 1 && os.Args[1] == "system-update" {
 		mustExit(cmdSystemUpdate(os.Args[2:]))
+		return
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "node" {
+		if err := cmdNode(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "[err]", err)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -159,9 +167,12 @@ Engine (loom-engine):
   network [on|off|status]        make the OpenAI endpoint reachable from the local network
                                 (HOST + firewall rule on Windows)
 
+Engine node (Linux GPU machine):
+  node init|serve|install|update engine-only API and optional user service (see docs/engine-node.md)
+
 Interface (loom-ui):
   ui [start|stop|restart|status]  manage the interface service
-  web [PORT]                    serve the interface in the foreground (default :8091)
+  web [PORT]                    serve the interface in the foreground (default :2510)
   password [--stdin]            set/reset the access password; revokes browser sessions
   set-web-key [key]              protect the control API; omitted = generate, "" = remove
 

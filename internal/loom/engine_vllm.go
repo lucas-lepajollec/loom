@@ -62,7 +62,12 @@ func (v *vllmState) appendLog(line string) {
 }
 
 func (v *vllmState) runLogged(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	path, err := lifecycleLookPath(name)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -95,14 +100,16 @@ func vllmRequirements() string {
 	if missing := vllmServingRequirements(); missing != "" {
 		return missing
 	}
-	if !vllmInstalled() && !hasTool("uv") && !hasTool("python3") {
+	if !vllmInstalled() && !vllmHasTool("uv") && !vllmHasTool("python3") {
 		return "Python 3 (or uv) is required to install vLLM"
 	}
-	if vllmROCm() && !hasTool("uv") {
+	if vllmROCm() && !vllmHasTool("uv") {
 		return "AMD ROCm installation/update requires uv to select official ROCm wheels"
 	}
 	return ""
 }
+
+func vllmHasTool(name string) bool { _, err := lifecycleLookPath(name); return err == nil }
 
 func vllmROCm() bool {
 	gpus, err := detectGPUs()
@@ -116,9 +123,12 @@ func (v *vllmState) installOrUpdate(update bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
 	dir := vllmDir()
-	err := os.MkdirAll(filepath.Dir(dir), 0o755)
+	err := requireInstallWritable(dir, filepath.Join(dir, "bin"), filepath.Join(dir, "lib"))
 	if err == nil {
-		if uv, e := exec.LookPath("uv"); e == nil {
+		err = os.MkdirAll(filepath.Dir(dir), 0o755)
+	}
+	if err == nil {
+		if uv, e := lifecycleLookPath("uv"); e == nil {
 			if !update {
 				err = v.runLogged(ctx, uv, "venv", "--python", "3.12", dir)
 			}

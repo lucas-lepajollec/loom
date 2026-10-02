@@ -27,6 +27,7 @@ esac
 	if os.WriteFile(filepath.Join(dir, "agy"), []byte(script), 0700) != nil {
 		t.Fatal("fixture write")
 	}
+	t.Setenv("HOME", t.TempDir()) // Keep user-first executable discovery isolated from real native accounts.
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	q, err := readAgyQuota(context.Background())
 	if err != nil || len(q.Windows) != 2 || *q.Windows[0].Remaining != 42 || q.Windows[0].ResetAt == nil || q.Windows[1].Remaining != nil || q.Windows[1].ResetAt != nil || q.Credits == nil || *q.Credits != 0 || q.ResetCredits != nil {

@@ -155,6 +155,10 @@ func llamacppInstall(args []string) error {
 		return nil
 	}
 
+	if err := requireInstallWritable(repo, filepath.Join(repo, "build")); err != nil {
+		return err
+	}
+
 	if err := requireTools("git", "cmake"); err != nil {
 		return err
 	}
@@ -245,6 +249,11 @@ func llamacppUpdate(args []string) error {
 		}
 	}
 
+	repo := llamacppRepoDir()
+	if err := requireInstallWritable(repo, filepath.Join(repo, ".git"), filepath.Join(repo, "build")); err != nil {
+		return err
+	}
+
 	if err := requireTools("git", "cmake"); err != nil {
 		return err
 	}
@@ -253,7 +262,6 @@ func llamacppUpdate(args []string) error {
 	}
 	ensureAccelerator() // best-effort : installe le toolkit GPU si une carte est détectée
 
-	repo := llamacppRepoDir()
 	if !isDir(filepath.Join(repo, ".git")) {
 		return fmt.Errorf("no llama.cpp repository found (%s).\n       → run %s first", repo, bold("loom llamacpp install"))
 	}
@@ -408,6 +416,9 @@ func installCustomBackend(url, name, ref string, phase func(string)) (string, er
 	}
 	dir, err := backendDir(name)
 	if err != nil {
+		return "", err
+	}
+	if err := requireInstallWritable(dir, filepath.Join(dir, ".git"), filepath.Join(dir, "build")); err != nil {
 		return "", err
 	}
 

@@ -10,14 +10,16 @@ import (
 	"time"
 )
 
-// cmdWeb starts the HTTP server on the given port (default 8091).
-// 8090 belongs to a live Loom. Loom listens on loopback unless WEB_HOST opens
+const defaultWebPort = 2510
+
+// cmdWeb starts the HTTP server on the given port (default 2510).
+// Loom listens on loopback unless WEB_HOST opens
 // it to the network, which requires a control key (web_network.go).
 func cmdWeb(args []string) error {
 	if err := provisionDataDir(); err != nil {
 		fmt.Printf("%s Loom data: %v\n", yellow("[!]"), err)
 	}
-	port := 8091
+	port := defaultWebPort
 	if len(args) > 0 && args[0] != "" {
 		n, err := strconv.Atoi(args[0])
 		if err != nil {
@@ -106,6 +108,12 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	registerWebAssets(mux)
 	registerWebLogin(mux)
 	api := webAPI(mux)
+	registerEngineControlRoutes(func(path string, h http.HandlerFunc) {
+		if path == "/api/models/delete" || path == "/api/preset/save" || path == "/api/preset/delete" {
+			h = resyncModelSinks(h)
+		}
+		api(path, h)
+	})
 	newEnvironment().register(api)
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)
@@ -166,45 +174,11 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/machines/delete", handleRemoteMachineDelete)
 	api("/api/machines/folders", handleMachineFolders)
 	api("/api/machines/local", handleLocalMachine)
-	api("/api/status", handleStatus)
-	api("/api/service/log", handleServiceLog) // journal du service pour diagnostiquer un modèle qui ne charge pas
-	api("/api/vram", handleVram)
-	api("/api/ram", handleRam)
-	api("/api/config", handleConfigEnv)
-	api("/api/reasoning", handleReasoning) // change l'effort de réflexion à chaud (raccourci composeur)
-	api("/api/catalog", handleCatalog)
-	api("/api/paths", handlePaths)
+	api("/api/engine/node/update", handleEngineNodeUpdate)
+	api("/api/engine/node/update/apply", handleEngineNodeUpdate)
+	api("/api/engine/node/update/ping", handleEngineNodeUpdate)
 	api("/api/update", handleUpdateCheck)
 	api("/api/update/apply", handleUpdateApply)
-	api("/api/models", handleModels)
-	api("/api/models/delete", resyncModelSinks(handleModelDelete))
-	api("/api/models/dirs", handleModelDirs) // dossiers de modèles (disque externe…)
-	api("/api/models/download", handleModelDownload)
-	api("/api/models/download/probe", handleModelDownloadProbe) // taille + espace libre avant de lancer
-	api("/api/models/download/status", handleModelDownloadStatus)
-	api("/api/models/download/cancel", handleModelDownloadCancel)
-	api("/api/hub/search", handleHubSearch) // GGUF Hugging Face (recherche)
-	api("/api/hub/model", handleHubModel)   // fiche dépôt + fichiers + VRAM
-	api("/api/hub/avatar", handleHubAvatar) // logo org/user Hugging Face
-	api("/api/backends", handleBackends)
-	api("/api/backends/custom", handleBackendsCustom)                    // backends custom uniquement (hors ⚡/🔧)
-	api("/api/backends/devices", handleBackendDevices)                   // GPU vus par CE moteur (noms/ordre propres au backend)
-	api("/api/llamacpp", handleLlamacpp)                                 // statut du backend llama.cpp
-	api("/api/llamacpp/check", handleLlamacppCheck)                      // git fetch + retard sur origin
-	api("/api/llamacpp/install", handleLlamacppInstall)                  // job : clone + build + BIN
-	api("/api/llamacpp/install-custom", handleLlamacppInstallCustom)     // job : clone d'un fork depuis une URL Git (par preset, sans BIN global)
-	api("/api/llamacpp/uninstall-custom", handleLlamacppUninstallCustom) // supprime un backend custom (backends/<name>)
-	api("/api/llamacpp/update", handleLlamacppUpdate)                    // job : pull + rebuild + restart
-	api("/api/llamacpp/job", handleLlamacppJob)                          // progression + logs du job
-	api("/api/llamacpp/job/dismiss", handleLlamacppJobDismiss)           // masque un job terminé (l'erreur ne revient plus au démarrage)
-	api("/api/llamacpp/prebuilt", handleLlamacppPrebuilt)                // job : binaires officiels précompilés
-	api("/api/llamacpp/prebuilt/check", handleLlamacppPrebuiltCheck)     // dernière release officielle vs installée
-	api("/api/llamacpp/use", handleLlamacppUse)                          // bascule BIN entre versions déjà installées
-	api("/api/presets", handlePresets)
-	api("/api/presets/order", handlePresetsOrder)
-	api("/api/preset", handlePreset)
-	api("/api/preset/save", resyncModelSinks(handlePresetSave))
-	api("/api/preset/delete", resyncModelSinks(handlePresetDelete))
 	api("/api/agent", handleAgent)
 	api("/api/agent/toggle", handleAgentToggle)
 	api("/api/agent/compact", handleCompactToggle)
@@ -222,15 +196,6 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/memory", handleMemoryMode)
 	api("/api/network/web", handleWebNetwork)
 	api("/api/engine/node", handleEngineNode)
-	api("/api/engine/auto-update", handleEngineAuto)
-	api("/api/engines/vllm", handleVLLM)
-	api("/api/engines/vllm/params", handleVLLMParams)
-	api("/api/engines/vllm/auto-update", handleVLLMAuto)
-	api("/api/engines/vllm/models", handleVLLMModels)
-	api("/api/engines/vllm/models/delete", handleVLLMDelete)
-	api("/api/engines/vllm/hub/search", handleVLLMSearch)
-	api("/api/engines/vllm/download", handleVLLMDownload)
-	api("/api/engines/vllm/download/cancel", handleVLLMDownloadCancel)
 	api("/api/terminals", handleTerminals)
 	api("/api/terminals/close", handleTerminalClose)
 	api("/api/terminals/ticket", handleTerminalTicket)
@@ -238,7 +203,6 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	mux.HandleFunc("/api/terminals/ws", handleTerminalWS)
 	api("/api/node/info", handleNodeInfo)
 	api("/api/network", handleNetwork) // écoute LAN du moteur + pare-feu (Windows)
-	api("/api/server", handleServer)   // Serveur API : slots llama-server, NP, requêtes
 	api("/api/prefs", handleWebPrefs)
 	api("/api/sysprompt", handleSysPrompt)
 	api("/api/sysprompt/model", handleModelSysPrompt) // prompt du modèle/preset (live, sans restart)
@@ -259,19 +223,6 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/mem/addkey", handleMemAddKey)       // ajoute un wrap (ex. clé d'API) au coffre déjà ouvert
 	api("/api/mem/lock", handleMemLock)           // reverrouille (purge la DEK de la RAM)
 	api("/api/mem/snapshots", handleMemSnapshots) // liste + restauration des snapshots locaux
-	api("/api/switch", handleSwitch)
-	api("/api/load-model", handleLoadModel)         // charge un .gguf sans preset
-	api("/api/unload", handleUnload)                // décharge modèle/preset et arrête le moteur Loom
-	api("/api/apply", handleApplyLive)              // applique la config du panneau (modèle nu ou preset)
-	api("/api/naked/remember", handleNakedRemember) // souvenir par .gguf pour le prochain chargement nu
-	api("/api/naked/defaults", handleNakedDefaults) // défauts GGUF d'un modèle nu
-	api("/api/llama-flags", handleLlamaFlags)       // catalogue llama-server --help
-	api("/api/engine/params", handleEngineParams)   // curated controls merged with installed help
-	api("/api/model-caps", handleModelCaps)         // vision / raisonnement natifs d'un GGUF
-	api("/api/estimate", handleEstimate)            // estimation VRAM (panneau / presets / alerte)
-	api("/api/start", svcHandler("start"))
-	api("/api/stop", svcHandler("stop"))
-	api("/api/restart", svcHandler("restart"))
 	api("/api/bench", handleBench)
 	api("/api/bench/last", handleBenchLast)
 	api("/api/bench/tests", handleBenchTests)

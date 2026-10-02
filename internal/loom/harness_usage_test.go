@@ -278,6 +278,7 @@ func TestHarnessNativeCacheAndCommands(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "hermes"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("HOME", t.TempDir()) // Keep user-first executable discovery isolated from real native accounts.
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
@@ -326,6 +327,7 @@ func TestHarnessRemoteHermesReads(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("HOME", t.TempDir()) // Keep user-first executable discovery isolated from real native accounts.
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	sshDir := filepath.Join(LoomHome(), "ssh")
 	if err := os.MkdirAll(sshDir, 0700); err != nil {
@@ -371,6 +373,7 @@ func TestHarnessClaudeQuotaCommand(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	t.Setenv("HOME", t.TempDir()) // Keep user-first executable discovery isolated from real native accounts.
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	write(string(result))
 	q, err := (&acpAdapter{agent: acpAgent{ID: "claude-code", Name: "Claude Code"}}).Quota(context.Background())

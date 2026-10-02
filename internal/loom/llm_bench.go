@@ -92,7 +92,7 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 		nPredict = 256
 	}
 	payload := map[string]any{
-		"model":        "loom",
+		"model":        engineRequestModel(),
 		"messages":     []Message{{Role: "user", Content: userPrompt}},
 		"max_tokens":   nPredict,
 		"stream":       false,
@@ -100,14 +100,14 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 		"cache_prompt": false,
 	}
 	body, _ := json.Marshal(payload)
-	url := fmt.Sprintf("http://localhost:%d/v1/chat/completions", port)
+	url := engineBase() + "/v1/chat/completions"
 	t0 := time.Now()
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	localAuthHeader(req) // bench runs where the engine is (forwarded when remote)
+	authHeader(req) // use the selected native engine credential
 	client := &http.Client{Timeout: 8 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -136,25 +136,18 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
 		return nil, "", err
 	}
-	if parsed.Timings.PredictedN == 0 && parsed.Usage.CompletionTokens > 0 {
-		elapsed := time.Since(t0).Seconds()
-		parsed.Timings.PromptN = parsed.Usage.PromptTokens
-		parsed.Timings.PredictedN = parsed.Usage.CompletionTokens
-		parsed.Timings.PromptMs = elapsed * 1000 * 0.15
-		parsed.Timings.PredictedMs = elapsed * 1000 * 0.85
-		if parsed.Timings.PromptMs > 0 {
-			parsed.Timings.PromptPerSecond = float64(parsed.Timings.PromptN) / (parsed.Timings.PromptMs / 1000)
-		}
-		if parsed.Timings.PredictedMs > 0 {
-			parsed.Timings.PredictedPerSec = float64(parsed.Timings.PredictedN) / (parsed.Timings.PredictedMs / 1000)
-		}
-	}
 	elapsed := time.Since(t0).Seconds()
 	t := parsed.Timings
 	res := &benchResult{
 		PromptN: t.PromptN, PromptMs: t.PromptMs, PromptPerSecond: &t.PromptPerSecond,
 		PredictedN: t.PredictedN, PredictedMs: t.PredictedMs, PredictedPerSec: &t.PredictedPerSec,
 		Elapsed: elapsed,
+	}
+	// vLLM/compatible servers may report usage without native phase timings.
+	// Keep prefill/decode unknown rather than inventing a split of elapsed time.
+	if t.PromptN == 0 && t.PredictedN == 0 {
+		res.PromptN, res.PredictedN = parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens
+		res.PromptPerSecond, res.PredictedPerSec = nil, nil
 	}
 	preview := ""
 	if len(parsed.Choices) > 0 {
@@ -173,7 +166,7 @@ type savedBench struct {
 // saveLastBench enregistre le dernier benchmark (best-effort) pour que l'UI
 // puisse l'afficher sans le relancer.
 func saveLastBench(res *benchResult) {
-	sb := savedBench{Result: *res, Model: filepath.Base(ReadConfig()["MODEL"]), At: time.Now().Unix()}
+	sb := savedBench{Result: *res, Model: filepath.Base(engineCurrentModel()), At: time.Now().Unix()}
 	_ = putJSON(bkState, "last_bench", sb)
 }
 
@@ -215,7 +208,7 @@ func saveBenchForActivePreset(res *benchResult) {
 		return
 	}
 	m := loadBenchStore()
-	m[id] = savedBench{Result: *res, Model: filepath.Base(ReadConfig()["MODEL"]), At: time.Now().Unix()}
+	m[id] = savedBench{Result: *res, Model: filepath.Base(engineCurrentModel()), At: time.Now().Unix()}
 	_ = putJSON(bkState, "bench_presets", m)
 }
 

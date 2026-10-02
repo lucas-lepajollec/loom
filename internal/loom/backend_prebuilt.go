@@ -437,6 +437,9 @@ func recommendedMode(backend string) map[string]any {
 // précompilés. logf reçoit chaque ligne de log ; phasef la phase courante.
 // Renvoie le chemin du binaire installé.
 func prebuiltInstall(logf, phasef func(string)) (string, error) {
+	if err := requireInstallWritable(backendsDir(), prebuiltDir()); err != nil {
+		return "", err
+	}
 	phasef("retrieving the latest llama.cpp release…")
 	tag, assets, err := fetchLlamaLatest()
 	if err != nil {

@@ -141,6 +141,11 @@ func lifecycleActionCommand(spec inspectSpec, osFamily, action string) ([]string
 		argv = spec.Install[osFamily]
 	case "update":
 		argv = spec.Update
+		// The catalog installs OpenCode with npm. Its native upgrader cannot
+		// replace a system-owned npm installation as the service user.
+		if osFamily == "unix" && spec.Binary == "opencode" && spec.Latest != nil && spec.Latest.NPM != "" {
+			argv = []string{"npm", "install", "-g", spec.Latest.NPM + "@latest"}
+		}
 		if spec.UpdateInstall {
 			argv = spec.Install[osFamily]
 		}
@@ -179,6 +184,11 @@ func buildHarnessLifecycleCommand(m *RemoteMachine, key string, argv []string) (
 		parts[i] = shellQuote(arg)
 	}
 	script := remotePathPreamble
+	if lifecycleGlobalNPM(argv) {
+		// Probe on the target, never with the controller's permissions/home.
+		script += remoteNPMPrefixScript(argv)
+		parts = append(parts[:3], append([]string{`--prefix "$loom_npm_prefix"`}, parts[3:]...)...)
+	}
 	if i := lifecycleScriptArg(argv); i >= 0 {
 		parts[i] = `"$loom_installer"`
 		script += "loom_installer=$(mktemp) || exit 1\ntrap 'rm -f \"$loom_installer\"' EXIT HUP INT TERM\n" +
@@ -216,7 +226,7 @@ func (b *harnessTail) String() string { b.mu.Lock(); defer b.mu.Unlock(); return
 
 func lifecycleLocalPath() string {
 	home, _ := os.UserHomeDir()
-	dirs := []string{os.Getenv("PATH")}
+	dirs := []string{}
 	if runtime.GOOS == "windows" {
 		dirs = append(dirs, filepath.Join(os.Getenv("APPDATA"), "npm"), filepath.Join(home, ".local", "bin"), filepath.Join(os.Getenv("LOCALAPPDATA"), "agy", "bin"), filepath.Join(os.Getenv("LOCALAPPDATA"), "hermes", "bin"))
 	} else {
@@ -224,12 +234,13 @@ func lifecycleLocalPath() string {
 		nvm, _ := filepath.Glob(filepath.Join(home, ".nvm", "versions", "node", "*", "bin"))
 		dirs = append(dirs, nvm...)
 	}
+	dirs = append(dirs, os.Getenv("PATH"))
 	return strings.Join(dirs, string(os.PathListSeparator))
 }
 
 func lifecycleLookPath(name string) (string, error) {
-	if p, err := exec.LookPath(name); err == nil {
-		return p, nil
+	if filepath.IsAbs(name) {
+		return exec.LookPath(name)
 	}
 	// Services launched before installation may have an older PATH.
 	for _, d := range filepath.SplitList(lifecycleLocalPath()) {
@@ -297,6 +308,13 @@ func runHarnessLifecycleCommand(ctx context.Context, m *RemoteMachine, argv []st
 	var cleanup func()
 	if m == nil {
 		argv = append([]string{}, argv...)
+		if runtime.GOOS != "windows" && lifecycleGlobalNPM(argv) {
+			prefix, err := lifecycleNPMPrefix(ctx, argv)
+			if err != nil {
+				return "", err
+			}
+			argv = append(argv[:3], append([]string{"--prefix", prefix}, argv[3:]...)...)
+		}
 		if i := lifecycleScriptArg(argv); i >= 0 {
 			path, err := downloadHarnessInstaller(ctx, argv[i])
 			if err != nil {

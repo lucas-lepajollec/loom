@@ -46,6 +46,9 @@ jobs:
       - run: go vet ./...
       - run: npm --prefix demo run check
       - run: make check-ui
+      - run: make build
+      - name: Check isolated node installation and rollback
+        run: LOOM_TEST_BINARY="$PWD/bin/loom" sh tools/tests/install-node.sh
 
   build-linux:
     name: Build Linux

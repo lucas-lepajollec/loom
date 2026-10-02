@@ -102,7 +102,7 @@ func cmdInstall(args []string) error {
 	fmt.Printf("  2. choose the model (MODEL=…gguf) in the same file\n")
 	fmt.Printf("  3. start the engine:   %s\n", bold("sudo loom start"))
 	fmt.Printf("  4. check:              %s\n", bold("loom test"))
-	fmt.Printf("  5. start the UI:       %s   (http://127.0.0.1:8091)\n", bold("sudo loom ui start"))
+	fmt.Printf("  5. start the UI:       %s   (http://127.0.0.1:2510)\n", bold("sudo loom ui start"))
 	return nil
 }
 

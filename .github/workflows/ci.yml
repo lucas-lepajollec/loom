@@ -45,5 +45,8 @@ jobs:
       - name: Build binary
         run: make build
 
+      - name: Check isolated node installation and rollback
+        run: LOOM_TEST_BINARY="$PWD/bin/loom" sh tools/tests/install-node.sh
+
       - name: Check UI modules and tests
         run: make check-ui

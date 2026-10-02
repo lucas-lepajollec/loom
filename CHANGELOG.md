@@ -4,6 +4,27 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-03
+
+### Added
+
+- Linux `loom node init|serve|install|update|capabilities`: engine-only control API and streaming inference proxy, separate node state, machine credentials, shared native engine handlers, optional systemd user service and connection from the main Loom. No discussion, Brain, harness or interface services run in node mode.
+
+- User-only `install.sh --node` with checksum/feature checks, separate binary, service start, retained custom home/listener, portable mode and installation rollback. Connected nodes can update their release binary from the main interface or `node update`, independently of the main Loom.
+- Native node health/slots/props/metrics forwarding and local benchmarks. vLLM inference translates Loom's model alias while retaining explicit IDs and request parameters.
+
+### Changed
+
+- Default interface port is 2510 for foreground, desktop and installed services. Explicit ports remain supported; adjust existing URLs, tunnels, firewalls or reverse proxies when upgrading a service using the old default. Node control/inference defaults to loopback 2511.
+
+### Fixed
+
+- SSH machines can be saved and edited with zero selected harnesses; detected harnesses remain optional. A machine saved without a harness list no longer crashes the edit dialog.
+- Engine node controls retain the GGUF library while vLLM is selected, stop/restart the selected owned engine, and display the protected node endpoint instead of an internal port. Node path inspection never provisions full-app workspace directories. Presets/unload retain the private front binding, and remote chat uses the selected engine’s sampling configuration instead of a stale main-machine preset.
+
+- Unix npm harness install/update falls back to an explicit user prefix when the global prefix is not writable, without sudo or changing npm configuration. User-installed binaries are preferred for inspection and execution; SSH makes the decision on the target machine.
+- Engine installers reject unwritable source/environment destinations early. vLLM discovers user-installed uv/Python from service PATHs; noninteractive system build dependency installation cannot wait on a sudo password prompt.
+
 ## [0.1.2] - 2026-10-02
 
 ### Added

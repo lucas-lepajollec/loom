@@ -603,7 +603,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// reasoning is enabled we split that out ourselves so the UI's reasoning
 	// bubble works regardless of backend. The ik_llama.cpp fork already sends
 	// reasoning_content, in which case we leave content untouched.
-	reasoningOn := reasoningActive(ReadConfig()["REASONING"])
+	reasoningOn := false
 	// When llama.cpp fails to parse a model-generated tool call (HTTP 500), we
 	// retry the same turn once with tools removed so the model answers in plain
 	// text from the tool results already gathered, instead of dying mid-chat.
@@ -629,6 +629,11 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// d'appels, parfois identiques). Le seul frein est le bouton stop, qui annule
 	// le contexte — c'est un choix assumé.
 	for iter := 0; ; iter++ {
+		cfg, err := engineExecutionConfig(ctx)
+		if err != nil {
+			return extra, err
+		}
+		reasoningOn = reasoningActive(cfg["REASONING"])
 		payload := map[string]any{
 			"model": engineRequestModel(),
 			// Normalisé juste avant l'envoi : un seul system, en tête. Les gabarits
@@ -646,7 +651,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 		// et TEMP qui écrase la température par défaut si le preset la fixe). Appliqués
 		// à chaque itération : une bascule de preset en cours de tour est ainsi prise
 		// en compte, comme le reste de la config relue par ReadConfig().
-		applySampling(payload)
+		applySamplingFrom(payload, cfg)
 		if len(tools) > 0 && !disableTools {
 			payload["tools"] = tools
 			// The model sometimes emits parallel tool calls, which this llama.cpp

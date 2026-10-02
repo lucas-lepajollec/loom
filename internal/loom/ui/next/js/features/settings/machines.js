@@ -15,6 +15,7 @@ import { MachineDialog } from '../harnesses/machines.js';
 import { Lifecycle } from '../harnesses/lifecycle.js';
 import { openTerminalWith } from '../terminals/page.js';
 import { Line, Group } from './kit.js';
+import { LoomUpdates } from './updates.js';
 import { ModelDirs, DirectEngineForm } from './page.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
@@ -101,16 +102,17 @@ function EngineSection({ m }) {
           : html`<span class="state">${t("settings.machines.celui_de")} ${node.hostname}</span><button class="btn sm ghost" onClick=${unlink}>${t("settings.machines.utiliser_celui_de_cette_machine")}</button>`}</${Line}>`
       : owns ? html`<${Line} label="${t("settings.machines.moteur_de_loom")}"><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? t("settings.machines.serveur") + node.kind + t("settings.machines.utilise_par_loom") : t("settings.machines.moteur_utilise_par_loom")}</span><a class="btn sm ghost" href="#/settings/engine">${t("settings.machines.reglages_du_moteur")}</a><button class="btn sm ghost" onClick=${unlink}>${t("settings.machines.ne_plus_l_utiliser")}</button></${Line}>`
       : html`<${Line} label="${t("settings.machines.moteur_de_loom")}" tip="${t("settings.machines.si_cette_machine_a_une_carte_graphique_et_loom_installe_loom_peut")}">
-          ${!form && !direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.machines.lier_son_serveur_llama_cpp_vllm")}</button><button class="btn sm ghost" onClick=${() => setForm({ url: 'http://' + m.host + ':8091', key: '' })}>${t("settings.machines.utiliser_le_loom_de_cette_machine")}</button>`}</${Line}>
+          ${!form && !direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.machines.lier_son_serveur_llama_cpp_vllm")}</button><button class="btn sm ghost" onClick=${() => setForm({ url: 'http://' + m.host + ':2511', key: '' })}>${t("settings.machines.utiliser_le_loom_de_cette_machine")}</button>`}</${Line}>
         ${direct && html`<${DirectEngineForm} start=${'http://' + m.host + ':8080'} onDone=${() => setDirect(false)} />`}
         ${form && html`<div class="eng-link">
           <p class="note">${t("settings.machines.sur_2")} ${m.name} ${t("settings.machines.loom_reglages_acces_reseau_active_interface_sur_le_reseau_et_api")}</p>
           <label class="field"><span>${t("settings.machines.adresse_du_loom_de")} ${m.name}</span><input class="input mono" value=${form.url} onInput=${e => setForm({ ...form, url: e.target.value })} /></label>
-          <label class="field"><span>${t("settings.machines.sa_cle_de_pilotage")}</span><input class="input mono" type="password" placeholder="loom-web-…" value=${form.key} onInput=${e => setForm({ ...form, key: e.target.value })} /></label>
+          <label class="field"><span>${t("settings.machines.sa_cle_de_pilotage")}</span><input class="input mono" type="password" placeholder="" value=${form.key} onInput=${e => setForm({ ...form, key: e.target.value })} /></label>
           <div class="form-foot"><span class="grow"></span><button class="btn ghost" onClick=${() => setForm(null)}>${t("settings.machines.annuler")}</button><button class="btn primary" disabled=${busy || !form.url || !form.key} onClick=${link}>${busy ? t("settings.machines.verification") : t("settings.machines.utiliser_ce_moteur")}</button></div>
         </div>`}`}
   </${Group}>
-  ${owns && !(node && node.direct) && html`<${ModelDirs} />`}`;
+  ${owns && !(node && node.direct) && html`<${ModelDirs} />`}
+  ${owns && node?.role === 'engine-node' && html`<${LoomUpdates} node=${true} />`}`;
 }
 
 function HarnessesSection({ m, target, where, offers, onChange }) {

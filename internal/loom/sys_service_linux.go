@@ -39,6 +39,9 @@ func serviceAction(action string) error {
 }
 
 func systemdUnitLoaded() bool {
+	if isEngineWorker() {
+		return false
+	}
 	out, err := exec.Command("systemctl", "show", serviceName(), "-p", "LoadState", "--value").Output()
 	if err != nil {
 		return false

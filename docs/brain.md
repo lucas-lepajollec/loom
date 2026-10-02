@@ -10,7 +10,7 @@ sources and a token budget. Those projects add cited passages for the latest
 user message to the prepared context; external execution shares that context
 under the normal destination-consent rules.
 
-Run `loom web 8091` (or the desktop app). The process must remain running;
+Run `loom web 2510` (or the desktop app). The process must remain running;
 the browser can be closed. Indexing runs at startup and every three minutes.
 `POST /api/brain/reindex` also refreshes synchronously. Changes to source
 definitions take effect immediately; new file content appears on the next
@@ -116,7 +116,7 @@ its injection policy and consent to share it with an external executor.
 
 ## MCP for harnesses
 
-The same engine is available at `http://127.0.0.1:8091/mcp/brain` using
+The same engine is available at `http://127.0.0.1:2510/mcp/brain` using
 Streamable HTTP and the Go MCP SDK. It exposes only `brain_search`,
 `brain_pack`, `brain_read`, marked read-only. Arguments and structured results
 match their HTTP equivalents; MCP `heading` and `sources` are JSON arrays.
@@ -129,7 +129,7 @@ Claude Code (substitute your reachable Loom URL; omit the header only if no
 control key is set):
 
 ```sh
-claude mcp add --transport http loom-brain http://127.0.0.1:8091/mcp/brain \
+claude mcp add --transport http loom-brain http://127.0.0.1:2510/mcp/brain \
   --header 'Authorization: Bearer YOUR_LOOM_CONTROL_KEY'
 ```
 
@@ -142,7 +142,7 @@ Codex: add the following to its user `~/.codex/config.toml`, and supply
 
 ```toml
 [mcp_servers.loom_brain]
-url = "http://127.0.0.1:8091/mcp/brain"
+url = "http://127.0.0.1:2510/mcp/brain"
 bearer_token_env_var = "LOOM_CONTROL_KEY"
 ```
 

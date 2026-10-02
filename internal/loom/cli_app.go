@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const appPort = 8091
+const appPort = defaultWebPort
 
 // cmdApp lance l'UI web, l'ouvre dans le navigateur et fait tourner l'icône de
 // la zone de notification (Windows). Sur une machine vierge, il crée d'abord le
