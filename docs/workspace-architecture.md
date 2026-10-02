@@ -180,8 +180,12 @@ consumption. Reads are bounded and throttled to one attempt per runtime per
 as potentially stale. Missing percentages/reset dates/credits stay null.
 Antigravity AI credits are not earned-reset credits. Codex multi-bucket data takes
 precedence over its legacy single bucket; availableCount is authoritative, and
-optional reset detail expiry dates are read-only. Claude Code/Pi/Hermes quota
-readers are not integrated; no private billing endpoints are scraped.
+optional reset detail expiry dates are read-only. Claude Code and Hermes now
+read their explicit native usage commands, including Hermes over saved-machine
+SSH. Pi/OpenCode/Gemini have no quota capability. Unknown quota formats retain
+the raw response in `note`; no private billing endpoints are scraped. The
+separate [native usage API](harness-usage.md) observes harness activity outside
+Loom as well as inside it, without importing conversation contents.
 
 Per-turn usage now survives subsequent sends. Older records can contribute only
 their last reported usage; unknown turns are counted separately. Totals cover

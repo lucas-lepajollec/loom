@@ -67,7 +67,7 @@ The screenshots below document the existing inference controls; the workspace sh
 
 - **External process orchestration**: Pilots `llama-server` as a clean external subprocess without modifying upstream source code.
 - **Antigravity text bridge**: Opt-in `agy` catalog and streaming CLI turns in the original discussion, with shared text context, cancellation, native session IDs and reported tokens. Each turn starts fresh; native permissions/configuration remain in force, without Loom adding auto-approval. This is not a full tool/approval or private-memory integration.
-- **Usage and quotas**: A closable composer sheet reads Antigravity/Codex account limits on request, shows available reset counts when reported, and summarizes retained Loom turns. API costs use manually entered indicative prices, not account billing; unknown values never become zero. No reset credit is redeemed.
+- **Usage and quotas**: Account quota APIs read Antigravity, Codex, Claude Code and Hermes limits on request (including Hermes on saved SSH machines). The native usage API observes all native Claude Code/Codex/Pi sessions and OpenCode/Hermes statistics over 7 or 30 days, including activity outside Loom. Retained Loom turns and manual-price estimates stay separate; unavailable costs remain null. No reset credit is redeemed.
 - **Reasoning and response provenance**: Antigravity reasoning variants share one picker entry; the composer selects a discovered native level without sending a message. Past responses retain their runtime/model, reported tokens and duration; native tool status and bounded write targets are collapsible. Local responses retain llama.cpp decode metrics and show “No API cost”, not free electricity or hardware. Hidden reasoning text is not reconstructed.
 - **Project context**: Group discussions with shared instructions, a working-directory reference and explicitly selected reusable skills. No directory contents are read automatically.
 - **Continuous batching**: Native multi-slot parallel inference (`-np 4` default), allowing multiple client tools to query the engine concurrently without serialization.
@@ -249,6 +249,16 @@ start generation or consume reset credits. The Antigravity connect route and
 `/api/usage/refresh` remain aliases. Codex app-server now reads quotas only;
 its old catalog-connect alias reports that connection discovery is unsupported. See
 [workspace contracts](docs/workspace-architecture.md#runtime-registry-and-optional-actions).
+
+`GET /api/usage/native?days=7` returns `{ok,harnesses:[...]}` for every registered
+harness; `days=30` is also supported. Reads run concurrently, with a five-minute
+cache per harness/window. `POST /api/usage/native/refresh` with
+`{"runtime_id":"hermes","days":7}` forces a fresh reading and returns
+`{ok,harness:{...}}`. Both routes use the control key and vault checks. Each
+reader has a 30-second budget and local journal reads skip old files by mtime
+and stop after 2,000 files. Errors stay per harness; unknown costs are null and
+Gemini/Antigravity native usage is currently unavailable. These observations
+do not import conversations. See [native usage](docs/harness-usage.md).
 
 
 ACP discussions require an existing absolute workdir before sending. Session

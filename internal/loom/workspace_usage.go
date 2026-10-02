@@ -31,6 +31,7 @@ type QuotaSnapshot struct {
 	ResetCredits *int               `json:"reset_credits"`
 	Credits      *float64           `json:"credits"`
 	Error        string             `json:"error,omitempty"`
+	Note         string             `json:"note,omitempty"`
 	ResetDetails []QuotaResetCredit `json:"reset_details,omitempty"`
 }
 type QuotaResetCredit struct {

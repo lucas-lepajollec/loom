@@ -1,0 +1,31 @@
+┌────────────────────────────────────────────────────────┐
+│                       OVERVIEW                         │
+├────────────────────────────────────────────────────────┤
+│Sessions                                             3 │
+│Messages                                            18 │
+└────────────────────────────────────────────────────────┘
+│                    COST & TOKENS                       │
+│Total Cost                                       $1.25 │
+│Input                                             1.2K │
+│Output                                             300 │
+│Cache Read                                         500 │
+│Cache Write                                        100 │
+│                      MODEL USAGE                       │
+│ openai/gpt-test                                        │
+│  Messages                                          10 │
+│  Input Tokens                                     800 │
+│  Output Tokens                                    200 │
+│  Cache Read                                       300 │
+│  Cache Write                                      100 │
+│  Cost                                         $1.0000 │
+├────────────────────────────────────────────────────────┤
+│ anthropic/claude-test                                  │
+│  Messages                                           8 │
+│  Input Tokens                                     400 │
+│  Output Tokens                                    100 │
+│  Cache Read                                       200 │
+│  Cache Write                                        0 │
+│  Cost                                         $0.2500 │
+└────────────────────────────────────────────────────────┘
+│                      TOOL USAGE                        │
+│ read                        ███████████         9 (100%)│

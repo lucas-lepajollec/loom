@@ -1,0 +1,6 @@
+Current session: 66% used · resets Oct 2, 4:19pm (Europe/Paris)
+Current week (all models): 84% used · resets Oct 7, 1:59pm (Europe/Paris)
+Current week (Opus): 100% used · resets Oct 7, 1:59pm (Europe/Paris)
+Extra usage: unrecognized native format
+Broken window: 140% used · resets Oct 7, 1:59pm (Europe/Paris)
+Strange timezone: 25% used · resets Oct 7, 1:59pm (Unknown/Zone)

@@ -1,0 +1,7 @@
+{"type":"session","version":3,"id":"synthetic","timestamp":"2026-08-01T10:00:00Z"}
+{"type":"message","timestamp":"2026-08-01T10:00:00Z","message":{"role":"assistant","model":"old-model","usage":{"input":999,"output":99,"totalTokens":1098}}}
+{"type":"message","timestamp":"2026-09-15T10:00:00Z","message":{"role":"assistant","model":"pi-month","usage":{"input":10,"output":2,"cacheRead":3,"cacheWrite":1,"totalTokens":16,"cost":{"total":0.03}}}}
+{"type":"message","timestamp":"2026-09-30T10:00:00Z","message":{"role":"assistant","model":"pi-test","usage":{"input":50,"output":20,"cacheRead":30,"cacheWrite":5,"totalTokens":105,"cost":{"input":0.1,"output":0.1,"cacheRead":0.05,"total":0.25}},"content":[{"type":"text","text":"synthetic private text"}]}}
+{"type":"message","timestamp":"2026-10-01T10:00:00Z","message":{"role":"assistant","model":"pi-test","usage":{"input":3,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":4}}}
+{"type":"message","timestamp":"2026-10-01T10:00:00Z","message":{"role":"user","usage":{"input":999,"output":999,"totalTokens":1998}}}
+{"type":"message","timestamp":"2026-10-03T10:00:00Z","message":{"role":"assistant","model":"future","usage":{"input":999,"output":999,"totalTokens":1998}}}

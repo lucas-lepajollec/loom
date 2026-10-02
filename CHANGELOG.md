@@ -6,6 +6,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Read-only Claude Code and Hermes subscription quotas (including Hermes over saved-machine SSH), with fractional remaining limits and raw notes for unknown formats. Control-key protected native usage APIs observe Claude Code/Codex/Pi journals and OpenCode/Hermes CLI statistics inside and outside Loom over 7 or 30 days, with concurrent reads, five-minute caching, bounded scans and per-harness errors. No UI changes; local Hermes chat remains unavailable.
+
 - Brain V1 backend: stored context/personal/repository sources, read-only conversation/memory providers, incremental local BM25 indexing with heading chunks and accent folding, budgeted cited context packs, authenticated `/api/brain/*` endpoints and read-only Streamable HTTP MCP tools at `/mcp/brain`. Personal access requires explicit source IDs plus opt-in; built-in private text is never persisted in the derived cache. No UI or automatic discussion integration in this slice. See `docs/brain.md`.
 - Control-key protected Environment APIs for declared services, opt-in local/SSH Docker observation, Proxmox resources with OS-keychain-only tokens and confirmed SHA-256 TLS certificate pins, and HTTP/TCP reachability matrices bounded to eight concurrent checks and twenty seconds. No Environment UI or background discovery.
 

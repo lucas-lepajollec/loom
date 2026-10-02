@@ -1,0 +1,10 @@
+Hermes insights — last 7 days
+Sessions: 12
+Input tokens: 1,200
+Output tokens: 300
+Total tokens: 1,500
+Estimated cost: $0.42
+Models Used
+Model                    Sessions    Tokens
+openai/gpt-test          10          1,300
+anthropic/claude-test     2           200

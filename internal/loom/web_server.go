@@ -139,6 +139,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)
 	api("/api/usage", handleUsage)
+	api("/api/usage/native", handleNativeUsage)
+	api("/api/usage/native/refresh", handleNativeUsageRefresh)
 	api("/api/usage/refresh", handleUsageRefresh)
 	api("/api/usage/price", handleUsagePrice)
 	api("/api/workspace/antigravity/connect", handleAgyConnect)

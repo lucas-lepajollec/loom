@@ -19,7 +19,7 @@ func init() {
 	registerRuntime(llamaRuntimeAdapter{})
 	registerRuntime(cloudRuntimeAdapter{})
 	registerACPAgents()
-	registerRuntime(plannedRuntimeAdapter{RuntimeDescriptor{ID: "hermes", Name: "Hermes", Kind: "harness", Description: "Agent toujours actif, souvent sur une autre machine.", CLI: "hermes", Capabilities: []string{}}})
+	registerRuntime(hermesUsageAdapter{})
 }
 
 // Planned entries describe direction and can never execute or connect.

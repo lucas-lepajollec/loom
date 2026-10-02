@@ -85,6 +85,9 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		caps = append(caps, "resume")
 	}
 	a.negotiatedMu.RUnlock()
+	if harnessHasQuota(a.agent) {
+		caps = append(caps, "quota")
+	}
 	cli, hint := a.agent.Command, a.agent.Command+" "+joinACPArgs(a.agent.Args)
 	switch a.agent.ID {
 	case "codex":
@@ -109,6 +112,9 @@ func joinACPArgs(args []string) string {
 	return out
 }
 func (a *acpAdapter) Quota(ctx context.Context) (QuotaSnapshot, error) {
+	if harnessHasQuota(a.agent) {
+		return readHarnessQuota(ctx, a.agent)
+	}
 	switch a.agent.ID {
 	case "codex":
 		return readCodexQuota(ctx)
