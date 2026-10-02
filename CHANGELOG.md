@@ -4,7 +4,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
-These notes describe development work. A version in source is not a published release; move the notes into a versioned section when that release ships.
+## [0.1.0] - 2026-10-02
+
+First public release.
 
 ### Added
 
