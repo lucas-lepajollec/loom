@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-02
+
 ### Added
 
 - Install official Loom releases from Settings → About, with confirmation, checksum verification, a retained rollback binary and verified reconnect after the interface restart. Linux system installs provision a narrowly scoped, clean-environment updater for the service user; existing installs require one-time administrator setup.
