@@ -25,14 +25,18 @@ import (
 // Loom: the environment is an ordinary one and the command is shown.
 
 type vllmState struct {
-	mu      sync.Mutex
-	job     string // "", "install", "start"
-	log     []string
-	err     string
-	cmd     *exec.Cmd
-	model   string
-	port    int
-	started time.Time
+	mu           sync.Mutex
+	job          string // "", "install", "update", "start", "stop"
+	log          []string
+	err          string
+	cmd          *exec.Cmd
+	done         chan struct{}
+	startCtx     context.Context
+	startCancel  context.CancelFunc
+	model        string
+	pendingModel string
+	port         int
+	started      time.Time
 }
 
 var vllm = &vllmState{}
@@ -77,48 +81,81 @@ func (v *vllmState) runLogged(ctx context.Context, name string, args ...string) 
 }
 
 // vllmRequirements explains what is missing on this machine, or "".
-func vllmRequirements() string {
-	if runtime.GOOS == "darwin" {
-		return "vLLM n’est pas pris en charge sur macOS (utilise llama.cpp)"
+func vllmServingRequirements() string {
+	if runtime.GOOS != "linux" {
+		return "vLLM local nécessite Linux et un GPU NVIDIA (CUDA) ou AMD (ROCm) ; utilisez llama.cpp ou un moteur distant sur macOS/Windows"
 	}
-	if _, err := exec.LookPath("nvidia-smi"); err != nil {
-		return "vLLM demande une carte graphique NVIDIA (nvidia-smi introuvable)"
-	}
-	if _, err := exec.LookPath("uv"); err == nil {
-		return ""
-	}
-	if _, err := exec.LookPath("python3"); err != nil {
-		return "Python 3 (ou uv) est nécessaire pour installer vLLM"
+	if len(liveGPUs()) == 0 {
+		return "vLLM nécessite un GPU NVIDIA (CUDA) ou AMD (ROCm) détecté par nvidia-smi, amd-smi ou rocm-smi"
 	}
 	return ""
 }
 
-func (v *vllmState) install() {
+func vllmRequirements() string {
+	if missing := vllmServingRequirements(); missing != "" {
+		return missing
+	}
+	if !vllmInstalled() && !hasTool("uv") && !hasTool("python3") {
+		return "Python 3 (ou uv) est nécessaire pour installer vLLM"
+	}
+	if vllmROCm() && !hasTool("uv") {
+		return "L’installation/mise à jour AMD ROCm nécessite uv pour sélectionner les roues ROCm officielles"
+	}
+	return ""
+}
+
+func vllmROCm() bool {
+	gpus, err := detectGPUs()
+	return (err != nil || len(gpus) == 0) && (hasTool("amd-smi") || hasTool("rocm-smi"))
+}
+
+func (v *vllmState) install() { _ = v.installOrUpdate(false) }
+
+func (v *vllmState) installOrUpdate(update bool) error {
 	defer func() { v.mu.Lock(); v.job = ""; v.mu.Unlock() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
 	dir := vllmDir()
-	_ = os.MkdirAll(filepath.Dir(dir), 0o755)
-	var err error
-	if uv, e := exec.LookPath("uv"); e == nil {
-		// uv brings a Python version vLLM supports, whatever the system has.
-		if err = v.runLogged(ctx, uv, "venv", "--python", "3.12", dir); err == nil {
-			err = v.runLogged(ctx, uv, "pip", "install", "--python", filepath.Join(dir, "bin", "python"), "vllm")
+	err := os.MkdirAll(filepath.Dir(dir), 0o755)
+	if err == nil {
+		if uv, e := exec.LookPath("uv"); e == nil {
+			if !update {
+				err = v.runLogged(ctx, uv, "venv", "--python", "3.12", dir)
+			}
+			if err == nil {
+				args := []string{"pip", "install", "--python", filepath.Join(dir, "bin", "python")}
+				if update {
+					args = append(args, "--upgrade")
+				}
+				if vllmROCm() {
+					args = append(args, "--extra-index-url", "https://wheels.vllm.ai/rocm/")
+				}
+				err = v.runLogged(ctx, uv, append(args, "vllm")...)
+			}
+		} else {
+			if !update {
+				err = v.runLogged(ctx, "python3", "-m", "venv", dir)
+			}
+			if err == nil {
+				args := []string{"-m", "pip", "install"}
+				if update {
+					args = append(args, "--upgrade")
+				}
+				err = v.runLogged(ctx, filepath.Join(dir, "bin", "python"), append(args, "vllm")...)
+			}
 		}
-	} else {
-		if err = v.runLogged(ctx, "python3", "-m", "venv", dir); err == nil {
-			err = v.runLogged(ctx, filepath.Join(dir, "bin", "pip"), "install", "vllm")
-		}
+	}
+	if err == nil && !vllmInstalled() {
+		err = errors.New("commande vllm introuvable après installation")
 	}
 	v.mu.Lock()
 	if err != nil {
-		v.err = "installation échouée : " + err.Error()
-	} else if !vllmInstalled() {
-		v.err = "installation terminée mais la commande vllm est introuvable"
+		v.err = err.Error()
 	} else {
 		v.err = ""
 	}
 	v.mu.Unlock()
+	return err
 }
 
 var vllmModelID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$`)
@@ -134,26 +171,27 @@ func freePort() (int, error) {
 
 // vllmArgs builds `vllm serve` for a model with optional limits.
 func vllmArgs(model string, port int, gpuUtil float64, maxLen int) []string {
-	args := []string{"serve", model, "--host", "127.0.0.1", "--port", strconv.Itoa(port)}
-	if gpuUtil > 0 && gpuUtil <= 1 {
-		args = append(args, "--gpu-memory-utilization", strconv.FormatFloat(gpuUtil, 'f', 2, 64))
+	values := map[string]string{}
+	if gpuUtil != 0 {
+		values["gpu-memory-utilization"] = strconv.FormatFloat(gpuUtil, 'f', -1, 64)
 	}
-	if maxLen > 0 {
-		args = append(args, "--max-model-len", strconv.Itoa(maxLen))
+	if maxLen != 0 {
+		values["max-model-len"] = strconv.Itoa(maxLen)
 	}
-	// Reasoning models: let vLLM separate the reasoning from the answer.
-	if p := vllmReasoningParser(model); p != "" {
-		args = append(args, "--reasoning-parser", p)
-	}
+	args, _ := buildVLLMArgs(model, port, values, 1)
 	return args
 }
 
-func (v *vllmState) start(model string, gpuUtil float64, maxLen int) error {
+func (v *vllmState) start(ctx context.Context, model string, values map[string]string, gpus int) error {
 	port, err := freePort()
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(vllmBin(), vllmArgs(model, port, gpuUtil, maxLen)...)
+	args, err := buildVLLMArgs(model, port, values, gpus)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(vllmBin(), args...)
 	// No usage reporting; the FlashInfer sampler compiles kernels with the
 	// system CUDA compiler at first use, which fails on many machines: use
 	// vLLM's built-in sampler instead.
@@ -164,12 +202,18 @@ func (v *vllmState) start(model string, gpuUtil float64, maxLen int) error {
 	}
 	cmd.Stderr = cmd.Stdout
 	acpProcessGroup(cmd)
-	if err := cmd.Start(); err != nil {
+	v.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		v.mu.Unlock()
 		return err
 	}
-	v.mu.Lock()
-	v.cmd, v.model, v.port, v.started, v.err = cmd, model, port, time.Now(), ""
-	v.log = append(v.log, "$ vllm "+strings.Join(vllmArgs(model, port, gpuUtil, maxLen), " "))
+	if err := cmd.Start(); err != nil {
+		v.mu.Unlock()
+		return err
+	}
+	done := make(chan struct{})
+	v.cmd, v.done, v.model, v.port, v.started, v.err = cmd, done, model, port, time.Now(), ""
+	v.log = append(v.log, "$ vllm "+strings.Join(args, " "))
 	v.mu.Unlock()
 	go func() {
 		sc := bufio.NewScanner(out)
@@ -178,6 +222,7 @@ func (v *vllmState) start(model string, gpuUtil float64, maxLen int) error {
 			v.appendLog(sc.Text())
 		}
 		err := cmd.Wait()
+		close(done)
 		v.mu.Lock()
 		if v.cmd == cmd {
 			v.cmd = nil
@@ -195,18 +240,30 @@ func (v *vllmState) start(model string, gpuUtil float64, maxLen int) error {
 		alive := v.cmd == cmd
 		v.mu.Unlock()
 		if !alive {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			return errors.New("vLLM s’est arrêté pendant le chargement (voir le journal)")
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		code, err := directGET(ctx, base, "/health", "", nil)
+		healthCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		code, err := directGET(healthCtx, base, "/health", "", nil)
 		cancel()
 		if err == nil && code == 200 {
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			linkCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			defer cancel()
-			_, err := linkDirectEngine(ctx, base, "", "")
+			_, err := linkDirectEngine(linkCtx, base, "", "")
+			if ctx.Err() != nil {
+				v.stop()
+				return ctx.Err()
+			}
 			return err
 		}
-		time.Sleep(3 * time.Second)
+		select {
+		case <-ctx.Done():
+			v.stop()
+			return ctx.Err()
+		case <-time.After(3 * time.Second):
+		}
 	}
 	v.stop()
 	return errors.New("vLLM n’a pas répondu en 20 minutes")
@@ -214,17 +271,15 @@ func (v *vllmState) start(model string, gpuUtil float64, maxLen int) error {
 
 func (v *vllmState) stop() {
 	v.mu.Lock()
-	cmd := v.cmd
-	v.cmd = nil
+	cmd, done := v.cmd, v.done
 	v.mu.Unlock()
 	if cmd != nil && cmd.Process != nil {
 		_ = cmd.Process.Signal(os.Interrupt)
-		done := make(chan struct{})
-		go func() { _ = cmd.Wait(); close(done) }()
 		select {
 		case <-done:
 		case <-time.After(10 * time.Second):
-			_ = cmd.Process.Kill()
+			acpKillProcessGroup(cmd)
+			<-done
 		}
 	}
 	// The engine link pointed at this vLLM: back to this machine's llama.cpp.
@@ -233,12 +288,33 @@ func (v *vllmState) stop() {
 	}
 }
 
-// GET: state. POST {action: install|start|stop, model, gpu_memory_utilization, max_model_len}.
+// reserve prevents installing/updating a live environment and serializes actions.
+func (v *vllmState) reserve(action, model string) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.job != "" || (action == "install" || action == "update") && v.cmd != nil {
+		return errors.New("vLLM est en service ou une action est déjà en cours")
+	}
+	v.job, v.err = action, ""
+	if action == "start" {
+		v.pendingModel = model
+		v.startCtx, v.startCancel = context.WithCancel(context.Background())
+	}
+	if action != "stop" {
+		v.log = nil
+	}
+	return nil
+}
+
+// GET: state. POST: install|update|start|stop. Start overlays saved per-model
+// settings in memory; legacy limits remain accepted without silently dropping errors.
 func handleVLLM(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	if r.Method == http.MethodGet {
+		version, missing := vllmVersion(), vllmRequirements()
 		vllm.mu.Lock()
-		state := map[string]any{"ok": true, "installed": vllmInstalled(), "missing": vllmRequirements(), "job": vllm.job, "error": vllm.err,
-			"running": vllm.cmd != nil, "model": vllm.model, "dir": vllmDir(), "log": strings.Join(vllm.log, "\n")}
+		state := map[string]any{"ok": true, "installed": vllmInstalled(), "version": version, "missing": missing, "job": vllm.job, "error": vllm.err,
+			"running": vllm.cmd != nil, "model": vllm.model, "dir": vllmDir(), "log": strings.Join(vllm.log, "\n"), "auto_update": loadVLLMAuto()}
 		vllm.mu.Unlock()
 		sendJSON(w, 200, state)
 		return
@@ -247,72 +323,117 @@ func handleVLLM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Action  string  `json:"action"`
-		Model   string  `json:"model"`
-		GPUUtil float64 `json:"gpu_memory_utilization"`
-		MaxLen  int     `json:"max_model_len"`
+		Action  string            `json:"action"`
+		Model   string            `json:"model"`
+		GPUUtil *float64          `json:"gpu_memory_utilization"`
+		MaxLen  *int              `json:"max_model_len"`
+		Params  map[string]string `json:"params"`
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	vllm.mu.Lock()
-	busy := vllm.job != ""
-	if !busy && (req.Action == "install" || req.Action == "start") {
-		vllm.job, vllm.err = req.Action, ""
-		vllm.log = nil
+	if req.Action != "install" && req.Action != "update" && req.Action != "start" && req.Action != "stop" {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "action inconnue"})
+		return
 	}
+	if req.Action == "stop" {
+		vllm.mu.Lock()
+		loading := vllm.job == "start"
+		if loading && vllm.startCancel != nil {
+			vllm.startCancel()
+		}
+		vllm.mu.Unlock()
+		if loading {
+			vllm.stop()
+			sendJSON(w, 200, map[string]any{"ok": true})
+			return
+		}
+	}
+	// Refuse first, even on unsupported hosts, and before clearing state/logs.
+	vllm.mu.Lock()
+	busy := vllm.job != "" || (req.Action == "install" || req.Action == "update") && vllm.cmd != nil
 	vllm.mu.Unlock()
+	if busy {
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "vLLM est en service ou une action est déjà en cours"})
+		return
+	}
+	fail := func(err error) { sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()}) }
+	var values map[string]string
+	gpus := 0
+	if req.Action != "stop" {
+		missing := ""
+		if req.Action == "start" {
+			missing = vllmServingRequirements()
+		} else {
+			missing = vllmRequirements()
+		}
+		if m := missing; m != "" {
+			fail(errors.New(m))
+			return
+		}
+		if req.Action != "install" && !vllmInstalled() {
+			fail(errors.New("vLLM n’est pas installé"))
+			return
+		}
+	}
+	if req.Action == "start" {
+		if !validVLLMModel(req.Model) {
+			fail(errors.New("identifiant de modèle invalide (ex. Qwen/Qwen3-8B)"))
+			return
+		}
+		var err error
+		values, err = loadVLLMParams(req.Model)
+		if err != nil {
+			fail(err)
+			return
+		}
+		for k, value := range req.Params {
+			values[k] = value
+		}
+		if req.GPUUtil != nil {
+			values["gpu-memory-utilization"] = strconv.FormatFloat(*req.GPUUtil, 'f', -1, 64)
+		}
+		if req.MaxLen != nil {
+			values["max-model-len"] = strconv.Itoa(*req.MaxLen)
+		}
+		gpus = len(liveGPUs())
+		if _, err := buildVLLMArgs(req.Model, 8000, values, gpus); err != nil {
+			fail(err)
+			return
+		}
+	}
+	if err := vllm.reserve(req.Action, req.Model); err != nil {
+		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
 	switch req.Action {
 	case "install":
-		if busy {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "une action vLLM est déjà en cours"})
-			return
-		}
-		if m := vllmRequirements(); m != "" {
-			vllm.mu.Lock()
-			vllm.job = ""
-			vllm.mu.Unlock()
-			sendJSON(w, 400, map[string]any{"ok": false, "error": m})
-			return
-		}
 		go vllm.install()
-		sendJSON(w, 200, map[string]any{"ok": true})
+	case "update":
+		go func() { _ = vllm.installOrUpdate(true) }()
 	case "start":
-		if busy {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "une action vLLM est déjà en cours"})
-			return
-		}
-		fail := func(msg string) {
-			vllm.mu.Lock()
-			vllm.job = ""
-			vllm.mu.Unlock()
-			sendJSON(w, 400, map[string]any{"ok": false, "error": msg})
-		}
-		if !vllmInstalled() {
-			fail("vLLM n’est pas installé")
-			return
-		}
-		if !vllmModelID.MatchString(req.Model) || strings.Contains(req.Model, "..") {
-			fail("identifiant de modèle invalide (ex. Qwen/Qwen3-8B)")
-			return
-		}
+		vllm.mu.Lock()
+		ctx, cancel := vllm.startCtx, vllm.startCancel
+		vllm.mu.Unlock()
 		vllm.stop()
 		go func() {
-			err := vllm.start(req.Model, req.GPUUtil, req.MaxLen)
+			defer cancel()
+			err := vllm.start(ctx, req.Model, values, gpus)
 			vllm.mu.Lock()
 			vllm.job = ""
-			if err != nil {
+			vllm.pendingModel = ""
+			if err != nil && !errors.Is(err, context.Canceled) {
 				vllm.err = err.Error()
 			}
 			vllm.mu.Unlock()
 		}()
-		sendJSON(w, 200, map[string]any{"ok": true})
 	case "stop":
 		vllm.stop()
-		sendJSON(w, 200, map[string]any{"ok": true})
-	default:
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "action inconnue"})
+		vllm.mu.Lock()
+		vllm.job = ""
+		vllm.mu.Unlock()
 	}
+	sendJSON(w, 200, map[string]any{"ok": true})
 }
 
 // vllmReasoningParser picks vLLM's reasoning parser for known model families.

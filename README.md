@@ -75,6 +75,7 @@ The screenshots below document the existing inference controls; the workspace sh
 - **Continuous batching**: Native multi-slot parallel inference (`-np 4` default), allowing multiple client tools to query the engine concurrently without serialization.
 - **OpenAI `/v1` proxy**: Standard `/v1/chat/completions` and `/v1/models` endpoints with on-demand model loading and runtime parameter overlays.
 - **Three-tier parameter control**: Customize context windows, GPU layers, reasoning effort and KV cache. Curated controls come from a versioned JSON catalogue; Expert follows the installed `llama-server --help`. The authenticated, read-only `/api/engine/params` endpoint merges both without changing saved configuration.
+- **vLLM backend**: Linux with a supported NVIDIA CUDA or AMD ROCm GPU, in a Loom-owned Python environment. Validated saved parameters per model, Hugging Face safetensors cache/search/prefetch and idle-only upgrades are available through authenticated APIs. Loom also runs on macOS/Windows and can connect to a remote vLLM server. The vLLM parameter/library UI remains separate work; see [engine APIs](docs/engines.md).
 - **VRAM estimation**: Calculates expected KV and compute VRAM requirements against total GPU memory before loading.
 - **Model Library & Hugging Face Hub**: Search, inspect, and download GGUF models directly to local disk with download resume and progress tracking.
 - **Hardware test bench**: Benchmark prompt completion times and raw token generation speed (prefill tok/s, decode tok/s) across models and presets.

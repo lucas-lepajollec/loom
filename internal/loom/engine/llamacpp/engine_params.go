@@ -36,6 +36,7 @@ type ParamSpec struct {
 	Covers         []string   `json:"covers,omitempty"`
 	Aliases        []string   `json:"aliases,omitempty"`
 	Default        string     `json:"default,omitempty"`
+	Dangerous      bool       `json:"dangerous,omitempty"`
 }
 
 type CuratedParams struct {

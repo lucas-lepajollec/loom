@@ -25,5 +25,9 @@ func handleEngineParams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	e := localEngine()
+	if r.URL.Query().Get("engine") == "vllm" {
+		sendJSON(w, 200, map[string]any{"ok": true, "engine_id": "vllm", "params": vllmParams(len(liveGPUs()))})
+		return
+	}
 	sendJSON(w, 200, map[string]any{"ok": true, "engine_id": e.ID(), "params": e.Params()})
 }

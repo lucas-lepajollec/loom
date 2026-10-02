@@ -7,7 +7,7 @@ import (
 
 func TestVLLMArgsAndModelIDs(t *testing.T) {
 	got := strings.Join(vllmArgs("Qwen/Qwen3-8B", 9000, 0.85, 16384), " ")
-	if got != "serve Qwen/Qwen3-8B --host 127.0.0.1 --port 9000 --gpu-memory-utilization 0.85 --max-model-len 16384 --reasoning-parser qwen3" {
+	if got != "serve Qwen/Qwen3-8B --host 127.0.0.1 --port 9000 --max-model-len 16384 --gpu-memory-utilization 0.85 --reasoning-parser qwen3" {
 		t.Fatal(got)
 	}
 	if strings.Contains(strings.Join(vllmArgs("m", 1, 0, 0), " "), "--gpu") {
