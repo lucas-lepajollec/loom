@@ -26,9 +26,10 @@ test:
 	go test ./...
 
 # Syntax check of the UI modules. Plain `node --check` treats .js as
-# CommonJS and misses module syntax errors, hence the module default type.
+# CommonJS and misses module syntax errors, so each file is checked through an
+# .mjs link (works on every Node version).
 check-ui:
-	@for f in $$(find internal/loom/ui/next/js -name '*.js'); do node --experimental-default-type=module --check "$$f" || exit 1; done
+	@tmp=$$(mktemp -d); for f in $$(find internal/loom/ui/next/js -name '*.js'); do cp "$$f" "$$tmp/check.mjs"; node --check "$$tmp/check.mjs" || { echo "$$f"; rm -rf "$$tmp"; exit 1; }; done; rm -rf "$$tmp"
 	node --test internal/loom/ui/tests/*.test.mjs
 
 clean:
