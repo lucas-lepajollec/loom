@@ -4,6 +4,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- `install.sh` can update a running Loom: the binary is replaced by rename instead of an in-place copy (which failed with "Text file busy"), and running `loom-ui` / `loom-engine` services restart on the new version.
+
 ## [0.1.1] - 2026-10-02
 
 ### Fixed

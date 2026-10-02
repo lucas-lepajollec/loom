@@ -116,11 +116,25 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 $SUDO mkdir -p "$INSTALL_DIR"
-$SUDO cp "${TMP_DIR}/${BIN_NAME}" "${INSTALL_DIR}/${BIN_NAME}"
-$SUDO chmod 755 "${INSTALL_DIR}/${BIN_NAME}"
+# Copy next to the target, then rename: replacing a running binary in place
+# fails ("Text file busy"), while a rename lets running services keep the old
+# file until they restart.
+$SUDO cp "${TMP_DIR}/${BIN_NAME}" "${INSTALL_DIR}/.${BIN_NAME}.new"
+$SUDO chmod 755 "${INSTALL_DIR}/.${BIN_NAME}.new"
+$SUDO mv -f "${INSTALL_DIR}/.${BIN_NAME}.new" "${INSTALL_DIR}/${BIN_NAME}"
 
 echo "--> Running 'loom install' to configure system services..."
 $SUDO "${INSTALL_DIR}/${BIN_NAME}" install
+
+# An update: services already running restart on the new binary.
+if command -v systemctl >/dev/null 2>&1; then
+  for unit in loom-ui loom-engine; do
+    if systemctl is-active --quiet "$unit" 2>/dev/null; then
+      echo "--> Restarting $unit on the new version..."
+      $SUDO systemctl restart "$unit"
+    fi
+  done
+fi
 
 echo ""
 echo "=========================================================================="
