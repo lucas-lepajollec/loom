@@ -19,7 +19,8 @@ function initialLanguage() {
     const saved = globalThis.localStorage?.getItem('loom-lang');
     if (valid(saved)) return saved;
   } catch (_) {}
-  return /^fr/i.test(globalThis.navigator?.language || '') ? 'fr' : 'en';
+  // English by default; French (or any later language) is chosen in Settings.
+  return 'en';
 }
 
 let current = initialLanguage();

@@ -1,11 +1,12 @@
 import { t } from '../../core/i18n.js';
 // Local : tes modèles sur cette machine, servis par llama.cpp.
 // Onglets : Bibliothèque · Hub · Moteur & API.
+import { useVllm, VllmLibrary, VllmHub, VllmEngine } from '../settings/vllm.js';
 import { Logo } from '../../ui/logo.js';
 import { vendorOf } from '../chat/picker.js';
 import { html, useState, useEffect, useRef, useStore, useMemo, cls, fmtBytes, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Tabs, Menu, Empty, Tip, Switch } from '../../ui/controls.js';
+import { Tabs, Menu, Empty, Tip, Switch, Seg } from '../../ui/controls.js';
 import { confirm, toast, prompt, Modal } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, engineState, refreshLibrary, refreshStatus, refreshEngineNode } from '../../core/state.js';
@@ -246,15 +247,28 @@ function DirectEngine({ node }) {
   </div></div>`;
 }
 
+// vLLM lancé par Loom sur cette machine : il apparaît comme un moteur lié en
+// local, mais se gère ici comme un moteur de la machine.
+const ownVllm = node => node && node.direct && node.kind === 'vllm' && /^http:\/\/127\.0\.0\.1:/.test(node.url || '');
+
 export function LocalPage({ route }) {
   const tab = TABS().some(localT => localT.value === route.sub) ? route.sub : 'library';
   const node = useStore(app, a => a.engineNode);
-  if (node && node.direct) return html`<${DirectEngine} node=${node} />`;
+  const v = useVllm();
+  const vllmOn = !!(v.x && v.x.installed);
+  const [engine, setEngineState] = useState(() => { try { return localStorage.getItem('loom.local.engine') || ''; } catch (_) { return ''; } });
+  const setEngine = e => { setEngineState(e); try { localStorage.setItem('loom.local.engine', e); } catch (_) {} };
+  const which = vllmOn ? (engine || (ownVllm(node) ? 'vllm' : 'llama')) : 'llama';
+  if (node && node.direct && !ownVllm(node)) return html`<${DirectEngine} node=${node} />`;
+  const isV = which === 'vllm';
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>${t("local.page.local")}</h1><p>${node ? html`${t("local.page.les_modeles_de")} <b>${node.hostname}</b>${t("local.page.servis_par_llama_cpp_sur_cette_autre_machine")}` : t("local.page.les_modeles_de_cette_machine_servis_par_llama_cpp")}</p></div>
-      <div class="acts"><button class="btn primary" onClick=${() => go('local', 'hub')}><${Icon} n="download" />${t("local.page.telecharger_un_modele")}</button></div></div>
-    <${Strip} />
+    <div class="page-head"><div><h1>${t("local.page.local")}</h1><p>${isV ? t('vllm.local.lead') : node && !node.direct ? html`${t("local.page.les_modeles_de")} <b>${node.hostname}</b>${t("local.page.servis_par_llama_cpp_sur_cette_autre_machine")}` : t("local.page.les_modeles_de_cette_machine_servis_par_llama_cpp")}</p></div>
+      <div class="acts">${vllmOn && html`<${Seg} label=${t('vllm.local.engine')} value=${which} onChange=${setEngine} options=${[{ value: 'llama', label: 'llama.cpp' }, { value: 'vllm', label: 'vLLM' }]} />`}
+        <button class="btn primary" onClick=${() => go('local', 'hub')}><${Icon} n="download" />${t("local.page.telecharger_un_modele")}</button></div></div>
+    ${!isV && html`<${Strip} />`}
     <${Tabs} value=${tab} options=${TABS()} onChange=${localT => go('local', localT)} label="${t("local.page.local")}" />
-    <div class="tab-body" key=${tab}>${tab === 'library' ? html`<${Library} />` : tab === 'hub' ? html`<${Hub} />` : html`<${Engine} />`}</div>
+    <div class="tab-body" key=${which + tab}>${isV
+      ? (tab === 'library' ? html`<${VllmLibrary} onHub=${() => go('local', 'hub')} />` : tab === 'hub' ? html`<${VllmHub} />` : html`<${VllmEngine} />`)
+      : (tab === 'library' ? html`<${Library} />` : tab === 'hub' ? html`<${Hub} />` : html`<${Engine} />`)}</div>
   </div></div>`;
 }

@@ -46,7 +46,7 @@ func TestRemoteMachineValidation(t *testing.T) {
 			t.Fatalf("accepté: %+v", bad)
 		}
 	}
-	m, err := validRemoteMachine(RemoteMachine{Name: "Hermes Agent", Host: "192.168.0.206", User: "root"})
+	m, err := validRemoteMachine(RemoteMachine{Name: "Hermes Agent", Host: "192.168.1.50", User: "root"})
 	if err != nil || m.ID != "hermes-agent" || m.Port != 22 {
 		t.Fatalf("%v %+v", err, m)
 	}
