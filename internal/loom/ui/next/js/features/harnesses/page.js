@@ -2,7 +2,7 @@ import { t, locale, tSource } from '../../core/i18n.js';
 // Harnesses : agents qui exécutent (Codex, Antigravity…). Loom garde la
 // discussion ; chaque harness garde son compte, ses permissions et sa mémoire.
 import { Logo } from '../../ui/logo.js';
-import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
+import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Drawer, inspectTrigger } from '../../ui/drawer.js';
 import { SelectionInfo } from '../inspector/selection.js';
 import { Icon } from '../../ui/icons.js';
@@ -275,6 +275,9 @@ function AcpDetail({ rt, models, onEdit }) {
   const [probe, setProbe] = useState(null);
   const [busy, setBusy] = useState(false);
   const [extra, setExtra] = useState({ usage: [], quota: null, target: null, mcp: [] });
+  const [native, setNative] = useState(null);
+  // Usage natif (toutes les sessions du harness, 7 jours), lu en arrière-plan.
+  useEffect(() => { setNative(null); get('/api/usage/native?days=7').then(r => { const h = (r.harnesses || []).find(x => x.runtime_id === rt.id); setNative(h && !h.error && (h.sessions || h.total_tokens) ? h : null); }).catch(() => {}); }, [rt.id]);
   const [custom, setCustom] = useState(null);
   const load = async () => {
     const [p, u, localT, m] = await Promise.all([get('/api/runtimes/' + rt.id + '/probe').catch(() => ({})), get('/api/usage').catch(() => ({})),
@@ -320,13 +323,15 @@ function AcpDetail({ rt, models, onEdit }) {
         <button class="btn" disabled=${busy || missing} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}${t("harnesses.page.actualiser")}</button>
         <button class="btn primary" disabled=${missing || !choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />${t("harnesses.page.nouvelle_discussion")}</button></div></div>
 
-    <div class="card local-strip">
+    <div class=${cls('card local-strip', native && 'five')}>
       <div><div class="lbl">${t("harnesses.page.etat")}</div><div class="v"><i class=${'dot ' + (missing ? '' : probe && probe.error && !cfg.length ? 'red' : 'green')}></i><span class="t">${missing ? t("harnesses.page.non_installe") : probe && probe.error && !cfg.length ? t("harnesses.page.a_verifier") : t("harnesses.page.pret")}</span></div>
         <div class="sub">${probe && probe.at ? t("harnesses.page.lu") + ago(probe.at) : t("harnesses.page.pas_encore_lu")}</div></div>
       <div><div class="lbl">${t("harnesses.page.modeles")}</div><div class="v"><b>${list.length || '—'}</b></div><div class="sub">${modelOpt ? t("harnesses.page.par_defaut") + ((list.find(x => x.value === modelOpt.currentValue) || {}).name || modelOpt.currentValue) : t("harnesses.page.non_annonces")}</div></div>
       <div><div class="lbl">${t("harnesses.page.discussions")}</div><div class="v"><b>${talks.length}</b></div><div class="sub">${turns} ${t("harnesses.page.tour")}${turns > 1 ? 's' : ''} ${t("harnesses.page.dans_loom")}</div></div>
       <div><div class="lbl">${t("harnesses.page.cout_declare")}<${Tip} text="${t("harnesses.page.cout_que_le_harness_declare_lui_meme_pour_les_sessions_ouvertes_p")}" /></div>
         <div class="v"><b>${cost ? Number(cost).toLocaleString(locale(), { style: 'currency', currency, maximumFractionDigits: 2 }) : '—'}</b></div><div class="sub">${extra.quota && extra.quota.windows ? t("harnesses.page.quotas_lisibles_dans_usage") : t("harnesses.page.sessions_loom")}</div></div>
+      ${native && html`<div><div class="lbl">${t('harnesses.native.label')}<${Tip} text=${t('harnesses.native.tip')} /></div>
+        <div class="v"><b>${fmtTok(native.total_tokens)}</b><span class="t">tokens</span></div><div class="sub"><a href="#/usage">${t('harnesses.native.sessions', { n: native.sessions })}</a></div></div>`}
     </div>
     ${probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
     ${!rt.custom && html`<${MachineState} rt=${rt} commands=${probe && probe.commands ? probe.commands.length : null} />`}

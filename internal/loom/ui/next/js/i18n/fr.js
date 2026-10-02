@@ -2003,4 +2003,7 @@ export default {
   "vllm.lib.others": "{n} autres entrées du cache, non servables par vLLM",
   "inspector.resume.label": "Reprendre dans un terminal",
   "inspector.resume.tip": "Ouvre la CLI du harness sur la même session, dans un terminal, pour continuer en dehors de Loom.",
+  "harnesses.native.label": "Usage (7 jours)",
+  "harnesses.native.tip": "Toutes les sessions de ce harness, dans Loom et en dehors, lues dans ses propres journaux ou statistiques.",
+  "harnesses.native.sessions": "{n} sessions, détail dans Usage",
 };
