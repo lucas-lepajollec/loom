@@ -1,6 +1,6 @@
 import { t } from '../core/i18n.js';
 // Couches globales : dialogues impératifs (ask/confirm), toasts, info-bulles.
-import { html, createStore, useStore, useEffect, useRef, useState, cls } from '../core/lib.js';
+import { html, render, createStore, useStore, useEffect, useLayoutEffect, useRef, useState, cls } from '../core/lib.js';
 import { Icon } from './icons.js';
 
 export const layers = createStore({ dialogs: [], toasts: [] });
@@ -23,6 +23,19 @@ export function toast(text, kind) {
   setTimeout(() => layers.set(s => ({ toasts: s.toasts.filter(localT => localT.id !== id) })), kind === 'err' ? 4200 : 2200);
 }
 
+// Rendu directement dans <body> : un dialogue ouvert depuis une section animée
+// (transform) resterait sinon pris dans son contexte d'empilement.
+function Portal({ children }) {
+  const host = useRef(null);
+  useLayoutEffect(() => {
+    host.current = document.createElement('div');
+    document.body.appendChild(host.current);
+    return () => { render(null, host.current); host.current.remove(); };
+  }, []);
+  useLayoutEffect(() => { render(children, host.current); });
+  return null;
+}
+
 // Dialogue générique (composant) : scrim + panneau, Échap et clic extérieur ferment.
 export function Modal({ title, sub, onClose, children, foot, wide }) {
   const box = useRef();
@@ -34,13 +47,13 @@ export function Modal({ title, sub, onClose, children, foot, wide }) {
     if (f) setTimeout(() => f.focus(), 30);
     return () => { document.removeEventListener('keydown', key, true); prev && prev.focus && prev.focus(); };
   }, []);
-  return html`<div class="scrim" onMouseDown=${e => { if (e.target === e.currentTarget) onClose && onClose(); }}>
+  return html`<${Portal}><div class="scrim" onMouseDown=${e => { if (e.target === e.currentTarget) onClose && onClose(); }}>
     <div class=${cls('dialog', wide && 'wide')} role="dialog" aria-modal="true" aria-label=${title} ref=${box}>
       <div class="dialog-head"><div style="flex:1;min-width:0"><h2>${title}</h2>${sub && html`<p>${sub}</p>`}</div>
         ${onClose && html`<button class="icon-btn" aria-label="${t("ui.dialog.fermer")}" onClick=${onClose}><${Icon} n="close" /></button>`}</div>
       <div class="dialog-body">${children}</div>
       ${foot && html`<div class="dialog-foot">${foot}</div>`}
-    </div></div>`;
+    </div></div></${Portal}>`;
 }
 
 function AskDialog({ d }) {

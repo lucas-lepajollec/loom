@@ -293,7 +293,7 @@ func searchVLLMHub(ctx context.Context, query, quant string, gpus []map[string]a
 		}
 		config, weights, size := vllmHFWeights(m)
 		family := vllmQuantFamily(m)
-		if !validVLLMModel(m.ID) || m.Pipeline != "text-generation" || !config || !weights || quant != "" && family != quant {
+		if !validVLLMModel(m.ID) || m.Pipeline != "text-generation" || !config || !weights || quant != "" && family != quant || vllmForeignFormat(m) {
 			continue
 		}
 		var needed any // unknown remains null
@@ -413,4 +413,20 @@ func handleVLLMDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true})
+}
+
+// vllmForeignFormat écarte les dépôts faits pour d'autres moteurs (MLX pour
+// Apple, GGUF, bitsandbytes) : leurs safetensors ne se servent pas avec vLLM.
+func vllmForeignFormat(m vllmHFModel) bool {
+	id := strings.ToLower(m.ID)
+	if strings.Contains(id, "mlx") || strings.Contains(id, "gguf") || strings.Contains(id, "bnb-4bit") {
+		return true
+	}
+	for _, tag := range m.Tags {
+		switch strings.ToLower(tag) {
+		case "mlx", "gguf":
+			return true
+		}
+	}
+	return false
 }

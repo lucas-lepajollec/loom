@@ -359,3 +359,14 @@ func TestVLLMPrefetchHFLayout(t *testing.T) {
 		t.Fatal("escaped cache")
 	}
 }
+
+func TestVLLMSearchSkipsForeignFormats(t *testing.T) {
+	for _, m := range []vllmHFModel{{ID: "mlx-community/Qwen3-0.6B-4bit"}, {ID: "org/model", Tags: []string{"MLX"}}, {ID: "unsloth/Qwen3-0.6B-unsloth-bnb-4bit"}} {
+		if !vllmForeignFormat(m) {
+			t.Fatal(m.ID)
+		}
+	}
+	if vllmForeignFormat(vllmHFModel{ID: "Qwen/Qwen3-0.6B", Tags: []string{"safetensors"}}) {
+		t.Fatal("native repository rejected")
+	}
+}

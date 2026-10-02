@@ -6,6 +6,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- vLLM in Settings › Engines: Hugging Face model library (search with VRAM estimate, download with progress and cancel, start, delete), settings saved per model, version, update and auto-update. MLX/GGUF/bitsandbytes repositories are left out of vLLM search.
 - First-run guide: language, detected hardware, engine (install llama.cpp or vLLM, link an engine by address, or none), a first model sized to the machine, then harnesses, cloud providers and machines. Shown once on a fresh install; Settings › About reopens it.
 - Usage page: native usage of every harness (sessions, tokens, cache, models, reported cost) over 7 or 30 days, "Read all" for subscription quotas, machine labels for harnesses on connected machines.
 - Brain UI for advanced memory: search by meaning (local model download with progress, index computation, cloud provider with consent) and distilled memory (distill one conversation or since a date, filter by kind, open the source, forget an item). Distilled items are written in the conversation's language; the embedding download no longer blocks the state endpoint.
@@ -80,6 +81,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Fixed
 
+- Dialogs render at the top of the page: one opened from an animated settings section could be covered by the page and not receive clicks.
 - llama.cpp official binaries: use the newest release that ships binaries (builds are now prereleases), install the official Linux CUDA build with its runtime libraries next to the binary, and pick ROCm only when an AMD card is present.
 - Repository onboarding now documents direct UI embedding, current navigation,
   router model loading, optional OS keychain storage and the real Makefile

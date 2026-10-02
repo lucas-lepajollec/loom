@@ -13,6 +13,7 @@ import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
 import { MachinesSettings } from './machines.js';
+import { VLLMEngine } from './vllm.js';
 
 const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['machines', t("settings.page.machines"), 'server'], ['engine', t("settings.page.moteurs"), 'chip'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
@@ -145,41 +146,6 @@ function EngineAuto() {
     : a.checked_at ? t("settings.page.verifie_le") + when(a.checked_at) + t("settings.page.a_jour") : '';
   return html`<${Line} label="${t("settings.page.mise_a_jour_automatique")}" tip="${t("settings.page.verifie_les_nouvelles_versions_de_llama_cpp_toutes_les_6_h_une_mi")}">
     ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="${t("settings.page.mise_a_jour_automatique_du_moteur")}" onChange=${toggle} /></${Line}>`;
-}
-
-// vLLM : second moteur, installé par Loom dans son propre environnement Python
-// et lancé ici ; Loom l'utilise alors comme moteur (lien direct local).
-function VLLMEngine() {
-  const [x, setX] = useState(null);
-  const [f, setF] = useState({ model: '', util: '0.85', len: '' });
-  const [logOpen, setLogOpen] = useState(false);
-  const load = () => get('/api/engines/vllm').then(setX).catch(() => setX(null));
-  useEffect(() => { load(); }, []);
-  useEffect(() => { if (!x || !x.job) return; const localT = setInterval(load, 2500); return () => clearInterval(localT); }, [x && x.job]);
-  const act = async body => {
-    const r = await post('/api/engines/vllm', body);
-    if (!r.ok) return toast(r.error || t("settings.page.action_impossible"), 'err');
-    setLogOpen(true); load();
-  };
-  const start = () => act({ action: 'start', model: f.model.trim(), gpu_memory_utilization: Number(f.util) || 0, max_model_len: Number(f.len) || 0 });
-  useEffect(() => { if (x && !x.job && x.running) { refreshEngineNode(); refreshStatus(); } }, [x && x.running, x && x.job]);
-  if (!x) return null;
-  return html`<${Group} title="${t("settings.page.vllm")}">
-    <${Line} label="${t("settings.page.etat")}" tip="${t("settings.page.vllm_sert_des_modeles_hugging_face_pas_les_gguf_avec_beaucoup_de")}">
-      ${x.job === 'install' ? html`<span class="state"><span class="spinner"></span>${t("settings.page.installation_plusieurs_minutes")}</span>`
-        : x.job === 'start' ? html`<span class="state"><span class="spinner"></span>${t("settings.page.chargement_de")} ${f.model || x.model}…</span>`
-        : x.running ? html`<span class="state"><i class="dot green"></i>${t("settings.page.sert")} <b class="mono">${x.model}</b></span><button class="btn sm ghost" onClick=${() => act({ action: 'stop' })}>${t("settings.page.arreter")}</button>`
-        : x.installed ? html`<span class="state">${t("settings.page.installe_arrete")}</span>`
-        : x.missing ? html`<span class="state err">${x.missing}</span>`
-        : html`<span class="state">${t("settings.page.non_installe")}</span><button class="btn sm" onClick=${async () => { if (await confirm('Installer vLLM', t("settings.page.loom_cree_un_environnement_python_dans") + x.dir + t("settings.page.et_y_installe_vllm_plusieurs_go_quelques_minutes_rien_n_est_insta"), { ok: t("settings.page.installer") })) act({ action: 'install' }); }}>${t("settings.page.installer_vllm")}</button>`}</${Line}>
-    ${x.error && html`<${Line} label="${t("settings.page.derniere_erreur")}"><span class="state err">${x.error}</span></${Line}>`}
-    ${x.installed && !x.running && !x.job && html`<div class="eng-link">
-      <label class="field"><span>${t("settings.page.modele_hugging_face")}</span><input class="input mono" placeholder="${t("settings.page.ex_qwen_qwen3_8b")}" value=${f.model} onInput=${e => setF({ ...f, model: e.target.value })} /><small>${t("settings.page.telecharge_par_vllm_au_premier_lancement")}</small></label>
-      <div class="mx-fields"><label class="field"><span>${t("settings.page.memoire_gpu_utilisee")}</span><input class="input mono" value=${f.util} onInput=${e => setF({ ...f, util: e.target.value })} /><small>${t("settings.page.part_de_la_vram_0_5_a_0_95")}</small></label>
-        <label class="field"><span>${t("settings.page.contexte_max")}</span><input class="input mono" placeholder="${t("settings.page.auto")}" value=${f.len} onInput=${e => setF({ ...f, len: e.target.value.replace(/\D/g, '') })} /></label></div>
-      <div class="form-foot"><span class="grow"></span><button class="btn primary" disabled=${!f.model.trim()} onClick=${start}>${t("settings.page.lancer_avec_vllm")}</button></div></div>`}
-    ${x.log && html`<details class="lc-log" open=${logOpen || !!x.job}><summary>${t("settings.page.journal_vllm")}</summary><pre>${x.log.split('\n').slice(-80).join('\n')}</pre></details>`}
-  </${Group}>`;
 }
 
 const KIND_LABEL = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', get openai() { return t("local.page.serveur_compatible_openai"); } };
