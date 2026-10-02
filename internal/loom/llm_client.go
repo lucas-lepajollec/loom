@@ -733,7 +733,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// le contexte — c'est un choix assumé.
 	for iter := 0; ; iter++ {
 		payload := map[string]any{
-			"model": "loom",
+			"model": engineRequestModel(),
 			// Normalisé juste avant l'envoi : un seul system, en tête. Les gabarits
 			// stricts (Qwen3.x) refusent un system ailleurs qu'en position 0 (issue #26).
 			"messages":    normalizeSystemMessages(messages),

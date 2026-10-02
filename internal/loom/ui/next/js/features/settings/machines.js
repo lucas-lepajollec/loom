@@ -14,7 +14,7 @@ import { MachineDialog } from '../harnesses/machines.js';
 import { Lifecycle } from '../harnesses/lifecycle.js';
 import { openTerminalWith } from '../terminals/page.js';
 import { Line, Group } from './kit.js';
-import { ModelDirs } from './page.js';
+import { ModelDirs, DirectEngineForm } from './page.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
 const NAMES = { hermes: 'Hermes', 'claude-code': 'Claude Code', codex: 'Codex', pi: 'Pi', gemini: 'Gemini', opencode: 'OpenCode', antigravity: 'Antigravity' };
@@ -81,9 +81,10 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
 function EngineSection({ m }) {
   const node = useStore(app, a => a.engineNode);
   const [form, setForm] = useState(null);
+  const [direct, setDirect] = useState(false);
   const [busy, setBusy] = useState(false);
   const isLocal = !m;
-  const sameHost = n => { try { return n && m && new URL(n.url).hostname === m.host; } catch (_) { return false; } };
+  const sameHost = n => { try { return n && m && n.hostname === m.host || new URL(n.url).hostname === m.host; } catch (_) { return false; } };
   const owns = isLocal ? !node : sameHost(node);
   const link = async () => {
     setBusy(true);
@@ -97,9 +98,10 @@ function EngineSection({ m }) {
     ${isLocal ? html`<${Line} label="Moteur de Loom" tip="Le moteur (llama.cpp) qui sert les modèles locaux dans tes discussions.">
         ${owns ? html`<span class="state"><i class="dot green"></i>sur cette machine</span><a class="btn sm ghost" href="#/settings/engine">Réglages du moteur</a>`
           : html`<span class="state">celui de ${node.hostname}</span><button class="btn sm ghost" onClick=${unlink}>Utiliser celui de cette machine</button>`}</${Line}>`
-      : owns ? html`<${Line} label="Moteur de Loom"><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>moteur utilisé par Loom</span><a class="btn sm ghost" href="#/settings/engine">Réglages du moteur</a><button class="btn sm ghost" onClick=${unlink}>Ne plus l’utiliser</button></${Line}>`
+      : owns ? html`<${Line} label="Moteur de Loom"><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? 'serveur ' + node.kind + ' utilisé par Loom' : 'moteur utilisé par Loom'}</span><a class="btn sm ghost" href="#/settings/engine">Réglages du moteur</a><button class="btn sm ghost" onClick=${unlink}>Ne plus l’utiliser</button></${Line}>`
       : html`<${Line} label="Moteur de Loom" tip="Si cette machine a une carte graphique et Loom installé, Loom peut utiliser son moteur : ses modèles servent alors tes discussions ici.">
-          ${!form && html`<button class="btn sm" onClick=${() => setForm({ url: 'http://' + m.host + ':8091', key: '' })}>Utiliser le moteur de cette machine</button>`}</${Line}>
+          ${!form && !direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>Lier son serveur llama.cpp / vLLM</button><button class="btn sm ghost" onClick=${() => setForm({ url: 'http://' + m.host + ':8091', key: '' })}>Utiliser le Loom de cette machine</button>`}</${Line}>
+        ${direct && html`<${DirectEngineForm} start=${'http://' + m.host + ':8080'} onDone=${() => setDirect(false)} />`}
         ${form && html`<div class="eng-link">
           <p class="note">Sur ${m.name} : Loom › Réglages › Accès réseau, active « Interface sur le réseau » et « API /v1 sur le réseau », puis recopie ici sa clé de pilotage.</p>
           <label class="field"><span>Adresse du Loom de ${m.name}</span><input class="input mono" value=${form.url} onInput=${e => setForm({ ...form, url: e.target.value })} /></label>
@@ -107,7 +109,7 @@ function EngineSection({ m }) {
           <div class="form-foot"><span class="grow"></span><button class="btn ghost" onClick=${() => setForm(null)}>Annuler</button><button class="btn primary" disabled=${busy || !form.url || !form.key} onClick=${link}>${busy ? 'Vérification…' : 'Utiliser ce moteur'}</button></div>
         </div>`}`}
   </${Group}>
-  ${owns && html`<${ModelDirs} />`}`;
+  ${owns && !(node && node.direct) && html`<${ModelDirs} />`}`;
 }
 
 function HarnessesSection({ m, target, where, offers, onChange }) {

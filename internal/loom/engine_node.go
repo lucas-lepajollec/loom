@@ -33,6 +33,13 @@ type engineNode struct {
 	Hostname string `json:"hostname"`  // for display
 	Version  string `json:"version"`   // remote Loom version
 	LinkedAt int64  `json:"linked_at"` // unix ms
+	// Direct link (engine_direct.go): an inference server used by address,
+	// without Loom on its machine.
+	Direct bool   `json:"direct,omitempty"`
+	Kind   string `json:"kind,omitempty"`  // llama.cpp, vllm, openai
+	Model  string `json:"model,omitempty"` // served model used by discussions
+	Ctx    int    `json:"ctx,omitempty"`
+	Router bool   `json:"router,omitempty"`
 }
 
 var (
@@ -67,6 +74,9 @@ func setEngineNode(n *engineNode) error {
 	}
 	if err == nil {
 		engineNodeCache, engineNodeRead = n, true
+		engineModelsCache.Lock()
+		engineModelsCache.body, engineModelsCache.at = nil, time.Time{}
+		engineModelsCache.Unlock()
 	}
 	return err
 }
@@ -127,6 +137,9 @@ func engineCurrentModel() string {
 	if n == nil {
 		return ReadConfig()["MODEL"]
 	}
+	if n.Direct {
+		return n.Model
+	}
 	req, _ := http.NewRequest(http.MethodGet, n.URL+"/api/status", nil)
 	req.Header.Set("Authorization", "Bearer "+n.WebKey)
 	resp, err := nodeClient.Do(req)
@@ -147,6 +160,9 @@ func engineContextSize() int {
 	n := currentEngineNode()
 	if n == nil {
 		return effectiveCtx(ReadConfig())
+	}
+	if n.Direct {
+		return n.Ctx
 	}
 	req, _ := http.NewRequest(http.MethodGet, n.URL+"/api/status", nil)
 	req.Header.Set("Authorization", "Bearer "+n.WebKey)
@@ -296,6 +312,10 @@ func nodeAware(path string, local http.HandlerFunc) http.HandlerFunc {
 			local(w, r)
 			return
 		}
+		if n.Direct {
+			serveDirectEngineRoute(w, r, n)
+			return
+		}
 		target, err := url.Parse(n.URL)
 		if err != nil {
 			sendJSON(w, 502, map[string]any{"ok": false, "error": "lien moteur invalide"})
@@ -325,6 +345,11 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 			sendJSON(w, 200, map[string]any{"ok": true, "remote": false})
 			return
 		}
+		if n.Direct {
+			sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "direct": true, "kind": n.Kind, "url": n.V1, "hostname": n.Hostname,
+				"model": n.Model, "ctx": n.Ctx, "reachable": directEngineHealthy(n)})
+			return
+		}
 		// Reachability, without secrets in the response.
 		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, n.URL+"/api/ping", nil)
 		req.Header.Set("Authorization", "Bearer "+n.WebKey)
@@ -343,8 +368,36 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 		URL    string `json:"url"`
 		Key    string `json:"key"`
 		Unlink bool   `json:"unlink"`
+		Direct bool   `json:"direct"` // link an inference server by address
+		Probe  bool   `json:"probe"`  // only identify it
+		Model  string `json:"model"`
 	}
 	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	if req.Direct {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		n, err := linkDirectEngine(ctx, req.URL, req.Key, req.Model)
+		if err != nil {
+			sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "direct": true, "kind": n.Kind, "hostname": n.Hostname, "model": n.Model})
+		return
+	}
+	if req.Probe {
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		defer cancel()
+		base, _, err := cleanNodeURL(strings.TrimSuffix(strings.TrimRight(strings.TrimSpace(req.URL), "/"), "/v1"))
+		if err == nil {
+			var e directEngine
+			if e, err = probeDirectEngine(ctx, base, strings.TrimSpace(req.Key)); err == nil {
+				sendJSON(w, 200, map[string]any{"ok": true, "kind": e.Kind, "models": e.Models, "ctx": e.Ctx, "router": e.Router})
+				return
+			}
+		}
+		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 	if req.Unlink {

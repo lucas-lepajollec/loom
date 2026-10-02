@@ -126,18 +126,72 @@ function Job() {
 
 // Où tourne le moteur : sur cette machine, ou celui d'une machine connectée
 // (choisi dans Réglages › Machines).
+// Mise à jour automatique du moteur : appliquée seulement quand elle
+// n'interrompt rien (moteur arrêté ou aucun modèle chargé).
+function EngineAuto() {
+  const [a, setA] = useState(null);
+  useEffect(() => { get('/api/engine/auto-update').then(r => setA(r.ok ? r.state : null)).catch(() => setA(null)); }, []);
+  if (!a) return null;
+  const toggle = async on => { const r = await post('/api/engine/auto-update', { auto: on }); if (!r.ok) return toast(r.error || 'Réglage impossible', 'err'); setA(r.state); };
+  const when = t => t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const info = a.pending ? 'Version ' + a.pending + ' prête : installée dès qu’aucun modèle n’est chargé.'
+    : a.last_error ? 'Dernière tentative : ' + a.last_error
+    : a.last_at ? 'Mis à jour le ' + when(a.last_at) + (a.last_to ? ' (' + (a.last_from ? a.last_from + ' → ' : '') + a.last_to + ')' : '')
+    : a.checked_at ? 'Vérifié le ' + when(a.checked_at) + ' : à jour' : '';
+  return html`<${Line} label="Mise à jour automatique" tip="Vérifie les nouvelles versions de llama.cpp toutes les 6 h. Une mise à jour redémarre le moteur : elle n’est installée que s’il est arrêté ou sans modèle chargé, pour ne jamais couper une réponse.">
+    ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="Mise à jour automatique du moteur" onChange=${toggle} /></${Line}>`;
+}
+
+const KIND_LABEL = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', openai: 'serveur compatible OpenAI' };
+
+// Lier un serveur d'inférence par son adresse (llama.cpp, vLLM…) : rien de
+// Loom n'est installé sur sa machine.
+export function DirectEngineForm({ start, onDone }) {
+  const [f, setF] = useState({ url: start || '', key: '', model: '' });
+  const [probe, setProbe] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const identify = async () => {
+    setBusy(true);
+    const r = await post('/api/engine/node', { probe: true, url: f.url, key: f.key });
+    setBusy(false);
+    if (!r.ok) { setProbe(null); return toast(r.error || 'Moteur injoignable', 'err'); }
+    setProbe(r); setF({ ...f, model: r.models[0] });
+  };
+  const link = async () => {
+    setBusy(true);
+    const r = await post('/api/engine/node', { direct: true, url: f.url, key: f.key, model: f.model });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || 'Liaison impossible', 'err');
+    toast(KIND_LABEL[r.kind] + ' de ' + r.hostname + ' lié'); await refreshEngineNode(); refreshStatus(); refreshLibrary(); onDone && onDone();
+  };
+  return html`<div class="eng-link">
+    <p class="note">Un serveur llama.cpp (llama-server), vLLM ou compatible OpenAI qui tourne sur une autre machine. Rien n’est installé là-bas : ses modèles et réglages se gèrent sur sa machine, Loom l’utilise pour tes discussions et tes harnesses.</p>
+    <label class="field"><span>Adresse du moteur</span><input class="input mono" placeholder="http://192.168.1.20:8080" value=${f.url} onInput=${e => { setF({ ...f, url: e.target.value }); setProbe(null); }} /></label>
+    <label class="field"><span>Clé API (si le moteur en exige une)</span><input class="input mono" type="password" value=${f.key} onInput=${e => { setF({ ...f, key: e.target.value }); setProbe(null); }} /></label>
+    ${probe && html`<label class="field"><span>${KIND_LABEL[probe.kind]} · ${probe.models.length} modèle${probe.models.length > 1 ? 's' : ''}${probe.ctx ? ' · contexte ' + probe.ctx : ''}</span>
+      <select class="select" value=${f.model} onChange=${e => setF({ ...f, model: e.target.value })}>${probe.models.map(m => html`<option value=${m}>${m}</option>`)}</select></label>`}
+    <div class="form-foot"><span class="grow"></span>${onDone && html`<button class="btn ghost" onClick=${onDone}>Annuler</button>`}
+      ${probe ? html`<button class="btn primary" disabled=${busy} onClick=${link}>Utiliser ce moteur</button>` : html`<button class="btn primary" disabled=${busy || !f.url} onClick=${identify}>${busy ? 'Connexion…' : 'Identifier le moteur'}</button>`}</div>
+  </div>`;
+}
+
+// Où tourne le moteur : sur cette machine, celui d'un autre Loom (Réglages ›
+// Machines) ou un serveur d'inférence lié directement par son adresse.
 function EngineLocation() {
   const node = useStore(app, a => a.engineNode);
+  const [direct, setDirect] = useState(false);
   const unlink = async () => {
     if (!await confirm('Revenir au moteur de cette machine', 'Loom n’utilisera plus le moteur de ' + node.hostname + '. Rien n’est modifié sur cette machine-là.', { ok: 'Revenir' })) return;
     await post('/api/engine/node', { unlink: true });
     await refreshEngineNode(); refreshStatus(); refreshLibrary();
   };
   return html`<${Group} title="Emplacement du moteur">
-    <${Line} label="Le moteur tourne" tip="Une machine avec carte graphique où Loom est installé peut servir de moteur : elle se choisit dans Réglages › Machines. Tes discussions restent ici.">
-      ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>sur <b>${node.hostname}</b></span><button class="btn sm ghost" onClick=${unlink}>Revenir à cette machine</button>`
-        : html`<span class="state">sur cette machine</span><a class="btn sm" href="#/settings/machines">Utiliser une autre machine</a>`}</${Line}>
+    <${Line} label="Le moteur tourne" tip="Sur cette machine ; sur une machine où Loom est installé (Réglages › Machines) ; ou un serveur llama.cpp / vLLM lié directement par son adresse, sans Loom dessus.">
+      ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? KIND_LABEL[node.kind] + ' sur ' : 'sur '}<b>${node.hostname}</b></span><button class="btn sm ghost" onClick=${unlink}>Revenir à cette machine</button>`
+        : html`<span class="state">sur cette machine</span>${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>Lier un moteur par son adresse</button><a class="btn sm ghost" href="#/settings/machines">Loom d’une autre machine</a>`}`}</${Line}>
     ${node && html`<${Line} label="Adresse"><code class="mono">${node.url}</code>${!node.reachable && html`<span class="tag amber">injoignable</span>`}</${Line}>`}
+    ${node && node.direct && html`<${Line} label="Modèle utilisé"><code class="mono">${node.model}</code></${Line}>`}
+    ${direct && !node && html`<${DirectEngineForm} onDone=${() => setDirect(false)} />`}
   </${Group}>`;
 }
 

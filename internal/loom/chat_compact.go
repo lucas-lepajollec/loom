@@ -384,7 +384,7 @@ Strict rules: no preamble or conclusion, no verbatim or long quotes, no throwawa
 Write the summary in the SAME language as the conversation.`
 
 	payload := map[string]any{
-		"model": "loom",
+		"model": engineRequestModel(),
 		"messages": []Message{
 			{Role: "system", Content: sys},
 			{Role: "user", Content: transcript},

@@ -7,7 +7,7 @@ import { Icon } from '../../ui/icons.js';
 import { Tabs, Menu, Empty, Tip, Switch } from '../../ui/controls.js';
 import { confirm, toast, prompt, Modal } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
-import { app, go, engineState, refreshLibrary, refreshStatus } from '../../core/state.js';
+import { app, go, engineState, refreshLibrary, refreshStatus, refreshEngineNode } from '../../core/state.js';
 import { Drawer, inspectTrigger } from '../../ui/drawer.js';
 import { ParamsEditor, draftSource, liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
@@ -226,9 +226,29 @@ function Engine() {
   </div>`;
 }
 
+// Moteur lié directement (llama.cpp / vLLM sur une autre machine, sans Loom) :
+// Loom choisit seulement le modèle servi ; le reste se gère sur sa machine.
+const KIND = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', openai: 'serveur compatible OpenAI' };
+function DirectEngine({ node }) {
+  const [models, setModels] = useState(null);
+  const [cur, setCur] = useState(node.model);
+  useEffect(() => { get('/api/models').then(r => setModels(Array.isArray(r) ? r : [])).catch(() => setModels([])); }, [node.url]);
+  const pick = async m => { const r = await post('/api/load-model', { model: m }); if (r.ok === false) return toast(r.error, 'err'); setCur(m); refreshEngineNode(); refreshStatus(); toast('Modèle utilisé : ' + m); };
+  return html`<div class="view page"><div class="page-in wide">
+    <div class="page-head"><div><h1>Local</h1><p>Moteur ${KIND[node.kind] || node.kind} lié directement sur <b>${node.hostname}</b>. Ses modèles et réglages se gèrent sur sa machine.</p></div>
+      <div class="acts"><a class="btn" href="#/settings/engine">Emplacement du moteur</a></div></div>
+    <div class="card"><div class="sec-h pad-h"><h2>Modèles servis <span class="count">${models ? models.length : ''}</span></h2><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.reachable ? 'joignable' : 'injoignable'} · <span class="mono">${node.url}</span></span></div>
+      ${!models ? html`<div class="skeleton" style="height:80px;margin:0 16px 16px"></div>` : html`<div class="rows">${models.map(m => html`<div class="row" key=${m.value}>
+        <div class="grow"><div class="t mono">${m.name}</div></div>
+        ${m.value === cur ? html`<span class="state"><i class="dot green"></i>utilisé par Loom</span>` : html`<button class="btn sm" onClick=${() => pick(m.value)}>Utiliser</button>`}</div>`)}</div>`}
+    </div>
+  </div></div>`;
+}
+
 export function LocalPage({ route }) {
   const tab = TABS.some(t => t.value === route.sub) ? route.sub : 'library';
   const node = useStore(app, a => a.engineNode);
+  if (node && node.direct) return html`<${DirectEngine} node=${node} />`;
   return html`<div class="view page"><div class="page-in wide">
     <div class="page-head"><div><h1>Local</h1><p>${node ? html`Les modèles de <b>${node.hostname}</b>, servis par llama.cpp sur cette autre machine.` : 'Les modèles de cette machine, servis par llama.cpp.'}</p></div>
       <div class="acts"><button class="btn primary" onClick=${() => go('local', 'hub')}><${Icon} n="download" />Télécharger un modèle</button></div></div>

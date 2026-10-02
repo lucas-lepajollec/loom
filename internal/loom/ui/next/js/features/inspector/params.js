@@ -59,6 +59,7 @@ export function LocalParams() {
   const [src, setSrc] = useState(null);
   const key = status && (status.model + '|' + status.preset_id + '|' + status.health);
   useEffect(() => { liveSource().then(setSrc); }, [key]);
+  if (status && status.engine_direct) return html`<div class="insp-empty anim-rise"><${Icon} n="server" /><h3>${baseName(status.model_name || '')}</h3><p>Servi par ${status.engine_kind === 'vllm' ? 'vLLM' : status.engine_kind} sur ${status.hostname}, lié directement. Ses paramètres (contexte, couches GPU…) se règlent sur sa machine.</p><a class="btn sm" href="#/settings/engine">Emplacement du moteur</a></div>`;
   if (!src) return html`<div class="insp-body"><div class="skeleton" style="height:78px"></div><div class="skeleton" style="height:30px;margin-top:16px"></div></div>`;
   if (src.mode === 'empty') return html`<div class="insp-empty anim-rise"><${Icon} n="chip" /><h3>Aucun modèle chargé</h3><p>Choisis un modèle ou un preset en haut de la discussion pour régler ses paramètres.</p></div>`;
   return html`<${ParamsEditor} src=${src} onSaved=${base => setSrc({ ...src, base })} />`;
