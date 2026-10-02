@@ -15,7 +15,7 @@ func TestRecommendedMode(t *testing.T) {
 		wantWhy  bool
 	}{
 		{"cuda", "fast", true}, // binaire CUDA officiel, compilation possible
-		{"hip", "fast", true}, // zip ROCm Ubuntu si publié, sinon compile HIP
+		{"hip", "fast", true},  // zip ROCm Ubuntu si publié, sinon compile HIP
 		{"rocm", "fast", false},
 		{"vulkan", "fast", false},
 		{"cpu", "fast", false},
