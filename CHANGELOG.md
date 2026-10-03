@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-03
+
 ### Control plane audit
 
 - Restrict anonymous control access to loopback Host and peer; close DNS-rebinding
