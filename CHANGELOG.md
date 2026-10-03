@@ -6,6 +6,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Fixed
 
+- Keep mixed benchmark queues, saved tests and history on the control plane when
+  an engine node is selected; only local rows are dispatched to that node.
+
 - Prevent duplicate native authorization-code submission even if the CLI repeats
   its prompt, and clear queued codes when login ends or is cancelled.
 - Show the control plane's own hostname/version in the sidebar, independently
@@ -17,6 +20,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   instead of exposing an empty, apparently connected adapter.
 
 ### Added
+
+- Bench model catalog independent of chat visibility, native Claude-account
+  model-only runs with tool/MCP/customization suppression and account preflight,
+  named prompt/output-budget tests, full responses and run history. Unsupported
+  native adapters remain visible and non-executable. Cancellation is scoped to
+  the owned node job on updated nodes; old nodes require a manual stop.
 
 - Browser-account buttons for ChatGPT, Claude and Google in the harness-page
   dialog. Native CLIs retain OAuth and credentials; Loom handles only expiring

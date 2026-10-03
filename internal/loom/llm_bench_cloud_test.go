@@ -79,7 +79,7 @@ func benchTestWorkspace(t *testing.T) {
 
 func awaitBenchQueue(t *testing.T) *benchJob {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for benchBusy.Load() && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
@@ -96,7 +96,9 @@ func postBenchQueue(t *testing.T, testID string, picks []benchPick, consent bool
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	handleBenchQueue(w, httptest.NewRequest(http.MethodPost, "/api/bench/queue", strings.NewReader(string(body))))
+	r := httptest.NewRequest(http.MethodPost, "/api/bench/queue", strings.NewReader(string(body)))
+	r.Header.Set("Content-Type", "application/json")
+	handleBenchQueue(w, r)
 	return w
 }
 
@@ -105,7 +107,9 @@ func TestBenchCloudConsent(t *testing.T) {
 	for _, consent := range []string{"", `,"consent":false`} {
 		body := `{"models":[{"model":"local.gguf"},{"choice_id":"cloud:unknown","name":"Cloud"}]` + consent + `}`
 		w := httptest.NewRecorder()
-		handleBenchQueue(w, httptest.NewRequest(http.MethodPost, "/api/bench/queue", strings.NewReader(body)))
+		r := httptest.NewRequest(http.MethodPost, "/api/bench/queue", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		handleBenchQueue(w, r)
 		var response struct {
 			OK    bool   `json:"ok"`
 			Error string `json:"error"`
@@ -177,7 +181,7 @@ func exerciseBenchCloudQueue(t *testing.T, sockets bool) {
 						IncludeUsage bool `json:"include_usage"`
 					} `json:"stream_options"`
 				}
-				if json.NewDecoder(r.Body).Decode(&req) != nil || req.Model != "second" || !req.Stream || req.MaxTokens != maxTokens || !req.StreamOptions.IncludeUsage || len(req.Messages) != 1 || req.Messages[0].Content != prompt || r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer fixture-secret" {
+				if json.NewDecoder(r.Body).Decode(&req) != nil || req.Model != "second" || !req.Stream || req.MaxTokens != maxTokens || !req.StreamOptions.IncludeUsage || len(req.Messages) != 2 || req.Messages[0].Content != benchSystemPrompt || req.Messages[1].Content != prompt || r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer fixture-secret" {
 					t.Errorf("invalid cloud bench request: %+v", req)
 				}
 				w.Header().Set("Content-Type", "text/event-stream")

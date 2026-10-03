@@ -70,7 +70,7 @@ Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, loc
 
 <img src="docs/screenshots/usage.png" alt="Usage, subscription quota windows and provider balances" width="1000" />
 
-**Bench** tests local and cloud models, including local prefill/decode speed and streamed cloud timing. The **OpenAI-compatible `/v1` server** exposes `/v1/models` and `/v1/chat/completions` for other applications; local router requests use native slots and temporary parameter overrides without changing saved settings.
+**Bench** compares local engines, configured cloud APIs and supported native-account models with the same prompt, without tools or project context. Claude Code supports a guarded model-only mode; other native adapters remain explicitly unavailable when tool suppression is not guaranteed. Results retain responses and distinguish engine timings from API/CLI observations. See [Bench](docs/bench.md). The **OpenAI-compatible `/v1` server** exposes `/v1/models` and `/v1/chat/completions` for other applications; local router requests use native slots and temporary parameter overrides without changing saved settings.
 
 The UI also provides a **PWA** shell where the browser supports installation. HTTPS is required outside loopback. Offline mode shows a public fallback; it does not provide offline inference or queue messages.
 

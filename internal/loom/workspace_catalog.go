@@ -32,6 +32,12 @@ func cloudChoiceID(provider, model string) string {
 }
 
 func modelCatalog(providers []CloudProvider) []ModelChoice {
+	return modelCatalogSources(providers, true)
+}
+
+// Bench needs only external native choices, without rescanning engine libraries
+// or projecting Loom sources back through harnesses on every catalog poll.
+func modelCatalogSources(providers []CloudProvider, includeEngineSources bool) []ModelChoice {
 	choices := []ModelChoice{}
 	seen := map[string]bool{}
 	add := func(c ModelChoice) {
@@ -42,26 +48,28 @@ func modelCatalog(providers []CloudProvider) []ModelChoice {
 		c.Enabled = getStr(bkModelChoices, c.ID) != "hidden"
 		choices = append(choices, c)
 	}
-	cfg := ReadConfig()
-	for _, dir := range modelDirs() {
-		for _, file := range listGGUFFiles(dir) {
-			if !ggufIsMmproj(file.Name) {
-				add(ModelChoice{ID: "local:" + file.Path, Name: file.Name, Kind: "local", ProviderName: "llama.cpp", Model: file.Path, Ready: sameModelPath(cfg["MODEL"], file.Path)})
+	if includeEngineSources {
+		cfg := ReadConfig()
+		for _, dir := range modelDirs() {
+			for _, file := range listGGUFFiles(dir) {
+				if !ggufIsMmproj(file.Name) {
+					add(ModelChoice{ID: "local:" + file.Path, Name: file.Name, Kind: "local", ProviderName: "llama.cpp", Model: file.Path, Ready: sameModelPath(cfg["MODEL"], file.Path)})
+				}
 			}
 		}
-	}
-	// Keep the configured model selectable even if it isn't in a managed folder.
-	if cfg["MODEL"] != "" {
-		model := cfg["MODEL"]
-		listed := false
-		for _, c := range choices {
-			if c.Kind == "local" && sameModelPath(c.Model, model) {
-				listed = true
-				break
+		// Keep the configured model selectable even if it isn't in a managed folder.
+		if cfg["MODEL"] != "" {
+			model := cfg["MODEL"]
+			listed := false
+			for _, c := range choices {
+				if c.Kind == "local" && sameModelPath(c.Model, model) {
+					listed = true
+					break
+				}
 			}
-		}
-		if !listed {
-			add(ModelChoice{ID: "local:" + model, Name: filepath.Base(model), Kind: "local", ProviderName: "llama.cpp", Model: model, Ready: true})
+			if !listed {
+				add(ModelChoice{ID: "local:" + model, Name: filepath.Base(model), Kind: "local", ProviderName: "llama.cpp", Model: model, Ready: true})
+			}
 		}
 	}
 	for _, p := range providers {
@@ -90,8 +98,10 @@ func modelCatalog(providers []CloudProvider) []ModelChoice {
 				add(ModelChoice{ID: d.ID + ":" + m.Value, Name: name, Kind: "harness", ProviderName: d.Name, Model: m.Value, RuntimeID: d.ID, Ready: ready})
 			}
 			// Loom's local models and compatible cloud providers, passed at launch.
-			for _, c := range harnessLoomChoices(d, ready) {
-				add(c)
+			if includeEngineSources {
+				for _, c := range harnessLoomChoices(d, ready) {
+					add(c)
+				}
 			}
 		}
 	}

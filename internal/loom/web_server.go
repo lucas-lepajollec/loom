@@ -244,6 +244,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/mem/snapshots", handleMemSnapshots) // liste + restauration des snapshots locaux
 	api("/api/bench", handleBench)
 	api("/api/bench/last", handleBenchLast)
+	api("/api/bench/catalog", handleBenchCatalog)
 	api("/api/bench/tests", handleBenchTests)
 	api("/api/bench/tests/delete", handleBenchTestsDelete)
 	api("/api/bench/queue", handleBenchQueue)

@@ -31,19 +31,23 @@ type benchTest struct {
 }
 
 type benchJobRow struct {
-	ChoiceID string       `json:"choice_id,omitempty"`
-	Kind     string       `json:"kind"`
-	Provider string       `json:"provider,omitempty"`
-	Model    string       `json:"model"`
-	Preset   string       `json:"preset,omitempty"`
-	Name     string       `json:"name"`
-	Status   string       `json:"status"` // pending|loading|running|ok|err|skip
-	Error    string       `json:"error,omitempty"`
-	Result   *benchResult `json:"result,omitempty"`
-	Preview  string       `json:"preview,omitempty"`
+	ChoiceID    string       `json:"choice_id,omitempty"`
+	Kind        string       `json:"kind"`
+	Provider    string       `json:"provider,omitempty"`
+	Model       string       `json:"model"`
+	Preset      string       `json:"preset,omitempty"`
+	Name        string       `json:"name"`
+	Status      string       `json:"status"` // pending|loading|running|ok|err|skip
+	Error       string       `json:"error,omitempty"`
+	Result      *benchResult `json:"result,omitempty"`
+	Preview     string       `json:"preview,omitempty"`
+	Output      string       `json:"output,omitempty"`
+	RuntimeID   string       `json:"runtime_id,omitempty"`
+	Measurement string       `json:"measurement,omitempty"`
 }
 
 type benchJob struct {
+	engine   *engineNode   // Captured target; private credentials never serialized.
 	ID       string        `json:"id"`
 	TestID   string        `json:"test_id"`
 	TestName string        `json:"test_name"`
@@ -106,6 +110,9 @@ func findBenchTest(id string) (benchTest, bool) {
 func saveCustomBenchTest(name, prompt string, maxTok int) (benchTest, error) {
 	name = strings.TrimSpace(name)
 	prompt = strings.TrimSpace(prompt)
+	if len(name) > 100 || len(prompt) > 32<<10 {
+		return benchTest{}, fmt.Errorf("test name or prompt too large")
+	}
 	if name == "" {
 		return benchTest{}, fmt.Errorf("name required")
 	}
@@ -152,6 +159,25 @@ func deleteCustomBenchTest(id string) error {
 		return fmt.Errorf("test not found")
 	}
 	return putJSON(bkState, benchTestsKey, out)
+}
+
+func recoverBenchJob() *benchJob {
+	benchJobMu.Lock()
+	defer benchJobMu.Unlock()
+	j := loadBenchJob()
+	if j != nil && !benchBusy.Load() && (j.Status == "running" || j.Status == "cancel" && j.Finished == 0) {
+		j.Status = "cancel"
+		j.Finished = time.Now().Unix()
+		for i := range j.Rows {
+			if j.Rows[i].Status == "pending" || j.Rows[i].Status == "running" || j.Rows[i].Status == "loading" {
+				j.Rows[i].Status = "skip"
+				j.Rows[i].Error = "benchmark interrupted; a legacy remote node may need a manual stop"
+			}
+		}
+		saveBenchJob(j)
+		archiveBenchJob(*j)
+	}
+	return j
 }
 
 func loadBenchJob() *benchJob {
@@ -209,6 +235,9 @@ func benchJobClone(j *benchJob) *benchJob {
 }
 
 func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
+	if len(picks) > 16 {
+		return nil, fmt.Errorf("maximum 16 benchmark selections")
+	}
 	var rows []benchJobRow
 	seen := map[string]bool{}
 	for _, p := range picks {
@@ -220,7 +249,14 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 				continue
 			}
 			seen[choiceID] = true
-			row := benchJobRow{ChoiceID: choiceID, Kind: "cloud", Name: strings.TrimSpace(p.Name), Status: "pending"}
+			row := benchJobRow{ChoiceID: choiceID, Kind: "cloud", Name: strings.TrimSpace(p.Name), Status: "pending", Measurement: "api_stream"}
+			if choice, agent, ok := benchHarnessChoice(choiceID); ok {
+				if reason := benchHarnessReason(choice, agent); reason != "" {
+					return nil, fmt.Errorf("native model-only benchmark unavailable: %s", reason)
+				}
+				row.Kind, row.Model, row.Provider, row.RuntimeID, row.Measurement = "account", choice.Model, choice.ProviderName, agent.ID, "native_cli"
+				row.Name = choice.Name
+			}
 			if provider, ok := benchCloudProvider(choiceID); ok {
 				row.Model, row.Provider = provider.Model, provider.Name
 			}
@@ -242,7 +278,7 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 			if seen[key] {
 				continue
 			}
-			if _, err := os.Stat(path); err != nil {
+			if _, err := os.Stat(path); err != nil && currentEngineNode() == nil {
 				return nil, fmt.Errorf("preset %s not found", preset)
 			}
 			seen[key] = true
@@ -276,7 +312,7 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 func benchCheckConsent(picks []benchPick, consent bool) error {
 	for _, p := range picks {
 		if strings.TrimSpace(p.ChoiceID) != "" && !consent {
-			return fmt.Errorf("confirm sending the test prompt to the cloud provider")
+			return fmt.Errorf("confirm sending the test prompt to external providers or native accounts; requests consume credits or subscription quota")
 		}
 	}
 	return nil
@@ -303,6 +339,10 @@ func startBenchQueue(testID string, picks []benchPick, consent ...bool) (*benchJ
 		ID: fmt.Sprintf("j%d", time.Now().UnixNano()), TestID: t.ID, TestName: t.Name,
 		Kind: t.Kind, Status: "running", Started: time.Now().Unix(), Rows: rows,
 	}
+	if n := currentEngineNode(); n != nil {
+		copy := *n
+		j.engine = &copy
+	}
 	benchStop.Store(false)
 	ctx, cancel := context.WithCancel(context.Background())
 	benchCancel = cancel
@@ -312,14 +352,19 @@ func startBenchQueue(testID string, picks []benchPick, consent ...bool) (*benchJ
 	return initial, nil
 }
 
-func cancelBenchQueue() *benchJob {
+func cancelBenchQueue() *benchJob { return cancelBenchQueueID("") }
+
+func cancelBenchQueueID(id string) *benchJob {
 	benchJobMu.Lock()
 	defer benchJobMu.Unlock()
+	j := loadBenchJob()
+	if id != "" && (j == nil || j.ID != id) {
+		return j
+	}
 	benchStop.Store(true)
 	if benchCancel != nil {
 		benchCancel()
 	}
-	j := loadBenchJob()
 	if j != nil && j.Status == "running" {
 		j.Status = "cancel"
 		saveBenchJob(j)
@@ -356,8 +401,18 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 		saveBenchJob(j)
 		benchJobMu.Unlock()
 
-		if j.Rows[i].Kind != "cloud" {
-			if err := benchLoadAndWait(j.Rows[i].Model, j.Rows[i].Preset); err != nil {
+		n := currentEngineNode()
+		changed := (n == nil) != (j.engine == nil) || (n != nil && j.engine != nil && *n != *j.engine)
+		if j.Rows[i].Kind == "local" && changed {
+			benchJobMu.Lock()
+			j.Rows[i].Status = "err"
+			j.Rows[i].Error = "selected engine changed; start a new benchmark"
+			saveBenchJob(j)
+			benchJobMu.Unlock()
+			continue
+		}
+		if j.Rows[i].Kind == "local" && j.engine == nil {
+			if err := benchLoadAndWaitContext(ctx, j.Rows[i].Model, j.Rows[i].Preset); err != nil {
 				benchJobMu.Lock()
 				j.Rows[i].Status = "err"
 				j.Rows[i].Error = err.Error()
@@ -367,12 +422,10 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 			}
 		}
 		if benchStop.Load() {
-			if j.Rows[i].Kind == "cloud" {
-				benchJobMu.Lock()
-				j.Rows[i].Status = "skip"
-				saveBenchJob(j)
-				benchJobMu.Unlock()
-			}
+			benchJobMu.Lock()
+			j.Rows[i].Status = "skip"
+			saveBenchJob(j)
+			benchJobMu.Unlock()
 			continue
 		}
 		benchJobMu.Lock()
@@ -385,12 +438,21 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 		var err error
 		if j.Rows[i].Kind == "cloud" {
 			res, preview, err = runCloudBenchTest(ctx, t, j.Rows[i].ChoiceID)
+		} else if j.Rows[i].Kind == "account" {
+			res, preview, err = runAccountBenchTest(ctx, t, j.Rows[i].ChoiceID)
+		} else if j.engine != nil && !j.engine.Direct {
+			res, preview, err = runNodeBenchTest(ctx, t, j.Rows[i], *j.engine)
+		} else if j.engine != nil && j.engine.Direct {
+			res, preview, err = runDirectBenchTest(ctx, t, j.Rows[i], *j.engine)
 		} else {
-			res, preview, err = runBenchTest(t)
+			res, preview, err = runBenchTestContext(ctx, t)
 		}
 		benchJobMu.Lock()
-		if j.Rows[i].Kind == "cloud" && ctx.Err() != nil {
+		if ctx.Err() != nil {
 			j.Rows[i].Status = "skip"
+			if err != nil {
+				j.Rows[i].Error = err.Error()
+			}
 		} else if err != nil {
 			j.Rows[i].Status = "err"
 			j.Rows[i].Error = err.Error()
@@ -398,6 +460,7 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 			j.Rows[i].Status = "ok"
 			j.Rows[i].Result = res
 			j.Rows[i].Preview = clipBenchPreview(preview)
+			j.Rows[i].Output = preview
 		}
 		saveBenchJob(j)
 		benchJobMu.Unlock()
@@ -415,15 +478,17 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 }
 
 func runBenchTest(t benchTest) (*benchResult, string, error) {
-	if t.Kind == "perf" || t.ID == benchTestPerf {
-		res, err := runBench(2000, 300)
-		return res, "", err
+	return runBenchTestContext(context.Background(), t)
+}
+
+func runBenchTestContext(ctx context.Context, t benchTest) (*benchResult, string, error) {
+	prompt, n := benchPrompt(t)
+	res, output, err := runCompletionBenchContext(ctx, prompt, n, nil)
+	if err == nil && (t.Kind == "perf" || t.ID == benchTestPerf) {
+		saveLastBench(res)
+		saveBenchForActivePreset(res)
 	}
-	n := t.MaxTokens
-	if n <= 0 {
-		n = 256
-	}
-	return runCompletionBench(t.Prompt, n)
+	return res, output, err
 }
 
 func clipBenchPreview(s string) string {
@@ -456,12 +521,20 @@ func benchModelReady(model string) bool {
 }
 
 func waitLLMHealth(timeout time.Duration) error {
+	return waitLLMHealthContext(context.Background(), timeout)
+}
+
+func waitLLMHealthContext(ctx context.Context, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if healthCheck() {
 			return nil
 		}
-		time.Sleep(1500 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(1500 * time.Millisecond):
+		}
 	}
 	return fmt.Errorf("engine not ready after %s", timeout.Round(time.Second))
 }
@@ -475,6 +548,13 @@ func benchPresetReady(preset string) bool {
 }
 
 func benchLoadAndWait(model, preset string) error {
+	return benchLoadAndWaitContext(context.Background(), model, preset)
+}
+
+func benchLoadAndWaitContext(ctx context.Context, model, preset string) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	preset = strings.TrimSpace(preset)
 	if preset != "" {
 		if benchPresetReady(preset) {
@@ -487,7 +567,7 @@ func benchLoadAndWait(model, preset string) error {
 		if err := SwitchToPreset(path); err != nil {
 			return err
 		}
-		return waitLLMHealth(benchHealthWait)
+		return waitLLMHealthContext(ctx, benchHealthWait)
 	}
 	model = strings.TrimSpace(model)
 	if model == "" {
@@ -502,5 +582,5 @@ func benchLoadAndWait(model, preset string) error {
 	if err := restartLlamaEngine(); err != nil {
 		return err
 	}
-	return waitLLMHealth(benchHealthWait)
+	return waitLLMHealthContext(ctx, benchHealthWait)
 }

@@ -320,8 +320,7 @@ var engineRoutes = map[string]bool{
 	"/api/engines/vllm": true, "/api/engines/vllm/params": true, "/api/engines/vllm/auto-update": true,
 	"/api/engines/vllm/models": true, "/api/engines/vllm/models/delete": true, "/api/engines/vllm/hub/search": true,
 	"/api/engines/vllm/download": true, "/api/engines/vllm/download/cancel": true,
-	"/api/bench": true, "/api/bench/last": true, "/api/bench/tests": true, "/api/bench/tests/delete": true,
-	"/api/bench/queue": true, "/api/bench/queue/cancel": true, "/api/bench/runs": true,
+	"/api/bench": true, "/api/bench/last": true,
 }
 
 // nodeAware sends an engine route to the linked remote Loom, with its control

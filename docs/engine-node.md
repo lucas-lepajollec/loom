@@ -178,7 +178,14 @@ native capabilities remain unsupported. Source builds still need system build
 dependencies; Loom never runs its interface as root to solve permissions.
 
 Local one-shot benchmarks and GGUF/preset benchmark queues reuse the existing
-native benchmark handlers. Node queues reject cloud choices before provider
+native benchmark handlers. Mixed queues and saved tests/history belong to the main Loom. The main dispatches
+only local rows to the node, using its existing queue API. Updated nodes advertise
+`scoped_cancel`; cancellation supplies `X-Loom-Bench-Job` and refuses a different
+current job atomically. Older nodes can run tests but need a manual stop when the
+main queue is cancelled; their stored responses may be preview-only. Temporary
+custom tests are deleted after dispatch; an unreachable node can retain one.
+
+Node queues reject cloud choices before provider
 lookup; stop vLLM before a GGUF sweep. Its active model can use the one-shot
 benchmark. Servers without native phase timings leave prefill/decode rates
 unknown rather than deriving an arbitrary split of elapsed time. No benchmark
