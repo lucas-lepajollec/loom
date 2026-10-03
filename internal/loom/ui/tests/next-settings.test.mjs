@@ -409,3 +409,18 @@ test('node server view uses its protected endpoint without an ineffective networ
   assert.equal(nodes(tree, 'Switch').length, 0);
   assert.match(textOf(tree), /2511\/v1/);
 });
+
+
+test('each saved machine node updates through its own endpoint, independent of the active engine', async () => {
+  for (const id of ['gpu-a', 'gpu-b']) {
+    const endpoint = '/api/machines/' + id + '/node/update';
+    const h = harness(updates, 'LoomUpdates');
+    h.data[endpoint] = { current: '0.1.4', latest: '0.2.1', available: true, can_apply: true };
+    h.env.post = async (...args) => { h.posts.push(args); return { ok: true, version: '0.2.1', restarting: false }; };
+    await button(h.render({ node: true, endpoint }), 'Vérifier').props.onClick();
+    await button(h.render({ node: true, endpoint }), 'Installer la mise à jour').props.onClick();
+    assert.equal(h.posts[0][0], endpoint + '/apply');
+    assert.match(h.confirmations[0][1], /moteurs/);
+    assert.equal(h.posts.length, 1);
+  }
+});

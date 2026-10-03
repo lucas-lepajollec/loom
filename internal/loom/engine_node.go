@@ -286,6 +286,15 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	if hresp.StatusCode != 200 {
 		return nil, fmt.Errorf("remote Loom's /v1 API refused the connection (HTTP %d)", hresp.StatusCode)
 	}
+	if n.Role == "engine-node" {
+		for _, m := range loadRemoteMachines() {
+			if u.Hostname() == m.Host {
+				if err := putStoreJSON(bkState, machineNodePrefix+m.ID, n); err != nil {
+					return nil, errors.New("machine maintenance access could not be saved")
+				}
+			}
+		}
+	}
 	if err := setEngineNode(n); err != nil {
 		return nil, err
 	}

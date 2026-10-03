@@ -31,7 +31,7 @@ function view(rt) {
       return { ok: true };
     },
     get: async url => url.endsWith('/login')
-      ? { ok: true, target: 'local', command: 'NO_BROWSER=true gemini', title: 'Gemini account' }
+      ? { ok: true, target: 'local', command: 'pi', title: 'Pi account' }
       : { ok: true, login: { id: 'fixture-login', state: 'waiting', url: 'https://auth.openai.com/codex/device', code: 'ABCD-1234' } },
   };
   vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.component = HarnessAccount;', env);
@@ -66,15 +66,14 @@ test('Codex uses native device sign-in, then explicit catalog consent; closing c
   h.unmount();
 });
 
-test('Gemini native login stays in its modal and cleans up its terminal without changing the route', async () => {
-  const h = view({ id: 'gemini', name: 'Gemini CLI' });
+test('Unsupported browser login stays in its modal and cleans up its terminal without changing the route', async () => {
+  const h = view({ id: 'pi', name: 'Pi' });
   await button(h.render(), 'Utiliser la connexion native').props.onClick();
   const tree = h.render();
   assert.equal(h.posts[0].url, '/api/terminals');
-  assert.equal(h.posts[0].body.command, 'NO_BROWSER=true gemini');
+  assert.equal(h.posts[0].body.command, 'pi');
   assert.ok(flatten(tree).some(x => x.type === 'TermView'));
-  assert.match(text(tree), /Sign in with Google/);
-  assert.match(text(tree), /Gemini API key/);
+  assert.match(text(tree), /instructions de connexion/);
   assert.equal(h.connected, 0);
   h.unmount();
   await new Promise(resolve => setImmediate(resolve));
@@ -124,3 +123,22 @@ test('sidebar renders control-plane version, name and avatar independently from 
   assert.ok(!text(tree).includes('0.1.4'));
   assert.equal(text(flatten(tree).find(x => x.props.class === 'avatar-i')), 'C');
 });
+
+for (const [rt, label] of [[{ id: 'claude-code', name: 'Claude' }, 'Se connecter avec Claude'], [{ id: 'antigravity', name: 'Antigravity' }, 'Se connecter avec Google']]) {
+  test(label + ' uses browser link and code input without a terminal', async () => {
+    const h = view(rt);
+    await button(h.render(), label).props.onClick();
+    h.env.get = async () => ({ ok: true, login: { id: 'fixture-login', state: 'waiting', url: 'https://claude.ai/oauth/authorize?state=fixture&client_id=fixture', input_required: true } });
+    h.render(); await h.timers.shift()();
+    let tree = h.render();
+    assert.ok(flatten(tree).some(x => x.type === 'a'));
+    const input = flatten(tree).find(x => x.type === 'input');
+    assert.equal(input.props.type, 'password');
+    input.props.onInput({ target: { value: 'TEST-CODE' } });
+    await button(h.render(), 'Valider le code').props.onClick();
+    assert.ok(h.posts.some(x => x.body.job === 'fixture-login' && x.body.code === 'TEST-CODE'));
+    assert.ok(!h.posts.some(x => x.url === '/api/terminals'));
+    assert.equal(flatten(h.render()).find(x => x.type === 'input')?.props.value || '', '');
+    h.unmount();
+  });
+}

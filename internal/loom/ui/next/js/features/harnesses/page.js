@@ -1,3 +1,4 @@
+import { useVisibleRefresh } from '../usage/refresh.js';
 import { t, locale, tSource } from '../../core/i18n.js';
 // Harnesses : agents qui exécutent (Codex, Antigravity…). Loom garde la
 // discussion ; chaque harness garde son compte, ses permissions et sa mémoire.
@@ -281,6 +282,12 @@ function AcpDetail({ rt, models, onEdit }) {
   const [native, setNative] = useState(null);
   // Usage natif (toutes les sessions du harness, 7 jours), lu en arrière-plan.
   useEffect(() => { setNative(null); get('/api/usage/native?days=7').then(r => { const h = (r.harnesses || []).find(x => x.runtime_id === rt.id); setNative(h && !h.error && (h.sessions || h.total_tokens) ? h : null); }).catch(() => {}); }, [rt.id]);
+  useVisibleRefresh(async alive => {
+    if (accountOpen || rt.connected !== true || rt.available === false || !(rt.capabilities || []).includes('quota')) return;
+    await post('/api/runtimes/' + encodeURIComponent(rt.id) + '/quota', {}, { retryAuth: false, timeout: 65000 }).catch(() => null);
+    const result = await get('/api/usage', { retryAuth: false });
+    if (alive() && result.ok !== false) setExtra(previous => ({ ...previous, quota: (result.quotas || []).find(q => q.runtime_id === rt.id) || null }));
+  }, 30000, rt.id + '|' + rt.connected + '|' + accountOpen);
   const [custom, setCustom] = useState(null);
   const load = async () => {
     const [p, u, localT, m] = await Promise.all([get('/api/runtimes/' + rt.id + '/probe').catch(() => ({})), get('/api/usage').catch(() => ({})),
@@ -347,7 +354,7 @@ function AcpDetail({ rt, models, onEdit }) {
       ${native && html`<div><div class="lbl">${t('harnesses.native.label')}<${Tip} text=${t('harnesses.native.tip')} /></div>
         <div class="v"><b>${fmtTok(native.total_tokens)}</b><span class="t">tokens</span></div><div class="sub"><a href="#/usage">${t('harnesses.native.sessions', { n: native.sessions })}</a></div></div>`}
     </div>
-    ${probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
+    ${!missing && probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
     ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => setAccountRevision(n => n + 1)} onConnect=${refresh} />`}
     ${!rt.custom && html`<${MachineState} rt=${rt} accountRevision=${accountRevision} commands=${probe && probe.commands ? probe.commands.length : null} />`}
     ${rt.custom && rt.machine && html`<${RemoteState} rt=${rt} />`}

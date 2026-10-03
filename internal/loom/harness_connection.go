@@ -109,9 +109,6 @@ func handleHarnessLogin(w http.ResponseWriter, r *http.Request) {
 		command = "codex login --device-auth"
 	case "opencode":
 		command = "opencode auth login"
-	case "gemini":
-		command = "gemini"
-		note = "For a Google account, use /auth and choose Sign in with Google. Gemini API key is a separate authentication method."
 	case "pi":
 		command = "pi"
 		note = "Use /login in the native terminal."
@@ -137,25 +134,6 @@ func handleHarnessLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		command = shellQuote(path) + strings.TrimPrefix(command, binary)
-	}
-	// Manual Google OAuth works when the CLI runs on a server and the browser
-	// runs on another device. Do not redirect its localhost callback to Loom or
-	// overwrite its selected authentication method/credentials.
-	if usageHarnessID(agent) == "gemini" {
-		osFamily := runtime.GOOS
-		if agent.Machine != "" {
-			for _, m := range loadRemoteMachines() {
-				if m.ID == agent.Machine {
-					osFamily = lifecycleOS(&m)
-					break
-				}
-			}
-		}
-		if osFamily == "windows" {
-			command = "$env:NO_BROWSER='true'; " + command
-		} else {
-			command = "NO_BROWSER=true " + command
-		}
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "target": target, "command": command, "title": agent.Name + " · account", "note": note})
 }

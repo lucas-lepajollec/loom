@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const nativeUsageTTL = 5 * time.Minute
+const nativeUsageTTL = 30 * time.Second
 const nativeUsageTimeout = 30 * time.Second
 const nativeUsageMaxFiles = 2000
 

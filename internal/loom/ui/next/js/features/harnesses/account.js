@@ -5,14 +5,16 @@ import { Modal } from '../../ui/dialog.js';
 import { TermView } from '../terminals/page.js';
 
 // Native account setup stays on this page. The CLI owns its OAuth credentials.
-// Codex exposes a device-login protocol; other CLIs retain their own interactive
-// flows, rendered by the existing terminal rather than an invented OAuth client.
+// Device login and native authorize links use dedicated jobs. Interactive
+// terminal login remains an explicit fallback for other native workflows.
 export function HarnessAccount({ rt, onClose, onConnect, onChanged }) {
   const [login, setLogin] = useState(null);
   const [terminal, setTerminal] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [code, setCode] = useState('');
+  const provider = rt.id === 'codex' || rt.logo === 'codex' ? 'chatgpt' : rt.id === 'claude-code' || rt.logo === 'claudecode' ? 'claude' : rt.id === 'antigravity' || rt.logo === 'antigravity' ? 'google' : '';
   const resource = useRef(null);
   const alive = useRef(true);
   const changed = useRef(false);
@@ -38,7 +40,7 @@ export function HarnessAccount({ rt, onClose, onConnect, onChanged }) {
       if (!r.ok) throw new Error(r.error);
       resource.current = { terminal: r.terminal.id };
       if (!alive.current) { await dispose(); return; }
-      setTerminal(r.terminal); setNote(rt.id === 'gemini' || rt.logo === 'gemini' ? t('harnesses.account.google_note') : t('harnesses.account.native_note'));
+      setTerminal(r.terminal); setNote(t('harnesses.account.native_note'));
     } catch (e) { if (alive.current) setError(e.message); }
     finally { pending.current = false; if (alive.current) setBusy(false); }
   };
@@ -72,16 +74,24 @@ export function HarnessAccount({ rt, onClose, onConnect, onChanged }) {
     timer = setTimeout(poll, 500);
     return () => { stopped = true; clearTimeout(timer); };
   }, [login?.id, login?.state]);
+  const submitCode = async () => {
+    if (pending.current || !code.trim() || !login?.input_required) return;
+    const value = code.trim(); setCode(''); pending.current = true; setBusy(true); setError('');
+    try { const r = await post(base + '/account', { job: login.id, code: value }); if (!r.ok) throw new Error(r.error); if (alive.current) setLogin(r.login); }
+    catch (e) { if (alive.current) setError(e.message); }
+    finally { pending.current = false; if (alive.current) setBusy(false); }
+  };
   const active = login && ['starting', 'waiting'].includes(login.state);
   const labels = { starting: t('harnesses.account.starting'), waiting: t('harnesses.account.waiting'), completed: t('harnesses.account.completed'), error: t('harnesses.account.error'), expired: t('harnesses.account.expired'), cancelled: t('harnesses.account.cancelled') };
   return html`<${Modal} title=${t('harnesses.connection.login') + ' · ' + rt.name} sub=${t('harnesses.account.private')} wide=${!!terminal} onClose=${onClose}
     foot=${html`<button class="btn ghost" onClick=${onClose}>${t('ui.dialog.fermer')}</button><button class="btn primary" disabled=${busy || active} onClick=${async () => { await dispose(); onChanged(); onClose(); onConnect(); }}>${t('harnesses.account.verify_connect')}</button>`}>
     ${!login && !terminal && html`<p class="note">${t('harnesses.account.choose')}</p>`}
-    <div class="acts">${(rt.id === 'codex' || rt.logo === 'codex') && html`<button class="btn primary" disabled=${busy || active || !!terminal} onClick=${device}>${t('harnesses.account.chatgpt')}</button>`}
+    <div class="acts">${provider && html`<button class="btn primary" disabled=${busy || active || !!terminal} onClick=${device}>${t(({ chatgpt: 'harnesses.account.chatgpt', claude: 'harnesses.account.claude', google: 'harnesses.account.google' })[provider])}</button>`}
       <button class="btn" disabled=${busy || !!terminal} onClick=${native}>${t('harnesses.account.native')}</button></div>
     ${error && html`<p class="note err" role="alert">${error}</p>`}
     ${login && html`<div class="card pad" role="status"><p>${labels[login.state] || ''}</p>
-      ${login.state === 'waiting' && html`<p><a class="btn primary" href=${login.url} target="_blank" rel="noopener noreferrer">${t('harnesses.account.open_browser')}</a></p><p><code class="mono">${login.code}</code></p><p class="note">${t('harnesses.account.device_note')}</p>`}
+      ${login.state === 'waiting' && html`<p><a class="btn primary" href=${login.url} target="_blank" rel="noopener noreferrer">${t('harnesses.account.open_provider')}</a></p>${login.code && html`<p><code class="mono">${login.code}</code></p><p class="note">${t('harnesses.account.device_note')}</p>`}
+      ${login.input_required && html`<label class="field"><span>${t('harnesses.account.paste_code')}</span><input class="input mono" type="password" autocomplete="off" value=${code} onInput=${e => setCode(e.target.value)} /></label><button class="btn primary" disabled=${busy || !code.trim()} onClick=${submitCode}>${t('harnesses.account.submit_code')}</button>`}`}
       ${login.error && html`<p class="note err">${login.error}</p>`}</div>`}
     ${terminal && html`<p class="note">${note}</p><div style="display:grid;height:55vh;min-height:260px"><${TermView} t=${terminal} onExit=${() => { if (alive.current) onChanged(); }} /></div>`}
     <p class="note">${t('harnesses.account.separate')}</p>

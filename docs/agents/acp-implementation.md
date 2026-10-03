@@ -4,9 +4,9 @@ The ACP protocol package and Loom session integration implement NDJSON
 JSON-RPC v1 from the vendored
 [`acp-schema/schema.json`](acp-schema/schema.json). The embedded registry is
 [`internal/loom/harness/acp_agents.json`](../../internal/loom/harness/acp_agents.json).
-Codex, Claude Code, Pi, Gemini and OpenCode use generic `acpAdapter` entries.
+Codex, Claude Code, Pi and OpenCode use generic `acpAdapter` entries.
 Custom and SSH launchers can register other ACP agents, including Hermes.
-Hermes runs through `hermes acp`, locally or on an SSH machine. The npm bridges have pinned versions; the direct Gemini command uses the installed CLI.
+Hermes runs through `hermes acp`, locally or on an SSH machine. The npm bridges have pinned versions; direct native launchers use the installed CLI.
 Availability requires both the registry launcher and every `detect` executable.
 Antigravity runs through Loom’s `agy-acp` bridge to the native CLI. Its
 native access modes remain authoritative; Loom passes neither provider keys
@@ -29,30 +29,39 @@ does not opt the harness into Loom or prove a paid plan's inference entitlement.
   Loom never receives account access/refresh tokens. Unsupported native versions
   can use the terminal fallback. See the
   [official account protocol](https://learn.chatgpt.com/docs/app-server).
-- Claude Code, Gemini CLI, Antigravity and other known launchers: their own
-  interactive sign-in is embedded in the same dialog using Loom's existing
-  authenticated terminal. Browser callbacks and provider choices remain native;
-  this is not a universal browser-only OAuth implementation.
-- Gemini CLI: use `/auth` and **Sign in with Google** for a Google account.
-  **Gemini API key** is a different method; selecting it requests a key even
-  when the user has a Google subscription. `NO_BROWSER=true` enables its manual
-  browser flow for a CLI running on another machine. Loom does not silently
-  overwrite native auth settings or remove cached native credentials. See
-  [Gemini authentication](https://geminicli.com/docs/get-started/authentication/).
+- Claude Code: **Sign in with Claude** runs only `claude auth login --claudeai`.
+  Loom shows the native authorize link and a field for the browser's returned
+  code. The CLI owns OAuth and credential persistence. See
+  [Claude authentication](https://code.claude.com/docs/en/authentication).
+- Antigravity: **Sign in with Google** starts a private native `agy` sign-in
+  session. It selects only the known Google OAuth option requested by the user,
+  exposes the native Google authorize link and forwards the returned code.
+  It does not answer project, license or permission prompts. Such additional
+  onboarding, an already-authenticated CLI, or an unsupported native format may
+  require **Use native login** or **Verify and connect to Loom**. See
+  [Antigravity authentication](https://www.antigravity.google/docs/cli/install/).
+- Other launchers retain their own interactive login through the explicit
+  terminal fallback. Arbitrary custom launchers do not inherit browser-account
+  support merely from their name or logo.
+- Gemini CLI is no longer offered as a built-in harness or machine installation
+  choice. Existing discussions, native configuration and user-installed CLIs
+  are preserved; this does not remove Gemini cloud providers/models.
 - Antigravity: its native account and Loom catalog opt-in are independent. The
   bridge refuses an unavailable/empty native catalog rather than showing a
   usable connection. Native account/keyring availability must match the OS user
   and machine running the harness, including a service or SSH session.
 
-`GET /api/runtimes/{id}/login` reads the native command plan. For supported Codex
-launchers, `POST /api/runtimes/{id}/account` with `consent:true` starts a fixed
-native login job; `GET .../account?job=<id>` reads its state, and POST with
-`job`/`cancel:true` cancels it. Jobs expire after ten minutes, have bounded native
-frames and a bounded in-memory registry, and discard device codes at completion.
-Closing the dialog stops/removes only its owned job or terminal; no logout is
-performed and native credentials stay owned by the CLI. Machine launchers use
-their SSH target; executable lookup matches install/inspect rather than a stale
-service PATH. Real account/browser/keyring acceptance remains a separate check.
+`GET /api/runtimes/{id}/login` reads the native terminal command plan.
+`POST /api/runtimes/{id}/account` with `{consent:true}` starts a browser-account
+job for supported built-in or saved-machine launchers. `GET` with `?job=<id>`
+returns its status/link/device code and `input_required`. `POST` with
+`{job:"<id>",code:"<returned-code>"}` submits a single native authorization code;
+`{job:"<id>",cancel:true}` stops that owned job. Jobs are runtime-scoped, bounded
+and expire after ten minutes. Only provider authorize URLs are accepted; raw
+native output/errors and access/refresh tokens are never returned. URLs/codes
+are transient, cleared on completion, and never persisted or placed in browser
+storage. Closing the dialog cancels only its owned process. Native account,
+installation and connecting the catalog to Loom remain separate states.
 
 ## Selecting and configuring a discussion
 

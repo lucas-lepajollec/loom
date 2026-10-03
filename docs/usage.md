@@ -2,8 +2,16 @@
 
 Loom observes provider account balances independently of retained Loom token
 counts, manual-price estimates and [native harness usage](harness-usage.md).
-No discussion, context or generation request is sent. Reads happen only when
-these HTTP routes are requested; there is no background polling.
+No discussion, context or generation request is sent. The visible Usage page reads retained Loom snapshots every four seconds and
+refreshes connected harness quotas, native usage and provider balances every
+30 seconds. It refreshes immediately on opening/resuming the page and pauses
+while hidden. Requests never overlap within a poller. Manual refresh remains
+available. Native account sign-in/catalog connection remains explicit.
+
+A slow quota read does not lock out cached snapshots or other accounts. Reads
+for each harness are throttled to once per 30 seconds and in-flight reads cannot
+be duplicated. Failures preserve previous observations with an error marker;
+unknown or unsupported metrics are never replaced with invented zeros.
 
 ## HTTP API
 
@@ -27,7 +35,7 @@ these readers never consult the OS keychain themselves. They never return, log
 or persist keys or upstream diagnostics. Only fixed errors and HTTP status codes
 are returned, and redirects are refused.
 
-The in-memory cache lasts five minutes, including failures. It belongs to the
+The in-memory cache lasts 30 seconds, including failures. It belongs to the
 workspace session, checks the saved endpoint and a non-public key fingerprint,
 and shares in-flight reads for the same connection. A key rotation triggers a
 new read. Refresh joins an already-running read rather than issuing duplicates.

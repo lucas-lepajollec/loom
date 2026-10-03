@@ -29,9 +29,15 @@ func agyRead(ctx context.Context, args ...string) ([]byte, error) {
 	}
 	return antigravity.ReadExecutable(ctx, path, args...)
 }
-func discoverAgyModels(ctx context.Context) ([]string, error) { return antigravity.DiscoverModels(ctx) }
-func validAgyUsage(u *agyUsage) bool                          { return antigravity.ValidUsage(u) }
-func agyInstalled() bool                                      { _, err := lifecycleLookPath("agy"); return err == nil }
+func discoverAgyModels(ctx context.Context) ([]string, error) {
+	out, err := agyRead(ctx, "models")
+	if err != nil {
+		return nil, err
+	}
+	return antigravity.ParseModels(out)
+}
+func validAgyUsage(u *agyUsage) bool { return antigravity.ValidUsage(u) }
+func agyInstalled() bool             { _, err := lifecycleLookPath("agy"); return err == nil }
 
 func emitAntigravity(emit ChatCallback) func(antigravity.Event) bool {
 	return func(e antigravity.Event) bool {

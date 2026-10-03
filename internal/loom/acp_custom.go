@@ -26,6 +26,9 @@ func loadCustomACPAgents() []acpAgent {
 func registerCustomACPAgents() {
 	for _, a := range loadCustomACPAgents() {
 		a.Custom = true
+		if a.Remote && a.Machine != "" && a.ID == "custom-"+a.Machine+"-gemini" {
+			continue
+		}
 		registeredRuntimes.upsert(&acpAdapter{agent: a})
 	}
 }

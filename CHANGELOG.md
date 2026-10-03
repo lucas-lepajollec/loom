@@ -16,13 +16,23 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
-- Account sign-in stays in a harness-page dialog. Codex supports its native
-  ChatGPT device-code login via app-server, including completion, expiry,
-  cancellation and a native-terminal fallback. Other harnesses keep their own
-  interactive sign-in in the dialog. Connecting models to Loom remains explicit.
-- Explain Gemini CLI's Google-account versus API-key authentication and use
-  its manual browser flow for native login on remote/headless hosts. Native
-  credentials/settings are never copied or silently switched by Loom.
+- Browser-account buttons for ChatGPT, Claude and Google in the harness-page
+  dialog. Native CLIs retain OAuth and credentials; Loom handles only expiring
+  links/codes, cancellation and a terminal fallback for other onboarding.
+- Engine-node maintenance access and update controls for each SSH machine,
+  independent of the active inference engine; credentials stay server-side.
+
+### Changed
+
+- Gemini CLI is removed from built-in harness, installation and machine choices.
+  Saved discussions/configuration and user-installed CLIs remain untouched.
+  Gemini cloud providers/models are independent and remain available.
+- Usage refreshes retained Loom metrics every four seconds and connected native
+  quotas/usage/provider balances every 30 seconds while visible, including
+  immediate refresh on resume. Duplicate reads are bounded; failures keep stale
+  observations and unsupported metrics stay unknown.
+- Native quota I/O no longer holds the global cache mutex. Missing CLIs use the
+  installation state without a redundant alarming probe banner.
 
 ## [0.2.1] - 2026-10-03
 

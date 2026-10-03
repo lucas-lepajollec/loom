@@ -27,12 +27,14 @@ type harnessAccountState struct {
 	Code    string `json:"code,omitempty"`
 	Error   string `json:"error,omitempty"`
 	Expires int64  `json:"expires_at"`
+	Input   bool   `json:"input_required,omitempty"`
 }
 
 type harnessAccountJob struct {
 	mu sync.Mutex
 	harnessAccountState
 	cancel context.CancelFunc
+	codes  chan string
 }
 
 var harnessAccounts = struct {
@@ -51,6 +53,7 @@ func (j *harnessAccountJob) finish(state, message string) {
 	defer j.mu.Unlock()
 	if j.State == "starting" || j.State == "waiting" {
 		j.State, j.Error, j.URL, j.Code = state, message, "", ""
+		j.Input = false
 	}
 }
 
@@ -60,18 +63,32 @@ func harnessAccountCommand(ctx context.Context, agent acpAgent) (*exec.Cmd, func
 	if err != nil {
 		return nil, nil, err
 	}
-	argv := []string{"codex", "app-server"}
+	var argv []string
+	switch usageHarnessID(agent) {
+	case "codex":
+		argv = []string{"codex", "app-server"}
+	case "claude-code":
+		argv = []string{"claude", "auth", "login", "--claudeai"}
+	case "antigravity":
+		argv = []string{"agy"}
+	default:
+		return nil, nil, errors.New("browser account login unavailable for this harness")
+	}
 	if machine == nil {
 		argv, err = harnessNativeArgv(argv)
 	} else {
 		var key string
 		key, _, err = loomSSHKey()
 		if err == nil {
-			argv, err = buildHarnessLifecycleCommand(machine, key, argv)
+			if lifecycleOS(machine) == "windows" {
+				argv, err = buildHarnessLifecycleCommand(machine, key, argv)
+			} else {
+				argv = nativeAccountSSHCommand(*machine, key, argv)
+			}
 		}
 	}
 	if err != nil {
-		return nil, nil, errors.New("Codex CLI unavailable on this machine")
+		return nil, nil, errors.New("Native CLI unavailable on this machine")
 	}
 	dir, err := os.MkdirTemp("", "loom-account-")
 	if err != nil {
@@ -81,6 +98,19 @@ func harnessAccountCommand(ctx context.Context, agent acpAgent) (*exec.Cmd, func
 	cmd.Dir = dir
 	if machine == nil {
 		cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
+	}
+	if usageHarnessID(agent) != "codex" {
+		if machine != nil {
+			// Allocate the remote TTY for a native sign-in TUI, not an ACP session.
+			for i := range cmd.Args {
+				if cmd.Args[i] == "-T" {
+					cmd.Args[i] = "-tt"
+					break
+				}
+			}
+		} else {
+			cmd.Env = append(cmd.Env, "BROWSER=true", "SSH_CONNECTION=loom-native-browser-login", "TERM=xterm-256color")
+		}
 	}
 	cmd.Stderr = io.Discard
 	acpProcessGroup(cmd)
@@ -154,22 +184,24 @@ func handleHarnessAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	agent, ok := acpAgentFor(r.PathValue("id"))
-	if !ok || usageHarnessID(agent) != "codex" || workspaceTarget(agent) == "" {
+	if !ok || !browserAccountSupported(agent) || workspaceTarget(agent) == "" {
 		sendJSON(w, 501, map[string]any{"ok": false, "error": "use this harness's native account login"})
 		return
 	}
 	jobID, cancelJob := r.URL.Query().Get("job"), false
+	suppliedCode := ""
 	if r.Method == http.MethodPost {
 		var req struct {
 			Job     string `json:"job"`
 			Cancel  bool   `json:"cancel"`
 			Consent bool   `json:"consent"`
+			Code    string `json:"code"`
 		}
 		if !workspaceDecode(w, r, &req) {
 			return
 		}
-		jobID, cancelJob = req.Job, req.Cancel
-		if jobID == "" && (!req.Consent || cancelJob) {
+		jobID, cancelJob, suppliedCode = req.Job, req.Cancel, req.Code
+		if jobID == "" && (!req.Consent || cancelJob || suppliedCode != "") {
 			sendJSON(w, 400, map[string]any{"ok": false, "error": "confirm native account sign-in"})
 			return
 		}
@@ -192,6 +224,17 @@ func handleHarnessAccount(w http.ResponseWriter, r *http.Request) {
 		if job == nil || job.snapshot().Runtime != agent.ID {
 			sendJSON(w, 404, map[string]any{"ok": false, "error": "login expired or not found"})
 			return
+		}
+		if suppliedCode != "" {
+			job.mu.Lock()
+			if cancelJob || !job.Input || job.State != "waiting" || !nativeAuthorizationCode.MatchString(suppliedCode) {
+				job.mu.Unlock()
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "authorization code not expected or invalid"})
+				return
+			}
+			job.Input = false
+			job.codes <- suppliedCode
+			job.mu.Unlock()
 		}
 		if cancelJob {
 			job.finish("cancelled", "")
@@ -228,18 +271,23 @@ func handleHarnessAccount(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	job := &harnessAccountJob{harnessAccountState: harnessAccountState{ID: hex.EncodeToString(nonce[:]), Runtime: agent.ID, State: "starting", Expires: time.Now().Add(10 * time.Minute).UnixMilli()}, cancel: cancel}
+	job := &harnessAccountJob{harnessAccountState: harnessAccountState{ID: hex.EncodeToString(nonce[:]), Runtime: agent.ID, State: "starting", Expires: time.Now().Add(10 * time.Minute).UnixMilli()}, cancel: cancel, codes: make(chan string, 1)}
 	harnessAccounts.jobs[job.ID] = job
 	go func() {
 		defer cancel()
 		defer cleanup()
-		err := runCodexAccount(ctx, cmd, func(url, code string) {
-			job.mu.Lock()
-			defer job.mu.Unlock()
-			if job.State == "starting" {
-				job.State, job.URL, job.Code = "waiting", url, code
-			}
-		})
+		var err error
+		if usageHarnessID(agent) == "codex" {
+			err = runCodexAccount(ctx, cmd, func(url, code string) {
+				job.mu.Lock()
+				defer job.mu.Unlock()
+				if job.State == "starting" {
+					job.State, job.URL, job.Code = "waiting", url, code
+				}
+			})
+		} else {
+			err = runBrowserAccount(ctx, cmd, usageHarnessID(agent), job)
+		}
 		if ctx.Err() != nil {
 			job.finish("expired", "native login expired or cancelled")
 		} else if err != nil {

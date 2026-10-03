@@ -44,6 +44,7 @@ var quotaCache = struct {
 	sync.Mutex
 	items    map[string]QuotaSnapshot
 	attempts map[string]time.Time
+	flights  map[string]bool
 }{items: map[string]QuotaSnapshot{}, attempts: map[string]time.Time{}}
 
 // Read-only native JSON-RPC. Never login/logout, start a turn, send a nudge or

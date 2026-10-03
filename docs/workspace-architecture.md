@@ -83,7 +83,7 @@ text history and selected context; that can include earlier replies.
 
 ## Harnesses and native sessions
 
-Codex, Claude Code, Pi, Gemini and OpenCode have built-in ACP launchers.
+Codex, Claude Code, Pi and OpenCode have built-in ACP launchers.
 Antigravity uses Loom's own ACP bridge to `agy`; authentication, native models
 and access modes remain with that CLI. It does not receive Loom provider keys or
 MCP servers and does not provide an interactive Loom approval RPC. Hermes can
@@ -107,8 +107,7 @@ or shutdown; it never kills an unrelated process.
 **Native / Loom** model sources are protocol-specific. Codex and Claude Code
 receive compatible endpoints, selected models and keys in their launch
 environment. Opt-in Pi configuration contains provider entries with environment
-references; OpenCode receives launch configuration. Gemini uses Google models,
-Antigravity its native catalog. Hermes source configuration remains on its
+references; OpenCode receives launch configuration. Antigravity uses its native catalog. Hermes source configuration remains on its
 machine and is not a universal binding. Native global permissions are never
 changed to make a source work.
 

@@ -1,5 +1,16 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "node.maintenance": "Gestion du nœud moteur",
+  "node.maintenance_note": "Enregistre le nœud de cette machine pour le mettre à jour, même si les discussions utilisent un autre moteur.",
+  "node.address": "Adresse du nœud",
+  "node.maintenance_link": "Configurer l’accès au nœud",
+  "node.maintenance_save": "Enregistrer cet accès",
+  "harnesses.account.claude": "Se connecter avec Claude",
+  "harnesses.account.google": "Se connecter avec Google",
+  "harnesses.account.open_provider": "Ouvrir la connexion navigateur",
+  "harnesses.account.paste_code": "Code de connexion fourni par le navigateur",
+  "harnesses.account.submit_code": "Valider le code",
+
   "harnesses.account.private": "Connecte le compte du harness. Son CLI conserve tes identifiants.",
   "harnesses.account.choose": "Utilise la connexion navigateur quand elle est disponible, ou termine la connexion native ici.",
   "harnesses.account.chatgpt": "Se connecter avec ChatGPT",

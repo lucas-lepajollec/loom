@@ -18,7 +18,7 @@ vault checks, timestamps and stale-cache behavior apply.
   zones or formats leave a raw `note`; recognized windows still survive.
 - Hermes runs `hermes usage`, locally or on a saved SSH machine. Provider names,
   remaining percentages and explicit UTC reset dates come from native output.
-- Pi, OpenCode and Gemini do not advertise quota support.
+- Pi and OpenCode do not advertise quota support.
 
 `windows[].remaining` is a nullable fraction between 0 and 1;
 `remaining_percent` is retained for existing clients. `reset_at` and `fetched_at`
@@ -38,7 +38,7 @@ harnesses return 404; unsupported windows and invalid JSON return 400.
 
 Both routes use the existing control-key authentication, vault-lock checks and
 `Cache-Control: no-store`. They never send a discussion or start generation.
-The native cache is in memory for five minutes, indexed by runtime and window;
+The native cache is in memory for 30 seconds, indexed by runtime and window;
 concurrent reads for the same entry share one operation.
 
 Each result contains `runtime_id`, `days`, `sessions`, `input_tokens`,
@@ -56,7 +56,7 @@ manual prices are never applied to native activity.
 | Pi | `~/.pi/agent/sessions/**/*.jsonl` | Assistant `usage.input/output/cacheRead/cacheWrite/totalTokens` and `usage.cost.total`, filtered by entry timestamp. |
 | OpenCode | `opencode stats --days N --models` | CLI totals and model statistics; padded tables and native model blocks are supported. Compact CLI numbers can be rounded. Message counts are not session counts. |
 | Hermes | `hermes insights --days N` | Native totals, estimated USD cost and Models Used table, locally or via saved-machine SSH. |
-| Gemini / Antigravity | No reliable integrated native source | An unavailability error is reported; costs remain null. |
+| Antigravity | No reliable integrated native source | An unavailability error is reported; costs remain null. |
 
 Local journal discovery skips files whose mtime predates the requested window,
 reads at most 2,000 recent regular files, and does not follow directory symlinks.

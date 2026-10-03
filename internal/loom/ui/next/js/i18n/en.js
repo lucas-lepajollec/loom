@@ -1,5 +1,16 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "node.maintenance": "Engine node management",
+  "node.maintenance_note": "Save this machine’s node to update it, even while discussions use another engine.",
+  "node.address": "Node address",
+  "node.maintenance_link": "Configure node access",
+  "node.maintenance_save": "Save this access",
+  "harnesses.account.claude": "Sign in with Claude",
+  "harnesses.account.google": "Sign in with Google",
+  "harnesses.account.open_provider": "Open browser sign-in",
+  "harnesses.account.paste_code": "Sign-in code from your browser",
+  "harnesses.account.submit_code": "Submit code",
+
   "harnesses.account.private": "Sign in with the harness's own account. Its CLI keeps your credentials.",
   "harnesses.account.choose": "Use the browser connection when available, or complete the native sign-in here.",
   "harnesses.account.chatgpt": "Sign in with ChatGPT",
