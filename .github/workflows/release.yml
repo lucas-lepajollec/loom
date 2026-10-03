@@ -81,7 +81,7 @@ jobs:
           mkdir -p dist
           CGO_ENABLED=1 GOARCH=${{ matrix.arch }} go build -trimpath -o dist/${{ matrix.asset }} ./cmd/loom
       - name: Upload artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-${{ matrix.arch }}-binary
           path: dist/
@@ -106,7 +106,7 @@ jobs:
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o dist/loom-windows.exe ./cmd/loom
           GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o dist/loom-windows-arm.exe ./cmd/loom
       - name: Upload artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-binaries
           path: dist/
@@ -142,7 +142,7 @@ jobs:
           CGO_ENABLED=1 GOARCH=${{ matrix.arch }} go build -trimpath -o dist/${{ matrix.asset }} ./cmd/loom
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: macos-${{ matrix.arch }}-binary
           path: dist/
