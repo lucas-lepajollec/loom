@@ -3,10 +3,10 @@ package discussion
 import (
 	"encoding/json"
 
-	"github.com/lucas-lepajollec/loom/internal/loom/runtime/antigravity"
+	"github.com/lucas-lepajollec/loom/internal/loom/runtime"
 )
 
-type HarnessEvent = antigravity.HarnessEvent
+type HarnessEvent = runtime.HarnessEvent
 
 // Message is one entry in the chat history sent to llama.cpp.
 // `Content` may be nil when an assistant message only contains tool_calls.
@@ -42,6 +42,9 @@ type ACPChangedFile struct {
 // ACPState is runtime-private display state, never part of prepared messages.
 // MCP definitions/env values are deliberately absent from this persisted state.
 type ACPState struct {
+	FilesystemPolicy       string            `json:"filesystem_policy,omitempty"`
+	WorkspaceID            string            `json:"workspace_id,omitempty"`
+	WorkspaceTarget        string            `json:"workspace_target,omitempty"`
 	MCPServers             *[]string         `json:"mcp_servers,omitempty"`
 	NativeSessionID        string            `json:"native_session_id,omitempty"`
 	NativeRuntimeID        string            `json:"native_runtime_id,omitempty"`

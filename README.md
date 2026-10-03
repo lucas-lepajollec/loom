@@ -31,9 +31,11 @@ Link a running **llama-server, vLLM or OpenAI-compatible server** by address, wi
 
 ## Coding agents and projects
 
-Run **Claude Code, Codex, Gemini, OpenCode, Pi and Hermes** through ACP. **Antigravity** uses Loom's ACP bridge to its native CLI. Any other ACP agent can be added with a custom launcher. Harnesses can run locally or on connected machines over SSH, with installation and update controls where the lifecycle catalog supports them.
+Run **Claude Code, Codex, Gemini CLI, OpenCode, Pi and Hermes** through ACP. **Antigravity** uses Loom's ACP bridge to its native CLI. Any other ACP agent can be added with a custom launcher. Harnesses can run locally or on connected machines over SSH, with installation and update controls where the lifecycle catalog supports them.
 
-Choose a working folder, follow native tools, diffs and plans, answer permission requests and import or resume supported native sessions. **Native / Loom** model sources let supported harnesses use their own account or compatible Loom models/providers. This depends on the harness protocol: Gemini keeps its Google models, Antigravity its native catalog, and Hermes uses its own machine configuration.
+Save named folders and one default per execution machine in **Settings › Workspaces** or the first-run guide. New harness discussions use that default, with project folders taking precedence. The Session panel can select another saved folder or save a new one. [Workspaces and native access](docs/workspaces.md) explain the supported file protections, approvals and native account login. Harness installation, Loom connection and account sign-in are separate; the selector includes only connected harnesses. Gemini CLI and Antigravity are distinct executors.
+
+Follow native tools, diffs and plans, answer permission requests and import or resume supported native sessions. **Native / Loom** model sources let supported harnesses use their own account or compatible Loom models/providers. This depends on the harness protocol: Gemini keeps its Google models, Antigravity its native catalog, and Hermes uses its own machine configuration.
 
 Projects link folders on this machine or a connected machine, with shared instructions, selected context files, skills, MCP servers and a default execution target. Only explicitly selected local context files are read for prompts. See [workspace contracts](docs/workspace-architecture.md) and [ACP integration](docs/agents/acp-implementation.md).
 
@@ -96,12 +98,18 @@ Local inference needs an engine: install one from Loom or link an existing serve
 
 1. Run `loom web 2510` (or `./bin/loom web 2510` after a source build).
 2. Open [http://localhost:2510](http://localhost:2510).
-3. Follow the first-run guide: choose a language, review detected hardware, install or link an engine, or continue with cloud/harnesses only. The llama.cpp path offers a first GGUF model sized to available memory; vLLM models are managed in **Local**.
+3. Follow the first-run guide: choose a language, review detected hardware, choose the default workspace, install or link an engine, or continue with cloud/harnesses only. The llama.cpp path offers a first GGUF model sized to available memory; vLLM models are managed in **Local**.
 4. Create a discussion and choose its execution target. Confirm external sharing when prompted. Attach a project when you need a working folder or shared context.
 
 Reopen the guide from **Settings › About**. The guide currently offers vLLM only on detected Linux/NVIDIA systems; supported AMD/ROCm setups install it from **Settings › Engines**.
 
 <img src="docs/screenshots/welcome.png" alt="First-run guide with language, hardware and engine setup" width="1000" />
+
+## Development previews and second brains
+
+**Terminals › Application previews** opens an HTTP development server on Loom or a saved SSH machine, including assets and WebSocket/HMR, through a separate authenticated browser origin. VM clients must be able to reach the preview listener; HTTPS setups need a separate preview origin. See [development previews](docs/development-previews.md).
+
+**Brain** brings sources/context, memory, skills and MCP together. Link multiple second brains from folders, Git checkouts, Obsidian vaults or already mounted WebDAV directories. Sources remain canonical and are read-only; Brain indexes selected text with provenance. Include/exclude rules and explicit personal-source opt-in control retrieval. Direct remote synchronization is not implemented. See [Brain](docs/brain.md).
 
 ## Configuration
 
@@ -140,6 +148,7 @@ Update Loom from **Settings → About → Updates** using official GitHub releas
 ## Documentation
 
 - [Engines and vLLM](docs/engines.md) · [Terminals](docs/terminals.md)
+- [Workspaces and native access](docs/workspaces.md) · [Development previews](docs/development-previews.md)
 - [Brain and context](docs/brain.md) · [MCP files](docs/mcp-files.md)
 - [Provider balances](docs/usage.md) · [Harness quotas and native usage](docs/harness-usage.md)
 - [Interface languages](docs/i18n.md)

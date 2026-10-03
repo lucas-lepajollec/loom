@@ -79,6 +79,9 @@ func TestPublicRouteWireAndCachePolicies(t *testing.T) {
 				if w.Code != 200 || w.Body.String() != body || w.Header().Get("Content-Type") != tc.contentType || w.Header().Get("Cache-Control") != tc.cache {
 					t.Fatalf("asset wire: %d %v %q", w.Code, w.Header(), w.Body.String())
 				}
+				if tc.guarded && tc.contentType == "text/html; charset=utf-8" && (w.Header().Get("X-Frame-Options") != "DENY" || w.Header().Get("Content-Security-Policy") != "frame-ancestors 'none'") {
+					t.Fatal("control plane may be framed by a developer application")
+				}
 				if tc.guarded && w.Header().Get("X-Content-Type-Options") != "nosniff" {
 					t.Fatal("missing nosniff")
 				}

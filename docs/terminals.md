@@ -14,7 +14,7 @@ already have a native session ID.
 ## Platforms and shells
 
 - Linux/macOS: a native PTY starts `$SHELL` (or `/bin/sh`) with `-l`, or `-lc`
-  for a supplied command. Existing SSH targets use the same POSIX shell behavior.
+  for a supplied command. For Unix SSH targets, an empty command lets sshd start one login shell; a selected non-home folder is supplied as its first quoted `cd` input. Command sessions use the remote command shell once, with the user-installed harness PATH. Loom does not add another login shell or change startup files.
 - Windows 10 version 1809 and later, including Windows 11: native ConPTY with
   input/output pipes and resizing. Loom checks the ConPTY exports in kernel32;
   older systems report terminal support as unavailable with a French error.
@@ -39,13 +39,13 @@ including draining output while closing a naturally completed console.
 
 ## Existing API
 
-The control key protects terminal management. WebSockets use a single-use
+The interface session or automation control key protects terminal management. WebSockets use a single-use
 30-second ticket and same-origin checks rather than putting the key in the URL.
 
 | Route | Behavior |
 | --- | --- |
 | `GET /api/terminals` | Lists terminal snapshots and the host's `supported` capability. |
-| `POST /api/terminals` | Opens `{target,dir,command,title}`; `target` is `local` or a saved machine ID. |
+| `POST /api/terminals` | Opens `{target,dir,command,title,request_id?}`; `target` is `local` or a saved machine ID. |
 | `POST /api/terminals/ticket` | `{id}` returns the one-time attachment ticket. |
 | `GET /api/terminals/ws?ticket=…` | Binary output, keystroke input and text `{"resize":[cols,rows]}` messages. |
 | `GET /api/runtime/sessions/terminal?id=<discussion>` | Returns `{ok,target,dir,command,title}` for a supported native resume; the UI then opens the terminal. |
@@ -59,3 +59,16 @@ ConPTY tests are Windows-only and cover output/exit codes, interactive input,
 resize validation, repeated close without a reader, and descendant termination.
 Run `go test -short ./internal/loom/ -run Term` on each target OS; cross-building
 and Windows `go vet` check compilation but do not execute ConPTY on Linux.
+
+## Repeated opens and developer applications
+
+The interface coalesces overlapping opens of the same terminal request. API
+clients can supply a unique `request_id`: matching retries within two minutes
+reuse the terminal; changed commands or a closed terminal return 409. Omitting
+that field intentionally opens a new terminal. Limits are checked while process
+creation is serialized. Recent output is still replayed on reconnection; it is
+not suppressed to hide duplicate startup banners.
+
+Open a local or SSH-hosted HTTP app from **Application previews** on this page.
+See [development previews](development-previews.md) for authenticated separate
+origins, SSH streams, WebSockets and HTTPS/reverse-proxy setup.

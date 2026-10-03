@@ -4,6 +4,25 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Added
+
+- Saved workspaces and per-machine defaults in Settings, first-run setup and harness discussions; project folder precedence and explicit save/create/default actions preserve existing files and discussions.
+- Explicit harness connect/disconnect, connected-first grouping and native account login terminals. Installed CLIs alone no longer populate the selector; existing harness usage migrates without account reads.
+- Native filesystem policy controls for known Codex ACP launchers, separate from Loom approval automation. Unsupported strict read confinement remains disabled; selected modes are reapplied before turns and unsupported native modes fail before prompting.
+- Authenticated development previews for local/SSH HTTP apps, separate browser origins, one-time bootstrap, scoped cookies, assets/WebSocket/HMR proxy and owned stream/listener cleanup. HTTPS preview origins require explicit infrastructure configuration.
+- Multiple linked Brain sources for folders, Git checkouts, Obsidian and mounted WebDAV, with source-scoped search, include/exclude rules, editing and explicit personal access. Source directories remain read-only; direct remote sync is unsupported.
+
+### Changed
+
+- Resources navigation is now Brain, with sources/context first and memory, skills and MCP together. Existing Resources links remain supported.
+- Gemini is labelled Gemini CLI, distinct from the Antigravity executor.
+- Runtime adapters use a typed synchronous event sink; the portable discussion no longer imports Antigravity's event type. Architecture docs distinguish the implemented stream from future protocol sketches.
+
+### Fixed
+
+- Repeated terminal opens are coalesced in the UI and optionally idempotent in the API; process-limit checking is serialized. Unix SSH terminals no longer start a nested login shell, preventing duplicate startup banners.
+- Control-plane HTML rejects framing by developer applications. Legacy mutation routes (engine actions, vault lock, chat reset/stop and related controls) reject GET and require origin-protected POST. Preview upstreams do not receive Loom authentication, and closing a preview stops upgraded WebSocket connections too.
+
 ## [0.1.4] - 2026-10-03
 
 ### Added

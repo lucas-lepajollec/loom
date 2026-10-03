@@ -74,7 +74,7 @@ func modelCatalog(providers []CloudProvider) []ModelChoice {
 	}
 	for _, d := range runtimeCatalog() {
 		adapter, _ := registeredRuntimes.lookup(d.ID)
-		if _, ok := adapter.(*acpAdapter); ok {
+		if acp, ok := adapter.(*acpAdapter); ok && harnessConnected(acp.agent) {
 			ready := d.Available != nil && *d.Available
 			probe, _ := loadACPProbe(d.ID)
 			models := acpOptionValues(acpModelOption(probe.Config))

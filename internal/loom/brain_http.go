@@ -178,12 +178,14 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "POST" {
 		var req struct {
-			Action  string   `json:"action"`
-			ID      string   `json:"id"`
-			Label   string   `json:"label"`
-			Path    string   `json:"path"`
-			Kind    string   `json:"kind"`
-			Include []string `json:"include,omitempty"`
+			Connector string   `json:"connector"`
+			Exclude   []string `json:"exclude"`
+			Action    string   `json:"action"`
+			ID        string   `json:"id"`
+			Label     string   `json:"label"`
+			Path      string   `json:"path"`
+			Kind      string   `json:"kind"`
+			Include   []string `json:"include,omitempty"`
 		}
 		if !workspaceDecode(w, r, &req) {
 			return
@@ -205,7 +207,7 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 					req.ID = fmt.Sprintf("%s-%d", base, i)
 				}
 			}
-			err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include})
+			err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include, Connector: req.Connector, Exclude: req.Exclude})
 		case "remove":
 			err = e.Remove(req.ID)
 		case "relabel":

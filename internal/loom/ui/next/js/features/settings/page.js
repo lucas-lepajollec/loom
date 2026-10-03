@@ -14,10 +14,11 @@ import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
 import { MachinesSettings } from './machines.js';
+import { WorkspaceManager } from '../workspaces/folders.js';
 import { LoomUpdates } from './updates.js';
 import { VLLMEngine } from './vllm.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['machines', t("settings.page.machines"), 'server'], ['engine', t("settings.page.moteurs"), 'chip'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['machines', t("settings.page.machines"), 'server'], ['workspaces', t('workspaces.title'), 'folder'], ['engine', t("settings.page.moteurs"), 'chip'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 function usePref() {
@@ -515,7 +516,7 @@ function About() {
 
 export function SettingsPage({ route }) {
   const sec = SECTIONS().some(s => s[0] === route.sub) ? route.sub : 'general';
-  const View = { general: General, machines: MachinesSettings, engine: Engine, internet: Internet, security: Security, about: About }[sec];
+  const View = { general: General, workspaces: WorkspaceManager, machines: MachinesSettings, engine: Engine, internet: Internet, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
     <div class="page-head"><div><h1>${t("settings.page.reglages")}</h1></div></div>
     <div class="settings">

@@ -16,12 +16,16 @@ import (
 // the explicitly enabled development command. It never contacts a provider.
 func runFakeACP(in io.Reader, out io.Writer) { runFakeACPWithLoad(in, out, true) }
 func runFakeACPWithLoad(in io.Reader, out io.Writer, load bool) {
+	runFakeACPWithModes(in, out, load, nil)
+}
+func runFakeACPWithModes(in io.Reader, out io.Writer, load bool, fixtureModes map[string]any) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var writeMu, mu sync.Mutex
 	var next atomic.Uint64
 	pending := map[string]chan acpFrame{}
 	sessions := map[string]string{}
+	sessionModes := map[string]string{}
 	turns := map[string]context.CancelFunc{}
 	send := func(v any) {
 		b, _ := json.Marshal(v)
@@ -56,6 +60,9 @@ func runFakeACPWithLoad(in io.Reader, out io.Writer, load bool) {
 		return []any{map[string]any{"id": "verbosity", "name": "Verbosity", "type": "select", "currentValue": value, "options": []any{map[string]any{"value": "short", "name": "Short"}, map[string]any{"value": "long", "name": "Long"}}}}
 	}
 	modes := map[string]any{"currentModeId": "default", "availableModes": []any{map[string]any{"id": "default", "name": "Default"}, map[string]any{"id": "plan", "name": "Plan"}}}
+	if fixtureModes != nil {
+		modes = fixtureModes
+	}
 	sc := bufio.NewScanner(in)
 	sc.Buffer(make([]byte, 64<<10), acpMaxFrame)
 	for sc.Scan() {
@@ -80,7 +87,7 @@ func runFakeACPWithLoad(in io.Reader, out io.Writer, load bool) {
 			caps, _ := params["clientCapabilities"].(map[string]any)
 			fs, _ := caps["fs"].(map[string]any)
 			info, _ := params["clientInfo"].(map[string]any)
-			if params["protocolVersion"] != float64(1) || fs["readTextFile"] != true || fs["writeTextFile"] != true || caps["terminal"] != false || info["name"] != "loom" || info["version"] == nil {
+			if params["protocolVersion"] != float64(1) || fs["readTextFile"] == nil || fs["writeTextFile"] == nil || caps["terminal"] != false || info["name"] != "loom" || info["version"] == nil {
 				send(map[string]any{"jsonrpc": "2.0", "id": f.ID, "error": map[string]any{"code": -32602, "message": "Invalid initialize"}})
 				continue
 			}
@@ -96,12 +103,16 @@ func runFakeACPWithLoad(in io.Reader, out io.Writer, load bool) {
 			}
 			mu.Lock()
 			sessions[sid] = cwd
+			sessionModes[sid], _ = modes["currentModeId"].(string)
 			mu.Unlock()
 			if f.Method == "session/load" {
 				update(sid, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "OLD REPLAY"}})
 			}
 			reply(f.ID, map[string]any{"sessionId": sid, "modes": modes, "configOptions": config("short")})
 		case "session/set_mode":
+			mu.Lock()
+			sessionModes[sid], _ = params["modeId"].(string)
+			mu.Unlock()
 			update(sid, map[string]any{"sessionUpdate": "current_mode_update", "currentModeId": params["modeId"]})
 			reply(f.ID, map[string]any{})
 		case "session/set_config_option":
@@ -122,6 +133,14 @@ func runFakeACPWithLoad(in io.Reader, out io.Writer, load bool) {
 			go func(f acpFrame, sid, cwd string, params map[string]any) {
 				defer stop()
 				prompt, _ := json.Marshal(params["prompt"])
+				if strings.Contains(string(prompt), "__loom_inspect_native_mode") {
+					mu.Lock()
+					mode := sessionModes[sid]
+					mu.Unlock()
+					update(sid, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": mode}})
+					reply(f.ID, map[string]any{"stopReason": "end_turn"})
+					return
+				}
 				if strings.Contains(string(prompt), "__loom_inspect_portable") {
 					blocks, _ := params["prompt"].([]any)
 					if len(blocks) > 0 {

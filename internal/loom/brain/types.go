@@ -16,6 +16,8 @@ const (
 )
 
 type Source struct {
+	Connector   string    `json:"connector,omitempty"`
+	Exclude     []string  `json:"exclude,omitempty"`
 	ID          string    `json:"id"`
 	Label       string    `json:"label"`
 	Path        string    `json:"path"`

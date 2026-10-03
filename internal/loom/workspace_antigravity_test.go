@@ -80,6 +80,7 @@ func TestAntigravitySubprocessStdinAndCancellation(t *testing.T) {
 }
 func TestAntigravityModelSelectionRequiresConsent(t *testing.T) {
 	testHome(t)
+	_ = putStoreJSON(bkHarnessConnections, "antigravity", harnessConnection{Connected: true, At: 1})
 	m := newRuntimeSessions()
 	s, err := m.create("", "", false)
 	if err != nil {

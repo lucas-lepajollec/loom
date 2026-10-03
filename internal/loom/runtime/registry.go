@@ -8,17 +8,17 @@ import (
 
 // Registry owns an ordered set of adapters and its lock. Construct it with
 // NewRegistry; callers own the instance and startup registration policy.
-type Registry[Message, Caps, Callback, Snapshot any] struct {
+type Registry[Message, Caps, Event, Snapshot any] struct {
 	mu       sync.RWMutex
-	adapters map[string]RuntimeAdapter[Message, Caps, Callback]
+	adapters map[string]RuntimeAdapter[Message, Caps, Event]
 	order    []string
 }
 
-func NewRegistry[Message, Caps, Callback, Snapshot any]() *Registry[Message, Caps, Callback, Snapshot] {
-	return &Registry[Message, Caps, Callback, Snapshot]{adapters: make(map[string]RuntimeAdapter[Message, Caps, Callback])}
+func NewRegistry[Message, Caps, Event, Snapshot any]() *Registry[Message, Caps, Event, Snapshot] {
+	return &Registry[Message, Caps, Event, Snapshot]{adapters: make(map[string]RuntimeAdapter[Message, Caps, Event])}
 }
 
-func (reg *Registry[Message, Caps, Callback, Snapshot]) Register(adapter RuntimeAdapter[Message, Caps, Callback]) error {
+func (reg *Registry[Message, Caps, Event, Snapshot]) Register(adapter RuntimeAdapter[Message, Caps, Event]) error {
 	if adapter == nil {
 		return errors.New("runtime adapter required")
 	}
@@ -51,7 +51,7 @@ func (reg *Registry[Message, Caps, Callback, Snapshot]) Register(adapter Runtime
 
 // Upsert adds or replaces a runtime registered after startup (user-defined
 // harnesses). Built-in entries are never replaced by this path.
-func (reg *Registry[Message, Caps, Callback, Snapshot]) Upsert(adapter RuntimeAdapter[Message, Caps, Callback]) {
+func (reg *Registry[Message, Caps, Event, Snapshot]) Upsert(adapter RuntimeAdapter[Message, Caps, Event]) {
 	d := adapter.Descriptor()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
@@ -61,7 +61,7 @@ func (reg *Registry[Message, Caps, Callback, Snapshot]) Upsert(adapter RuntimeAd
 	reg.adapters[d.ID] = adapter
 }
 
-func (reg *Registry[Message, Caps, Callback, Snapshot]) Remove(id string) {
+func (reg *Registry[Message, Caps, Event, Snapshot]) Remove(id string) {
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 	if _, ok := reg.adapters[id]; !ok {
@@ -76,14 +76,14 @@ func (reg *Registry[Message, Caps, Callback, Snapshot]) Remove(id string) {
 	}
 }
 
-func (reg *Registry[Message, Caps, Callback, Snapshot]) Lookup(id string) (RuntimeAdapter[Message, Caps, Callback], bool) {
+func (reg *Registry[Message, Caps, Event, Snapshot]) Lookup(id string) (RuntimeAdapter[Message, Caps, Event], bool) {
 	reg.mu.RLock()
 	defer reg.mu.RUnlock()
 	adapter, ok := reg.adapters[id]
 	return adapter, ok
 }
 
-func (reg *Registry[Message, Caps, Callback, Snapshot]) List() []RuntimeDescriptor {
+func (reg *Registry[Message, Caps, Event, Snapshot]) List() []RuntimeDescriptor {
 	reg.mu.RLock()
 	defer reg.mu.RUnlock()
 	catalog := make([]RuntimeDescriptor, 0, len(reg.order))
@@ -91,6 +91,7 @@ func (reg *Registry[Message, Caps, Callback, Snapshot]) List() []RuntimeDescript
 		d := reg.adapters[id].Descriptor()
 		// Never expose a shared capability slice to callers. Empty is [], not null.
 		d.Capabilities = append([]string{}, d.Capabilities...)
+		d.FilesystemPolicies = append([]string(nil), d.FilesystemPolicies...)
 		catalog = append(catalog, d)
 	}
 	return catalog

@@ -3,10 +3,97 @@
 package loom
 
 import (
+	"encoding/json"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+func TestTerminalConcurrentRetriesStartOnlyOneProcess(t *testing.T) {
+	testHome(t)
+	t.Setenv("SHELL", "/bin/sh")
+	t.Setenv("HOME", t.TempDir())
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "started.txt")
+	id := "qa-" + randomID(8)
+	command := "printf started >> " + shellQuote(marker) + "; exec cat"
+	body, _ := json.Marshal(map[string]string{"target": "local", "dir": dir, "command": command, "request_id": id})
+	call := func(body []byte) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "/api/terminals", strings.NewReader(string(body)))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handleTerminals(w, r)
+		return w
+	}
+	var wg sync.WaitGroup
+	results := make(chan *httptest.ResponseRecorder, 12)
+	for i := 0; i < 12; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); results <- call(body) }()
+	}
+	wg.Wait()
+	close(results)
+	terminalID := ""
+	for result := range results {
+		var data struct {
+			Terminal TerminalInfo `json:"terminal"`
+		}
+		if result.Code != 200 || json.Unmarshal(result.Body.Bytes(), &data) != nil {
+			t.Fatal("terminal creation failed")
+		}
+		if terminalID != "" && data.Terminal.ID != terminalID {
+			t.Fatal("one action started multiple terminals")
+		}
+		terminalID = data.Terminal.ID
+	}
+	term := terminalByID(terminalID)
+	t.Cleanup(func() {
+		_ = term.proc.Close()
+		<-term.done
+		terminals.Lock()
+		delete(terminals.byID, terminalID)
+		terminals.Unlock()
+		terminalRequests.Lock()
+		delete(terminalRequests.items, id)
+		terminalRequests.Unlock()
+	})
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		data, _ := os.ReadFile(marker)
+		if len(data) > 0 {
+			if string(data) != "started" {
+				t.Fatal("command ran more than once")
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("command never ran")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	changed, _ := json.Marshal(map[string]string{"target": "local", "dir": dir, "command": "echo different", "request_id": id})
+	if call(changed).Code != 409 {
+		t.Fatal("request ID accepted a different command")
+	}
+	closeBody, _ := json.Marshal(map[string]string{"id": terminalID})
+	r := httptest.NewRequest("POST", "/api/terminals/close", strings.NewReader(string(closeBody)))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handleTerminalClose(w, r)
+	if w.Code != 200 || call(body).Code != 409 {
+		t.Fatal("closed command was restarted by retry")
+	}
+}
+
+func TestInteractiveRemoteWorkingDirectoryRejectsTerminalControls(t *testing.T) {
+	if _, err := remoteTerminalInitialInput("fixture", "/app\x1b\r", ""); err == nil {
+		t.Fatal("terminal editing characters accepted")
+	}
+}
 
 func TestTerminalRunsAndKeepsOutput(t *testing.T) {
 	testHome(t)
@@ -83,7 +170,7 @@ func TestRemoteTerminalCommand(t *testing.T) {
 	}
 	joined := strings.Join(argv, " ")
 	if argv[0] != "ssh" || !strings.Contains(joined, " -tt ") || strings.Contains(joined, " -T ") ||
-		!strings.HasSuffix(joined, `root@10.0.0.2 cd '/srv/app it'"'"'s' && exec "${SHELL:-/bin/sh}" -lc hermes`) {
+		!strings.Contains(joined, `root@10.0.0.2 `) || !strings.HasSuffix(joined, `cd '/srv/app it'"'"'s' && hermes`) {
 		t.Fatal(joined)
 	}
 	if _, _, err := terminalCommand("box", "relatif", ""); err == nil {

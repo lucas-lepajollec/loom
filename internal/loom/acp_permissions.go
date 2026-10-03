@@ -70,6 +70,9 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 	tool := p.tool(rawTool)
 	kind, _ := tool["kind"].(string)
 	policy := p.state.Permission
+	if p.state.FilesystemPolicy == "workspace-write" {
+		policy = "ask"
+	} // Never auto-approve native sandbox escalation.
 	p.mu.Unlock()
 	if len(options) == 0 {
 		return nil, errors.New("permission options required")

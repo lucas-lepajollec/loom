@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-type testCallback func(string) bool
+type testCallback = EventSink[string]
 type testAdapter struct{ descriptor RuntimeDescriptor }
 
 func (a testAdapter) Descriptor() RuntimeDescriptor { return a.descriptor }
@@ -21,10 +21,10 @@ func (testAccountAdapter) Connect(context.Context, bool) (any, error) { return n
 func (testAccountAdapter) Quota(context.Context) (int, error)         { return 0, nil }
 
 func TestRegistryValidation(t *testing.T) {
-	reg := NewRegistry[string, bool, testCallback, int]()
+	reg := NewRegistry[string, bool, string, int]()
 	for _, tc := range []struct {
 		name string
-		a    RuntimeAdapter[string, bool, testCallback]
+		a    RuntimeAdapter[string, bool, string]
 		want string
 	}{
 		{"nil", nil, "runtime adapter required"},
@@ -49,7 +49,7 @@ func TestRegistryValidation(t *testing.T) {
 		t.Fatalf("duplicate error = %v", err)
 	}
 	// A quota method with a different result type must not satisfy this registry.
-	other := NewRegistry[string, bool, testCallback, string]()
+	other := NewRegistry[string, bool, string, string]()
 	if err := other.Register(account); err == nil || err.Error() != "quota capability without QuotaReader interface" {
 		t.Fatalf("mismatched quota accepted: %v", err)
 	}
@@ -59,8 +59,8 @@ func TestRegistryValidation(t *testing.T) {
 }
 
 func TestRegistryOwnersAndMutations(t *testing.T) {
-	reg := NewRegistry[string, bool, testCallback, int]()
-	other := NewRegistry[string, bool, testCallback, int]()
+	reg := NewRegistry[string, bool, string, int]()
+	other := NewRegistry[string, bool, string, int]()
 	first := testAdapter{RuntimeDescriptor{ID: "z", Implemented: true, Capabilities: []string{"chat"}}}
 	if err := reg.Register(first); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestRegistryOwnersAndMutations(t *testing.T) {
 }
 
 func TestRegistryConcurrentAccess(t *testing.T) {
-	reg := NewRegistry[string, bool, testCallback, int]()
+	reg := NewRegistry[string, bool, string, int]()
 	var workers sync.WaitGroup
 	for _, id := range []string{"a", "b", "c", "d"} {
 		workers.Go(func() {

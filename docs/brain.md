@@ -16,14 +16,39 @@ the browser can be closed. Indexing runs at startup and every three minutes.
 definitions take effect immediately; new file content appears on the next
 refresh. No harness settings are changed automatically.
 
-The **Resources › Brain** page manages sources, search, semantic indexing and
+The **Brain › Sources and context** page manages sources, search, semantic indexing and
 distilled items. Projects select which sources to retrieve and the context
 budget; the HTTP/MCP APIs retain explicit source and personal-access rules.
+
+## Linked second brains
+
+The Brain page groups linked sources separately from Loom's built-in
+conversation/memory sources. Multiple sources may use the same connector type;
+`connector` is `folder`, `git`, `obsidian` or `webdav-mount`. It identifies the
+source's role, not a synchronization service: Git is an existing local checkout,
+Obsidian an existing vault, and WebDAV an already mounted directory accessible
+from the Loom host. Loom neither commits/pushes source changes nor writes to
+those directories. Direct URLs, credentials for remote synchronization and
+automatic Git pull/WebDAV sync are unsupported.
+
+`kind` is independent of the connector. Choose `personal` for a personal vault;
+its results require both an explicit selected source ID and personal access.
+The search UI can select several sources, then search/read their cited results
+without a model call. Project retrieval still needs explicit source selection
+and a token budget. Editing a definition invalidates stale scoped chunks;
+removing a definition deletes only its index, never its source files.
+
+Includes narrow eligible text; excludes remove matching relative paths. Known
+credential files (`.env`, `auth.json`, private-key files) and directories such
+as `.ssh`, `.codex`, `.claude` and `.project-local` are excluded. This is not a
+secret scanner for arbitrary note text: keep sensitive material out of linked
+context or exclude its files. Sources remain the truth; BM25/vectors/distilled
+memory are rebuildable selection layers, not another canonical knowledge store.
 
 ## Sources and storage
 
 Stored definitions have `id`, `label`, an absolute directory `path`,
-`kind` (`context`, `personal`, `repo`) and optional `include` globs.
+`kind` (`context`, `personal`, `repo`) and optional `include` and `exclude` globs, plus a `connector` label.
 IDs are 1–64 ASCII letters/digits/underscore/hyphen, starting with a letter
 or digit. Labels have a 200-byte limit. There are at most 100 stored sources.
 Includes are relative to the root and support `*`, `?`, character classes,
@@ -63,7 +88,7 @@ in Brain's BM25 cache**, including while the vault is unlocked.
 The saved index retains file mtime/size and source-scope fingerprints. At
 restart, unchanged file chunks are reused and the inverted index is rebuilt
 in memory. Changed files are reread; removed, excluded and unreadable files
-are dropped on refresh. A changed directory/kind/include list invalidates
+are dropped on refresh. A changed directory/kind/include/exclude list invalidates
 that source's old cache. As with any mtime/size cache, an edit preserving both
 attributes will not be detected. Reads return the indexed snapshot, not an
 arbitrary file from disk. Invalid cache JSON is rebuilt; invalid definitions
@@ -71,15 +96,17 @@ or inaccessible encryption keys are errors, not silently erased settings.
 
 ## HTTP API
 
-All routes use Loom's control-key authentication (`Authorization: Bearer …`),
+Browser routes use Loom's authenticated session; automation/MCP clients use
+the control-key authentication (`Authorization: Bearer …`),
 distinct from the model-completion API key. The key is checked per request.
-With no configured key, loopback access is open as for other Loom API routes.
+With neither an interface password nor a configured control key, loopback access
+follows the normal bootstrap policy.
 Responses use `Cache-Control: no-store`. POST JSON uses
 `Content-Type: application/json`, one JSON object and a 128 KiB body limit.
 
 | Method / path | Input | Output |
 | --- | --- | --- |
-| `GET /api/brain/sources` | — | `{ok, sources:[{id,label,path,kind,include?,read_only,files,chunks,last_indexed,error?}]}` |
+| `GET /api/brain/sources` | — | `{ok, sources:[{id,label,path,kind,connector?,include?,exclude?,read_only,files,chunks,last_indexed,error?}]}` |
 | `POST /api/brain/sources` | `{"action":"add","id":"project","label":"Project","path":"/path/to/project","kind":"repo","include":["**/*.md"]}` | Same source list; `add` creates/replaces the complete definition. `action` defaults to `add`. |
 | `POST /api/brain/sources` | `{"action":"relabel","id":"project","label":"New label"}` or `{"action":"remove","id":"project"}` | Same source list. Built-ins cannot be changed. |
 | `POST /api/brain/reindex` | No body | `{ok,sources,error?}` after refresh; partial source errors return `ok:false` with current counts. |

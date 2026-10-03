@@ -43,7 +43,7 @@
   },
   {
     "id": "gemini",
-    "name": "Gemini",
+    "name": "Gemini CLI",
     "logo": "gemini",
     "command": "gemini",
     "args": [

@@ -12,16 +12,18 @@ import (
 )
 
 type acpConfiguration struct {
-	MCPServers     json.RawMessage `json:"mcp_servers"`
-	Workdir        *string         `json:"workdir"`
-	AdditionalDirs *[]string       `json:"additional_dirs"`
-	Permission     *string         `json:"permission"`
-	Mode           *string         `json:"mode"`
-	Config         map[string]any  `json:"config"`
+	FilesystemPolicy *string         `json:"filesystem_policy"`
+	MCPServers       json.RawMessage `json:"mcp_servers"`
+	WorkspaceID      *string         `json:"workspace_id"`
+	Workdir          *string         `json:"workdir"`
+	AdditionalDirs   *[]string       `json:"additional_dirs"`
+	Permission       *string         `json:"permission"`
+	Mode             *string         `json:"mode"`
+	Config           map[string]any  `json:"config"`
 }
 
 func (c acpConfiguration) present() bool {
-	return c.MCPServers != nil || c.Workdir != nil || c.AdditionalDirs != nil || c.Permission != nil || c.Mode != nil || c.Config != nil
+	return c.FilesystemPolicy != nil || c.WorkspaceID != nil || c.MCPServers != nil || c.Workdir != nil || c.AdditionalDirs != nil || c.Permission != nil || c.Mode != nil || c.Config != nil
 }
 
 // Called under the session lock while no turn is running. No prompt is sent.
@@ -40,6 +42,47 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 		s.MCPServers = names
 	}
 	agent, _ := acpAgentFor(s.RuntimeID)
+	if c.FilesystemPolicy != nil {
+		if _, err := harnessFilesystemMode(agent, *c.FilesystemPolicy); err != nil {
+			return err
+		}
+		if *c.FilesystemPolicy == "full-access" && old.FilesystemPolicy != "full-access" && !consent {
+			return errors.New("confirm full filesystem access with consent:true")
+		}
+		s.FilesystemPolicy = *c.FilesystemPolicy
+	}
+	if s.FilesystemPolicy != "" && s.FilesystemPolicy != "native" {
+		if c.Mode != nil {
+			return errors.New("switch to native filesystem settings before changing agent mode")
+		}
+		for key := range c.Config {
+			if key == "mode" || key == "sandbox" || key == "sandbox_mode" {
+				return errors.New("filesystem policy controls the native sandbox mode")
+			}
+		}
+	}
+	if c.WorkspaceID != nil {
+		if c.Workdir != nil {
+			return errors.New("choose either a saved workspace or a folder")
+		}
+		found := false
+		for _, folder := range workspaceList(workspaceTarget(agent)) {
+			if folder.ID != *c.WorkspaceID {
+				continue
+			}
+			dir, err := prepareWorkspace(context.Background(), folder, folder.Managed)
+			if err != nil {
+				return err
+			}
+			s.Workdir, s.WorkspaceID, s.WorkspaceTarget = dir, folder.ID, folder.Target
+			s.AdditionalDirs = nil
+			found = true
+			break
+		}
+		if !found {
+			return errors.New("workspace not found on this harness machine")
+		}
+	}
 	if c.Workdir != nil {
 		check := acpDirectory
 		if agent.Remote {
@@ -50,6 +93,7 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 			return err
 		}
 		s.Workdir = path
+		s.WorkspaceID, s.WorkspaceTarget = "", workspaceTarget(agent)
 	}
 	if c.AdditionalDirs != nil && agent.Remote && len(*c.AdditionalDirs) > 0 {
 		return errors.New("additional directories unavailable for a remote harness")
@@ -106,7 +150,7 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 			s.ConfigOptions[key] = value
 		}
 	}
-	rootsChanged := old.Workdir != s.Workdir || !reflect.DeepEqual(old.AdditionalDirs, s.AdditionalDirs)
+	rootsChanged := old.FilesystemPolicy != s.FilesystemPolicy || old.Workdir != s.Workdir || !reflect.DeepEqual(old.AdditionalDirs, s.AdditionalDirs)
 	if rootsChanged {
 		m.closeACP(s.ID)
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""

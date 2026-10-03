@@ -27,7 +27,11 @@ func TestACPAgentHelper(t *testing.T) {
 		}
 		_ = os.WriteFile(file, []byte(strconv.Itoa(child.Process.Pid)), 0600)
 	}
-	runFakeACPWithLoad(os.Stdin, os.Stdout, os.Getenv("LOOM_TEST_FAKE_NO_LOAD") != "1")
+	var modes map[string]any
+	if os.Getenv("LOOM_TEST_FAKE_CODEX_MODES") == "1" {
+		modes = map[string]any{"currentModeId": "workspace-write", "availableModes": []any{map[string]any{"id": "workspace-write", "name": "Workspace"}, map[string]any{"id": "agent-full-access", "name": "Full"}}}
+	}
+	runFakeACPWithModes(os.Stdin, os.Stdout, os.Getenv("LOOM_TEST_FAKE_NO_LOAD") != "1", modes)
 	os.Exit(0)
 }
 func fakeACPAdapter(t *testing.T) *acpAdapter {

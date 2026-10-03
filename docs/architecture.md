@@ -116,8 +116,23 @@ The ordered registry and runtime contracts live in `internal/loom/runtime`;
 Antigravity protocols and the local adapter live in `runtime/{openai,antigravity,local}`
 behind Loom compatibility wrappers. Startup registration remains in
 `workspace_runtime.go`; optional connect/quota HTTP dispatch stays in `web_runtimes.go`.
-Planned descriptors stay capability-less; execution/stream contracts are unchanged.
-The following is the target after later migration steps, not the current interface:
+Planned descriptors stay capability-less. The current contract is a typed,
+synchronous event sink, with cancellation through context and sink backpressure:
+
+```go
+type EventSink[Event any] func(Event) bool
+type RuntimeAdapter[Message, Caps, Event any] interface {
+    Descriptor() RuntimeDescriptor
+    Run(context.Context, RuntimeTurn[Message, Caps], EventSink[Event]) ([]Message, error)
+}
+```
+
+The message result preserves the local tool-loop/compaction contract. Loom projects
+adapter payloads into the canonical `discussion.DiscussionEvent` journal at the
+application boundary; native state and transport controls stay out of portable
+messages. `runtime.HarnessEvent` is a neutral tool display type, not owned by
+Antigravity. The following channel-based shape remains a future design sketch,
+not an interface implemented by the current adapters:
 
 ```go
 type RuntimeAdapter interface {

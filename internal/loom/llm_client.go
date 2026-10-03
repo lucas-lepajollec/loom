@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"io"
 	"net"
 	"net/http"
@@ -467,7 +468,7 @@ type StatsEvent struct {
 }
 
 // ChatCallback receives stream events. Return false to abort the stream.
-type ChatCallback func(StreamEvent) bool
+type ChatCallback = runtime.EventSink[StreamEvent]
 
 // completionResp / streamChunk model the subset of llama.cpp's
 // OpenAI-compatible /v1/chat/completions response that we care about.

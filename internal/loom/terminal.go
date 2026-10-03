@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/coder/websocket"
 	"github.com/lucas-lepajollec/loom/internal/loom/web"
@@ -140,14 +141,16 @@ func terminalCommand(target, dir, command string) ([]string, string, error) {
 }
 
 func remoteTerminalArgs(m RemoteMachine, key, dir, command string) []string {
-	script := "exec \"${SHELL:-/bin/sh}\" -l"
+	// Without a remote command, sshd starts exactly one login shell. Starting
+	// another -l shell through the SSH command shell runs startup banners twice.
+	args := sshArgs(m, key)
 	if command != "" {
-		script = "exec \"${SHELL:-/bin/sh}\" -lc " + shellQuote(command)
+		script := command
+		if dir != "" {
+			script = "cd " + shellQuote(dir) + " && " + script
+		}
+		args = sshArgs(m, key, remotePathPreamble+script)
 	}
-	if dir != "" {
-		script = "cd " + shellQuote(dir) + " && " + script
-	}
-	args := sshArgs(m, key, script)
 	if lifecycleOS(&m) == "windows" {
 		args = windowsRemoteSSHArgs(m, key, windowsRemoteTerminalScript(dir, command))
 		// A terminal must keep stdin interactive, unlike lifecycle commands.
@@ -175,17 +178,25 @@ func remoteTerminalArgs(m RemoteMachine, key, dir, command string) []string {
 	return args
 }
 
+var terminalOpenMu sync.Mutex
+
 func openTerminal(target, dir, command, title string) (*Terminal, error) {
+	terminalOpenMu.Lock()
+	defer terminalOpenMu.Unlock()
 	terminals.Lock()
 	running := 0
 	for _, t := range terminals.byID {
-		if t.Running {
+		if t.snapshot().Running {
 			running++
 		}
 	}
 	terminals.Unlock()
 	if running >= maxTerminals {
 		return nil, errors.New("maximum 16 open terminals: close one")
+	}
+	input, err := remoteTerminalInitialInput(target, dir, command)
+	if err != nil {
+		return nil, err
 	}
 	argv, cwd, err := terminalCommand(target, dir, command)
 	if err != nil {
@@ -194,7 +205,11 @@ func openTerminal(target, dir, command, title string) (*Terminal, error) {
 	if _, err := exec.LookPath(argv[0]); err != nil {
 		return nil, errors.New(argv[0] + " not found")
 	}
-	proc, err := startPTY(argv, cwd, []string{"TERM=xterm-256color", "COLORTERM=truecolor"})
+	env := []string{"TERM=xterm-256color", "COLORTERM=truecolor"}
+	if target == "" || target == "local" {
+		env = append(env, "PATH="+lifecycleLocalPath())
+	}
+	proc, err := startPTY(argv, cwd, env)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +233,15 @@ func openTerminal(target, dir, command, title string) (*Terminal, error) {
 	terminals.byID[t.ID] = t
 	terminals.Unlock()
 	go t.pump()
+	// Queue the selected directory as the first input to the single remote
+	// login shell. BatchMode disables password prompts; no user startup files
+	// are changed. Commands already receive their directory in SSH argv.
+	if input != "" {
+		if _, err := proc.Write([]byte(input)); err != nil {
+			_ = proc.Close()
+			return nil, err
+		}
+	}
 	return t, nil
 }
 
@@ -289,7 +313,42 @@ func terminalByID(id string) *Terminal {
 	return terminals.byID[id]
 }
 
-// GET: list. POST {target, dir, command, title}: open.
+func remoteTerminalInitialInput(target, dir, command string) (string, error) {
+	if target == "" || target == "local" || strings.TrimSpace(command) != "" || dir == "" {
+		return "", nil
+	}
+	if strings.IndexFunc(dir, unicode.IsControl) >= 0 {
+		return "", errors.New("control characters are not allowed in an interactive working directory")
+	}
+	machine, err := workspaceMachine(target)
+	if err != nil {
+		return "", err
+	}
+	if lifecycleOS(&machine) == "windows" {
+		return "", nil
+	}
+	clean, err := remoteWorkdir(dir)
+	if err != nil {
+		return "", err
+	}
+	if clean == machine.Home {
+		return "", nil
+	}
+	return "cd " + shellQuote(clean) + "\r", nil
+}
+
+type terminalRequest struct {
+	signature string
+	terminal  *Terminal
+	at        time.Time
+}
+
+var terminalRequests = struct {
+	sync.Mutex
+	items map[string]terminalRequest
+}{items: map[string]terminalRequest{}}
+
+// GET: list. POST {target, dir, command, title, request_id?}: open.
 func handleTerminals(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		terminals.Lock()
@@ -310,10 +369,11 @@ func handleTerminals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Target  string `json:"target"`
-		Dir     string `json:"dir"`
-		Command string `json:"command"`
-		Title   string `json:"title"`
+		RequestID string `json:"request_id"`
+		Target    string `json:"target"`
+		Dir       string `json:"dir"`
+		Command   string `json:"command"`
+		Title     string `json:"title"`
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
@@ -321,10 +381,46 @@ func handleTerminals(w http.ResponseWriter, r *http.Request) {
 	if len([]rune(req.Title)) > 60 {
 		req.Title = string([]rune(req.Title)[:60])
 	}
+	// Retries of one user action must not start another process. Entries are
+	// bounded and expire; closing a terminal does not replay its command.
+	if req.RequestID != "" {
+		if !nativeSessionIDPattern.MatchString(req.RequestID) {
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid terminal request ID"})
+			return
+		}
+		terminalRequests.Lock()
+		defer terminalRequests.Unlock()
+		for id, entry := range terminalRequests.items {
+			if time.Since(entry.at) > 2*time.Minute {
+				delete(terminalRequests.items, id)
+			}
+		}
+		signature, _ := json.Marshal([]string{req.Target, req.Dir, req.Command, req.Title})
+		if prior, found := terminalRequests.items[req.RequestID]; found {
+			if prior.signature != string(signature) {
+				sendJSON(w, 409, map[string]any{"ok": false, "error": "terminal request ID reused with another command"})
+				return
+			}
+			if terminalByID(prior.terminal.ID) == nil {
+				sendJSON(w, 409, map[string]any{"ok": false, "error": "this terminal has been closed"})
+				return
+			}
+			sendJSON(w, 200, map[string]any{"ok": true, "terminal": prior.terminal.snapshot()})
+			return
+		}
+		if len(terminalRequests.items) >= 128 {
+			sendJSON(w, 429, map[string]any{"ok": false, "error": "too many terminal requests"})
+			return
+		}
+	}
 	t, err := openTerminal(req.Target, strings.TrimSpace(req.Dir), req.Command, strings.TrimSpace(req.Title))
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
+	}
+	if req.RequestID != "" {
+		signature, _ := json.Marshal([]string{req.Target, req.Dir, req.Command, req.Title})
+		terminalRequests.items[req.RequestID] = terminalRequest{string(signature), t, time.Now()}
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "terminal": t.snapshot()})
 }

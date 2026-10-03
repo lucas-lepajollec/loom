@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"io"
 	"math"
 	"os"
@@ -305,13 +306,7 @@ func ConsumeStream(ctx context.Context, reader io.Reader, emit func(Event) bool)
 	return answer.String(), nil
 }
 
-type HarnessEvent struct {
-	Index      int    `json:"index"`
-	Name       string `json:"name"`
-	State      string `json:"state"`
-	Failed     bool   `json:"failed,omitempty"`
-	FileTarget string `json:"file_target,omitempty"`
-}
+type HarnessEvent = runtime.HarnessEvent
 
 func ValidUsage(u *Usage) bool {
 	return u != nil && u.Input >= 0 && u.Output >= 0 && u.Total >= 0 && u.Thinking >= 0 && u.Cached >= 0 && u.Input <= 1e9 && u.Output <= 1e9 && u.Total <= 2e9 && u.Thinking <= 1e9 && u.Cached <= 1e9

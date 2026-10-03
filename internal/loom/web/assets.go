@@ -57,6 +57,12 @@ func (a Assets) Next(w http.ResponseWriter, r *http.Request) {
 		ext = ".html"
 	}
 	w.Header().Set("Content-Type", nextContentType(ext))
+	if ext == ".html" {
+		// Developer previews have their own origin and must not embed the
+		// control plane to trick the owner into interacting with it.
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+	}
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if r.Method == http.MethodGet {

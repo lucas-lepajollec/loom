@@ -41,6 +41,7 @@ func cmdWeb(args []string) error {
 	webBound.host, webBound.port = host, port
 	// Only once the port is ours: these write to Loom's data.
 	registerCustomACPAgents()
+	migrateHarnessConnections()
 	go syncModelSinks()
 	loadRememberedProviderKeys()
 	go probeMissingACPAgents()
@@ -99,6 +100,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	// La clé de pilotage n'est plus stockée en clair (juste son empreinte) : on
 	// convertit une ancienne valeur en clair une fois pour toutes.
 	migrateWebKeyToHash()
+	migrateHarnessConnections()
 	mux := http.NewServeMux()
 	var brainCtx context.Context
 	if len(lifecycle) > 0 {
@@ -117,6 +119,9 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	newEnvironment().register(api)
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)
+	api("/api/workspaces", handleWorkspaces)
+	api("/api/runtimes/{id}/disconnect", handleHarnessDisconnect)
+	api("/api/runtimes/{id}/login", handleHarnessLogin)
 	api("/api/usage", handleUsage)
 	api("/api/usage/native", handleNativeUsage)
 	api("/api/usage/native/refresh", handleNativeUsageRefresh)
@@ -196,6 +201,15 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/memory", handleMemoryMode)
 	api("/api/network/web", handleWebNetwork)
 	api("/api/engine/node", handleEngineNode)
+	previews := newDevPreviewManager()
+	previewCtx := brainCtx
+	if previewCtx == nil {
+		previewCtx = context.Background()
+	}
+	if previewCtx.Done() != nil {
+		go func() { <-previewCtx.Done(); previews.shutdown() }()
+	}
+	api("/api/previews", func(w http.ResponseWriter, r *http.Request) { previews.handle(previewCtx, w, r) })
 	api("/api/terminals", handleTerminals)
 	api("/api/terminals/close", handleTerminalClose)
 	api("/api/terminals/ticket", handleTerminalTicket)

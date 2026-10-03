@@ -38,6 +38,7 @@ func TestCodexUsesACPRegistry(t *testing.T) {
 }
 func TestCodexACPConsentAndPortableContext(t *testing.T) {
 	testHome(t)
+	_ = putStoreJSON(bkHarnessConnections, "codex", harnessConnection{Connected: true, At: 1})
 	fixture := fakeACPAdapter(t)
 	fixture.agent.ID = "codex"
 	fixture.agent.Name = "Codex"

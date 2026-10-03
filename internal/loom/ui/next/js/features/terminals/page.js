@@ -9,6 +9,7 @@ import { Empty, Tip } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
+import { PreviewPanel } from '../previews/panel.js';
 import { app, go } from '../../core/state.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
@@ -27,11 +28,24 @@ function loadXterm() {
 }
 
 // Ouvre un terminal et y emmène l'utilisateur (projets, harnesses, machines).
+const opening = new Map();
 export async function openTerminalWith(spec) {
-  const r = await post('/api/terminals', spec);
-  if (!r.ok) { toast(r.error || t("terminals.page.terminal_impossible"), 'err'); return null; }
-  go('terminals', r.terminal.id);
-  return r.terminal;
+  const body = { target: spec.target || 'local', dir: spec.dir || '', command: spec.command || '', title: spec.title || '' };
+  const key = JSON.stringify(body);
+  if (opening.has(key)) return opening.get(key);
+  const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+  body.request_id = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  const request = (async () => {
+    try {
+      const r = await post('/api/terminals', body);
+      if (!r.ok) { toast(r.error || t("terminals.page.terminal_impossible"), 'err'); return null; }
+      go('terminals', r.terminal.id);
+      return r.terminal;
+    } catch (e) { toast(e.message, 'err'); return null; }
+    finally { opening.delete(key); }
+  })();
+  opening.set(key, request);
+  return request;
 }
 
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -91,7 +105,8 @@ function NewTerminal({ onClose, preset }) {
   const projects = ((ws && ws.projects) || []).filter(p => p.directory);
   const remote = v.target !== 'local';
   const m = machines.find(x => x.id === v.target);
-  const submit = async () => { setBusy(true); const localT = await openTerminalWith(v); setBusy(false); if (localT) onClose(localT); };
+  const pending = useRef(false);
+  const submit = async () => { if (pending.current) return; pending.current = true; setBusy(true); try { const localT = await openTerminalWith(v); if (localT) onClose(localT); } finally { pending.current = false; setBusy(false); } };
   return html`<${Modal} title="${t("terminals.page.nouveau_terminal")}" sub="${t("terminals.page.un_shell_sur_cette_machine_ou_une_machine_connectee")}" onClose=${() => onClose()}
       foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t("terminals.page.annuler")}</button><button class="btn primary" disabled=${busy} onClick=${submit}>${busy ? t("terminals.page.ouverture") : t("terminals.page.ouvrir")}</button>`}>
     <div class="field"><span>${t("terminals.page.ou")}</span><div class="chips">
@@ -126,6 +141,7 @@ export function TerminalsPage({ route }) {
   return html`<div class="view page"><div class="page-in wide">
     <div class="page-head"><div><h1>${t("terminals.page.terminaux")}</h1><p>${t("terminals.page.lance_des_applis_ou_le_cli_d_un_agent_pour_verifier_ou_depanner_i")}</p></div>
       <div class="acts"><button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.nouveau_terminal")}</button></div></div>
+    <${PreviewPanel} target=${cur?.target || 'local'} />
     ${!supported ? html`<${Empty} icon="info" title="${t("terminals.page.pas_encore_disponible_sur_ce_systeme")}" text="${t("terminals.page.les_terminaux_fonctionnent_sous_linux_et_macos_windows_arrive_plu")}" />`
       : !list ? html`<div class="skeleton" style="height:320px"></div>`
       : !list.length ? html`<${Empty} icon="terminal" title="${t("terminals.page.aucun_terminal_ouvert")}" text="${t("terminals.page.un_terminal_reste_ouvert_meme_si_tu_fermes_l_onglet_tu_le_retrouv")}"><button class="btn" onClick=${() => setDlg(true)}>${t("terminals.page.ouvrir_un_terminal")}</button></${Empty}>`

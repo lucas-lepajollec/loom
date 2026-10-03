@@ -10,6 +10,7 @@ import { toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshLibrary, refreshStatus, refreshWorkspace, refreshEngineNode } from '../../core/state.js';
 import { DirectEngineForm } from '../settings/page.js';
+import { WorkspaceManager } from '../workspaces/folders.js';
 import { newDiscussion } from '../chat/engine.js';
 
 // Modèles proposés, du plus léger au plus lourd (GGUF Q4_K_M).
@@ -24,7 +25,7 @@ const MODELS = [
 ];
 // llama.cpp est prêt s'il est compilé (dépôt git) ou installé en binaire officiel.
 const llamaReady = lc => !!(lc && (lc.installed || (lc.prebuilt && lc.prebuilt.bin)));
-const STEPS = ['hello', 'machine', 'engine', 'model', 'tools', 'done'];
+const STEPS = ['hello', 'machine', 'workspace', 'engine', 'model', 'tools', 'done'];
 
 // Affiché seulement sur une installation neuve : aucun modèle, aucun moteur,
 // aucune discussion. Une installation existante est marquée sans rien montrer.
@@ -246,6 +247,7 @@ export function Welcome() {
       ${!m && step > 0 ? html`<div class="skeleton" style="height:240px"></div>`
         : name === 'hello' ? html`<${Hello} onNext=${() => next()} />`
         : name === 'machine' ? html`<${Machine} m=${m} onNext=${() => next()} onBack=${back} />`
+        : name === 'workspace' ? html`<div class="wl-body"><h1>${t('workspaces.title')}</h1><p class="wl-lead">${t('workspaces.welcome')}</p><${WorkspaceManager} fixedTarget="local" /><div class="wl-foot"><button class="btn ghost" onClick=${back}>${t('welcome.back')}</button><span class="grow"></span><button class="btn primary" onClick=${() => next()}>${t('welcome.next')}<${Icon} n="right" /></button></div></div>`
         : name === 'engine' ? html`<${Engine} m=${m} choice=${choice} setChoice=${setChoice} onNext=${later => next(later === true)} onBack=${back} />`
         : name === 'model' ? html`<${Model} m=${m} onNext=${() => next()} onBack=${back} />`
         : name === 'tools' ? html`<${Tools} onNext=${() => next()} onBack=${back} />`

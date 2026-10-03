@@ -145,7 +145,7 @@ func refreshACPProbe(ctx context.Context, agent acpAgent) acpProbe {
 func probeMissingACPAgents() {
 	for _, d := range runtimeCatalog() {
 		agent, ok := acpAgentFor(d.ID)
-		if !ok || !agent.available() {
+		if !ok || !agent.available() || !harnessConnected(agent) {
 			continue
 		}
 		if _, done := loadACPProbe(agent.ID); done {

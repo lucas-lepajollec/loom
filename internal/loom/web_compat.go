@@ -32,8 +32,36 @@ func registerPWAAssets(mux *http.ServeMux)               { webAssets().RegisterP
 func registerWebAssets(mux *http.ServeMux)               { webAssets().Register(mux) }
 func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
 	return func(path string, handler http.HandlerFunc) {
+		if controlActionRequiresPost(path) {
+			next := handler
+			handler = func(w http.ResponseWriter, r *http.Request) {
+				if workspaceMethod(w, r, http.MethodPost) {
+					next(w, r)
+				}
+			}
+		}
 		mux.HandleFunc(path, requireWebAuth(nodeAware(path, handler)))
 	}
+}
+
+// Legacy control handlers predate method checks. GET must stay inert: an
+// application on another origin can load a URL with ambient same-site cookies,
+// whereas POST passes through the browser origin protection. Dual read/write
+// routes retain their own method dispatch; modern handlers validate internally.
+func controlActionRequiresPost(path string) bool {
+	switch path {
+	case "/api/start", "/api/stop", "/api/restart", "/api/unload",
+		"/api/switch", "/api/load-model", "/api/apply", "/api/naked/remember",
+		"/api/preset/save", "/api/preset/delete", "/api/models/delete",
+		"/api/models/download/cancel", "/api/engines/vllm/download/cancel",
+		"/api/llamacpp/check", "/api/llamacpp/install", "/api/llamacpp/install-custom",
+		"/api/llamacpp/uninstall-custom", "/api/llamacpp/update", "/api/llamacpp/prebuilt",
+		"/api/llamacpp/prebuilt/check", "/api/llamacpp/use", "/api/llamacpp/job/dismiss",
+		"/api/mem/lock", "/api/skills/toggle", "/api/bench", "/api/bench/queue/cancel",
+		"/api/chat/stop", "/api/chat/reset", "/api/chat/compact", "/api/chat/history/clear":
+		return true
+	}
+	return false
 }
 func sendJSON(w http.ResponseWriter, code int, v any) { web.SendJSON(w, code, v) }
 func workspaceMethod(w http.ResponseWriter, r *http.Request, method string) bool {

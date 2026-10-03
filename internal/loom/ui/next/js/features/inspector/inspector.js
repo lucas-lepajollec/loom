@@ -6,7 +6,7 @@ import { html, useState, useEffect, useStore, cls, fmtTok, fmtSecs, baseName } f
 import { Icon } from '../../ui/icons.js';
 import { Seg, Switch, Tip } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
-import { FolderPicker } from '../../ui/folder.js';
+import { WorkspacePicker } from '../workspaces/folders.js';
 import { Modal, toast, confirm, prompt } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, refreshWorkspace } from '../../core/state.js';
@@ -92,16 +92,14 @@ async function resumeInTerminal(s) {
 function HarnessPanel() {
   const { s, h } = useStore(chat, c => ({ s: c.session, h: c.harness || {} }));
   const runtimes = useStore(app, a => (a.workspace && a.workspace.runtimes) || []);
-  const [pick, setPick] = useState(false);
   const [diff, setDiff] = useState(null);
   if (!s) return null;
   const caps = ((runtimes.find(r => r.id === s.runtime_id) || {}).capabilities) || [];
+  const rt = runtimes.find(r => r.id === s.runtime_id) || {};
+  const filesystem = s.filesystem_policy || 'native';
+  const protections = rt.filesystem_policies || ['native'];
+  const setFilesystem = async value => { if (value === 'full-access' && !await confirm(t('filesystem.full'), t('filesystem.full_note'), { danger: true })) return; if (await configure(s, { filesystem_policy: value, consent: value === 'full-access' })) open(s.id, true); };
   const canDir = caps.includes('workdir'), canAsk = caps.includes('approvals'), remote = caps.includes('remote');
-  const chooseDir = async () => {
-    if (!remote) return setPick(true);
-    const p = await prompt(t("inspector.inspector.dossier_sur_la_machine_distante"), { value: workdir, placeholder: t("inspector.inspector.home_moi_projet"), ok: t("inspector.inspector.choisir") });
-    if (p) configure(s, { workdir: p });
-  };
   const workdir = h.workdir || s.workdir || '';
   const level = h.permission || s.permission || 'ask';
   const modes = h.modes || s.available_modes || [];
@@ -124,19 +122,24 @@ function HarnessPanel() {
     <div class="insp-model"><${Logo} name=${s.runtime_id} /><div><b>${s.model && s.model !== 'default' ? baseName(s.model).replace(/^[\w.-]+:(?=.)/, '').replace(/\.gguf$/i, '') : s.provider_name}</b><span>${s.model && s.model !== 'default' ? s.provider_name + ' · ' : ''}${/^loom[:/]/.test(s.model || '') ? t("inspector.inspector.modele_local_servi_par_loom") : /^(provider:|loom-)/.test(s.model || '') ? t("inspector.inspector.fournisseur_cloud_via_loom") : t("inspector.inspector.compte_natif")}</span></div></div>
 
     ${canDir && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.dossier_de_travail")}</div>
-      ${workdir ? html`<button class="hs-dir" onClick=${chooseDir} title=${workdir}><${Icon} n="folder" /><span class="mono trunc">${workdir.replace(/^\/home\/[^/]+/, '~')}</span><span class="muted">${t("inspector.inspector.changer")}</span></button>`
-        : html`<button class="btn" onClick=${chooseDir}><${Icon} n="folder" />${remote ? t("inspector.inspector.indiquer_le_dossier_distant") : t("inspector.inspector.choisir_un_dossier")}</button>`}
+      <${WorkspacePicker} target=${remote ? ((runtimes.find(r => r.id === s.runtime_id) || {}).machine_id || s.workspace_target || '') : 'local'} current=${workdir} onPick=${async w => { const ok = await configure(s, w.id ? { workspace_id: w.id } : { workdir: w.path }); if (ok) open(s.id, true); return ok; }} />
       ${workdir && html`<button class="btn sm ghost hs-term" onClick=${() => openHarnessTerminal(s, workdir, remote)}><${Icon} n="prompt" />${t("inspector.inspector.ouvrir_un_terminal_ici")}</button>`}
       ${s.native_session_id && html`<button class="btn sm ghost hs-term" title=${t('inspector.resume.tip')} onClick=${() => resumeInTerminal(s)}><${Icon} n="terminal" />${t('inspector.resume.label')}</button>`}</div>`}
 
     ${canAsk && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.autorisations")}<${Tip} text=${LEVEL_TIP()} /></div>
       <${Seg} value=${level} onChange=${setLevel} label="${t("inspector.inspector.niveau_d_autorisation")}" options=${LEVELS()} /></div>`}
 
+    ${canDir && html`<div class="hs-sec"><div class="hs-h">${t('filesystem.title')}<${Tip} text=${t('filesystem.note')} /></div>
+      <select class="select" value=${filesystem} onChange=${e => setFilesystem(e.target.value)} aria-label=${t('filesystem.title')}>
+        <option value="native">${t('filesystem.native')}</option><option value="workspace-only" disabled>${t('filesystem.workspace_only')} · ${t('filesystem.unavailable')}</option>
+        ${['workspace-write', 'full-access'].map(p => html`<option value=${p} disabled=${!protections.includes(p)}>${p === 'workspace-write' ? t('filesystem.workspace_write') : t('filesystem.full')}${!protections.includes(p) ? ' · ' + t('filesystem.unavailable') : ''}</option>`)}
+      </select><p class="note">${filesystem === 'workspace-write' ? t('filesystem.workspace_write_note') : t('filesystem.native_note')}</p>
+    </div>`}
     ${modes.length > 1 && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.mode_de_l_agent")}<${Tip} text="${t("inspector.inspector.modes_proposes_par_le_harness_lui_meme_par_exemple_planifier_avan")}" /></div>
-      <select class="select" value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${tSource(m.name)}</option>`)}</select></div>`}
+      <select class="select" disabled=${filesystem !== 'native'} value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${tSource(m.name)}</option>`)}</select></div>`}
 
-    ${config.filter(o => !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).length > 0 && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.reglages_du_harness")}</div>
-      <div class="prows">${config.filter(o => !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).map(o => html`<${ConfigOption} key=${o.id} o=${o} onChange=${v => o.category === 'model' ? switchModel(s, v) : configure(s, { config: { [o.id]: v } })} />`)}</div></div>`}
+    ${config.filter(o => !(filesystem !== 'native' && ['mode','sandbox','sandbox_mode'].includes(o.id)) && !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).length > 0 && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.reglages_du_harness")}</div>
+      <div class="prows">${config.filter(o => !(filesystem !== 'native' && ['mode','sandbox','sandbox_mode'].includes(o.id)) && !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).map(o => html`<${ConfigOption} key=${o.id} o=${o} onChange=${v => o.category === 'model' ? switchModel(s, v) : configure(s, { config: { [o.id]: v } })} />`)}</div></div>`}
 
     <div class="hs-sec"><div class="hs-h">${t("inspector.inspector.contexte")}</div>
       ${ctxPct != null ? html`<div class="vram"><div class="vram-h"><span>${t("inspector.inspector.utilise")}</span><b>${fmtTok(usage.context.used)} <small>/ ${fmtTok(usage.context.size)}</small></b></div>
@@ -154,7 +157,7 @@ function HarnessPanel() {
 
     <${OtherSessions} s=${s} />
 
-    ${pick && html`<${FolderPicker} start=${workdir} onClose=${() => setPick(false)} onPick=${async p => { setPick(false); await configure(s, { workdir: p }); }} />`}
+
     ${diff && html`<${Modal} wide title=${diff.path.split('/').pop()} sub=${diff.path} onClose=${() => setDiff(null)}><${UnifiedDiff} text=${diff.text} /></${Modal}>`}
   </div>`;
 }

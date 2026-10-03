@@ -18,7 +18,7 @@ protocol supports that source.
   supported model-source associations.
 - Projects link working folders, instructions, selected context files, Brain
   sources, skills, MCP selections and default execution choices.
-- Resources owns shared skills, MCP definitions, memory pages and Brain.
+- Brain owns shared sources/context, memory pages, skills and MCP definitions; the historical Resources route remains an alias.
 - Terminals, Environment, Bench, Usage and Settings expose their own controls.
 
 The original discussion/composer and full local parameter panel remain the

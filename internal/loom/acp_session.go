@@ -269,7 +269,19 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 				config[id] = s.Model
 			}
 		}
-		if err := p.configure(ctx, s.Mode, config); err != nil {
+		nativeMode, err := harnessFilesystemMode(agent, s.FilesystemPolicy)
+		if err != nil {
+			m.closeACP(s.ID)
+			return nil, err
+		}
+		if nativeMode == "" {
+			nativeMode = s.Mode
+		} else {
+			delete(config, "mode")
+			delete(config, "sandbox")
+			delete(config, "sandbox_mode")
+		}
+		if err := p.configure(ctx, nativeMode, config); err != nil {
 			m.closeACP(s.ID)
 			return nil, err
 		}
@@ -285,8 +297,22 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		if p.state.Permission == "" {
 			p.state.Permission = "ask"
 		}
+		p.state.FilesystemPolicy = s.FilesystemPolicy
 		option := acpModelOption(p.state.AvailableConfigOptions)
 		p.mu.Unlock()
+		// A native slash command or restored session may change its mode.
+		// Reapply the selected native protection before every subsequent turn.
+		nativeMode, err := harnessFilesystemMode(agent, s.FilesystemPolicy)
+		if err != nil {
+			m.closeACP(s.ID)
+			return nil, err
+		}
+		if nativeMode != "" {
+			if err := p.configure(ctx, nativeMode, nil); err != nil {
+				m.closeACP(s.ID)
+				return nil, err
+			}
+		}
 		// A model picked in Loom since the last turn applies to the live session.
 		if id, _ := option["id"].(string); id != "" && s.Model != "" && s.Model != "default" && option["currentValue"] != s.Model && acpConfigValueAllowed(option, s.Model) {
 			if err := p.configure(ctx, "", map[string]any{id: s.Model}); err != nil {

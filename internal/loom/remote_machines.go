@@ -56,7 +56,7 @@ var remoteHarnessDefs = []struct {
 	{"claude-code", "Claude Code", "claudecode", []string{"claude", "npx"}, nil},
 	{"codex", "Codex", "codex", []string{"codex", "npx"}, nil},
 	{"pi", "Pi", "pi", []string{"pi", "npx"}, nil},
-	{"gemini", "Gemini", "gemini", []string{"gemini"}, []string{"gemini", "--acp"}},
+	{"gemini", "Gemini CLI", "gemini", []string{"gemini"}, []string{"gemini", "--acp"}},
 	{"opencode", "OpenCode", "opencode", []string{"opencode"}, []string{"opencode", "acp"}},
 }
 

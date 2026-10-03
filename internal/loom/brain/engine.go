@@ -56,6 +56,7 @@ func New(opts Options) (*Engine, error) {
 			scopes[s.ID] = sourceScope(s)
 			s.ReadOnly = false
 			s.Include = append([]string{}, s.Include...)
+			s.Exclude = append([]string{}, s.Exclude...)
 			e.sources = append(e.sources, s)
 		}
 		snapshot, err := opts.Storage.LoadIndex()
@@ -112,6 +113,22 @@ func validateSource(s Source) error {
 	if s.Kind != "context" && s.Kind != "personal" && s.Kind != "repo" {
 		return errors.New("kind must be context, personal or repo")
 	}
+	switch s.Connector {
+	case "", "folder", "git", "obsidian", "webdav-mount":
+	default:
+		return errors.New("unsupported second-brain connection; use a local checkout or mounted folder")
+	}
+	if len(s.Exclude) > 64 {
+		return errors.New("maximum 64 exclude globs")
+	}
+	for _, g := range s.Exclude {
+		if len(g) > 256 {
+			return errors.New("exclude glob too long")
+		}
+		if _, err := globRegex(g); err != nil {
+			return err
+		}
+	}
 	if !filepath.IsAbs(s.Path) {
 		return errors.New("source path must be absolute")
 	}
@@ -140,6 +157,7 @@ func (e *Engine) Sources() []Source {
 	out := append([]Source{}, e.sources...)
 	for i := range out {
 		out[i].Include = append([]string{}, out[i].Include...)
+		out[i].Exclude = append([]string{}, out[i].Exclude...)
 	}
 	return out
 }
@@ -167,6 +185,7 @@ func (e *Engine) Update(s Source) error {
 	s.ReadOnly = false
 	s.Path = filepath.Clean(s.Path)
 	s.Include = append([]string{}, s.Include...)
+	s.Exclude = append([]string{}, s.Exclude...)
 	s.Files, s.Chunks, s.LastIndexed, s.Error = 0, 0, time.Time{}, ""
 	next := append([]Source{}, e.sources...)
 	found := false
@@ -174,7 +193,7 @@ func (e *Engine) Update(s Source) error {
 	for i := range next {
 		if next[i].ID == s.ID {
 			prior := next[i]
-			scopeChanged = prior.Path != s.Path || prior.Kind != s.Kind || !equalHeading(prior.Include, s.Include)
+			scopeChanged = prior.Path != s.Path || prior.Kind != s.Kind || !equalHeading(prior.Include, s.Include) || !equalHeading(prior.Exclude, s.Exclude)
 			if !scopeChanged {
 				s.Files, s.Chunks, s.LastIndexed, s.Error = prior.Files, prior.Chunks, prior.LastIndexed, prior.Error
 			}
@@ -300,7 +319,7 @@ func fileBytes(f File) int {
 	return n
 }
 func sourceScope(s Source) string {
-	digest := sha256.Sum256([]byte(s.Path + "\x00" + s.Kind + "\x00" + strings.Join(s.Include, "\x00")))
+	digest := sha256.Sum256([]byte(s.Path + "\x00" + s.Kind + "\x00" + strings.Join(s.Include, "\x00") + "\x01" + strings.Join(s.Exclude, "\x00")))
 	return fmt.Sprintf("%x", digest[:])
 }
 func safeRelative(p string) bool {
@@ -342,14 +361,25 @@ func globRegex(g string) (*regexp.Regexp, error) {
 			b.WriteString(g[i : end+1])
 			i = end
 		default:
-			b.WriteString(regexp.QuoteMeta(string(g[i])))
+			_, size := utf8.DecodeRuneInString(g[i:])
+			b.WriteString(regexp.QuoteMeta(g[i : i+size]))
+			i += size - 1
 		}
 	}
 	b.WriteString("$")
 	return regexp.Compile(b.String())
 }
-func eligible(s Source, rel string) bool {
+func eligible(s Source, rel string, excludes []*regexp.Regexp) bool {
+	// Credential files never become context just because they live under docs/.
 	name := strings.ToLower(path.Base(rel))
+	if name == ".env" || strings.HasPrefix(name, ".env.") || name == "credentials" || name == "credentials.json" || name == "auth.json" || name == "id_rsa" || name == "id_ed25519" || strings.HasSuffix(name, ".pem") || strings.HasSuffix(name, ".key") {
+		return false
+	}
+	for _, re := range excludes {
+		if re.MatchString(rel) {
+			return false
+		}
+	}
 	ext := path.Ext(name)
 	switch ext {
 	case ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".zip", ".gz", ".tar", ".7z", ".exe", ".dll", ".so", ".dylib", ".o", ".a", ".wasm", ".gguf", ".woff", ".woff2", ".ttf", ".mp3", ".mp4", ".docx", ".xlsx", ".pptx":
@@ -363,7 +393,7 @@ func eligible(s Source, rel string) bool {
 }
 func skipDir(name string) bool {
 	switch strings.ToLower(name) {
-	case ".git", "node_modules", "vendor", "dist", "build":
+	case ".git", ".ssh", ".gnupg", ".aws", ".codex", ".claude", ".project-local", "node_modules", "vendor", "dist", "build":
 		return true
 	}
 	return false
@@ -436,6 +466,13 @@ func (e *Engine) Refresh(ctx context.Context) error {
 					re, _ := globRegex(g)
 					patterns = append(patterns, re)
 				}
+				excludes := []*regexp.Regexp{}
+				for _, g := range s.Exclude {
+					re, _ := globRegex(g)
+					if re != nil {
+						excludes = append(excludes, re)
+					}
+				}
 				err = walkRoot(root, func(rel string, d fs.DirEntry, walkErr error) error {
 					if ctx.Err() != nil {
 						return ctx.Err()
@@ -455,7 +492,7 @@ func (e *Engine) Refresh(ctx context.Context) error {
 					}
 					// Conservatively skip all symlinks; os.Root also confines reads
 					// when an entry is replaced concurrently by an escaping link.
-					if d.Type()&os.ModeSymlink != 0 || !eligible(*s, rel) {
+					if d.Type()&os.ModeSymlink != 0 || !eligible(*s, rel, excludes) {
 						return nil
 					}
 					if len(patterns) > 0 {

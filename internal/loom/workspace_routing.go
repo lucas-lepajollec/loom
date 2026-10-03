@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -44,14 +45,32 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 			return s, errors.New("harness CLI unavailable")
 		}
 		s.RuntimeID = choice.RuntimeID
-		// A harness starts in the project folders of its machine unless chosen.
-		if agent, ok := acpAgentFor(s.RuntimeID); ok && s.Workdir == "" {
-			if dir, extra := projectFolders(s.ProjectID, agent); dir != "" {
-				s.Workdir = dir
-				if len(s.AdditionalDirs) == 0 {
-					s.AdditionalDirs = extra
+		if agent, ok := acpAgentFor(s.RuntimeID); ok {
+			target := workspaceTarget(agent)
+			priorTarget := s.WorkspaceTarget
+			if priorTarget == "" {
+				if previous, found := acpAgentFor(previousRuntime); found {
+					priorTarget = workspaceTarget(previous)
 				}
 			}
+			if s.Workdir == "" || (priorTarget != "" && priorTarget != target) {
+				s.Workdir, s.WorkspaceID = "", ""
+				s.AdditionalDirs = nil
+				if dir, extra := projectFolders(s.ProjectID, agent); dir != "" {
+					s.Workdir, s.AdditionalDirs = dir, extra
+				} else if target != "" {
+					workspace, err := defaultWorkspace(agent)
+					if err != nil {
+						return s, err
+					}
+					dir, err := prepareWorkspace(context.Background(), workspace, workspace.Managed)
+					if err != nil {
+						return s, err
+					}
+					s.Workdir, s.WorkspaceID = dir, workspace.ID
+				}
+			}
+			s.WorkspaceTarget = target
 		}
 	}
 	s.ReasoningEffort = ""
@@ -76,6 +95,9 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 	s.Model = choice.Model
 	if previousRuntime != s.RuntimeID || previousModel != s.Model {
 		m.closeACP(id)
+		if previousRuntime != s.RuntimeID {
+			s.FilesystemPolicy = ""
+		}
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
 		s.Mode = ""
 		s.Commands = nil

@@ -209,11 +209,11 @@ function McpSources({ onAdopted }) {
 }
 
 export function ResourcesPage({ route }) {
-  const tab = ['mcp', 'brain', 'memory'].includes(route.sub) ? route.sub : 'skills';
+  const tab = ['skills', 'mcp', 'brain', 'memory'].includes(route.sub) ? route.sub : 'brain';
   const ws = useStore(app, s => s.workspace);
   return html`<div class="view page"><div class="page-in">
-    <div class="page-head"><div><h1>${t("resources.page.ressources")}</h1><p>${t("resources.page.definies_une_fois_dans_loom_utilisees_par_tes_projets_et_tes_disc")}</p></div></div>
-    <${Tabs} value=${tab} onChange=${localT => go('resources', localT)} label="${t("resources.page.ressources")}" options=${[{ value: 'skills', label: t("resources.page.skills"), count: ws ? (ws.capabilities || []).length : null }, { value: 'mcp', label: t("resources.page.serveurs_mcp") }, { value: 'brain', label: t("resources.page.brain") }, { value: 'memory', label: t("resources.page.memoire") }]} />
+    <div class="page-head"><div><h1>${t("resources.page.brain")}</h1><p>${t("resources.page.definies_une_fois_dans_loom_utilisees_par_tes_projets_et_tes_disc")}</p></div></div>
+    <${Tabs} value=${tab} onChange=${localT => go('brain', localT)} label="${t("resources.page.brain")}" options=${[{ value: 'brain', label: t('second_brain.context') }, { value: 'memory', label: t("resources.page.memoire") }, { value: 'skills', label: t("resources.page.skills"), count: ws ? (ws.capabilities || []).length : null }, { value: 'mcp', label: t("resources.page.serveurs_mcp") }]} />
     <div class="tab-body" key=${tab}>${tab === 'skills' ? html`<${Skills} />` : tab === 'mcp' ? html`<${Mcp} />` : tab === 'brain' ? html`<${Brain} />` : html`<${Memory} />`}</div>
   </div></div>`;
 }
