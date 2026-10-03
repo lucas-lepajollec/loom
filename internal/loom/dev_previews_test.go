@@ -60,6 +60,7 @@ func TestPreviewAuthenticatesIsolatesCredentialsAssetsAndWebSockets(t *testing.T
 	manager := newDevPreviewManager()
 	defer manager.shutdown()
 	owner := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:2590/api/previews", nil)
+	owner.Header.Set("Authorization", "Bearer synthetic-preview-owner")
 	p, err := manager.start(context.Background(), "local", port, owner)
 	if err != nil {
 		t.Fatal(err)
@@ -152,6 +153,67 @@ func TestPreviewAuthenticatesIsolatesCredentialsAssetsAndWebSockets(t *testing.T
 		t.Fatal("closing preview left its upgraded connection open")
 	}
 }
+
+func TestPreviewUpgradedConnectionRevokesWhenOwnerKeyChanges(t *testing.T) {
+	testHome(t)
+	t.Setenv("LOOM_PREVIEW_BIND", "127.0.0.1:0")
+	t.Setenv("LOOM_PREVIEW_ORIGIN", "")
+	t.Setenv("LOOM_COOKIE_SECURE", "")
+	_ = storeWebKey("synthetic-live-preview")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/hmr" {
+			w.WriteHeader(200)
+			return
+		}
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.CloseNow()
+		for {
+			typ, data, err := conn.Read(r.Context())
+			if err != nil {
+				return
+			}
+			if conn.Write(r.Context(), typ, data) != nil {
+				return
+			}
+		}
+	}))
+	defer upstream.Close()
+	u, _ := url.Parse(upstream.URL)
+	port, _ := strconv.Atoi(u.Port())
+	manager := newDevPreviewManager()
+	defer manager.shutdown()
+	owner := localTestRequest("POST", "http://127.0.0.1:2590/api/previews", nil)
+	owner.Header.Set("Authorization", "Bearer synthetic-live-preview")
+	p, err := manager.start(context.Background(), "local", port, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	link, err := p.ticket(owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Jar: jar, Timeout: 3 * time.Second}
+	resp, err := client.Get(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	ws, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(p.Origin, "http")+"/hmr", &websocket.DialOptions{HTTPClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.CloseNow()
+	_ = storeWebKey("synthetic-live-replacement")
+	if _, _, err = ws.Read(ctx); err == nil || ctx.Err() != nil {
+		t.Fatal("revoked preview WebSocket remained open")
+	}
+}
 func TestPreviewRefusesControlPlaneAndInvalidatesOnOwnerCredentialChange(t *testing.T) {
 	testHome(t)
 	t.Setenv("LOOM_PREVIEW_BIND", "127.0.0.1:0")
@@ -166,6 +228,7 @@ func TestPreviewRefusesControlPlaneAndInvalidatesOnOwnerCredentialChange(t *test
 		}
 	}
 	_ = storeWebKey("synthetic-first")
+	owner.Header.Set("Authorization", "Bearer synthetic-first")
 	p, err := manager.start(context.Background(), "local", 5173, owner)
 	if err != nil {
 		t.Fatal(err)

@@ -285,7 +285,7 @@ func RunCrwl(source CrawlSource, client HTTPDoer, target string, opts CrawlOptio
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		return "", fmt.Errorf("Crawl4AI HTTP %d: %s", resp.StatusCode, TailRunes(string(b), 300))
 	}
 	var data struct {
@@ -293,7 +293,10 @@ func RunCrwl(source CrawlSource, client HTTPDoer, target string, opts CrawlOptio
 	}
 	// La réponse peut être soit {results:[...]}, soit un objet unique. On décode
 	// d'abord la forme {results}, sinon on retombe sur un résultat unique.
-	raw, _ := io.ReadAll(resp.Body)
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, (32<<20)+1))
+	if readErr != nil || len(raw) > 32<<20 {
+		return "", fmt.Errorf("Crawl4AI: response unreadable or exceeds 32 MiB")
+	}
 	if jerr := json.Unmarshal(raw, &data); jerr != nil || len(data.Results) == 0 {
 		var single CrawlResult
 		if json.Unmarshal(raw, &single) == nil {

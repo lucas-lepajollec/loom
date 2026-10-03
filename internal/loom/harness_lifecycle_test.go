@@ -343,7 +343,7 @@ func TestHarnessLifecycleHTTPAndLegacy(t *testing.T) {
 		{"POST", "/api/harness/lifecycle", `{"id":"codex","action":"delete"}`, 400},
 		{"PUT", "/api/harness/lifecycle", "", 405},
 	} {
-		req := httptest.NewRequest(tc.method, tc.url, strings.NewReader(tc.body))
+		req := localTestRequest(tc.method, tc.url, strings.NewReader(tc.body))
 		w := httptest.NewRecorder()
 		req.Header.Set("Content-Type", "application/json")
 		mux.ServeHTTP(w, req)
@@ -361,7 +361,7 @@ func TestHarnessLifecycleHTTPAndLegacy(t *testing.T) {
 	registeredRuntimes.upsert(&acpAdapter{agent: agent})
 	defer registeredRuntimes.remove(agent.ID)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/api/runtimes/custom-box-codex/update", strings.NewReader(`{}`))
+	req := localTestRequest("POST", "/api/runtimes/custom-box-codex/update", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	mux.ServeHTTP(w, req)
 	if w.Code != 200 || *updates != 1 {
@@ -372,7 +372,7 @@ func TestHarnessLifecycleHTTPAndLegacy(t *testing.T) {
 	}
 	defer s.release("local", "codex")
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("POST", "/api/harness/lifecycle", strings.NewReader(`{"id":"codex","action":"check"}`))
+	req = localTestRequest("POST", "/api/harness/lifecycle", strings.NewReader(`{"id":"codex","action":"check"}`))
 	req.Header.Set("Content-Type", "application/json")
 	mux.ServeHTTP(w, req)
 	if w.Code != 409 {

@@ -184,8 +184,10 @@ func sshArgs(m RemoteMachine, key string, remote ...string) []string {
 	return append(append(args, m.User+"@"+m.Host), remote...)
 }
 
+var shellSafeWord = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
+
 func shellQuote(s string) string {
-	if s != "" && regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`).MatchString(s) {
+	if s != "" && shellSafeWord.MatchString(s) {
 		return s
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"

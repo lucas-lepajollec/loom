@@ -83,7 +83,9 @@ func handleChatReset(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ProjectID string `json:"project_id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !legacyControlDecode(w, r, &body) {
+		return
+	}
 	id := conv.NewSession()
 	if pid := strings.TrimSpace(body.ProjectID); pid != "" {
 		if _, ok := getProject(pid); ok {
@@ -111,7 +113,9 @@ func handleChatHistoryRestore(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ID string `json:"id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !legacyControlDecode(w, r, &body) {
+		return
+	}
 	if strings.TrimSpace(body.ID) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "id manquant"})
 		return
@@ -129,7 +133,9 @@ func handleChatHistoryDelete(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ID string `json:"id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !legacyControlDecode(w, r, &body) {
+		return
+	}
 	if strings.TrimSpace(body.ID) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "id manquant"})
 		return
@@ -148,7 +154,9 @@ func handleChatHistoryRename(w http.ResponseWriter, r *http.Request) {
 		ID    string `json:"id"`
 		Title string `json:"title"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !legacyControlDecode(w, r, &body) {
+		return
+	}
 	if strings.TrimSpace(body.ID) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "id manquant"})
 		return
@@ -170,7 +178,9 @@ func handleChatHistoryFav(w http.ResponseWriter, r *http.Request) {
 		ID  string `json:"id"`
 		Fav bool   `json:"fav"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !legacyControlDecode(w, r, &body) {
+		return
+	}
 	if strings.TrimSpace(body.ID) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "id manquant"})
 		return
@@ -195,7 +205,9 @@ func handleChatHistoryMove(w http.ResponseWriter, r *http.Request) {
 		ID        string `json:"id"`
 		ProjectID string `json:"project_id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !legacyControlDecode(w, r, &body) {
+		return
+	}
 	if strings.TrimSpace(body.ID) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "id manquant"})
 		return
@@ -232,7 +244,9 @@ func handleProjectsRename(w http.ResponseWriter, r *http.Request) {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !legacyControlDecode(w, r, &body) {
+		return
+	}
 	if strings.TrimSpace(body.ID) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "id manquant"})
 		return
@@ -248,7 +262,9 @@ func handleProjectsDelete(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ID string `json:"id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !legacyControlDecode(w, r, &body) {
+		return
+	}
 	if strings.TrimSpace(body.ID) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "id manquant"})
 		return

@@ -27,12 +27,7 @@ type devPreviewInfo struct {
 	Origin  string `json:"origin"`
 	Expires int64  `json:"expires"`
 }
-type previewGrant struct {
-	Expires  time.Time
-	Owner    string
-	Password string
-	Key      string
-}
+type previewGrant = controlGrant
 type previewTicket struct {
 	grant   previewGrant
 	expires time.Time
@@ -70,41 +65,7 @@ func (m *devPreviewManager) shutdown() {
 func (p *devPreview) close() {
 	p.closeOnce.Do(func() { p.cancel(); _ = p.server.Close(); p.transport.CloseIdleConnections() })
 }
-func previewOwner(r *http.Request) (previewGrant, error) {
-	_, credential, err := readWebPassword()
-	if err != nil {
-		return previewGrant{}, errors.New("authentication unavailable")
-	}
-	key, err := webKeyHashErr()
-	if err != nil {
-		return previewGrant{}, errors.New("authentication unavailable")
-	}
-	owner := ""
-	if valid, _ := webSessionValid(r, credential); valid {
-		owner = sessionRecordKey(r)
-	}
-	return previewGrant{Expires: time.Now().Add(8 * time.Hour), Owner: owner, Password: hashWebKey(string(credential)), Key: key}, nil
-}
-func (g previewGrant) valid() bool {
-	if time.Now().After(g.Expires) || (memEncActive() && !memUnlocked()) {
-		return false
-	}
-	_, credential, err := readWebPassword()
-	if err != nil || hashWebKey(string(credential)) != g.Password {
-		return false
-	}
-	key, err := webKeyHashErr()
-	if err != nil || key != g.Key {
-		return false
-	}
-	if g.Owner != "" {
-		var s webSession
-		if !getStoreJSON(bkState, g.Owner, &s) || s.Expires <= time.Now().Unix() || s.Credential != hashWebKey(string(credential)) {
-			return false
-		}
-	}
-	return true
-}
+func previewOwner(r *http.Request) (previewGrant, error) { return controlOwner(r) }
 func (p *devPreview) ticket(r *http.Request) (string, error) {
 	if p.ctx.Err() != nil || time.Now().Unix() >= p.Expires {
 		return "", errors.New("preview expired")
@@ -179,7 +140,11 @@ func (p *devPreview) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "preview origin refused", 403)
 		return
 	}
-	p.proxy.ServeHTTP(w, r)
+	// Cancellation reaches ReverseProxy's upgraded connection as well as HTTP
+	// responses: logout/rotation must also revoke an already open HMR socket.
+	ctx, cancel := controlGrantContext(r.Context(), grant)
+	defer cancel()
+	p.proxy.ServeHTTP(w, r.WithContext(ctx))
 }
 func previewProxy(target *url.URL, origin string, id string, transport *http.Transport) *httputil.ReverseProxy {
 	cookiePrefix := "loom_app_" + id + "_"

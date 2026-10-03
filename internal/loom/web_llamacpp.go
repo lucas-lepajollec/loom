@@ -11,7 +11,6 @@
 package loom
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -267,7 +266,9 @@ func handleLlamacppInstall(w http.ResponseWriter, r *http.Request) {
 		Force bool   `json:"force"`
 		Dir   string `json:"dir"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	if err := startLcJob("install", func() { lcRunInstall(req.Force, req.Dir) }); err != nil {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -285,7 +286,9 @@ func handleLlamacppInstallCustom(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 		Ref  string `json:"ref"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	if strings.TrimSpace(req.Repo) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "repository URL required"})
 		return
@@ -316,7 +319,9 @@ func handleLlamacppUpdate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Clean bool `json:"clean"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	if err := startLcJob("update", func() { lcRunUpdate(req.Clean) }); err != nil {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -403,7 +408,9 @@ func handleLlamacppUse(w http.ResponseWriter, r *http.Request) {
 		Mode string `json:"mode"`
 		Bin  string `json:"bin"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	var bin string
 	switch req.Mode {
 	case "fast":

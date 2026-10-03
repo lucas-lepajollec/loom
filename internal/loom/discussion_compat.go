@@ -65,6 +65,16 @@ func nativeDiscussionEvents(d map[string]any) []DiscussionEvent {
 func runtimeDiscussionEvents(e StreamEvent, turn RuntimeTurnRecord) []DiscussionEvent {
 	return discussion.RuntimeDiscussionEvents(discussion.StreamEvent[RuntimeUsage, StatsEvent]{Content: e.Content, Reasoning: e.Reasoning, Usage: e.Usage, Stats: e.Stats, HarnessEvent: e.HarnessEvent, ACPEvent: e.ACPEvent, ACPState: e.ACPState}, turn)
 }
+
+// Text/ACP deltas carry no full provenance snapshot. Only metadata events need
+// a copied current turn, never the complete history on each streamed token.
+func liveRuntimeDiscussionEvents(e StreamEvent, turn RuntimeTurnRecord) []DiscussionEvent {
+	projection := RuntimeTurnRecord{RuntimeID: turn.RuntimeID}
+	if e.ACPEvent == nil && e.ACPState == nil && (e.Usage != nil || e.Stats != nil || e.HarnessEvent != nil) {
+		projection = discussion.CloneRuntimeTurn(turn)
+	}
+	return runtimeDiscussionEvents(e, projection)
+}
 func runtimeReplay(s RuntimeSession) []DiscussionEvent {
 	return discussion.RuntimeReplay(s, func() any { return discussionContext(s) })
 }

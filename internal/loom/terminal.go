@@ -73,8 +73,9 @@ var terminals = struct {
 }{byID: map[string]*Terminal{}, tickets: map[string]ticket{}}
 
 type ticket struct {
-	term string
-	exp  time.Time
+	term  string
+	exp   time.Time
+	grant controlGrant
 }
 
 func randomID(n int) string {
@@ -467,6 +468,11 @@ func handleTerminalTicket(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "terminal not found"})
 		return
 	}
+	grant, err := controlOwner(r)
+	if err != nil {
+		webAuthUnavailable(w)
+		return
+	}
 	tk := randomID(24)
 	terminals.Lock()
 	now := time.Now()
@@ -475,17 +481,26 @@ func handleTerminalTicket(w http.ResponseWriter, r *http.Request) {
 			delete(terminals.tickets, k)
 		}
 	}
-	terminals.tickets[tk] = ticket{term: req.ID, exp: now.Add(terminalTicketTT)}
+	if len(terminals.tickets) >= 128 {
+		terminals.Unlock()
+		sendJSON(w, 429, map[string]any{"ok": false, "error": "too many terminal tickets"})
+		return
+	}
+	terminals.tickets[hashWebKey(tk)] = ticket{term: req.ID, exp: now.Add(terminalTicketTT), grant: grant}
 	terminals.Unlock()
 	sendJSON(w, 200, map[string]any{"ok": true, "ticket": tk})
 }
 
-func useTicket(tk string) string {
+func takeTerminalTicket(tk string) (ticket, bool) {
 	terminals.Lock()
-	defer terminals.Unlock()
-	v, ok := terminals.tickets[tk]
-	delete(terminals.tickets, tk)
-	if !ok || time.Now().After(v.exp) {
+	v, ok := terminals.tickets[hashWebKey(tk)]
+	delete(terminals.tickets, hashWebKey(tk))
+	terminals.Unlock()
+	return v, ok && time.Now().Before(v.exp) && v.grant.valid()
+}
+func useTicket(tk string) string {
+	v, ok := takeTerminalTicket(tk)
+	if !ok {
 		return ""
 	}
 	return v.term
@@ -495,9 +510,9 @@ func useTicket(tk string) string {
 // browser are keystrokes; a JSON {"resize":[cols,rows]} frame resizes.
 // Binary frames to the browser are output.
 func handleTerminalWS(w http.ResponseWriter, r *http.Request) {
-	id := useTicket(r.URL.Query().Get("ticket"))
-	t := terminalByID(id)
-	if t == nil {
+	tk, valid := takeTerminalTicket(r.URL.Query().Get("ticket"))
+	t := terminalByID(tk.term)
+	if !valid || t == nil {
 		http.Error(w, "invalid or expired ticket", http.StatusUnauthorized)
 		return
 	}
@@ -508,6 +523,10 @@ func handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	defer conn.CloseNow()
+	// Keep established sockets revocable, including quiet terminals.
+	recheck := time.NewTicker(time.Second)
+	defer recheck.Stop()
 	out, scroll := t.attach()
 	defer t.detach(out)
 	if len(scroll) > 0 {
@@ -518,6 +537,9 @@ func handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 		for {
 			typ, data, err := conn.Read(ctx)
 			if err != nil {
+				return
+			}
+			if !tk.grant.valid() {
 				return
 			}
 			if typ == websocket.MessageText && len(data) > 0 && data[0] == '{' {
@@ -536,6 +558,11 @@ func handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 	}()
 	for {
 		select {
+		case <-recheck.C:
+			if !tk.grant.valid() {
+				conn.Close(websocket.StatusPolicyViolation, "access revoked")
+				return
+			}
 		case chunk, ok := <-out:
 			if !ok {
 				_ = conn.Write(ctx, websocket.MessageText, []byte(`{"exit":true}`))

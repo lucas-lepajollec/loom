@@ -127,26 +127,31 @@ func CloneRuntimeSession[Usage, Stats any](s RuntimeSession[Usage, Stats]) Runti
 	s.RequestIDs = append([]string{}, s.RequestIDs...)
 	s.Turns = append([]RuntimeTurnRecord[Usage, Stats]{}, s.Turns...)
 	for i := range s.Turns {
-		if s.Turns[i].ACPEvents != nil {
-			b, _ := json.Marshal(s.Turns[i].ACPEvents)
-			s.Turns[i].ACPEvents = nil
-			_ = json.Unmarshal(b, &s.Turns[i].ACPEvents)
-		}
-		if s.Turns[i].Stats != nil {
-			stats := *s.Turns[i].Stats
-			s.Turns[i].Stats = &stats
-		}
-		if s.Turns[i].Events != nil {
-			s.Turns[i].Events = append([]HarnessEvent{}, s.Turns[i].Events...)
-		}
-		if s.Turns[i].Usage != nil {
-			u := *s.Turns[i].Usage
-			s.Turns[i].Usage = &u
-		}
+		s.Turns[i] = CloneRuntimeTurn(s.Turns[i])
 	}
 	if s.Usage != nil {
 		u := *s.Usage
 		s.Usage = &u
 	}
 	return s
+}
+
+func CloneRuntimeTurn[Usage, Stats any](turn RuntimeTurnRecord[Usage, Stats]) RuntimeTurnRecord[Usage, Stats] {
+	if turn.ACPEvents != nil {
+		b, _ := json.Marshal(turn.ACPEvents)
+		turn.ACPEvents = nil
+		_ = json.Unmarshal(b, &turn.ACPEvents)
+	}
+	if turn.Stats != nil {
+		v := *turn.Stats
+		turn.Stats = &v
+	}
+	if turn.Events != nil {
+		turn.Events = append([]HarnessEvent{}, turn.Events...)
+	}
+	if turn.Usage != nil {
+		v := *turn.Usage
+		turn.Usage = &v
+	}
+	return turn
 }

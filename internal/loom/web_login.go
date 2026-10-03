@@ -279,6 +279,10 @@ func requireBrowserOrWebKey(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
+		if p == nil && hash == "" && !unprotectedLocalRequest(r) {
+			http.Error(w, "local access requires a loopback address; configure authentication for network access", http.StatusForbidden)
+			return
+		}
 		if valid || (p == nil && hash == "") {
 			protected.ServeHTTP(w, r)
 			return

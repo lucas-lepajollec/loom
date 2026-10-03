@@ -11,7 +11,20 @@ import (
 )
 
 func fold(s string) string {
+	// Most repository text is ASCII. Avoid building and repeatedly growing a
+	// rune-normalization buffer for every candidate in a quoted search.
+	ascii := true
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 128 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return strings.ToLower(s)
+	}
 	var b strings.Builder
+	b.Grow(len(s))
 	for _, r := range norm.NFD.String(strings.ToLower(s)) {
 		if unicode.Is(unicode.Mn, r) {
 			continue

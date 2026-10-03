@@ -1,6 +1,7 @@
 package brain
 
 import (
+	"container/heap"
 	"errors"
 	"math"
 	"sort"
@@ -71,7 +72,8 @@ func (e *Engine) searchLocked(r SearchRequest) ([]Hit, error) {
 		return hits, nil
 	}
 	average := float64(total) / float64(n)
-	scores := map[int]float64{}
+	// Dense document IDs avoid a large hash map for frequent query terms.
+	scores := make([]float64, len(e.docs))
 	for _, term := range query {
 		postings := e.postings[term]
 		df := 0
@@ -91,25 +93,32 @@ func (e *Engine) searchLocked(r SearchRequest) ([]Hit, error) {
 		}
 	}
 	quoted := phrases(r.Query)
-	type ranked struct {
-		doc   int
-		score float64
-	}
-	ranks := []ranked{}
+	// Retain only the requested best results, rather than sorting every match.
+	ranks := make(rankHeap, 0, r.Limit)
 	for doc, score := range scores {
+		if score == 0 {
+			continue
+		}
 		c := e.docs[doc].chunk
+		folded := ""
+		if len(quoted) > 0 {
+			folded = fold(c.Text)
+		}
 		for _, p := range quoted {
-			if strings.Contains(fold(c.Text), p) {
+			if strings.Contains(folded, p) {
 				score += 2
 			}
 		}
-		ranks = append(ranks, ranked{doc, score})
+		candidate := ranked{doc, score}
+		if len(ranks) < r.Limit {
+			heap.Push(&ranks, candidate)
+		} else if betterRank(candidate, ranks[0]) {
+			ranks[0] = candidate
+			heap.Fix(&ranks, 0)
+		}
 	}
 	sort.Slice(ranks, func(i, j int) bool {
-		if ranks[i].score == ranks[j].score {
-			return ranks[i].doc < ranks[j].doc
-		}
-		return ranks[i].score > ranks[j].score
+		return betterRank(ranks[i], ranks[j])
 	})
 	for _, rank := range ranks[:min(r.Limit, len(ranks))] {
 		c := e.docs[rank.doc].chunk
@@ -118,6 +127,22 @@ func (e *Engine) searchLocked(r SearchRequest) ([]Hit, error) {
 	}
 	return hits, nil
 }
+
+type ranked struct {
+	doc   int
+	score float64
+}
+
+func betterRank(a, b ranked) bool { return a.score > b.score || a.score == b.score && a.doc < b.doc }
+
+// The heap root is the worst retained hit; stable document order breaks ties.
+type rankHeap []ranked
+
+func (h rankHeap) Len() int           { return len(h) }
+func (h rankHeap) Less(i, j int) bool { return betterRank(h[j], h[i]) }
+func (h rankHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *rankHeap) Push(x any)        { *h = append(*h, x.(ranked)) }
+func (h *rankHeap) Pop() any          { old := *h; x := old[len(old)-1]; *h = old[:len(old)-1]; return x }
 func (e *Engine) Read(r ReadRequest) (Chunk, error) {
 	if err := e.available(); err != nil {
 		return Chunk{}, err

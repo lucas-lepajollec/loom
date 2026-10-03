@@ -170,7 +170,7 @@ func TestRuntimeActionsHTTPBoundary(t *testing.T) {
 		{"/api/runtimes/new-harness/quota", "POST", `{} {}`, "application/json", "yes", 400},
 	} {
 		t.Run(tc.method+tc.path+tc.body[:min(len(tc.body), 30)], func(t *testing.T) {
-			r := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			r := localTestRequest(tc.method, tc.path, strings.NewReader(tc.body))
 			r.Header.Set("Content-Type", tc.contentType)
 			if tc.auth != "" {
 				r.Header.Set("Authorization", "Bearer synthetic-registry-auth")
@@ -197,7 +197,7 @@ func TestRuntimeActionsDispatchAndLegacyAliases(t *testing.T) {
 	isolateRuntimeRegistry(t, agy, codex, future)
 	mux := newWebMux()
 	post := func(path, body string) *httptest.ResponseRecorder {
-		r := httptest.NewRequest("POST", path, strings.NewReader(body))
+		r := localTestRequest("POST", path, strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
@@ -256,7 +256,7 @@ func TestRuntimeActionsLockedVault(t *testing.T) {
 	}
 	mux := newWebMux()
 	for _, action := range []string{"connect", "quota"} {
-		r := httptest.NewRequest("POST", "/api/runtimes/fixture/"+action, strings.NewReader(`{"consent":true}`))
+		r := localTestRequest("POST", "/api/runtimes/fixture/"+action, strings.NewReader(`{"consent":true}`))
 		r.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
@@ -284,9 +284,9 @@ func TestRuntimeActionsRelockDuringRead(t *testing.T) {
 			fixture.onConnect, fixture.onQuota = lockDuringRead, lockDuringRead
 			fixture.connectError = errors.New("synthetic account read error")
 			fixture.quotaError = errors.New("synthetic account read error")
-			r := httptest.NewRequest("POST", "/api/runtimes/fixture/"+action, strings.NewReader(`{}`))
+			r := localTestRequest("POST", "/api/runtimes/fixture/"+action, strings.NewReader(`{}`))
 			if action == "connect" {
-				r = httptest.NewRequest("POST", "/api/runtimes/fixture/connect", strings.NewReader(`{"consent":true}`))
+				r = localTestRequest("POST", "/api/runtimes/fixture/connect", strings.NewReader(`{"consent":true}`))
 			}
 			r.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()

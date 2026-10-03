@@ -148,9 +148,14 @@ func TestTerminalInteractiveInputAndClose(t *testing.T) {
 }
 
 func TestTerminalTicketsAreSingleUse(t *testing.T) {
+	testHome(t)
+	grant, err := controlOwner(httptest.NewRequest("GET", "/", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
 	terminals.Lock()
-	terminals.tickets["abc"] = ticket{term: "t1", exp: time.Now().Add(time.Minute)}
-	terminals.tickets["old"] = ticket{term: "t1", exp: time.Now().Add(-time.Second)}
+	terminals.tickets[hashWebKey("abc")] = ticket{term: "t1", exp: time.Now().Add(time.Minute), grant: grant}
+	terminals.tickets[hashWebKey("old")] = ticket{term: "t1", exp: time.Now().Add(-time.Second), grant: grant}
 	terminals.Unlock()
 	if useTicket("abc") != "t1" || useTicket("abc") != "" || useTicket("old") != "" || useTicket("") != "" {
 		t.Fatal("ticket réutilisable ou expiré accepté")

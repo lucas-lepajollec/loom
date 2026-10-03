@@ -4,8 +4,12 @@ Loom is a local-first AI workspace that controls inference engines, cloud connec
 
 ## Supported versions
 
-Security fixes target `main`. See [CHANGELOG.md](CHANGELOG.md) for release status;
-a supported-release policy must accompany the first public binary release.
+Security fixes target `main` and the next update of the latest published release.
+Older release lines do not receive independent backports. Source fixes are not
+automatically present in an installed binary; see [CHANGELOG.md](CHANGELOG.md)
+for release status. Build with the minimum patched Go version declared in
+`go.mod` or a newer supported toolchain. The [control plane audit](docs/control-plane-audit.md)
+records dated findings, remediation and remaining boundaries.
 
 ## Reporting a vulnerability
 

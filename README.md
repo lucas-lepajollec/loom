@@ -83,7 +83,7 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.ps1 | iex
 ```
 
-To build from source, install Go 1.25+ and GNU Make. The web UI is embedded directly, with no Node build step. macOS's native menu-bar build also requires a C toolchain; `CGO_ENABLED=0` builds the CLI/web interface without that icon.
+To build from source, install Go 1.26.8+ and GNU Make. The web UI is embedded directly, with no Node build step. macOS's native menu-bar build also requires a C toolchain; `CGO_ENABLED=0` builds the CLI/web interface without that icon.
 
 ```sh
 git clone https://github.com/lucas-lepajollec/loom.git
@@ -165,3 +165,6 @@ Loom is licensed under the [MIT License](LICENSE). Engines, models and other dep
 ### GPU machine without another full Loom
 
 Run `loom node` on Linux to expose only engine management and inference, with separate data and a machine credential. Keep discussions, Brain and harnesses on the main Loom. Starting with v0.1.4, use the same release installer with `sh -s -- --node`; it creates a separate user service and binary. See [Engine node](docs/engine-node.md) for installation, control coverage and updates. The main interface now defaults to port **2510**; explicit `loom web PORT` values remain supported.
+
+The [control plane audit](docs/control-plane-audit.md) records the security,
+performance and architecture review, its regression gates and operational limits.

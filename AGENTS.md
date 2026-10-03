@@ -10,7 +10,7 @@ Loom is a conversation-first, local-first AI workspace. A discussion owns its po
 
 Preserve the original discussion/composer and complete local parameters. The one original sidebar adapts to local, cloud or harness state; unsupported harness profiles remain non-executable previews. Do not reintroduce a second simplified chat or a redundant header. Common local discussions bind to the existing Conversation pipeline through workspace_native.go. External portability remains text-only. Usage snapshots distinguish account windows, retained Loom token counts and manual-price estimates; missing data is unknown, not zero. Refresh never starts generation or redeems resets.
 
-- Builds require Go 1.25+; UI checks also require Node. Real execution needs an installed or linked engine or harness. Loom can install llama.cpp and, on supported Linux CUDA/ROCm systems, vLLM.
+- Builds require Go 1.26.8+; UI checks also require Node. Real execution needs an installed or linked engine or harness. Loom can install llama.cpp and, on supported Linux CUDA/ROCm systems, vLLM.
 - Build the binary with `make build` (embeds `internal/loom/ui/next` and compiles `bin/loom`). Check the UI with `make check-ui`.
 - Run the web dashboard in development with `make web` or `./bin/loom web 2510`.
 - Run validation tests with `make test` or `go test -short ./...`.

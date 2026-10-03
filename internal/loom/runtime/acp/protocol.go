@@ -14,6 +14,7 @@ import (
 // ACP v1 is NDJSON JSON-RPC, with requests in both directions. The reader
 // stays available while client requests (notably permission) await the user.
 const MaxFrame = 4 << 20
+const maxInboundRequests = 32
 
 var ErrClosed = errors.New("ACP agent disconnected")
 
@@ -34,17 +35,18 @@ type RPCError struct {
 func (e *RPCError) Error() string { return "ACP request rejected by the agent" } // upstream errors can contain secrets
 
 type Client struct {
-	cmd     *exec.Cmd
-	stdout  io.ReadCloser
-	stdin   io.WriteCloser
-	writeMu sync.Mutex
-	mu      sync.Mutex
-	pending map[string]chan Frame
-	next    atomic.Uint64
-	done    chan struct{}
-	once    sync.Once
-	Handler func(*Frame) (any, error)
-	Notify  func(Frame)
+	cmd      *exec.Cmd
+	stdout   io.ReadCloser
+	stdin    io.WriteCloser
+	writeMu  sync.Mutex
+	mu       sync.Mutex
+	pending  map[string]chan Frame
+	next     atomic.Uint64
+	done     chan struct{}
+	requests chan struct{}
+	once     sync.Once
+	Handler  func(*Frame) (any, error)
+	Notify   func(Frame)
 }
 
 // NewClient prepares a transport for a resolved command. Install handlers before Start.
@@ -60,7 +62,7 @@ func NewClient(cmd *exec.Cmd) (*Client, error) {
 		return nil, ErrClosed
 	}
 	cmd.Stderr = io.Discard // never expose MCP env, auth diagnostics or agent stderr
-	c := &Client{cmd: cmd, stdout: out, stdin: in, pending: map[string]chan Frame{}, done: make(chan struct{})}
+	c := &Client{cmd: cmd, stdout: out, stdin: in, pending: map[string]chan Frame{}, done: make(chan struct{}), requests: make(chan struct{}, maxInboundRequests)}
 	// Start/reader happen after handlers are installed by Start().
 	c.Notify = func(Frame) {}
 	c.Handler = func(*Frame) (any, error) { return nil, errors.New("unsupported ACP method") }
@@ -146,7 +148,15 @@ func (c *Client) read(out io.Reader) {
 		} else if len(f.ID) == 0 {
 			c.Notify(f) // ordered updates, including those immediately before prompt completion
 		} else {
+			// Pending permissions cannot block ordered updates, but an agent must
+			// not create unlimited blocked handlers. Disconnect on overload.
+			select {
+			case c.requests <- struct{}{}:
+			default:
+				return
+			}
 			go func(f Frame) {
+				defer func() { <-c.requests }()
 				defer func() {
 					if f.Replied != nil {
 						f.Replied()

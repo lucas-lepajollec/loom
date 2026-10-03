@@ -159,7 +159,7 @@ func TestStatusKeepsRequestedAndObservedContextSeparate(t *testing.T) {
 	t.Setenv("LOOM_SERVICE", "loom-test-fit-inactive")
 	setConfig(t, "MODEL=absent.gguf\nCTX=4096\nFIT=on\n")
 	w := httptest.NewRecorder()
-	newWebMux().ServeHTTP(w, httptest.NewRequest("GET", "/api/status", nil))
+	newWebMux().ServeHTTP(w, localTestRequest("GET", "/api/status", nil))
 	var body map[string]json.RawMessage
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &body) != nil {
 		t.Fatal("bad status response")

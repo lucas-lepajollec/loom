@@ -354,7 +354,9 @@ func handleLlamacppUninstallCustom(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	name := sanitizeBackendName(req.Name)
 	if name == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "name required"})
@@ -583,7 +585,9 @@ func handleMemoryMode(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Mode string `json:"mode"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if !legacyControlDecode(w, r, &req) {
+			return
+		}
 		m := MemOff
 		switch MemMode(strings.ToLower(strings.TrimSpace(req.Mode))) {
 		case MemOff:
@@ -605,7 +609,9 @@ func handleCompactToggle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		On bool `json:"on"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	val := ""
 	if !req.On {
 		val = "off"
@@ -621,7 +627,9 @@ func handleAgentToggle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		On bool `json:"on"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	if err := setAgentEnabled(req.On); err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -725,7 +733,9 @@ func handleInternet(w http.ResponseWriter, r *http.Request) {
 			Key     *string `json:"key"`
 			Engine  *string `json:"engine"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if !legacyControlDecode(w, r, &req) {
+			return
+		}
 		// Moteur web : "go" (intégré, rien à installer) ou "crawl4ai" (serveur
 		// externe, rendu JavaScript).
 		if req.Engine != nil {
@@ -964,10 +974,17 @@ func handleMemHealth(w http.ResponseWriter, r *http.Request) {
 // La réponse contient la CLÉ DE RÉCUPÉRATION, à afficher UNE fois : elle n'est
 // jamais reconsultable ensuite.
 func handleMemEncrypt(w http.ResponseWriter, r *http.Request) {
+	done, ok := loginWork(w, r)
+	if !ok {
+		return
+	}
+	defer done()
 	var req struct {
 		Password string `json:"password"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	rec, err := EnableMemEncryption(req.Password)
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
@@ -988,10 +1005,17 @@ func handleMemDecrypt(w http.ResponseWriter, r *http.Request) {
 // handleMemUnlock déverrouille la mémoire : accepte le mot de passe OU la clé de
 // récupération (on tente les deux formes). Charge la DEK en RAM.
 func handleMemUnlock(w http.ResponseWriter, r *http.Request) {
+	done, ok := loginWork(w, r)
+	if !ok {
+		return
+	}
+	defer done()
 	var req struct {
 		Secret string `json:"secret"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	if strings.TrimSpace(req.Secret) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "empty secret"})
 		return
@@ -1030,10 +1054,17 @@ func handleMemUnlock(w http.ResponseWriter, r *http.Request) {
 // déverrouillage automatique marche ensuite. Zéro-connaissance préservé : le
 // serveur ne stocke pas ce secret, il ne fait que l'enfermer dans le coffre.
 func handleMemAddKey(w http.ResponseWriter, r *http.Request) {
+	done, ok := loginWork(w, r)
+	if !ok {
+		return
+	}
+	defer done()
 	var req struct {
 		Secret string `json:"secret"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !legacyControlDecode(w, r, &req) {
+		return
+	}
 	if strings.TrimSpace(req.Secret) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "empty secret"})
 		return
@@ -1075,7 +1106,9 @@ func handleMemSnapshots(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ID string `json:"id"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if !legacyControlDecode(w, r, &req) {
+			return
+		}
 		if err := restoreSnapshot(req.ID); err != nil {
 			sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 			return
@@ -1289,7 +1322,9 @@ func handleEstimate(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		req.Model = strings.TrimSpace(r.URL.Query().Get("model"))
 	} else {
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if !legacyControlDecode(w, r, &req) {
+			return
+		}
 	}
 	if strings.TrimSpace(req.Model) == "" {
 		req.Model = strings.TrimSpace(ReadConfig()["MODEL"])

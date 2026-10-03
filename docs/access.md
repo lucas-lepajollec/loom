@@ -54,9 +54,18 @@ operations are limited to 10 attempts per peer per minute and 60 globally;
 only two password-hashing operations can run concurrently. Unreadable or malformed
 authentication data denies access.
 
-Authentication is checked when each HTTP request starts. Revocation rejects
-subsequent requests; it does not terminate an already accepted SSE or terminal
-connection. This is a single-owner login, not a multi-user permissions system.
+Authentication is checked when each HTTP request starts. Terminal tickets and
+active terminal, discussion SSE and preview WebSocket connections are bound to
+the authorizing credential/session and revoked on logout or credential changes,
+normally within one second. Terminals also check authorization before each input.
+This is a single-owner login, not a multi-user permissions system.
+
+Without an access password/control key, control access requires a loopback Host
+(`127.0.0.1`, `::1` or `localhost`) and a direct loopback peer. Custom domains,
+remote reverse proxies and network peers require authentication, even if their
+DNS resolves to this machine. Forwarded headers do not bypass this boundary.
+Control actions require POST; malformed/oversized JSON is rejected before legacy
+actions run. Read/write endpoints keep their documented method dispatch.
 
 ## HTTP endpoints
 

@@ -4,6 +4,21 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Control plane audit
+
+- Restrict anonymous control access to loopback Host and peer; close DNS-rebinding
+  and credential-removal exposure paths. Require POST for remaining legacy
+  actions, preserve dual read/write endpoints and reject malformed/oversized JSON.
+- Revoke pending terminal tickets and established terminal/SSE/preview WebSocket
+  access with its owner session or credential; bound tickets and ACP requests.
+- Confine workspace downloads with one `os.Root` file handle; bound shell output
+  during execution and crawler responses; refuse linked-engine redirects.
+- Require patched Go 1.26.8+, update x/crypto, and add vulnerability/race/doc gates
+  plus weekly dependency monitoring. Record scope and limits in
+  `docs/control-plane-audit.md`.
+- Reduce Brain ranking/quoted-search allocations and avoid whole-history copies
+  for streamed runtime deltas while preserving ranking, privacy and persistence.
+
 ### Added
 
 - Saved workspaces and per-machine defaults in Settings, first-run setup and harness discussions; project folder precedence and explicit save/create/default actions preserve existing files and discussions.

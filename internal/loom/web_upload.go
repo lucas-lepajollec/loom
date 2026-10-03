@@ -13,6 +13,7 @@ package loom
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -265,33 +266,44 @@ const e2eInnerHeader = "X-Loom-E2E"
 // base64 traverse, et le découpage en tranches évite de tenir un gigaoctet en
 // mémoire pour le transporter.
 func handleChatFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		workspaceMethod(w, r, http.MethodGet)
+		return
+	}
 	rel := r.URL.Query().Get("path")
 	if strings.TrimSpace(rel) == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "missing path"})
 		return
 	}
-	// Un chemin ABSOLU fourni par le client ne doit pas être suivi : on le traite
-	// comme relatif au dossier de travail, et le contrôle ci-dessous tranche.
-	abs := filepath.Join(agentWorkspace(), filepath.FromSlash(rel))
-	localOK := false
-	if _, ok := workspaceRel(abs); ok {
-		if st, err := os.Stat(abs); err == nil && !st.IsDir() {
-			localOK = true
-		}
+	rel = filepath.Clean(filepath.FromSlash(rel))
+	if filepath.IsAbs(rel) || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		sendJSON(w, 403, map[string]any{"ok": false, "error": "outside the working directory"})
+		return
 	}
-	if !localOK {
-		if _, ok := workspaceRel(abs); !ok {
-			sendJSON(w, 403, map[string]any{"ok": false, "error": "outside the working directory"})
-			return
-		}
+	root, err := os.OpenRoot(agentWorkspace())
+	if err != nil {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "file not found"})
 		return
 	}
-	st, err := os.Stat(abs)
-	if err != nil || st.IsDir() {
-		sendJSON(w, 404, map[string]any{"ok": false, "error": "file not found"})
+	defer root.Close()
+	// Use one confined file handle for stat and every read, including ranges.
+	// Resolving a symlink and then reopening by its name leaves a swap window.
+	f, err := acpOpenRead(root, rel)
+	if err != nil {
+		code := 403
+		if errors.Is(err, os.ErrNotExist) {
+			code = 404
+		}
+		sendJSON(w, code, map[string]any{"ok": false, "error": "file not found or outside the working directory"})
 		return
 	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil || !st.Mode().IsRegular() {
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "regular file required"})
+		return
+	}
+	abs := filepath.Join(agentWorkspace(), rel)
 	name := filepath.Base(abs)
 	q := r.URL.Query()
 	if q.Get("meta") != "" {
@@ -314,12 +326,6 @@ func handleChatFile(w http.ResponseWriter, r *http.Request) {
 		if off+length > st.Size() {
 			length = st.Size() - off
 		}
-		f, err := os.Open(abs)
-		if err != nil {
-			sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
-			return
-		}
-		defer f.Close()
 		buf := make([]byte, length)
 		// ReadAt : positionne et lit en une fois, et remplit tout le tampon (ce
 		// qu'un simple Read ne garantit pas). io.EOF sur la dernière tranche est
@@ -341,7 +347,7 @@ func handleChatFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(name))
-	http.ServeFile(w, r, abs)
+	http.ServeContent(w, r, name, st.ModTime(), f)
 }
 
 type uploadReq struct {

@@ -22,7 +22,7 @@ func TestEngineParamsHTTPReadOnlyAuthAndMissingBinary(t *testing.T) {
 	mux := newWebMux()
 	call := func(method string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, httptest.NewRequest(method, "/api/engine/params", nil))
+		mux.ServeHTTP(w, localTestRequest(method, "/api/engine/params", nil))
 		return w
 	}
 	w := call("GET")

@@ -247,7 +247,17 @@ func newEngineWorkerMux(token string) *http.ServeMux {
 	if token != "" {
 		hash = hashWebKey(token)
 	}
-	api := func(path string, h http.HandlerFunc) { mux.HandleFunc(path, nodeAuth(hash, h)) }
+	api := func(path string, h http.HandlerFunc) {
+		if controlActionRequiresPost(path) {
+			next := h
+			h = func(w http.ResponseWriter, r *http.Request) {
+				if workspaceMethod(w, r, http.MethodPost) {
+					next(w, r)
+				}
+			}
+		}
+		mux.HandleFunc(path, nodeAuth(hash, controlRequests(path, h)))
+	}
 	registerEngineControlRoutes(func(path string, h http.HandlerFunc) {
 		api(path, workerEngineRoute(path, h))
 	})
@@ -373,7 +383,7 @@ func serveEngineWorker(addr string) error {
 	// No newWebMux, Brain, MCP prewarm, provider keyring or harness probes/loops.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	srv := &http.Server{Handler: newEngineWorkerMux(token), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: newEngineWorkerMux(token), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)

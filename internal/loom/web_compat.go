@@ -32,6 +32,9 @@ func registerPWAAssets(mux *http.ServeMux)               { webAssets().RegisterP
 func registerWebAssets(mux *http.ServeMux)               { webAssets().Register(mux) }
 func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
 	return func(path string, handler http.HandlerFunc) {
+		if path == "/api/chat" || path == "/api/discussion/events" {
+			handler = revocableControlStream(handler)
+		}
 		if controlActionRequiresPost(path) {
 			next := handler
 			handler = func(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +43,7 @@ func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
 				}
 			}
 		}
-		mux.HandleFunc(path, requireWebAuth(nodeAware(path, handler)))
+		mux.HandleFunc(path, requireWebAuth(controlRequests(path, nodeAware(path, handler))))
 	}
 }
 
@@ -51,7 +54,7 @@ func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
 func controlActionRequiresPost(path string) bool {
 	switch path {
 	case "/api/start", "/api/stop", "/api/restart", "/api/unload",
-		"/api/switch", "/api/load-model", "/api/apply", "/api/naked/remember",
+		"/api/switch", "/api/load-model", "/api/apply",
 		"/api/preset/save", "/api/preset/delete", "/api/models/delete",
 		"/api/models/download/cancel", "/api/engines/vllm/download/cancel",
 		"/api/llamacpp/check", "/api/llamacpp/install", "/api/llamacpp/install-custom",
@@ -59,6 +62,14 @@ func controlActionRequiresPost(path string) bool {
 		"/api/llamacpp/prebuilt/check", "/api/llamacpp/use", "/api/llamacpp/job/dismiss",
 		"/api/mem/lock", "/api/skills/toggle", "/api/bench", "/api/bench/queue/cancel",
 		"/api/chat/stop", "/api/chat/reset", "/api/chat/compact", "/api/chat/history/clear":
+		return true
+	case "/api/reasoning", "/api/presets/order", "/api/agent/toggle", "/api/tools/toggle", "/api/agent/compact",
+		"/api/mcp/save", "/api/mcp/delete", "/api/mcp/toggle", "/api/mcp/tool", "/api/mcp/test",
+		"/api/mem/save", "/api/mem/delete", "/api/mem/encrypt", "/api/mem/decrypt", "/api/mem/unlock", "/api/mem/addkey":
+		return true
+	case "/api/chat/send", "/api/chat/upload", "/api/chat/history/restore", "/api/chat/history/delete",
+		"/api/chat/history/rename", "/api/chat/history/fav", "/api/chat/history/move",
+		"/api/projects/rename", "/api/projects/delete", "/api/bench/tests/delete":
 		return true
 	}
 	return false

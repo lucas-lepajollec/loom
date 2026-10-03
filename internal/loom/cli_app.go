@@ -40,11 +40,14 @@ func cmdApp(args []string) error {
 		fmt.Printf("Loom is already running — opening %s\n", url)
 		return openBrowser(url)
 	}
+	defer ln.Close()
 
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	mux := newWebMux(ctx)
-	go func() { _ = http.Serve(ln, mux) }()
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	defer srv.Close()
+	go func() { _ = srv.Serve(ln) }()
 
 	sp := showSplash("Starting Loom…")
 	waitServerReady(url)

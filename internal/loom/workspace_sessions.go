@@ -401,8 +401,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 				return false
 			}
 		}
-		snapshot := cloneRuntimeSession(run.session)
-		m.publishLocked(run.session.ID, runtimeDiscussionEvents(event, snapshot.Turns[len(snapshot.Turns)-1])...)
+		m.publishLocked(run.session.ID, liveRuntimeDiscussionEvents(event, *turn)...)
 		return true
 	})
 	m.mu.Lock()
