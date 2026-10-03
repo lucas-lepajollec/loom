@@ -19,8 +19,8 @@ import { LoomUpdates } from './updates.js';
 import { ModelDirs, DirectEngineForm } from './page.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
-const NAMES = { hermes: 'Hermes', 'claude-code': 'Claude Code', codex: 'Codex', pi: 'Pi', gemini: 'Gemini', opencode: 'OpenCode', antigravity: 'Antigravity' };
-const LOCAL_HARNESSES = ['claude-code', 'codex', 'gemini', 'pi', 'opencode', 'hermes', 'antigravity'];
+const NAMES = { hermes: 'Hermes', 'claude-code': 'Claude Code', codex: 'Codex', pi: 'Pi', opencode: 'OpenCode', antigravity: 'Antigravity' };
+const LOCAL_HARNESSES = ['claude-code', 'codex', 'pi', 'opencode', 'hermes', 'antigravity'];
 
 // Lien vers cette page depuis les endroits qui en ont besoin.
 export const MachinesLink = ({ label }) => html`<a class="btn sm ghost" href="#/settings/machines"><${Icon} n="server" />${label || t("settings.machines.gerer_les_machines")}</a>`;
@@ -112,7 +112,30 @@ function EngineSection({ m }) {
         </div>`}`}
   </${Group}>
   ${owns && !(node && node.direct) && html`<${ModelDirs} />`}
-  ${owns && node?.role === 'engine-node' && html`<${LoomUpdates} node=${true} />`}`;
+  ${m && html`<${MachineNodeMaintenance} key=${m.id} m=${m} />`}`;
+}
+
+function MachineNodeMaintenance({ m }) {
+  const base = '/api/machines/' + encodeURIComponent(m.id) + '/node';
+  const [info, setInfo] = useState(null), [form, setForm] = useState(null), [busy, setBusy] = useState(false);
+  useEffect(() => { let alive = true; get(base).then(r => { if (alive && r.ok) setInfo(r); }).catch(() => {}); return () => { alive = false; }; }, [m.id]);
+  const save = async () => {
+    setBusy(true);
+    try { const r = await post(base, form); if (!r.ok) return toast(r.error, 'err'); setForm(null); setInfo(r); }
+    catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
+  };
+  return html`<${Group} title=${t('node.maintenance')}>
+    <p class="set-note">${t('node.maintenance_note')}</p>
+    <${Line} label=${t('node.address')}>
+      ${info?.linked && html`<span class="mono">${info.url}</span>`}
+      <button class="btn sm" onClick=${() => setForm({ url: info?.url || 'http://' + m.host + ':2511', key: '' })}>${t('node.maintenance_link')}</button>
+    </${Line}>
+    ${form && html`<div class="eng-link">
+      <label class="field"><span>${t('node.address')}</span><input class="input mono" value=${form.url} onInput=${e => setForm({ ...form, url: e.target.value })} /></label>
+      <label class="field"><span>${t('settings.machines.sa_cle_de_pilotage')}</span><input class="input mono" type="password" autocomplete="off" value=${form.key} onInput=${e => setForm({ ...form, key: e.target.value })} /></label>
+      <div class="form-foot"><button class="btn ghost" onClick=${() => setForm(null)}>${t('settings.machines.annuler')}</button><button class="btn primary" disabled=${busy || !form.url || !form.key} onClick=${save}>${t('node.maintenance_save')}</button></div>
+    </div>`}
+  </${Group}>${info?.linked && html`<${LoomUpdates} key=${info.url} node=${true} endpoint=${base + '/update'} />`}`;
 }
 
 function HarnessesSection({ m, target, where, offers, onChange }) {

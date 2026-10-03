@@ -7,7 +7,7 @@ and replays up to 256 KiB of recent output when reattached. It ends when its she
 exits, when explicitly closed or when Loom exits; sessions do not survive a Loom
 restart. At most 16 terminals may run at once. **Resume in a terminal** reopens
 a supported harness’s native session on its original machine and in its working
-folder: Claude Code, Codex, OpenCode, Pi, Gemini and Hermes have known resume
+folder: Claude Code, Codex, OpenCode, Pi and Hermes have known resume
 commands; Antigravity does not currently have one in Loom. The discussion must
 already have a native session ID.
 

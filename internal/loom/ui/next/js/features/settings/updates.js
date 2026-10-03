@@ -13,8 +13,8 @@ export async function waitForUpdatedVersion(version, read = get, pause = ms => n
   return false;
 }
 
-export function LoomUpdates({ node = false } = {}) {
- const base = node ? '/api/engine/node/update' : '/api/update';
+export function LoomUpdates({ node = false, endpoint = '' } = {}) {
+ const base = endpoint || (node ? '/api/engine/node/update' : '/api/update');
   const [info, setInfo] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');

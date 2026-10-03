@@ -65,8 +65,8 @@ export async function download(url, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-export async function get(url) {
-  const r = await request(url);
+export async function get(url, opts = {}) {
+  const r = await request(url, opts);
   return r.json();
 }
 

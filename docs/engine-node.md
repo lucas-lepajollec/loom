@@ -178,7 +178,14 @@ native capabilities remain unsupported. Source builds still need system build
 dependencies; Loom never runs its interface as root to solve permissions.
 
 Local one-shot benchmarks and GGUF/preset benchmark queues reuse the existing
-native benchmark handlers. Node queues reject cloud choices before provider
+native benchmark handlers. Mixed queues and saved tests/history belong to the main Loom. The main dispatches
+only local rows to the node, using its existing queue API. Updated nodes advertise
+`scoped_cancel`; cancellation supplies `X-Loom-Bench-Job` and refuses a different
+current job atomically. Older nodes can run tests but need a manual stop when the
+main queue is cancelled; their stored responses may be preview-only. Temporary
+custom tests are deleted after dispatch; an unreachable node can retain one.
+
+Node queues reject cloud choices before provider
 lookup; stop vLLM before a GGUF sweep. Its active model can use the one-shot
 benchmark. Servers without native phase timings leave prefill/decode rates
 unknown rather than deriving an arbitrary split of elapsed time. No benchmark
@@ -208,3 +215,24 @@ unsupported in this initial Linux implementation; direct inference-server links
 remain available there. Migration from a previous full Loom is manual and
 separate: back up data and link existing models/binaries before stopping or
 removing old services.
+
+## Maintenance for each connected machine
+
+In **Settings › Machines › a machine**, configure its engine-node address and
+management token under **Engine node management**. The same page can check and
+apply a Loom release for that node even when a different engine serves current
+discussions. Linking an engine through a matching machine address remembers its
+maintenance access automatically. The token is stored with local secrets,
+never returned in machine JSON or saved in browser storage. Removing the SSH
+machine removes its saved maintenance credential; it does not uninstall the
+remote node or remove its data.
+
+`GET/POST /api/machines/{id}/node` observes/saves maintenance access (POST
+`{url,key}`, or `{unlink:true}`). `GET /api/machines/{id}/node/update` checks the
+node's official release, `POST .../update/apply` applies the reviewed version,
+and `GET .../update/ping` observes its restart. These authenticated,
+origin-protected routes require an unlocked vault when encryption is enabled.
+Only the saved node receives its own credential; redirects are refused. Node
+updates use the same checksum verification, installer capability checks and
+restart handling as the existing active-node update. Applying a release still
+requires confirmation and may interrupt the node's engines.

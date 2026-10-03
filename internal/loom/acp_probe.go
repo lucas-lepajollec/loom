@@ -45,8 +45,8 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 		out.Duration = time.Since(started).Seconds()
 		return out
 	}
-	if !agent.available() {
-		return fail(errors.New("harness CLI or ACP launcher unavailable"))
+	if reason := agent.unavailableReason(); reason != "" {
+		return fail(errors.New(reason))
 	}
 	dir, err := os.MkdirTemp("", "loom-acp-probe-")
 	if err != nil {
@@ -167,6 +167,11 @@ func handleACPProbe(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodGet {
 		p, _ := loadACPProbe(id)
+		// Availability is a local executable check, not a native account read.
+		// Do not keep an old generic error when today's missing dependency is known.
+		if reason := agent.unavailableReason(); reason != "" {
+			p.Error = reason
+		}
 		sendJSON(w, 200, map[string]any{"ok": true, "probe": p})
 		return
 	}

@@ -54,6 +54,58 @@ func newRegistryFixture(id string) *registryFixtureAdapter {
 	}
 }
 
+func TestQuotaReadDoesNotBlockSnapshotsOrOtherAccounts(t *testing.T) {
+	testHome(t)
+	slow, other := newRegistryFixture("slow-account"), newRegistryFixture("other-account")
+	isolateRuntimeRegistry(t, slow, other)
+	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	slow.onQuota = func() { close(entered); <-release }
+	mux := newWebMux()
+	post := func(id string) *httptest.ResponseRecorder {
+		r := localTestRequest("POST", "/api/runtimes/"+id+"/quota", strings.NewReader(`{}`))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		return w
+	}
+	go func() { defer close(done); post("slow-account") }()
+	var finished chan struct{}
+	t.Cleanup(func() {
+		close(release)
+		<-done
+		if finished != nil {
+			<-finished
+		}
+	})
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("read did not start")
+	}
+	// Even after the throttle interval, the same account cannot start a second
+	// native process while its first read is still running.
+	quotaCache.Lock()
+	quotaCache.attempts["slow-account"] = time.Time{}
+	quotaCache.Unlock()
+	if got := post("slow-account").Code; got != 429 {
+		t.Fatalf("in-flight duplicate = %d", got)
+	}
+	finished = make(chan struct{})
+	go func() {
+		defer close(finished)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, localTestRequest("GET", "/api/usage", nil))
+		if w.Code != 200 || post("other-account").Code != 200 {
+			t.Error("snapshot or other account unavailable")
+		}
+	}()
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("slow native read holds global cache lock")
+	}
+}
+
 func isolateRuntimeRegistry(t *testing.T, adapters ...RuntimeAdapter) {
 	t.Helper()
 	old := registeredRuntimes
@@ -115,7 +167,7 @@ func TestRuntimeRegistryOrderAndIsolation(t *testing.T) {
 }
 
 func TestRuntimeRegistryStartupCatalog(t *testing.T) {
-	want := []string{"llama.cpp", "openai-compatible", "antigravity", "codex", "claude-code", "pi", "gemini", "opencode", "hermes"}
+	want := []string{"llama.cpp", "openai-compatible", "antigravity", "codex", "claude-code", "pi", "opencode", "hermes"}
 	got := []string{}
 	for _, d := range runtimeCatalog() {
 		got = append(got, d.ID)

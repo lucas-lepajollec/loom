@@ -50,7 +50,7 @@ export async function openTerminalWith(spec) {
 
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-function TermView({ t: localT, onExit }) {
+export function TermView({ t: localT, onExit }) {
   const box = useRef();
   const [state, setState] = useState('connexion');
   useEffect(() => {
@@ -91,7 +91,7 @@ function TermView({ t: localT, onExit }) {
   </div>`;
 }
 
-const QUICK = [['', 'Shell'], ['claude', 'Claude Code'], ['codex', 'Codex'], ['gemini', 'Gemini'], ['pi', 'Pi'], ['hermes', 'Hermes'], ['opencode', 'OpenCode']];
+const QUICK = [['', 'Shell'], ['claude', 'Claude Code'], ['codex', 'Codex'], ['agy', 'Antigravity'], ['pi', 'Pi'], ['hermes', 'Hermes'], ['opencode', 'OpenCode']];
 
 function NewTerminal({ onClose, preset }) {
   const [machines, setMachines] = useState([]);

@@ -286,6 +286,15 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	if hresp.StatusCode != 200 {
 		return nil, fmt.Errorf("remote Loom's /v1 API refused the connection (HTTP %d)", hresp.StatusCode)
 	}
+	if n.Role == "engine-node" {
+		for _, m := range loadRemoteMachines() {
+			if u.Hostname() == m.Host {
+				if err := putStoreJSON(bkState, machineNodePrefix+m.ID, n); err != nil {
+					return nil, errors.New("machine maintenance access could not be saved")
+				}
+			}
+		}
+	}
 	if err := setEngineNode(n); err != nil {
 		return nil, err
 	}
@@ -311,8 +320,7 @@ var engineRoutes = map[string]bool{
 	"/api/engines/vllm": true, "/api/engines/vllm/params": true, "/api/engines/vllm/auto-update": true,
 	"/api/engines/vllm/models": true, "/api/engines/vllm/models/delete": true, "/api/engines/vllm/hub/search": true,
 	"/api/engines/vllm/download": true, "/api/engines/vllm/download/cancel": true,
-	"/api/bench": true, "/api/bench/last": true, "/api/bench/tests": true, "/api/bench/tests/delete": true,
-	"/api/bench/queue": true, "/api/bench/queue/cancel": true, "/api/bench/runs": true,
+	"/api/bench": true, "/api/bench/last": true,
 }
 
 // nodeAware sends an engine route to the linked remote Loom, with its control

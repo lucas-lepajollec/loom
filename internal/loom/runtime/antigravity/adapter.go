@@ -20,12 +20,18 @@ var agyModelID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$`)
 // Read commands use a fixed executable/argument list, never a shell. Credentials
 // stay with the CLI. Its stderr can contain private data and is never returned.
 func Read(ctx context.Context, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
 	path, err := exec.LookPath("agy")
 	if err != nil {
 		return nil, errors.New("agy CLI missing from Loom's PATH")
 	}
+	return ReadExecutable(ctx, path, args...)
+}
+
+// The application resolves user-installed CLIs using the same lookup as its
+// lifecycle/inspection services. This package does not own installation paths.
+func ReadExecutable(ctx context.Context, path string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 	dir, err := os.MkdirTemp("", "loom-agy-read-")
 	if err != nil {
 		return nil, errors.New("temporary directory unavailable")

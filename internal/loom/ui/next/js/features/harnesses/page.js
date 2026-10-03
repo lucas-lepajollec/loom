@@ -1,3 +1,4 @@
+import { useVisibleRefresh } from '../usage/refresh.js';
 import { t, locale, tSource } from '../../core/i18n.js';
 // Harnesses : agents qui exécutent (Codex, Antigravity…). Loom garde la
 // discussion ; chaque harness garde son compte, ses permissions et sa mémoire.
@@ -14,8 +15,8 @@ import { groupVariants } from '../chat/picker.js';
 import { setVisible } from '../cloud/page.js';
 import { newDiscussion, chooseRemote, open as openChat } from '../chat/engine.js';
 
-import { openTerminalWith } from '../terminals/page.js';
 import { Lifecycle, remoteHarnessTarget } from './lifecycle.js';
+import { HarnessAccount } from './account.js';
 
 // Ce que Loom sait vraiment piloter aujourd'hui, par capacité déclarée.
 const CAPS = () => ([
@@ -231,13 +232,13 @@ function RemoteState({ rt }) {
     <div class="card pad"><${Lifecycle} target=${localT.target} id=${localT.id} name=${rt.name} where=${t("harnesses.page.sur_2") + localT.machine.name} /></div></section>`;
 }
 
-function MachineState({ rt, commands }) {
+function MachineState({ rt, commands, accountRevision = 0 }) {
   const [x, setX] = useState(null);
   const load = async refresh => {
     const r = await get('/api/runtimes/' + rt.id + '/inspect' + (refresh ? '?refresh=1' : '')).catch(() => null);
     setX(r && r.ok ? r.inspection : false);
   };
-  useEffect(() => { load(false); }, [rt.id]);
+  useEffect(() => { load(accountRevision > 0); }, [rt.id, accountRevision]);
   const adopt = async m => {
     const r = await post('/api/runtimes/' + rt.id + '/mcp/adopt', { name: m.name }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return toast(r.error || t("harnesses.page.adoption_impossible"), 'err');
@@ -275,10 +276,18 @@ function AcpDetail({ rt, models, onEdit }) {
   const nav = useStore(app, a => a.nav);
   const [probe, setProbe] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountRevision, setAccountRevision] = useState(0);
   const [extra, setExtra] = useState({ usage: [], quota: null, target: null, mcp: [] });
   const [native, setNative] = useState(null);
   // Usage natif (toutes les sessions du harness, 7 jours), lu en arrière-plan.
   useEffect(() => { setNative(null); get('/api/usage/native?days=7').then(r => { const h = (r.harnesses || []).find(x => x.runtime_id === rt.id); setNative(h && !h.error && (h.sessions || h.total_tokens) ? h : null); }).catch(() => {}); }, [rt.id]);
+  useVisibleRefresh(async alive => {
+    if (accountOpen || rt.connected !== true || rt.available === false || !(rt.capabilities || []).includes('quota')) return;
+    await post('/api/runtimes/' + encodeURIComponent(rt.id) + '/quota', {}, { retryAuth: false, timeout: 65000 }).catch(() => null);
+    const result = await get('/api/usage', { retryAuth: false });
+    if (alive() && result.ok !== false) setExtra(previous => ({ ...previous, quota: (result.quotas || []).find(q => q.runtime_id === rt.id) || null }));
+  }, 30000, rt.id + '|' + rt.connected + '|' + accountOpen);
   const [custom, setCustom] = useState(null);
   const load = async () => {
     const [p, u, localT, m] = await Promise.all([get('/api/runtimes/' + rt.id + '/probe').catch(() => ({})), get('/api/usage').catch(() => ({})),
@@ -303,11 +312,7 @@ function AcpDetail({ rt, models, onEdit }) {
     await refreshWorkspace();
   };
   const login = async () => {
-    const r = await get('/api/runtimes/' + rt.id + '/login').catch(e => ({ ok: false, error: e.message }));
-    if (!r.ok) return toast(r.error, 'err');
-    if (!await confirm(t('harnesses.connection.login'), t('harnesses.connection.login_note'))) return;
-    if (r.note) toast(r.note);
-    openTerminalWith(r);
+    setAccountOpen(true);
   };
   const startWith = async choice => {
     if (!choice) return toast(t("harnesses.page.ce_harness_n_est_pas_encore_disponible"), 'err');
@@ -338,9 +343,9 @@ function AcpDetail({ rt, models, onEdit }) {
         <button class="btn" disabled=${busy || missing} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}${rt.connected ? t("harnesses.page.actualiser") : t("harnesses.connection.connect")}</button>
         <button class="btn primary" disabled=${missing || !choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />${t("harnesses.page.nouvelle_discussion")}</button></div></div>
 
-    <section class="sec"><div class="card pad"><div class="kv"><span>${t('harnesses.connection.loom')}</span><span>${rt.connected ? t('harnesses.connection.connected') : t('harnesses.connection.disconnected')}</span></div><div class="acts"><button class="btn" disabled=${missing} onClick=${login}>${t('harnesses.connection.login')}</button>${rt.connected && html`<button class="btn ghost" onClick=${disconnect}>${t('harnesses.connection.disconnect')}</button>`}</div><p class="note">${t('harnesses.connection.account_note')}</p></div></section>
+    <section class="sec"><div class="card pad"><div class="kv"><span>${t('harnesses.connection.loom')}</span><span>${rt.connected ? t('harnesses.connection.connected') : t('harnesses.connection.disconnected')}</span></div><div class="acts"><button class="btn" onClick=${login}>${t('harnesses.connection.login')}</button>${rt.connected && html`<button class="btn ghost" onClick=${disconnect}>${t('harnesses.connection.disconnect')}</button>`}</div><p class="note">${t('harnesses.connection.account_note')}</p></div></section>
     <div class=${cls('card local-strip' , native && 'five')}>
-      <div><div class="lbl">${t("harnesses.page.etat")}</div><div class="v"><i class=${'dot ' + (missing ? '' : probe && probe.error && !cfg.length ? 'red' : 'green')}></i><span class="t">${missing ? t("harnesses.page.non_installe") : probe && probe.error && !cfg.length ? t("harnesses.page.a_verifier") : t("harnesses.page.pret")}</span></div>
+      <div><div class="lbl">${t("harnesses.page.etat")}</div><div class="v"><i class=${'dot ' + (missing ? '' : probe && probe.error && !cfg.length ? 'red' : 'green')}></i><span class="t">${missing ? t("harnesses.account.unavailable") : probe && probe.error && !cfg.length ? t("harnesses.page.a_verifier") : t("harnesses.page.pret")}</span></div>
         <div class="sub">${probe && probe.at ? t("harnesses.page.lu") + ago(probe.at) : t("harnesses.page.pas_encore_lu")}</div></div>
       <div><div class="lbl">${t("harnesses.page.modeles")}</div><div class="v"><b>${list.length || '—'}</b></div><div class="sub">${modelOpt ? t("harnesses.page.par_defaut") + ((list.find(x => x.value === modelOpt.currentValue) || {}).name || modelOpt.currentValue) : t("harnesses.page.non_annonces")}</div></div>
       <div><div class="lbl">${t("harnesses.page.discussions")}</div><div class="v"><b>${talks.length}</b></div><div class="sub">${turns} ${t("harnesses.page.tour")}${turns > 1 ? 's' : ''} ${t("harnesses.page.dans_loom")}</div></div>
@@ -349,8 +354,9 @@ function AcpDetail({ rt, models, onEdit }) {
       ${native && html`<div><div class="lbl">${t('harnesses.native.label')}<${Tip} text=${t('harnesses.native.tip')} /></div>
         <div class="v"><b>${fmtTok(native.total_tokens)}</b><span class="t">tokens</span></div><div class="sub"><a href="#/usage">${t('harnesses.native.sessions', { n: native.sessions })}</a></div></div>`}
     </div>
-    ${probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
-    ${!rt.custom && html`<${MachineState} rt=${rt} commands=${probe && probe.commands ? probe.commands.length : null} />`}
+    ${!missing && probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
+    ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => setAccountRevision(n => n + 1)} onConnect=${refresh} />`}
+    ${!rt.custom && html`<${MachineState} rt=${rt} accountRevision=${accountRevision} commands=${probe && probe.commands ? probe.commands.length : null} />`}
     ${rt.custom && rt.machine && html`<${RemoteState} rt=${rt} />`}
     <${ModelSource} rt=${rt} />
     <${LoomResources} rt=${rt} />

@@ -24,7 +24,8 @@ import (
 var procBoot = time.Now().UnixMilli()
 
 func handlePing(w http.ResponseWriter, r *http.Request) {
-	sendJSON(w, 200, map[string]any{"ok": true, "service": "loom", "version": Version})
+	host, _ := os.Hostname()
+	sendJSON(w, 200, map[string]any{"ok": true, "service": "loom", "version": Version, "hostname": host})
 }
 
 // handleStatus reports service state cross-platform via serviceIsActive

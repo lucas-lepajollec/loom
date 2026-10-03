@@ -8,7 +8,7 @@ export const app = createStore({
   route: parseRoute(),
   theme: localStorage.getItem('loom-theme') || 'dark',
   sideOpen: false, palette: false, inspector: innerWidth > 1100 && localStorage.getItem('loom.next.insp') !== '0',
-  status: null, gpus: [], ram: null, engineNode: null,
+  status: null, serverInfo: null, gpus: [], ram: null, engineNode: null,
   workspace: null, presets: [], models: [],
   nav: { conversations: [], projects: [], active: '' },
 });
@@ -40,7 +40,12 @@ export async function refreshEngineNode() {
 }
 
 export async function refreshStatus() {
-  try { app.set({ status: await get('/api/status') }); } catch (_) {}
+  // /status belongs to the engine and may be forwarded to another machine.
+  // /ping always identifies this control plane, including after an update.
+  await Promise.allSettled([
+    get('/api/status').then(status => app.set({ status })),
+    get('/api/ping').then(serverInfo => app.set({ serverInfo })),
+  ]);
 }
 export async function refreshHardware() {
   if (document.hidden) return;

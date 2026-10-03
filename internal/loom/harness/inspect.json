@@ -237,57 +237,6 @@
     "update_install": true,
     "source": "https://antigravity.google/docs/cli/install/"
   },
-  "gemini": {
-    "binary": "gemini",
-    "version": [
-      "gemini",
-      "--version"
-    ],
-    "update": [
-      "npm",
-      "install",
-      "-g",
-      "@google/gemini-cli@latest"
-    ],
-    "mcp": {
-      "cmd": [
-        "gemini",
-        "mcp",
-        "list"
-      ],
-      "format": "lines"
-    },
-    "skills": [
-      "~/.gemini/skills",
-      "~/.agents/skills"
-    ],
-    "env": [
-      "GEMINI_API_KEY",
-      "GOOGLE_API_KEY"
-    ],
-    "install": {
-      "unix": [
-        "npm",
-        "install",
-        "-g",
-        "@google/gemini-cli"
-      ],
-      "windows": [
-        "npm",
-        "install",
-        "-g",
-        "@google/gemini-cli"
-      ]
-    },
-    "latest": {
-      "npm": "@google/gemini-cli"
-    },
-    "requires": [
-      "npm",
-      "node"
-    ],
-    "source": "https://geminicli.com/docs/get-started/installation/"
-  },
   "hermes": {
     "binary": "hermes",
     "version": [

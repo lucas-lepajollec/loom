@@ -68,7 +68,8 @@ func runtimeForAction(w http.ResponseWriter, id string) (RuntimeAdapter, bool) {
 }
 
 // Shared by the path-based action and the historical body-based refresh API.
-// The existing 30-second throttle, cache and stale readings remain unchanged.
+// Reserve one read per runtime before releasing the cache lock. Slow native
+// reads must not block Usage GET or reads from other accounts.
 func refreshRuntimeQuota(w http.ResponseWriter, ctx context.Context, adapter RuntimeAdapter) {
 	reader, ok := adapter.(QuotaReader)
 	d := adapter.Descriptor()
@@ -77,26 +78,35 @@ func refreshRuntimeQuota(w http.ResponseWriter, ctx context.Context, adapter Run
 		return
 	}
 	quotaCache.Lock()
-	defer quotaCache.Unlock()
-	if time.Since(quotaCache.attempts[d.ID]) < 30*time.Second {
+	if quotaCache.flights == nil {
+		quotaCache.flights = map[string]bool{}
+	}
+	if quotaCache.flights[d.ID] || time.Since(quotaCache.attempts[d.ID]) < 30*time.Second {
+		quotaCache.Unlock()
 		sendJSON(w, http.StatusTooManyRequests, map[string]any{"ok": false, "error": "wait 30 seconds between reads"})
 		return
 	}
 	quotaCache.attempts[d.ID] = time.Now()
+	quotaCache.flights[d.ID] = true
+	quotaCache.Unlock()
+	defer func() { quotaCache.Lock(); delete(quotaCache.flights, d.ID); quotaCache.Unlock() }()
 	q, err := reader.Quota(ctx)
 	if !usageVaultAccess(w) {
 		return
 	}
+	quotaCache.Lock()
 	if err != nil {
 		previous := quotaCache.items[d.ID]
 		previous.RuntimeID = d.ID
 		previous.Error = err.Error()
 		quotaCache.items[d.ID] = previous
+		quotaCache.Unlock()
 		sendRuntimeActionError(w, err)
 		return
 	}
 	q.RuntimeID = d.ID
 	quotaCache.items[d.ID] = q
+	quotaCache.Unlock()
 	sendJSON(w, http.StatusOK, map[string]any{"ok": true, "quota": q})
 }
 

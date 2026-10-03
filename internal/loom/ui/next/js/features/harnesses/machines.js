@@ -95,7 +95,7 @@ export function MachineDialog({ machine, onClose }) {
   </${Modal}>`;
 }
 
-const NAMES = { hermes: 'Hermes', 'claude-code': 'Claude Code', codex: 'Codex', pi: 'Pi', gemini: 'Gemini', opencode: 'OpenCode' };
+const NAMES = { hermes: 'Hermes', 'claude-code': 'Claude Code', codex: 'Codex', pi: 'Pi', opencode: 'OpenCode' };
 
 export function MachinesSection({ onEdit }) {
   const [data, setData] = useState(null);

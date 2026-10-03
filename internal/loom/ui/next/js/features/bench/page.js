@@ -1,68 +1,113 @@
 import { t } from '../../core/i18n.js';
-// Bench : une file de modèles locaux et cloud mesurés un par un avec le même
-// test (intégré ou prompt personnalisé). Un vrai système de bench viendra plus tard.
-import { html, useState, useEffect, useStore, cls, fmtBytes } from '../../core/lib.js';
+// One model-only test across engines, APIs and supported native accounts.
+import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
-import { toast, prompt, confirm } from '../../ui/dialog.js';
-import { get, post } from '../../core/api.js';
-import { app, refreshLibrary, refreshWorkspace } from '../../core/state.js';
+import { toast, confirm, Modal } from '../../ui/dialog.js';
+import { get, post, request } from '../../core/api.js';
+import { app, refreshLibrary } from '../../core/state.js';
 import { vendorOf } from '../chat/picker.js';
+import { useVisibleRefresh } from '../usage/refresh.js';
+import { benchChoices, benchMethod } from './choices.js';
 
 const n1 = v => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(1);
 const secs = v => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(v < 10 ? 2 : 1) + ' s';
 
 function Pick({ i, on, onChange }) {
   return html`<label class=${cls('choice', on && 'on')}>
-    <input type="checkbox" checked=${on} onChange=${e => onChange(e.target.checked)} />
+    <input type="checkbox" disabled=${!i.supported} checked=${on} onChange=${e => onChange(e.target.checked)} />
     <${Logo} name=${i.logo} size="sm" />
     <span class="grow"><b>${i.name}</b><small>${i.sub}</small></span></label>`;
 }
 
 export function BenchPage() {
-  const { models, presets, workspace } = useStore(app, s => ({ models: s.models, presets: s.presets, workspace: s.workspace }));
+  const { models, presets } = useStore(app, s => ({ models: s.models, presets: s.presets }));
+  const [catalog, setCatalog] = useState([]);
+  const [runs, setRuns] = useState([]);
+  const [viewed, setViewed] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ name: '', prompt: '', max_tokens: 400 });
+  const [sending, setSending] = useState(false);
+  const finished = useRef('');
+  const alive = useRef(true);
+  const viewRequest = useRef(0);
+  useEffect(() => () => { alive.current = false; viewRequest.current++; }, []);
   const [tests, setTests] = useState([]);
   const [test, setTest] = useState('perf');
   const [pick, setPick] = useState({});
   const [job, setJob] = useState(null);
   const load = async () => { const r = await get('/api/bench/tests'); setTests(r.tests || []); };
-  const poll = async () => { try { const r = await get('/api/bench/queue'); setJob(r.job || null); } catch (_) {} };
-  useEffect(() => { refreshLibrary(); refreshWorkspace(); load(); poll(); const localT = setInterval(poll, 1500); return () => clearInterval(localT); }, []);
-  const weights = (models || []).filter(m => !m.mmproj && !/mmproj/i.test(m.name));
-  const local = [...(presets || []).map(p => ({ key: 'p:' + p.id, name: p.name, sub: t("bench.page.preset"), logo: vendorOf(p.model || p.name), v: { preset: p.id, name: p.name, model: p.model || '' } })),
-    ...weights.map(m => ({ key: 'm:' + m.path, name: m.name.replace(/\.gguf$/i, ''), sub: fmtBytes(m.size), logo: vendorOf(m.name), v: { model: m.path, name: m.name } }))];
-  const cloud = ((workspace && workspace.models) || []).filter(m => m.kind === 'cloud' && m.enabled)
-    .map(m => ({ key: 'c:' + m.id, name: m.name, sub: m.provider_name, logo: m.provider_name, cloud: true, v: { choice_id: m.id, name: m.name } }));
-  const all = [...local, ...cloud];
-  const chosen = all.filter(i => pick[i.key]);
-  const busy = job && job.status === 'running';
-  const run = async () => {
-    const remote = chosen.filter(i => i.cloud);
-    if (remote.length && !await confirm(t("bench.page.envoyer_le_test_au_cloud"), t("bench.page.le_prompt_du_test_sera_envoye_a") + [...new Set(remote.map(i => i.sub))].join(', ') + t("bench.page.ces_requetes_peuvent_etre_facturees_par_le_fournisseur"), { ok: t("bench.page.lancer") })) return;
-    const r = await post('/api/bench/queue', { test_id: test, models: chosen.map(i => i.v), consent: remote.length > 0 });
-    if (!r.ok) return toast(r.error, 'err'); setJob(r.job);
+  const poll = async alive => {
+    const r = await get('/api/bench/queue?compact=1', { retryAuth: false });
+    if (!r.ok || !alive()) return;
+    if (r.job && r.job.status !== 'running' && finished.current !== r.job.id + r.job.status + (r.job.finished || 0)) {
+      const [full, history] = await Promise.all([get('/api/bench/queue', { retryAuth: false }), get('/api/bench/runs?compact=1', { retryAuth: false })]);
+      if (!alive()) return;
+      if (full.ok) { setJob(full.job || null); finished.current = full.job ? full.job.id + full.job.status + (full.job.finished || 0) : ''; }
+      if (history.ok) setRuns(history.runs || []);
+    } else setJob(old => old?.id === r.job?.id && old?.status === r.job?.status && old?.status !== 'running' ? old : r.job || null);
   };
-  const addTest = async () => {
-    const text = await prompt(t("bench.page.nouveau_test"), { message: t("bench.page.le_prompt_envoye_a_chaque_modele_les_sorties_sont_comparees_cote"), placeholder: t("bench.page.ex_explique_le_theoreme_de_pythagore"), ok: t("bench.page.creer") });
-    if (!text) return;
-    const r = await post('/api/bench/tests', { name: text.slice(0, 40), prompt: text, max_tokens: 400 }); if (!r.ok) return toast(r.error, 'err'); setTests(r.tests || []);
+  useEffect(() => { refreshLibrary(); load().catch(e => toast(e.message, 'err')); }, []);
+  useVisibleRefresh(poll, 1500);
+  useVisibleRefresh(async alive => { const r = await get('/api/bench/catalog', { retryAuth: false }); if (alive() && r.ok) setCatalog(r.models || []); }, 10000);
+  const weights = (models || []).filter(m => !m.mmproj && !/mmproj/i.test(m.name));
+  const local = [...(presets || []).map(p => ({ key: 'p:' + p.id, name: p.name, sub: t("bench.page.preset"), logo: vendorOf(p.model || p.name), supported: true, v: { preset: p.id, name: p.name, model: p.model || '' } })),
+    ...weights.map(m => ({ key: 'm:' + m.path, name: m.name.replace(/\.gguf$/i, ''), sub: fmtBytes(m.size), logo: vendorOf(m.name), supported: true, v: { model: m.path, name: m.name } }))];
+  const external = benchChoices(catalog, t);
+  const cloud = external.filter(i => i.kind === 'cloud');
+  const accounts = external.filter(i => i.kind === 'harness');
+  const all = [...local, ...external];
+  const chosen = all.filter(i => i.supported && pick[i.key]);
+  const busy = job && (job.status === 'running' || job.status === 'cancel' && !job.finished);
+  const display = viewed || job;
+  const run = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const remote = chosen.filter(i => i.external);
+      if (remote.length && !await confirm(t('bench.external_confirm'), t('bench.external_consent') + ' ' + [...new Set(remote.map(i => i.provider))].join(', '), { ok: t('bench.page.lancer') })) return;
+      const r = await post('/api/bench/queue', { test_id: test, models: chosen.map(i => i.v), consent: remote.length > 0 });
+      if (!r.ok) return toast(r.error, 'err'); setJob(r.job); setViewed(null);
+    } catch (e) { toast(e.message, 'err'); }
+    finally { setSending(false); }
+  };
+  const addTest = async e => {
+    e.preventDefault();
+    if (sending) return;
+    setSending(true);
+    try { const r = await post('/api/bench/tests', draft); if (!r.ok) return toast(r.error, 'err'); setTests(r.tests || []); setTest(r.test.id); setAdding(false); setDraft({ name: '', prompt: '', max_tokens: 400 }); }
+    catch (e) { toast(e.message, 'err'); } finally { setSending(false); }
+  };
+  const viewRun = async id => {
+    const requestID = ++viewRequest.current;
+    if (!id) { setViewed(null); return; }
+    try { const r = await get('/api/bench/runs?id=' + encodeURIComponent(id)); if (r.ok && alive.current && viewRequest.current === requestID) setViewed(r.runs?.[0] || null); }
+    catch (e) { toast(e.message, 'err'); }
   };
   const delTest = async localT => { if (!await confirm(t("bench.page.supprimer_le_test"), '« ' + localT.name + t("bench.page.sera_supprime"), { ok: t("bench.page.supprimer"), danger: true })) return; const r = await post('/api/bench/tests/delete', { id: localT.id }); setTests(r.tests || []); if (test === localT.id) setTest('perf'); };
-  const setMany = (list, v) => setPick({ ...pick, ...Object.fromEntries(list.map(i => [i.key, v])) });
+  const stop = async () => {
+    try {
+      const response = await request('/api/bench/queue/cancel', { method: 'POST', headers: { 'X-Loom-Bench-Job': job.id } });
+      const r = await response.json();
+      if (!r.ok) return toast(r.error, 'err');
+      setJob(r.job || null);
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  const setMany = (list, v) => setPick({ ...pick, ...Object.fromEntries(list.filter(i => i.supported).map(i => [i.key, v])) });
   const group = (title, list, empty) => html`<div class="bench-g">
-    <div class="bench-gh"><span>${title}</span><span class="count">${list.filter(i => pick[i.key]).length}/${list.length}</span><span class="grow"></span>
-      ${list.length > 0 && html`<button class="btn sm ghost" onClick=${() => setMany(list, !list.every(i => pick[i.key]))}>${list.every(i => pick[i.key]) ? t("bench.page.aucun") : t("bench.page.tout")}</button>`}</div>
-    ${list.length ? html`<div class="choice-list">${list.map(i => html`<${Pick} key=${i.key} i=${i} on=${!!pick[i.key]} onChange=${v => setPick({ ...pick, [i.key]: v })} />`)}</div>` : html`<p class="note">${empty}</p>`}</div>`;
+    <div class="bench-gh"><span>${title}</span><span class="count">${list.filter(i => i.supported && pick[i.key]).length}/${list.length}</span><span class="grow"></span>
+      ${list.some(i => i.supported) && html`<button class="btn sm ghost" onClick=${() => setMany(list, !list.filter(i => i.supported).every(i => pick[i.key]))}>${list.filter(i => i.supported).every(i => pick[i.key]) ? t("bench.page.aucun") : t("bench.page.tout")}</button>`}</div>
+    ${list.length ? html`<div class="choice-list">${list.map(i => html`<${Pick} key=${i.key} i=${i} on=${i.supported && !!pick[i.key]} onChange=${v => setPick(old => ({ ...old, [i.key]: v }))} />`)}</div>` : html`<p class="note">${empty}</p>`}</div>`;
 
   return html`<div class="view page"><div class="page-in">
-    <div class="page-head"><div><h1>${t("bench.page.bench")}</h1><p>${t("bench.page.compare_la_vitesse_de_tes_modeles_locaux_et_cloud_sur_le_meme_tes")}</p></div>
-      <div class="acts">${busy ? html`<button class="btn" onClick=${async () => { const r = await post('/api/bench/queue/cancel', {}); setJob(r.job || null); }}>${t("bench.page.arreter_la_file")}</button>`
-        : html`<button class="btn primary" disabled=${!chosen.length} onClick=${run}><${Icon} n="play" />${t("bench.page.lancer")}${chosen.length ? ' (' + chosen.length + ')' : ''}</button>`}</div></div>
+    <div class="page-head"><div><h1>${t("bench.page.bench")}</h1><p>${t('bench.description')}</p></div>
+      <div class="acts">${busy ? html`<button class="btn" onClick=${stop}>${t("bench.page.arreter_la_file")}</button>`
+        : html`<button class="btn primary" disabled=${!chosen.length || chosen.length > 16 || sending} onClick=${run}><${Icon} n="play" />${t("bench.page.lancer")}${chosen.length ? ' (' + chosen.length + ')' : ''}</button>`}</div></div>
     <div class="bench">
       <div class="grid-bench">
         <div class="card pad">
-          <div class="sec-h"><h2>${t("bench.page.test")}</h2><button class="btn sm ghost" onClick=${addTest}><${Icon} n="plus" />${t("bench.page.nouveau")}</button></div>
+          <div class="sec-h"><h2>${t("bench.page.test")}</h2><button class="btn sm ghost" onClick=${() => setAdding(true)}><${Icon} n="plus" />${t("bench.page.nouveau")}</button></div>
           <div class="choice-list">${tests.map(localT => html`<label class=${cls('choice', test === localT.id && 'on')}>
             <input type="radio" name="bt" checked=${test === localT.id} onChange=${() => setTest(localT.id)} />
             <span class="grow"><b>${localT.name}</b><small>${localT.kind === 'perf' ? t("bench.page.2000_tokens_de_prompt_puis_300_generes") : (localT.prompt || '').slice(0, 70)}</small></span>
@@ -72,25 +117,37 @@ export function BenchPage() {
           <div class="sec-h"><h2>${t("bench.page.modeles")}</h2></div>
           ${group('Local', local, t("bench.page.aucun_modele_dans_la_bibliotheque"))}
           ${group('Cloud', cloud, t("bench.page.aucun_modele_cloud_visible_connecte_un_fournisseur_dans_cloud"))}
+          ${group(t('bench.accounts'), accounts, t('bench.accounts_empty'))}
+          <p class="note">${t('bench.account_boundary')}</p><p class="note">${t('bench.selection_limit')}</p>
         </div>
       </div>
       <div class="card">
-        <div class="sec-h pad-h"><h2>${t("bench.page.resultats")}</h2></div>
-        ${job && (job.rows || []).length ? html`<div class="table bench-t">
-          <div class="tr th"><span>${t("bench.page.modele")}</span><span>${t("bench.page.premier_token")}</span><span>${t("bench.page.prefill")}</span><span>${t("bench.page.decode")}</span><span>${t("bench.page.duree")}</span></div>
-          ${job.rows.map((r, i) => {
+        <div class="sec-h pad-h"><h2>${t("bench.page.resultats")}</h2><span class="grow"></span>
+          <select class="input" aria-label=${t('bench.history')} disabled=${busy} value=${viewed?.id || ''} onChange=${e => viewRun(e.target.value)}><option value="">${t('bench.current')}</option>${runs.map(r => html`<option value=${r.id}>${r.test_name} · ${new Date(r.started * 1000).toLocaleString()}</option>`)}</select></div>
+        <p class="note pad-h">${t('bench.metrics_note')}</p>
+        ${display && html`<p class="note pad-h">${display.test_name}</p>`}
+        ${display && (display.rows || []).length ? html`<div class="table bench-t">
+          <div class="tr th"><span>${t("bench.page.modele")}</span><span>${t("bench.page.premier_token")}</span><span>${t("bench.page.prefill")}</span><span>${t('bench.output_rate')}</span><span>${t("bench.page.duree")}</span></div>
+          ${display.rows.map((r, i) => {
             const s = r.status || 'pending', res = r.result || {};
-            const lab = { pending: t("bench.page.en_attente"), loading: t("bench.page.chargement"), running: t('bench.page.measure'), err: r.error || t('common.error'), skip: t("bench.page.passe") }[s];
-            const isCloud = r.kind === 'cloud' || !!r.choice_id;
-            return html`<div class=${cls('tr', busy && i === job.index && 'current')}>
-              <span class="cell-id"><${Logo} name=${isCloud ? r.provider : vendorOf(r.name || r.model)} size="sm" /><span class="cell-main"><b>${r.name || r.model}</b><small class=${s === 'err' ? 'err' : ''}>${lab || (isCloud ? r.provider || 'cloud' : 'local')}</small></span></span>
+            const lab = { pending: t("bench.page.en_attente"), loading: t("bench.page.chargement"), running: t('bench.page.measure'), err: r.error || t('common.error'), skip: r.error || t("bench.page.passe") }[s];
+            const external = r.kind === 'cloud' || r.kind === 'account' || !!r.choice_id;
+            const method = benchMethod(r, t);
+            return html`<div class=${cls('tr', !viewed && busy && i === job.index && 'current')}>
+              <span class="cell-id"><${Logo} name=${external ? r.provider : vendorOf(r.name || r.model)} size="sm" /><span class="cell-main"><b>${r.name || r.model}</b><small class=${s === 'err' ? 'err' : ''}>${lab || method}</small></span></span>
               <span class="num">${s === 'ok' ? secs(res.ttft_sec) : '—'}</span>
               <span class="num">${s === 'ok' && res.prompt_per_second != null ? n1(res.prompt_per_second) + ' t/s' : '—'}</span>
               <span class="num strong">${s === 'ok' && res.predicted_per_second != null ? n1(res.predicted_per_second) + ' t/s' : '—'}</span>
               <span class="num">${s === 'ok' ? secs(res.elapsed_sec) : ''}</span>
-              ${r.preview && html`<details class="bench-prev"><summary>${t("bench.page.sortie")}</summary><p>${r.preview}</p></details>`}</div>`;
+              ${(r.output || r.preview) && html`<details class="bench-prev"><summary>${t("bench.page.sortie")}</summary><p>${r.output || r.preview}</p></details>`}</div>`;
           })}</div>` : html`<${Empty} icon="gauge" title="${t("bench.page.aucune_mesure")}" text="${t("bench.page.choisis_un_test_et_des_modeles_puis_lance_la_file_chaque_modele_e")}" />`}
       </div>
     </div>
+    ${adding && html`<${Modal} title=${t('bench.page.nouveau_test')} onClose=${() => setAdding(false)}><form class="bench-form" onSubmit=${addTest}>
+      <label class="field"><span>${t('bench.test_name')}</span><input class="input" required maxlength="100" value=${draft.name} onInput=${e => setDraft({ ...draft, name: e.target.value })} /></label>
+      <label class="field"><span>${t('bench.test_prompt')}</span><textarea class="textarea" required maxlength="32000" rows="6" value=${draft.prompt} onInput=${e => setDraft({ ...draft, prompt: e.target.value })}></textarea></label>
+      <label class="field"><span>${t('bench.output_budget')}</span><input class="input" type="number" min="1" max="4096" required value=${draft.max_tokens} onInput=${e => setDraft({ ...draft, max_tokens: Number(e.target.value) })} /></label>
+      <p class="note">${t('bench.same_prompt')}</p><button class="btn primary" disabled=${sending}>${t('bench.page.creer')}</button>
+    </form><//>`}
   </div></div>`;
 }
