@@ -45,7 +45,7 @@ func handleCapabilitySave(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	go syncSkillSinks() // skills distributed to harnesses follow Loom's copy
+	syncSkillSinksAsync() // skills distributed to harnesses follow Loom's copy
 	sendJSON(w, 200, map[string]any{"ok": true, "capability": saved})
 }
 
@@ -65,6 +65,6 @@ func handleCapabilityDelete(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	go syncSkillSinks()
+	syncSkillSinksAsync()
 	sendJSON(w, 200, map[string]any{"ok": true})
 }

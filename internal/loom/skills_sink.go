@@ -14,6 +14,13 @@ import (
 const skillSinkState = "skill_sinks"
 
 var skillSinkMu sync.Mutex
+var skillSinkJobs sync.WaitGroup
+
+// Register before returning to the caller, so lifecycle owners can wait for
+// background writes before releasing their data directory.
+func syncSkillSinksAsync() {
+	skillSinkJobs.Go(func() { syncSkillSinks() })
+}
 
 // Folder conventions: Claude Code reads ~/.claude/skills; Codex, Pi and other
 // Agent Skills readers use the shared ~/.agents/skills.

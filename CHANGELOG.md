@@ -4,7 +4,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-10-03
+## [0.2.1] - 2026-10-03
 
 ### Control plane audit
 
@@ -36,6 +36,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 - Runtime adapters use a typed synchronous event sink; the portable discussion no longer imports Antigravity's event type. Architecture docs distinguish the implemented stream from future protocol sketches.
 
 ### Fixed
+
+- Track asynchronous skill distribution so test fixtures wait for background writes before removing their data directory. The unpublished 0.2.0 candidate exposed a cleanup race in CI and is superseded by this release.
 
 - Repeated terminal opens are coalesced in the UI and optionally idempotent in the API; process-limit checking is serialized. Unix SSH terminals no longer start a nested login shell, preventing duplicate startup banners.
 - Control-plane HTML rejects framing by developer applications. Legacy mutation routes (engine actions, vault lock, chat reset/stop and related controls) reject GET and require origin-protected POST. Preview upstreams do not receive Loom authentication, and closing a preview stops upgraded WebSocket connections too.

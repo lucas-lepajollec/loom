@@ -10,7 +10,10 @@ func testHome(t *testing.T) string {
 	home := t.TempDir()
 	t.Setenv("LOOM_HOME", home)
 	firewallInert = true
-	t.Cleanup(func() { firewallInert = false })
+	t.Cleanup(func() {
+		skillSinkJobs.Wait()
+		firewallInert = false
+	})
 	return home
 }
 

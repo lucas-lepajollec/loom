@@ -119,7 +119,7 @@ func handleSkillSources(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		_ = putStoreJSON(bkState, skillSourcesState, kept)
-		go syncSkillSinks()
+		syncSkillSinksAsync()
 		sendJSON(w, 200, map[string]any{"ok": true})
 		return
 	}
@@ -156,7 +156,7 @@ func handleSkillSources(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	go syncSkillSinks()
+	syncSkillSinksAsync()
 	sendJSON(w, 200, map[string]any{"ok": true, "source": src})
 }
 
