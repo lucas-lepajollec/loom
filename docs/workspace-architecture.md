@@ -1,6 +1,6 @@
 # Loom workspace: discussions, models and context
 
-Current workspace contracts as of 2026-10-02. Read with the
+Current workspace contracts as of 2026-10-03. Read with the
 [architecture principles](architecture-principles.md),
 [package architecture](architecture.md) and [roadmap](ROADMAP.md).
 [ACP integration](agents/acp-implementation.md) documents harness execution.
@@ -26,6 +26,16 @@ common interface. The side panel adapts to the executor. Reuse existing UI
 components and styles; the visual design belongs to the design owner.
 `internal/loom/ui/next` contains native ES modules with vendored Preact + htm,
 embedded directly in the Go binary without an asset build step.
+
+### Narrow screens
+
+The existing shell becomes an opaque navigation drawer at 720px and below.
+Settings starts on a section index, then opens one section with a back link to
+`#/settings`; desktop keeps its side navigation. Hidden mobile sections are not
+mounted. Anchored model menus follow the visual viewport, resize and content
+changes. Bench and Usage use labeled metric blocks below 900px, preserving the
+native usage values rather than hiding columns. Responsive overrides load after
+the desktop styles in `ui/next/css/mobile.css` and reuse the same theme tokens.
 
 ## Discussion and execution state
 

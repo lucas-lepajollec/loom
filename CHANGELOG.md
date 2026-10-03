@@ -4,6 +4,17 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- Give the mobile navigation drawer and page headers opaque, theme-aware surfaces.
+- Keep model selection and anchored menus inside the visible viewport as screen
+  size, content or the mobile keyboard changes.
+- Open Settings on a mobile section index, with a back link from each section;
+  retain the desktop navigation and avoid mounting hidden settings forms.
+- Reflow Bench and Usage results with metric labels on narrow screens, preserving
+  all native usage values. Wrap page actions, account quotas and long form controls;
+  keep mobile dialogs scrollable and support screen safe areas.
+
 ## [0.2.2] - 2026-10-03
 
 ### Fixed

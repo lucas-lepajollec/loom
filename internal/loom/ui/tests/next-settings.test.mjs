@@ -424,3 +424,27 @@ test('each saved machine node updates through its own endpoint, independent of t
     assert.equal(h.posts.length, 1);
   }
 });
+
+test('mobile Settings opens its index, follows section links and returns without mounting hidden forms', () => {
+  let media = { matches: true, addEventListener: (_name, fn) => media.change = fn, removeEventListener: () => {} };
+  const h = harness(settings, 'SettingsPage', { window: { matchMedia: () => media }, WorkspaceManager: 'WorkspaceManager', MachinesSettings: 'MachinesSettings' });
+  let tree = h.render({ route: { sub: '' } });
+  assert.equal(nodes(tree, 'nav').length, 1);
+  assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
+  const links = nodes(tree, 'a');
+  assert.equal(links.length, 7);
+  assert.equal(links.find(n => textOf(n).includes('Machines')).props.href, '#/settings/machines');
+  tree = h.render({ route: { sub: 'machines' } });
+  assert.equal(nodes(tree, 'nav').length, 0);
+  assert.equal(nodes(tree, 'a')[0].props.href, '#/settings');
+  assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Machines');
+  assert.equal(nodes(tree, 'MachinesSettings').length, 1);
+  tree = h.render({ route: { sub: 'unknown' } });
+  assert.equal(nodes(tree, 'nav').length, 1);
+  assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
+  media.matches = false; media.change();
+  tree = h.render({ route: { sub: 'machines' } });
+  assert.equal(nodes(tree, 'nav').length, 1);
+  assert.equal(nodes(tree, 'MachinesSettings').length, 1);
+  assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Réglages');
+});

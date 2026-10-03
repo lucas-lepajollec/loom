@@ -514,14 +514,27 @@ function About() {
     ${paths && html`<${Group} title="${t("settings.page.emplacements")}">${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
 }
 
+// Match the drawer breakpoint; the index does not mount a hidden settings form.
 export function SettingsPage({ route }) {
-  const sec = SECTIONS().some(s => s[0] === route.sub) ? route.sub : 'general';
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width:720px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width:720px)');
+    const change = () => setMobile(media.matches);
+    change(); media.addEventListener('change', change);
+    return () => media.removeEventListener('change', change);
+  }, []);
+  const sections = SECTIONS();
+  const selected = sections.find(s => s[0] === route.sub);
+  const sec = selected ? selected[0] : 'general';
+  const detail = !mobile || !!selected;
   const View = { general: General, workspaces: WorkspaceManager, machines: MachinesSettings, engine: Engine, internet: Internet, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
-    <div class="page-head"><div><h1>${t("settings.page.reglages")}</h1></div></div>
+    <div class="page-head settings-head"><div>
+      ${mobile && selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}
+      <h1>${mobile && selected ? selected[1] : t("settings.page.reglages")}</h1></div></div>
     <div class="settings">
-      <nav class="set-nav">${SECTIONS().map(([id, label, ico]) => html`<a href=${'#/settings/' + id} aria-current=${id === sec ? 'page' : undefined}><${Icon} n=${ico} />${label}</a>`)}</nav>
-      <div class="set-body" key=${sec}><${View} route=${route} /></div>
+      ${(!mobile || !selected) && html`<nav class="set-nav" aria-label=${t("settings.page.reglages")}>${sections.map(([id, label, ico]) => html`<a href=${'#/settings/' + id} aria-current=${!mobile && id === sec ? 'page' : undefined}><${Icon} n=${ico} /><span>${label}</span>${mobile && html`<${Icon} n="right" />`}</a>`)}</nav>`}
+      ${detail && html`<div class="set-body" key=${sec}><${View} route=${route} /></div>`}
     </div>
   </div></div>`;
 }
