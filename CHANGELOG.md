@@ -6,6 +6,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Fixed
 
+- Prevent duplicate native authorization-code submission even if the CLI repeats
+  its prompt, and clear queued codes when login ends or is cancelled.
 - Show the control plane's own hostname/version in the sidebar, independently
   of a linked engine's status/version. A main UI update no longer looks unapplied
   merely because its engine runs an older release.

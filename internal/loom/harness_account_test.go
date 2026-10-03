@@ -221,3 +221,37 @@ func TestControlPlanePingDoesNotIdentifyRemoteEngine(t *testing.T) {
 		t.Fatal("ping returned remote identity")
 	}
 }
+
+func TestBrowserAccountCodeAcceptedOnceEvenAfterRepeatedPrompt(t *testing.T) {
+	testHome(t)
+	agent := fakeACPAdapter(t)
+	agent.agent.ID = "claude-code"
+	isolateRuntimeRegistry(t, agent)
+	job := &harnessAccountJob{harnessAccountState: harnessAccountState{ID: "fixture-once", Runtime: "claude-code", State: "waiting", Input: true, URL: "fixture-url", Expires: time.Now().Add(time.Minute).UnixMilli()}, cancel: func() {}, codes: make(chan string, 1)}
+	harnessAccounts.Lock()
+	harnessAccounts.jobs[job.ID] = job
+	harnessAccounts.Unlock()
+	t.Cleanup(func() { harnessAccounts.Lock(); delete(harnessAccounts.jobs, job.ID); harnessAccounts.Unlock() })
+	submit := func() int {
+		r := httptest.NewRequest("POST", "/api/runtimes/claude-code/account", strings.NewReader(`{"job":"fixture-once","code":"TEST-CODE"}`))
+		r.SetPathValue("id", "claude-code")
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handleHarnessAccount(w, r)
+		return w.Code
+	}
+	if submit() != 200 || len(job.codes) != 1 {
+		t.Fatal("first code not accepted")
+	}
+	// A repeated prompt must not permit a second send into the occupied channel.
+	job.mu.Lock()
+	job.Input = true
+	job.mu.Unlock()
+	if submit() != 400 {
+		t.Fatal("duplicate authorization code accepted")
+	}
+	job.finish("cancelled", "")
+	if len(job.codes) != 0 || job.snapshot().URL != "" || job.snapshot().Input {
+		t.Fatal("cancelled job retained queued authorization data")
+	}
+}

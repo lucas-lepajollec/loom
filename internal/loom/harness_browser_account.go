@@ -126,7 +126,7 @@ func runBrowserAccount(ctx context.Context, cmd *exec.Cmd, runtime string, job *
 				job.mu.Lock()
 				if job.State == "starting" || job.State == "waiting" {
 					job.State, job.URL = "waiting", authURL
-					job.Input = !submitted && (strings.Contains(lower, "paste code") || strings.Contains(lower, "authorization code") || strings.Contains(lower, "enter the code"))
+					job.Input = !job.submitted && !submitted && (strings.Contains(lower, "paste code") || strings.Contains(lower, "authorization code") || strings.Contains(lower, "enter the code"))
 				}
 				job.mu.Unlock()
 			}

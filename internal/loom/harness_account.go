@@ -33,8 +33,9 @@ type harnessAccountState struct {
 type harnessAccountJob struct {
 	mu sync.Mutex
 	harnessAccountState
-	cancel context.CancelFunc
-	codes  chan string
+	cancel    context.CancelFunc
+	codes     chan string
+	submitted bool
 }
 
 var harnessAccounts = struct {
@@ -54,6 +55,11 @@ func (j *harnessAccountJob) finish(state, message string) {
 	if j.State == "starting" || j.State == "waiting" {
 		j.State, j.Error, j.URL, j.Code = state, message, "", ""
 		j.Input = false
+		// A code may still be queued when cancellation wins the native loop.
+		select {
+		case <-j.codes:
+		default:
+		}
 	}
 }
 
@@ -227,12 +233,12 @@ func handleHarnessAccount(w http.ResponseWriter, r *http.Request) {
 		}
 		if suppliedCode != "" {
 			job.mu.Lock()
-			if cancelJob || !job.Input || job.State != "waiting" || !nativeAuthorizationCode.MatchString(suppliedCode) {
+			if cancelJob || job.submitted || !job.Input || job.State != "waiting" || !nativeAuthorizationCode.MatchString(suppliedCode) {
 				job.mu.Unlock()
 				sendJSON(w, 400, map[string]any{"ok": false, "error": "authorization code not expected or invalid"})
 				return
 			}
-			job.Input = false
+			job.Input, job.submitted = false, true
 			job.codes <- suppliedCode
 			job.mu.Unlock()
 		}
