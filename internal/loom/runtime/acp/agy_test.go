@@ -4,8 +4,10 @@ package acp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -34,6 +36,22 @@ cat <<'EOS'
 {"event":"result","result":{"conversation_id":"conv-1","status":"SUCCESS","response":"Je lis."}}
 EOS
 `
+
+func TestAgyBridgeRefusesUnavailableOrEmptyCatalog(t *testing.T) {
+	for _, empty := range []bool{false, true} {
+		var out bytes.Buffer
+		bridge := AgyBridge{Read: func(context.Context, ...string) ([]byte, error) {
+			if empty {
+				return []byte("not a model catalog"), nil
+			}
+			return nil, errors.New("synthetic-private-native-error")
+		}}
+		bridge.Run(strings.NewReader("{\"id\":1,\"method\":\"session/new\"}\n{\"id\":2,\"method\":\"session/load\",\"params\":{\"sessionId\":\"old\"}}\n"), &out)
+		if strings.Contains(out.String(), "synthetic-private") || strings.Count(out.String(), "\"error\"") != 2 || strings.Contains(out.String(), "configOptions") {
+			t.Fatal("unavailable native account/catalog exposed a usable session")
+		}
+	}
+}
 
 func TestAgyBridgeSpeaksACP(t *testing.T) {
 	bin := t.TempDir()

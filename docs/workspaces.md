@@ -60,32 +60,17 @@ Previously used harnesses and explicitly added custom/machine adapters retain
 their connection when upgrading.
 
 An ACP authentication-method list is not proof that an account is signed in.
-**Native account** opens a terminal on the harness's machine; OAuth, keys and
-credential storage remain with its own CLI. Complete the native flow, then
-refresh/reconnect its catalog in Loom. No Loom-wide harness password is created.
+**Native account** opens a sign-in dialog on the harness page. Codex uses a
+ChatGPT device code. Claude Code and Antigravity offer native browser links and
+code fields directly in Loom. Other flows use an explicit native-terminal
+fallback. The CLI retains OAuth and credential storage; no Loom-wide harness
+password is created. See [account flows](agents/acp-implementation.md#native-account-connection).
 
-| Harness | Native account flow opened by Loom |
-| --- | --- |
-| Claude Code | `claude auth login` |
-| Codex | `codex login --device-auth` |
-| OpenCode | `opencode auth login` |
-| Gemini CLI | `gemini`, then its authentication selector |
-| Pi | `pi`, then `/login` |
-| Hermes | `hermes setup model`, then choose the provider/account |
-| Antigravity | `agy`, then its native sign-in flow |
-
-The terminal may print a browser URL or device code. Follow the harness's
-instructions; some flows require a browser on that machine or additional native
-headless setup. Account login for arbitrary custom launchers is explicitly
-unsupported: use their own documented CLI. Nothing copies native credential
-files into Loom's database, public source or browser storage.
-
-Gemini CLI and Antigravity are separate executors with separate native setup,
-tools and sessions. A Gemini model is a model family, not a harness identity.
-See [Gemini CLI](https://geminicli.com/docs/),
-[Antigravity CLI](https://www.antigravity.google/docs/cli/install/),
-[Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent), and
-[Hermes commands](https://hermes-agent.nousresearch.com/docs/reference/cli-commands/).
+Installation, account sign-in and connecting the native model catalog remain
+separate. After sign-in, use **Verify and connect to Loom**. Extra native
+onboarding and unsupported formats remain available through the fallback.
+Arbitrary custom launchers use their own documented CLI. Gemini CLI is no longer
+a built-in choice; saved discussions and native installations remain intact.
 
 ## Workspace API
 

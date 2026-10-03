@@ -31,11 +31,18 @@ Link a running **llama-server, vLLM or OpenAI-compatible server** by address, wi
 
 ## Coding agents and projects
 
-Run **Claude Code, Codex, Gemini CLI, OpenCode, Pi and Hermes** through ACP. **Antigravity** uses Loom's ACP bridge to its native CLI. Any other ACP agent can be added with a custom launcher. Harnesses can run locally or on connected machines over SSH, with installation and update controls where the lifecycle catalog supports them.
+Run **Claude Code, Codex, OpenCode, Pi and Hermes** through ACP. **Antigravity** uses Loom's ACP bridge to its native CLI. Any other ACP agent can be added with a custom launcher. Harnesses can run locally or on connected machines over SSH, with installation and update controls where the lifecycle catalog supports them.
 
-Save named folders and one default per execution machine in **Settings › Workspaces** or the first-run guide. New harness discussions use that default, with project folders taking precedence. The Session panel can select another saved folder or save a new one. [Workspaces and native access](docs/workspaces.md) explain the supported file protections, approvals and native account login. Harness installation, Loom connection and account sign-in are separate; the selector includes only connected harnesses. Gemini CLI and Antigravity are distinct executors.
+Installation, native account sign-in and connecting a harness to Loom are separate.
+Account setup stays in the Harnesses page. Codex offers ChatGPT device-code login;
+Claude Code and Antigravity expose their native browser sign-in links and accept
+the returned code directly in Loom. Other native flows keep a terminal fallback.
+Credentials stay with the CLI. See [native account connection](docs/agents/acp-implementation.md#native-account-connection).
 
-Follow native tools, diffs and plans, answer permission requests and import or resume supported native sessions. **Native / Loom** model sources let supported harnesses use their own account or compatible Loom models/providers. This depends on the harness protocol: Gemini keeps its Google models, Antigravity its native catalog, and Hermes uses its own machine configuration.
+
+Save named folders and one default per execution machine in **Settings › Workspaces** or the first-run guide. New harness discussions use that default, with project folders taking precedence. The Session panel can select another saved folder or save a new one. [Workspaces and native access](docs/workspaces.md) explain the supported file protections, approvals and native account login. Harness installation, Loom connection and account sign-in are separate; the selector includes only connected harnesses. Antigravity is the built-in Google harness. Gemini CLI is no longer offered; saved discussions and native installations are preserved.
+
+Follow native tools, diffs and plans, answer permission requests and import or resume supported native sessions. **Native / Loom** model sources let supported harnesses use their own account or compatible Loom models/providers. This depends on the harness protocol: Antigravity keeps its native catalog, and Hermes uses its own machine configuration.
 
 Projects link folders on this machine or a connected machine, with shared instructions, selected context files, skills, MCP servers and a default execution target. Only explicitly selected local context files are read for prompts. See [workspace contracts](docs/workspace-architecture.md) and [ACP integration](docs/agents/acp-implementation.md).
 
@@ -63,7 +70,7 @@ Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, loc
 
 <img src="docs/screenshots/usage.png" alt="Usage, subscription quota windows and provider balances" width="1000" />
 
-**Bench** tests local and cloud models, including local prefill/decode speed and streamed cloud timing. The **OpenAI-compatible `/v1` server** exposes `/v1/models` and `/v1/chat/completions` for other applications; local router requests use native slots and temporary parameter overrides without changing saved settings.
+**Bench** compares local engines, configured cloud APIs and supported native-account models with the same prompt, without tools or project context. Claude Code supports a guarded model-only mode; other native adapters remain explicitly unavailable when tool suppression is not guaranteed. Results retain responses and distinguish engine timings from API/CLI observations. See [Bench](docs/bench.md). The **OpenAI-compatible `/v1` server** exposes `/v1/models` and `/v1/chat/completions` for other applications; local router requests use native slots and temporary parameter overrides without changing saved settings.
 
 The UI also provides a **PWA** shell where the browser supports installation. HTTPS is required outside loopback. Offline mode shows a public fallback; it does not provide offline inference or queue messages.
 

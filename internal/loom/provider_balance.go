@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const providerBalanceTTL = 5 * time.Minute
+const providerBalanceTTL = 30 * time.Second
 const providerBalanceTimeout = 10 * time.Second
 const providerBalanceMaxBody = 1 << 20
 

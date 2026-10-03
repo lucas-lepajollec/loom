@@ -52,7 +52,7 @@ func TestHarnessNPMWritablePrefixAndUserPath(t *testing.T) {
 }
 
 func TestHarnessNPMAllUnixInstallUpdateCommands(t *testing.T) {
-	for _, id := range []string{"claude-code", "codex", "gemini", "pi", "opencode"} {
+	for _, id := range []string{"claude-code", "codex", "pi", "opencode"} {
 		spec, _ := harnessInspectSpec(id)
 		for _, action := range []string{"install", "update"} {
 			argv, err := lifecycleActionCommand(spec, "unix", action)

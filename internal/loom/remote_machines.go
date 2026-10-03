@@ -56,7 +56,6 @@ var remoteHarnessDefs = []struct {
 	{"claude-code", "Claude Code", "claudecode", []string{"claude", "npx"}, nil},
 	{"codex", "Codex", "codex", []string{"codex", "npx"}, nil},
 	{"pi", "Pi", "pi", []string{"pi", "npx"}, nil},
-	{"gemini", "Gemini CLI", "gemini", []string{"gemini"}, []string{"gemini", "--acp"}},
 	{"opencode", "OpenCode", "opencode", []string{"opencode"}, []string{"opencode", "acp"}},
 }
 
@@ -85,7 +84,7 @@ export PATH="$P"
 
 const remoteProbeScript = remotePathPreamble + `T=""; command -v timeout >/dev/null 2>&1 && T="timeout 5"
 j=""
-for t in hermes claude codex pi gemini opencode agy npm npx node; do
+for t in hermes claude codex pi opencode agy npm npx node; do
   p=$(command -v "$t" 2>/dev/null) || continue
   v=$($T "$p" --version </dev/null 2>/dev/null | head -n 1 | tr -d '"\\' | cut -c1-60)
   j="$j{\"id\":\"$t\",\"path\":\"$p\",\"version\":\"$v\"},"
@@ -481,6 +480,10 @@ func handleRemoteMachineDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := putStoreJSON(bkState, remoteMachinesState, machines); err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	if err := putBytes(bkState, machineNodePrefix+req.ID, nil); err != nil {
+		sendJSON(w, 500, map[string]any{"ok": false, "error": "machine maintenance access could not be removed"})
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true})

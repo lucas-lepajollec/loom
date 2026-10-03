@@ -44,13 +44,14 @@ var quotaCache = struct {
 	sync.Mutex
 	items    map[string]QuotaSnapshot
 	attempts map[string]time.Time
+	flights  map[string]bool
 }{items: map[string]QuotaSnapshot{}, attempts: map[string]time.Time{}}
 
 // Read-only native JSON-RPC. Never login/logout, start a turn, send a nudge or
 // redeem a credit. Separate process: does not attach to the desktop's thread.
 func readCodexQuota(ctx context.Context) (QuotaSnapshot, error) {
 	q := QuotaSnapshot{RuntimeID: "codex", Name: "Codex", Source: "Codex app-server · native account", Windows: []QuotaWindow{}}
-	path, err := exec.LookPath("codex")
+	argv, err := harnessNativeArgv([]string{"codex", "app-server"})
 	if err != nil {
 		return q, errors.New("Codex CLI missing from Loom's PATH")
 	}
@@ -61,7 +62,8 @@ func readCodexQuota(ctx context.Context) (QuotaSnapshot, error) {
 		return q, errors.New("temporary directory unavailable")
 	}
 	defer os.RemoveAll(dir)
-	cmd := exec.CommandContext(ctx, path, "app-server")
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
 	cmd.Dir = dir
 	cmd.Stderr = io.Discard
 	cmd.WaitDelay = time.Second

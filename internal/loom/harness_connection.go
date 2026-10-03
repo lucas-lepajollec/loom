@@ -109,9 +109,6 @@ func handleHarnessLogin(w http.ResponseWriter, r *http.Request) {
 		command = "codex login --device-auth"
 	case "opencode":
 		command = "opencode auth login"
-	case "gemini":
-		command = "gemini"
-		note = "Choose the native authentication method in the terminal."
 	case "pi":
 		command = "pi"
 		note = "Use /login in the native terminal."
@@ -131,9 +128,12 @@ func handleHarnessLogin(w http.ResponseWriter, r *http.Request) {
 		// Prefer the same user-installed executable as installation/inspection,
 		// even when the service or login shell has an older PATH.
 		binary := strings.Fields(command)[0]
-		if path, err := lifecycleLookPath(binary); err == nil {
-			command = shellQuote(path) + strings.TrimPrefix(command, binary)
+		path, err := lifecycleLookPath(binary)
+		if err != nil {
+			sendJSON(w, 409, map[string]any{"ok": false, "error": "Install the native CLI on this machine before signing in: " + binary})
+			return
 		}
+		command = shellQuote(path) + strings.TrimPrefix(command, binary)
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "target": target, "command": command, "title": agent.Name + " · account", "note": note})
 }

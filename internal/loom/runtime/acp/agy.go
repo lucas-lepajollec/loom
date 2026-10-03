@@ -60,7 +60,7 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 	update := func(sid string, u map[string]any) {
 		send(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": sid, "update": u}})
 	}
-	models, _ := DiscoverAgyModelsNamed(context.Background(), b.Read)
+	models, catalogErr := DiscoverAgyModelsNamed(context.Background(), b.Read)
 	defaultModel := ""
 	if len(models) > 0 {
 		defaultModel = models[0][0]
@@ -104,6 +104,10 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 				"agentInfo":         map[string]any{"name": "Antigravity", "version": strings.TrimSpace(string(ver))},
 				"agentCapabilities": map[string]any{"loadSession": true, "promptCapabilities": map[string]any{}}})
 		case "session/new":
+			if catalogErr != nil || len(models) == 0 {
+				fail(f.ID, "Antigravity native catalog unavailable: check login on this machine")
+				continue
+			}
 			id := "loom-agy-" + randomHex(8)
 			s := newSession(params, "")
 			mu.Lock()
@@ -111,6 +115,10 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 			mu.Unlock()
 			reply(f.ID, map[string]any{"sessionId": id, "modes": modes(s), "configOptions": config(s)})
 		case "session/load", "session/resume":
+			if catalogErr != nil || len(models) == 0 {
+				fail(f.ID, "Antigravity native catalog unavailable: check login on this machine")
+				continue
+			}
 			// The id is agy's own conversation id: the next prompt resumes it.
 			s := newSession(params, sid)
 			mu.Lock()

@@ -7,7 +7,7 @@ read [ACP integration](acp-implementation.md) and
 [workspace contracts](../workspace-architecture.md). Examples below are design
 examples, not an inventory of pending work.
 
-Goal: every coding harness (Claude Code, Codex, Pi, then Gemini, Hermes Agent,
+Goal: every coding harness (Claude Code, Codex, Pi, then Hermes Agent,
 Cursor…) runs inside a Loom discussion with its real tools, reasoning, diffs,
 plans and permission requests visible, a chosen working folder, a permission
 level, and Loom's skills and MCP servers distributed to it.
@@ -30,8 +30,7 @@ field name. Antigravity has no native ACP endpoint; Loom now provides its
 ```
 
 Initial entries: `claude-code` (`@agentclientprotocol/claude-agent-acp`),
-`codex` (`@agentclientprotocol/codex-acp`), `pi` (`pi-acp`), `gemini`
-(`gemini --acp`, only if `gemini` is on PATH). Versions pinned. An entry is
+`codex` (`@agentclientprotocol/codex-acp`) and `pi` (`pi-acp`). Versions pinned. An entry is
 "available" when its `detect` binary exists and `npx` (or the command) exists.
 Adding a harness = one JSON entry (+ logo). Each registered ACP agent is a
 `RuntimeAdapter` with honest capabilities (`chat stream cancel tools approvals

@@ -4,14 +4,64 @@ The ACP protocol package and Loom session integration implement NDJSON
 JSON-RPC v1 from the vendored
 [`acp-schema/schema.json`](acp-schema/schema.json). The embedded registry is
 [`internal/loom/harness/acp_agents.json`](../../internal/loom/harness/acp_agents.json).
-Codex, Claude Code, Pi, Gemini and OpenCode use generic `acpAdapter` entries.
+Codex, Claude Code, Pi and OpenCode use generic `acpAdapter` entries.
 Custom and SSH launchers can register other ACP agents, including Hermes.
-Hermes runs through `hermes acp`, locally or on an SSH machine. The npm bridges have pinned versions; the direct Gemini command uses the installed CLI.
+Hermes runs through `hermes acp`, locally or on an SSH machine. The npm bridges have pinned versions; direct native launchers use the installed CLI.
 Availability requires both the registry launcher and every `detect` executable.
 Antigravity runs through Loom’s `agy-acp` bridge to the native CLI. Its
 native access modes remain authoritative; Loom passes neither provider keys
 nor MCP servers, and there is no interactive Loom approval RPC for that bridge.
-Codex app-server is used only for quotas.
+Codex app-server is used for read-only quotas and explicitly requested native
+account sign-in, never discussion generation.
+
+## Native account connection
+
+Installation, native account authentication, and consent to expose the harness
+in Loom's model picker are independent. The Harnesses detail page keeps account
+setup in a dialog; **Verify and connect to Loom** then asks for catalog consent
+and probes an empty session without sending a prompt. Successful sign-in alone
+does not opt the harness into Loom or prove a paid plan's inference entitlement.
+
+- Codex: **Sign in with ChatGPT** uses native app-server's
+  `account/login/start` with `type:chatgptDeviceCode`. Open the verification page
+  on any client and enter the displayed code. Enable device login in ChatGPT
+  settings when required. Native completion notifications determine success;
+  Loom never receives account access/refresh tokens. Unsupported native versions
+  can use the terminal fallback. See the
+  [official account protocol](https://learn.chatgpt.com/docs/app-server).
+- Claude Code: **Sign in with Claude** runs only `claude auth login --claudeai`.
+  Loom shows the native authorize link and a field for the browser's returned
+  code. The CLI owns OAuth and credential persistence. See
+  [Claude authentication](https://code.claude.com/docs/en/authentication).
+- Antigravity: **Sign in with Google** starts a private native `agy` sign-in
+  session. It selects only the known Google OAuth option requested by the user,
+  exposes the native Google authorize link and forwards the returned code.
+  It does not answer project, license or permission prompts. Such additional
+  onboarding, an already-authenticated CLI, or an unsupported native format may
+  require **Use native login** or **Verify and connect to Loom**. See
+  [Antigravity authentication](https://www.antigravity.google/docs/cli/install/).
+- Other launchers retain their own interactive login through the explicit
+  terminal fallback. Arbitrary custom launchers do not inherit browser-account
+  support merely from their name or logo.
+- Gemini CLI is no longer offered as a built-in harness or machine installation
+  choice. Existing discussions, native configuration and user-installed CLIs
+  are preserved; this does not remove Gemini cloud providers/models.
+- Antigravity: its native account and Loom catalog opt-in are independent. The
+  bridge refuses an unavailable/empty native catalog rather than showing a
+  usable connection. Native account/keyring availability must match the OS user
+  and machine running the harness, including a service or SSH session.
+
+`GET /api/runtimes/{id}/login` reads the native terminal command plan.
+`POST /api/runtimes/{id}/account` with `{consent:true}` starts a browser-account
+job for supported built-in or saved-machine launchers. `GET` with `?job=<id>`
+returns its status/link/device code and `input_required`. `POST` with
+`{job:"<id>",code:"<returned-code>"}` submits a single native authorization code;
+`{job:"<id>",cancel:true}` stops that owned job. Jobs are runtime-scoped, bounded
+and expire after ten minutes. Only provider authorize URLs are accepted; raw
+native output/errors and access/refresh tokens are never returned. URLs/codes
+are transient, cleared on completion, and never persisted or placed in browser
+storage. Closing the dialog cancels only its owned process. Native account,
+installation and connecting the catalog to Loom remain separate states.
 
 ## Selecting and configuring a discussion
 

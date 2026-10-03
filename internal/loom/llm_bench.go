@@ -2,8 +2,10 @@ package loom
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -23,8 +25,11 @@ type benchResult struct {
 	*BenchCloudMetrics
 }
 
-// Only cloud results include these observations; absent provider usage is unknown.
+// API/native-account observations are separate from engine phase timings;
+// absent reported usage remains unknown.
 type BenchCloudMetrics struct {
+	ActualModel      string   `json:"actual_model,omitempty"`
+	RateBasis        string   `json:"rate_basis,omitempty"`
 	TTFT             *float64 `json:"ttft_sec"`
 	CompletionTokens *int64   `json:"completion_tokens"`
 	PromptTokens     *int64   `json:"prompt_tokens"`
@@ -84,8 +89,12 @@ func runBench(nPrompt, nPredict int) (*benchResult, error) {
 }
 
 func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, error) {
+	return runCompletionBenchContext(context.Background(), userPrompt, nPredict, nil)
+}
+
+func runCompletionBenchContext(ctx context.Context, userPrompt string, nPredict int, n *engineNode) (*benchResult, string, error) {
 	port := LLMPort()
-	if !healthCheck() {
+	if n == nil && !healthCheck() {
 		return nil, "", fmt.Errorf("server unreachable on :%d", port)
 	}
 	if nPredict <= 0 {
@@ -93,7 +102,7 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 	}
 	payload := map[string]any{
 		"model":        engineRequestModel(),
-		"messages":     []Message{{Role: "user", Content: userPrompt}},
+		"messages":     []Message{{Role: "system", Content: benchSystemPrompt}, {Role: "user", Content: userPrompt}},
 		"max_tokens":   nPredict,
 		"stream":       false,
 		"temperature":  0.7,
@@ -101,19 +110,31 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 	}
 	body, _ := json.Marshal(payload)
 	url := engineBase() + "/v1/chat/completions"
+	if n != nil {
+		url = n.V1 + "/v1/chat/completions"
+		payload["model"] = n.Model
+		body, _ = json.Marshal(payload)
+	}
 	t0 := time.Now()
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	authHeader(req) // use the selected native engine credential
-	client := &http.Client{Timeout: 8 * time.Minute}
+	if n == nil {
+		authHeader(req)
+	} else if n.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+n.APIKey)
+	}
+	client := &http.Client{Timeout: 8 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("benchmark engine rejected the request (HTTP %d)", resp.StatusCode)
+	}
 	var parsed struct {
 		Timings struct {
 			PromptN         int     `json:"prompt_n"`
@@ -133,7 +154,7 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&parsed); err != nil {
 		return nil, "", err
 	}
 	elapsed := time.Since(t0).Seconds()
@@ -152,6 +173,9 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 	preview := ""
 	if len(parsed.Choices) > 0 {
 		preview = strings.TrimSpace(parsed.Choices[0].Message.Content)
+		if len(preview) > 64<<10 {
+			return nil, "", fmt.Errorf("benchmark response too large")
+		}
 	}
 	return res, preview, nil
 }
@@ -239,4 +263,13 @@ func cmdBench(args []string) error {
 	fmt.Printf("  Total                     %.2fs\n", r.Elapsed)
 	fmt.Println()
 	return nil
+}
+
+func runDirectBenchTest(ctx context.Context, t benchTest, row benchJobRow, n engineNode) (*benchResult, string, error) {
+	if row.Preset != "" {
+		return nil, "", fmt.Errorf("presets are not supported by a direct inference server")
+	}
+	n.Model = row.Model
+	prompt, maxTokens := benchPrompt(t)
+	return runCompletionBenchContext(ctx, prompt, maxTokens, &n)
 }

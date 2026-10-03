@@ -11,7 +11,7 @@ const remoteWindowsPathPreamble = `$env:PATH += ";$env:APPDATA\npm;$env:USERPROF
 $ErrorActionPreference = 'Stop'
 `
 const remoteWindowsProbeScript = remoteWindowsPathPreamble + `$tools = @()
-foreach ($name in @('hermes','claude','codex','pi','gemini','opencode','agy','npm','npx','node')) {
+foreach ($name in @('hermes','claude','codex','pi','opencode','agy','npm','npx','node')) {
  $c = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
  if ($c) {
   $v = try { (& $c.Source --version 2>$null | Select-Object -First 1) } catch { '' }

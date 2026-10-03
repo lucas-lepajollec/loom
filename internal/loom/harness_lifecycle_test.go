@@ -25,7 +25,7 @@ func TestHarnessLifecycleCatalog(t *testing.T) {
 	if err := json.Unmarshal(harnessInspectJSON, &specs); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"codex", "claude-code", "gemini", "pi", "hermes", "opencode", "antigravity"} {
+	for _, id := range []string{"codex", "claude-code", "pi", "hermes", "opencode", "antigravity"} {
 		if _, ok := specs[id]; !ok {
 			t.Fatalf("missing %s", id)
 		}

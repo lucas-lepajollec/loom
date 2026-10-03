@@ -1,5 +1,5 @@
 import { t, tSource, locale } from '../../core/i18n.js';
-// Usage : quotas des abonnements (lecture explicite, sans génération) et
+// Usage : quotas des abonnements (lecture automatique, sans génération) et
 // tokens/coûts estimés des discussions. Une donnée absente reste « inconnue ».
 import { Logo } from '../../ui/logo.js';
 import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
@@ -8,6 +8,7 @@ import { Empty, Tip, Seg } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app } from '../../core/state.js';
+import { useVisibleRefresh } from './refresh.js';
 
 const when = s => s ? new Date(s * 1000).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : t("usage.page.non_communique");
 const ago = s => { if (!s) return ''; const m = Math.round((Date.now() / 1000 - s) / 60); return m < 1 ? t("usage.page.a_l_instant") : m < 60 ? t("usage.page.ago_min", { n: m }) : t("usage.page.ago_h", { n: Math.round(m / 60) }); };
@@ -17,7 +18,7 @@ function Quota({ q, rt, onRefresh }) {
   const readable = rt && rt.implemented && (rt.capabilities || []).includes('quota');
   const refresh = async () => {
     setBusy(true);
-    try { const r = await post('/api/runtimes/' + encodeURIComponent(q.runtime_id) + '/quota', {}); if (!r.ok) toast(r.error, 'err'); onRefresh(); }
+    try { const r = await post('/api/runtimes/' + encodeURIComponent(q.runtime_id) + '/quota', {}, { timeout: 65000 }); if (!r.ok && r.status !== 429) toast(r.error, 'err'); onRefresh(); }
     catch (e) { toast(e.message, 'err'); }
     finally { setBusy(false); }
   };
@@ -71,12 +72,15 @@ function NativeRow({ h, rt, onRefresh }) {
 function NativeUsage({ runtimes }) {
   const [days, setDays] = useState(7);
   const [rows, setRows] = useState(null);
-  const load = async n => { setRows(null); try { const r = await get('/api/usage/native?days=' + n); setRows(r.harnesses || []); } catch (e) { setRows([]); toast(e.message, 'err'); } };
-  useEffect(() => { load(days); }, [days]);
+  useEffect(() => { setRows(null); }, [days]);
+  useVisibleRefresh(async alive => {
+    const r = await get('/api/usage/native?days=' + days, { retryAuth: false, timeout: 65000 });
+    if (alive() && r.ok !== false) setRows(r.harnesses || []);
+  }, 30000, days);
   const refresh = async id => {
     const r = await post('/api/usage/native/refresh', { runtime_id: id, days }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return toast(r.error, 'err');
-    setRows(list => list.map(h => h.runtime_id === id ? r.harness : h));
+    setRows(list => (list || []).map(h => h.runtime_id === id ? r.harness : h));
   };
   const known = (rows || []).filter(h => runtimes.some(r => r.id === h.runtime_id));
   const active = h => h.sessions || h.total_tokens || h.error;
@@ -100,7 +104,7 @@ function NativeUsage({ runtimes }) {
 function Balances() {
   const [rows, setRows] = useState(null);
   const load = () => get('/api/usage/providers').then(r => setRows(r.providers || [])).catch(() => setRows([]));
-  useEffect(() => { load(); }, []);
+  useVisibleRefresh(async alive => { const r = await get('/api/usage/providers', { retryAuth: false }); if (alive() && r.ok !== false) setRows(r.providers || []); }, 30000);
   const refresh = async id => {
     const r = await post('/api/usage/providers/refresh', { provider_id: id }).catch(e => ({ ok: false, error: e.message }));
     if (r.ok === false) return toast(r.error, 'err');
@@ -136,12 +140,17 @@ export function UsagePage() {
   const runtimes = (ws && ws.runtimes) || [];
   const [d, setD] = useState(null);
   const load = async () => { try { const r = await get('/api/usage'); setD(r); } catch (_) {} };
-  useEffect(() => { load(); }, []);
+  useVisibleRefresh(async alive => { const r = await get('/api/usage', { retryAuth: false }); if (alive() && r.ok !== false) setD(r); }, 4000);
   const quotas = (d ? d.quotas || [] : []).filter(q => { const rt = runtimes.find(r => r.id === q.runtime_id) || {}; return rt.available !== false && (rt.capabilities || []).includes('quota'); });
+  const quotaIDs = runtimes.filter(rt => rt.available !== false && rt.connected === true && rt.implemented && (rt.capabilities || []).includes('quota')).map(rt => rt.id);
+  useVisibleRefresh(async alive => {
+    await Promise.all(quotaIDs.map(id => post('/api/runtimes/' + encodeURIComponent(id) + '/quota', {}, { retryAuth: false, timeout: 65000 }).catch(() => null)));
+    if (alive()) { const r = await get('/api/usage', { retryAuth: false }); if (alive() && r.ok !== false) setD(r); }
+  }, 30000, quotaIDs.join('|'));
   const [reading, setReading] = useState(false);
   const readAll = async () => {
     setReading(true);
-    await Promise.all(quotas.map(q => post('/api/runtimes/' + encodeURIComponent(q.runtime_id) + '/quota', {}).catch(() => null)));
+    await Promise.all(quotas.map(q => post('/api/runtimes/' + encodeURIComponent(q.runtime_id) + '/quota', {}, { timeout: 65000 }).catch(() => null)));
     setReading(false); load();
   };
   const models = d ? d.models || [] : [];

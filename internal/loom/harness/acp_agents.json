@@ -42,19 +42,6 @@
     "docs": "https://github.com/svkozak/pi-acp"
   },
   {
-    "id": "gemini",
-    "name": "Gemini CLI",
-    "logo": "gemini",
-    "command": "gemini",
-    "args": [
-      "--acp"
-    ],
-    "detect": [
-      "gemini"
-    ],
-    "docs": "https://github.com/google-gemini/gemini-cli"
-  },
-  {
     "id": "opencode",
     "name": "OpenCode",
     "logo": "opencode",
