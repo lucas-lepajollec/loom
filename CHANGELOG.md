@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-03
+
 ### Fixed
 
 - Switch existing harness discussions to direct local execution using the active
