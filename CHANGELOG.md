@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-03
+
 ### Fixed
 
 - Keep mixed benchmark queues, saved tests and history on the control plane when
