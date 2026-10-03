@@ -68,6 +68,10 @@ Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, loc
 
 **Usage** separates retained Loom token counts, subscription quotas, native harness activity inside and outside Loom, and cloud balances where providers expose them. Missing values stay unknown; manual-price estimates are not invoices. See [native usage](docs/harness-usage.md) and [provider balances](docs/usage.md).
 
+The discussion picker distinguishes direct Local execution from a harness using
+the same model. Selecting Local returns the same discussion to direct inference;
+loading a model in the engine library only changes the engine's state.
+
 <img src="docs/screenshots/usage.png" alt="Usage, subscription quota windows and provider balances" width="1000" />
 
 **Bench** compares local engines, configured cloud APIs and supported native-account models with the same prompt, without tools or project context. Claude Code supports a guarded model-only mode; other native adapters remain explicitly unavailable when tool suppression is not guaranteed. Results retain responses and distinguish engine timings from API/CLI observations. See [Bench](docs/bench.md). The **OpenAI-compatible `/v1` server** exposes `/v1/models` and `/v1/chat/completions` for other applications; local router requests use native slots and temporary parameter overrides without changing saved settings.

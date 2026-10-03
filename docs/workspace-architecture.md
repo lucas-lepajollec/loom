@@ -44,6 +44,16 @@ per-turn provenance, reported usage, request IDs and execution state. Selecting
 another target updates that same record without clearing or forking messages.
 Route changes are rejected during an active reply.
 
+The chat picker identifies an execution by runtime, provider and exact model,
+not by filename. Local choices come from the active engine's library, including
+remote nodes and directly linked servers; engine aliases are resolved without
+guessing between equal filenames. Returning from a harness to direct execution
+must select and activate the local route before loading the engine model. A
+missing, hidden or ambiguous choice reports an error. The picker keeps the
+execution label (Local, Cloud or the harness name) visible on narrow screens.
+Loading a model from the engine library alone remains engine management and
+does not change the execution of an existing discussion.
+
 Titles, project associations and discussion-specific instructions can be edited
 without rewriting exchanged messages. Detaching a project removes its context
 from future prompts, not text already shared. Missing or locked projects block

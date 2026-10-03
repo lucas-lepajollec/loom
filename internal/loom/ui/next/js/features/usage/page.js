@@ -156,7 +156,8 @@ export function UsagePage() {
   const models = d ? d.models || [] : [];
   const fmtMoney = (v, cur) => Number(v).toLocaleString(locale(), { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 3 });
   const money = m => m.estimated_cost != null ? fmtMoney(m.estimated_cost, m.price && m.price.currency) : '—';
-  const cost = m => m.reported_cost != null ? html`<span title="${t("usage.page.cout_declare_par_le_harness")}">${fmtMoney(m.reported_cost, m.currency)}</span>` : m.runtime_id ? '—' : money(m);
+  const isCloud = m => m.kind === 'cloud' || (!m.kind && (!m.runtime_id || m.runtime_id === 'openai-compatible' || runtimes.some(rt => rt.id === m.runtime_id && rt.kind === 'cloud')));
+  const cost = m => m.reported_cost != null ? html`<span title="${t("usage.page.cout_declare_par_le_harness")}">${fmtMoney(m.reported_cost, m.currency)}</span>` : isCloud(m) ? money(m) : '—';
   return html`<div class="view page"><div class="page-in">
     <div class="page-head"><div><h1>${t("usage.page.usage")}</h1><p>${t("usage.page.quotas_de_tes_abonnements_et_consommation_dans_loom_une_donnee_ab")}</p></div></div>
     ${!d ? html`<div class="skeleton" style="height:200px"></div>` : html`
@@ -169,7 +170,7 @@ export function UsagePage() {
           <div class="tr th"><span>${t("usage.page.modele")}</span><span>${t("usage.page.entree_2")}</span><span>${t("usage.page.sortie_2")}</span><span>${t("usage.page.prix_m_tokens")}</span><span>${t("usage.page.estimation")}</span></div>
           ${models.map(m => html`<div class="tr"><span class="cell-id"><${Logo} name=${m.runtime_id || m.provider} size="sm" /><span class="cell-main"><b>${m.name && m.name !== 'default' ? m.name : t("usage.page.modele_par_defaut")}</b><small>${m.provider} · ${m.turns} ${t("usage.page.tour")}${m.turns > 1 ? 's' : ''}${m.reported_turns ? ' · ' + m.reported_turns + t("usage.page.avec_decompte") : ''}</small></span></span>
             <span class="mono" data-label=${t("usage.page.entree_2")}>${m.reported_turns ? fmtTok(m.usage.prompt_tokens) : '—'}</span><span class="mono" data-label=${t("usage.page.sortie_2")}>${m.reported_turns ? fmtTok(m.usage.completion_tokens) : '—'}</span>
-            <span data-label=${t("usage.page.prix_m_tokens")}>${m.runtime_id ? html`<span class="muted">${t("usage.page.abonnement")}</span>` : html`<${Price} m=${m} onSaved=${load} />`}</span><span class="num strong" data-label=${t("usage.page.estimation")}>${cost(m)}</span></div>`)}</div>`
+            <span data-label=${t("usage.page.prix_m_tokens")}>${isCloud(m) ? html`<${Price} m=${m} onSaved=${load} />` : html`<span class="muted">—</span>`}</span><span class="num strong" data-label=${t("usage.page.estimation")}>${cost(m)}</span></div>`)}</div>`
           : html`<div class="card"><${Empty} icon="chart" title="${t("usage.page.rien_pour_l_instant")}" text="${t("usage.page.les_tokens_des_discussions_cloud_et_harness_apparaitront_ici_les")}" /></div>`}
       </section>`}
   </div></div>`;

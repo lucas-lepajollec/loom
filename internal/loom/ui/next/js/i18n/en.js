@@ -1,5 +1,6 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "chat.engine.local_choice_missing": "This model is missing from the active engine catalog, hidden or ambiguous. Refresh the library and select it again.",
   "node.maintenance": "Engine node management",
   "node.maintenance_note": "Save this machine’s node to update it, even while discussions use another engine.",
   "node.address": "Node address",

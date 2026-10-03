@@ -6,6 +6,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Fixed
 
+- Switch existing harness discussions to direct local execution using the active
+  engine's catalog, including remote nodes and linked servers. Reject missing or
+  ambiguous choices instead of silently keeping the harness route; distinguish
+  runtime/provider identity and keep the execution label visible on phones.
+- Keep historical cloud rows in Usage eligible for API pricing and estimates;
+  do not infer a subscription from the presence of a runtime ID.
 - Give the mobile navigation drawer and page headers opaque, theme-aware surfaces.
 - Keep model selection and anchored menus inside the visible viewport as screen
   size, content or the mobile keyboard changes.

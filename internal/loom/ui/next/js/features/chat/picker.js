@@ -7,6 +7,7 @@ import { Icon } from '../../ui/icons.js';
 import { Seg, Popover } from '../../ui/controls.js';
 import { app, go, refreshLibrary, refreshWorkspace, runtimeKind } from '../../core/state.js';
 import { chat, chooseLocal, chooseRemote } from './engine.js';
+import { executionKey } from './execution.js';
 
 // Regroupe les variantes natives (-low/-medium/-high) sous un seul modèle.
 export function groupVariants(models) {
@@ -63,7 +64,7 @@ function Row({ title, sub, right, active, loaded, nested, onPick }) {
 export function Picker() {
   const [anchor, setAnchor] = useState(null);
   const { status, workspace, models, presets } = useStore(app, s => ({ status: s.status, workspace: s.workspace, models: s.models, presets: s.presets }));
-  useStore(chat, s => s.session && s.session.model + s.mode);
+  const route = useStore(chat, executionKey);
   const cur = currentExec();
   const [tab, setTab] = useState(cur.kind);
   const [q, setQ] = useState('');
@@ -76,17 +77,16 @@ export function Picker() {
   };
   const close = () => setAnchor(null);
   const wsModels = (workspace && workspace.models) || [];
-  const visible = new Map(wsModels.filter(m => m.kind === 'local').map(m => [baseName(m.model), m.enabled]));
+  const visible = new Map(wsModels.filter(m => m.kind === 'local').flatMap(m => [[m.model, m.enabled], [m.engine_value || m.model, m.enabled]]));
   const match = localT => !q || String(localT).toLowerCase().includes(q.toLowerCase());
 
   const lists = useMemo(() => {
-    const live = status && status.health ? baseName(status.model) : '';
-    const weights = (models || []).filter(m => !/mmproj/i.test(m.name) && visible.get(m.name) !== false);
+    const weights = (models || []).filter(m => !/mmproj/i.test(m.name) && visible.get(m.path || m.value) !== false);
     const local = [
-      ...(presets || []).map((p, i) => ({ id: 'p' + p.id, title: p.name || p.id, sub: 'preset' + (p.model ? ' · ' + baseName(p.model) : ''), active: status && status.preset_id === p.id, loaded: status && status.preset_id === p.id && status.health, run: () => chooseLocal({ presetIndex: i + 1, name: p.name, model: p.model }) })),
-      ...weights.map(m => ({ id: 'm' + m.path, title: m.name.replace(/\.gguf$/i, ''), sub: [fmtBytes(m.size), m.shards > 1 ? m.shards + t("chat.picker.fichiers") : ''].filter(Boolean).join(' · '), active: cur.kind === 'local' && live === m.name && !status.preset_id, loaded: live === m.name, run: () => chooseLocal({ model: m.value || m.path, name: m.name }) })),
+      ...(presets || []).map((p, i) => ({ id: 'p' + p.id, title: p.name || p.id, sub: 'preset' + (p.model ? ' · ' + baseName(p.model) : ''), active: cur.kind === 'local' && status && status.preset_id === p.id, loaded: status && status.preset_id === p.id && status.health, run: () => chooseLocal({ presetIndex: i + 1, name: p.name, model: p.model }) })),
+      ...weights.map(m => ({ id: 'm' + m.path, title: m.name.replace(/\.gguf$/i, ''), sub: [fmtBytes(m.size), m.shards > 1 ? m.shards + t("chat.picker.fichiers") : ''].filter(Boolean).join(' · '), active: cur.kind === 'local' && status && status.health && (status.model === m.path || status.model === (m.value || m.path)) && !status.preset_id, loaded: status && status.health && (status.model === m.path || status.model === (m.value || m.path)), run: () => chooseLocal({ path: m.path, model: m.value || m.path, name: m.name }) })),
     ];
-    const cloud = wsModels.filter(m => m.kind === 'cloud' && m.enabled).map(m => ({ id: m.id, title: m.name, sub: '', group: m.provider_name, vendorKey: m.model, active: cur.kind === 'cloud' && chat.get().session && chat.get().session.model === m.model, run: () => chooseRemote(m) }));
+    const cloud = wsModels.filter(m => m.kind === 'cloud' && m.enabled).map(m => ({ id: m.id, title: m.name, sub: '', group: m.provider_name, vendorKey: m.model, active: cur.kind === 'cloud' && chat.get().session && chat.get().session.provider_id === m.provider_id && chat.get().session.model === m.model, run: () => chooseRemote(m) }));
     const harness = groupVariants(wsModels.filter(m => m.kind === 'harness' && m.enabled)).map(g => {
       const m = g.variants.find(v => /-medium$/.test(v.model)) || g.variants[0];
       const rt = ((workspace && workspace.runtimes) || []).find(r => r.id === m.runtime_id) || {};
@@ -94,14 +94,14 @@ export function Picker() {
       return { id: g.key, title: g.name, sub: g.variants.length > 1 ? t("chat.picker.reflexion_reglable") : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: rt.machine ? m.provider_name + t("chat.picker.sur") + rt.machine : m.provider_name, logo: m.runtime_id, via: m.via || '', cli: acp ? 'ACP' : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model && chat.get().session.runtime_id === v.runtime_id), run: () => chooseRemote(m) };
     });
     return { local, cloud, harness };
-  }, [status, workspace, models, presets, cur.kind, cur.name, getLang()]);
+  }, [status, workspace, models, presets, route, cur.kind, cur.name, getLang()]);
 
   const shown = lists[tab].filter(r => match(r.title + ' ' + r.sub));
   const [tag] = EXEC_TAG[cur.kind];
   const emptyText = { local: t("chat.picker.aucun_modele_local_telecharge_un_gguf_depuis_le_hub"), cloud: t("chat.picker.aucun_modele_cloud_ajoute_un_fournisseur_dans_cloud"), harness: t("chat.picker.aucun_harness_connecte_connecte_en_un_dans_harnesses") }[tab];
 
   return html`<button type="button" class=${cls('exec-btn', anchor && 'open')} ref=${btn} onClick=${toggle} aria-haspopup="dialog" aria-expanded=${String(!!anchor)}>
-      ${cur.name ? html`<i class=${cls('dot', cur.kind !== 'local' || (status && status.health) ? 'green' : '')}></i><b>${cur.name}</b><span class="exec-sub">${[tag, cur.sub].filter(Boolean).join(' · ')}</span>` : html`<b>${t("chat.picker.choisir_un_modele")}</b>`}
+      ${cur.name ? html`<i class=${cls('dot', cur.kind !== 'local' || (status && status.health) ? 'green' : '')}></i><span class="exec-route">${cur.kind === 'harness' ? cur.sub || tag : tag}</span><b>${cur.name}</b>${cur.kind !== 'harness' && cur.sub && html`<span class="exec-sub">${cur.sub}</span>`}` : html`<b>${t("chat.picker.choisir_un_modele")}</b>`}
       <${Icon} n="chevron" class="exec-caret" />
     </button>
     ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} width=${420} class="picker">

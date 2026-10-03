@@ -1,5 +1,6 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "chat.engine.local_choice_missing": "Ce modèle est absent du catalogue du moteur actif, masqué ou ambigu. Actualise la bibliothèque puis sélectionne-le à nouveau.",
   "node.maintenance": "Gestion du nœud moteur",
   "node.maintenance_note": "Enregistre le nœud de cette machine pour le mettre à jour, même si les discussions utilisent un autre moteur.",
   "node.address": "Adresse du nœud",

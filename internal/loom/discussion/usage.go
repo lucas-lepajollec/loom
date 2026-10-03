@@ -14,6 +14,7 @@ type ModelUsageSummary[Usage any] struct {
 	Name          string      `json:"name"`
 	Provider      string      `json:"provider"`
 	RuntimeID     string      `json:"runtime_id"`
+	Kind          string      `json:"kind"` // execution type, independent of model name
 	Turns         int         `json:"turns"`
 	Reported      int         `json:"reported_turns"`
 	Usage         Usage       `json:"usage"`
@@ -48,6 +49,10 @@ func AccumulateTurnUsage[Usage, Stats any](rows map[string]*ModelUsageSummary[Us
 				rows[id] = row
 			}
 			row.Turns++
+			row.Kind = "cloud"
+			if isHarness(t.RuntimeID) {
+				row.Kind = "harness"
+			}
 			u := t.Usage
 			if u == nil && i == len(s.Turns)-1 {
 				u = s.Usage

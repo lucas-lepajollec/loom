@@ -35,6 +35,9 @@ func TestRetainedUsageUnknownZeroFallbackAndHarnessCosts(t *testing.T) {
 		{ACPState: ACPState{ACPUsage: map[string]any{"cost": map[string]any{"amount": 99.0}}}, Turns: []RuntimeTurnRecord[testUsage, testStats]{{RuntimeID: "cloud", ProviderID: "p", Model: "m"}}},
 	}
 	AccumulateTurnUsage(rows, sessions, harness, choice, ops)
+	if rows["p:m"].Kind != "cloud" || rows["h:m"].Kind != "harness" {
+		t.Fatal("usage confused cloud execution with a native harness")
+	}
 	AccumulateHarnessCost(rows, sessions, harness)
 	estimates := 0
 	out := UsageSummaries(rows, harness, func(u testUsage, p UsagePrice) float64 {
