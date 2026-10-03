@@ -122,6 +122,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/workspaces", handleWorkspaces)
 	api("/api/runtimes/{id}/disconnect", handleHarnessDisconnect)
 	api("/api/runtimes/{id}/login", handleHarnessLogin)
+	api("/api/runtimes/{id}/account", handleHarnessAccount)
 	api("/api/usage", handleUsage)
 	api("/api/usage/native", handleNativeUsage)
 	api("/api/usage/native/refresh", handleNativeUsageRefresh)

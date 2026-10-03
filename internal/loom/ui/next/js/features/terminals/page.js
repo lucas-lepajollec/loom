@@ -50,7 +50,7 @@ export async function openTerminalWith(spec) {
 
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-function TermView({ t: localT, onExit }) {
+export function TermView({ t: localT, onExit }) {
   const box = useRef();
   const [state, setState] = useState('connexion');
   useEffect(() => {

@@ -74,7 +74,7 @@ function EngineCard() {
 }
 
 export function Sidebar() {
-  const { route, nav, open: sideOpen, status } = useStore(app, s => ({ route: s.route, nav: s.nav, open: s.sideOpen, status: s.status }));
+  const { route, nav, open: sideOpen, serverInfo } = useStore(app, s => ({ route: s.route, nav: s.nav, open: s.sideOpen, serverInfo: s.serverInfo }));
   const current = useStore(chat, s => s.sessionId);
   const activeId = current || nav.active;
   const [openProj, setOpenProj] = useState(() => new Set(JSON.parse(localStorage.getItem('loom.next.proj') || '[]')));
@@ -120,8 +120,8 @@ export function Sidebar() {
     <div class="side-foot">
       <${EngineCard} />
       <div class="me">
-        <span class="avatar-i" aria-hidden="true">${(status && status.hostname || 'L').slice(0, 1).toUpperCase()}</span>
-        <span class="who"><b>${(status && status.hostname) || t("app.shell.cette_machine")}</b><small>${status && status.version ? 'Loom ' + status.version : 'Loom'}</small></span>
+        <span class="avatar-i" aria-hidden="true">${(serverInfo && serverInfo.hostname || 'L').slice(0, 1).toUpperCase()}</span>
+        <span class="who"><b>${(serverInfo && serverInfo.hostname) || t("app.shell.cette_machine")}</b><small>${serverInfo && serverInfo.version ? 'Loom ' + serverInfo.version : 'Loom'}</small></span>
         <a class="icon-btn" href="#/settings" aria-label="${t("app.shell.reglages")}" title="${t("app.shell.reglages")}" aria-current=${route.section === 'settings' ? 'page' : undefined}><${Icon} n="gear" /></a>
       </div>
     </div>

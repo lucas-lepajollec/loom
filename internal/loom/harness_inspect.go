@@ -2,7 +2,6 @@ package loom
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -127,13 +126,11 @@ func runInspect(ctx context.Context, argv []string) (string, error) {
 	cmd := exec.CommandContext(c, native[0], native[1:]...)
 	cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
 	cmd.Stdin = nil
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &out
+	out := &harnessTail{}
+	cmd.Stdout, cmd.Stderr = out, out
+	cmd.WaitDelay = time.Second
 	err = cmd.Run()
 	s := out.String()
-	if len(s) > 256<<10 {
-		s = s[:256<<10]
-	}
 	return s, err
 }
 

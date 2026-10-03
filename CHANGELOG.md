@@ -4,6 +4,26 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- Show the control plane's own hostname/version in the sidebar, independently
+  of a linked engine's status/version. A main UI update no longer looks unapplied
+  merely because its engine runs an older release.
+- Distinguish missing native harness CLIs from missing ACP launchers, and use
+  the same user-installed executable lookup for Antigravity reads and Codex quotas.
+- Reject Antigravity bridge sessions when its native model catalog is unavailable
+  instead of exposing an empty, apparently connected adapter.
+
+### Added
+
+- Account sign-in stays in a harness-page dialog. Codex supports its native
+  ChatGPT device-code login via app-server, including completion, expiry,
+  cancellation and a native-terminal fallback. Other harnesses keep their own
+  interactive sign-in in the dialog. Connecting models to Loom remains explicit.
+- Explain Gemini CLI's Google-account versus API-key authentication and use
+  its manual browser flow for native login on remote/headless hosts. Native
+  credentials/settings are never copied or silently switched by Loom.
+
 ## [0.2.1] - 2026-10-03
 
 ### Control plane audit

@@ -11,7 +11,48 @@ Availability requires both the registry launcher and every `detect` executable.
 Antigravity runs through Loom’s `agy-acp` bridge to the native CLI. Its
 native access modes remain authoritative; Loom passes neither provider keys
 nor MCP servers, and there is no interactive Loom approval RPC for that bridge.
-Codex app-server is used only for quotas.
+Codex app-server is used for read-only quotas and explicitly requested native
+account sign-in, never discussion generation.
+
+## Native account connection
+
+Installation, native account authentication, and consent to expose the harness
+in Loom's model picker are independent. The Harnesses detail page keeps account
+setup in a dialog; **Verify and connect to Loom** then asks for catalog consent
+and probes an empty session without sending a prompt. Successful sign-in alone
+does not opt the harness into Loom or prove a paid plan's inference entitlement.
+
+- Codex: **Sign in with ChatGPT** uses native app-server's
+  `account/login/start` with `type:chatgptDeviceCode`. Open the verification page
+  on any client and enter the displayed code. Enable device login in ChatGPT
+  settings when required. Native completion notifications determine success;
+  Loom never receives account access/refresh tokens. Unsupported native versions
+  can use the terminal fallback. See the
+  [official account protocol](https://learn.chatgpt.com/docs/app-server).
+- Claude Code, Gemini CLI, Antigravity and other known launchers: their own
+  interactive sign-in is embedded in the same dialog using Loom's existing
+  authenticated terminal. Browser callbacks and provider choices remain native;
+  this is not a universal browser-only OAuth implementation.
+- Gemini CLI: use `/auth` and **Sign in with Google** for a Google account.
+  **Gemini API key** is a different method; selecting it requests a key even
+  when the user has a Google subscription. `NO_BROWSER=true` enables its manual
+  browser flow for a CLI running on another machine. Loom does not silently
+  overwrite native auth settings or remove cached native credentials. See
+  [Gemini authentication](https://geminicli.com/docs/get-started/authentication/).
+- Antigravity: its native account and Loom catalog opt-in are independent. The
+  bridge refuses an unavailable/empty native catalog rather than showing a
+  usable connection. Native account/keyring availability must match the OS user
+  and machine running the harness, including a service or SSH session.
+
+`GET /api/runtimes/{id}/login` reads the native command plan. For supported Codex
+launchers, `POST /api/runtimes/{id}/account` with `consent:true` starts a fixed
+native login job; `GET .../account?job=<id>` reads its state, and POST with
+`job`/`cancel:true` cancels it. Jobs expire after ten minutes, have bounded native
+frames and a bounded in-memory registry, and discard device codes at completion.
+Closing the dialog stops/removes only its owned job or terminal; no logout is
+performed and native credentials stay owned by the CLI. Machine launchers use
+their SSH target; executable lookup matches install/inspect rather than a stale
+service PATH. Real account/browser/keyring acceptance remains a separate check.
 
 ## Selecting and configuring a discussion
 

@@ -33,6 +33,12 @@ Link a running **llama-server, vLLM or OpenAI-compatible server** by address, wi
 
 Run **Claude Code, Codex, Gemini CLI, OpenCode, Pi and Hermes** through ACP. **Antigravity** uses Loom's ACP bridge to its native CLI. Any other ACP agent can be added with a custom launcher. Harnesses can run locally or on connected machines over SSH, with installation and update controls where the lifecycle catalog supports them.
 
+Installation, native account sign-in and connecting a harness to Loom are separate.
+Account setup stays in the Harnesses page: Codex offers native ChatGPT device-code
+login; other CLIs use their own interactive sign-in in the same dialog. Gemini
+CLI's Google account login is distinct from its API-key mode. Credentials remain
+with the harness. See [native account connection](docs/agents/acp-implementation.md#native-account-connection).
+
 Save named folders and one default per execution machine in **Settings › Workspaces** or the first-run guide. New harness discussions use that default, with project folders taking precedence. The Session panel can select another saved folder or save a new one. [Workspaces and native access](docs/workspaces.md) explain the supported file protections, approvals and native account login. Harness installation, Loom connection and account sign-in are separate; the selector includes only connected harnesses. Gemini CLI and Antigravity are distinct executors.
 
 Follow native tools, diffs and plans, answer permission requests and import or resume supported native sessions. **Native / Loom** model sources let supported harnesses use their own account or compatible Loom models/providers. This depends on the harness protocol: Gemini keeps its Google models, Antigravity its native catalog, and Hermes uses its own machine configuration.

@@ -31,15 +31,19 @@ type acpAgent struct {
 }
 
 func (a acpAgent) available() bool {
-	if _, err := lifecycleLookPath(a.Command); err != nil {
-		return false
-	}
+	return a.unavailableReason() == ""
+}
+
+func (a acpAgent) unavailableReason() string {
 	for _, binary := range a.Detect {
 		if _, err := lifecycleLookPath(binary); err != nil {
-			return false
+			return "Native CLI not installed or not executable: " + binary
 		}
 	}
-	return true
+	if _, err := lifecycleLookPath(a.Command); err != nil {
+		return "ACP launcher not installed or not executable: " + a.Command
+	}
+	return ""
 }
 func builtinACPAgents() []acpAgent {
 	var entries []acpAgent
