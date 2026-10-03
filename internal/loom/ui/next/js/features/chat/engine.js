@@ -1,4 +1,5 @@
 import { t } from '../../core/i18n.js';
+import { localChoice } from './execution.js';
 // Un flux de discussion et un seul traitement des événements.
 import { createStore } from '../../core/lib.js';
 import { get, post, stream } from '../../core/api.js';
@@ -213,16 +214,17 @@ export async function open(id, soft, quiet) {
       const r = await post('/api/chat/history/restore', { id });
       if (!r.ok) throw new Error(r.error || t("chat.engine.ouverture_impossible"));
       refreshNav();
-      return;
+      return true;
     }
     const r = await get('/api/runtime/sessions?id=' + encodeURIComponent(id));
-    if (ep !== epoch) return;
+    if (ep !== epoch) return false;
     if (!r.ok) throw new Error(r.error);
     remember(id);
     if (r.session.runtime_id === 'llama.cpp') {
-      restartNative(true);
       const local = await post('/api/runtime/sessions/local', { id });
       if (!local.ok) throw new Error(local.error);
+      if (ep !== epoch) return false;
+      restartNative(true);
       chat.set({ sessionId: id, session: local.session, context: local.context });
     } else {
       lastSeq = 0; turn = newTurn();
@@ -230,7 +232,8 @@ export async function open(id, soft, quiet) {
       applySession(r.session, r.context);
     }
     if (abort) abort.abort();
-  } catch (e) { chat.set({ frozen: null }); if (quiet) remember(''); else toast(e.message, 'err'); }
+    return true;
+  } catch (e) { chat.set({ frozen: null }); if (quiet) remember(''); else toast(e.message, 'err'); return false; }
   finally { if (ep === epoch) { opening = false; if (abort) abort.abort(); } }
 }
 
@@ -320,8 +323,7 @@ export async function chooseRemote(choice) {
     const r = await post('/api/runtime/sessions/select', { id, choice_id: choice.id, consent: true });
     if (!r.ok) throw new Error(r.error);
     await refreshNav();
-    await open(id, true);
-    return true;
+    return await open(id, true);
   } catch (e) { toast(e.message, 'err'); return false; }
 }
 
@@ -330,21 +332,23 @@ export async function chooseRemote(choice) {
 export async function chooseLocal(target) {
   const st = chat.get();
   if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
-  if (st.sessionId) {
-    const w = app.get().workspace || await refreshWorkspace();
-    const choice = (w && w.models || []).find(m => m.kind === 'local' && m.model && target.model && baseName(m.model) === baseName(target.model));
-    if (choice) {
+  try {
+    if (st.sessionId) {
+      const w = await refreshWorkspace();
+      const choice = localChoice(w && w.ok && w.models, target);
+      if (!choice) { toast(t('chat.engine.local_choice_missing'), 'err'); return false; }
+      if (chat.get().sessionId !== st.sessionId || chat.get().busy) return false;
       const r = await post('/api/runtime/sessions/select', { id: st.sessionId, choice_id: choice.id, consent: false });
       if (!r.ok) { toast(r.error, 'err'); return false; }
-      await open(st.sessionId, true);
+      if (!await open(st.sessionId, true)) return false;
     }
-  }
-  const r = target.presetIndex ? await post('/api/switch', { n: target.presetIndex }) : await post('/api/load-model', { model: target.model });
-  if (!r.ok) { toast(r.error || t("chat.engine.chargement_impossible"), 'err'); return false; }
-  toast(t("chat.engine.chargement_de") + target.name + '…');
-  return true;
+    const r = target.presetIndex ? await post('/api/switch', { n: target.presetIndex }) : await post('/api/load-model', { model: target.model });
+    if (!r.ok) { toast(r.error || t("chat.engine.chargement_impossible"), 'err'); return false; }
+    toast(t("chat.engine.chargement_de") + target.name + '…');
+    refreshNav();
+    return true;
+  } catch (e) { toast(e.message, 'err'); return false; }
 }
-const baseName = p => String(p || '').split(/[\\/]/).pop();
 
 // La dernière discussion commune ouverte est rouverte au rechargement.
 const LAST = 'loom.next.lastChat';

@@ -1,6 +1,6 @@
 # Loom workspace: discussions, models and context
 
-Current workspace contracts as of 2026-10-02. Read with the
+Current workspace contracts as of 2026-10-03. Read with the
 [architecture principles](architecture-principles.md),
 [package architecture](architecture.md) and [roadmap](ROADMAP.md).
 [ACP integration](agents/acp-implementation.md) documents harness execution.
@@ -27,12 +27,32 @@ components and styles; the visual design belongs to the design owner.
 `internal/loom/ui/next` contains native ES modules with vendored Preact + htm,
 embedded directly in the Go binary without an asset build step.
 
+### Narrow screens
+
+The existing shell becomes an opaque navigation drawer at 720px and below.
+Settings starts on a section index, then opens one section with a back link to
+`#/settings`; desktop keeps its side navigation. Hidden mobile sections are not
+mounted. Anchored model menus follow the visual viewport, resize and content
+changes. Bench and Usage use labeled metric blocks below 900px, preserving the
+native usage values rather than hiding columns. Responsive overrides load after
+the desktop styles in `ui/next/css/mobile.css` and reuse the same theme tokens.
+
 ## Discussion and execution state
 
 `RuntimeSession` stores the Loom transcript, project reference, selected route,
 per-turn provenance, reported usage, request IDs and execution state. Selecting
 another target updates that same record without clearing or forking messages.
 Route changes are rejected during an active reply.
+
+The chat picker identifies an execution by runtime, provider and exact model,
+not by filename. Local choices come from the active engine's library, including
+remote nodes and directly linked servers; engine aliases are resolved without
+guessing between equal filenames. Returning from a harness to direct execution
+must select and activate the local route before loading the engine model. A
+missing, hidden or ambiguous choice reports an error. The picker keeps the
+execution label (Local, Cloud or the harness name) visible on narrow screens.
+Loading a model from the engine library alone remains engine management and
+does not change the execution of an existing discussion.
 
 Titles, project associations and discussion-specific instructions can be edited
 without rewriting exchanged messages. Detaching a project removes its context

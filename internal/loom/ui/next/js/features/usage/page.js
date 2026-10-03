@@ -59,11 +59,11 @@ function NativeRow({ h, rt, onRefresh }) {
   const machine = rt && rt.machine ? rt.machine : '';
   return html`<div class="tr">
     <span class="cell-id"><${Logo} name=${(rt && rt.logo) || h.runtime_id} size="sm" /><span class="cell-main"><b>${(rt && rt.name) || h.runtime_id}${machine && html` <small class="q-m">${machine}</small>`}</b><small>${tSource((h.source || '').replace(' · SSH machine', ''))}</small></span></span>
-    <span class="mono">${h.sessions || '—'}</span>
-    <span class="mono">${fmtTok(h.input_tokens)}</span><span class="mono">${fmtTok(h.output_tokens)}</span><span class="mono">${h.cache_read_tokens ? fmtTok(h.cache_read_tokens) : '—'}</span>
-    <span class="mono strong">${fmtTok(h.total_tokens)}</span>
-    <span class="nm">${top.length ? top.map(m => html`<span class="nm-r" title=${t("usage.native.model_tokens", { model: m.model, tokens: fmtTok(m.tokens) })}><i style=${`width:${Math.max(4, Math.round(m.tokens / total * 100))}%`}></i><em>${m.model}</em></span>`) : html`<span class="muted">—</span>`}${models.length > 3 ? html`<small class="muted">+${models.length - 3}</small>` : ''}</span>
-    <span class="num">${h.cost_usd != null ? html`<span title=${t("usage.page.cout_declare_par_le_harness")}>${Number(h.cost_usd).toLocaleString(locale(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}</span>` : html`<span class="muted" title=${t("usage.native.no_cost")}>—</span>`}
+    <span class="mono" data-label=${t("usage.native.sessions")}>${h.sessions || '—'}</span>
+    <span class="mono" data-label=${t("usage.page.entree_2")}>${fmtTok(h.input_tokens)}</span><span class="mono" data-label=${t("usage.page.sortie_2")}>${fmtTok(h.output_tokens)}</span><span class="mono" data-label=${t("usage.native.cache")}>${h.cache_read_tokens ? fmtTok(h.cache_read_tokens) : '—'}</span>
+    <span class="mono strong" data-label=${t("usage.native.total")}>${fmtTok(h.total_tokens)}</span>
+    <span class="nm" data-label=${t("usage.native.models")}>${top.length ? top.map(m => html`<span class="nm-r" title=${t("usage.native.model_tokens", { model: m.model, tokens: fmtTok(m.tokens) })}><i style=${`width:${Math.max(4, Math.round(m.tokens / total * 100))}%`}></i><em>${m.model}</em></span>`) : html`<span class="muted">—</span>`}${models.length > 3 ? html`<small class="muted">+${models.length - 3}</small>` : ''}</span>
+    <span class="num" data-label=${t("usage.native.cost")}>${h.cost_usd != null ? html`<span title=${t("usage.page.cout_declare_par_le_harness")}>${Number(h.cost_usd).toLocaleString(locale(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}</span>` : html`<span class="muted" title=${t("usage.native.no_cost")}>—</span>`}
       <button class="icon-btn" aria-label=${t("usage.native.reread")} title=${t("usage.native.reread")} disabled=${busy} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}</button></span>
     ${h.error && html`<p class="note err nat-err">${h.error}</p>`}
   </div>`;
@@ -156,7 +156,8 @@ export function UsagePage() {
   const models = d ? d.models || [] : [];
   const fmtMoney = (v, cur) => Number(v).toLocaleString(locale(), { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 3 });
   const money = m => m.estimated_cost != null ? fmtMoney(m.estimated_cost, m.price && m.price.currency) : '—';
-  const cost = m => m.reported_cost != null ? html`<span title="${t("usage.page.cout_declare_par_le_harness")}">${fmtMoney(m.reported_cost, m.currency)}</span>` : m.runtime_id ? '—' : money(m);
+  const isCloud = m => m.kind === 'cloud' || (!m.kind && (!m.runtime_id || m.runtime_id === 'openai-compatible' || runtimes.some(rt => rt.id === m.runtime_id && rt.kind === 'cloud')));
+  const cost = m => m.reported_cost != null ? html`<span title="${t("usage.page.cout_declare_par_le_harness")}">${fmtMoney(m.reported_cost, m.currency)}</span>` : isCloud(m) ? money(m) : '—';
   return html`<div class="view page"><div class="page-in">
     <div class="page-head"><div><h1>${t("usage.page.usage")}</h1><p>${t("usage.page.quotas_de_tes_abonnements_et_consommation_dans_loom_une_donnee_ab")}</p></div></div>
     ${!d ? html`<div class="skeleton" style="height:200px"></div>` : html`
@@ -168,8 +169,8 @@ export function UsagePage() {
         ${models.length ? html`<div class="card table usage-t">
           <div class="tr th"><span>${t("usage.page.modele")}</span><span>${t("usage.page.entree_2")}</span><span>${t("usage.page.sortie_2")}</span><span>${t("usage.page.prix_m_tokens")}</span><span>${t("usage.page.estimation")}</span></div>
           ${models.map(m => html`<div class="tr"><span class="cell-id"><${Logo} name=${m.runtime_id || m.provider} size="sm" /><span class="cell-main"><b>${m.name && m.name !== 'default' ? m.name : t("usage.page.modele_par_defaut")}</b><small>${m.provider} · ${m.turns} ${t("usage.page.tour")}${m.turns > 1 ? 's' : ''}${m.reported_turns ? ' · ' + m.reported_turns + t("usage.page.avec_decompte") : ''}</small></span></span>
-            <span class="mono">${m.reported_turns ? fmtTok(m.usage.prompt_tokens) : '—'}</span><span class="mono">${m.reported_turns ? fmtTok(m.usage.completion_tokens) : '—'}</span>
-            <span>${m.runtime_id ? html`<span class="muted">${t("usage.page.abonnement")}</span>` : html`<${Price} m=${m} onSaved=${load} />`}</span><span class="num strong">${cost(m)}</span></div>`)}</div>`
+            <span class="mono" data-label=${t("usage.page.entree_2")}>${m.reported_turns ? fmtTok(m.usage.prompt_tokens) : '—'}</span><span class="mono" data-label=${t("usage.page.sortie_2")}>${m.reported_turns ? fmtTok(m.usage.completion_tokens) : '—'}</span>
+            <span data-label=${t("usage.page.prix_m_tokens")}>${isCloud(m) ? html`<${Price} m=${m} onSaved=${load} />` : html`<span class="muted">—</span>`}</span><span class="num strong" data-label=${t("usage.page.estimation")}>${cost(m)}</span></div>`)}</div>`
           : html`<div class="card"><${Empty} icon="chart" title="${t("usage.page.rien_pour_l_instant")}" text="${t("usage.page.les_tokens_des_discussions_cloud_et_harness_apparaitront_ici_les")}" /></div>`}
       </section>`}
   </div></div>`;

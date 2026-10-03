@@ -11,6 +11,7 @@
 .exec-btn.open{border-color:var(--blue-line);box-shadow:var(--focus)}
 .exec-btn b{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .exec-sub{color:var(--text-3);font-size:13px;white-space:nowrap}
+.exec-route{color:var(--text-3);font-size:12px;white-space:nowrap;flex-shrink:0;max-width:35%;overflow:hidden;text-overflow:ellipsis}
 .exec-caret{color:var(--text-3);transition:transform var(--mid) var(--out)}
 .exec-btn.open .exec-caret{transform:rotate(180deg)}
 .picker{padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:min(72vh,580px)}

@@ -3,6 +3,7 @@ import { t } from '../core/i18n.js';
 // info-bulle ⓘ, popover ancré.
 import { html, render, useRef, useLayoutEffect, useEffect, useState, cls } from '../core/lib.js';
 import { Icon } from './icons.js';
+import { popoverPosition } from './popover-position.js';
 
 export function Seg({ value, options, onChange, size, label }) {
   const box = useRef(), ind = useRef();
@@ -63,20 +64,34 @@ export function Popover({ anchor, onClose, children, width, place, class: c }) {
   const [st, setSt] = useState({ visibility: 'hidden' });
   useLayoutEffect(() => {
     if (!anchor) return;
-    const r = anchor.getBoundingClientRect(), el = box.current;
-    const w = el.offsetWidth, hgt = el.offsetHeight;
-    let left = Math.max(8, Math.min(r.left, innerWidth - w - 8));
-    let top = place === 'above' ? r.top - hgt - 8 : r.bottom + 6;
-    if (top + hgt > innerHeight - 8) top = Math.max(8, r.top - hgt - 8);
-    if (top < 8) top = 8;
-    setSt({ left: left + 'px', top: top + 'px', transformOrigin: place === 'above' ? 'bottom left' : 'top left' });
-  }, [anchor]);
+    const el = box.current;
+    const update = () => {
+      const viewport = window.visualViewport;
+      const bounds = { left: viewport?.offsetLeft || 0, top: viewport?.offsetTop || 0,
+        width: viewport?.width || innerWidth, height: viewport?.height || innerHeight };
+      el.style.maxWidth = Math.max(0, bounds.width - 16) + 'px';
+      el.style.maxHeight = Math.max(0, bounds.height - 16) + 'px';
+      const next = popoverPosition(anchor.getBoundingClientRect(), el.offsetWidth, el.offsetHeight, bounds, place);
+      next.maxWidth = el.style.maxWidth; next.maxHeight = el.style.maxHeight;
+      setSt(old => Object.keys(next).every(key => old[key] === next[key]) && !old.visibility ? old : next);
+    };
+    update();
+    const observer = new ResizeObserver(update); observer.observe(el);
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
+    return () => {
+      observer.disconnect(); window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true);
+      window.visualViewport?.removeEventListener('resize', update); window.visualViewport?.removeEventListener('scroll', update);
+    };
+  }, [anchor, width, place]);
   useEffect(() => {
     const down = e => { if (box.current && !box.current.contains(e.target) && !(anchor && anchor.contains(e.target))) onClose(); };
     const key = e => { if (e.key === 'Escape') { onClose(); anchor && anchor.focus(); } };
-    setTimeout(() => document.addEventListener('mousedown', down), 0);
+    const timer = setTimeout(() => document.addEventListener('pointerdown', down), 0);
     document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
+    return () => { clearTimeout(timer); document.removeEventListener('pointerdown', down); document.removeEventListener('keydown', key); };
   }, [anchor]);
   const style = Object.entries({ ...st, width: width ? width + 'px' : undefined }).filter(([, v]) => v).map(([k, v]) => k.replace(/[A-Z]/g, m => '-' + m.toLowerCase()) + ':' + v).join(';');
   return html`<div class=${cls('pop', c)} ref=${box} style=${style} role="dialog">${children}</div>`;

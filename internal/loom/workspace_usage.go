@@ -201,7 +201,7 @@ func usageSummaries() []ModelUsageSummary {
 		if c.Kind == "local" {
 			continue
 		}
-		row := &ModelUsageSummary{ChoiceID: c.ID, Name: c.Model, Provider: c.ProviderName, RuntimeID: c.RuntimeID}
+		row := &ModelUsageSummary{ChoiceID: c.ID, Name: c.Model, Provider: c.ProviderName, RuntimeID: c.RuntimeID, Kind: c.Kind}
 		var price UsagePrice
 		if getStoreJSON(bkUsagePrices, c.ID, &price) {
 			row.Price = &price

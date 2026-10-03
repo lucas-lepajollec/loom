@@ -19,6 +19,7 @@ type ModelChoice struct {
 	ProviderID       string   `json:"provider_id,omitempty"`
 	ProviderName     string   `json:"provider_name"`
 	Model            string   `json:"model"`
+	EngineValue      string   `json:"engine_value,omitempty"` // engine library alias, not a filename match
 	Endpoint         string   `json:"endpoint,omitempty"`
 	Enabled          bool     `json:"enabled"`
 	Ready            bool     `json:"ready"`
@@ -49,26 +50,36 @@ func modelCatalogSources(providers []CloudProvider, includeEngineSources bool) [
 		choices = append(choices, c)
 	}
 	if includeEngineSources {
-		cfg := ReadConfig()
-		for _, dir := range modelDirs() {
-			for _, file := range listGGUFFiles(dir) {
-				if !ggufIsMmproj(file.Name) {
-					add(ModelChoice{ID: "local:" + file.Path, Name: file.Name, Kind: "local", ProviderName: "llama.cpp", Model: file.Path, Ready: sameModelPath(cfg["MODEL"], file.Path)})
+		if n := currentEngineNode(); n != nil {
+			for _, c := range remoteEngineChoices(n) {
+				add(c)
+			}
+		} else {
+			cfg := ReadConfig()
+			for _, dir := range modelDirs() {
+				for _, file := range listGGUFFiles(dir) {
+					if !ggufIsMmproj(file.Name) {
+						value := file.Path
+						if filepath.Dir(file.Path) == filepath.Clean(modelsDir()) || filepath.Dir(file.Path) == filepath.Clean(LoomHome()) {
+							value = file.Name
+						}
+						add(ModelChoice{ID: "local:" + file.Path, Name: file.Name, Kind: "local", ProviderName: "llama.cpp", Model: file.Path, EngineValue: value, Ready: sameModelPath(cfg["MODEL"], file.Path)})
+					}
 				}
 			}
-		}
-		// Keep the configured model selectable even if it isn't in a managed folder.
-		if cfg["MODEL"] != "" {
-			model := cfg["MODEL"]
-			listed := false
-			for _, c := range choices {
-				if c.Kind == "local" && sameModelPath(c.Model, model) {
-					listed = true
-					break
+			// Keep the configured model selectable even if it isn't in a managed folder.
+			if cfg["MODEL"] != "" {
+				model := cfg["MODEL"]
+				listed := false
+				for _, c := range choices {
+					if c.Kind == "local" && sameModelPath(c.Model, model) {
+						listed = true
+						break
+					}
 				}
-			}
-			if !listed {
-				add(ModelChoice{ID: "local:" + model, Name: filepath.Base(model), Kind: "local", ProviderName: "llama.cpp", Model: model, Ready: true})
+				if !listed {
+					add(ModelChoice{ID: "local:" + model, Name: filepath.Base(model), Kind: "local", ProviderName: "llama.cpp", Model: model, Ready: true})
+				}
 			}
 		}
 	}

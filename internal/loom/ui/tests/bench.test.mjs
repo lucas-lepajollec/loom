@@ -72,6 +72,8 @@ test('Bench launches only supported selected models with external consent and re
   assert.equal(posts[0].body.models.length, 1);
   assert.equal(posts[0].body.models[0].choice_id, 'native');
   assert.match(text(tree), /Full fixture response/);
+  assert.deepEqual(flatten(tree).filter(x => x.props['data-label']).map(x => x.props['data-label']),
+    ['Premier token', 'Prefill', 'Débit de sortie', 'Durée'], 'mobile metrics retain their labels when the table header is hidden');
   assert.doesNotMatch(text(tree), /<script/);
   env.get = async () => ({ ok: true, job: { id: 'active-fixture', status: 'running', index: 0, rows: [] } });
   await polls[0](() => true); render();

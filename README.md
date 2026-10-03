@@ -6,7 +6,7 @@
   <img src="docs/screenshots/chat.png" alt="Loom discussion with an execution selector and contextual side panel" width="1200" />
 </div>
 
-Loom is a single Go binary with a web UI. Run local inference, connect cloud providers or use coding-agent harnesses in the same discussion. The interface defaults to English; French is available in Settings and the first-run guide.
+Loom is a single Go binary with a web UI. Run local inference, connect cloud providers or use coding-agent harnesses in the same discussion. The interface defaults to English; French is available in Settings and the first-run guide. On phones, Settings opens a section menu with a back link; model selection, Bench and Usage adapt to the available screen width.
 
 ## Why Loom
 
@@ -67,6 +67,10 @@ Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, loc
 ## Usage, benchmarks and API
 
 **Usage** separates retained Loom token counts, subscription quotas, native harness activity inside and outside Loom, and cloud balances where providers expose them. Missing values stay unknown; manual-price estimates are not invoices. See [native usage](docs/harness-usage.md) and [provider balances](docs/usage.md).
+
+The discussion picker distinguishes direct Local execution from a harness using
+the same model. Selecting Local returns the same discussion to direct inference;
+loading a model in the engine library only changes the engine's state.
 
 <img src="docs/screenshots/usage.png" alt="Usage, subscription quota windows and provider balances" width="1000" />
 

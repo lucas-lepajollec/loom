@@ -135,10 +135,10 @@ export function BenchPage() {
             const method = benchMethod(r, t);
             return html`<div class=${cls('tr', !viewed && busy && i === job.index && 'current')}>
               <span class="cell-id"><${Logo} name=${external ? r.provider : vendorOf(r.name || r.model)} size="sm" /><span class="cell-main"><b>${r.name || r.model}</b><small class=${s === 'err' ? 'err' : ''}>${lab || method}</small></span></span>
-              <span class="num">${s === 'ok' ? secs(res.ttft_sec) : '—'}</span>
-              <span class="num">${s === 'ok' && res.prompt_per_second != null ? n1(res.prompt_per_second) + ' t/s' : '—'}</span>
-              <span class="num strong">${s === 'ok' && res.predicted_per_second != null ? n1(res.predicted_per_second) + ' t/s' : '—'}</span>
-              <span class="num">${s === 'ok' ? secs(res.elapsed_sec) : ''}</span>
+              <span class="num" data-label=${t("bench.page.premier_token")}>${s === 'ok' ? secs(res.ttft_sec) : '—'}</span>
+              <span class="num" data-label=${t("bench.page.prefill")}>${s === 'ok' && res.prompt_per_second != null ? n1(res.prompt_per_second) + ' t/s' : '—'}</span>
+              <span class="num strong" data-label=${t("bench.output_rate")}>${s === 'ok' && res.predicted_per_second != null ? n1(res.predicted_per_second) + ' t/s' : '—'}</span>
+              <span class="num" data-label=${t("bench.page.duree")}>${s === 'ok' ? secs(res.elapsed_sec) : ''}</span>
               ${(r.output || r.preview) && html`<details class="bench-prev"><summary>${t("bench.page.sortie")}</summary><p>${r.output || r.preview}</p></details>`}</div>`;
           })}</div>` : html`<${Empty} icon="gauge" title="${t("bench.page.aucune_mesure")}" text="${t("bench.page.choisis_un_test_et_des_modeles_puis_lance_la_file_chaque_modele_e")}" />`}
       </div>
