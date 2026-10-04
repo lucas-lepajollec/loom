@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -151,7 +152,7 @@ func TestBrainDistilledHTTPBuiltinDeleteAndAdvancedAuth(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	registerBrainRoutes(mux, nil)
-	for _, route := range []string{"semantic", "distill", "distilled", "distilled/delete"} {
+	for _, route := range []string{"semantic", "distill", "distilled", "distilled/delete", "distilled/review"} {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, httptest.NewRequest("POST", "/api/brain/"+route, strings.NewReader(`{}`)))
 		if w.Code != 401 {
@@ -324,8 +325,162 @@ func TestBrainDistillHTTPUsesSelectedEngineAndRequiresRemoteConsent(t *testing.T
 	if err != nil || len(items) != 1 || items[0].Source.DiscussionID != "selected" || items[0].Source.MessageIndex != 0 || !items[0].Date.Equal(date) {
 		t.Fatalf("%+v %v", items, err)
 	}
-	hits, err := s.Search(brain.SearchRequest{Query: "backups"})
-	if err != nil || len(hits) == 0 {
-		t.Fatalf("distillation not indexed: %v %v", hits, err)
+	hits, err := s.Search(brain.SearchRequest{Query: "backups", Sources: []string{"distilled"}})
+	if err != nil || len(hits) != 0 || items[0].Review != "pending" {
+		t.Fatalf("unreviewed model output indexed: %v %v", hits, err)
+	}
+	review := func(status, text string) {
+		body, _ := json.Marshal(map[string]string{"id": items[0].ID, "review": status, "text": text})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/brain/distilled/review", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		s.reviewDistilledHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("review: %d %s", w.Code, w.Body)
+		}
+	}
+	review("accepted", "Use reviewed backups")
+	hits, err = s.Search(brain.SearchRequest{Query: "reviewed", Sources: []string{"distilled"}})
+	if err != nil || len(hits) != 1 {
+		t.Fatalf("approved correction not indexed: %v %v", hits, err)
+	}
+	review("rejected", "Use reviewed backups")
+	hits, err = s.Search(brain.SearchRequest{Query: "reviewed", Sources: []string{"distilled"}})
+	if err != nil || len(hits) != 0 {
+		t.Fatal("rejected suggestion retained in context")
+	}
+}
+
+func TestAutomaticSemanticRefreshOnlyEmbedsChangedSelectedText(t *testing.T) {
+	testHome(t)
+	oldDelete := keyringDelete
+	keyringDelete = func(string) error { return nil }
+	t.Cleanup(func() { keyringDelete = oldDelete })
+	oldSessions := workspaceSessions
+	workspaceSessions = newRuntimeSessions()
+	t.Cleanup(func() { workspaceSessions = oldSessions })
+	p, err := workspaceSessions.saveProvider(CloudProvider{Name: "Embed fixture", Endpoint: "https://embedding.example/v1", Model: "embedding"}, "fixture-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newBrainService(LoomHome())
+	m, err := s.semanticManager()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(m.close)
+	if err = m.configure(brainSemanticRequest{Action: "enable", ProviderID: p.ID, Model: "embedding", Consent: true, Sources: []string{"conversations"}}); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	brainFakeModelClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		io.WriteString(w, `{"data":[{"index":0,"embedding":[1,0]}]}`)
+	})
+	save := func(text string) {
+		if err := putStoreJSON(bkRuntimeSessions, "selected", RuntimeSession{ID: "selected", Messages: []Message{{Role: "user", Content: text}}}); err != nil {
+			t.Fatal(err)
+		}
+		e, err := s.get()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = e.Refresh(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wait := func() {
+		deadline := time.Now().Add(time.Second)
+		for time.Now().Before(deadline) {
+			m.mu.Lock()
+			running := m.indexing
+			lastError := m.lastError
+			m.mu.Unlock()
+			if !running {
+				if lastError != "" {
+					t.Fatal(lastError)
+				}
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+		t.Fatal("fixture index did not finish")
+	}
+	save("Initial passage")
+	s.refreshSemanticIfSelected()
+	if calls != 0 {
+		t.Fatal("automatic indexing started without opt-in")
+	}
+	on := true
+	if err = m.configure(brainSemanticRequest{Action: "auto", AutoIndex: &on}); err != nil {
+		t.Fatal(err)
+	}
+	s.refreshSemanticIfSelected()
+	wait()
+	if calls != 1 {
+		t.Fatal("selected missing passage not embedded")
+	}
+	s.refreshSemanticIfSelected()
+	wait()
+	if calls != 1 {
+		t.Fatal("unchanged index repeated embedding requests")
+	}
+	save("A changed passage")
+	s.refreshSemanticIfSelected()
+	wait()
+	if calls != 2 {
+		t.Fatal("changed passage did not update embeddings")
+	}
+	off := false
+	if err = m.configure(brainSemanticRequest{Action: "auto", AutoIndex: &off}); err != nil {
+		t.Fatal(err)
+	}
+	save("Another change")
+	s.refreshSemanticIfSelected()
+	if calls != 2 {
+		t.Fatal("automatic indexing continued after opt-out")
+	}
+	m.close()
+}
+
+func TestAutomaticSemanticDefaultScopeDoesNotExpandOnLink(t *testing.T) {
+	testHome(t)
+	brainSvcMu.Lock()
+	old := brainSvc
+	brainSvc = newBrainService(LoomHome())
+	brainSvcMu.Unlock()
+	t.Cleanup(func() {
+		brainSvcMu.Lock()
+		brainSvc = old
+		brainSvcMu.Unlock()
+	})
+	e, err := theBrain().get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = e.Update(brain.Source{ID: "personal-vault", Label: "Private", Path: t.TempDir(), Kind: "personal"}); err != nil {
+		t.Fatal(err)
+	}
+	m, err := theBrain().semanticManager()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(m.close)
+	if err = m.configure(brainSemanticRequest{Action: "enable", Model: "nomic"}); err != nil {
+		t.Fatal(err)
+	}
+	on := true
+	if err = m.configure(brainSemanticRequest{Action: "auto", AutoIndex: &on}); err != nil {
+		t.Fatal(err)
+	}
+	frozen := m.configCopy().Sources
+	if !hasName(frozen, "conversations") || hasName(frozen, "personal-vault") {
+		t.Fatal("automatic default scope must freeze non-personal sources")
+	}
+	if err = e.Update(brain.Source{ID: "later-source", Label: "Later", Path: t.TempDir(), Kind: "context"}); err != nil {
+		t.Fatal(err)
+	}
+	if hasName(m.configCopy().Sources, "later-source") {
+		t.Fatal("linking a source silently widened automatic embedding consent")
 	}
 }

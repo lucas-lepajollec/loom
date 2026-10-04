@@ -42,6 +42,10 @@ function Repo({ info }) {
   </div>`;
 }
 
+const projectForm = p => ({ name: p.name, directory: p.directory || '', machine: p.machine || '', extra: p.extra_dirs || [], brain: new Set(p.brain_sources || []), budget: p.brain_budget || 0,
+  continuity: { ...(p.continuity || {}), core: { purpose: '', rationale: '', constraints: '', decisions: '', ...(p.continuity?.core || {}) }, working_state: p.continuity?.working_state || '', references: p.continuity?.references || [] },
+  instructions: p.instructions || '', skills: new Set(p.capability_ids || []), files: new Set(p.context_files || []), def: p.default_choice || '' });
+
 export function ProjectPage({ route }) {
   const { ws, nav } = useStore(app, s => ({ ws: s.workspace, nav: s.nav }));
   const p = ws && (ws.projects || []).find(x => x.id === route.sub);
@@ -52,7 +56,7 @@ export function ProjectPage({ route }) {
   const [brainSources, setBrainSources] = useState(null);
   useEffect(() => { get('/api/brain/sources').then(r => setBrainSources(r.sources || [])).catch(() => setBrainSources([])); }, []);
   useEffect(() => { get('/api/machines').then(r => setMachines(r.ok ? r.machines : [])).catch(() => {}); }, []);
-  const reset = () => p && setF({ name: p.name, directory: p.directory || '', machine: p.machine || '', extra: p.extra_dirs || [], brain: new Set(p.brain_sources || []), budget: p.brain_budget || 0, instructions: p.instructions || '', skills: new Set(p.capability_ids || []), files: new Set(p.context_files || []), def: p.default_choice || '' });
+  const reset = () => p && setF(projectForm(p));
   useEffect(reset, [p && p.id]);
   const loadInfo = () => p && get('/api/projects/info?id=' + encodeURIComponent(p.id)).then(setInfo, () => setInfo({}));
   useEffect(() => { setInfo(null); loadInfo(); }, [p && p.id, p && p.directory]);
@@ -61,11 +65,15 @@ export function ProjectPage({ route }) {
   if (!f) return null;
   const chats = nav.conversations.filter(c => c.project_id === p.id);
   const same = (a, b) => [...a].sort().join('\n') === [...b].sort().join('\n');
-  const dirty = f.name !== p.name || f.directory !== (p.directory || '') || f.machine !== (p.machine || '') || f.extra.join('\n') !== (p.extra_dirs || []).join('\n') || !same(f.brain, p.brain_sources || []) || f.budget !== (p.brain_budget || 0) || f.instructions !== (p.instructions || '') || !same(f.skills, p.capability_ids || []) || !same(f.files, p.context_files || []) || f.def !== (p.default_choice || '');
+  const dirty = JSON.stringify(f.continuity) !== JSON.stringify(projectForm(p).continuity) || f.name !== p.name || f.directory !== (p.directory || '') || f.machine !== (p.machine || '') || f.extra.join('\n') !== (p.extra_dirs || []).join('\n') || !same(f.brain, p.brain_sources || []) || f.budget !== (p.brain_budget || 0) || f.instructions !== (p.instructions || '') || !same(f.skills, p.capability_ids || []) || !same(f.files, p.context_files || []) || f.def !== (p.default_choice || '');
   const save = async () => {
-    const r = await post('/api/projects/context', { id: p.id, name: f.name, directory: f.directory, machine: f.machine, extra_dirs: f.extra, brain_sources: [...f.brain], brain_budget: f.budget, instructions: f.instructions, capability_ids: [...f.skills], context_files: !f.machine && f.directory === (p.directory || '') ? [...f.files] : [], default_choice: f.def });
+    const r = await post('/api/projects/context', { id: p.id, name: f.name, directory: f.directory, machine: f.machine, extra_dirs: f.extra, continuity: f.continuity, brain_sources: [...f.brain], brain_budget: f.budget, instructions: f.instructions, capability_ids: [...f.skills], context_files: !f.machine && f.directory === (p.directory || '') ? [...f.files] : [], default_choice: f.def });
     if (!r.ok) return toast(r.error, 'err');
-    toast(t("projects.page.projet_enregistre_applique_aux_prochains_messages")); await refreshWorkspace(); refreshNav();
+    toast(t("projects.page.projet_enregistre_applique_aux_prochains_messages"));
+    const updated = await refreshWorkspace();
+    const saved = updated?.projects?.find(x => x.id === p.id);
+    if (saved) setF(projectForm(saved));
+    refreshNav();
   };
   const del = async () => { if (!await confirm(t("projects.page.supprimer_le_projet"), t("projects.page.ses_discussions_ne_sont_pas_effacees_elles_reviennent_dans_recent"), { ok: t("projects.page.supprimer"), danger: true })) return; await post('/api/projects/delete', { id: p.id }); refreshWorkspace(); refreshNav(); go('chat'); };
   const toggle = (key, id) => { const s = new Set(f[key]); s.has(id) ? s.delete(id) : s.add(id); setF({ ...f, [key]: s }); };
@@ -93,6 +101,18 @@ export function ProjectPage({ route }) {
             ${f.extra.map(d => html`<div class="pj-extra-row" key=${d}><${Icon} n="folder" /><span class="mono trunc">${home(d)}</span><button class="icon-btn" aria-label="${t("projects.page.retirer")}" onClick=${() => setF({ ...f, extra: f.extra.filter(x => x !== d) })}><${Icon} n="close" /></button></div>`)}
             <button class="btn sm ghost" onClick=${async () => { if (!f.machine) return setPick('extra'); const d = await prompt(t("projects.page.dossier_supplementaire"), { placeholder: t("projects.page.home_moi_autre"), ok: t("projects.page.ajouter") }); if (d) setF({ ...f, extra: [...f.extra, d.trim()] }); }}><${Icon} n="plus" />${t("projects.page.ajouter_un_dossier")}</button></div>`}
           ${!f.machine && f.directory && f.directory !== (p.directory || '') && html`<p class="note">${t("projects.page.enregistre_pour_lire_ce_dossier")}</p>`}
+        </section>
+
+        <section class="card pad pj-sec">
+          <div class="sec-h"><h2>${t('continuity.core')}</h2></div>
+          ${['purpose', 'rationale', 'constraints', 'decisions'].map(key => html`<label class="field"><span>${t({ purpose: 'continuity.purpose', rationale: 'continuity.rationale', constraints: 'continuity.constraints', decisions: 'continuity.decisions' }[key])}</span><textarea class="textarea" rows="3" maxlength="12000" value=${f.continuity.core[key] || ''} onInput=${e => setF({ ...f, continuity: { ...f.continuity, core: { ...f.continuity.core, [key]: e.target.value } } })}></textarea></label>`)}
+          <label class="field"><span>${t('continuity.state')}</span><textarea class="textarea" rows="5" maxlength="4000" value=${f.continuity.working_state || ''} onInput=${e => setF({ ...f, continuity: { ...f.continuity, working_state: e.target.value } })}></textarea><small>${t('continuity.state_note')}</small></label>
+          ${p.continuity?.state_updated_at && html`<p class="note">${new Date(p.continuity.state_updated_at).toLocaleString()}</p>`}
+        </section>
+        <section class="card pad pj-sec">
+          <div class="sec-h"><h2>${t('continuity.references')}</h2></div><p class="note">${t('continuity.references_note')}</p>
+          ${f.continuity.references.map((ref, i) => html`<div class="field" key=${ref.discussion_id}><div class="btn-row"><a class="linkish" href="#/chat" onClick=${() => open(ref.discussion_id)}>${nav.conversations.find(c => c.id === ref.discussion_id)?.title || ref.discussion_id}</a><button class="btn sm ghost" onClick=${() => setF({ ...f, continuity: { ...f.continuity, references: f.continuity.references.filter((_, n) => n !== i) } })}>${t('projects.page.retirer')}</button></div><label class="field"><span>${t('continuity.capsule')}</span><textarea class="textarea" rows="3" maxlength="1000" value=${ref.capsule} onInput=${e => setF({ ...f, continuity: { ...f.continuity, references: f.continuity.references.map((r, n) => n === i ? { ...r, capsule: e.target.value } : r) } })}></textarea></label></div>`)}
+          ${f.continuity.references.length < 8 && html`<label class="field"><span>${t('continuity.link')}</span><select class="select" value="" onChange=${e => { if (e.target.value) setF({ ...f, brain: new Set([...f.brain, 'conversations']), budget: f.budget || 1500, continuity: { ...f.continuity, references: [...f.continuity.references, { discussion_id: e.target.value, capsule: '' }] } }); }}><option value="">—</option>${nav.conversations.filter(c => !f.continuity.references.some(r => r.discussion_id === c.id)).map(c => html`<option value=${c.id}>${c.title}</option>`)}</select></label>`}
         </section>
 
         <section class="card pad pj-sec">

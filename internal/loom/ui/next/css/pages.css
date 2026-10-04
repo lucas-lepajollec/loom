@@ -493,7 +493,9 @@
 .dist-filter{display:flex}
 .dist-filter .seg{flex:none}
 .dist-filter .seg button{flex:none}
-.dist-item{align-items:flex-start}
+.dist-item{align-items:flex-start;flex-wrap:wrap}
+.dist-item>.grow{flex:1 1 240px;min-width:0}
+.dist-item>.btn-row{min-width:0;max-width:100%}
 .dist-item .tag{flex:none;min-width:86px;justify-content:center;margin-top:1px}
 .dist-t{white-space:normal;line-height:1.45}
 .linkish{padding:0;border:0;background:none;font:inherit;color:var(--text-2);text-decoration:underline;text-decoration-color:var(--line-2,var(--line));text-underline-offset:2px;cursor:pointer}

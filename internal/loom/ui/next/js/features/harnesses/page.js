@@ -107,9 +107,12 @@ function NativeSessions({ rt }) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
   const [q, setQ] = useState('');
+  const [project, setProject] = useState('');
+  const [fresh, setFresh] = useState(true);
+  const projects = useStore(app, s => s.workspace?.projects || []);
   const load = async () => {
     setErr(''); setList(null);
-    const r = await get('/api/runtimes/' + rt.id + '/sessions').catch(e => ({ ok: false, error: e.message }));
+    const r = await get('/api/runtimes/' + rt.id + '/sessions', { timeout: 95000 }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) { setErr(r.error || t("harnesses.page.lecture_impossible")); setList([]); return; }
     setList((r.sessions || []).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))));
   };
@@ -117,7 +120,7 @@ function NativeSessions({ rt }) {
   const importOne = async x => {
     if (x.imported) { openChat(x.imported); go('chat'); return; }
     setBusy(x.sessionId);
-    const r = await post('/api/runtimes/' + rt.id + '/sessions/import', { sessionId: x.sessionId, cwd: x.cwd, title: x.title || '' }).catch(e => ({ ok: false, error: e.message }));
+    const r = await post('/api/runtimes/' + rt.id + '/sessions/import', { sessionId: x.sessionId, cwd: x.cwd, title: x.title || '', project_id: project, fresh }, { timeout: 190000 }).catch(e => ({ ok: false, error: e.message }));
     setBusy('');
     if (!r.ok) return toast(r.error || t("harnesses.page.import_impossible"), 'err');
     await refreshNav(); openChat(r.session.id); go('chat');
@@ -126,6 +129,8 @@ function NativeSessions({ rt }) {
   return html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.sessions_de")} ${rt.name} <span class="count">${list ? list.length : ''}</span><${Tip} text=${t("harnesses.page.les_discussions_que_tu_as_eues_directement_dans") + rt.name + t("harnesses.page.les_importer_les_ajoute_a_loom_tu_les_continues_ici_avec_la_memoi")} /></h2>
       <span style="display:flex;gap:8px">${list && list.length > 6 && html`<label class="search" style="width:220px"><${Icon} n="search" /><input placeholder="${t("harnesses.page.filtrer")}" aria-label="${t("harnesses.page.filtrer_les_sessions")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>`}
       <button class="btn sm ghost" onClick=${load}><${Icon} n="refresh" />${t("harnesses.page.actualiser")}</button></span></div>
+    <label class="field"><span>${t('harnesses.import.project')}</span><select class="select" value=${project} onChange=${e => setProject(e.target.value)}><option value="">—</option>${projects.map(p => html`<option value=${p.id}>${p.name}</option>`)}</select></label>
+    <label class="check"><input type="checkbox" checked=${fresh} onChange=${e => setFresh(e.target.checked)} /><span>${t('harnesses.import.fresh')}</span></label><p class="note">${t('harnesses.import.note')}</p>
     ${list === null ? html`<div class="card pad"><div class="state"><span class="spinner"></span>${t("harnesses.page.lecture_des_sessions_de")} ${rt.name}…</div></div>`
       : err ? html`<div class="card pad"><p class="note err">${err}</p></div>`
       : !shown.length ? html`<div class="card pad"><p class="note">${q ? t("harnesses.page.aucune_session_ne_correspond") : t("harnesses.page.aucune_session_trouvee")}</p></div>`

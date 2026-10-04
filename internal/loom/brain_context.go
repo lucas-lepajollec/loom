@@ -57,7 +57,7 @@ func projectBrainContext(p ChatProject, query string) (string, []string) {
 	// SearchContext falls back to the lexical index when embedding times out.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	pack, err := theBrain().PackContext(ctx, brain.PackRequest{Query: query, BudgetTokens: p.BrainBudget, Sources: p.BrainSources, Personal: personal})
+	pack, err := theBrain().PackContext(ctx, brain.PackRequest{Query: query, BudgetTokens: p.BrainBudget, Sources: p.BrainSources, Personal: personal, PathPrefixes: projectReferenceScope(p)})
 	if err != nil || strings.TrimSpace(pack.Text) == "" {
 		return "", nil
 	}
@@ -66,4 +66,29 @@ func projectBrainContext(p ChatProject, query string) (string, []string) {
 		cites = append(cites, c.Citation)
 	}
 	return pack.Text, cites
+}
+
+// Restrict conversation retrieval to explicit references, even when the whole
+// conversation source was selected in an older project configuration.
+func projectReferenceScope(p ChatProject) map[string][]string {
+	scope := map[string][]string{"conversations": {}}
+	if p.Continuity == nil {
+		return scope
+	}
+	for _, ref := range p.Continuity.References {
+		var s RuntimeSession
+		if getStoreJSON(bkRuntimeSessions, ref.DiscussionID, &s) {
+			if s.NativeArchive != "" {
+				scope["conversations"] = append(scope["conversations"], "native/"+s.NativeArchive)
+			} else {
+				scope["conversations"] = append(scope["conversations"], "discussion/"+s.ID)
+			}
+		} else {
+			var a convArchive
+			if getStoreJSON(bkChatHist, ref.DiscussionID, &a) {
+				scope["conversations"] = append(scope["conversations"], "native/"+a.ID)
+			}
+		}
+	}
+	return scope
 }

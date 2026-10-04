@@ -5,16 +5,39 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/brain"
+	"github.com/lucas-lepajollec/loom/internal/loom/project"
 )
 
 func discussionContext(s RuntimeSession) DiscussionContext {
+	return discussionContextFor(s, lastUserText(s.Messages))
+}
+
+func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 	c := DiscussionContext{MCPServers: s.MCPServers, ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}}
 	parts := []string{}
+	if text, err := globalPreferences(s.RuntimeID != "llama.cpp"); err != nil {
+		c.Problem = err.Error()
+	} else if text != "" {
+		parts = append(parts, text)
+		c.GlobalPreferences = text
+	}
 	if s.ProjectID != "" {
 		p, ok := getProject(s.ProjectID)
 		if !ok {
 			c.Problem = "The project is missing or locked. Choose an accessible project or detach this thread."
 		} else {
+			if text := project.Text(p.Continuity); text != "" {
+				text = "Project identity: " + p.ID + "\n" + text
+				parts = append(parts, "Project continuity:\n"+text)
+				c.Minimum = text
+			}
+			if p.Continuity != nil {
+				for _, ref := range p.Continuity.References {
+					c.ReferenceIDs = append(c.ReferenceIDs, ref.DiscussionID)
+				}
+			}
 			c.ProjectName, c.Instructions = p.Name, p.Instructions
 			if c.MCPServers == nil {
 				c.MCPServers = p.MCPServers
@@ -29,7 +52,7 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 				c.Warning = warning
 			}
 			// Brain passages relevant to the latest message.
-			if text, cites := projectBrainContext(p, lastUserText(s.Messages)); text != "" {
+			if text, cites := projectBrainContext(p, query); text != "" {
 				parts = append(parts, text)
 				c.BrainCitations = cites
 			}
@@ -47,6 +70,7 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 		parts = append(parts, "Discussion instructions:\n"+s.Instructions)
 	}
 	c.System = strings.Join(parts, "\n\n")
+	c.EstimatedTokens = brain.Tokens(c.System)
 	c.Revision = discussionContextRevision(s, c)
 	return c
 }
@@ -107,6 +131,14 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 		s.CustomTitle = true
 	}
 	s.Title, s.ProjectID, s.Instructions = title, projectID, instructions
+	// ACP configuration can change the MCP selection without changing text.
+	// Publish that selection with the prepared context, without another retrieval.
+	nextContext.MCPServers = s.MCPServers
+	if nextContext.MCPServers == nil && projectID != "" {
+		if p, ok := getProject(projectID); ok {
+			nextContext.MCPServers = p.MCPServers
+		}
+	}
 	s.UpdatedAt = time.Now().UnixMilli()
 	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
 		m.closeACP(id)

@@ -70,28 +70,36 @@ func CloneACPState(s ACPState) ACPState {
 	return out
 }
 
+type NativeImport struct {
+	RuntimeID  string `json:"runtime_id"`
+	MachineID  string `json:"machine_id,omitempty"`
+	SessionID  string `json:"session_id"`
+	ImportedAt int64  `json:"imported_at"`
+}
+
 // RuntimeSession is a Loom-owned conversation. Its portable transcript outlives
 // any execution route. A route change never replaces or forks this history.
 type RuntimeSession[Usage, Stats any] struct {
 	ACPState
-	ID              string    `json:"id"`
-	ProjectID       string    `json:"project_id"`
-	RuntimeID       string    `json:"runtime_id"`
-	ProviderID      string    `json:"provider_id"`
-	ProviderName    string    `json:"provider_name"`
-	Endpoint        string    `json:"endpoint"`
-	Model           string    `json:"model"`
-	ReasoningEffort string    `json:"reasoning_effort,omitempty"`
-	Title           string    `json:"title"`
-	CreatedAt       int64     `json:"created_at"`
-	UpdatedAt       int64     `json:"updated_at"`
-	MessageCount    int       `json:"message_count,omitempty"` // filled in lists, where messages are left out
-	Status          string    `json:"status"`
-	Messages        []Message `json:"messages"`
-	Usage           *Usage    `json:"usage,omitempty"`
-	Error           string    `json:"error,omitempty"`
-	Instructions    string    `json:"instructions,omitempty"`
-	CustomTitle     bool      `json:"custom_title,omitempty"`
+	ImportSource    *NativeImport `json:"import_source,omitempty"`
+	ID              string        `json:"id"`
+	ProjectID       string        `json:"project_id"`
+	RuntimeID       string        `json:"runtime_id"`
+	ProviderID      string        `json:"provider_id"`
+	ProviderName    string        `json:"provider_name"`
+	Endpoint        string        `json:"endpoint"`
+	Model           string        `json:"model"`
+	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
+	Title           string        `json:"title"`
+	CreatedAt       int64         `json:"created_at"`
+	UpdatedAt       int64         `json:"updated_at"`
+	MessageCount    int           `json:"message_count,omitempty"` // filled in lists, where messages are left out
+	Status          string        `json:"status"`
+	Messages        []Message     `json:"messages"`
+	Usage           *Usage        `json:"usage,omitempty"`
+	Error           string        `json:"error,omitempty"`
+	Instructions    string        `json:"instructions,omitempty"`
+	CustomTitle     bool          `json:"custom_title,omitempty"`
 	// Last request identity prevents retries from charging the same turn twice.
 	LastRequestID string                            `json:"last_request_id,omitempty"`
 	RequestIDs    []string                          `json:"request_ids,omitempty"`
@@ -123,6 +131,10 @@ type RuntimeTurnRecord[Usage, Stats any] struct {
 
 func CloneRuntimeSession[Usage, Stats any](s RuntimeSession[Usage, Stats]) RuntimeSession[Usage, Stats] {
 	s.ACPState = CloneACPState(s.ACPState)
+	if s.ImportSource != nil {
+		source := *s.ImportSource
+		s.ImportSource = &source
+	}
 	s.Messages = append([]Message{}, s.Messages...)
 	s.RequestIDs = append([]string{}, s.RequestIDs...)
 	s.Turns = append([]RuntimeTurnRecord[Usage, Stats]{}, s.Turns...)

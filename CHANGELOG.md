@@ -4,6 +4,26 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Added
+
+- Shared preference-page selection with separate external consent; project core,
+  dated working state and reviewed reference capsules across executor changes.
+- Project-scoped conversation retrieval over HTTP/MCP, including semantic search
+  and direct passage reads, plus minimum-context and token-cost inspection.
+- Review/edit/keep/reject for newly distilled memory candidates; existing memory
+  remains accepted. Source freshness states, optional multilingual embeddings
+  and explicit incremental semantic auto-indexing.
+- Native-import project attachment, immutable runtime/machine/session provenance
+  and deduplication after route changes; fresh native execution by default in UI.
+
+### Changed
+
+- Brain navigation separates Overview, Sources, Memory, Retrieval and Connections;
+  execution capabilities remain distinct from knowledge. Product vision and
+  roadmap now distinguish implemented behavior from outstanding acceptance.
+- Project retrieval uses the current draft from the first turn; native local
+  context is prepared once and blocks unreadable selected preferences.
+
 ### Fixed
 
 - Serialize visible status, hardware and activity observations, bound stalled

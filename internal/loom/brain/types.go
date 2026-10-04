@@ -26,6 +26,7 @@ type Source struct {
 	ReadOnly    bool      `json:"read_only"`
 	Files       int       `json:"files"`
 	Chunks      int       `json:"chunks"`
+	LastChecked time.Time `json:"last_checked"`
 	LastIndexed time.Time `json:"last_indexed"`
 	Error       string    `json:"error,omitempty"`
 }
@@ -53,24 +54,30 @@ type Hit struct {
 	ChunkID    string   `json:"chunk_id"`
 }
 type SearchRequest struct {
-	Query    string   `json:"query"`
-	Sources  []string `json:"sources,omitempty"`
-	Personal bool     `json:"personal,omitempty"`
-	Limit    int      `json:"limit,omitempty"`
+	ProjectID    string              `json:"project_id,omitempty"`
+	PathPrefixes map[string][]string `json:"path_prefixes,omitempty"`
+	Query        string              `json:"query"`
+	Sources      []string            `json:"sources,omitempty"`
+	Personal     bool                `json:"personal,omitempty"`
+	Limit        int                 `json:"limit,omitempty"`
 }
 type ReadRequest struct {
-	ChunkID  string   `json:"chunk_id,omitempty"`
-	Source   string   `json:"source,omitempty"`
-	Path     string   `json:"path,omitempty"`
-	Heading  []string `json:"heading,omitempty"`
-	Sources  []string `json:"sources,omitempty"`
-	Personal bool     `json:"personal,omitempty"`
+	ProjectID    string              `json:"project_id,omitempty"`
+	PathPrefixes map[string][]string `json:"path_prefixes,omitempty"`
+	ChunkID      string              `json:"chunk_id,omitempty"`
+	Source       string              `json:"source,omitempty"`
+	Path         string              `json:"path,omitempty"`
+	Heading      []string            `json:"heading,omitempty"`
+	Sources      []string            `json:"sources,omitempty"`
+	Personal     bool                `json:"personal,omitempty"`
 }
 type PackRequest struct {
-	Query        string   `json:"query"`
-	BudgetTokens int      `json:"budget_tokens,omitempty"`
-	Sources      []string `json:"sources,omitempty"`
-	Personal     bool     `json:"personal,omitempty"`
+	ProjectID    string              `json:"project_id,omitempty"`
+	PathPrefixes map[string][]string `json:"path_prefixes,omitempty"`
+	Query        string              `json:"query"`
+	BudgetTokens int                 `json:"budget_tokens,omitempty"`
+	Sources      []string            `json:"sources,omitempty"`
+	Personal     bool                `json:"personal,omitempty"`
 }
 type Citation struct {
 	ChunkID  string `json:"chunk_id"`

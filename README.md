@@ -164,7 +164,7 @@ Update Loom from **Settings → About → Updates** using official GitHub releas
 - [Provider balances](docs/usage.md) · [Harness quotas and native usage](docs/harness-usage.md)
 - [Interface languages](docs/i18n.md)
 - [Architecture principles](docs/architecture-principles.md) · [Architecture](docs/architecture.md) · [Workspace contracts](docs/workspace-architecture.md)
-- [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
+- [Product vision](docs/VISION.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
 - [Browser demo setup](demo/README.md) — a fictional simulation, without inference
 
 ## Contributing and license

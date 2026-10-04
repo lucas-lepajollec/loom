@@ -5,17 +5,20 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/project"
 )
 
 // ChatProject owns shared context while preserving the original chat grouping.
 type ChatProject struct {
-	MCPServers    *[]string `json:"mcp_servers,omitempty"`
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	CreatedAt     int64     `json:"created_at"`
-	Directory     string    `json:"directory,omitempty"`
-	Instructions  string    `json:"instructions,omitempty"`
-	CapabilityIDs []string  `json:"capability_ids,omitempty"`
+	Continuity    *project.Continuity `json:"continuity,omitempty"`
+	MCPServers    *[]string           `json:"mcp_servers,omitempty"`
+	ID            string              `json:"id"`
+	Name          string              `json:"name"`
+	CreatedAt     int64               `json:"created_at"`
+	Directory     string              `json:"directory,omitempty"`
+	Instructions  string              `json:"instructions,omitempty"`
+	CapabilityIDs []string            `json:"capability_ids,omitempty"`
 	// ContextFiles: files of Directory added to the context (relative paths).
 	ContextFiles []string `json:"context_files,omitempty"`
 	// DefaultChoice: selector choice a new discussion of the project starts with.

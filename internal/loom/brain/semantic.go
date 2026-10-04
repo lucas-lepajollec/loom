@@ -144,6 +144,9 @@ func (v *Vectors) UnmarshalBinary(data []byte) error {
 
 // Chunks applies exactly the same source/privacy policy as lexical search.
 func (e *Engine) Chunks(r SearchRequest) ([]Chunk, error) {
+	if err := validateScope(r.PathPrefixes); err != nil {
+		return nil, err
+	}
 	if err := e.available(); err != nil {
 		return nil, err
 	}
@@ -155,7 +158,7 @@ func (e *Engine) Chunks(r SearchRequest) ([]Chunk, error) {
 	}
 	out := []Chunk{}
 	for _, d := range e.docs {
-		if allowed[d.chunk.Source] {
+		if allowed[d.chunk.Source] && allowsPath(r.PathPrefixes, d.chunk.Source, d.chunk.Path) {
 			c := *d.chunk
 			c.Heading = append([]string{}, c.Heading...)
 			out = append(out, c)
@@ -222,7 +225,7 @@ func (e *Engine) HybridSearch(r SearchRequest, query []float32, vectors map[stri
 	for _, d := range e.docs {
 		c := d.chunk
 		vec := vectors[c.ID]
-		if !allowed[c.Source] || len(vec) != len(query) || !ValidVector(vec) {
+		if !allowed[c.Source] || !allowsPath(r.PathPrefixes, c.Source, c.Path) || len(vec) != len(query) || !ValidVector(vec) {
 			continue
 		}
 		score := Cosine(query, vec)

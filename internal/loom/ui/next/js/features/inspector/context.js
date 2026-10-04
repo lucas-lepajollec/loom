@@ -58,6 +58,11 @@ export function ContextPanel() {
       <div class="kv"><span>${t("inspector.context.historique_partage")}</span><span>${textual} ${t("inspector.context.messages_2")}</span></div>
       <div class="kv"><span>${t("inspector.context.skills")}</span><span>${skills.length}</span></div>
     </div>
+    <div class="kv"><span>${t('brain.context.budget')}</span><span>~${ctx.estimated_tokens || 0}</span></div>
+    ${ctx.global_preferences && html`<details class="pv"><summary>${t('brain.preferences.title')}</summary><pre>${ctx.global_preferences}</pre></details>`}
+    ${ctx.minimum && html`<details class="pv"><summary>${t('brain.context.minimum')}</summary><pre>${ctx.minimum}</pre></details>`}
+    ${(ctx.reference_ids || []).length > 0 && html`<div class="ctx-block"><div class="lbl">${t('brain.context.references')}</div>${ctx.reference_ids.map(id => html`<button class="btn sm ghost" onClick=${() => open(id)}>${id}</button>`)}</div>`}
+    ${(ctx.brain_citations || []).length > 0 && html`<details class="pv"><summary>Brain</summary><pre>${ctx.brain_citations.join('\n')}</pre></details>`}
     <div class="ctx-block"><div class="lbl">${t("inspector.context.instructions_du_projet")}</div><p>${ctx.project_instructions || html`<span class="muted">${t("inspector.context.aucune")}</span>`}</p></div>
     <div class="ctx-block"><div class="lbl">${t("inspector.context.consigne_de_la_discussion")}</div><p>${ctx.discussion_instructions || html`<span class="muted">${t("inspector.context.aucune")}</span>`}</p></div>
     ${skills.length > 0 && html`<div class="ctx-block"><div class="lbl">${t("inspector.context.skills")}</div><div class="chips">${skills.map(k => html`<span class="tag">${k.name}</span>`)}</div></div>`}

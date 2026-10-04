@@ -45,6 +45,9 @@ func (e *Engine) Search(r SearchRequest) ([]Hit, error) {
 	return e.searchLocked(r)
 }
 func (e *Engine) searchLocked(r SearchRequest) ([]Hit, error) {
+	if err := validateScope(r.PathPrefixes); err != nil {
+		return nil, err
+	}
 	if len(r.Query) > 4096 {
 		return nil, errors.New("query exceeds 4096 bytes")
 	}
@@ -63,7 +66,7 @@ func (e *Engine) searchLocked(r SearchRequest) ([]Hit, error) {
 	}
 	n, total := 0, 0
 	for _, d := range e.docs {
-		if allowed[d.chunk.Source] {
+		if allowed[d.chunk.Source] && allowsPath(r.PathPrefixes, d.chunk.Source, d.chunk.Path) {
 			n++
 			total += d.length
 		}
@@ -78,14 +81,14 @@ func (e *Engine) searchLocked(r SearchRequest) ([]Hit, error) {
 		postings := e.postings[term]
 		df := 0
 		for _, p := range postings {
-			if allowed[e.docs[p.doc].chunk.Source] {
+			if allowed[e.docs[p.doc].chunk.Source] && allowsPath(r.PathPrefixes, e.docs[p.doc].chunk.Source, e.docs[p.doc].chunk.Path) {
 				df++
 			}
 		}
 		idf := math.Log(1 + (float64(n-df)+0.5)/(float64(df)+0.5))
 		for _, p := range postings {
 			d := e.docs[p.doc]
-			if !allowed[d.chunk.Source] {
+			if !allowed[d.chunk.Source] || !allowsPath(r.PathPrefixes, d.chunk.Source, d.chunk.Path) {
 				continue
 			}
 			tf := float64(p.frequency)
@@ -144,6 +147,9 @@ func (h rankHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 func (h *rankHeap) Push(x any)        { *h = append(*h, x.(ranked)) }
 func (h *rankHeap) Pop() any          { old := *h; x := old[len(old)-1]; *h = old[:len(old)-1]; return x }
 func (e *Engine) Read(r ReadRequest) (Chunk, error) {
+	if err := validateScope(r.PathPrefixes); err != nil {
+		return Chunk{}, err
+	}
 	if err := e.available(); err != nil {
 		return Chunk{}, err
 	}
@@ -163,7 +169,7 @@ func (e *Engine) Read(r ReadRequest) (Chunk, error) {
 	var found *Chunk
 	for _, d := range e.docs {
 		c := d.chunk
-		if !allowed[c.Source] || (r.Source != "" && c.Source != r.Source) {
+		if !allowed[c.Source] || !allowsPath(r.PathPrefixes, c.Source, c.Path) || (r.Source != "" && c.Source != r.Source) {
 			continue
 		}
 		match := c.ID == r.ChunkID
@@ -209,7 +215,7 @@ func (e *Engine) Pack(r PackRequest) (Pack, error) {
 	}
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	hits, err := e.searchLocked(SearchRequest{r.Query, r.Sources, r.Personal, 100})
+	hits, err := e.searchLocked(SearchRequest{Query: r.Query, Sources: r.Sources, Personal: r.Personal, Limit: 100, PathPrefixes: r.PathPrefixes})
 	if err != nil {
 		return out, err
 	}
@@ -218,6 +224,9 @@ func (e *Engine) Pack(r PackRequest) (Pack, error) {
 
 // PackHits rechecks source authorization against the current snapshot.
 func (e *Engine) PackHits(r PackRequest, hits []Hit) (Pack, error) {
+	if err := validateScope(r.PathPrefixes); err != nil {
+		return Pack{}, err
+	}
 	if err := e.available(); err != nil {
 		return Pack{}, err
 	}
@@ -235,7 +244,7 @@ func (e *Engine) PackHits(r PackRequest, hits []Hit) (Pack, error) {
 	}
 	filtered := []Hit{}
 	for _, h := range hits {
-		if allowed[h.Source] {
+		if allowed[h.Source] && allowsPath(r.PathPrefixes, h.Source, h.Path) {
 			filtered = append(filtered, h)
 		}
 	}
@@ -251,7 +260,7 @@ func (e *Engine) packHitsLocked(r PackRequest, hits []Hit) Pack {
 	text := "Context from the user's Brain:\n"
 	for _, hit := range hits {
 		c := byID[hit.ChunkID]
-		if c == nil || c.Source != hit.Source {
+		if c == nil || c.Source != hit.Source || !allowsPath(r.PathPrefixes, c.Source, c.Path) {
 			continue
 		}
 		normalized := strings.Join(strings.Fields(c.Text), " ")

@@ -21,6 +21,7 @@ type brainDistilledSource struct {
 	MessageIndex int    `json:"message_index"`
 }
 type brainDistilledItem struct {
+	Review string               `json:"review,omitempty"`
 	ID     string               `json:"id"`
 	Kind   string               `json:"kind"`
 	Text   string               `json:"text"`
@@ -82,6 +83,9 @@ func (s *brainService) distilledDocuments(ctx context.Context, emit func(brain.D
 		return err
 	}
 	for _, item := range items {
+		if item.Review != "" && item.Review != "accepted" {
+			continue
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -247,7 +251,7 @@ func brainParseDistillation(raw string, d brainDistillDiscussion, allowed map[in
 		text := strings.TrimSpace(item.Text)
 		source := brainDistilledSource{d.ID, *item.MessageIndex}
 		hash := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%d\x00%s\x00%s", d.ID, source.MessageIndex, item.Kind, text)))
-		items = append(items, brainDistilledItem{fmt.Sprintf("%x", hash), item.Kind, text, source, d.Date})
+		items = append(items, brainDistilledItem{ID: fmt.Sprintf("%x", hash), Kind: item.Kind, Text: text, Source: source, Date: d.Date, Review: "pending"})
 	}
 	return items, nil
 }
@@ -431,6 +435,58 @@ func (s *brainService) deleteDistilledHTTP(w http.ResponseWriter, r *http.Reques
 			err = errors.New("distilled item not found")
 		} else {
 			err = s.saveDistilledLocked(next)
+		}
+	}
+	s.distillMu.Unlock()
+	if err == nil {
+		var e *brain.Engine
+		e, err = s.get()
+		if err == nil {
+			err = e.Refresh(r.Context())
+		}
+	}
+	brainResponse(w, map[string]any{"ok": true}, err)
+}
+
+// Review is an explicit human decision. Pending/rejected model suggestions
+// remain outside the derived knowledge index. Legacy retained items stay valid.
+func (s *brainService) reviewDistilledHTTP(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, "POST") {
+		return
+	}
+	var req struct {
+		ID     string  `json:"id"`
+		Review string  `json:"review"`
+		Text   *string `json:"text,omitempty"`
+	}
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	if req.Review != "accepted" && req.Review != "rejected" {
+		brainResponse(w, nil, errors.New("review must be accepted or rejected"))
+		return
+	}
+	if req.Text != nil && (strings.TrimSpace(*req.Text) == "" || len(*req.Text) > 4000 || strings.ContainsRune(*req.Text, 0)) {
+		brainResponse(w, nil, errors.New("invalid reviewed text"))
+		return
+	}
+	s.distillMu.Lock()
+	items, err := s.loadDistilledLocked()
+	if err == nil {
+		found := false
+		for i := range items {
+			if items[i].ID == req.ID {
+				found = true
+				items[i].Review = req.Review
+				if req.Text != nil {
+					items[i].Text = strings.TrimSpace(*req.Text)
+				}
+			}
+		}
+		if !found {
+			err = errors.New("memory candidate not found")
+		} else {
+			err = s.saveDistilledLocked(items)
 		}
 	}
 	s.distillMu.Unlock()

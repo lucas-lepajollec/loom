@@ -607,7 +607,9 @@ Still in Loom, deliberately:
   Live turn updates and publication retain their cancellation/persistence order.
 - `workspace_prompt.go`, `workspace_context.go`, project files, Brain and skill
   helpers: project/skill lookup, selected-file reads and Brain retrieval assemble
-  the context under Loom's existing lock. Pure preparation and hashing receive
+  the context from read snapshots outside the global session registry lock.
+  The registry revalidates the original session before committing execution.
+  Pure preparation and hashing receive
   only the resulting read model; there is no parallel memory engine.
 - `workspace_native.go` and the existing Conversation/archive pipeline: native
   activation, journal projection/annotation, tools, compaction, archive binding
@@ -791,3 +793,14 @@ Application release updates are separate from engine updates. `sys_update.go` sh
 ## Engine-only execution mode
 
 `loom node` enters before dotenv/user adoption/ACP lifecycle setup and uses a separate data root. `engine_routes.go` registers the shared engine control handlers in either the main authenticated web mux or the node-only mux. The latter never calls `newWebMux`, so it does not load conversations, prewarm MCP or start Brain/harness services. `engine_worker.go` owns the machine-only auth boundary and streaming local inference proxy; `engine_worker_routes.go` adapts native management while a loopback vLLM link serves inference; `engine_worker_install.go` writes a user service. The release installer has a separate user-only node mode. Node release updates are proxied through dedicated main-side endpoints and restart only the node user service. Local-only node benchmarks reuse native handlers and reject external choices. Main benchmark orchestration remains on the control plane and dispatches only local rows to a linked node. The main `engine_node.go` client negotiates a same-origin `/v1` address while retaining older full-Loom links. See [Engine node](engine-node.md) for capability and platform limits.
+
+
+### Reviewed project continuity leaf (unreleased)
+
+`project/continuity.go` owns bounded project core/working-state/reference values,
+validation and minimum-context assembly. It imports only the standard library;
+Loom's existing project storage, Brain retrieval and runtime orchestration stay
+in their adapters. This is a small coherent boundary, not a parallel memory
+engine. Native import provenance belongs to `discussion.NativeImport`; Brain's
+`PathPrefixes` scope is enforced by lexical, semantic and read/pack paths.
+See [workspace continuity](workspace-architecture.md#continuity-consolidation-unreleased).

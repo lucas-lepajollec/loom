@@ -16,8 +16,10 @@ the browser can be closed. Indexing runs at startup and every three minutes.
 definitions take effect immediately; new file content appears on the next
 refresh. No harness settings are changed automatically.
 
-The **Brain › Sources and context** page manages sources, search, semantic indexing and
-distilled items. Projects select which sources to retrieve and the context
+The **Brain** page has Overview, Sources, Memory, Retrieval and Connections.
+Sources manages linked knowledge; Memory manages preferences/pages and reviewed
+distillation; Retrieval manages lexical/semantic search. Connections exposes the
+read-only Brain MCP service and links execution capabilities (skills/MCP). Projects select which sources to retrieve and the context
 budget; the HTTP/MCP APIs retain explicit source and personal-access rules.
 
 ## Linked second brains
@@ -62,8 +64,9 @@ Three built-ins are read-only:
   approvals, tool results or runtime metadata. Bound native discussions are
   not indexed twice. Paths identify the discussion and individual message.
 - `distilled`: durable decisions, facts, todos and preferences extracted only
-  on request, with discussion/message provenance. Items can be deleted through
-  the dedicated endpoint; source definitions and item text cannot be edited.
+  on request, with discussion/message provenance. New items are review candidates, excluded from retrieval until accepted.
+  They can be edited/kept, rejected or deleted through dedicated endpoints.
+  The built-in source definition remains read-only.
 - `memory`: the existing local agent's Markdown pages, read through Loom's
   decryption layer. Brain does not create another memory store or write pages.
 
@@ -106,7 +109,7 @@ Responses use `Cache-Control: no-store`. POST JSON uses
 
 | Method / path | Input | Output |
 | --- | --- | --- |
-| `GET /api/brain/sources` | — | `{ok, sources:[{id,label,path,kind,connector?,include?,exclude?,read_only,files,chunks,last_indexed,error?}]}` |
+| `GET /api/brain/sources` | — | `{ok,refreshing,refresh_seconds:180,sources:[{id,label,path,kind,connector?,include?,exclude?,read_only,files,chunks,last_indexed,last_checked,error?}]}` |
 | `POST /api/brain/sources` | `{"action":"add","id":"project","label":"Project","path":"/path/to/project","kind":"repo","include":["**/*.md"]}` | Same source list; `add` creates/replaces the complete definition. `action` defaults to `add`. |
 | `POST /api/brain/sources` | `{"action":"relabel","id":"project","label":"New label"}` or `{"action":"remove","id":"project"}` | Same source list. Built-ins cannot be changed. |
 | `POST /api/brain/reindex` | No body | `{ok,sources,error?}` after refresh; partial source errors return `ok:false` with current counts. |
@@ -269,16 +272,17 @@ are refused; disconnecting the provider prevents further requests. No provider
 is contacted by merely reading state, and default BM25 never sends text.
 Selecting a local model clears the cloud selection and its consent.
 
-All additional routes use the same control-key, no-store, method and strict JSON
+All additional routes use the same authenticated-session/control-key, no-store, method and strict JSON
 rules as the APIs above:
 
 | Method / path | Input | Output |
 | --- | --- | --- |
-| `GET /api/brain/semantic` | — | `{enabled,model,provider_id?,consent,models,model_present,server_running,indexing,chunks_embedded,chunks_total,error?}` |
+| `GET /api/brain/semantic` | — | `{enabled,auto_index,model,provider_id?,consent,models,model_present,server_running,indexing,chunks_embedded,chunks_total,error?}` |
 | `POST /api/brain/semantic` | `{"action":"enable","model":"nomic","sources":["project"]}` | Current state; no download/index yet |
 | `POST /api/brain/semantic` | `{"action":"enable","provider_id":"saved-id","model":"embedding-model","consent":true}` | Current state; explicit cloud selection |
 | `POST /api/brain/semantic` | `{"action":"download"}` | State after downloading the selected local model |
 | `POST /api/brain/semantic` | `{"action":"index"}` | State; indexing continues in the background (two-hour maximum); poll GET |
+| `POST /api/brain/semantic` | `{"action":"auto","auto_index":true}` | Explicit background refresh opt-in; same selected sources/destination, no download |
 | `POST /api/brain/semantic` | `{"action":"disable"}` | Disabled state; cancels indexing and stops the owned child |
 
 Enable/configuration changes during indexing require disabling first. Model or
@@ -308,20 +312,27 @@ source discussion ID or date. A non-loopback linked engine additionally requires
 There is no automatic or scheduled distillation, no automatic model load, and
 no use of provider keys by the local embedding process.
 
-Items have `{id,kind,text,source:{discussion_id,message_index},date}`, with `kind`
+Items have `{id,kind,text,source:{discussion_id,message_index},date,review?}`, with `kind`
 being `decision`, `fact`, `todo` or `preference`. The date is the discussion's
 update/archive-save date (the snapshot date for an active native discussion),
 not an invented event date. Content-derived IDs dedupe
 identical items. The durable store `LOOM_HOME/brain/distilled.json` uses the existing
 vault codec and private file modes. It is a built-in Brain source, indexed on
-startup/refresh and immediately after a successful distillation/deletion; it is
+startup/refresh and immediately after a successful review/deletion; pending and
+rejected candidates are excluded. Legacy items without a review field remain
+accepted for compatibility. The source is
 excluded from the rebuildable BM25 text cache. Model-generated summaries remain
-untrusted and can be deleted item by item.
+untrusted. New extraction results have `review:"pending"`; accepting an item
+marks it reviewed without removing its original discussion/message provenance.
+Rejected items are retained in the memory store but hidden from retrieval.
+The UI shows active candidates/accepted items; the review API can restore a
+rejected item. Explicit deletion removes it.
 
 | Method / path | Input | Output |
 | --- | --- | --- |
 | `POST /api/brain/distill` | `{"discussion_id":"id"}` or `{"since":"2026-09-01"}`; optional explicit remote-engine `consent:true` | `{ok,items}` after generation, persistence and refresh |
 | `GET /api/brain/distilled` | — | `{items:[...]}` |
+| `POST /api/brain/distilled/review` | `{"id":"item-id","review":"accepted","text":"Reviewed text"}`; text optional; review accepted/rejected | `{ok}` after persistence and refresh |
 | `POST /api/brain/distilled/delete` | `{"id":"item-id"}` | `{ok}` after deletion and refresh |
 
 Limits: ten minutes per request, 1000 selected discussions / 64 MiB of retained
@@ -332,3 +343,68 @@ credentials are never echoed in errors; model responses are bounded to 4 MiB.
 Saving a new distilled item list rewrites it with the currently active vault
 codec; older plaintext distilled data requires such a write after encryption
 is enabled. As with other local data, vault locking blocks access immediately.
+
+
+## Project continuity and retrieval scope
+
+Project settings separate purpose, rationale, constraints and accepted decisions
+from a dated working state. The pure `project` package validates/assembles this
+minimum: core up to 12000 UTF-8 bytes total, working state 4000, up to eight
+reference discussions and a 1000-byte reviewed capsule each. Saving timestamps
+only a changed working state. Older clients that omit continuity preserve it.
+The user edits these fields; no automatic model rewrite is performed.
+
+Only selected reference discussions are eligible when a project selects the
+built-in `conversations` source. No references means no conversation passages,
+not all histories. Source files, memory pages and accepted distilled items use
+the selected source policy. Personal sources still need explicit selection.
+The current draft drives retrieval for the first turn as well as later turns;
+native local preparation retrieves once. Project semantic queries have a
+three-second bound and fall back to BM25 without generating a response.
+
+HTTP search/read accepts optional `project_id`; pack and all MCP tool request
+schemas also accept it. This checks the project's selected source IDs and linked
+conversation paths, including known chunk IDs and native archive bindings.
+MCP search/read/pack and JSON pack schemas accept `path_prefixes` as a map of source IDs to relative
+path prefixes. Absent means unrestricted within the selected source; explicit
+`[]` denies it. Prefixes match an exact path or subtree boundary. Project scope
+intersects a caller's narrower conversation filter; it never expands it.
+General API calls without project scope keep their existing operator-wide policy.
+
+The context inspector shows shared preferences, project minimum, reference IDs,
+citations and approximate text-token cost (a heuristic, not the executor's
+reported tokenizer usage). The prepared preview and sends share revision checks
+and text/message limits. Runtime-private memory and tool state do not transfer.
+
+`GET/POST /api/context/preferences` reads/saves `{page,external}` in Loom's existing
+configuration store. Select an existing readable memory page of at most 4000
+bytes; its text stays in the existing encrypted memory store. Empty selection
+turns it off. Local discussions receive a selected page; cloud/harnesses receive
+it only with `external:true` and the normal execution-sharing policy. A deleted,
+unreadable or oversized selected page blocks context preparation until resolved.
+Linked local engines retain the existing explicit engine destination policy.
+
+## Freshness and automatic semantic maintenance
+
+Source state distinguishes `last_checked` from the last successful `last_indexed`;
+errors do not claim a successful index. The Sources page reads status every
+15 seconds while visible and shows pending/running/overdue/error states. Source
+refresh remains startup plus every three minutes and incremental mtime/size.
+
+Semantic maintenance uses that same cycle only after explicit `auto_index:true`
+selection. It resumes missing/changed chunk IDs and prunes obsolete vectors
+through the existing indexer; unchanged text makes no embedding calls. A local
+model must already be downloaded. No source edit starts an implicit download.
+Cloud indexing uses the selected sources and previously consented destination;
+it can send changed text and incur charges. Changing model/provider/source
+selection clears automatic indexing, requiring another explicit opt-in. An empty
+(default) source list is frozen to currently accessible non-personal source IDs
+at auto-index opt-in; linking a new source does not silently expand that scope.
+Disabling semantic search cancels indexing. No automatic distillation is added.
+
+The existing English-focused `nomic` default remains unchanged. The optional
+`nomic-v2` selects Nomic's multilingual v2 MoE Q8 GGUF with documented
+`search_query:`/`search_document:` prefixes. See the
+[official model card](https://huggingface.co/nomic-ai/nomic-embed-text-v2-moe-GGUF/blob/main/README.md).
+Its runtime/quality acceptance depends on the installed llama.cpp and the user's
+corpus; selection alone does not download or prove multilingual retrieval quality.

@@ -1,6 +1,6 @@
 # Loom workspace: discussions, models and context
 
-Current workspace contracts as of 2026-10-03. Read with the
+Current workspace contracts as of 2026-10-04. Read with the
 [architecture principles](architecture-principles.md),
 [package architecture](architecture.md) and [roadmap](ROADMAP.md).
 [ACP integration](agents/acp-implementation.md) documents harness execution.
@@ -18,7 +18,8 @@ protocol supports that source.
   supported model-source associations.
 - Projects link working folders, instructions, selected context files, Brain
   sources, skills, MCP selections and default execution choices.
-- Brain owns shared sources/context, memory pages, skills and MCP definitions; the historical Resources route remains an alias.
+- Brain separates sources, reviewed memory and retrieval from execution capabilities
+  (skills/MCP links in Connections); the historical Resources route remains an alias.
 - Terminals, Environment, Bench, Usage and Settings expose their own controls.
 
 The original discussion/composer and full local parameter panel remain the
@@ -231,3 +232,41 @@ Run `make check-ui` for syntax and UI regression checks, and
 behavior; real accounts, GPU fitting, OS keychains and native Windows ConPTY need
 acceptance on their actual platforms. Use the [roadmap](ROADMAP.md) for remaining
 work rather than earlier migration briefs.
+
+
+## Continuity consolidation (unreleased)
+
+See [VISION](VISION.md) for the product contract and [Brain](brain.md) for API
+bounds. Project continuity has a small pure leaf package `internal/loom/project`:
+validation and minimum-context text, without runtime, storage or filesystem
+ownership. Loom's project handlers persist it in existing records and timestamp
+working-state changes. Shared preferences select an existing memory page and
+require separate cloud/harness consent; no parallel memory database is added.
+
+Reference capsules provide minimum context; project Brain retrieval reads only
+explicitly linked conversation transcripts. First-turn/current-draft preparation
+is shared by preview and execution. Native local generation uses that same
+assembly once and refuses missing selected preferences. The inspector exposes
+the minimum, references, citations and approximate text-token cost.
+
+ACP import stores immutable runtime/machine/session provenance and deduplicates
+against it, independent of the discussion's current route. The UI attaches a
+project and defaults to fresh native execution after import. Original sessions
+are read through advertised ACP session-list/load capabilities, not rewritten.
+Hidden reasoning, approvals and tool state are not transferred. Missing native
+history APIs remain unsupported; import is explicit rather than background sync.
+
+Potentially slow context/remote-workdir preparation runs outside the session
+registry mutex. Reacquisition checks the original session, route, credentials,
+request ID and capacity before committing execution. Parameter observations are
+cancellable, deadline-bounded through JSON body and report retryable failures;
+periodic observations are serialized and visibility-paused. Menus portal outside
+transformed layout parents and dismiss on completed clicks, preserving action
+ordering. Native configuration RPC lock boundaries remain an audit follow-up.
+
+Regression coverage includes slow preparation versus unrelated registry reads,
+stale edit rejection, scope enforcement on lexical/semantic/direct reads, review
+candidate exclusion, selected preference sharing, native import replay/dedup and
+incremental opt-in semantic indexing with synthetic providers. Narrow viewport
+checks include project saves and memory actions. Physical Brave mobile, real ACP
+accounts and multilingual/GPU quality remain separate acceptance checks.

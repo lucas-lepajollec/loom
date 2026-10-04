@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 )
@@ -24,13 +25,14 @@ type indexedChunk struct {
 	length int
 }
 type Engine struct {
-	mu        sync.RWMutex
-	refreshMu sync.Mutex
-	opts      Options
-	sources   []Source
-	files     map[string]File
-	docs      []indexedChunk
-	postings  map[string][]posting
+	mu         sync.RWMutex
+	refreshMu  sync.Mutex
+	refreshing atomic.Bool
+	opts       Options
+	sources    []Source
+	files      map[string]File
+	docs       []indexedChunk
+	postings   map[string][]posting
 }
 
 func New(opts Options) (*Engine, error) {
@@ -84,6 +86,7 @@ func New(opts Options) (*Engine, error) {
 			for i := range e.sources {
 				if snapshot.Scopes[e.sources[i].ID] == scopes[e.sources[i].ID] {
 					e.sources[i].LastIndexed = snapshot.IndexedAt
+					e.sources[i].LastChecked = snapshot.IndexedAt
 				}
 				for _, f := range e.files {
 					if f.Source == e.sources[i].ID {
@@ -196,6 +199,7 @@ func (e *Engine) Update(s Source) error {
 			scopeChanged = prior.Path != s.Path || prior.Kind != s.Kind || !equalHeading(prior.Include, s.Include) || !equalHeading(prior.Exclude, s.Exclude)
 			if !scopeChanged {
 				s.Files, s.Chunks, s.LastIndexed, s.Error = prior.Files, prior.Chunks, prior.LastIndexed, prior.Error
+				s.LastChecked = prior.LastChecked
 			}
 			next[i] = s
 			found = true
@@ -405,6 +409,8 @@ func skipDir(name string) bool {
 func (e *Engine) Refresh(ctx context.Context) error {
 	e.refreshMu.Lock()
 	defer e.refreshMu.Unlock()
+	e.refreshing.Store(true)
+	defer e.refreshing.Store(false)
 	if err := e.available(); err != nil {
 		return err
 	}
@@ -550,7 +556,10 @@ func (e *Engine) Refresh(ctx context.Context) error {
 		if s.Error != "" {
 			failures = append(failures, fmt.Errorf("%s: %s", s.ID, s.Error))
 		}
-		s.LastIndexed = time.Now().UTC()
+		s.LastChecked = time.Now().UTC()
+		if s.Error == "" {
+			s.LastIndexed = s.LastChecked
+		}
 	}
 	if err := e.available(); err != nil {
 		return err
@@ -679,3 +688,5 @@ func (e *Engine) buildIndexLocked() {
 		}
 	}
 }
+
+func (e *Engine) Refreshing() bool { return e.refreshing.Load() }

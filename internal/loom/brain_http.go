@@ -55,6 +55,7 @@ func (s *brainService) run(ctx context.Context) {
 	refresh := func() {
 		if e, err := s.get(); err == nil {
 			_ = e.Refresh(ctx)
+			s.refreshSemanticIfSelected()
 		}
 	}
 	refresh()
@@ -73,6 +74,11 @@ func (s *brainService) Search(r brain.SearchRequest) ([]brain.Hit, error) {
 	return s.SearchContext(context.Background(), r)
 }
 func (s *brainService) SearchContext(ctx context.Context, r brain.SearchRequest) ([]brain.Hit, error) {
+	var scopeErr error
+	r.Sources, r.PathPrefixes, scopeErr = scopedBrainProject(r.ProjectID, r.Sources, r.PathPrefixes)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
 	e, err := s.get()
 	if err != nil {
 		return nil, err
@@ -122,6 +128,11 @@ func (s *brainService) Pack(r brain.PackRequest) (brain.Pack, error) {
 	return s.PackContext(context.Background(), r)
 }
 func (s *brainService) PackContext(ctx context.Context, r brain.PackRequest) (brain.Pack, error) {
+	var scopeErr error
+	r.Sources, r.PathPrefixes, scopeErr = scopedBrainProject(r.ProjectID, r.Sources, r.PathPrefixes)
+	if scopeErr != nil {
+		return brain.Pack{}, scopeErr
+	}
 	e, err := s.get()
 	if err != nil {
 		return brain.Pack{}, err
@@ -129,13 +140,21 @@ func (s *brainService) PackContext(ctx context.Context, r brain.PackRequest) (br
 	if r.BudgetTokens < 0 || r.BudgetTokens > 8000 {
 		return brain.Pack{}, errors.New("budget_tokens must be between 1 and 8000")
 	}
-	hits, err := s.SearchContext(ctx, brain.SearchRequest{Query: r.Query, Sources: r.Sources, Personal: r.Personal, Limit: 100})
+	hits, err := s.SearchContext(ctx, brain.SearchRequest{Query: r.Query, Sources: r.Sources, Personal: r.Personal, Limit: 100, PathPrefixes: r.PathPrefixes})
 	if err != nil {
 		return brain.Pack{}, err
 	}
 	return e.PackHits(r, hits)
 }
 func (s *brainService) Read(r brain.ReadRequest) (brain.Chunk, error) {
+	if r.ProjectID != "" && r.Source != "" && !hasName(r.Sources, r.Source) {
+		r.Sources = append(r.Sources, r.Source)
+	}
+	var scopeErr error
+	r.Sources, r.PathPrefixes, scopeErr = scopedBrainProject(r.ProjectID, r.Sources, r.PathPrefixes)
+	if scopeErr != nil {
+		return brain.Chunk{}, scopeErr
+	}
 	e, err := s.get()
 	if err != nil {
 		return brain.Chunk{}, err
@@ -220,7 +239,7 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources()})
+	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources(), "refreshing": e.Refreshing(), "refresh_seconds": 180})
 }
 func (s *brainService) reindex(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, "POST") {
@@ -237,7 +256,7 @@ func (s *brainService) reindex(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, map[string]any{"ok": false, "sources": e.Sources(), "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources()})
+	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources(), "refreshing": e.Refreshing(), "refresh_seconds": 180})
 }
 func (s *brainService) search(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, "GET") {
@@ -252,7 +271,7 @@ func (s *brainService) search(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	hits, err := s.SearchContext(r.Context(), brain.SearchRequest{Query: r.URL.Query().Get("query"), Sources: brainFilter(r), Personal: r.URL.Query().Get("personal") == "true", Limit: limit})
+	hits, err := s.SearchContext(r.Context(), brain.SearchRequest{Query: r.URL.Query().Get("query"), ProjectID: r.URL.Query().Get("project_id"), Sources: brainFilter(r), Personal: r.URL.Query().Get("personal") == "true", Limit: limit})
 	brainResponse(w, map[string]any{"hits": hits}, err)
 }
 func (s *brainService) pack(w http.ResponseWriter, r *http.Request) {
@@ -271,7 +290,7 @@ func (s *brainService) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	chunk, err := s.Read(brain.ReadRequest{ChunkID: q.Get("chunk_id"), Source: q.Get("source"), Path: q.Get("path"), Heading: q["heading"], Sources: brainFilter(r), Personal: q.Get("personal") == "true"})
+	chunk, err := s.Read(brain.ReadRequest{ChunkID: q.Get("chunk_id"), ProjectID: q.Get("project_id"), Source: q.Get("source"), Path: q.Get("path"), Heading: q["heading"], Sources: brainFilter(r), Personal: q.Get("personal") == "true"})
 	brainResponse(w, chunk, err)
 }
 
@@ -293,7 +312,7 @@ func theBrain() *brainService {
 
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	s := theBrain()
-	for route, handler := range map[string]http.HandlerFunc{"sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP} {
+	for route, handler := range map[string]http.HandlerFunc{"sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
 		protected := requireWebAuth(handler)
 		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")

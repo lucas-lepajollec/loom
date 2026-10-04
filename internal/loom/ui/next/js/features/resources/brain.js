@@ -7,11 +7,13 @@ import { app, go } from '../../core/state.js';
 import { open as openDiscussion } from '../chat/engine.js';
 import { Icon } from '../../ui/icons.js';
 import { Tip, Empty, Seg, Switch } from '../../ui/controls.js';
-import { Modal, confirm, toast } from '../../ui/dialog.js';
+import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
+import { useVisibleRefresh } from '../usage/refresh.js';
 import { copyText } from '../../ui/clipboard.js';
 
+export const brainTabs = () => [{ value: 'overview', label: t('brain.nav.overview') }, { value: 'sources', label: t('brain.nav.sources') }, { value: 'memory', label: t('brain.nav.memory') }, { value: 'retrieval', label: t('brain.nav.retrieval') }, { value: 'connections', label: t('brain.nav.connections') }];
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
 const KINDS = () => ([['context', t("resources.brain.contexte"), t("resources.brain.notes_et_docs_utilisables_par_defaut")], ['repo', t("resources.brain.depot"), t("resources.brain.le_readme_docs_et_les_fichiers_md_d_un_depot_de_code")], ['personal', t("resources.brain.personnel"), t("resources.brain.jamais_lu_sauf_si_un_projet_ou_une_demande_le_choisit_expliciteme")]]);
 // Sources intégrées : noms affichés en français.
@@ -80,7 +82,7 @@ function Search({ sources }) {
 // Recherche par le sens : un petit modèle d'embedding tourne sur cette machine
 // (téléchargé à la demande), ou un fournisseur cloud choisi avec consentement.
 // Sans lui, le Brain reste en recherche par mots-clés.
-const EMBED_NAMES = { nomic: 'nomic-embed-text v1.5', 'bge-small': 'bge-small-en v1.5' };
+const EMBED_NAMES = { nomic: 'nomic-embed-text v1.5', 'bge-small': 'bge-small-en v1.5', 'nomic-v2': 'nomic-embed-text v2 MoE · multilingual' };
 function Semantic() {
   const ws = useStore(app, x => x.workspace);
   const providers = ((ws && ws.providers) || []).filter(p => p.ready);
@@ -115,6 +117,7 @@ function Semantic() {
             ${st.downloading && html`<div class="meter" style="margin-top:8px"><i style=${`width:${st.download_total ? Math.round(st.download_done / st.download_total * 100) : 2}%;background:var(--text)`}></i></div>`}</div>
           <select class="select sm" style="min-width:190px" value=${st.model} disabled=${busy || st.downloading || st.indexing} onChange=${e => send({ action: 'enable', model: e.target.value })}>${(st.models || []).map(m => html`<option value=${m.id}>${EMBED_NAMES[m.id] || m.id}</option>`)}</select>
           ${!st.model_present && !st.downloading && html`<button class="btn sm primary" disabled=${busy} onClick=${() => send({ action: 'download' })}><${Icon} n="download" />${t('resources.sem.download')}</button>`}</div>`}
+        <div class="row"><div class="grow"><div class="t">${t('brain.semantic.auto')}</div><div class="s">${t('brain.semantic.auto_note')}</div></div><${Switch} label=${t('brain.semantic.auto')} checked=${st.auto_index} disabled=${busy} onChange=${auto_index => send({ action: 'auto', auto_index })} /></div>
         <div class="row"><div class="grow"><div class="t">${t('resources.sem.index')} ${st.server_running && html`<span class="tag green">${t('resources.sem.server_on')}</span>`}</div>
             <div class="s">${t('resources.sem.progress', { done: st.chunks_embedded, total: st.chunks_total })}</div>
             <div class="meter" style="margin-top:8px"><i style=${`width:${pct}%;background:${pct === 100 ? 'var(--green)' : 'var(--text)'}`}></i></div></div>
@@ -143,7 +146,7 @@ function DistillDialog({ onClose }) {
   const run = async consent => {
     setBusy(true);
     const body = mode === 'one' ? { discussion_id: id } : { since };
-    const r = await post('/api/brain/distill', consent ? { ...body, consent: true } : body).catch(e => ({ ok: false, error: e.message }));
+    const r = await post('/api/brain/distill', consent ? { ...body, consent: true } : body, { timeout: 610000 }).catch(e => ({ ok: false, error: e.message }));
     setBusy(false);
     if (r.error && /consent required/i.test(r.error) && !consent) {
       if (await confirm(t('resources.dist.remote_title'), t('resources.dist.remote_text'), { ok: t('resources.dist.send') })) return run(true);
@@ -151,8 +154,7 @@ function DistillDialog({ onClose }) {
     }
     if (r.ok === false || r.error) return toast(r.error || t('resources.dist.failed'), 'err');
     toast(t('resources.dist.done', { n: (r.items || []).length }));
-    // Les nouveaux éléments rejoignent l'index sémantique s'il est actif.
-    post('/api/brain/semantic', { action: 'index' }).catch(() => {});
+
     onClose(true);
   };
   return html`<${Modal} title=${t('resources.dist.title')} sub=${t('resources.dist.sub')} onClose=${() => onClose()}
@@ -163,60 +165,79 @@ function DistillDialog({ onClose }) {
     <p class="note">${t('resources.dist.engine_note')}</p>
   </${Modal}>`;
 }
-function Distilled() {
+export function Distilled() {
   const [items, setItems] = useState(null);
   const [dlg, setDlg] = useState(false);
   const [kind, setKind] = useState('all');
   const load = () => get('/api/brain/distilled').then(r => setItems(r.items || [])).catch(() => setItems([]));
   useEffect(() => { load(); }, []);
   const del = async it => { const r = await post('/api/brain/distilled/delete', { id: it.id }).catch(e => ({ ok: false, error: e.message })); if (r.ok === false || r.error) return toast(r.error, 'err'); load(); };
+  const review = async (it, status, edit = false) => {
+    const text = edit ? await prompt(t('brain.review.edit'), { value: it.text }) : null;
+    if (edit && !text) return;
+    const r = await post('/api/brain/distilled/review', { id: it.id, review: status, ...(text === null ? {} : { text }) }).catch(e => ({ ok: false, error: e.message }));
+    if (r.ok === false) return toast(r.error, 'err');
+    load();
+  };
   const openSource = async it => { await openDiscussion(it.source.discussion_id); go('chat'); };
   const kinds = DKINDS();
-  const list = (items || []).filter(it => kind === 'all' || it.kind === kind).slice().sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+  const list = (items || []).filter(it => it.review !== 'rejected' && (kind === 'all' || it.kind === kind)).slice().sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
   const count = k => (items || []).filter(it => it.kind === k).length;
   return html`<section class="sec"><div class="sec-h"><h2>${t('resources.dist.section')}<${Tip} text=${t('resources.dist.tip')} /></h2>
-      <button class="btn sm" onClick=${() => setDlg(true)}><${Icon} n="sparkle" />${t('resources.dist.open')}</button></div>
+      <button class="btn sm" onClick=${() => setDlg(true)}><${Icon} n="sparkle" />${t('resources.dist.open')}</button></div><p class="note">${t('brain.review.note')}</p>
     ${items === null ? html`<div class="skeleton" style="height:100px"></div>` : items.length ? html`
       <div class="dist-filter"><${Seg} size="sm" label=${t('resources.dist.filter')} value=${kind} onChange=${setKind} options=${[{ value: 'all', label: t('resources.dist.all'), count: items.length }, ...Object.keys(kinds).map(k => ({ value: k, label: kinds[k], count: count(k) || '' }))]} /></div>
       <div class="card rows" style="margin-top:10px">${list.map(it => html`<div class="row dist-item" key=${it.id}>
-        <span class=${cls('tag', 'dk-' + it.kind)}>${kinds[it.kind] || it.kind}</span>
+        <span class=${cls('tag', 'dk-' + it.kind)}>${kinds[it.kind] || it.kind}</span><span class="tag">${it.review === 'pending' ? t('brain.review.pending') : t('brain.review.accepted')}</span>
         <div class="grow"><div class="t dist-t">${it.text}</div><div class="s"><button class="linkish" onClick=${() => openSource(it)}>${t('resources.dist.from', { n: it.source.message_index + 1 })}</button> · ${new Date(it.date).toLocaleDateString(locale())}</div></div>
+        <div class="btn-row">${it.review === 'pending' && html`<button class="btn sm" onClick=${() => review(it, 'accepted')}>${t('brain.review.accept')}</button>`}<button class="btn sm ghost" onClick=${() => review(it, 'accepted', true)}>${t('brain.review.edit')}</button><button class="btn sm ghost" onClick=${() => review(it, 'rejected')}>${t('brain.review.reject')}</button></div>
         <button class="icon-btn" aria-label=${t('resources.dist.delete')} title=${t('resources.dist.delete')} onClick=${() => del(it)}><${Icon} n="close" /></button></div>`)}</div>`
       : html`<div class="card"><${Empty} icon="brain" title=${t('resources.dist.empty_title')} text=${t('resources.dist.empty_text')}><button class="btn primary" onClick=${() => setDlg(true)}>${t('resources.dist.open')}</button></${Empty}></div>`}
     ${dlg && html`<${DistillDialog} onClose=${ok => { setDlg(false); if (ok) load(); }} />`}
   </section>`;
 }
 
-export function Brain() {
+export function Brain({ section = 'overview' }) {
   const [data, setData] = useState(null);
   const [dlg, setDlg] = useState(false);
   const [busy, setBusy] = useState(false);
   const load = () => get('/api/brain/sources').then(r => setData(r.sources ? r : { sources: [], error: r.error })).catch(() => setData({ sources: [] }));
-  useEffect(() => { load(); }, []);
+  useVisibleRefresh(async alive => {
+    try {
+      const r = await get('/api/brain/sources', { timeout: 10000, retryAuth: false });
+      if (alive()) setData(r.sources ? r : { sources: [], error: r.error });
+    } catch (e) { if (alive()) setData(old => ({ ...(old || { sources: [] }), error: e.message })); }
+  }, 15000);
   const reindex = async () => { setBusy(true); const r = await post('/api/brain/reindex', {}); setBusy(false); if (r.ok === false || r.error) return toast(r.error || t("resources.brain.indexation_impossible"), 'err'); toast(t("resources.brain.index_a_jour")); load(); };
   const remove = async s => { if (!await confirm(t("resources.brain.retirer") + s.label, t("resources.brain.la_source_n_est_plus_indexee_le_dossier_n_est_pas_modifie"), { ok: t("resources.brain.retirer_2") })) return; await post('/api/brain/sources', { action: 'remove', id: s.id }); load(); };
   const mcpURL = location.origin + '/mcp/brain';
   const copyCmd = async cmd => toast(await copyText(cmd) ? t("resources.brain.commande_copiee") : t("resources.brain.copie_refusee"));
   if (!data) return html`<div class="skeleton" style="height:200px;margin-top:14px"></div>`;
   const sources = data.sources || [];
+  const freshness = source => {
+    if (source.error) return t('resources.brain.erreur');
+    if (data.refreshing) return t('brain.refresh.running');
+    const last = Date.parse(source.last_checked || source.last_indexed);
+    if (!last || last < 1) return t('brain.refresh.pending');
+    return Date.now() - last > 360000 ? t('brain.refresh.stale') : ago(source.last_checked || source.last_indexed);
+  };
   return html`<div>
-    <div class="toolbar"><span class="grow muted" style="font-size:13.5px">${t("resources.brain.le_brain_cherche_dans_tes_notes_docs_depots_et_discussions_un_pro")}</span>
-      <button class="btn" disabled=${busy} onClick=${reindex}><${Icon} n="refresh" />${busy ? t("resources.brain.indexation") : t("resources.brain.reindexer")}</button><button class="btn primary" onClick=${() => setDlg(true)}><${Icon} n="plus" />${t('second_brain.add')}</button></div>
+    ${section === 'overview' && html`<section class="sec"><div class="card pad"><p>${t('brain.overview.note')}</p><p class="note">${t('brain.refresh.note')}</p><div class="btn-row">${brainTabs().filter(tab => tab.value !== 'overview').map(tab => html`<a class="btn" href=${'#/brain/' + tab.value}>${tab.label}</a>`)}</div></div><div class="sec-h"><h2>${t('brain.overview.projects')}</h2></div><div class="card rows">${(app.get().workspace?.projects || []).map(p => html`<a class="row" href=${'#/project/' + p.id}><span class="grow">${p.name}</span><${Icon} n="right" /></a>`)}</div></section>`}
+    ${section === 'sources' && html`<div class="toolbar"><span class="grow muted" style="font-size:13.5px">${t("resources.brain.le_brain_cherche_dans_tes_notes_docs_depots_et_discussions_un_pro")}</span>
+      <button class="btn" disabled=${busy} onClick=${reindex}><${Icon} n="refresh" />${busy ? t("resources.brain.indexation") : t("resources.brain.reindexer")}</button><button class="btn primary" onClick=${() => setDlg(true)}><${Icon} n="plus" />${t('second_brain.add')}</button></div><p class="note">${t('brain.refresh.note')}</p>`}
     ${data.error && html`<p class="note err">${data.error}</p>`}
-    ${[{ title: t('second_brain.title'), items: sources.filter(s => !s.read_only) }, { title: t('second_brain.builtin'), items: sources.filter(s => s.read_only) }].map(group => html`<section class="sec"><div class="sec-h"><h2>${group.title}</h2></div>${group.items.length ? html`<div class="card rows" style="margin-top:14px">${group.items.map(s => html`<div class="row" key=${s.id}>
+    ${section === 'sources' && [{ title: t('second_brain.title'), items: sources.filter(s => !s.read_only) }, { title: t('second_brain.builtin'), items: sources.filter(s => s.read_only) }].map(group => html`<section class="sec"><div class="sec-h"><h2>${group.title}</h2></div>${group.items.length ? html`<div class="card rows" style="margin-top:14px">${group.items.map(s => html`<div class="row" key=${s.id}>
         <span class="mx-ico"><${Icon} n=${s.read_only ? 'chat' : s.kind === 'personal' ? 'lock' : s.kind === 'repo' ? 'box' : 'file'} /></span>
         <div class="grow"><div class="t">${brainLabel(s)} <span class="tag">${s.read_only ? t("resources.brain.integree") : kindLabel(s.kind)}</span></div><div class="s mono">${s.path ? home(s.path) : t("resources.brain.integree_a_loom")}</div></div>
-        ${s.error ? html`<span class="tag red" title=${s.error}>${t("resources.brain.erreur")}</span>` : html`<span class="muted">${s.files} ${t("resources.brain.fichier")}${s.files > 1 ? 's' : ''} · ${s.chunks} ${t("resources.brain.passages")} ${ago(s.last_indexed)}</span>`}
+        ${s.error ? html`<span class="tag red" title=${s.error}>${t("resources.brain.erreur")}</span>` : html`<span class="muted">${s.files} ${t("resources.brain.fichier")}${s.files > 1 ? 's' : ''} · ${s.chunks} ${t("resources.brain.passages")} ${freshness(s)}</span>`}
         ${!s.read_only && html`<button class="btn sm ghost" onClick=${() => setDlg(s)}>${t('second_brain.edit')}</button><button class="icon-btn" aria-label=${t("resources.brain.retirer") + s.label} onClick=${() => remove(s)}><${Icon} n="close" /></button>`}</div>`)}</div>` : html`<div class="card pad"><p class="note">${t('resources.brain.aucune_source')}</p></div>`}</section>`)}
-    <${Search} sources=${sources} />
-    <${Semantic} />
-    <${Distilled} />
-    <section class="sec"><div class="sec-h"><h2>${t("resources.brain.pour_les_harnesses_mcp")}<${Tip} text="${t("resources.brain.les_harnesses_peuvent_interroger_le_brain_eux_memes_meme_sans_pas")}" /></h2></div>
+    ${section === 'retrieval' && html`<${Search} sources=${sources} /><${Semantic} />`}
+    ${section === 'connections' && html`<section class="sec"><div class="sec-h"><h2>${t("resources.brain.pour_les_harnesses_mcp")}<${Tip} text="${t("resources.brain.les_harnesses_peuvent_interroger_le_brain_eux_memes_meme_sans_pas")}" /></h2></div>
       <div class="card rows">
         <div class="row"><div class="grow"><div class="t">${t("resources.brain.adresse_mcp")}</div><div class="s mono">${mcpURL}</div></div><button class="btn sm ghost" onClick=${() => copyCmd(mcpURL)}>${t("resources.brain.copier")}</button></div>
         <div class="row"><div class="grow"><div class="t">${t("resources.brain.claude_code")}</div><div class="s mono">${t("resources.brain.claude_mcp_add_transport_http_loom_brain")} ${mcpURL}</div></div><button class="btn sm ghost" onClick=${() => copyCmd('claude mcp add --transport http loom-brain ' + mcpURL)}>${t("resources.brain.copier")}</button></div>
         <div class="row"><div class="grow"><div class="t">${t("resources.brain.codex")}</div><div class="s mono">${t("resources.brain.codex_mcp_add_loom_brain_url")} ${mcpURL}</div></div><button class="btn sm ghost" onClick=${() => copyCmd('codex mcp add loom-brain --url ' + mcpURL)}>${t("resources.brain.copier")}</button></div>
-      </div></section>
+      </div></section>`}
     ${dlg && html`<${AddSource} source=${dlg === true ? null : dlg} onClose=${ok => { setDlg(false); if (ok) setTimeout(load, 1500); }} />`}
   </div>`;
 }

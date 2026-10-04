@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ type brainEmbedModel struct {
 }
 
 var brainEmbedModels = []brainEmbedModel{
+	{"nomic-v2", "nomic-ai/nomic-embed-text-v2-moe-GGUF", "nomic-embed-text-v2-moe.Q8_0.gguf", "search_query: ", "search_document: ", "mean"},
 	{"nomic", "nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q8_0.gguf", "search_query: ", "search_document: ", "mean"},
 	{"bge-small", "CompendiumLabs/bge-small-en-v1.5-gguf", "bge-small-en-v1.5-q8_0.gguf", "Represent this sentence for searching relevant passages: ", "", "cls"},
 }
@@ -47,6 +49,7 @@ func brainEmbeddingModel(id string) (brainEmbedModel, error) {
 }
 
 type brainSemanticConfig struct {
+	AutoIndex        bool     `json:"auto_index"`
 	Enabled          bool     `json:"enabled"`
 	Model            string   `json:"model"`
 	ProviderID       string   `json:"provider_id,omitempty"`
@@ -56,6 +59,7 @@ type brainSemanticConfig struct {
 	Personal         bool     `json:"personal,omitempty"`
 }
 type brainSemanticRequest struct {
+	AutoIndex  *bool    `json:"auto_index,omitempty"`
 	Action     string   `json:"action"`
 	Model      string   `json:"model,omitempty"`
 	ProviderID string   `json:"provider_id,omitempty"`
@@ -328,12 +332,13 @@ func brainConnectedProvider(id, endpoint string) (CloudProvider, string, error) 
 func (m *brainSemantic) configure(req brainSemanticRequest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.indexing && req.Action != "disable" {
+	if m.indexing && req.Action != "disable" && req.Action != "auto" {
 		return errors.New("indexing in progress; disable before changing settings")
 	}
 	next := m.config
 	switch req.Action {
 	case "enable":
+		next.AutoIndex = false
 		next.Enabled = true
 		// Selecting a source is explicit. Every cloud selection requires fresh consent.
 		if req.ProviderID != "" {
@@ -366,10 +371,32 @@ func (m *brainSemantic) configure(req brainSemanticRequest) error {
 		}
 		next.Sources = append([]string{}, req.Sources...)
 		next.Personal = req.Personal
+	case "auto":
+		if req.AutoIndex == nil || !next.Enabled {
+			return errors.New("enable semantic indexing and specify auto_index")
+		}
+		if next.ProviderID != "" && !next.Consent {
+			return errors.New("cloud embeddings require consent")
+		}
+		next.AutoIndex = *req.AutoIndex
+		if next.AutoIndex && len(next.Sources) == 0 {
+			// Freeze today's default scope. Linking a new source later must not
+			// silently expand an automatic cloud transmission authorization.
+			for id, kind := range brainSourceKinds() {
+				if kind != "personal" {
+					next.Sources = append(next.Sources, id)
+				}
+			}
+			sort.Strings(next.Sources)
+			if len(next.Sources) == 0 {
+				return errors.New("select accessible sources before automatic indexing")
+			}
+		}
 	case "disable":
+		next.AutoIndex = false
 		next.Enabled = false
 	default:
-		return errors.New("action must be enable, disable, download or index")
+		return errors.New("action must be enable, disable, auto, download or index")
 	}
 	b, err := json.Marshal(next)
 	if err != nil {
@@ -381,7 +408,9 @@ func (m *brainSemantic) configure(req brainSemanticRequest) error {
 	if req.Action == "disable" && m.cancel != nil {
 		m.cancel()
 	}
-	m.stopLocked()
+	if req.Action != "auto" {
+		m.stopLocked()
+	}
 	m.config = next
 	m.lastError = ""
 	if m.vectors.Identity != m.identityLocked() {
@@ -623,7 +652,7 @@ func (s *brainService) semanticManager() (*brainSemantic, error) {
 	}
 	return s.semantic, nil
 }
-func (s *brainService) startSemanticIndex() error {
+func (s *brainService) startSemanticIndex(automatic ...bool) error {
 	e, err := s.get()
 	if err != nil {
 		return err
@@ -636,6 +665,9 @@ func (s *brainService) startSemanticIndex() error {
 	defer m.mu.Unlock()
 	if !m.config.Enabled {
 		return errors.New("enable semantic indexing first")
+	}
+	if len(automatic) > 0 && automatic[0] && !m.config.AutoIndex {
+		return errors.New("automatic indexing disabled")
 	}
 	if m.indexing {
 		return errors.New("semantic indexing already running")
@@ -734,7 +766,7 @@ func (s *brainService) semanticHTTP(w http.ResponseWriter, r *http.Request) {
 			err = s.startSemanticIndex()
 		case "download":
 			err = m.download()
-		case "disable":
+		case "disable", "auto":
 			err = m.configure(req)
 		default:
 			e, getErr := s.get()
@@ -760,4 +792,47 @@ func (s *brainService) semanticHTTP(w http.ResponseWriter, r *http.Request) {
 	cfg := m.configCopy()
 	chunks, err := e.Chunks(brain.SearchRequest{Sources: cfg.Sources, Personal: cfg.Personal})
 	brainResponse(w, m.state(chunks), err)
+}
+
+// Reuse the checkpointed indexer. An automatic cycle only starts when the
+// operator opted in and chunks are missing or obsolete. No implicit download.
+func (s *brainService) refreshSemanticIfSelected() {
+	m, err := s.semanticManager()
+	if err != nil {
+		return
+	}
+	cfg := m.configCopy()
+	if !cfg.Enabled || !cfg.AutoIndex {
+		return
+	}
+	e, err := s.get()
+	if err != nil {
+		return
+	}
+	chunks, err := e.Chunks(brain.SearchRequest{Sources: cfg.Sources, Personal: cfg.Personal})
+	if err != nil {
+		return
+	}
+	m.mu.Lock()
+	needed := len(m.vectors.Values) != len(chunks)
+	for _, c := range chunks {
+		if _, ok := m.vectors.Values[c.ID]; !ok {
+			needed = true
+			break
+		}
+	}
+	ready := !m.indexing
+	if cfg.ProviderID == "" {
+		model, modelErr := brainEmbeddingModel(cfg.Model)
+		if modelErr != nil {
+			ready = false
+		} else {
+			info, statErr := os.Stat(filepath.Join(m.storage.dir, "embed", model.File))
+			ready = ready && statErr == nil && info.Mode().IsRegular()
+		}
+	}
+	m.mu.Unlock()
+	if needed && ready {
+		_ = s.startSemanticIndex(true)
+	}
 }
