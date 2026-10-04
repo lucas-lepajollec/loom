@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeNode is a remote Loom: control API protected by "web", /v1 by "v1key".
@@ -95,5 +96,59 @@ func TestEngineNodeRefusesUnexposedV1AndPublicHTTP(t *testing.T) {
 	}
 	if _, _, err := cleanNodeURL("http://user:pass@192.168.1.2:2510"); err == nil {
 		t.Fatal("identifiants dans l'URL acceptés")
+	}
+}
+
+func TestEngineNodeObservationDeadlineDoesNotLimitMutations(t *testing.T) {
+	observations := make(chan bool, 2)
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Observe the client's imposed deadline through cancellation, using a short
+		// caller deadline for the test. The endpoint exits as soon as it is canceled.
+		if r.Method == http.MethodGet {
+			<-r.Context().Done()
+			observations <- true
+			return
+		}
+		io.WriteString(w, `{"ok":true}`)
+	}))
+	defer remote.Close()
+	n := &engineNode{URL: remote.URL, Hostname: "test engine"}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	r := httptest.NewRequest(http.MethodGet, "/api/status", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	proxyEngineNode(rec, r, n)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status %d", rec.Code)
+	}
+	select {
+	case <-observations:
+	case <-time.After(time.Second):
+		t.Fatal("remote observation was not canceled")
+	}
+	rec = httptest.NewRecorder()
+	proxyEngineNode(rec, httptest.NewRequest(http.MethodPost, "/api/load-model", strings.NewReader(`{}`)), n)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("mutation status %d", rec.Code)
+	}
+}
+
+func TestEngineNodeFastObservationGetsOwnDeadline(t *testing.T) {
+	old := http.DefaultTransport
+	defer func() { http.DefaultTransport = old }()
+	http.DefaultTransport = discussionTransport(func(r *http.Request) (*http.Response, error) {
+		deadline, ok := r.Context().Deadline()
+		if r.Method == http.MethodGet {
+			if !ok || time.Until(deadline) > 6*time.Second || time.Until(deadline) < 5*time.Second {
+				t.Error("fast observation must have a six-second deadline")
+			}
+		} else if ok {
+			t.Error("proxy imposed an observation deadline on a mutation")
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"ok":true}`))}, nil
+	})
+	n := &engineNode{URL: "http://127.0.0.1:1", Hostname: "fixture"}
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		proxyEngineNode(httptest.NewRecorder(), httptest.NewRequest(method, "/api/status", nil), n)
 	}
 }

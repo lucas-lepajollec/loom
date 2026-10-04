@@ -1,6 +1,6 @@
 # Loom workspace: discussions, models and context
 
-Current workspace contracts as of 2026-10-03. Read with the
+Current workspace contracts as of 2026-10-04. Read with the
 [architecture principles](architecture-principles.md),
 [package architecture](architecture.md) and [roadmap](ROADMAP.md).
 [ACP integration](agents/acp-implementation.md) documents harness execution.
@@ -16,9 +16,11 @@ protocol supports that source.
 - Cloud owns provider connections, model catalogs and selector visibility.
 - Harnesses owns native/ACP configurations, machine connections, resources and
   supported model-source associations.
-- Projects link working folders, instructions, selected context files, Brain
-  sources, skills, MCP selections and default execution choices.
-- Brain owns shared sources/context, memory pages, skills and MCP definitions; the historical Resources route remains an alias.
+- Projects select a machine, workspace and default execution choice. Their Loom
+  discussions form the project conversation-memory scope automatically.
+- Brain connects multiple canonical second brains and keeps Loom's native
+  conversation/retrieval layers automatic. Skills and MCP stay alongside it as
+  execution capabilities; the historical Resources route remains an alias.
 - Terminals, Environment, Bench, Usage and Settings expose their own controls.
 
 The original discussion/composer and full local parameter panel remain the
@@ -147,7 +149,7 @@ portable text replay; see [terminals](terminals.md).
 | Owner | State | Shared across execution choices? |
 | --- | --- | --- |
 | Loom discussion | Visible user/assistant text and provenance | Text yes; provenance stays in the display journal |
-| Loom project | Instructions, selected files/skills, budgeted Brain passages | Yes, assembled for the next turn |
+| Loom project | Machine, workspace, default executor and automatic conversation scope | Yes, assembled for the next turn |
 | Engine/runtime | KV cache, hidden reasoning, compaction internals | No |
 | Native harness | Session ID, tool journal, approvals, native memory | Only through its own supported protocol |
 | Project folder | Files on disk | Explicit context files or native tool access only |
@@ -158,11 +160,13 @@ folder and bounded to eight files / 48 KiB. Remote project folders are used by
 harnesses and terminals on that machine; their context files are not read by
 Loom's local context-file pipeline.
 
-Projects can select Brain sources and a token budget. Retrieval adds cited
-passages for the latest user message; personal sources must be explicitly
-selected. BM25 is local. Cloud semantic indexing sends selected source text and
-search queries only after stored consent. Distillation generates durable items
-only on request and requires consent when the active engine is remote.
+Projects inherit connected second brains and a bounded default token budget.
+Retrieval adds cited passages for the latest user message and scopes conversation
+results to discussions currently in that project. BM25 is local. Cloud semantic
+indexing sends selected source text and search queries only after stored consent.
+Distillation generates durable items only on request and requires consent when
+the active engine is remote. One writable primary second brain can also be
+maintained through Loom's bounded Markdown tools.
 See [Brain](brain.md) for source access, indexing, storage and MCP boundaries.
 
 The prepared-text preview lists initial instructions, portable history and an
@@ -231,3 +235,40 @@ Run `make check-ui` for syntax and UI regression checks, and
 behavior; real accounts, GPU fitting, OS keychains and native Windows ConPTY need
 acceptance on their actual platforms. Use the [roadmap](ROADMAP.md) for remaining
 work rather than earlier migration briefs.
+
+
+## Continuity consolidation (unreleased)
+
+See [VISION](VISION.md) for the product contract and [Brain](brain.md) for API
+bounds. The small pure leaf package `internal/loom/project` retains validation
+for older stored continuity fields without runtime, storage or filesystem
+ownership. New project setup does not require users to maintain those fields.
+Loom derives conversation scope from current project membership and inherits
+connected second brains with a bounded default retrieval budget.
+
+First-turn/current-draft preparation is shared by preview and execution. Native
+local generation uses that same assembly once. A configured primary second
+brain can be maintained through bounded Markdown tools while Loom's own indexed
+conversation and reviewed-memory layers remain automatic.
+
+ACP import stores immutable runtime/machine/session provenance and deduplicates
+against it, independent of the discussion's current route. The UI attaches a
+project and defaults to fresh native execution after import. Original sessions
+are read through advertised ACP session-list/load capabilities, not rewritten.
+Hidden reasoning, approvals and tool state are not transferred. Missing native
+history APIs remain unsupported; import is explicit rather than background sync.
+
+Potentially slow context/remote-workdir preparation runs outside the session
+registry mutex. Reacquisition checks the original session, route, credentials,
+request ID and capacity before committing execution. Parameter observations are
+cancellable, deadline-bounded through JSON body and report retryable failures;
+periodic observations are serialized and visibility-paused. Menus portal outside
+transformed layout parents and dismiss on completed clicks, preserving action
+ordering. Native configuration RPC lock boundaries remain an audit follow-up.
+
+Regression coverage includes slow preparation versus unrelated registry reads,
+stale edit rejection, scope enforcement on lexical/semantic/direct reads, review
+candidate exclusion, selected preference sharing, native import replay/dedup and
+incremental opt-in semantic indexing with synthetic providers. Narrow viewport
+checks include project saves and memory actions. Physical Brave mobile, real ACP
+accounts and multilingual/GPU quality remain separate acceptance checks.

@@ -3,6 +3,7 @@ import { t } from './i18n.js';
 // liste des discussions. Les pages lisent ce store ; les actions l'actualisent.
 import { createStore } from './lib.js';
 import { get } from './api.js';
+import { visibleRefresh, singleFlight } from './poll.js';
 
 export const app = createStore({
   route: parseRoute(),
@@ -39,27 +40,31 @@ export async function refreshEngineNode() {
   try { const r = await get('/api/engine/node'); app.set({ engineNode: r.ok && r.remote ? r : null }); } catch (_) {}
 }
 
-export async function refreshStatus() {
+export const refreshStatus = singleFlight(async () => {
   // /status belongs to the engine and may be forwarded to another machine.
   // /ping always identifies this control plane, including after an update.
   await Promise.allSettled([
-    get('/api/status').then(status => app.set({ status })),
-    get('/api/ping').then(serverInfo => app.set({ serverInfo })),
+    get('/api/status', { timeout: 6000, retryAuth: false }).then(status => observe('status', status)),
+    get('/api/ping', { timeout: 6000, retryAuth: false }).then(serverInfo => observe('serverInfo', serverInfo)),
   ]);
+});
+function observe(key, value) {
+  if (value?.ok === false) return;
+  if (JSON.stringify(app.get()[key]) !== JSON.stringify(value)) app.set({ [key]: value });
 }
-export async function refreshHardware() {
+export const refreshHardware = singleFlight(async () => {
   if (document.hidden) return;
-  try { app.set({ gpus: (await get('/api/vram')) || [] }); } catch (_) {}
-}
-export async function refreshWorkspace() {
+  try { const gpus = await get('/api/vram', { timeout: 6000, retryAuth: false }); if (Array.isArray(gpus)) observe('gpus', gpus); } catch (_) {}
+});
+export const refreshWorkspace = singleFlight(async () => {
   try { const w = await get('/api/workspace'); if (w.ok) app.set({ workspace: w }); return w; } catch (_) { return null; }
-}
-export async function refreshLibrary() {
+});
+export const refreshLibrary = singleFlight(async () => {
   try {
     const [models, presets] = await Promise.all([get('/api/models'), get('/api/presets')]);
     app.set({ models: models || [], presets: presets || [] });
   } catch (_) {}
-}
+});
 export async function refreshNav() {
   try {
     const [hist, unified] = await Promise.all([get('/api/chat/history'), get('/api/runtime/sessions')]);
@@ -91,10 +96,11 @@ export function engineState(s) {
   return { tone: '', label: t("core.state.moteur_arrete") };
 }
 
+let stopPolling;
 export function startPolling() {
-  refreshEngineNode();
-  refreshStatus(); refreshHardware(); refreshWorkspace(); refreshNav(); refreshLibrary();
-  setInterval(refreshStatus, 4000);
-  setInterval(refreshHardware, 4000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshStatus(); refreshHardware(); } });
+  if (stopPolling) return stopPolling;
+  refreshEngineNode(); refreshWorkspace(); refreshNav(); refreshLibrary();
+  const stops = [visibleRefresh(refreshStatus, 4000), visibleRefresh(refreshHardware, 4000)];
+  stopPolling = () => { stops.forEach(stop => stop()); stopPolling = null; };
+  return stopPolling;
 }

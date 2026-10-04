@@ -1,6 +1,6 @@
 /* Responsive overrides follow the desktop surface rules. Keep Loom's tokens and
    components; let content wrap rather than clipping whole pages. */
-.pop{min-width:0;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto}
+.pop{z-index:160;min-width:0;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto}
 .picker{overflow:hidden}
 .pick-top,.pick-foot{flex-shrink:0}
 .pick-list{min-height:0}
@@ -12,6 +12,9 @@
 }
 
 @media(max-width:900px){
+  .dist-item{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .dist-item>.grow,.dist-item>.btn-row{grid-column:1/-1}
+  .dist-item>.icon-btn{grid-column:2;justify-self:end}
   .mem-grid,.preset-grid,.grid-proj,.split{grid-template-columns:minmax(0,1fr)}
   .bench-t .tr{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .bench-t .tr.th{display:none}
@@ -32,6 +35,10 @@
   .q-h .icon-btn{flex-shrink:0}
   .qw-h{flex-wrap:wrap;gap:4px 12px}
   .grid-bench{grid-template-columns:minmax(0,1fr)}
+  .brain-grid,.project-simple-grid{grid-template-columns:minmax(0,1fr)}
+  .brain-intro{align-items:flex-start;flex-direction:column}
+  .brain-intro .acts{width:100%;flex-wrap:wrap}
+  .project-setting{grid-template-columns:minmax(0,1fr);gap:10px}
   .grid-bench>.card{min-width:0}
   .bench .sec-h{flex-wrap:wrap;gap:8px}
   .bench .sec-h>.input{flex-basis:100%;max-width:100%;min-width:0}
@@ -107,6 +114,19 @@
   .usage-t .cell-main b,.native-t .cell-main b{flex-wrap:wrap;gap:4px}
   .native-t .cell-main .q-m{white-space:normal;max-width:100%}
   .brain-search>.search{flex:1 1 100%;min-width:0}
+  .brain-intro{align-items:flex-start;flex-direction:column;margin-top:20px}
+  .brain-intro .acts{width:100%;flex-wrap:wrap}
+  .brain-intro .acts .btn.primary{flex:1}
+  .brain-grid{gap:10px}
+  .second-brain-card{padding:14px}
+  .second-brain-actions{flex-wrap:wrap}
+  .second-brain-actions .grow{display:none}
+  .brain-connectors,.brain-permissions{grid-template-columns:minmax(0,1fr)}
+  .project-setting{grid-template-columns:minmax(0,1fr);gap:10px;padding:15px 14px}
+  .project-save{flex-wrap:wrap}
+  .project-save .danger{width:100%;justify-content:flex-start}
+  .workspace-picker{align-items:stretch;flex-direction:column}
+  .workspace-picker .btn{align-self:flex-start}
   .insp.open{border:0;border-radius:0;background:var(--panel)}
   .insp:not(.open){visibility:hidden}
   .insp-head{height:calc(var(--head-h) + env(safe-area-inset-top));padding-top:env(safe-area-inset-top)}

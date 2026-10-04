@@ -2,6 +2,7 @@ package loom
 
 import (
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/project"
 	"os"
 	"strings"
 	"sync"
@@ -71,6 +72,26 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 		old.CreatedAt = time.Now().UnixMilli()
 	} else if !ok {
 		return p, fmt.Errorf("project not found")
+	}
+	if p.Continuity == nil {
+		p.Continuity = old.Continuity
+	}
+	if p.Continuity != nil {
+		if err := project.Validate(*p.Continuity); err != nil {
+			return p, err
+		}
+		for _, ref := range p.Continuity.References {
+			var session RuntimeSession
+			var archive convArchive
+			if !getStoreJSON(bkRuntimeSessions, ref.DiscussionID, &session) && !getStoreJSON(bkChatHist, ref.DiscussionID, &archive) {
+				return p, fmt.Errorf("reference discussion not found or locked")
+			}
+		}
+		if old.Continuity == nil || old.Continuity.WorkingState != p.Continuity.WorkingState {
+			p.Continuity.StateUpdatedAt = time.Now().UTC()
+		} else {
+			p.Continuity.StateUpdatedAt = old.Continuity.StateUpdatedAt
+		}
 	}
 	if p.MCPServers == nil {
 		p.MCPServers = old.MCPServers
@@ -160,11 +181,21 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 // unrelated skills are read. Paths are metadata for future harness/terminal
 // adapters, never an implicit filesystem permission or model prompt.
 func projectContext(id string) string {
+	global, _ := globalPreferences(false)
 	p, ok := getProject(id)
 	if !ok {
-		return ""
+		return global
 	}
 	parts := []string{}
+	if global != "" {
+		parts = append(parts, global)
+	}
+	if text := primarySecondBrainContext(); text != "" {
+		parts = append(parts, text)
+	}
+	if text := project.Text(p.Continuity); text != "" {
+		parts = append(parts, "Project identity: "+p.ID+"\n"+text)
+	}
 	if p.Instructions != "" {
 		parts = append(parts, "Project instructions:\n"+p.Instructions)
 	}

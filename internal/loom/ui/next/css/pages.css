@@ -493,12 +493,70 @@
 .dist-filter{display:flex}
 .dist-filter .seg{flex:none}
 .dist-filter .seg button{flex:none}
-.dist-item{align-items:flex-start}
+.dist-item{align-items:flex-start;flex-wrap:wrap}
+.dist-item>.grow{flex:1 1 240px;min-width:0}
+.dist-item>.btn-row{min-width:0;max-width:100%}
 .dist-item .tag{flex:none;min-width:86px;justify-content:center;margin-top:1px}
 .dist-t{white-space:normal;line-height:1.45}
 .linkish{padding:0;border:0;background:none;font:inherit;color:var(--text-2);text-decoration:underline;text-decoration-color:var(--line-2,var(--line));text-underline-offset:2px;cursor:pointer}
 .linkish:hover{color:var(--text)}
 .brain-read{margin:0;max-height:60vh;overflow:auto;white-space:pre-wrap;font:12.5px/1.55 var(--mono);color:var(--text-2)}
+
+/* Brain: connected knowledge stores are the product surface. Loom's indexes
+   and conversation memory stay quiet underneath. */
+.brain-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:26px 0 18px}
+.brain-intro p{margin:0;max-width:620px;color:var(--text-2);line-height:1.5}
+.brain-intro .acts{display:flex;gap:8px;flex:none}
+.brain-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.second-brain-card{display:flex;flex-direction:column;min-width:0;padding:16px}
+.second-brain-card.primary{border-color:var(--line-strong)}
+.second-brain-head{display:flex;align-items:center;gap:12px;min-width:0}
+.second-brain-head>.grow{min-width:0}
+.second-brain-head>.grow>span{display:block;margin-top:3px;font-size:12px;color:var(--text-3)}
+.second-brain-title{display:flex;align-items:center;gap:8px;min-width:0}
+.second-brain-title b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.second-brain-path{margin:14px 0 10px;padding:9px 10px;border-radius:var(--r-sm);background:var(--bg-2);color:var(--text-2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.second-brain-status{min-height:24px;font-size:12px;color:var(--text-3)}
+.second-brain-actions{display:flex;align-items:center;gap:4px;margin:10px -4px -4px}
+.brain-empty{margin-top:18px}
+.loom-memory-strip{display:flex;align-items:flex-start;gap:11px;margin-top:18px;padding:14px 4px;color:var(--text-2)}
+.loom-memory-strip b{font-size:13px;color:var(--text)}
+.loom-memory-strip p{margin:3px 0 0;font-size:12.5px;line-height:1.5}
+.brain-connectors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:18px}
+.brain-connector{display:flex;align-items:flex-start;gap:10px;padding:12px;text-align:left;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--text);cursor:pointer}
+.brain-connector:hover{background:var(--hover)}
+.brain-connector.on{border-color:var(--line-strong);background:var(--surface-3)}
+.brain-connector>.ico{width:17px;height:17px;margin-top:1px;color:var(--text-2)}
+.brain-connector span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.brain-connector b{font-size:13px;font-weight:500}
+.brain-connector small{font-size:11.5px;line-height:1.35;color:var(--text-3)}
+.brain-permissions{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(170px,.65fr);gap:10px;align-items:end}
+.brain-primary{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-sm);cursor:pointer}
+.brain-primary.on{border-color:var(--line-strong);background:var(--surface-3)}
+.brain-primary span{display:flex;flex-direction:column;gap:3px}
+.brain-primary b{font-size:13px;font-weight:500}
+.brain-primary small{font-size:11.5px;line-height:1.4;color:var(--text-3)}
+.brain-advanced{margin-top:14px;border-top:1px solid var(--line-soft);padding-top:12px}
+.brain-advanced summary{color:var(--text-2);font-size:12.5px;cursor:pointer}
+.brain-advanced[open] summary{margin-bottom:12px}
+
+/* Projects: four stable choices, then the conversations that form its memory. */
+.project-simple{max-width:960px}
+.project-simple-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);gap:14px;align-items:start}
+.project-settings-card{overflow:hidden}
+.project-setting{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(240px,1.2fr);gap:24px;align-items:center;padding:17px 18px;border-top:1px solid var(--line-soft)}
+.project-setting:first-child{border-top:0}
+.project-setting>div:first-child{display:flex;flex-direction:column;gap:4px;min-width:0}
+.project-setting b{font-size:13.5px;font-weight:500}
+.project-setting small{color:var(--text-3);font-size:12px;line-height:1.4}
+.project-setting>.input,.project-setting>.select,.project-setting>.workspace-picker{width:100%;min-width:0}
+.workspace-picker{display:flex;align-items:center;gap:6px;min-width:0}
+.workspace-picker .select{flex:1;min-width:0}
+.workspace-picker .btn{flex:none}
+.project-save{display:flex;align-items:center;gap:8px;padding:13px 14px;border-top:1px solid var(--line-soft);background:var(--bg-2)}
+.project-conversations{overflow:hidden}
+.project-conversations .sec-h{margin:0;padding-top:16px;padding-bottom:12px}
+.project-conversations .sec-h p{margin:4px 0 0;color:var(--text-3);font-size:12px;line-height:1.4}
 
 /* Environnement */
 .env-table{overflow-x:auto}

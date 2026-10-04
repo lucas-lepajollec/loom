@@ -1,6 +1,9 @@
 package loom
 
-import "github.com/lucas-lepajollec/loom/internal/loom/discussion"
+import (
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
+	"strings"
+)
 
 // Historical names and JSON remain intact while pure discussion logic lives in
 // the leaf package. Loom owns storage, assembled context, selection and consent.
@@ -10,6 +13,7 @@ type ToolCallFunc = discussion.ToolCallFunc
 type DiscussionEvent = discussion.DiscussionEvent
 type ACPChangedFile = discussion.ACPChangedFile
 type ACPState = discussion.ACPState
+type NativeImport = discussion.NativeImport
 type RuntimeSession = discussion.RuntimeSession[RuntimeUsage, StatsEvent]
 type RuntimeTurnRecord = discussion.RuntimeTurnRecord[RuntimeUsage, StatsEvent]
 type DiscussionContext = discussion.DiscussionContext[Capability]
@@ -22,7 +26,11 @@ const maxPortableMessages = discussion.MaxPortableMessages
 func cloneACPState(s ACPState) ACPState                   { return discussion.CloneACPState(s) }
 func cloneRuntimeSession(s RuntimeSession) RuntimeSession { return discussion.CloneRuntimeSession(s) }
 func prepareDiscussion(s RuntimeSession, draft string) DiscussionPreview {
-	return discussion.PrepareDiscussion(s, draft, discussionContext(s))
+	query := strings.TrimSpace(draft)
+	if query == "" {
+		query = lastUserText(s.Messages)
+	}
+	return discussion.PrepareDiscussion(s, draft, discussionContextFor(s, query))
 }
 func discussionContextRevision(s RuntimeSession, c DiscussionContext) string {
 	return discussion.ContextRevision(s, c)

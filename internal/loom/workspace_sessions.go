@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -196,44 +197,36 @@ func (m *runtimeSessions) list() []RuntimeSession {
 }
 
 func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	return m.startPrepared(id, requestID, text, prepareDiscussion, expectedRevision...)
+}
+
+// Preparation can read files, retrieve Brain passages and check a remote
+// directory. It must never hold the registry lock needed by unrelated reads.
+func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func(RuntimeSession, string) DiscussionPreview, expectedRevision ...string) error {
 	text = strings.TrimSpace(text)
 	if text == "" || len(text) > 24000 || len(requestID) < 8 || len(requestID) > 100 {
 		return errors.New("message required (maximum 24000 bytes) and valid request ID")
 	}
+	m.mu.Lock()
 	s, ok := m.getLocked(id)
 	if !ok {
+		m.mu.Unlock()
 		return errors.New("discussion not found or locked")
 	}
-	for _, seen := range s.RequestIDs {
-		if seen == requestID {
-			return nil
-		}
+	duplicate, err := m.validateStartLocked(s, requestID)
+	key := m.keys[s.ProviderID]
+	m.mu.Unlock()
+	if duplicate || err != nil {
+		return err
 	}
-	if s.LastRequestID == requestID {
-		return nil
-	}
-	if harnessLifecycle.updatingRuntime(s.RuntimeID) {
-		return errors.New("an automatic harness update is in progress; wait for it to finish")
-	}
-	if m.runs[id] != nil || m.nativeRunning(s) {
-		return errors.New("a response is already in progress")
-	}
-	if s.RuntimeID == "llama.cpp" && s.NativeArchive != "" {
-		return errors.New("this thread uses native local chat; send from the discussion")
-	}
-	if len(m.runs) >= 4 {
-		return errors.New("four responses are already running; wait for them to finish")
-	}
-	prepared := prepareDiscussion(s, text)
+	original := s
+	prepared := prepare(s, text)
 	if len(expectedRevision) > 0 && (expectedRevision[0] == "" || expectedRevision[0] != prepared.Context.Revision) {
 		return errors.New("the model, thread or its context changed; check the Context panel then resend your message")
 	}
 	if prepared.Problem != "" {
 		return errors.New(prepared.Problem)
 	}
-	key := m.keys[s.ProviderID]
 	if s.RuntimeID == "openai-compatible" && key == "" {
 		return errors.New("missing key: reconnect the provider in Models → Providers")
 	}
@@ -244,11 +237,6 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 		}
 		if !healthCheck() {
 			return errors.New("the local model is not ready; load it from the Model panel")
-		}
-		for _, other := range m.runs {
-			if other.session.RuntimeID == "llama.cpp" {
-				return errors.New("the local engine is already responding in another discussion")
-			}
 		}
 		adapter = localChatRuntime()
 	} else if s.RuntimeID == "openai-compatible" {
@@ -275,6 +263,7 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 					s.AdditionalDirs = extra
 				}
 			}
+			attachPrimarySecondBrain(&s, acp.agent)
 			if _, err := check(s.Workdir); err != nil {
 				return err
 			}
@@ -286,6 +275,25 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 		return errors.New("this adapter cannot execute a discussion yet")
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	current, ok := m.getLocked(id)
+	if !ok {
+		return errors.New("discussion not found or locked")
+	}
+	if duplicate, err := m.validateStartLocked(current, requestID); duplicate || err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(original, current) || m.keys[s.ProviderID] != key {
+		return errors.New("the thread or connection changed while preparing; reopen the Context panel and retry")
+	}
+	if s.RuntimeID == "llama.cpp" {
+		for _, other := range m.runs {
+			if other.session.RuntimeID == "llama.cpp" {
+				return errors.New("the local engine is already responding in another discussion")
+			}
+		}
+	}
 	messages := append(append([]Message{}, s.Messages...), Message{Role: "user", Content: text})
 	if len(s.Messages) == 0 && !s.CustomTitle {
 		s.Title = discussionTitle(text)
@@ -310,9 +318,40 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 	}
 	run := &runtimeRun{session: s, cancel: cancel}
 	m.runs[id] = run
-	m.publishLocked(id, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true, "provenance": s.Turns[len(s.Turns)-1], "session": cloneRuntimeSession(s), "context": discussionContext(s)})
+	m.publishLocked(id, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true, "provenance": s.Turns[len(s.Turns)-1], "session": cloneRuntimeSession(s), "context": turnContext(s, prepared.Context)})
 	go m.generate(ctx, run, adapter, prepared.Messages)
 	return nil
+}
+
+// Caller holds mu. Rechecked after preparation to preserve idempotency, the
+// run limit and edits/route changes from another tab.
+func (m *runtimeSessions) validateStartLocked(s RuntimeSession, requestID string) (bool, error) {
+	for _, seen := range s.RequestIDs {
+		if seen == requestID {
+			return true, nil
+		}
+	}
+	if s.LastRequestID == requestID {
+		return true, nil
+	}
+	if harnessLifecycle.updatingRuntime(s.RuntimeID) {
+		return false, errors.New("an automatic harness update is in progress; wait for it to finish")
+	}
+	if m.runs[s.ID] != nil || m.nativeRunning(s) {
+		return false, errors.New("a response is already in progress")
+	}
+	if s.RuntimeID == "llama.cpp" && s.NativeArchive != "" {
+		return false, errors.New("this thread uses native local chat; send from the discussion")
+	}
+	if len(m.runs) >= 4 {
+		return false, errors.New("four responses are already running; wait for them to finish")
+	}
+	return false, nil
+}
+
+func turnContext(s RuntimeSession, c DiscussionContext) DiscussionContext {
+	c.Revision = discussionContextRevision(s, c)
+	return c
 }
 
 func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter RuntimeAdapter, messages []Message) {

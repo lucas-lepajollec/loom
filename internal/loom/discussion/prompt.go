@@ -14,10 +14,14 @@ const MaxPortableMessages = 200
 // DiscussionContext is a fresh read model, not a second memory store. Revision
 // binds the route, portable history and instructions seen by the client.
 type DiscussionContext[Capability any] struct {
-	MCPServers   *[]string `json:"mcp_servers,omitempty"`
-	ProjectID    string    `json:"project_id"`
-	ProjectName  string    `json:"project_name"`
-	Instructions string    `json:"project_instructions"`
+	GlobalPreferences string    `json:"global_preferences,omitempty"`
+	Minimum           string    `json:"minimum,omitempty"`
+	EstimatedTokens   int       `json:"estimated_tokens"`
+	ReferenceIDs      []string  `json:"reference_ids,omitempty"`
+	MCPServers        *[]string `json:"mcp_servers,omitempty"`
+	ProjectID         string    `json:"project_id"`
+	ProjectName       string    `json:"project_name"`
+	Instructions      string    `json:"project_instructions"`
 	// BrainCitations: where the Brain passages of this context come from.
 	BrainCitations []string     `json:"brain_citations,omitempty"`
 	Skills         []Capability `json:"skills"`

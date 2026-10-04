@@ -70,6 +70,7 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 					s.Workdir, s.WorkspaceID = dir, workspace.ID
 				}
 			}
+			attachPrimarySecondBrain(&s, agent)
 			s.WorkspaceTarget = target
 		}
 	}

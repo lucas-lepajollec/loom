@@ -460,12 +460,10 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	projectID := c.ActiveProject
 	archiveID := c.ID
 	c.mu.Unlock()
-	sharedContext := nativeDiscussionContext(archiveID, projectID)
-	// The local engine's own path: Brain passages for this message.
-	if p, ok := getProject(projectID); ok && projectID != "" {
-		if text, _ := projectBrainContext(p, lastUserText(msgs)); text != "" {
-			sharedContext = strings.TrimSpace(sharedContext + "\n\n" + text)
-		}
+	sharedContext, contextErr := nativePreparedContext(archiveID, projectID, lastUserText(msgs))
+	if contextErr != nil {
+		c.appendDelta(epoch, map[string]any{"error": contextErr.Error()})
+		return
 	}
 
 	// Compaction proactive (façon Hermes) sur la vue MODÈLE uniquement ; le journal

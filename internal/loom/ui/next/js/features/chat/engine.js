@@ -277,7 +277,18 @@ async function sendThread(text) {
   if (!p || p.text !== text) { p = { text, request_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random() }; pendingReq.set(s.id, p); }
   chat.set({ busy: true });
   let r;
-  try { r = await post('/api/runtime/sessions/send', { id: s.id, ...p, context_revision: (chat.get().context && chat.get().context.revision) || '' }); }
+  try {
+    let revision = chat.get().context?.revision || '';
+    const project = app.get().workspace?.projects?.find(project => project.id === s.project_id);
+    if (project?.brain_budget > 0 && project.brain_sources?.length) {
+      const preview = await post('/api/runtime/sessions/preview', { id: s.id, text });
+      if (!preview.ok || preview.preview?.problem) throw new Error(preview.error || preview.preview?.problem);
+      revision = preview.preview.context.revision;
+      if (chat.get().session?.id !== s.id) return false;
+      chat.set({ context: preview.preview.context });
+    }
+    r = await post('/api/runtime/sessions/send', { id: s.id, ...p, context_revision: revision });
+  }
   catch (e) { chat.set({ busy: false, notice: e.message }); return false; }
   if (!r.ok) { chat.set({ busy: false, notice: r.error }); toast(r.error, 'err'); return false; }
   pendingReq.delete(s.id);

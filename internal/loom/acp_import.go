@@ -6,13 +6,23 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Harness history: list the sessions a harness already has (session/list),
 // and import one into Loom by replaying it (session/load). The Loom discussion
-// stays bound to the native session, so continuing from Loom resumes it with
-// the harness's full memory.
+// can retain a native binding for compatibility, or start fresh from the
+// portable replay and chosen project. The original session is never rewritten.
+
+var nativeImportMu sync.Mutex
+
+func nativeImportMatches(s RuntimeSession, agent acpAgent, nativeID string) bool {
+	if s.ImportSource != nil {
+		return s.ImportSource.RuntimeID == agent.ID && s.ImportSource.MachineID == agent.Machine && s.ImportSource.SessionID == nativeID
+	}
+	return s.RuntimeID == agent.ID && s.NativeSessionID == nativeID
+}
 
 type acpSessionInfo struct {
 	SessionID string `json:"sessionId"`
@@ -83,7 +93,9 @@ func listACPSessions(ctx context.Context, agent acpAgent) ([]acpSessionInfo, err
 	}
 	bound := map[string]string{}
 	for _, s := range workspaceSessions.list() {
-		if s.RuntimeID == agent.ID && s.NativeSessionID != "" {
+		if s.ImportSource != nil && s.ImportSource.RuntimeID == agent.ID && s.ImportSource.MachineID == agent.Machine {
+			bound[s.ImportSource.SessionID] = s.ID
+		} else if s.RuntimeID == agent.ID && s.NativeSessionID != "" {
 			bound[s.NativeSessionID] = s.ID
 		}
 	}
@@ -93,8 +105,26 @@ func listACPSessions(ctx context.Context, agent acpAgent) ([]acpSessionInfo, err
 	return out, nil
 }
 
-func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, projectID string) (RuntimeSession, error) {
+func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, projectID string, fresh ...bool) (RuntimeSession, error) {
+	// Serializing explicit imports prevents duplicate retained records while
+	// keeping ordinary registry reads independent of a slow native replay.
+	nativeImportMu.Lock()
+	defer nativeImportMu.Unlock()
 	var s RuntimeSession
+	if projectID != "" {
+		if _, ok := getProject(projectID); !ok {
+			return s, errors.New("project not found or locked")
+		}
+	}
+	for _, existing := range workspaceSessions.list() {
+		if nativeImportMatches(existing, agent, info.SessionID) {
+			full, ok := workspaceSessions.get(existing.ID)
+			if !ok {
+				return s, errors.New("discussion not found or locked")
+			}
+			return full, nil
+		}
+	}
 	check := acpDirectory
 	if agent.Remote {
 		check = remoteWorkdir
@@ -102,12 +132,6 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 	cwd, err := check(info.Cwd)
 	if err != nil {
 		return s, errors.New("this session's directory no longer exists on this machine")
-	}
-	for _, existing := range workspaceSessions.list() {
-		if existing.RuntimeID == agent.ID && existing.NativeSessionID == info.SessionID {
-			full, _ := workspaceSessions.get(existing.ID)
-			return full, nil
-		}
 	}
 	b := newReplayBuilder()
 	processDir := cwd
@@ -140,6 +164,7 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 		title = string([]rune(title)[:100])
 	}
 	s = RuntimeSession{ID: newSessionID(), ProjectID: projectID, RuntimeID: agent.ID, ProviderName: agent.Name, Model: "default", Title: title, CreatedAt: now, UpdatedAt: now, Status: "complete", Messages: messages, Turns: turns}
+	s.ImportSource = &NativeImport{RuntimeID: agent.ID, MachineID: agent.Machine, SessionID: info.SessionID, ImportedAt: now}
 	s.Workdir = cwd
 	s.Permission = "ask"
 	s.NativeSessionID, s.NativeRuntimeID = info.SessionID, agent.ID
@@ -148,6 +173,13 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 	prepared := prepareDiscussion(s, "x")
 	if n := len(prepared.Messages); n > 0 {
 		s.NativeContext = acpContextHash(prepared.Messages[:n-1])
+	}
+	if len(fresh) > 0 && fresh[0] {
+		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
+		s.Commands = nil
+		if projectID != "" {
+			s.Workdir = ""
+		}
 	}
 	return s, putStoreJSON(bkRuntimeSessions, s.ID, s)
 }
@@ -184,6 +216,7 @@ func handleACPImport(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		acpSessionInfo
 		ProjectID string `json:"project_id"`
+		Fresh     bool   `json:"fresh"`
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
@@ -194,7 +227,7 @@ func handleACPImport(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 	defer cancel()
-	s, err := importACPSession(ctx, agent, req.acpSessionInfo, req.ProjectID)
+	s, err := importACPSession(ctx, agent, req.acpSessionInfo, req.ProjectID, req.Fresh)
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return

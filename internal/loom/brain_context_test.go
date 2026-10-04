@@ -40,8 +40,8 @@ func TestProjectBrainContextReachesTheDiscussion(t *testing.T) {
 	if !strings.Contains(c.System, "forge-dev") || len(c.BrainCitations) == 0 || !strings.Contains(c.BrainCitations[0], "infra.md") {
 		t.Fatalf("contexte: %q %v", c.System, c.BrainCitations)
 	}
-	off, _ := saveProjectContext(ChatProject{ID: p.ID, Name: "Infra", BrainSources: []string{"notes"}, BrainBudget: 0})
-	if c := discussionContext(RuntimeSession{ID: "s", ProjectID: off.ID, Messages: s.Messages}); strings.Contains(c.System, "forge-dev") {
-		t.Fatal("Brain utilisé avec un budget nul")
+	inherited, _ := saveProjectContext(ChatProject{ID: p.ID, Name: "Infra", BrainBudget: 0})
+	if c := discussionContext(RuntimeSession{ID: "s", ProjectID: inherited.ID, Messages: s.Messages}); !strings.Contains(c.System, "forge-dev") {
+		t.Fatal("a project no longer inherited its connected second brains")
 	}
 }

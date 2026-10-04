@@ -16,6 +16,29 @@ type ContextReader interface {
 	SearchContext(context.Context, SearchRequest) ([]Hit, error)
 	PackContext(context.Context, PackRequest) (Pack, error)
 }
+type WriteRequest struct {
+	Source  string `json:"source,omitempty" jsonschema:"optional source id; omit for the primary second brain"`
+	File    string `json:"file" jsonschema:"relative Markdown path inside the selected second brain"`
+	Content string `json:"content" jsonschema:"complete Markdown content to save"`
+}
+type EditRequest struct {
+	Source string `json:"source,omitempty" jsonschema:"optional source id; omit for the primary second brain"`
+	File   string `json:"file" jsonschema:"relative Markdown path inside the selected second brain"`
+	Old    string `json:"old" jsonschema:"exact unique text to replace"`
+	New    string `json:"new" jsonschema:"replacement text"`
+}
+type WriteResult struct {
+	OK   bool   `json:"ok"`
+	File string `json:"file"`
+}
+
+// Writer is optional. Loom's authenticated Brain boundary implements it when
+// a writable primary second brain exists; the reusable indexing engine remains
+// read-only.
+type Writer interface {
+	WriteSecondBrain(WriteRequest) error
+	EditSecondBrain(EditRequest) error
+}
 type SearchResult struct {
 	Hits []Hit `json:"hits"`
 }
@@ -26,7 +49,7 @@ func MCPServer(reader Reader) *mcp.Server {
 	open := true
 	searchAnnotations := &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: &open}
 	annotations := &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: &closed}
-	mcp.AddTool(s, &mcp.Tool{Name: "brain_search", Description: "Search Brain context with BM25 and optional, explicitly enabled semantic embeddings (local by default; a cloud source requires prior consent). Personal notes require personal=true AND their explicit source IDs. limit defaults to 10, maximum 100. Highlights are Unicode code point ranges.", Annotations: searchAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args SearchRequest) (*mcp.CallToolResult, SearchResult, error) {
+	mcp.AddTool(s, &mcp.Tool{Name: "brain_search", Description: "Search Brain context with BM25 and optional, explicitly enabled semantic embeddings (local by default; a cloud source requires prior consent). Optional project_id restricts sources and conversation paths to that project’s explicit selections. Personal notes require personal=true AND their explicit source IDs. limit defaults to 10, maximum 100. Highlights are Unicode code point ranges.", Annotations: searchAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args SearchRequest) (*mcp.CallToolResult, SearchResult, error) {
 		var hits []Hit
 		var err error
 		if contextual, ok := reader.(ContextReader); ok {
@@ -36,7 +59,7 @@ func MCPServer(reader Reader) *mcp.Server {
 		}
 		return nil, SearchResult{hits}, err
 	})
-	mcp.AddTool(s, &mcp.Tool{Name: "brain_pack", Description: "Build a cited context pack for a query. budget_tokens defaults to 1500, maximum 8000, including citation/header overhead; estimate is ceil(characters/4). Personal notes require personal=true AND their explicit source IDs.", Annotations: searchAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args PackRequest) (*mcp.CallToolResult, Pack, error) {
+	mcp.AddTool(s, &mcp.Tool{Name: "brain_pack", Description: "Build a cited context pack for a query. budget_tokens defaults to 1500, maximum 8000, including citation/header overhead; estimate is ceil(characters/4). Optional project_id restricts sources and conversation paths to that project’s explicit selections. Personal notes require personal=true AND their explicit source IDs.", Annotations: searchAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args PackRequest) (*mcp.CallToolResult, Pack, error) {
 		var pack Pack
 		var err error
 		if contextual, ok := reader.(ContextReader); ok {
@@ -46,9 +69,20 @@ func MCPServer(reader Reader) *mcp.Server {
 		}
 		return nil, pack, err
 	})
-	mcp.AddTool(s, &mcp.Tool{Name: "brain_read", Description: "Read a full indexed chunk by chunk_id, or source + relative path + heading (array). Ambiguous headings require chunk_id. Personal notes require personal=true AND an explicit source ID in source or sources, even with a known chunk_id.", Annotations: annotations}, func(ctx context.Context, req *mcp.CallToolRequest, args ReadRequest) (*mcp.CallToolResult, Chunk, error) {
+	mcp.AddTool(s, &mcp.Tool{Name: "brain_read", Description: "Read a full indexed chunk by chunk_id, or source + relative path + heading (array). Ambiguous headings require chunk_id. Optional project_id restricts sources and conversation paths to that project’s explicit selections. Personal notes require personal=true AND an explicit source ID in source or sources, even with a known chunk_id.", Annotations: annotations}, func(ctx context.Context, req *mcp.CallToolRequest, args ReadRequest) (*mcp.CallToolResult, Chunk, error) {
 		chunk, err := reader.Read(args)
 		return nil, chunk, err
 	})
+	if writer, ok := reader.(Writer); ok {
+		writeAnnotations := &mcp.ToolAnnotations{ReadOnlyHint: false, OpenWorldHint: &closed}
+		mcp.AddTool(s, &mcp.Tool{Name: "brain_write", Description: "Create or replace a Markdown page in a write-authorized second brain. Omit source for the proactive primary; target another source only on an explicit user request.", Annotations: writeAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args WriteRequest) (*mcp.CallToolResult, WriteResult, error) {
+			err := writer.WriteSecondBrain(args)
+			return nil, WriteResult{OK: err == nil, File: args.File}, err
+		})
+		mcp.AddTool(s, &mcp.Tool{Name: "brain_edit", Description: "Update a page in a write-authorized second brain by replacing one exact unique text fragment. Omit source for the primary.", Annotations: writeAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args EditRequest) (*mcp.CallToolResult, WriteResult, error) {
+			err := writer.EditSecondBrain(args)
+			return nil, WriteResult{OK: err == nil, File: args.File}, err
+		})
+	}
 	return s
 }

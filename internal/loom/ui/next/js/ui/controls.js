@@ -4,6 +4,7 @@ import { t } from '../core/i18n.js';
 import { html, render, useRef, useLayoutEffect, useEffect, useState, cls } from '../core/lib.js';
 import { Icon } from './icons.js';
 import { popoverPosition } from './popover-position.js';
+import { Portal } from './dialog.js';
 
 export function Seg({ value, options, onChange, size, label }) {
   const box = useRef(), ind = useRef();
@@ -60,41 +61,50 @@ export function Tip({ text }) {
 
 // Popover ancré sous (ou au-dessus de) son déclencheur, fermé par clic extérieur/Échap.
 export function Popover({ anchor, onClose, children, width, place, class: c }) {
-  const box = useRef();
+  const box = useRef(), close = useRef(onClose); close.current = onClose;
   const [st, setSt] = useState({ visibility: 'hidden' });
   useLayoutEffect(() => {
-    if (!anchor) return;
-    const el = box.current;
+    if (!anchor || !box.current) return;
+    const el = box.current, viewport = window.visualViewport;
+    let frame;
     const update = () => {
-      const viewport = window.visualViewport;
+      frame = null;
+      if (!anchor.isConnected) { close.current(); return; }
       const bounds = { left: viewport?.offsetLeft || 0, top: viewport?.offsetTop || 0,
         width: viewport?.width || innerWidth, height: viewport?.height || innerHeight };
-      el.style.maxWidth = Math.max(0, bounds.width - 16) + 'px';
-      el.style.maxHeight = Math.max(0, bounds.height - 16) + 'px';
-      const next = popoverPosition(anchor.getBoundingClientRect(), el.offsetWidth, el.offsetHeight, bounds, place);
-      next.maxWidth = el.style.maxWidth; next.maxHeight = el.style.maxHeight;
+      const maxWidth = Math.max(0, bounds.width - 16) + 'px', maxHeight = Math.max(0, bounds.height - 16) + 'px';
+      if (el.style.maxWidth !== maxWidth) el.style.maxWidth = maxWidth;
+      if (el.style.maxHeight !== maxHeight) el.style.maxHeight = maxHeight;
+      const next = { ...popoverPosition(anchor.getBoundingClientRect(), el.offsetWidth, el.offsetHeight, bounds, place), maxWidth, maxHeight };
       setSt(old => Object.keys(next).every(key => old[key] === next[key]) && !old.visibility ? old : next);
     };
+    const schedule = e => {
+      // Scrolling the menu itself does not move its anchor.
+      if (e?.type === 'scroll' && el.contains(e.target)) return;
+      if (frame == null) frame = requestAnimationFrame(update);
+    };
     update();
-    const observer = new ResizeObserver(update); observer.observe(el);
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    window.visualViewport?.addEventListener('resize', update);
-    window.visualViewport?.addEventListener('scroll', update);
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
+    observer?.observe(el); observer?.observe(anchor);
+    window.addEventListener('resize', schedule);
+    window.addEventListener('scroll', schedule, true);
+    viewport?.addEventListener('resize', schedule); viewport?.addEventListener('scroll', schedule);
     return () => {
-      observer.disconnect(); window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true);
-      window.visualViewport?.removeEventListener('resize', update); window.visualViewport?.removeEventListener('scroll', update);
+      if (frame != null) cancelAnimationFrame(frame);
+      observer?.disconnect(); window.removeEventListener('resize', schedule); window.removeEventListener('scroll', schedule, true);
+      viewport?.removeEventListener('resize', schedule); viewport?.removeEventListener('scroll', schedule);
     };
   }, [anchor, width, place]);
   useEffect(() => {
-    const down = e => { if (box.current && !box.current.contains(e.target) && !(anchor && anchor.contains(e.target))) onClose(); };
-    const key = e => { if (e.key === 'Escape') { onClose(); anchor && anchor.focus(); } };
-    const timer = setTimeout(() => document.addEventListener('pointerdown', down), 0);
-    document.addEventListener('keydown', key);
-    return () => { clearTimeout(timer); document.removeEventListener('pointerdown', down); document.removeEventListener('keydown', key); };
+    const clicked = e => { if (box.current && !box.current.contains(e.target) && !anchor?.contains(e.target)) close.current(); };
+    const key = e => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); close.current(); if (anchor?.isConnected) anchor.focus(); } };
+    // A completed click works for mouse, touch and keyboard activation. Do not
+    // dismantle a layer on pointerdown before the intended action can run.
+    document.addEventListener('click', clicked, true); document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('click', clicked, true); document.removeEventListener('keydown', key); };
   }, [anchor]);
   const style = Object.entries({ ...st, width: width ? width + 'px' : undefined }).filter(([, v]) => v).map(([k, v]) => k.replace(/[A-Z]/g, m => '-' + m.toLowerCase()) + ':' + v).join(';');
-  return html`<div class=${cls('pop', c)} ref=${box} style=${style} role="dialog">${children}</div>`;
+  return html`<${Portal}><div class=${cls('pop', c)} ref=${box} style=${style} role="dialog" onClick=${e => e.stopPropagation()}>${children}</div></${Portal}>`;
 }
 
 // Menu contextuel simple : liste d'actions dans un Popover.

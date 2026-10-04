@@ -25,7 +25,7 @@ export function toast(text, kind) {
 
 // Rendu directement dans <body> : un dialogue ouvert depuis une section animée
 // (transform) resterait sinon pris dans son contexte d'empilement.
-function Portal({ children }) {
+export function Portal({ children }) {
   const host = useRef(null);
   useLayoutEffect(() => {
     host.current = document.createElement('div');

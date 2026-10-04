@@ -232,6 +232,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/tools/toggle", handleAgentToggle)
 	api("/api/skills", handleAgent)
 	api("/api/skills/toggle", handleAgentToggle)
+	api("/api/context/preferences", handleSharedPreferences)
 	api("/api/mem", handleMem)
 	api("/api/mem/save", handleMemSave)
 	api("/api/mem/delete", handleMemDelete)

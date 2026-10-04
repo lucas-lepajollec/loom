@@ -4,6 +4,50 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-04
+
+### Added
+
+- Connected second brains from local folders, Obsidian or mounted stores and
+  managed HTTPS/SSH Git checkouts. One source can be the writable primary with
+  bounded Markdown write/edit tools for direct models and authenticated Brain MCP.
+- Link a skills directory directly from a connected second brain.
+- Compatibility for existing shared preference pages and stored project
+  continuity metadata across executor changes.
+- Project-scoped conversation retrieval over HTTP/MCP, including semantic search
+  and direct passage reads derived from current project membership.
+- Review/edit/keep/reject for newly distilled memory candidates; existing memory
+  remains accepted. Source freshness states, optional multilingual embeddings
+  and explicit incremental semantic auto-indexing.
+- Native-import project attachment, immutable runtime/machine/session provenance
+  and deduplication after route changes; fresh native execution by default in UI.
+
+### Changed
+
+- Brain navigation now presents second brains, Skills and MCP. Loom's own
+  conversation, retrieval and reviewed-memory layers remain automatic instead
+  of becoming project setup fields.
+- Project setup now contains title, machine, workspace and default
+  executor/model. Project conversations define their memory scope automatically;
+  connected second brains are inherited with a bounded default retrieval budget.
+- Project retrieval uses the current draft from the first turn; native local
+  context is prepared once and blocks unreadable selected preferences.
+
+### Fixed
+
+- Confine second-brain file creation and edits with directory-root operations,
+  validate managed checkout IDs before cloning and retain checkouts on rejected
+  source configuration. Capture the owning indexer for background write refreshes.
+- Serialize visible status, hardware and activity observations, bound stalled
+  JSON reads and avoid rerendering unchanged UI selections.
+- Keep anchored menus outside transformed parents, coalesce repositioning and
+  dismiss on completed clicks so touch actions can finish.
+- Cancel stale parameter/capability/estimate reads and show a retry on failure.
+- Prepare discussion context and remote workdirs outside the global session
+  lock; recheck edits, credentials, duplicate requests and run limits before send.
+- Bound project semantic retrieval with lexical fallback and remote engine
+  observation reads without limiting long engine mutations.
+
 ## [0.2.3] - 2026-10-03
 
 ### Fixed

@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 )
@@ -24,13 +25,14 @@ type indexedChunk struct {
 	length int
 }
 type Engine struct {
-	mu        sync.RWMutex
-	refreshMu sync.Mutex
-	opts      Options
-	sources   []Source
-	files     map[string]File
-	docs      []indexedChunk
-	postings  map[string][]posting
+	mu         sync.RWMutex
+	refreshMu  sync.Mutex
+	refreshing atomic.Bool
+	opts       Options
+	sources    []Source
+	files      map[string]File
+	docs       []indexedChunk
+	postings   map[string][]posting
 }
 
 func New(opts Options) (*Engine, error) {
@@ -84,6 +86,7 @@ func New(opts Options) (*Engine, error) {
 			for i := range e.sources {
 				if snapshot.Scopes[e.sources[i].ID] == scopes[e.sources[i].ID] {
 					e.sources[i].LastIndexed = snapshot.IndexedAt
+					e.sources[i].LastChecked = snapshot.IndexedAt
 				}
 				for _, f := range e.files {
 					if f.Source == e.sources[i].ID {
@@ -114,9 +117,21 @@ func validateSource(s Source) error {
 		return errors.New("kind must be context, personal or repo")
 	}
 	switch s.Connector {
-	case "", "folder", "git", "obsidian", "webdav-mount":
+	case "", "folder", "git", "git-remote", "obsidian", "webdav-mount":
 	default:
-		return errors.New("unsupported second-brain connection; use a local checkout or mounted folder")
+		return errors.New("unsupported second-brain connection")
+	}
+	if s.Permission == "" {
+		s.Permission = "read"
+	}
+	if s.Permission != "read" && s.Permission != "ask" && s.Permission != "write" {
+		return errors.New("permission must be read, ask or write")
+	}
+	if s.Primary && s.Permission != "write" {
+		return errors.New("the primary second brain must be writable")
+	}
+	if len(s.Remote) > 2048 || len(s.Branch) > 200 {
+		return errors.New("remote or branch is too long")
 	}
 	if len(s.Exclude) > 64 {
 		return errors.New("maximum 64 exclude globs")
@@ -168,6 +183,9 @@ func (e *Engine) Update(s Source) error {
 	if err := e.available(); err != nil {
 		return err
 	}
+	if s.Permission == "" {
+		s.Permission = "read"
+	}
 	if err := validateSource(s); err != nil {
 		return err
 	}
@@ -196,6 +214,7 @@ func (e *Engine) Update(s Source) error {
 			scopeChanged = prior.Path != s.Path || prior.Kind != s.Kind || !equalHeading(prior.Include, s.Include) || !equalHeading(prior.Exclude, s.Exclude)
 			if !scopeChanged {
 				s.Files, s.Chunks, s.LastIndexed, s.Error = prior.Files, prior.Chunks, prior.LastIndexed, prior.Error
+				s.LastChecked = prior.LastChecked
 			}
 			next[i] = s
 			found = true
@@ -212,6 +231,13 @@ func (e *Engine) Update(s Source) error {
 			return errors.New("maximum 100 sources")
 		}
 		next = append(next, s)
+	}
+	if s.Primary {
+		for i := range next {
+			if next[i].ID != s.ID && !next[i].ReadOnly {
+				next[i].Primary = false
+			}
+		}
 	}
 	if err := e.saveSources(next); err != nil {
 		return err
@@ -405,6 +431,8 @@ func skipDir(name string) bool {
 func (e *Engine) Refresh(ctx context.Context) error {
 	e.refreshMu.Lock()
 	defer e.refreshMu.Unlock()
+	e.refreshing.Store(true)
+	defer e.refreshing.Store(false)
 	if err := e.available(); err != nil {
 		return err
 	}
@@ -550,7 +578,10 @@ func (e *Engine) Refresh(ctx context.Context) error {
 		if s.Error != "" {
 			failures = append(failures, fmt.Errorf("%s: %s", s.ID, s.Error))
 		}
-		s.LastIndexed = time.Now().UTC()
+		s.LastChecked = time.Now().UTC()
+		if s.Error == "" {
+			s.LastIndexed = s.LastChecked
+		}
 	}
 	if err := e.available(); err != nil {
 		return err
@@ -679,3 +710,5 @@ func (e *Engine) buildIndexLocked() {
 		}
 	}
 }
+
+func (e *Engine) Refreshing() bool { return e.refreshing.Load() }

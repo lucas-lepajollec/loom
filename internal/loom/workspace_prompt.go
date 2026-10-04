@@ -2,20 +2,42 @@ package loom
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/brain"
+	"github.com/lucas-lepajollec/loom/internal/loom/project"
 )
 
 func discussionContext(s RuntimeSession) DiscussionContext {
-	workspaceMu.Lock()
-	defer workspaceMu.Unlock()
+	return discussionContextFor(s, lastUserText(s.Messages))
+}
+
+func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 	c := DiscussionContext{MCPServers: s.MCPServers, ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}}
 	parts := []string{}
+	if text, err := globalPreferences(s.RuntimeID != "llama.cpp"); err != nil {
+		c.Problem = err.Error()
+	} else if text != "" {
+		parts = append(parts, text)
+		c.GlobalPreferences = text
+	}
 	if s.ProjectID != "" {
 		p, ok := getProject(s.ProjectID)
 		if !ok {
 			c.Problem = "The project is missing or locked. Choose an accessible project or detach this thread."
 		} else {
+			if text := project.Text(p.Continuity); text != "" {
+				text = "Project identity: " + p.ID + "\n" + text
+				parts = append(parts, "Project continuity:\n"+text)
+				c.Minimum = text
+			}
+			if p.Continuity != nil {
+				for _, ref := range p.Continuity.References {
+					c.ReferenceIDs = append(c.ReferenceIDs, ref.DiscussionID)
+				}
+			}
 			c.ProjectName, c.Instructions = p.Name, p.Instructions
 			if c.MCPServers == nil {
 				c.MCPServers = p.MCPServers
@@ -30,7 +52,7 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 				c.Warning = warning
 			}
 			// Brain passages relevant to the latest message.
-			if text, cites := projectBrainContext(p, lastUserText(s.Messages)); text != "" {
+			if text, cites := projectBrainContext(p, query); text != "" {
 				parts = append(parts, text)
 				c.BrainCitations = cites
 			}
@@ -44,26 +66,46 @@ func discussionContext(s RuntimeSession) DiscussionContext {
 			}
 		}
 	}
+	if text := primarySecondBrainContext(); text != "" {
+		parts = append(parts, text)
+	}
 	if s.Instructions != "" {
 		parts = append(parts, "Discussion instructions:\n"+s.Instructions)
 	}
 	c.System = strings.Join(parts, "\n\n")
+	c.EstimatedTokens = brain.Tokens(c.System)
 	c.Revision = discussionContextRevision(s, c)
 	return c
 }
 
 func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions, revision string, consent bool, harness ...acpConfiguration) (RuntimeSession, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	s, ok := m.getLocked(id)
 	if !ok {
+		m.mu.Unlock()
 		return s, errors.New("discussion not found or locked")
 	}
 	if m.runs[id] != nil || m.nativeRunning(s) {
+		m.mu.Unlock()
 		return s, errors.New("wait for or stop the response before editing this thread")
 	}
-	if revision == "" || revision != discussionContext(s).Revision {
+	m.mu.Unlock()
+	original := s
+	currentContext := discussionContext(s)
+	if revision == "" || revision != currentContext.Revision {
 		return s, errors.New("the thread or its context changed; reopen the configuration before saving")
+	}
+	prospective := s
+	prospective.ProjectID, prospective.Instructions = projectID, strings.TrimSpace(instructions)
+	nextContext := currentContext
+	if prospective.ProjectID != s.ProjectID || prospective.Instructions != s.Instructions {
+		nextContext = discussionContext(prospective)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	current, ok := m.getLocked(id)
+	if !ok || !reflect.DeepEqual(current, original) || m.runs[id] != nil || m.nativeRunning(s) {
+		return s, errors.New("the thread changed while preparing; reopen the configuration before saving")
 	}
 	title, instructions = strings.TrimSpace(title), strings.TrimSpace(instructions)
 	if title == "" || len([]rune(title)) > 100 || len(instructions) > maxDiscussionInstructions {
@@ -92,11 +134,19 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 		s.CustomTitle = true
 	}
 	s.Title, s.ProjectID, s.Instructions = title, projectID, instructions
+	// ACP configuration can change the MCP selection without changing text.
+	// Publish that selection with the prepared context, without another retrieval.
+	nextContext.MCPServers = s.MCPServers
+	if nextContext.MCPServers == nil && projectID != "" {
+		if p, ok := getProject(projectID); ok {
+			nextContext.MCPServers = p.MCPServers
+		}
+	}
 	s.UpdatedAt = time.Now().UnixMilli()
 	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
 		m.closeACP(id)
 		return s, err
 	}
-	m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(s), "context": discussionContext(s)})
+	m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(s), "context": turnContext(s, nextContext)})
 	return s, nil
 }

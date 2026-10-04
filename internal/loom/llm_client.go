@@ -253,6 +253,9 @@ func normalizeSystemMessages(msgs []Message) []Message {
 // EnabledTools returns the tools to advertise on the next inference call.
 func EnabledTools(caps Caps) []Tool {
 	tools := []Tool{}
+	if hasWritableSecondBrain() {
+		tools = append(tools, brainWriteTool(), brainEditTool())
+	}
 	if caps.Agent {
 		tools = append(tools, bashTool(), writeTool(), editTool())
 		if visionEnabled() {
@@ -399,9 +402,9 @@ func repeatedCallResult(prev string, repeats int) string {
 // have no such body (bash, lectures, recherches).
 func writeBodyKey(tool string) string {
 	switch tool {
-	case "write", "mem_add":
+	case "write", "mem_add", "brain_write":
 		return "content"
-	case "edit", "mem_edit":
+	case "edit", "mem_edit", "brain_edit":
 		return "new"
 	}
 	return ""
@@ -839,7 +842,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					switch cur.Function.Name {
 					case "mem_search", "web_search":
 						key = "query"
-					case "mem_read", "mem_add", "mem_edit", "mem_delete", "edit", "write", "see_image":
+					case "mem_read", "mem_add", "mem_edit", "mem_delete", "brain_write", "brain_edit", "edit", "write", "see_image":
 						key = "file"
 					case "web_open", "web_read", "web_grep":
 						key = "url"
@@ -1012,7 +1015,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				switch tc.Function.Name {
 				case "mem_search", "web_search":
 					label, _ = args["query"].(string)
-				case "mem_read", "mem_add", "mem_edit", "mem_delete", "edit", "write", "see_image":
+				case "mem_read", "mem_add", "mem_edit", "mem_delete", "brain_write", "brain_edit", "edit", "write", "see_image":
 					label, _ = args["file"].(string)
 				case "bash":
 					label, _ = args["command"].(string)
@@ -1095,6 +1098,25 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 						result = "[error] " + werr.Error()
 					} else {
 						result = fmt.Sprintf("[ok] page '%s' modified", label)
+						diff = lineDiff(oldText, newText)
+					}
+				case "brain_write":
+					source, _ := args["source"].(string)
+					content, _ := args["content"].(string)
+					if werr := secondBrainWriteSource(source, label, content); werr != nil {
+						result = "[error] " + werr.Error()
+					} else {
+						result = fmt.Sprintf("[ok] primary second brain page '%s' saved", label)
+						diff = addedDiff(content)
+					}
+				case "brain_edit":
+					source, _ := args["source"].(string)
+					oldText, _ := args["old"].(string)
+					newText, _ := args["new"].(string)
+					if werr := secondBrainEditSource(source, label, oldText, newText); werr != nil {
+						result = "[error] " + werr.Error()
+					} else {
+						result = fmt.Sprintf("[ok] primary second brain page '%s' updated", label)
 						diff = lineDiff(oldText, newText)
 					}
 				case "write":

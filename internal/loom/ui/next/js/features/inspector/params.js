@@ -2,7 +2,7 @@ import { t, tSource } from '../../core/i18n.js';
 // Paramètres du modèle local. Lit la configuration courante (modèle nu ou
 // preset), l'édite en mémoire, estime la VRAM à chaque changement et applique
 // d'un bloc. Trois niveaux : Essentiel, Avancé, Expert (drapeaux llama.cpp).
-import { html, useState, useEffect, useRef, useMemo, useStore, cls, debounce, baseName } from '../../core/lib.js';
+import { html, useState, useEffect, useRef, useMemo, useStore, cls, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Seg, Switch, Slider, Tip, Menu } from '../../ui/controls.js';
 import { confirm, prompt, toast } from '../../ui/dialog.js';
@@ -35,13 +35,13 @@ function VramCard({ est, note }) {
 }
 
 // Charge la configuration du modèle actuellement dans le moteur.
-export async function liveSource() {
-  const [c, presets] = await Promise.all([get('/api/config'), get('/api/presets')]);
+export async function liveSource(opts = {}) {
+  const [c, presets] = await Promise.all([get('/api/config', opts), get('/api/presets', opts)]);
   const model = String((c && c.MODEL) || '').trim();
   const act = (presets || []).find(p => p.active);
   let text = fromMap(c).text, remembered = false;
-  if (act) { const d = await get('/api/preset?id=' + encodeURIComponent(act.id)); text = d.content || text; }
-  else if (model) { const r = await get('/api/naked/remember?model=' + encodeURIComponent(model)).catch(() => ({})); remembered = !!(r && r.remembered); }
+  if (act) { const d = await get('/api/preset?id=' + encodeURIComponent(act.id), opts); text = d.content || text; }
+  else if (model) { const r = await get('/api/naked/remember?model=' + encodeURIComponent(model), opts).catch(() => ({})); remembered = !!(r && r.remembered); }
   return { live: true, mode: act ? 'preset' : model ? 'model' : 'empty', model, presetId: act ? act.id : '', presetName: act ? act.name : '', base: text, remembered };
 }
 
@@ -58,9 +58,20 @@ export async function draftSource(model) {
 export function LocalParams() {
   const status = useStore(app, s => s.status);
   const [src, setSrc] = useState(null);
-  const key = status && (status.model + '|' + status.preset_id + '|' + status.health);
-  useEffect(() => { liveSource().then(setSrc); }, [key]);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const node = useStore(app, s => s.engineNode?.url || s.engineNode?.v1 || 'local');
+  const key = status && (status.model + '|' + status.preset_id + '|' + (status.boot || ''));
+  useEffect(() => {
+    const controller = new AbortController();
+    setSrc(null); setError('');
+    if (!status?.engine_direct) liveSource({ signal: controller.signal, timeout: 10000 })
+      .then(source => { if (!controller.signal.aborted) setSrc(source); })
+      .catch(e => { if (!controller.signal.aborted) setError(e.message); });
+    return () => controller.abort();
+  }, [key, node, status?.engine_direct, retry]);
   if (status && status.engine_direct) return html`<div class="insp-empty anim-rise"><${Icon} n="server" /><h3>${baseName(status.model_name || '')}</h3><p>${t("inspector.params.servi_par")} ${status.engine_kind === 'vllm' ? 'vLLM' : status.engine_kind} ${t("inspector.params.sur")} ${status.hostname}${t("inspector.params.lie_directement_ses_parametres_contexte_couches_gpu_se_reglent_su")}</p><a class="btn sm" href="#/settings/engine">${t("inspector.params.emplacement_du_moteur")}</a></div>`;
+  if (error) return html`<div class="insp-body"><p class="note err" role="alert">${error}</p><button class="btn" onClick=${() => setRetry(n => n + 1)}>${t('access.retry')}</button></div>`;
   if (!src) return html`<div class="insp-body"><div class="skeleton" style="height:78px"></div><div class="skeleton" style="height:30px;margin-top:16px"></div></div>`;
   if (src.mode === 'empty') return html`<div class="insp-empty anim-rise"><${Icon} n="chip" /><h3>${t("inspector.params.aucun_modele_charge")}</h3><p>${t("inspector.params.choisis_un_modele_ou_un_preset_en_haut_de_la_discussion_pour_regl")}</p></div>`;
   return html`<${ParamsEditor} src=${src} onSaved=${base => setSrc({ ...src, base })} />`;
@@ -77,13 +88,26 @@ export function ParamsEditor({ src, onSaved, onLoaded }) {
   const [base, setBase] = useState(src.base);
   useEffect(() => { setCfg(new Config(src.base)); setBase(src.base); }, [src.base, src.model, src.presetId]);
   useEffect(() => {
-    get('/api/engine/params').then(r => setSpecs((r && r.params) || [])).catch(() => toast(t("inspector.params.catalogue_des_parametres_indisponible"), 'err'));
-    if (src.model) get('/api/model-caps?model=' + encodeURIComponent(src.model)).then(r => setCaps(r && r.ok ? r : {})).catch(() => {});
+    const controller = new AbortController(), opts = { signal: controller.signal, timeout: 10000 };
+    setCaps({}); setSpecs([]);
+    get('/api/engine/params', opts).then(r => { if (!controller.signal.aborted) setSpecs(r?.params || []); })
+      .catch(() => { if (!controller.signal.aborted) toast(t("inspector.params.catalogue_des_parametres_indisponible"), 'err'); });
+    if (src.model) get('/api/model-caps?model=' + encodeURIComponent(src.model), opts)
+      .then(r => { if (!controller.signal.aborted) setCaps(r?.ok ? r : {}); }).catch(() => {});
+    return () => controller.abort();
   }, [src.model]);
-  const estimate = useMemo(() => debounce(async (model, content) => {
-    try { setEst(await post('/api/estimate', { model, content })); } catch (_) { setEst(null); }
-  }, 180), []);
-  useEffect(() => { if (src.model) estimate(src.model, cfg.text); }, [cfg.text, src.model]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setEst(null);
+    const timer = setTimeout(async () => {
+      if (!src.model) return;
+      try {
+        const result = await post('/api/estimate', { model: src.model, content: cfg.text }, { signal: controller.signal });
+        if (!controller.signal.aborted) setEst(result);
+      } catch (_) { if (!controller.signal.aborted) setEst(null); }
+    }, 180);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [cfg.text, src.model]);
   const edit = fn => { const c = cfg.clone(); fn(c); setCfg(c); };
   const dirty = cfg.text.trim() !== base.trim();
   const native = caps.native_ctx || 8192, layers = Math.max(1, caps.n_layers || 80);
