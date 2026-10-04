@@ -54,6 +54,9 @@ func validateBrainRemote(raw, branch string) error {
 }
 
 func cloneBrainRemote(ctx context.Context, id, remote, branch string) (string, error) {
+	if ok, _ := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`, id); !ok || id == "memory" || id == "conversations" || id == "distilled" {
+		return "", errors.New("invalid or reserved source id")
+	}
 	if err := validateBrainRemote(remote, branch); err != nil {
 		return "", err
 	}

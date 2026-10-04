@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,11 +18,12 @@ import (
 
 // Each mux owns its Brain service; no new application global is introduced.
 type brainService struct {
-	mu        sync.Mutex
-	storage   brainStorage
-	engine    *brain.Engine
-	semantic  *brainSemantic
-	distillMu sync.Mutex
+	mu           sync.Mutex
+	storage      brainStorage
+	engine       *brain.Engine
+	semantic     *brainSemantic
+	distillMu    sync.Mutex
+	writeRefresh sync.WaitGroup
 }
 
 func newBrainService(home string) *brainService {
@@ -256,7 +256,6 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 					req.ID = fmt.Sprintf("%s-%d", base, i)
 				}
 			}
-			managedClone := false
 			if req.Connector == "git-remote" && strings.TrimSpace(req.Remote) != "" {
 				for _, existing := range e.Sources() {
 					if existing.ID == req.ID && !existing.ReadOnly {
@@ -269,7 +268,6 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 				}
 				if err == nil && req.Path == "" {
 					req.Path, err = cloneBrainRemote(r.Context(), req.ID, strings.TrimSpace(req.Remote), strings.TrimSpace(req.Branch))
-					managedClone = err == nil
 				}
 			}
 			if err == nil && req.Primary {
@@ -278,9 +276,8 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 			if err == nil {
 				err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include, Connector: req.Connector, Remote: strings.TrimSpace(req.Remote), Branch: strings.TrimSpace(req.Branch), Permission: req.Permission, Primary: req.Primary, Exclude: req.Exclude})
 			}
-			if err != nil && managedClone {
-				_ = os.RemoveAll(req.Path)
-			}
+			// Retain managed checkouts on rejected configuration: reconnect may
+			// have reused an existing repository containing user edits.
 		case "remove":
 			err = e.Remove(req.ID)
 		case "relabel":

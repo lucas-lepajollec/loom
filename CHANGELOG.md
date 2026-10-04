@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-04
+
 ### Added
 
 - Connected second brains from local folders, Obsidian or mounted stores and
@@ -33,6 +35,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Fixed
 
+- Confine second-brain file creation and edits with directory-root operations,
+  validate managed checkout IDs before cloning and retain checkouts on rejected
+  source configuration. Capture the owning indexer for background write refreshes.
 - Serialize visible status, hardware and activity observations, bound stalled
   JSON reads and avoid rerendering unchanged UI selections.
 - Keep anchored menus outside transformed parents, coalesce repositioning and

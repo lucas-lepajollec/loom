@@ -2,8 +2,10 @@ package loom
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,59 +81,75 @@ func secondBrainPath(sourceID, relative string) (string, error) {
 }
 
 func refreshSecondBrainAsync() {
+	// Capture the owning service before launching: a delayed refresh must never
+	// pick up another service/home after a test or application lifecycle change.
+	s := theBrain()
+	e, err := s.get()
+	if err != nil {
+		return
+	}
+	s.writeRefresh.Add(1)
 	go func() {
+		defer s.writeRefresh.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if e, err := theBrain().get(); err == nil {
-			_ = e.Refresh(ctx)
-		}
+		_ = e.Refresh(ctx)
 	}()
+}
+
+func openSecondBrainFile(sourceID, relative string) (*os.Root, string, error) {
+	full, err := secondBrainPath(sourceID, relative)
+	if err != nil {
+		return nil, "", err
+	}
+	_, root, err := writableSecondBrain(sourceID)
+	if err != nil {
+		return nil, "", err
+	}
+	rel, err := filepath.Rel(root, full)
+	if err != nil {
+		return nil, "", err
+	}
+	r, err := os.OpenRoot(root)
+	return r, rel, err
 }
 
 func secondBrainWriteSource(sourceID, relative, content string) error {
 	if len(content) > maxSecondBrainWrite {
 		return errors.New("Markdown file exceeds 1 MiB")
 	}
-	full, err := secondBrainPath(sourceID, relative)
+	r, rel, err := openSecondBrainFile(sourceID, relative)
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(full)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	defer r.Close()
+	// os.Root confines directory creation and replacement, including symlinks
+	// changed concurrently; checking a resolved path before a write is insufficient.
+	dir := filepath.Dir(rel)
+	if err := r.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	_, root, err := writableSecondBrain(sourceID)
-	if err != nil {
-		return err
-	}
-	resolvedRoot, rootErr := filepath.EvalSymlinks(root)
-	resolvedDir, dirErr := filepath.EvalSymlinks(dir)
-	within, relErr := filepath.Rel(resolvedRoot, resolvedDir)
-	if rootErr != nil || dirErr != nil || relErr != nil || within == ".." || strings.HasPrefix(within, ".."+string(filepath.Separator)) {
-		return errors.New("resolved path escapes the primary second brain")
-	}
-	full = filepath.Join(resolvedDir, filepath.Base(full))
 	mode := os.FileMode(0o644)
-	if info, err := os.Lstat(full); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			return errors.New("refusing to replace a symlink")
+	if info, err := r.Lstat(rel); err == nil {
+		if !info.Mode().IsRegular() {
+			return errors.New("refusing to replace a non-regular file")
 		}
 		mode = info.Mode().Perm()
+	} else if !os.IsNotExist(err) {
+		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".loom-brain-*")
+	tmpName := filepath.Join(dir, ".loom-brain-"+rand.Text())
+	tmp, err := r.OpenFile(tmpName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return err
 	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if err = tmp.Chmod(mode); err == nil {
-		_, err = tmp.WriteString(content)
-	}
+	defer r.Remove(tmpName)
+	_, err = tmp.WriteString(content)
 	if closeErr := tmp.Close(); err == nil {
 		err = closeErr
 	}
 	if err == nil {
-		err = os.Rename(tmpName, full)
+		err = r.Rename(tmpName, rel)
 	}
 	if err == nil {
 		refreshSecondBrainAsync()
@@ -144,13 +162,26 @@ func secondBrainWrite(relative, content string) error {
 }
 
 func secondBrainEditSource(sourceID, relative, oldText, newText string) error {
-	full, err := secondBrainPath(sourceID, relative)
+	r, rel, err := openSecondBrainFile(sourceID, relative)
 	if err != nil {
 		return err
 	}
-	b, err := os.ReadFile(full)
+	defer r.Close()
+	f, err := r.Open(rel)
 	if err != nil {
 		return err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return errors.New("edit requires a regular Markdown file")
+	}
+	b, err := io.ReadAll(io.LimitReader(f, maxSecondBrainWrite+1))
+	if err != nil {
+		return err
+	}
+	if len(b) > maxSecondBrainWrite {
+		return errors.New("Markdown file exceeds 1 MiB")
 	}
 	count := strings.Count(string(b), oldText)
 	if oldText == "" || count != 1 {

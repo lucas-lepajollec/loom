@@ -55,6 +55,8 @@ func TestPrimarySecondBrainWriteIsConfined(t *testing.T) {
 	brainSvcMu.Lock()
 	brainSvc = nil
 	brainSvcMu.Unlock()
+	s := theBrain()
+	defer s.writeRefresh.Wait()
 	dir := t.TempDir()
 	e, err := theBrain().get()
 	if err != nil {
@@ -90,11 +92,35 @@ func TestPrimarySecondBrainWriteIsConfined(t *testing.T) {
 	if err = secondBrainWrite("../escape.md", "no"); err == nil {
 		t.Fatal("path traversal accepted")
 	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(dir, "escape")); err == nil {
+		if err = secondBrainWrite("escape/new/blocked.md", "no"); err == nil {
+			t.Fatal("symlink escape accepted")
+		}
+		if _, err = os.Stat(filepath.Join(outside, "new")); !os.IsNotExist(err) {
+			t.Fatal("write created a directory outside the second brain")
+		}
+		if err = os.WriteFile(filepath.Join(outside, "existing.md"), []byte("private"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err = secondBrainEdit("escape/existing.md", "private", "changed"); err == nil {
+			t.Fatal("edit followed a symlink outside the second brain")
+		}
+	}
 	names := map[string]bool{}
 	for _, tool := range EnabledTools(Caps{}) {
 		names[tool.Function.Name] = true
 	}
 	if !names["brain_write"] || !names["brain_edit"] {
 		t.Fatal("writable primary brain tools missing")
+	}
+}
+
+func TestManagedBrainRejectsPathIDsBeforeClone(t *testing.T) {
+	testHome(t)
+	for _, id := range []string{"../outside", "/tmp/outside", ".", "memory"} {
+		if _, err := cloneBrainRemote(context.Background(), id, "https://forge.example/user/brain.git", ""); err == nil {
+			t.Fatalf("unsafe managed source id accepted: %q", id)
+		}
 	}
 }
