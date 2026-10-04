@@ -3,6 +3,7 @@ import { h as preactH, render, Fragment, createContext } from 'preact';
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useContext, useReducer } from 'preact/hooks';
 import htm from 'htm';
 import { language, t } from './i18n.js';
+import { selectedEqual } from './equal.js';
 
 export function useLang() {
   const [, update] = useReducer(n => n + 1, 0);
@@ -57,7 +58,7 @@ export function useStore(store, select = s => s) {
   const val = useRef(select(store.get()));
   useEffect(() => store.subscribe(() => {
     const next = ref.current(store.get());
-    if (!Object.is(next, val.current)) { val.current = next; force(); }
+    if (!selectedEqual(next, val.current)) { val.current = next; force(); }
   }), [store]);
   val.current = select(store.get());
   return val.current;

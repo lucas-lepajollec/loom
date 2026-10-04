@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../next/js/features/usage/refresh.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../next/js/core/poll.js', import.meta.url), 'utf8');
 const env = {};
 vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.refresh = visibleRefresh;', env);
 const settle = () => new Promise(resolve => setImmediate(resolve));

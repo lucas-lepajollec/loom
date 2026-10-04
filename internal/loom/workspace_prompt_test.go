@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestDiscussionContextConfigurePreservesHistoryAndRoute(t *testing.T) {
@@ -198,5 +199,64 @@ func TestDiscussionPreviewAPIReadOnlyAndAuthenticated(t *testing.T) {
 	}
 	if !bytes.Equal(before, getBytes(bkRuntimeSessions, s.ID)) {
 		t.Fatal("rejected operation changed record")
+	}
+}
+
+func TestSlowPreparationKeepsReadsResponsiveAndRejectsConcurrentEdits(t *testing.T) {
+	testHome(t)
+	m := newRuntimeSessions()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("changed discussion must not be sent")
+	}))
+	defer srv.Close()
+	provider, err := m.saveProvider(CloudProvider{Name: "Fixture", Endpoint: srv.URL, Model: "fixture"}, "fake-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := m.create("", provider.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+	finished := make(chan error, 1)
+	go func() {
+		finished <- m.startPrepared(s.ID, "slow-fixture", "Hello", func(snapshot RuntimeSession, draft string) DiscussionPreview {
+			close(entered)
+			<-release
+			return prepareDiscussion(snapshot, draft)
+		})
+	}()
+	<-entered
+	read := make(chan bool, 1)
+	go func() {
+		current, ok := m.get(s.ID)
+		read <- ok && current.ID == s.ID && len(m.list()) == 1 && len(m.providers()) == 1
+	}()
+	select {
+	case ok := <-read:
+		if !ok {
+			t.Fatal("unrelated reads changed")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("slow preparation blocked discussion/provider reads")
+	}
+	current, _ := m.get(s.ID)
+	if _, err := m.configureDiscussion(s.ID, "Changed concurrently", "", "", discussionContext(current).Revision, true); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-finished; err == nil || !strings.Contains(err.Error(), "changed while preparing") {
+		t.Fatalf("stale send accepted: %v", err)
+	}
+	current, _ = m.get(s.ID)
+	if len(current.Messages) != 0 || len(current.RequestIDs) != 0 || current.Title != "Changed concurrently" {
+		t.Fatal("rejected send mutated history")
 	}
 }

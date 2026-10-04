@@ -1,6 +1,6 @@
 /* Responsive overrides follow the desktop surface rules. Keep Loom's tokens and
    components; let content wrap rather than clipping whole pages. */
-.pop{min-width:0;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto}
+.pop{z-index:160;min-width:0;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto}
 .picker{overflow:hidden}
 .pick-top,.pick-foot{flex-shrink:0}
 .pick-list{min-height:0}

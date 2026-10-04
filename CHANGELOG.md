@@ -4,6 +4,18 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- Serialize visible status, hardware and activity observations, bound stalled
+  JSON reads and avoid rerendering unchanged UI selections.
+- Keep anchored menus outside transformed parents, coalesce repositioning and
+  dismiss on completed clicks so touch actions can finish.
+- Cancel stale parameter/capability/estimate reads and show a retry on failure.
+- Prepare discussion context and remote workdirs outside the global session
+  lock; recheck edits, credentials, duplicate requests and run limits before send.
+- Bound project semantic retrieval with lexical fallback and remote engine
+  observation reads without limiting long engine mutations.
+
 ## [0.2.3] - 2026-10-03
 
 ### Fixed

@@ -1,3 +1,4 @@
+import { singleFlight } from '../next/js/core/poll.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -96,7 +97,7 @@ test('a login response arriving after modal unmount is cancelled rather than orp
 test('control-plane identity is polled independently from a linked engine status', async () => {
   const stateSource = fs.readFileSync(new URL('../next/js/core/state.js', import.meta.url), 'utf8');
   let state;
-  const env = { t: x => x, createStore: value => ({ get: () => state, set: patch => Object.assign(state, patch) }),
+  const env = { singleFlight, t: x => x, createStore: value => ({ get: () => state, set: patch => Object.assign(state, patch) }),
     localStorage: { getItem: () => null }, location: { hash: '#/harnesses' }, innerWidth: 1200, addEventListener() {},
     get: async url => url === '/api/status' ? { version: '0.1.4', hostname: 'engine-fixture' } : { version: '0.2.1', hostname: 'control-fixture' },
   };

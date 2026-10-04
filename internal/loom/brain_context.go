@@ -1,7 +1,9 @@
 package loom
 
 import (
+	"context"
 	"strings"
+	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 )
@@ -51,7 +53,11 @@ func projectBrainContext(p ChatProject, query string) (string, []string) {
 	for _, id := range p.BrainSources {
 		personal = personal || kinds[id] == "personal"
 	}
-	pack, err := theBrain().Pack(brain.PackRequest{Query: query, BudgetTokens: p.BrainBudget, Sources: p.BrainSources, Personal: personal})
+	// An unavailable embedding engine must not stall the discussion inspector.
+	// SearchContext falls back to the lexical index when embedding times out.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	pack, err := theBrain().PackContext(ctx, brain.PackRequest{Query: query, BudgetTokens: p.BrainBudget, Sources: p.BrainSources, Personal: personal})
 	if err != nil || strings.TrimSpace(pack.Text) == "" {
 		return "", nil
 	}

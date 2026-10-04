@@ -431,6 +431,18 @@ func proxyEngineNode(w http.ResponseWriter, r *http.Request, n *engineNode) {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": "invalid engine link"})
 		return
 	}
+	// Fast dashboard observations must not occupy browser connections indefinitely
+	// when an engine accepts the request but stops responding. Mutations and long
+	// jobs retain their own lifecycle timeouts.
+	if r.Method == http.MethodGet {
+		switch r.URL.Path {
+		case "/api/status", "/api/vram", "/api/ram", "/api/config", "/api/presets", "/api/models/download/status", "/api/llamacpp/job":
+			ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+			defer cancel()
+			r = r.Clone(ctx)
+		}
+	}
+
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.FlushInterval = -1
 	base := proxy.Director

@@ -6,14 +6,15 @@ import { Icon } from '../ui/icons.js';
 import { Popover } from '../ui/controls.js';
 import { get, post } from '../core/api.js';
 import { go } from '../core/state.js';
+import { visibleRefresh } from '../core/poll.js';
 
 const pct = (a, b) => (b > 0 ? Math.min(100, Math.round(a * 100 / b)) : null);
 
 async function readActivity() {
   const [dl, job, bench] = await Promise.all([
-    get('/api/models/download/status').catch(() => null),
-    get('/api/llamacpp/job').catch(() => null),
-    get('/api/bench/queue').catch(() => null),
+    get('/api/models/download/status', { timeout: 6000, retryAuth: false }).catch(() => null),
+    get('/api/llamacpp/job', { timeout: 6000, retryAuth: false }).catch(() => null),
+    get('/api/bench/queue', { timeout: 6000, retryAuth: false }).catch(() => null),
   ]);
   const items = [];
   for (const d of Array.isArray(dl) ? dl : []) {
@@ -42,12 +43,9 @@ export function Activity() {
   const [items, setItems] = useState([]);
   const [anchor, setAnchor] = useState(null);
   const btn = useRef();
-  useEffect(() => {
-    let alive = true;
-    const tick = async () => { if (document.hidden) return; const r = await readActivity(); if (alive) setItems(r); };
-    tick(); const localT = setInterval(tick, 3000);
-    return () => { alive = false; clearInterval(localT); };
-  }, []);
+  useEffect(() => visibleRefresh(async alive => {
+    const r = await readActivity(); if (alive()) setItems(r);
+  }, 3000), []);
   const running = items.filter(i => !i.err).length;
   return html`<button class=${cls('icon-btn act-btn', running && 'busy')} ref=${btn} aria-label=${t("app.activity.activite") + (items.length ? ' · ' + items.length : '')} title="${t("app.activity.activite")}"
       onClick=${() => setAnchor(anchor ? null : btn.current)}><${Icon} n="activity" />${items.length > 0 && html`<i class="act-dot"></i>`}</button>

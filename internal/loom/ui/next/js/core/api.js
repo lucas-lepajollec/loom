@@ -66,8 +66,22 @@ export async function download(url, name) {
 }
 
 export async function get(url, opts = {}) {
-  const r = await request(url, opts);
-  return r.json();
+  // The deadline includes the body, not just response headers. A remote engine
+  // may accept the connection and then stall while producing its JSON.
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (opts.signal?.aborted) abort();
+  else opts.signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(abort, opts.timeout ?? TIMEOUT);
+  try {
+    const r = await request(url, { ...opts, signal: controller.signal });
+    return await r.json();
+  } catch (e) {
+    if (controller.signal.aborted && !opts.signal?.aborted) throw new Error(t('core.api.le_serveur_ne_repond_pas'));
+    throw e;
+  } finally {
+    clearTimeout(timer); opts.signal?.removeEventListener('abort', abort);
+  }
 }
 
 export async function post(url, body, opts = {}) {
