@@ -16,13 +16,14 @@ func scopedBrainProject(id string, sources []string, paths map[string][]string) 
 		return nil, nil, fmt.Errorf("project not found or locked")
 	}
 	if len(sources) == 0 {
-		sources = append([]string{}, p.BrainSources...)
+		sources = effectiveProjectBrainSources(p)
 	}
 	if len(sources) == 0 {
 		return nil, nil, fmt.Errorf("this project has no selected Brain sources")
 	}
+	allowedSources := effectiveProjectBrainSources(p)
 	for _, source := range sources {
-		if !hasName(p.BrainSources, source) {
+		if !hasName(allowedSources, source) {
 			return nil, nil, fmt.Errorf("source not selected for this project")
 		}
 	}

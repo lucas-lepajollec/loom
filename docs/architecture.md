@@ -797,10 +797,11 @@ Application release updates are separate from engine updates. `sys_update.go` sh
 
 ### Reviewed project continuity leaf (unreleased)
 
-`project/continuity.go` owns bounded project core/working-state/reference values,
-validation and minimum-context assembly. It imports only the standard library;
-Loom's existing project storage, Brain retrieval and runtime orchestration stay
-in their adapters. This is a small coherent boundary, not a parallel memory
-engine. Native import provenance belongs to `discussion.NativeImport`; Brain's
-`PathPrefixes` scope is enforced by lexical, semantic and read/pack paths.
+`project/continuity.go` retains bounded validation for compatibility with stored
+project core/working-state/reference values. It imports only the standard
+library; Loom's project storage, automatic conversation scope, Brain retrieval
+and runtime orchestration stay in their adapters. New project setup does not
+require this legacy metadata. Native import provenance belongs to
+`discussion.NativeImport`; Brain's `PathPrefixes` scope is enforced by lexical,
+semantic and read/pack paths.
 See [workspace continuity](workspace-architecture.md#continuity-consolidation-unreleased).

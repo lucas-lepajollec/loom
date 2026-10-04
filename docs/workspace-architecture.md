@@ -16,10 +16,11 @@ protocol supports that source.
 - Cloud owns provider connections, model catalogs and selector visibility.
 - Harnesses owns native/ACP configurations, machine connections, resources and
   supported model-source associations.
-- Projects link working folders, instructions, selected context files, Brain
-  sources, skills, MCP selections and default execution choices.
-- Brain separates sources, reviewed memory and retrieval from execution capabilities
-  (skills/MCP links in Connections); the historical Resources route remains an alias.
+- Projects select a machine, workspace and default execution choice. Their Loom
+  discussions form the project conversation-memory scope automatically.
+- Brain connects multiple canonical second brains and keeps Loom's native
+  conversation/retrieval layers automatic. Skills and MCP stay alongside it as
+  execution capabilities; the historical Resources route remains an alias.
 - Terminals, Environment, Bench, Usage and Settings expose their own controls.
 
 The original discussion/composer and full local parameter panel remain the
@@ -148,7 +149,7 @@ portable text replay; see [terminals](terminals.md).
 | Owner | State | Shared across execution choices? |
 | --- | --- | --- |
 | Loom discussion | Visible user/assistant text and provenance | Text yes; provenance stays in the display journal |
-| Loom project | Instructions, selected files/skills, budgeted Brain passages | Yes, assembled for the next turn |
+| Loom project | Machine, workspace, default executor and automatic conversation scope | Yes, assembled for the next turn |
 | Engine/runtime | KV cache, hidden reasoning, compaction internals | No |
 | Native harness | Session ID, tool journal, approvals, native memory | Only through its own supported protocol |
 | Project folder | Files on disk | Explicit context files or native tool access only |
@@ -159,11 +160,13 @@ folder and bounded to eight files / 48 KiB. Remote project folders are used by
 harnesses and terminals on that machine; their context files are not read by
 Loom's local context-file pipeline.
 
-Projects can select Brain sources and a token budget. Retrieval adds cited
-passages for the latest user message; personal sources must be explicitly
-selected. BM25 is local. Cloud semantic indexing sends selected source text and
-search queries only after stored consent. Distillation generates durable items
-only on request and requires consent when the active engine is remote.
+Projects inherit connected second brains and a bounded default token budget.
+Retrieval adds cited passages for the latest user message and scopes conversation
+results to discussions currently in that project. BM25 is local. Cloud semantic
+indexing sends selected source text and search queries only after stored consent.
+Distillation generates durable items only on request and requires consent when
+the active engine is remote. One writable primary second brain can also be
+maintained through Loom's bounded Markdown tools.
 See [Brain](brain.md) for source access, indexing, storage and MCP boundaries.
 
 The prepared-text preview lists initial instructions, portable history and an
@@ -237,17 +240,16 @@ work rather than earlier migration briefs.
 ## Continuity consolidation (unreleased)
 
 See [VISION](VISION.md) for the product contract and [Brain](brain.md) for API
-bounds. Project continuity has a small pure leaf package `internal/loom/project`:
-validation and minimum-context text, without runtime, storage or filesystem
-ownership. Loom's project handlers persist it in existing records and timestamp
-working-state changes. Shared preferences select an existing memory page and
-require separate cloud/harness consent; no parallel memory database is added.
+bounds. The small pure leaf package `internal/loom/project` retains validation
+for older stored continuity fields without runtime, storage or filesystem
+ownership. New project setup does not require users to maintain those fields.
+Loom derives conversation scope from current project membership and inherits
+connected second brains with a bounded default retrieval budget.
 
-Reference capsules provide minimum context; project Brain retrieval reads only
-explicitly linked conversation transcripts. First-turn/current-draft preparation
-is shared by preview and execution. Native local generation uses that same
-assembly once and refuses missing selected preferences. The inspector exposes
-the minimum, references, citations and approximate text-token cost.
+First-turn/current-draft preparation is shared by preview and execution. Native
+local generation uses that same assembly once. A configured primary second
+brain can be maintained through bounded Markdown tools while Loom's own indexed
+conversation and reviewed-memory layers remain automatic.
 
 ACP import stores immutable runtime/machine/session provenance and deduplicates
 against it, independent of the discussion's current route. The UI attaches a

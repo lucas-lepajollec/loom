@@ -117,9 +117,21 @@ func validateSource(s Source) error {
 		return errors.New("kind must be context, personal or repo")
 	}
 	switch s.Connector {
-	case "", "folder", "git", "obsidian", "webdav-mount":
+	case "", "folder", "git", "git-remote", "obsidian", "webdav-mount":
 	default:
-		return errors.New("unsupported second-brain connection; use a local checkout or mounted folder")
+		return errors.New("unsupported second-brain connection")
+	}
+	if s.Permission == "" {
+		s.Permission = "read"
+	}
+	if s.Permission != "read" && s.Permission != "ask" && s.Permission != "write" {
+		return errors.New("permission must be read, ask or write")
+	}
+	if s.Primary && s.Permission != "write" {
+		return errors.New("the primary second brain must be writable")
+	}
+	if len(s.Remote) > 2048 || len(s.Branch) > 200 {
+		return errors.New("remote or branch is too long")
 	}
 	if len(s.Exclude) > 64 {
 		return errors.New("maximum 64 exclude globs")
@@ -171,6 +183,9 @@ func (e *Engine) Update(s Source) error {
 	if err := e.available(); err != nil {
 		return err
 	}
+	if s.Permission == "" {
+		s.Permission = "read"
+	}
 	if err := validateSource(s); err != nil {
 		return err
 	}
@@ -216,6 +231,13 @@ func (e *Engine) Update(s Source) error {
 			return errors.New("maximum 100 sources")
 		}
 		next = append(next, s)
+	}
+	if s.Primary {
+		for i := range next {
+			if next[i].ID != s.ID && !next[i].ReadOnly {
+				next[i].Primary = false
+			}
+		}
 	}
 	if err := e.saveSources(next); err != nil {
 		return err

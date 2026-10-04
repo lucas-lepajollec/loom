@@ -17,6 +17,10 @@ const (
 
 type Source struct {
 	Connector   string    `json:"connector,omitempty"`
+	Remote      string    `json:"remote,omitempty"`
+	Branch      string    `json:"branch,omitempty"`
+	Permission  string    `json:"permission,omitempty"`
+	Primary     bool      `json:"primary,omitempty"`
 	Exclude     []string  `json:"exclude,omitempty"`
 	ID          string    `json:"id"`
 	Label       string    `json:"label"`

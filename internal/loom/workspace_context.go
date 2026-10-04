@@ -190,6 +190,9 @@ func projectContext(id string) string {
 	if global != "" {
 		parts = append(parts, global)
 	}
+	if text := primarySecondBrainContext(); text != "" {
+		parts = append(parts, text)
+	}
 	if text := project.Text(p.Continuity); text != "" {
 		parts = append(parts, "Project identity: "+p.ID+"\n"+text)
 	}

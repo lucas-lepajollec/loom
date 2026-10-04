@@ -263,6 +263,7 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 					s.AdditionalDirs = extra
 				}
 			}
+			attachPrimarySecondBrain(&s, acp.agent)
 			if _, err := check(s.Workdir); err != nil {
 				return err
 			}

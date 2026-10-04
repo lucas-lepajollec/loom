@@ -16,7 +16,7 @@ with its executor. Sources remain truth; indexes select context.
 | Engines | External llama.cpp router; engine/model states separate. vLLM on supported Linux GPUs, direct compatible servers, full remote Loom or headless engine node. Lifecycle, library, parameters and inference stay with the engine/node. See [engines](engines.md) and [engine node](engine-node.md). |
 | Harnesses | Codex, Claude Code, Pi, OpenCode, Hermes, user-defined ACP adapters and Antigravity's native CLI bridge; local or supported SSH machines, native model catalogs, tools/permissions and Native/Loom model sources only where supported. Explicit account login uses browser links/codes where available with a terminal fallback. |
 | Workspaces | Saved folders and machine-specific defaults, project folders/extra directories, explicit context files and native filesystem-policy capabilities. Loom does not invent a universal sandbox. |
-| Brain | Multiple canonical source folders, incremental BM25, optional semantic retrieval and explicit distillation with provenance; authenticated HTTP and read-only MCP. See [Brain](brain.md). |
+| Brain | Multiple canonical local/mounted/Git second brains, one writable primary, incremental BM25, optional semantic retrieval and explicit distillation with provenance; authenticated HTTP and read/write-primary MCP. See [Brain](brain.md). |
 | Observation | Visible automatic Usage/quota refresh, nullable unknown data, declared/estimated cost distinction; Bench local/cloud and supported native model-only accounts with tools suppressed, unsupported adapters disabled. |
 | Infrastructure | Local/SSH terminals, project previews, machine connections, declared service reachability, opt-in Docker and read-only Proxmox observation. |
 | Product | English/French UI, responsive shell/settings/Bench/Usage, first-run guide, browser password sessions, separate API/node credentials, vault, installers, updates and public release CI. |
@@ -31,12 +31,12 @@ Implemented, with synthetic Go/UI/browser checks:
   clicks. Keep actions accessible at narrow viewport sizes.
 - Prepare context and remote workdirs outside the global session mutex, then
   revalidate the session, credentials, limits and request ID before execution.
-- Organize Brain into Overview, Sources, Memory, Retrieval and Connections.
-  Keep skills/MCP visibly separate from knowledge and memory.
-- Hydrate new executors with optional shared preferences, a project core,
-  dated working state and up to eight reviewed reference capsules. Inspect the
-  prepared context and approximate token cost.
-- Scope project conversation retrieval to linked discussions, including semantic
+- Present Brain as second brains, Skills and MCP while keeping native Loom
+  retrieval/memory layers automatic. Support local, mounted and managed Git
+  sources, one proactive writable primary and bounded write tools.
+- Keep project setup to title, machine, workspace and default executor/model.
+  Inherit the machine's default workspace when none is selected.
+- Scope project conversation retrieval to its assigned discussions, including semantic
   search and direct passage reads. Retrieve against the current draft, once on
   the native local path, with bounded semantic-to-lexical fallback.
 - Review, edit/keep or reject newly distilled candidates before retrieval.

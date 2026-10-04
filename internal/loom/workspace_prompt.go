@@ -66,6 +66,9 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 			}
 		}
 	}
+	if text := primarySecondBrainContext(); text != "" {
+		parts = append(parts, text)
+	}
 	if s.Instructions != "" {
 		parts = append(parts, "Discussion instructions:\n"+s.Instructions)
 	}

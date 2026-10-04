@@ -8,9 +8,7 @@ import { Logo } from '../../ui/logo.js';
 import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace } from '../../core/state.js';
-import { SharedPreferences } from './preferences.js';
-import { Memory } from './memory.js';
-import { Brain, Distilled, brainTabs } from './brain.js';
+import { Brain, brainTabs } from './brain.js';
 import { FolderPicker } from '../../ui/folder.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
@@ -210,13 +208,11 @@ function McpSources({ onAdopted }) {
 }
 
 export function ResourcesPage({ route }) {
-  const sub = route.sub === 'brain' ? 'sources' : route.sub;
-  const tab = ['skills', 'mcp'].includes(sub) ? 'connections' : ['overview', 'sources', 'memory', 'retrieval', 'connections'].includes(sub) ? sub : 'overview';
-  const ws = useStore(app, s => s.workspace);
+  const requested = route.sub;
+  const tab = ['skills', 'mcp'].includes(requested) ? requested : 'sources';
   return html`<div class="view page"><div class="page-in">
-    <div class="page-head"><div><h1>${t("resources.page.brain")}</h1><p>${t("resources.page.definies_une_fois_dans_loom_utilisees_par_tes_projets_et_tes_disc")}</p></div></div>
+    <div class="page-head brain-page-head"><div><h1>${t('resources.page.brain')}</h1><p>${t('second_brain.page_subtitle')}</p></div></div>
     <${Tabs} value=${tab} onChange=${localT => go('brain', localT)} label="${t("resources.page.brain")}" options=${brainTabs()} />
-    <div class="tab-body" key=${sub || tab}>${tab === 'memory' ? html`<${SharedPreferences} /><${Distilled} /><${Memory} />` : html`<${Brain} section=${tab} />`}
-      ${tab === 'connections' && html`<p class="note">${t('brain.connections.note')}</p><div class="btn-row"><a class="btn" href="#/brain/skills">${t('resources.page.skills')}</a><a class="btn" href="#/brain/mcp">${t('resources.page.serveurs_mcp')}</a></div>${sub === 'skills' ? html`<${Skills} />` : sub === 'mcp' ? html`<${Mcp} />` : ''}`}</div>
+    <div class="tab-body" key=${tab}>${tab === 'sources' ? html`<${Brain} section="sources" />` : tab === 'skills' ? html`<${Skills} />` : html`<${Mcp} />`}</div>
   </div></div>`;
 }

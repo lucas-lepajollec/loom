@@ -54,7 +54,7 @@ function FolderForm({ target, current, editing, onClose, onDone, choose }) {
   </${Modal}>`;
 }
 
-export function WorkspacePicker({ target = 'local', current = '', onPick }) {
+export function WorkspacePicker({ target = 'local', current = '', onPick, inheritDefault = false }) {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -65,9 +65,10 @@ export function WorkspacePicker({ target = 'local', current = '', onPick }) {
     if (!w) return;
     setBusy(true); try { await onPick(w); } finally { setBusy(false); }
   };
-  return html`<div>
-    <select class="select" aria-label=${t('workspaces.title')} disabled=${busy || !target} value=${items.find(w => w.path === current)?.id || ''} onChange=${e => select(e.target.value)}>
-      <option value="" disabled>${current || t('workspaces.choose')}</option>
+  const inherited = items.find(w => w.default);
+  return html`<div class="workspace-picker">
+    <select class="select" aria-label=${t('workspaces.title')} disabled=${busy || !target} value=${items.find(w => w.path === current)?.id || ''} onChange=${e => e.target.value ? select(e.target.value) : onPick({ path: '' })}>
+      <option value="" disabled=${!inheritDefault}>${current || (inheritDefault && inherited ? inherited.name + ' · ' + t('workspaces.default') : t('workspaces.choose'))}</option>
       ${items.map(w => html`<option key=${w.id} value=${w.id}>${w.name}${w.default ? ' · ' + t('workspaces.default') : ''}</option>`)}
     </select>
     <button class="btn ghost sm" onClick=${() => setForm(true)}>${t('workspaces.new')}</button>

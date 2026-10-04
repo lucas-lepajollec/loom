@@ -1,14 +1,13 @@
 # Brain / Context Service
 
-Brain indexes local text and returns cited context. By default it uses BM25
-without model calls or external APIs. Optional semantic indexing and explicit
-distillation are described below. The package `internal/loom/brain` receives
-its storage, document providers and availability check explicitly. Thin
-`brain_*.go` adapters connect it to Loom's storage and web server. It does not
-retrieve context for a discussion unless its project explicitly selects Brain
-sources and a token budget. Those projects add cited passages for the latest
-user message to the prepared context; external execution shares that context
-under the normal destination-consent rules.
+Brain connects user-owned knowledge sources and returns cited context. By
+default it uses BM25 without model calls or external APIs. Optional semantic
+indexing and explicit distillation are described below. The package
+`internal/loom/brain` receives its storage, document providers and availability
+check explicitly. Thin `brain_*.go` adapters connect it to Loom's storage and
+web server. A project automatically searches its connected second brains and
+its own Loom discussions for the latest user message. External execution shares
+that prepared context under the normal destination-consent rules.
 
 Run `loom web 2510` (or the desktop app). The process must remain running;
 the browser can be closed. Indexing runs at startup and every three minutes.
@@ -16,28 +15,39 @@ the browser can be closed. Indexing runs at startup and every three minutes.
 definitions take effect immediately; new file content appears on the next
 refresh. No harness settings are changed automatically.
 
-The **Brain** page has Overview, Sources, Memory, Retrieval and Connections.
-Sources manages linked knowledge; Memory manages preferences/pages and reviewed
-distillation; Retrieval manages lexical/semantic search. Connections exposes the
-read-only Brain MCP service and links execution capabilities (skills/MCP). Projects select which sources to retrieve and the context
-budget; the HTTP/MCP APIs retain explicit source and personal-access rules.
+The **Brain** page has three direct sections: second brains, Skills and MCP
+servers. The first connects canonical knowledge sources and exposes search and
+indexing status. Skills and MCP remain execution capabilities rather than
+knowledge stores, but live beside the sources so a skills directory can be
+linked from a second brain. Loom's conversation indexing, reviewed memory,
+retrieval and semantic layers operate in the background as cognitive
+continuity; users do not have to wire those layers into every project.
 
 ## Linked second brains
 
-The Brain page groups linked sources separately from Loom's built-in
-conversation/memory sources. Multiple sources may use the same connector type;
-`connector` is `folder`, `git`, `obsidian` or `webdav-mount`. It identifies the
-source's role, not a synchronization service: Git is an existing local checkout,
-Obsidian an existing vault, and WebDAV an already mounted directory accessible
-from the Loom host. Loom neither commits/pushes source changes nor writes to
-those directories. Direct URLs, credentials for remote synchronization and
-automatic Git pull/WebDAV sync are unsupported.
+The Brain page groups user-owned second brains separately from Loom's built-in
+continuity sources. Multiple sources may use the same connector type;
+`connector` is `folder`, `git`, `git-remote`, `obsidian` or `webdav-mount`.
+Folders, Obsidian vaults and WebDAV/network storage must already be mounted on
+the Loom host. `git-remote` clones an HTTPS or SSH remote into Loom's private
+managed source directory and can explicitly fast-forward it from the UI. URL
+credentials are rejected; use the host's credential helper or SSH keys. Loom
+does not automatically commit or push changes.
+
+One source can be the writable primary second brain. Loom direct models receive
+bounded `brain_write` and `brain_edit` tools, local ACP harnesses receive that
+directory as an additional workspace root, and harnesses using Loom's
+authenticated Brain MCP receive the same two write tools. Writes are confined
+to relative Markdown paths, refuse symlink escapes, cap each page at 1 MiB and
+refresh the index. The primary is the only source Loom asks agents to maintain
+proactively. Other sources are either read-only or writable only for an explicit
+user request; they are not attached as automatic writable roots.
 
 `kind` is independent of the connector. Choose `personal` for a personal vault;
 its results require both an explicit selected source ID and personal access.
 The search UI can select several sources, then search/read their cited results
-without a model call. Project retrieval still needs explicit source selection
-and a token budget. Editing a definition invalidates stale scoped chunks;
+without a model call. Projects inherit the connected sources with a bounded
+default retrieval budget. Editing a definition invalidates stale scoped chunks;
 removing a definition deletes only its index, never its source files.
 
 Includes narrow eligible text; excludes remove matching relative paths. Known
@@ -50,7 +60,8 @@ memory are rebuildable selection layers, not another canonical knowledge store.
 ## Sources and storage
 
 Stored definitions have `id`, `label`, an absolute directory `path`,
-`kind` (`context`, `personal`, `repo`) and optional `include` and `exclude` globs, plus a `connector` label.
+`kind` (`context`, `personal`, `repo`), `connector`, `permission`, `primary`,
+optional remote/branch metadata and optional `include` and `exclude` globs.
 IDs are 1–64 ASCII letters/digits/underscore/hyphen, starting with a letter
 or digit. Labels have a 200-byte limit. There are at most 100 stored sources.
 Includes are relative to the root and support `*`, `?`, character classes,
@@ -109,8 +120,10 @@ Responses use `Cache-Control: no-store`. POST JSON uses
 
 | Method / path | Input | Output |
 | --- | --- | --- |
-| `GET /api/brain/sources` | — | `{ok,refreshing,refresh_seconds:180,sources:[{id,label,path,kind,connector?,include?,exclude?,read_only,files,chunks,last_indexed,last_checked,error?}]}` |
-| `POST /api/brain/sources` | `{"action":"add","id":"project","label":"Project","path":"/path/to/project","kind":"repo","include":["**/*.md"]}` | Same source list; `add` creates/replaces the complete definition. `action` defaults to `add`. |
+| `GET /api/brain/sources` | — | `{ok,refreshing,refresh_seconds:180,sources:[{id,label,path,kind,connector?,remote?,branch?,permission?,primary?,include?,exclude?,read_only,files,chunks,last_indexed,last_checked,error?}]}` |
+| `POST /api/brain/sources` | `{"action":"add","label":"Knowledge","path":"/path/to/notes","kind":"context","connector":"folder","permission":"read","primary":false}` | Same source list; `add` creates/replaces the complete definition. `action` defaults to `add`. |
+| `POST /api/brain/sources` | `{"action":"add","label":"Knowledge","remote":"https://git.example/user/brain.git","branch":"main","kind":"repo","connector":"git-remote","permission":"write","primary":true}` | Clones a managed remote checkout, then saves and indexes it. |
+| `POST /api/brain/sources` | `{"action":"sync","id":"knowledge"}` | Fast-forwards a managed Git source and refreshes its index. |
 | `POST /api/brain/sources` | `{"action":"relabel","id":"project","label":"New label"}` or `{"action":"remove","id":"project"}` | Same source list. Built-ins cannot be changed. |
 | `POST /api/brain/reindex` | No body | `{ok,sources,error?}` after refresh; partial source errors return `ok:false` with current counts. |
 | `GET /api/brain/search` | `query`, optional `sources`, `personal=true`, `limit` | `{hits:[{source,path,heading,snippet,highlights,score,chunk_id}]}` |
@@ -147,13 +160,15 @@ its injection policy and consent to share it with an external executor.
 ## MCP for harnesses
 
 The same engine is available at `http://127.0.0.1:2510/mcp/brain` using
-Streamable HTTP and the Go MCP SDK. It exposes only `brain_search`,
-`brain_pack`, `brain_read`, marked read-only. Arguments and structured results
+Streamable HTTP and the Go MCP SDK. It exposes the read-only `brain_search`,
+`brain_pack` and `brain_read` tools plus `brain_write` and `brain_edit` for
+write-authorized second brains. Omitting `source` targets the proactive primary;
+another source ID is intended only for an explicit user-requested update. Arguments and structured results
 match their HTTP equivalents; MCP `heading` and `sources` are JSON arrays.
 Tool errors use MCP's error results. The control key, when set, must be passed
-as a Bearer header on every HTTP request. This endpoint neither manages
-sources nor triggers generation. It keeps DNS-rebinding and cross-origin
-protection, bounds request bodies and does not retain MCP sessions.
+as a Bearer header on every HTTP request. This endpoint does not manage source
+definitions or trigger model generation. It keeps DNS-rebinding and
+cross-origin protection, bounds request bodies and does not retain MCP sessions.
 
 Claude Code (substitute your reachable Loom URL; omit the header only if no
 control key is set):
@@ -347,34 +362,31 @@ is enabled. As with other local data, vault locking blocks access immediately.
 
 ## Project continuity and retrieval scope
 
-Project settings separate purpose, rationale, constraints and accepted decisions
-from a dated working state. The pure `project` package validates/assembles this
-minimum: core up to 12000 UTF-8 bytes total, working state 4000, up to eight
-reference discussions and a 1000-byte reviewed capsule each. Saving timestamps
-only a changed working state. Older clients that omit continuity preserve it.
-The user edits these fields; no automatic model rewrite is performed.
+The project form deliberately stores only the project title, machine, workspace
+and default executor/model. An empty workspace inherits that machine's saved
+default. Every Loom discussion assigned to the project automatically belongs to
+its conversation-memory scope; users do not select reference discussions or
+maintain a parallel project synopsis.
 
-Only selected reference discussions are eligible when a project selects the
-built-in `conversations` source. No references means no conversation passages,
-not all histories. Source files, memory pages and accepted distilled items use
-the selected source policy. Personal sources still need explicit selection.
-The current draft drives retrieval for the first turn as well as later turns;
-native local preparation retrieves once. Project semantic queries have a
-three-second bound and fall back to BM25 without generating a response.
+Connected second brains, accepted distilled items and the project's discussion
+history are searched for the current draft from the first turn onward. The
+default context budget is 1500 estimated tokens, bounded by the existing 8000
+token maximum. Native local preparation retrieves once. Project semantic
+queries have a three-second bound and fall back to BM25 without generating a
+response. Historical project continuity fields remain readable for compatibility
+but are no longer exposed as required project setup.
 
-HTTP search/read accepts optional `project_id`; pack and all MCP tool request
-schemas also accept it. This checks the project's selected source IDs and linked
-conversation paths, including known chunk IDs and native archive bindings.
+HTTP search/read accepts optional `project_id`; pack and all MCP read-tool request
+schemas also accept it. This checks the project's effective sources and current
+project conversation paths, including known chunk IDs and native archive bindings.
 MCP search/read/pack and JSON pack schemas accept `path_prefixes` as a map of source IDs to relative
 path prefixes. Absent means unrestricted within the selected source; explicit
 `[]` denies it. Prefixes match an exact path or subtree boundary. Project scope
 intersects a caller's narrower conversation filter; it never expands it.
 General API calls without project scope keep their existing operator-wide policy.
 
-The context inspector shows shared preferences, project minimum, reference IDs,
-citations and approximate text-token cost (a heuristic, not the executor's
-reported tokenizer usage). The prepared preview and sends share revision checks
-and text/message limits. Runtime-private memory and tool state do not transfer.
+The prepared preview and sends share revision checks and text/message limits.
+Runtime-private memory and tool state do not transfer.
 
 `GET/POST /api/context/preferences` reads/saves `{page,external}` in Loom's existing
 configuration store. Select an existing readable memory page of at most 4000

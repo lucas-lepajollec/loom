@@ -9,24 +9,20 @@ protocol supports that choice.
 ## Cognitive continuity
 
 Changing executor should not require reconstructing why the project exists or
-copying a large handoff. The next executor receives a small, reviewed baseline:
+copying a large handoff. A Loom project selects a machine, workspace and default
+executor/model. Its Loom discussions form its conversation-memory scope
+automatically. Connected second brains and accepted Loom memory add bounded,
+cited context for the current request, while portable user/assistant history
+stays with the discussion.
 
-1. An explicitly chosen shared preference page, with separate consent for
-   cloud/harness sharing.
-2. Project purpose, rationale, constraints and accepted decisions.
-3. The dated working state maintained by the user.
-4. Bounded capsules of explicitly linked reference discussions.
-5. Discussion instructions and portable user/assistant history.
+One connected source may be the writable primary second brain. Agents may keep
+durable decisions, preferences and project facts current there through bounded
+Markdown tools; other sources retain explicit read/write policies. A new
+executor gets the same prepared context. Its private native memory, approvals,
+tools, credentials and hidden reasoning remain with the original runtime.
 
-Selected project files and relevant Brain passages add deeper context under
-their existing bounds. The inspector shows the baseline, reference IDs,
-citations, approximate text-token cost and exact prepared text. A new executor
-gets this same project baseline; its private native memory, approvals, tools,
-credentials and hidden reasoning remain with the original runtime.
-
-Working state and capsules are edited and reviewed, not silently invented by a
-background model. Explicit distillation creates candidates; pending/rejected
-candidates do not enter retrieval. Existing accepted memory remains readable.
+Explicit distillation creates candidates; pending/rejected candidates do not
+enter retrieval. Existing accepted memory remains readable.
 Sources remain the authority; BM25, vectors and a possible future graph are
 derived indexes. Skills and MCP servers are execution capabilities, not facts.
 
@@ -38,8 +34,8 @@ application, repository name or owner-specific filesystem. Files are refreshed
 incrementally. Semantic refresh is separately opt-in; cloud embedding consent
 names the destination and may incur provider charges.
 
-Project retrieval of the built-in conversation source is limited to explicitly
-linked discussions. HTTP/MCP callers can supply `project_id` to use that scope.
+Project retrieval of the built-in conversation source is limited to discussions
+currently assigned to that project. HTTP/MCP callers can supply `project_id` to use that scope.
 General Brain calls without project scope retain the operator's explicit source
 selections; project scope is not a multi-user authorization boundary.
 

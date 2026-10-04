@@ -112,7 +112,7 @@ func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Déploiement\nUnicorn context"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	definition := map[string]any{"action": "add", "id": "project", "label": "Project", "path": dir, "kind": "context", "include": []string{"**/*.md"}}
+	definition := map[string]any{"action": "add", "id": "project", "label": "Project", "path": dir, "kind": "context", "permission": "write", "primary": true, "include": []string{"**/*.md"}}
 	body, _ := json.Marshal(definition)
 	w := call("POST", "/api/brain/sources", string(body), "brain-test-key")
 	if w.Code != 200 {
@@ -162,12 +162,19 @@ func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
 	}
 	defer session.Close()
 	tools, err := session.ListTools(ctx, nil)
-	if err != nil || len(tools.Tools) != 3 {
+	if err != nil || len(tools.Tools) != 5 {
 		t.Fatalf("streamable tools: %v %v", tools, err)
 	}
 	tool, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "brain_pack", Arguments: brain.PackRequest{Query: "unicorn", Sources: []string{"project"}}})
 	if err != nil || tool.IsError {
 		t.Fatalf("streamable pack: %+v %v", tool, err)
+	}
+	tool, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "brain_write", Arguments: brain.WriteRequest{File: "durable/decision.md", Content: "# Decision\nKeep it durable.\n"}})
+	if err != nil || tool.IsError {
+		t.Fatalf("streamable write: %+v %v", tool, err)
+	}
+	if b, readErr := os.ReadFile(filepath.Join(dir, "durable", "decision.md")); readErr != nil || !strings.Contains(string(b), "Keep it durable") {
+		t.Fatalf("streamable write file: %q %v", b, readErr)
 	}
 	w = call("POST", "/api/brain/sources", `{"action":"remove","id":"project"}`, "brain-test-key")
 	if w.Code != 200 {

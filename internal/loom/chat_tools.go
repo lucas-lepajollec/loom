@@ -72,6 +72,9 @@ func baseSystemPrompt(caps Caps) string {
 			b.WriteString(line)
 		}
 	}
+	if _, _, err := primarySecondBrain(); err == nil {
+		b.WriteString("\nThe primary second brain is writable through brain_write and brain_edit. Maintain durable useful knowledge there proactively without waiting for a separate request.\n")
+	}
 	b.WriteString("\nDate: " + time.Now().Format("2006-01-02"))
 	return b.String()
 }

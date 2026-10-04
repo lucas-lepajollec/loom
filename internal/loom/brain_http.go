@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -161,6 +162,12 @@ func (s *brainService) Read(r brain.ReadRequest) (brain.Chunk, error) {
 	}
 	return e.Read(r)
 }
+func (s *brainService) WriteSecondBrain(r brain.WriteRequest) error {
+	return secondBrainWriteSource(r.Source, r.File, r.Content)
+}
+func (s *brainService) EditSecondBrain(r brain.EditRequest) error {
+	return secondBrainEditSource(r.Source, r.File, r.Old, r.New)
+}
 func brainResponse(w http.ResponseWriter, value any, err error) {
 	if err != nil {
 		code := 400
@@ -197,23 +204,46 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "POST" {
 		var req struct {
-			Connector string   `json:"connector"`
-			Exclude   []string `json:"exclude"`
-			Action    string   `json:"action"`
-			ID        string   `json:"id"`
-			Label     string   `json:"label"`
-			Path      string   `json:"path"`
-			Kind      string   `json:"kind"`
-			Include   []string `json:"include,omitempty"`
+			Connector  string   `json:"connector"`
+			Remote     string   `json:"remote"`
+			Branch     string   `json:"branch"`
+			Permission string   `json:"permission"`
+			Primary    bool     `json:"primary"`
+			Exclude    []string `json:"exclude"`
+			Action     string   `json:"action"`
+			ID         string   `json:"id"`
+			Label      string   `json:"label"`
+			Path       string   `json:"path"`
+			Kind       string   `json:"kind"`
+			Include    []string `json:"include,omitempty"`
 		}
 		if !workspaceDecode(w, r, &req) {
+			return
+		}
+		if req.Action == "sync" {
+			var source *brain.Source
+			for _, item := range e.Sources() {
+				if item.ID == req.ID && !item.ReadOnly {
+					copy := item
+					source = &copy
+					break
+				}
+			}
+			if source == nil {
+				brainResponse(w, nil, errors.New("second brain not found"))
+				return
+			}
+			if err = syncBrainRemote(r.Context(), *source); err == nil {
+				err = e.Refresh(r.Context())
+			}
+			brainResponse(w, map[string]any{"ok": err == nil, "sources": e.Sources()}, err)
 			return
 		}
 		switch req.Action {
 		case "add", "":
 			if req.ID == "" {
 				// A stable id from the name, unique among sources.
-				base := skillDirSlug(firstNonEmpty(req.Label, filepath.Base(req.Path)))
+				base := skillDirSlug(firstNonEmpty(req.Label, filepath.Base(strings.TrimSuffix(req.Remote, "/")), filepath.Base(req.Path)))
 				req.ID = base
 				for i := 2; ; i++ {
 					taken := false
@@ -226,13 +256,37 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 					req.ID = fmt.Sprintf("%s-%d", base, i)
 				}
 			}
-			err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include, Connector: req.Connector, Exclude: req.Exclude})
+			managedClone := false
+			if req.Connector == "git-remote" && strings.TrimSpace(req.Remote) != "" {
+				for _, existing := range e.Sources() {
+					if existing.ID == req.ID && !existing.ReadOnly {
+						req.Path = existing.Path
+						if existing.Remote != strings.TrimSpace(req.Remote) {
+							err = errors.New("unlink this second brain before changing its Git remote")
+						}
+						break
+					}
+				}
+				if err == nil && req.Path == "" {
+					req.Path, err = cloneBrainRemote(r.Context(), req.ID, strings.TrimSpace(req.Remote), strings.TrimSpace(req.Branch))
+					managedClone = err == nil
+				}
+			}
+			if err == nil && req.Primary {
+				req.Permission = "write"
+			}
+			if err == nil {
+				err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include, Connector: req.Connector, Remote: strings.TrimSpace(req.Remote), Branch: strings.TrimSpace(req.Branch), Permission: req.Permission, Primary: req.Primary, Exclude: req.Exclude})
+			}
+			if err != nil && managedClone {
+				_ = os.RemoveAll(req.Path)
+			}
 		case "remove":
 			err = e.Remove(req.ID)
 		case "relabel":
 			err = e.Relabel(req.ID, req.Label)
 		default:
-			err = errors.New("action must be add, remove or relabel")
+			err = errors.New("action must be add, remove, relabel or sync")
 		}
 		if err != nil {
 			brainResponse(w, nil, err)

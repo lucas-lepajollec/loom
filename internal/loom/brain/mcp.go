@@ -16,6 +16,29 @@ type ContextReader interface {
 	SearchContext(context.Context, SearchRequest) ([]Hit, error)
 	PackContext(context.Context, PackRequest) (Pack, error)
 }
+type WriteRequest struct {
+	Source  string `json:"source,omitempty" jsonschema:"optional source id; omit for the primary second brain"`
+	File    string `json:"file" jsonschema:"relative Markdown path inside the selected second brain"`
+	Content string `json:"content" jsonschema:"complete Markdown content to save"`
+}
+type EditRequest struct {
+	Source string `json:"source,omitempty" jsonschema:"optional source id; omit for the primary second brain"`
+	File   string `json:"file" jsonschema:"relative Markdown path inside the selected second brain"`
+	Old    string `json:"old" jsonschema:"exact unique text to replace"`
+	New    string `json:"new" jsonschema:"replacement text"`
+}
+type WriteResult struct {
+	OK   bool   `json:"ok"`
+	File string `json:"file"`
+}
+
+// Writer is optional. Loom's authenticated Brain boundary implements it when
+// a writable primary second brain exists; the reusable indexing engine remains
+// read-only.
+type Writer interface {
+	WriteSecondBrain(WriteRequest) error
+	EditSecondBrain(EditRequest) error
+}
 type SearchResult struct {
 	Hits []Hit `json:"hits"`
 }
@@ -50,5 +73,16 @@ func MCPServer(reader Reader) *mcp.Server {
 		chunk, err := reader.Read(args)
 		return nil, chunk, err
 	})
+	if writer, ok := reader.(Writer); ok {
+		writeAnnotations := &mcp.ToolAnnotations{ReadOnlyHint: false, OpenWorldHint: &closed}
+		mcp.AddTool(s, &mcp.Tool{Name: "brain_write", Description: "Create or replace a Markdown page in a write-authorized second brain. Omit source for the proactive primary; target another source only on an explicit user request.", Annotations: writeAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args WriteRequest) (*mcp.CallToolResult, WriteResult, error) {
+			err := writer.WriteSecondBrain(args)
+			return nil, WriteResult{OK: err == nil, File: args.File}, err
+		})
+		mcp.AddTool(s, &mcp.Tool{Name: "brain_edit", Description: "Update a page in a write-authorized second brain by replacing one exact unique text fragment. Omit source for the primary.", Annotations: writeAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args EditRequest) (*mcp.CallToolResult, WriteResult, error) {
+			err := writer.EditSecondBrain(args)
+			return nil, WriteResult{OK: err == nil, File: args.File}, err
+		})
+	}
 	return s
 }

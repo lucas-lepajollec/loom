@@ -16,14 +16,18 @@ func TestProjectContinuityHydratesNewExecutorsAndScopesReferences(t *testing.T) 
 	brainSvcMu.Lock()
 	brainSvc = nil
 	brainSvcMu.Unlock()
-	selected := RuntimeSession{ID: "chosen", Messages: []Message{{Role: "user", Content: "quartz chosen rationale"}}}
+	p, err := saveProjectContext(ChatProject{Name: "Portable", BrainSources: []string{"conversations"}, BrainBudget: 1500})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := RuntimeSession{ID: "chosen", ProjectID: p.ID, Messages: []Message{{Role: "user", Content: "quartz chosen rationale"}}}
 	other := RuntimeSession{ID: "excluded", Messages: []Message{{Role: "user", Content: "quartz excluded rationale"}}}
 	for _, s := range []RuntimeSession{selected, other} {
 		if err := putStoreJSON(bkRuntimeSessions, s.ID, s); err != nil {
 			t.Fatal(err)
 		}
 	}
-	p, err := saveProjectContext(ChatProject{Name: "Portable", BrainSources: []string{"conversations"}, BrainBudget: 1500, Continuity: &project.Continuity{Core: project.Core{Purpose: "Build a shared workspace", Rationale: "Keep context across executors", Decisions: "Keep source truth"}, WorkingState: "Verify mobile interactions", References: []project.Reference{{DiscussionID: selected.ID, Capsule: "Reviewed rationale"}}}})
+	p, err = saveProjectContext(ChatProject{ID: p.ID, Name: "Portable", BrainSources: []string{"conversations"}, BrainBudget: 1500, Continuity: &project.Continuity{Core: project.Core{Purpose: "Build a shared workspace", Rationale: "Keep context across executors", Decisions: "Keep source truth"}, WorkingState: "Verify mobile interactions"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +40,7 @@ func TestProjectContinuityHydratesNewExecutorsAndScopesReferences(t *testing.T) 
 	}
 	for _, runtime := range []string{"llama.cpp", "openai-compatible", "fixture-harness"} {
 		preview := prepareDiscussion(RuntimeSession{ID: "fresh-" + runtime, RuntimeID: runtime, ProjectID: p.ID}, "quartz")
-		for _, part := range []string{p.Continuity.Core.Purpose, p.Continuity.Core.Rationale, p.Continuity.Core.Decisions, p.Continuity.WorkingState, "Reviewed rationale", "chosen rationale"} {
+		for _, part := range []string{p.Continuity.Core.Purpose, p.Continuity.Core.Rationale, p.Continuity.Core.Decisions, p.Continuity.WorkingState, "chosen rationale"} {
 			if !strings.Contains(preview.Context.System, part) {
 				t.Fatalf("%s lost %s", runtime, part)
 			}

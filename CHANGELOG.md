@@ -6,10 +6,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
-- Shared preference-page selection with separate external consent; project core,
-  dated working state and reviewed reference capsules across executor changes.
+- Connected second brains from local folders, Obsidian or mounted stores and
+  managed HTTPS/SSH Git checkouts. One source can be the writable primary with
+  bounded Markdown write/edit tools for direct models and authenticated Brain MCP.
+- Link a skills directory directly from a connected second brain.
+- Compatibility for existing shared preference pages and stored project
+  continuity metadata across executor changes.
 - Project-scoped conversation retrieval over HTTP/MCP, including semantic search
-  and direct passage reads, plus minimum-context and token-cost inspection.
+  and direct passage reads derived from current project membership.
 - Review/edit/keep/reject for newly distilled memory candidates; existing memory
   remains accepted. Source freshness states, optional multilingual embeddings
   and explicit incremental semantic auto-indexing.
@@ -18,9 +22,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Changed
 
-- Brain navigation separates Overview, Sources, Memory, Retrieval and Connections;
-  execution capabilities remain distinct from knowledge. Product vision and
-  roadmap now distinguish implemented behavior from outstanding acceptance.
+- Brain navigation now presents second brains, Skills and MCP. Loom's own
+  conversation, retrieval and reviewed-memory layers remain automatic instead
+  of becoming project setup fields.
+- Project setup now contains title, machine, workspace and default
+  executor/model. Project conversations define their memory scope automatically;
+  connected second brains are inherited with a bounded default retrieval budget.
 - Project retrieval uses the current draft from the first turn; native local
   context is prepared once and blocks unreadable selected preferences.
 
