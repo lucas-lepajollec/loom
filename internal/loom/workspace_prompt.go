@@ -85,12 +85,15 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 		m.mu.Unlock()
 		return s, errors.New("discussion not found or locked")
 	}
-	if m.runs[id] != nil || m.nativeRunning(s) {
+	if m.preparing[id] || m.runs[id] != nil || m.nativeRunning(s) {
 		m.mu.Unlock()
 		return s, errors.New("wait for or stop the response before editing this thread")
 	}
+	m.preparing[id] = true
 	m.mu.Unlock()
+	defer func() { m.mu.Lock(); delete(m.preparing, id); m.mu.Unlock() }()
 	original := s
+	s = cloneRuntimeSession(s)
 	currentContext := discussionContext(s)
 	if revision == "" || revision != currentContext.Revision {
 		return s, errors.New("the thread or its context changed; reopen the configuration before saving")
@@ -100,12 +103,6 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 	nextContext := currentContext
 	if prospective.ProjectID != s.ProjectID || prospective.Instructions != s.Instructions {
 		nextContext = discussionContext(prospective)
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	current, ok := m.getLocked(id)
-	if !ok || !reflect.DeepEqual(current, original) || m.runs[id] != nil || m.nativeRunning(s) {
-		return s, errors.New("the thread changed while preparing; reopen the configuration before saving")
 	}
 	title, instructions = strings.TrimSpace(title), strings.TrimSpace(instructions)
 	if title == "" || len([]rune(title)) > 100 || len(instructions) > maxDiscussionInstructions {
@@ -123,6 +120,13 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 		if err := m.configureACPLocked(&s, harness[0], consent); err != nil {
 			return s, err
 		}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	current, ok := m.getLocked(id)
+	if !ok || !reflect.DeepEqual(current, original) || m.runs[id] != nil || m.nativeRunning(current) {
+		m.closeACP(id)
+		return s, errors.New("the discussion changed during configuration; try again")
 	}
 	if s.ProjectID != projectID || s.Instructions != instructions {
 		m.closeACP(id)

@@ -100,7 +100,8 @@ let stopPolling;
 export function startPolling() {
   if (stopPolling) return stopPolling;
   refreshEngineNode(); refreshWorkspace(); refreshNav(); refreshLibrary();
-  const stops = [visibleRefresh(refreshStatus, 4000), visibleRefresh(refreshHardware, 4000)];
+  // A suspended initial load must recover without forcing a page reload.
+  const stops = [visibleRefresh(refreshStatus, 4000), visibleRefresh(refreshHardware, 4000), visibleRefresh(async () => { await refreshWorkspace(); await refreshNav(); }, 30000)];
   stopPolling = () => { stops.forEach(stop => stop()); stopPolling = null; };
   return stopPolling;
 }

@@ -4,6 +4,49 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-05
+
+### Added
+
+- Select DuckDuckGo, self-hosted SearXNG, Brave Search or Tavily in Settings →
+  Internet, with an explicit search test and encrypted remembered API keys.
+  Search is independent of the Go/Crawl4AI page reader.
+- Opt-in web search for cloud Chat Completions models that support function calls.
+  This connector permits only `web_search`, with bounded calls/results and visible
+  tool events; it does not expose host files, shell or private memory.
+
+- `make dev` rebuilds uncommitted source into a foreground instance with separate
+  development data. An explicit LAN listener allows phone testing before a
+  release, with the same access authentication and no saved binding changes.
+- Native harness discussion transfer between detected sources and connected
+  destination harnesses, including linked machines. Portable transcripts retain
+  source provenance and start a fresh destination session on the next user turn;
+  native credentials, permissions, tool state and files are never copied.
+- Linux systemd startup settings for installed Loom UI, engine and engine-node
+  services, locally or over SSH. Linked nodes expose a dedicated engine startup
+  policy; vLLM requires a cached model and starts offline. User services report
+  whether lingering is available for startup before login.
+
+### Fixed
+
+- Limit the model selector to 70% of the visible viewport and at most 520px,
+  with scrolling inside the list and a persistent close button.
+- Keep the last Usage quotas, native activity and cloud balances visible across
+  page navigation and failed refreshes, with a visible quota refresh indicator.
+- Place remote discussion import under each detected harness in machine settings,
+  independently of whether that source harness is linked to Loom.
+
+- Bound complete JSON responses and authentication requests, release suspended
+  requests, reconnect idle event streams and refresh workspace state on resume.
+  UI cancellation now settles independently of transport abort, and store
+  notifications recover from throttled animation frames.
+- Executor/workspace preparation and native configuration no longer hold the
+  shared discussion lock during SSH/native calls. Concurrent changes are checked
+  before saving, and sends/deletion cannot race a reserved configuration.
+- Remembered cloud API keys survive restarts on headless hosts using a private
+  encrypted credential store when the OS keychain is unavailable. Forgetting
+  reports a removal failure rather than falsely claiming success.
+
 ## [0.2.4] - 2026-10-04
 
 ### Added

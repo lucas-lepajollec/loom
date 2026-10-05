@@ -35,7 +35,7 @@ function harness(source, view, overrides = {}) {
     t: french, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu',
-    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub',
+    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
     inspectTrigger: () => ({}), baseName: p => (p || '').split('/').pop(),
     useState(initial) {
       const i = cursor++;
@@ -259,7 +259,7 @@ test('vault 401 skips API authentication retry; ordinary API requests retain it'
   const source = fs.readFileSync(new URL('../next/js/core/api.js', import.meta.url), 'utf8');
   const calls = [], asks = [];
   const removed = [];
-  const env = { t: french, localStorage: { getItem: () => 'synthetic-access', removeItem: key => removed.push(key) }, AbortController,
+  const env = { clearObservations() {}, t: french, localStorage: { getItem: () => 'synthetic-access', removeItem: key => removed.push(key) }, AbortController,
     setTimeout: () => 1, clearTimeout() {},
     ask: async spec => { asks.push(spec); return 'synthetic-new-access'; },
     fetch: async (url, opts) => {
@@ -432,7 +432,7 @@ test('mobile Settings opens its index, follows section links and returns without
   assert.equal(nodes(tree, 'nav').length, 1);
   assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
   const links = nodes(tree, 'a');
-  assert.equal(links.length, 7);
+  assert.equal(links.length, 8);
   assert.equal(links.find(n => textOf(n).includes('Machines')).props.href, '#/settings/machines');
   tree = h.render({ route: { sub: 'machines' } });
   assert.equal(nodes(tree, 'nav').length, 0);
@@ -447,4 +447,17 @@ test('mobile Settings opens its index, follows section links and returns without
   assert.equal(nodes(tree, 'nav').length, 1);
   assert.equal(nodes(tree, 'MachinesSettings').length, 1);
   assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Réglages');
+});
+
+
+test('unlinked remote harness offers import without registering it as an executor', async () => {
+ const source = fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8') + fs.readFileSync(new URL('../next/js/features/settings/machines.js', import.meta.url), 'utf8');
+ const navigations = [];
+ const h = harness(source, 'HarnessesSection', { state: { workspace: { runtimes: [] } }, go: (...args) => navigations.push(args) });
+ const tree = await h.ready({ m: {id:'fixture-remote', name:'Synthetic remote', harnesses:[]}, target:'fixture-remote', where:'Synthetic remote', offers:[{id:'codex', name:'Codex', ready:true, installed:true}], onChange:()=>{} });
+ const entry = button(tree, 'Importer des discussions');
+ assert.ok(entry, 'import must be available without a linked runtime');
+ entry.props.onClick();
+ assert.deepEqual(navigations, [['settings', 'harness-history', 'remote:fixture-remote:codex']]);
+ assert.deepEqual(h.posts, [], 'opening history must not register a harness');
 });

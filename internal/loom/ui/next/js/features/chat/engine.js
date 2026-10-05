@@ -188,7 +188,9 @@ export async function connectNative() {
     await sleep(600);
   }
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden && abort) abort.abort(); });
+document.addEventListener('visibilitychange', () => { if (abort) abort.abort(); });
+globalThis.addEventListener?.('pageshow', () => { if (abort) abort.abort(); });
+globalThis.addEventListener?.('online', () => { if (abort) abort.abort(); });
 
 function restartNative(replay) {
   lastSeq = 0; turn = newTurn();

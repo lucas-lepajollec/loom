@@ -1,5 +1,5 @@
-// A deliberately small Chat Completions adapter. No local tool loop, model
-// loading, compaction or hidden fallback is applied to a remote provider.
+// Chat Completions adapter. Optional tool access is supplied explicitly by the
+// application; no model loading, compaction or hidden fallback is applied.
 package openai
 
 import (
@@ -39,14 +39,22 @@ type Adapter struct {
 type Turn struct {
 	Messages  any
 	MaxTokens int
+	Tools     ToolAccess
 }
 
 type Event struct {
 	Content string
 	Usage   *Usage
+	Tool    *ToolEvent
 }
 
 func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (string, error) {
+	if turn.Tools != nil {
+		return a.runTools(ctx, turn, emit)
+	}
+	return a.runOnce(ctx, turn, emit, nil)
+}
+func (a Adapter) runOnce(ctx context.Context, turn Turn, emit func(Event) bool, pending *[]toolCall) (string, error) {
 	provider := a.Provider.ProviderConfig()
 	endpoint, err := ValidateEndpoint(provider.Endpoint)
 	if err != nil {
@@ -58,6 +66,9 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 	}
 	payload := map[string]any{
 		"model": provider.Model, "messages": turn.Messages, "stream": true,
+	}
+	if turn.Tools != nil {
+		payload["tools"] = turn.Tools.Definitions()
 	}
 	if turn.MaxTokens > 0 {
 		payload["max_tokens"] = turn.MaxTokens
@@ -93,6 +104,9 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		if turn.Tools != nil && resp.StatusCode == http.StatusBadRequest {
+			return "", errors.New("provider rejected a request with web-search tools; check model function-call support or disable web search")
+		}
 		// Never echo a provider body: it may contain the credential or prompt.
 		return "", fmt.Errorf("the provider rejected the request (HTTP %d); check the key, model and your quota", resp.StatusCode)
 	}
@@ -105,6 +119,7 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 	finish := ""
 	done := false
 	var data []string
+	calls := map[int]*toolCall{}
 	consume := func() error {
 		payload := strings.Join(data, "\n")
 		data = nil
@@ -139,7 +154,33 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 		if len(chunk.Choices) > 0 {
 			c := chunk.Choices[0]
 			if len(c.Delta.ToolCalls) > 0 && string(c.Delta.ToolCalls) != "null" && string(c.Delta.ToolCalls) != "[]" {
-				return errors.New("this text connector does not execute tools")
+				if pending == nil {
+					return errors.New("this text connector does not execute tools")
+				}
+				var deltas []toolDelta
+				if json.Unmarshal(c.Delta.ToolCalls, &deltas) != nil {
+					return errors.New("invalid provider tool call")
+				}
+				for _, d := range deltas {
+					if d.Index < 0 || d.Index >= 4 {
+						return errors.New("too many provider tool calls")
+					}
+					if calls[d.Index] == nil {
+						calls[d.Index] = &toolCall{Type: "function"}
+					}
+					call := calls[d.Index]
+					if d.ID != "" {
+						call.ID = d.ID
+					}
+					if d.Type != "" && d.Type != "function" {
+						return errors.New("unsupported provider tool type")
+					}
+					call.Function.Name += d.Function.Name
+					call.Function.Arguments += d.Function.Arguments
+					if len(call.ID) > 200 || len(call.Function.Name) > 128 || len(call.Function.Arguments) > 16384 {
+						return errors.New("provider tool call too large")
+					}
+				}
 			}
 			part := c.Delta.Content + c.Delta.Refusal
 			if answer.Len()+len(part) > 256<<10 {
@@ -185,6 +226,21 @@ func (a Adapter) Run(ctx context.Context, turn Turn, emit func(Event) bool) (str
 		return "", errors.New("stream interrupted before the end of the response")
 	}
 	// Reaching an explicitly requested benchmark budget is a completed measurement.
+	if pending != nil && finish == "tool_calls" && len(calls) > 0 {
+		seen := map[string]bool{}
+		for i := 0; i < len(calls); i++ {
+			call := calls[i]
+			if call == nil || call.ID == "" || seen[call.ID] || call.Function.Name == "" {
+				return "", errors.New("incomplete provider tool call")
+			}
+			seen[call.ID] = true
+			*pending = append(*pending, *call)
+		}
+		return answer.String(), nil
+	}
+	if len(calls) > 0 {
+		return "", errors.New("incomplete provider tool response")
+	}
 	if finish != "" && finish != "stop" && !(finish == "length" && turn.MaxTokens > 0) {
 		return "", fmt.Errorf("incomplete response (finish: %s)", SafeFinishReason(finish))
 	}

@@ -9,6 +9,7 @@ import { toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app } from '../../core/state.js';
 import { useVisibleRefresh } from './refresh.js';
+import { recall, remember } from '../../core/observations.js';
 
 const when = s => s ? new Date(s * 1000).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : t("usage.page.non_communique");
 const ago = s => { if (!s) return ''; const m = Math.round((Date.now() / 1000 - s) / 60); return m < 1 ? t("usage.page.a_l_instant") : m < 60 ? t("usage.page.ago_min", { n: m }) : t("usage.page.ago_h", { n: Math.round(m / 60) }); };
@@ -71,16 +72,16 @@ function NativeRow({ h, rt, onRefresh }) {
 
 function NativeUsage({ runtimes }) {
   const [days, setDays] = useState(7);
-  const [rows, setRows] = useState(null);
-  useEffect(() => { setRows(null); }, [days]);
+  const [rows, setRows] = useState(recall('native:7'));
+  useEffect(() => { setRows(recall('native:' + days)); }, [days]);
   useVisibleRefresh(async alive => {
     const r = await get('/api/usage/native?days=' + days, { retryAuth: false, timeout: 65000 });
-    if (alive() && r.ok !== false) setRows(r.harnesses || []);
+    if (alive() && r.ok !== false) setRows(remember('native:' + days, r.harnesses || []));
   }, 30000, days);
   const refresh = async id => {
     const r = await post('/api/usage/native/refresh', { runtime_id: id, days }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return toast(r.error, 'err');
-    setRows(list => (list || []).map(h => h.runtime_id === id ? r.harness : h));
+    setRows(list => remember('native:' + days, (list || []).map(h => h.runtime_id === id ? r.harness : h)));
   };
   const known = (rows || []).filter(h => runtimes.some(r => r.id === h.runtime_id));
   const active = h => h.sessions || h.total_tokens || h.error;
@@ -102,9 +103,9 @@ function NativeUsage({ runtimes }) {
 // Soldes des fournisseurs cloud qui les exposent (OpenRouter, DeepSeek…),
 // lus avec leur propre clé, sans génération. Un montant absent reste « — ».
 function Balances() {
-  const [rows, setRows] = useState(null);
-  const load = () => get('/api/usage/providers').then(r => setRows(r.providers || [])).catch(() => setRows([]));
-  useVisibleRefresh(async alive => { const r = await get('/api/usage/providers', { retryAuth: false }); if (alive() && r.ok !== false) setRows(r.providers || []); }, 30000);
+  const [rows, setRows] = useState(recall('balances'));
+  const load = () => get('/api/usage/providers').then(r => { if (r.ok !== false) setRows(remember('balances', r.providers || [])); }).catch(() => {});
+  useVisibleRefresh(async alive => { const r = await get('/api/usage/providers', { retryAuth: false }); if (alive() && r.ok !== false) setRows(remember('balances', r.providers || [])); }, 30000);
   const refresh = async id => {
     const r = await post('/api/usage/providers/refresh', { provider_id: id }).catch(e => ({ ok: false, error: e.message }));
     if (r.ok === false) return toast(r.error, 'err');
@@ -138,14 +139,24 @@ function Balances() {
 export function UsagePage() {
   const ws = useStore(app, s => s.workspace);
   const runtimes = (ws && ws.runtimes) || [];
-  const [d, setD] = useState(null);
-  const load = async () => { try { const r = await get('/api/usage'); setD(r); } catch (_) {} };
-  useVisibleRefresh(async alive => { const r = await get('/api/usage', { retryAuth: false }); if (alive() && r.ok !== false) setD(r); }, 4000);
+  const [d, setD] = useState(recall('usage'));
+  const [loading, setLoading] = useState(false);
+  const accept = r => { if (r.ok !== false) setD(remember('usage', r)); };
+  const load = async () => { setLoading(true); try { accept(await get('/api/usage')); } catch (_) {} finally { setLoading(false); } };
+  useVisibleRefresh(async alive => {
+    setLoading(true);
+    try { const r = await get('/api/usage', { retryAuth: false }); if (alive()) accept(r); }
+    finally { if (alive()) setLoading(false); }
+  }, 4000);
   const quotas = (d ? d.quotas || [] : []).filter(q => { const rt = runtimes.find(r => r.id === q.runtime_id) || {}; return rt.available !== false && (rt.capabilities || []).includes('quota'); });
   const quotaIDs = runtimes.filter(rt => rt.available !== false && rt.connected === true && rt.implemented && (rt.capabilities || []).includes('quota')).map(rt => rt.id);
   useVisibleRefresh(async alive => {
-    await Promise.all(quotaIDs.map(id => post('/api/runtimes/' + encodeURIComponent(id) + '/quota', {}, { retryAuth: false, timeout: 65000 }).catch(() => null)));
-    if (alive()) { const r = await get('/api/usage', { retryAuth: false }); if (alive() && r.ok !== false) setD(r); }
+    if (!quotaIDs.length) return;
+    setReading(true);
+    try {
+      await Promise.all(quotaIDs.map(id => post('/api/runtimes/' + encodeURIComponent(id) + '/quota', {}, { retryAuth: false, timeout: 65000 }).catch(() => null)));
+      if (alive()) { const r = await get('/api/usage', { retryAuth: false }); if (alive()) accept(r); }
+    } finally { if (alive()) setReading(false); }
   }, 30000, quotaIDs.join('|'));
   const [reading, setReading] = useState(false);
   const readAll = async () => {
@@ -161,7 +172,7 @@ export function UsagePage() {
   return html`<div class="view page"><div class="page-in">
     <div class="page-head"><div><h1>${t("usage.page.usage")}</h1><p>${t("usage.page.quotas_de_tes_abonnements_et_consommation_dans_loom_une_donnee_ab")}</p></div></div>
     ${!d ? html`<div class="skeleton" style="height:200px"></div>` : html`
-      <section class="sec"><div class="sec-h"><h2>${t("usage.page.abonnements")}</h2>${quotas.length > 1 && html`<button class="btn sm" disabled=${reading} onClick=${readAll}>${reading ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`} ${t("usage.page.read_all")}</button>`}</div>
+      <section class="sec" aria-busy=${String(loading || reading)}><div class="sec-h"><h2>${t("usage.page.abonnements")}</h2>${(loading || reading) && html`<span class="muted" role="status"><span class="spinner"></span> ${t('usage.refreshing')}</span>`}${quotas.length > 1 && html`<button class="btn sm" disabled=${reading} onClick=${readAll}>${reading ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`} ${t("usage.page.read_all")}</button>`}</div>
         <div class="grid3 stagger">${quotas.map(q => html`<${Quota} key=${q.runtime_id} q=${q} rt=${runtimes.find(r => r.id === q.runtime_id)} onRefresh=${load} />`)}</div></section>
       <${Balances} />
       <${NativeUsage} runtimes=${runtimes} />

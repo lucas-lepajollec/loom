@@ -28,7 +28,13 @@ func TestNativeImportHelperProcess(t *testing.T) {
 		var result any = map[string]any{}
 		switch req.Method {
 		case "initialize":
-			result = map[string]any{"protocolVersion": 1, "agentCapabilities": map[string]any{"loadSession": true}}
+			result = map[string]any{"protocolVersion": 1, "agentCapabilities": map[string]any{"loadSession": true, "sessionCapabilities": map[string]any{"list": map[string]any{}}}}
+		case "session/list":
+			cwd, _ := os.Getwd()
+			if os.Getenv("LOOM_IMPORT_FIXTURE_CWD") != "" {
+				cwd = os.Getenv("LOOM_IMPORT_FIXTURE_CWD")
+			}
+			result = map[string]any{"sessions": []acpSessionInfo{{SessionID: "native-fixture", Cwd: cwd, Title: "Source transcript"}}}
 		case "session/load":
 			for _, row := range []struct{ kind, text string }{{"user_message_chunk", "Original question"}, {"agent_message_chunk", "Original answer"}} {
 				frame := map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": "native-fixture", "update": map[string]any{"sessionUpdate": row.kind, "content": map[string]string{"type": "text", "text": row.text}}}}

@@ -71,10 +71,11 @@ func CloneACPState(s ACPState) ACPState {
 }
 
 type NativeImport struct {
-	RuntimeID  string `json:"runtime_id"`
-	MachineID  string `json:"machine_id,omitempty"`
-	SessionID  string `json:"session_id"`
-	ImportedAt int64  `json:"imported_at"`
+	TargetChoice string `json:"target_choice,omitempty"`
+	RuntimeID    string `json:"runtime_id"`
+	MachineID    string `json:"machine_id,omitempty"`
+	SessionID    string `json:"session_id"`
+	ImportedAt   int64  `json:"imported_at"`
 }
 
 // RuntimeSession is a Loom-owned conversation. Its portable transcript outlives

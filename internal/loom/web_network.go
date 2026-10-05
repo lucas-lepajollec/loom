@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -25,6 +26,11 @@ var webBound struct {
 }
 
 func webHost() string {
+	// A foreground development process can choose its listener without changing
+	// the saved network settings. webListenCheck still requires authentication.
+	if h := strings.TrimSpace(os.Getenv("LOOM_WEB_HOST")); h != "" {
+		return h
+	}
 	h := strings.TrimSpace(ReadConfig()[webHostKey])
 	if h == "" {
 		return hostLocalOnly

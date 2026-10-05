@@ -169,7 +169,7 @@ type Caps struct {
 func globalCaps() Caps {
 	return Caps{
 		Agent:    false,
-		Internet: internetEnabled() && crawlReachable(),
+		Internet: internetEnabled(),
 		Mem:      memMode(),
 		MCP:      false,
 	}

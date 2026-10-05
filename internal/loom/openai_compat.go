@@ -51,7 +51,7 @@ type cloudRuntimeAdapter struct {
 }
 
 func (cloudRuntimeAdapter) Descriptor() RuntimeDescriptor {
-	return RuntimeDescriptor{ID: "openai-compatible", Name: "Chat Completions-compatible API", Kind: "cloud", Description: "An explicitly configured cloud Chat Completions API.", Implemented: true, Capabilities: []string{"chat", "stream", "cancel", "usage"}}
+	return RuntimeDescriptor{ID: "openai-compatible", Name: "Chat Completions-compatible API", Kind: "cloud", Description: "An explicitly configured cloud Chat Completions API. Optional web_search requires model function-call support.", Implemented: true, Capabilities: []string{"chat", "stream", "cancel", "usage", "web-search"}}
 }
 
 func (a cloudRuntimeAdapter) ProviderConfig() openai.Config {
@@ -61,9 +61,20 @@ func (a cloudRuntimeAdapter) APIKey() string           { return a.key }
 func (a cloudRuntimeAdapter) HTTPClient() *http.Client { return a.client }
 
 func (a cloudRuntimeAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
+	cloudTurn := openai.Turn{Messages: turn.Messages, MaxTokens: turn.MaxTokens}
+	if turn.Caps.Internet {
+		cloudTurn.Tools = cloudWebSearch{}
+	}
 	answer, err := (openai.Adapter{Provider: a, Credentials: a, Client: a}).Run(ctx,
-		openai.Turn{Messages: turn.Messages, MaxTokens: turn.MaxTokens}, func(e openai.Event) bool {
+		cloudTurn, func(e openai.Event) bool {
 			event := StreamEvent{Content: e.Content}
+			if e.Tool != nil {
+				kind, status := "tool_start", "running"
+				if e.Tool.Done {
+					kind, status = "tool_end", "completed"
+				}
+				event.ACPEvent = DiscussionEvent{"type": kind, "tool": map[string]any{"id": e.Tool.ID, "title": e.Tool.Name, "kind": "search", "status": status, "input": e.Tool.Arguments, "output": e.Tool.Result}}
+			}
 			if e.Usage != nil {
 				u := runtimeUsageFromOpenAI(*e.Usage)
 				event.Usage = &u

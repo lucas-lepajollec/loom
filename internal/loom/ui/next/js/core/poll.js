@@ -15,8 +15,10 @@ export function visibleRefresh(task, interval, env = globalThis) {
   };
   const visibility = () => { env.clearTimeout(timer); if (!env.document.hidden) run(); };
   env.document.addEventListener('visibilitychange', visibility);
+  env.addEventListener?.('pageshow', visibility);
+  env.addEventListener?.('online', visibility);
   run();
-  return () => { stopped = true; env.clearTimeout(timer); env.document.removeEventListener('visibilitychange', visibility); };
+  return () => { stopped = true; env.clearTimeout(timer); env.document.removeEventListener('visibilitychange', visibility); env.removeEventListener?.('pageshow', visibility); env.removeEventListener?.('online', visibility); };
 }
 
 // Manual refreshes and periodic observations share one in-flight read.

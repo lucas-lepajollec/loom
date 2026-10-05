@@ -193,7 +193,7 @@ func (nativeWebSource) Crawl(target string, opts tools.CrawlOptions) (string, er
 	return runCrwl(target, opts)
 }
 func (nativeWebSource) SearchPages(query string, limit int) ([]tools.SearchResult, error) {
-	return duckduckgoSearch(query, limit)
+	return configuredWebSearch(context.Background(), query, limit)
 }
 func (nativeWebSource) GetPage(url string, opts tools.FetchOptions) (*tools.Page, error) {
 	return getPage(url, opts)

@@ -138,3 +138,13 @@
   .quant{grid-template-columns:minmax(0,1fr)}
   .page-in{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
 }
+
+/* Native history controls follow the common page/row layout on small screens. */
+.history-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.history-options .field, .history-options .select { min-width: 0; width: 100%; }
+.history-row .grow { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .history-options { grid-template-columns: minmax(0, 1fr); }
+  .history-row { flex-wrap: wrap; gap: 12px; }
+  .history-row .grow { flex-basis: 100%; }
+}

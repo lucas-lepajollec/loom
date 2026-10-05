@@ -23,16 +23,18 @@ type runtimeSessions struct {
 	shutdownOnce sync.Once
 	acpMu        sync.Mutex
 	acp          map[string]*acpBinding
+	providerMu   sync.Mutex
 	nativeMu     sync.Mutex
 	mu           sync.Mutex
 	keys         map[string]string
 	balances     *providerBalanceCache
+	preparing    map[string]bool
 	runs         map[string]*runtimeRun
 	subscribers  map[string]map[*discussionSubscriber]bool
 }
 
 func newRuntimeSessions() *runtimeSessions {
-	return &runtimeSessions{acp: map[string]*acpBinding{}, keys: map[string]string{}, balances: newProviderBalanceCache(nil), runs: map[string]*runtimeRun{}, subscribers: map[string]map[*discussionSubscriber]bool{}}
+	return &runtimeSessions{preparing: map[string]bool{}, acp: map[string]*acpBinding{}, keys: map[string]string{}, balances: newProviderBalanceCache(nil), runs: map[string]*runtimeRun{}, subscribers: map[string]map[*discussionSubscriber]bool{}}
 }
 
 var workspaceSessions = newRuntimeSessions()
@@ -53,8 +55,8 @@ func (m *runtimeSessions) providers() []CloudProvider {
 }
 
 func (m *runtimeSessions) saveProvider(p CloudProvider, key string) (CloudProvider, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.providerMu.Lock()
+	defer m.providerMu.Unlock()
 	p.Name = strings.TrimSpace(p.Name)
 	p.Model = strings.TrimSpace(p.Model)
 	if p.UsageMode != "" && p.UsageMode != "none" {
@@ -105,11 +107,14 @@ func (m *runtimeSessions) saveProvider(p CloudProvider, key string) (CloudProvid
 	if err := putStoreJSON(bkProviders, p.ID, p); err != nil {
 		return p, errors.New("connection not saved: storage unavailable or locked")
 	}
+	m.mu.Lock()
 	if strings.TrimSpace(key) != "" {
 		m.keys[p.ID] = strings.TrimSpace(key)
 	}
-	p.Ready = m.keys[p.ID] != ""
-	if err := rememberProviderKey(p.ID, m.keys[p.ID], p.Remember); err != nil {
+	credential := m.keys[p.ID]
+	p.Ready = credential != ""
+	m.mu.Unlock()
+	if err := rememberProviderKey(p.ID, credential, p.Remember); err != nil {
 		p.Remember = false
 		_ = putStoreJSON(bkProviders, p.ID, p)
 		return p, err
@@ -118,16 +123,21 @@ func (m *runtimeSessions) saveProvider(p CloudProvider, key string) (CloudProvid
 }
 
 // disconnect forgets the key in memory and in the keychain.
-func (m *runtimeSessions) disconnect(id string) {
+func (m *runtimeSessions) disconnect(id string) error {
+	m.providerMu.Lock()
+	defer m.providerMu.Unlock()
+	if err := rememberProviderKey(id, "", false); err != nil {
+		return errors.New("stored credential could not be removed")
+	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	delete(m.keys, id)
-	_ = rememberProviderKey(id, "", false)
+	m.mu.Unlock()
 	var p CloudProvider
 	if getStoreJSON(bkProviders, id, &p) && p.Remember {
 		p.Remember = false
-		_ = putStoreJSON(bkProviders, id, p)
+		return putStoreJSON(bkProviders, id, p)
 	}
+	return nil
 }
 
 func (m *runtimeSessions) create(projectID, providerID string, consent bool) (RuntimeSession, error) {
@@ -212,6 +222,10 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 	if !ok {
 		m.mu.Unlock()
 		return errors.New("discussion not found or locked")
+	}
+	if m.preparing[id] {
+		m.mu.Unlock()
+		return errors.New("discussion configuration in progress; try again")
 	}
 	duplicate, err := m.validateStartLocked(s, requestID)
 	key := m.keys[s.ProviderID]
@@ -326,6 +340,9 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 // Caller holds mu. Rechecked after preparation to preserve idempotency, the
 // run limit and edits/route changes from another tab.
 func (m *runtimeSessions) validateStartLocked(s RuntimeSession, requestID string) (bool, error) {
+	if m.preparing[s.ID] {
+		return false, errors.New("discussion configuration is in progress")
+	}
 	for _, seen := range s.RequestIDs {
 		if seen == requestID {
 			return true, nil
@@ -356,7 +373,11 @@ func turnContext(s RuntimeSession, c DiscussionContext) DiscussionContext {
 
 func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter RuntimeAdapter, messages []Message) {
 	defer run.cancel()
-	_, err := adapter.Run(ctx, RuntimeTurn{Messages: messages, Temperature: 0.7}, func(event StreamEvent) bool {
+	caps := Caps{}
+	if adapter.Descriptor().Kind == "cloud" {
+		caps.Internet = getBool(bkState, "internet")
+	}
+	_, err := adapter.Run(ctx, RuntimeTurn{Messages: messages, Temperature: 0.7, Caps: caps}, func(event StreamEvent) bool {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		if m.runs[run.session.ID] != run {
@@ -498,6 +519,9 @@ func (m *runtimeSessions) stop(id string) error {
 func (m *runtimeSessions) remove(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.preparing[id] {
+		return errors.New("discussion configuration is in progress")
+	}
 	if m.runs[id] != nil {
 		return errors.New("stop the response before deleting the discussion")
 	}

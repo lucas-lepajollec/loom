@@ -171,6 +171,7 @@ function HarnessesSection({ m, target, where, offers, onChange }) {
           : o.ready ? html`<button class="btn sm" disabled=${busy === o.id} onClick=${() => add(o)}>${t("settings.machines.ajouter_a_loom")}</button>`
           : o.missing ? html`<span class="state err">${o.missing}</span>` : ''}</div>
       <${Lifecycle} target=${target} id=${o.id} name=${o.name} where=${where} onChange=${onChange} />
+      ${(!isLocal && o.ready) && html`<div class="set-actions"><button class="btn sm ghost" onClick=${() => go('settings', 'harness-history', 'remote:' + m.id + ':' + o.id)}><${Icon} n="history" />${t('history.entry')}</button></div>`}
     </div>`;
   const absent = list.filter(o => !installed(o));
   return html`<section class="set-group anim-rise"><h3>${t("settings.machines.harnesses")}<${Tip} text=${t("settings.machines.version_installee_et_derniere_publiee_installation_et_mises_a_jou") + where + t("settings.machines.un_harness_ajoute_a_loom_apparait_dans_le_selecteur_de_modeles")} /></h3>
