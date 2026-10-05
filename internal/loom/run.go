@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "0.2.5"
+const Version = "0.2.6"
 
 // Main est le vrai main() du binaire (cmd/loom ne fait que l'appeler).
 func Main() {

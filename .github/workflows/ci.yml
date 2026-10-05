@@ -28,6 +28,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libayatana-appindicator3-dev
 
+      - name: Check compiled Windows version resources
+        run: python3 tools/check-version-resources.py
+
       - name: Run tests
         run: go test -v -short ./...
 

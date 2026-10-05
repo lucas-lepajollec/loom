@@ -32,6 +32,8 @@ jobs:
           grep -Fq "const Version = \"$VERSION\"" internal/loom/run.go
           grep -Fq "\"ProductVersion\": \"$VERSION\"" cmd/loom/versioninfo.json
           grep -Fq "## [$VERSION]" CHANGELOG.md
+      - name: Check compiled Windows version resources
+        run: python3 tools/check-version-resources.py
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
@@ -105,6 +107,8 @@ jobs:
           mkdir -p dist
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o dist/loom-windows.exe ./cmd/loom
           GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o dist/loom-windows-arm.exe ./cmd/loom
+      - name: Check executable Windows properties
+        run: python3 tools/check-version-resources.py --windows-exe dist/loom-windows.exe dist/loom-windows-arm.exe
       - name: Upload artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

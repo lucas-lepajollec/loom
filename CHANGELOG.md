@@ -4,7 +4,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
-## [0.2.5] - 2026-10-05
+## [0.2.6] - 2026-10-05
 
 ### Added
 
@@ -28,6 +28,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   whether lingering is available for startup before login.
 
 ### Fixed
+
+- Synchronize compiled Windows version resources with the source version and
+  reject stale resources in CI and release builds. The 0.2.5 draft was not published.
 
 - Limit the model selector to 70% of the visible viewport and at most 520px,
   with scrolling inside the list and a persistent close button.
