@@ -2,6 +2,8 @@ import { t, locale, getLang, setLang, tSource } from '../../core/i18n.js';
 // Réglages : Général, Moteur, Internet, Sécurité, À propos. Une ligne par
 // réglage, l'explication en ⓘ, jamais en paragraphe sous chaque option.
 import { openWelcome } from '../onboarding/welcome.js';
+import { HarnessHistory } from '../harnesses/history.js';
+import { SearchSettings } from './search.js';
 import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Switch, Tip, Seg, Empty } from '../../ui/controls.js';
@@ -17,8 +19,9 @@ import { MachinesSettings } from './machines.js';
 import { WorkspaceManager } from '../workspaces/folders.js';
 import { LoomUpdates } from './updates.js';
 import { VLLMEngine } from './vllm.js';
+import { StartupSettings } from './startup.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['machines', t("settings.page.machines"), 'server'], ['workspaces', t('workspaces.title'), 'folder'], ['engine', t("settings.page.moteurs"), 'chip'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['machines', t("settings.page.machines"), 'server'], ['workspaces', t('workspaces.title'), 'folder'], ['engine', t("settings.page.moteurs"), 'chip'], ['startup', t('startup.title'), 'power'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 function usePref() {
@@ -316,8 +319,8 @@ function Internet() {
   useEffect(() => { load(); }, []);
   if (!n) return html`<div class="skeleton" style="height:140px"></div>`;
   const save = async body => { const r = await post('/api/internet', body); if (r.ok === false) toast(r.error, 'err'); load(); };
-  return html`<${Group} title="${t("settings.page.recherche_web")}">
-    <${Line} label="${t("settings.page.donner_internet_aux_modeles_locaux")}" tip="${t("settings.page.outils_de_recherche_et_de_lecture_de_pages_ils_s_activent_ensuite")}"><${Switch} checked=${n.enabled} onChange=${v => save({ enabled: v, url: n.url })} /></${Line}>
+  return html`<${SearchSettings} /><${Group} title="${t('search.pages')}">
+    <${Line} label="${t('search.enable')}" tip="${t('search.enable_tip')}"><${Switch} checked=${n.enabled} onChange=${v => save({ enabled: v, url: n.url })} /></${Line}>
     <${Line} label="${t("settings.page.moteur")}" tip="${t("settings.page.integre_aucune_installation_crawl4ai_navigateur_headless_pour_les")}"><${Seg} size="sm" value=${n.engine} onChange=${v => save({ engine: v })} options=${[{ value: 'go', label: t("settings.page.integre") }, { value: 'crawl4ai', label: t("settings.page.crawl4ai") }]} /></${Line}>
     ${n.engine === 'crawl4ai' && html`<${Line} label="${t("settings.page.adresse_crawl4ai")}"><input class="input sm" style="width:260px" value=${n.url} placeholder="http://localhost:11235" onChange=${e => save({ url: e.target.value })} /></${Line}>
       <${Line} label="${t("settings.page.cle_crawl4ai")}">${n.key_set ? html`<span class="muted mono">••••${n.key_hint}</span><button class="btn sm ghost" onClick=${() => save({ key: '' })}>${t("settings.page.retirer")}</button>`
@@ -523,11 +526,12 @@ export function SettingsPage({ route }) {
     change(); media.addEventListener('change', change);
     return () => media.removeEventListener('change', change);
   }, []);
+  if (route.sub === 'harness-history') return html`<${HarnessHistory} />`;
   const sections = SECTIONS();
   const selected = sections.find(s => s[0] === route.sub);
   const sec = selected ? selected[0] : 'general';
   const detail = !mobile || !!selected;
-  const View = { general: General, workspaces: WorkspaceManager, machines: MachinesSettings, engine: Engine, internet: Internet, security: Security, about: About }[sec];
+  const View = { general: General, workspaces: WorkspaceManager, machines: MachinesSettings, engine: Engine, startup: StartupSettings, internet: Internet, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
     <div class="page-head settings-head"><div>
       ${mobile && selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}

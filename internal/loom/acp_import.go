@@ -19,7 +19,7 @@ var nativeImportMu sync.Mutex
 
 func nativeImportMatches(s RuntimeSession, agent acpAgent, nativeID string) bool {
 	if s.ImportSource != nil {
-		return s.ImportSource.RuntimeID == agent.ID && s.ImportSource.MachineID == agent.Machine && s.ImportSource.SessionID == nativeID
+		return s.ImportSource.TargetChoice == "" && s.ImportSource.RuntimeID == agent.ID && s.ImportSource.MachineID == agent.Machine && s.ImportSource.SessionID == nativeID
 	}
 	return s.RuntimeID == agent.ID && s.NativeSessionID == nativeID
 }
@@ -93,7 +93,7 @@ func listACPSessions(ctx context.Context, agent acpAgent) ([]acpSessionInfo, err
 	}
 	bound := map[string]string{}
 	for _, s := range workspaceSessions.list() {
-		if s.ImportSource != nil && s.ImportSource.RuntimeID == agent.ID && s.ImportSource.MachineID == agent.Machine {
+		if s.ImportSource != nil && s.ImportSource.TargetChoice == "" && s.ImportSource.RuntimeID == agent.ID && s.ImportSource.MachineID == agent.Machine {
 			bound[s.ImportSource.SessionID] = s.ID
 		} else if s.RuntimeID == agent.ID && s.NativeSessionID != "" {
 			bound[s.NativeSessionID] = s.ID
@@ -123,6 +123,22 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 				return s, errors.New("discussion not found or locked")
 			}
 			return full, nil
+		}
+	}
+	s, err := readNativeACPSession(ctx, agent, info, projectID, len(fresh) > 0 && fresh[0])
+	if err != nil {
+		return s, err
+	}
+	return s, putStoreJSON(bkRuntimeSessions, s.ID, s)
+}
+
+// Reading is separate from retaining/deduplicating a Loom import. Transfers
+// replay the live native source rather than a previously imported Loom copy.
+func readNativeACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, projectID string, fresh bool) (RuntimeSession, error) {
+	var s RuntimeSession
+	if projectID != "" {
+		if _, ok := getProject(projectID); !ok {
+			return s, errors.New("project not found or locked")
 		}
 	}
 	check := acpDirectory
@@ -174,14 +190,14 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 	if n := len(prepared.Messages); n > 0 {
 		s.NativeContext = acpContextHash(prepared.Messages[:n-1])
 	}
-	if len(fresh) > 0 && fresh[0] {
+	if fresh {
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
 		s.Commands = nil
 		if projectID != "" {
 			s.Workdir = ""
 		}
 	}
-	return s, putStoreJSON(bkRuntimeSessions, s.ID, s)
+	return s, nil
 }
 
 // GET /api/runtimes/{id}/sessions: native sessions; POST …/sessions/import.

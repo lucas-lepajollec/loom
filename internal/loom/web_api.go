@@ -782,7 +782,7 @@ func handleInternet(w http.ResponseWriter, r *http.Request) {
 	}
 	sendJSON(w, 200, map[string]any{
 		"ok":        true,
-		"enabled":   internetEnabled(),
+		"enabled":   getBool(bkState, "internet"),
 		"engine":    webEngine(),
 		"url":       crawl4aiURL(),
 		"reachable": crawlReachable(),

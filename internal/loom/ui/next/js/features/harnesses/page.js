@@ -17,6 +17,7 @@ import { newDiscussion, chooseRemote, open as openChat } from '../chat/engine.js
 
 import { Lifecycle, remoteHarnessTarget } from './lifecycle.js';
 import { HarnessAccount } from './account.js';
+import { HarnessHistory } from './history.js';
 
 // Ce que Loom sait vraiment piloter aujourd'hui, par capacité déclarée.
 const CAPS = () => ([
@@ -442,6 +443,7 @@ export function HarnessesPage({ route }) {
   const selectedModel = models.find(m => m.id === selected?.model);
   const cur = runtimes.find(r => r.id === route.sub);
   const order = r => (r.implemented && r.capabilities && r.capabilities.length ? 0 : 1);
+  if (route.sub === 'history') return html`<${HarnessHistory} />`;
   return html`<div class="view page"><div class="page-in wide">
     ${cur ? html`<button class="btn ghost sm back" onClick=${() => go('harnesses')}><${Icon} n="left" />${t("harnesses.page.harnesses")}</button>
       <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`

@@ -20,7 +20,7 @@ configuration before editing; preserve unrelated work.
 4. Descriptors must match implemented capabilities. Native runtime state,
    approvals and hidden reasoning remain private. Unknown metrics stay unknown.
 5. Keep credentials out of logs and public records. Provider keys may be
-   explicitly remembered in the OS keychain. Preserve vault checks, bounded
+   explicitly remembered in the OS keychain or private encrypted server store. Preserve vault checks, bounded
    input, model-output escaping and consent before external context handoff.
 6. Add UI copy in both English and French dictionaries. English is the default;
    use short sentence-case labels and existing Tip components for explanations.

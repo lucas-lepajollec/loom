@@ -104,9 +104,9 @@ export function Picker() {
       ${cur.name ? html`<i class=${cls('dot', cur.kind !== 'local' || (status && status.health) ? 'green' : '')}></i><span class="exec-route">${cur.kind === 'harness' ? cur.sub || tag : tag}</span><b>${cur.name}</b>${cur.kind !== 'harness' && cur.sub && html`<span class="exec-sub">${cur.sub}</span>`}` : html`<b>${t("chat.picker.choisir_un_modele")}</b>`}
       <${Icon} n="chevron" class="exec-caret" />
     </button>
-    ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} width=${420} class="picker">
+    ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} width=${420} heightLimit=${520} heightRatio=${0.7} class="picker">
       <div class="pick-top">
-        <label class="search"><${Icon} n="search" /><input autofocus placeholder="${t("chat.picker.rechercher_un_modele_un_preset_un_harness")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>
+        <div class="pick-search"><label class="search"><${Icon} n="search" /><input autofocus placeholder="${t("chat.picker.rechercher_un_modele_un_preset_un_harness")}" value=${q} onInput=${e => setQ(e.target.value)} /></label><button type="button" class="icon-btn" aria-label=${t('ui.dialog.fermer')} onClick=${close}><${Icon} n="close" /></button></div>
         <${Seg} value=${tab} onChange=${setTab} label="${t("chat.picker.type_d_execution")}" options=${[
           { value: 'local', label: t("chat.picker.local"), count: lists.local.length },
           { value: 'cloud', label: t("chat.picker.cloud"), count: lists.cloud.length },

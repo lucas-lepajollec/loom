@@ -14,9 +14,11 @@
 .exec-route{color:var(--text-3);font-size:12px;white-space:nowrap;flex-shrink:0;max-width:35%;overflow:hidden;text-overflow:ellipsis}
 .exec-caret{color:var(--text-3);transition:transform var(--mid) var(--out)}
 .exec-btn.open .exec-caret{transform:rotate(180deg)}
-.picker{padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:min(72vh,580px)}
+.picker{padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:min(70vh,520px)}
+.pick-search{display:flex;align-items:center;gap:6px;min-width:0}
+.pick-search .search{flex:1;min-width:0}
 .pick-top{display:flex;flex-direction:column;gap:10px;padding:12px;border-bottom:1px solid var(--line-soft)}
-.pick-list{overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:1px;animation:in-fade var(--mid) var(--ease)}
+.pick-list{overflow-y:auto;overscroll-behavior:contain;min-height:0;padding:6px;display:flex;flex-direction:column;gap:1px;animation:in-fade var(--mid) var(--ease)}
 .pick-row{display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;border-radius:9px;text-align:left;transition:background-color var(--fast)}
 .pick-row:hover{background:var(--hover)}
 .pick-row.active{background:color-mix(in srgb,var(--blue) 11%,transparent)}

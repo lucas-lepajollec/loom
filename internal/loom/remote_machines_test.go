@@ -101,7 +101,7 @@ func TestRemoteMachineWithoutHarnessesPersistsAndRemainsEditable(t *testing.T) {
 	// but the operator explicitly selects none.
 	probe := `#!/bin/sh
 cat >/dev/null
-printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux","tools":[{"id":"codex","path":"/fixture/codex"}]}'
+printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux","tools":[{"id":"codex","path":"/fixture/codex"},{"id":"npx","path":"/fixture/npx"}]}'
 `
 	if err := os.WriteFile(filepath.Join(bin, "ssh"), []byte(probe), 0755); err != nil {
 		t.Fatal(err)
@@ -132,6 +132,21 @@ printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux
 		}
 		if len(loadCustomACPAgents()) != 0 {
 			t.Fatal("registered an unselected harness")
+		}
+		found := false
+		for _, source := range harnessHistorySources() {
+			if source.ID == "remote:gpu:codex" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("unselected ready harness cannot serve history")
+		}
+		if _, err := historySource("remote:gpu:codex"); err != nil {
+			t.Fatal(err)
+		}
+		if len(loadCustomACPAgents()) != 0 {
+			t.Fatal("reading a source registered it")
 		}
 	}
 }

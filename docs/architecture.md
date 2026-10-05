@@ -301,7 +301,7 @@ the machine's network path, not an individual harness's sandbox permissions.
 | Projects, skills, providers (no keys) | Loom `resources/` | bbolt |
 | MCP definitions | Loom | `LOOM_HOME/mcp.json`; linked read-only sources/bindings in bbolt (see [MCP files](mcp-files.md)) |
 | Model configs, presets | Loom `engine/` | presets/*.env + bbolt |
-| Cloud provider API keys | server memory; optional OS keychain (`provider_keyring.go`) | absent from Loom provider records and browser storage |
+| Cloud provider API keys | server memory; optional OS keychain or private encrypted server store (`provider_keyring.go`, `provider_secret.go`) | absent from Loom provider records and browser storage |
 | Linked engine credentials | Loom | node record in the optionally encrypted Loom store; never returned to the browser |
 | Native sessions, approvals, private memory | each harness | upstream |
 | KV cache, slots, loaded instances | the engine | upstream |
@@ -445,6 +445,9 @@ Messages are marshaled directly without a schema conversion; streamed content an
 usage map back to the existing `StreamEvent`, and the result remains one assistant
 `Message`. Usage JSON tags, missing-versus-zero semantics, request budgets,
 `usage_mode: "none"`, limits, timeouts and all error text remain unchanged.
+Explicit `ToolAccess` optionally enables a bounded function-call loop; Loom
+supplies only `web_search` when Internet access is enabled, and Bench supplies no
+tools. Source selection and encrypted search keys remain application-owned.
 Socket-free transport tests cover the extracted protocol and the Loom boundary;
 existing cloud/session/provider/benchmark tests remain in Loom.
 

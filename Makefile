@@ -1,4 +1,8 @@
-.PHONY: default help build api web test check-ui clean
+.PHONY: default help build api web dev test check-ui clean
+
+DEV_HOME ?= $(CURDIR)/.project-local/runtime
+DEV_HOST ?= 127.0.0.1
+DEV_PORT ?= 2594
 
 default: build
 
@@ -8,6 +12,8 @@ help:
 	  'make build      Build bin/loom with the embedded UI' \
 	  'make web        Run the web dashboard on port 2510 via go run' \
 	  'make api        Alias for the same web dashboard command' \
+	  'make dev        Rebuild/run isolated development data on port 2594' \
+	  '                Set DEV_HOST to a LAN IP for phone testing (auth required)' \
 	  'make test       Run the full Go test suite (go test ./...)' \
 	  'make check-ui   Syntax-check ES modules and run Node UI tests' \
 	  'make clean      Remove bin/' \
@@ -21,6 +27,13 @@ api:
 	go run ./cmd/loom web 2510
 
 web: api
+
+# Foreground only: no install, production data or production service names.
+# go run embeds the current UI again on every launch, including uncommitted edits.
+dev:
+	LOOM_HOME="$(DEV_HOME)" LOOM_WEB_HOST="$(DEV_HOST)" \
+	  LOOM_SERVICE=loom-dev-engine LOOM_UI_SERVICE=loom-dev-ui \
+	  go run ./cmd/loom web "$(DEV_PORT)"
 
 test:
 	go test ./...

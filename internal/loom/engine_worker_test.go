@@ -33,6 +33,13 @@ func TestEngineWorkerBoundaryAndInitialization(t *testing.T) {
 		t.Fatal("init rotated the credential")
 	}
 	mux := newEngineWorkerMux(token)
+	for _, method := range []string{"GET", "POST"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(method, "/api/startup", nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatal("node startup accepted unauthenticated access", rec.Code)
+		}
+	}
 	for _, path := range []string{"/", "/next/", "/api/workspace", "/api/chat/send", "/api/providers", "/api/harness/lifecycle", "/api/terminals", "/mcp/brain", "/api/auth/login"} {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", path, nil)

@@ -13,6 +13,7 @@ Preserve the original discussion/composer and complete local parameters. The one
 - Builds require Go 1.26.8+; UI checks also require Node. Real execution needs an installed or linked engine or harness. Loom can install llama.cpp and, on supported Linux CUDA/ROCm systems, vLLM.
 - Build the binary with `make build` (embeds `internal/loom/ui/next` and compiles `bin/loom`). Check the UI with `make check-ui`.
 - Run the web dashboard in development with `make web` or `./bin/loom web 2510`.
+- For isolated checkout/phone checks, use `make dev` (port 2594, `.project-local/runtime`). `make dev DEV_HOST=<LAN-IP>` requires a dev access password; stop/rerun to rebuild and reload the browser. See `CONTRIBUTING.md`.
 - Run validation tests with `make test` or `go test -short ./...`.
 - UI regression tests: `node --test internal/loom/ui/tests/*.test.mjs` (Node is also required by `make check-ui`).
 - Reasoning families are a UI projection of discovered native IDs, not invented runtime models. Keep per-response provenance in the display journal and out of model-visible context; unknown historical metrics stay unknown. AGY average output-token throughput is not llama.cpp decode throughput. Never reconstruct hidden reasoning or claim a file diff from a reported write target.

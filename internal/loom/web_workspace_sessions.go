@@ -62,7 +62,10 @@ func handleProviderDisconnect(w http.ResponseWriter, r *http.Request) {
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	workspaceSessions.disconnect(req.ID)
+	if err := workspaceSessions.disconnect(req.ID); err != nil {
+		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
 	resyncHarnessSources()
 	sendJSON(w, 200, map[string]any{"ok": true})
 }
@@ -166,7 +169,7 @@ func handleRuntimeSessionSelect(w http.ResponseWriter, r *http.Request) {
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	s, err := workspaceSessions.selectModel(req.ID, req.ChoiceID, req.Consent, req.ReasoningEffort)
+	s, err := workspaceSessions.selectModelContext(r.Context(), req.ID, req.ChoiceID, req.Consent, req.ReasoningEffort)
 	if err != nil {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return

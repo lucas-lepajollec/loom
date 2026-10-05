@@ -40,13 +40,21 @@ export { render, Fragment, createContext, useState, useEffect, useLayoutEffect, 
 export function createStore(initial) {
   let state = initial;
   const subs = new Set();
-  let queued = false;
-  const flush = () => { queued = false; subs.forEach(fn => fn()); };
+  let queued = false, frame, timer;
+  const flush = () => {
+    if (!queued) return;
+    queued = false; cancelAnimationFrame(frame); clearTimeout(timer);
+    subs.forEach(fn => fn());
+  };
   return {
     get: () => state,
     set(patch) {
       state = { ...state, ...(typeof patch === 'function' ? patch(state) : patch) };
-      if (!queued) { queued = true; requestAnimationFrame(flush); }
+      if (!queued) {
+        queued = true; frame = requestAnimationFrame(flush);
+        // A suspended/throttled animation frame must not hold all UI updates.
+        timer = setTimeout(flush, 100);
+      }
     },
     subscribe(fn) { subs.add(fn); return () => subs.delete(fn); },
   };
@@ -56,10 +64,15 @@ export function useStore(store, select = s => s) {
   const [, force] = useReducer(x => x + 1, 0);
   const ref = useRef(); ref.current = select;
   const val = useRef(select(store.get()));
-  useEffect(() => store.subscribe(() => {
-    const next = ref.current(store.get());
-    if (!selectedEqual(next, val.current)) { val.current = next; force(); }
-  }), [store]);
+  useLayoutEffect(() => {
+    const sync = () => {
+      const next = ref.current(store.get());
+      if (!selectedEqual(next, val.current)) { val.current = next; force(); }
+    };
+    const unsubscribe = store.subscribe(sync);
+    sync();
+    return unsubscribe;
+  }, [store]);
   val.current = select(store.get());
   return val.current;
 }

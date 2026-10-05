@@ -30,6 +30,37 @@ This embeds the web UI (`internal/loom/ui/next`, no build step) and outputs the 
 
 Access the UI at `http://127.0.0.1:2510`. Use the first-run guide to install or link an engine, or use cloud providers/harnesses. Settings › Engines manages engines; `./bin/loom edit` can configure `BIN` for an existing `llama-server`. Read the [architecture principles](docs/architecture-principles.md) before runtime changes.
 
+### Test uncommitted changes from a phone
+
+`make dev` rebuilds and runs the current checkout on port **2594**, with separate
+data in `.project-local/runtime` and development service names. It does not install
+or update a production instance. Set an access password in that instance's
+Settings → Security and data first, or use:
+
+```sh
+make build
+LOOM_HOME="$PWD/.project-local/runtime" ./bin/loom password
+make dev DEV_HOST=192.0.2.10
+```
+
+Replace `192.0.2.10` with the development computer's LAN address. On a phone on
+the same network, open `http://<computer-LAN-address>:2594` and sign in with the
+**development** password. If the host firewall blocks access, allow this port
+only for the intended network. No public tunnel, HTTPS certificate, commit, push
+or release is required for this LAN browser test.
+
+After source changes, stop the foreground process with Ctrl-C, rerun the same
+`make dev` command and reload the phone's page. Both Go and embedded UI changes
+are rebuilt; this command does not provide automatic hot reload. Development
+data persists across restarts. `DEV_HOME`, `DEV_PORT` and `DEV_HOST` can be
+overridden. Keep development data and engine ports separate from production;
+native harness accounts and processes still belong to the same OS user.
+
+`LOOM_WEB_HOST` overrides the listener address for one foreground Loom process,
+without writing its saved network setting. A non-loopback address still requires
+an access password or existing control key. The default `make dev` listener is
+loopback; specifying a LAN address is explicit.
+
 ## Validation
 
 Before opening a pull request, validate Go packages and the embedded UI:

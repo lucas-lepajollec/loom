@@ -24,11 +24,18 @@ function lastTurn(s) { return s && (s.turns || []).at(-1); }
 function CloudPanel() {
   const s = useStore(chat, c => c.session);
   const ws = useStore(app, a => a.workspace);
+  const [web, setWeb] = useState(null);
+  useEffect(() => { let alive=true; get('/api/internet').then(r => { if (alive && r.ok!==false) setWeb(r.enabled); }).catch(()=>{}); return()=>{alive=false;}; }, []);
+  const toggleWeb = async enabled => { const r=await post('/api/internet',{enabled}); if (r.ok===false) toast(r.error,'err'); else setWeb(r.enabled); };
   if (!s) return null;
   const p = ((ws && ws.providers) || []).find(x => x.id === s.provider_id);
   const localT = lastTurn(s), u = localT && localT.usage;
   return html`<div class="insp-body">
     <div class="insp-model"><b>${baseName(s.model)}</b><span>${s.provider_name}</span></div>
+    <div class="card pad-sm">
+      <${KV} k=${t('search.cloud_toggle')}><${Switch} checked=${web===true} disabled=${web===null || s.status==='running'} onChange=${toggleWeb} /></${KV}>
+      <p class="note">${t('search.cloud_tip')} <a href="#/settings/internet">${t('search.provider')}</a></p>
+    </div>
     <div class="card pad-sm">
       <${KV} k=${t('cloud.page.fournisseur')}>${s.provider_name}</${KV}>
       <${KV} k=${t('settings.page.cle')}>${p && p.ready ? html`<span class="tag green">${t("inspector.inspector.en_memoire")}</span>` : html`<span class="tag amber">${t("inspector.inspector.a_reconnecter")}</span>`}</${KV}>

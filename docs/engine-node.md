@@ -236,3 +236,34 @@ Only the saved node receives its own credential; redirects are refused. Node
 updates use the same checksum verification, installer capability checks and
 restart handling as the existing active-node update. Applying a release still
 requires confirmation and may interrupt the node's engines.
+
+## Startup from the main interface
+
+Settings → Startup lists installed Loom units on the selected machine. On Linux,
+`GET/POST /api/startup` manages the current installation; SSH machines use
+`/api/machines/{id}/startup` for the fixed `loom-ui`, `loom-engine` and `loom-node`
+units. Arbitrary unit names and shell fragments are rejected. Changing enabled
+state never adds `--now`, starts a service, or stops a running workload. Missing
+units must first be installed normally. System-unit changes require root or
+noninteractive sudo authorization; errors remain visible rather than prompting
+for a password through an HTTP process.
+
+`loom-node` is a systemd user service. Without lingering it may start only after
+login. The interface reads `loginctl` state and warns when before-login startup
+is not established. An administrator can explicitly enable lingering for the
+node account (`loginctl enable-linger USER`); Loom does not grant that itself.
+Other operating systems currently report this management capability unsupported.
+
+Linked engine nodes also expose `/api/startup` with their existing machine token;
+main Loom proxies it through `/api/machines/{id}/node/startup`. A node policy
+selects `off`, `llama.cpp` or `vllm` (a cached Hub model ID is required for vLLM).
+It is applied on the next node start using existing supervision and saved native
+parameters. No UI, Brain, discussion or harness is started by the node. vLLM
+startup runs with Hub/Transformers offline flags, without automatic dependency
+installation or inference. Main Loom permits `off`/`vllm`; llama.cpp starts via
+its installed engine service. Simultaneous saved llama.cpp service and vLLM
+startup are rejected. Direct inference links have no lifecycle/startup endpoint.
+
+These settings do not create arbitrary service units or deploy a node. Older
+nodes need an update before exposing their engine policy. Unit and real boot
+behavior require acceptance on the actual target machine.

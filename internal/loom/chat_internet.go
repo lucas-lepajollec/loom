@@ -9,19 +9,9 @@ import (
 	"time"
 )
 
-// Accès internet de l'IA — port Go de l'extension pi ~/.pi/agent/extensions/web.ts.
-//
-// loom parle à un serveur Crawl4AI (Chrome headless, endpoint /crawl) dont l'URL
-// est configurée dans config.env (CRAWL4AI_URL). Quand le mode agent ET l'accès
-// internet sont actifs ET que le serveur répond, l'IA dispose de 4 outils :
-//
-//   - web_search : recherche DuckDuckGo (via crawl), liste {title, url, snippet}.
-//   - web_open   : récupère une URL (cache 10 min), renvoie SEULEMENT les métadonnées
-//                  (nb de lignes, taille, plan des titres) — pas le contenu.
-//   - web_read   : lit une plage de lignes d'une URL déjà ouverte (offset + limit).
-//   - web_grep   : recherche regex dans une URL déjà ouverte, lignes + contexte.
-//
-// Workflow attendu : web_open(url) → web_read/web_grep. Même logique que pi.
+// Web search uses the operator-selected provider independently of page reading.
+// Local turns expose web_search and bounded web_open/read/grep; Go reads served
+// HTML and Crawl4AI renders pages. Cloud turns receive only web_search.
 
 // ─── configuration & état ───────────────────────────────────────────────────
 
@@ -55,15 +45,9 @@ func crawlAuth(req *http.Request) {
 	}
 }
 
-// internetEnabled : accès internet actif = interrupteur armé ET moteur web
-// utilisable. Avec le moteur intégré (engineGo) il n'y a rien à configurer ;
-// avec Crawl4AI il faut en plus une URL de serveur.
-func internetEnabled() bool {
-	if webEngine() == engineCrawl && crawl4aiURL() == "" {
-		return false
-	}
-	return getBool(bkState, "internet")
-}
+// Provider/page failures are returned by the called tool. Do not probe a page
+// renderer while preparing a turn or disable independent search with it.
+func internetEnabled() bool { return getBool(bkState, "internet") }
 
 func setInternetEnabled(on bool) error { return putBool(bkState, "internet", on) }
 

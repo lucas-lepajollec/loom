@@ -74,6 +74,10 @@ loading a model in the engine library only changes the engine's state.
 
 <img src="docs/screenshots/usage.png" alt="Usage, subscription quota windows and provider balances" width="1000" />
 
+**Web search** connects DuckDuckGo, your own SearXNG, Brave Search or Tavily in
+Settings › Internet. Local models retain Go/Crawl4AI page reading; cloud models
+with function-call support can use the opt-in search tool. See [web search](docs/web-search.md).
+
 **Bench** compares local engines, configured cloud APIs and supported native-account models with the same prompt, without tools or project context. Claude Code supports a guarded model-only mode; other native adapters remain explicitly unavailable when tool suppression is not guaranteed. Results retain responses and distinguish engine timings from API/CLI observations. See [Bench](docs/bench.md). The **OpenAI-compatible `/v1` server** exposes `/v1/models` and `/v1/chat/completions` for other applications; local router requests use native slots and temporary parameter overrides without changing saved settings.
 
 The UI also provides a **PWA** shell where the browser supports installation. HTTPS is required outside loopback. Offline mode shows a public fallback; it does not provide offline inference or queue messages.
@@ -118,6 +122,11 @@ Reopen the guide from **Settings › About**. The guide currently offers vLLM on
 
 ## Development previews and second brains
 
+To test the current checkout on a phone before a release, use `make dev` with
+isolated development data, then `make dev DEV_HOST=<computer-LAN-address>` after
+setting a development access password. Restart the command and reload after
+source edits; no commit or release is required. See [phone testing](CONTRIBUTING.md#test-uncommitted-changes-from-a-phone).
+
 **Terminals › Application previews** opens an HTTP development server on Loom or a saved SSH machine, including assets and WebSocket/HMR, through a separate authenticated browser origin. VM clients must be able to reach the preview listener; HTTPS setups need a separate preview origin. See [development previews](docs/development-previews.md).
 
 **Brain** brings sources/context, memory, skills and MCP together. Link multiple second brains from folders, Git checkouts, Obsidian vaults or already mounted WebDAV directories. Sources remain canonical and are read-only; Brain indexes selected text with provenance. Include/exclude rules and explicit personal-source opt-in control retrieval. Direct remote synchronization is not implemented. See [Brain](docs/brain.md).
@@ -151,7 +160,7 @@ External selection requires confirmation before sharing the portable transcript 
 
 Network access also occurs for requested model/catalog downloads, installs, updates, account reads, service checks and enabled tools/MCP servers. Opt-in automatic updates check upstream sources. Cloud semantic indexing sends selected source text and search queries after stored consent; remote distillation requires consent before sending discussion text.
 
-Set an **access password** in Settings → Security and data to sign in from other devices. The browser uses an HttpOnly session cookie; no control key needs to be copied between devices. Existing control keys remain supported for automation and remote-engine links, separately from the `/v1` inference key. Network exposure requires a password or existing control key; use TLS for remote access. See [Interface access](docs/access.md) for migration, password changes and local recovery with `loom password`. The optional **vault** encrypts supported Loom stores and blocks access while locked. Cloud provider keys remain in memory unless explicitly remembered in the **OS keychain**; they are not stored in provider records or browser storage. External files and native harness stores retain their own security rules. See [SECURITY.md](SECURITY.md).
+Set an **access password** in Settings → Security and data to sign in from other devices. The browser uses an HttpOnly session cookie; no control key needs to be copied between devices. Existing control keys remain supported for automation and remote-engine links, separately from the `/v1` inference key. Network exposure requires a password or existing control key; use TLS for remote access. See [Interface access](docs/access.md) for migration, password changes and local recovery with `loom password`. The optional **vault** encrypts supported Loom stores and blocks access while locked. Cloud provider keys remain in memory unless explicitly remembered in the **OS keychain or encrypted server store**; they are not stored in provider records or browser storage. External files and native harness stores retain their own security rules. See [SECURITY.md](SECURITY.md).
 
 Update Loom from **Settings → About → Updates** using official GitHub releases, verified checksums and a retained previous binary. Linux system installations support a scoped updater and UI restart after one-time administrator setup; see [Updating Loom](docs/updates.md). A source push becomes available to installed users only after a release is published.
 

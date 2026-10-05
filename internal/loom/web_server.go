@@ -49,6 +49,7 @@ func cmdWeb(args []string) error {
 	go vllmAutoLoop()
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	defer stopLifecycle()
+	go startConfiguredEngine(lifecycleCtx)
 	go harnessLifecycle.autoLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
 	fmt.Printf("[loom web] http://%s  (Ctrl-C to stop)\n", addr)
@@ -143,6 +144,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/runtimes/{id}/update", handleHarnessUpdate)
 	api("/api/runtimes/{id}/mcp/adopt", handleHarnessMCPAdopt) // copier un MCP du harness dans Loom
 	api("/api/harness/bindings", handleHarnessBindings)
+	api("/api/internet/search", handleSearchSettings)
+	api("/api/internet/search/test", handleSearchTest)
 	api("/api/harness/lifecycle", handleHarnessLifecycle)
 	api("/api/harness/lifecycle/auto", handleHarnessLifecycleAuto)
 	api("/api/harness/model-source", handleModelSink)          // modèles Loom proposés dans un harness ouvert (Pi)        // MCP Loom transmis à chaque harness
@@ -150,6 +153,9 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/runtimes/{id}/sessions", handleACPSessions)      // sessions natives d’un harness ACP
 	api("/api/runtimes/{id}/sessions/import", handleACPImport) // importer une session native dans Loom // modèles et réglages annoncés par un harness ACP
 	api("/api/runtimes/{id}/quota", handleRuntimeQuota)
+	api("/api/startup", handleStartup)
+	api("/api/harness-history", handleHarnessHistory)
+	api("/api/harness-history/transfer", handleHarnessTransfer)
 	api("/api/providers", handleProviders)
 	api("/api/providers/save", handleProviderSave)
 	api("/api/providers/models", handleProviderModels)
@@ -180,6 +186,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/machines/delete", handleRemoteMachineDelete)
 	api("/api/machines/folders", handleMachineFolders)
 	api("/api/machines/local", handleLocalMachine)
+	api("/api/machines/{id}/startup", handleMachineStartup)
+	api("/api/machines/{id}/node/startup", handleMachineNodeStartup)
 	api("/api/machines/{id}/node", handleMachineNode)
 	api("/api/machines/{id}/node/update", handleMachineNodeUpdate)
 	api("/api/machines/{id}/node/update/apply", handleMachineNodeUpdate)

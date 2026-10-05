@@ -60,7 +60,7 @@ export function Tip({ text }) {
 }
 
 // Popover ancré sous (ou au-dessus de) son déclencheur, fermé par clic extérieur/Échap.
-export function Popover({ anchor, onClose, children, width, place, class: c }) {
+export function Popover({ anchor, onClose, children, width, place, heightLimit, heightRatio = 1, class: c }) {
   const box = useRef(), close = useRef(onClose); close.current = onClose;
   const [st, setSt] = useState({ visibility: 'hidden' });
   useLayoutEffect(() => {
@@ -72,7 +72,8 @@ export function Popover({ anchor, onClose, children, width, place, class: c }) {
       if (!anchor.isConnected) { close.current(); return; }
       const bounds = { left: viewport?.offsetLeft || 0, top: viewport?.offsetTop || 0,
         width: viewport?.width || innerWidth, height: viewport?.height || innerHeight };
-      const maxWidth = Math.max(0, bounds.width - 16) + 'px', maxHeight = Math.max(0, bounds.height - 16) + 'px';
+      const maxWidth = Math.max(0, bounds.width - 16) + 'px';
+      const maxHeight = Math.max(0, Math.min(bounds.height - 16, heightLimit ?? Infinity, bounds.height * heightRatio)) + 'px';
       if (el.style.maxWidth !== maxWidth) el.style.maxWidth = maxWidth;
       if (el.style.maxHeight !== maxHeight) el.style.maxHeight = maxHeight;
       const next = { ...popoverPosition(anchor.getBoundingClientRect(), el.offsetWidth, el.offsetHeight, bounds, place), maxWidth, maxHeight };
@@ -94,7 +95,7 @@ export function Popover({ anchor, onClose, children, width, place, class: c }) {
       observer?.disconnect(); window.removeEventListener('resize', schedule); window.removeEventListener('scroll', schedule, true);
       viewport?.removeEventListener('resize', schedule); viewport?.removeEventListener('scroll', schedule);
     };
-  }, [anchor, width, place]);
+  }, [anchor, width, place, heightLimit, heightRatio]);
   useEffect(() => {
     const clicked = e => { if (box.current && !box.current.contains(e.target) && !anchor?.contains(e.target)) close.current(); };
     const key = e => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); close.current(); if (anchor?.isConnected) anchor.focus(); } };

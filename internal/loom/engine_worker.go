@@ -264,6 +264,7 @@ func newEngineWorkerMux(token string) *http.ServeMux {
 	api("/api/ping", handlePing)
 	api("/api/update", handleUpdateCheck)
 	api("/api/update/apply", handleUpdateApply)
+	api("/api/startup", handleStartup)
 	api("/api/network", handleNodeNetwork)
 	api("/api/engine/execution-config", handleNodeExecutionConfig)
 	api("/api/bench", handleBench)
@@ -278,7 +279,7 @@ func newEngineWorkerMux(token string) *http.ServeMux {
 			return
 		}
 		host, _ := os.Hostname()
-		sendJSON(w, 200, map[string]any{"ok": true, "hostname": host, "version": Version, "role": "engine-node", "engine": true, "v1_exposed": true, "v1_same_origin": true, "api_key": readAPIKey(), "capabilities": []string{"llama.cpp", "vllm", "models", "presets", "downloads", "engine-updates", "node-updates", "local-benchmarks"}})
+		sendJSON(w, 200, map[string]any{"ok": true, "hostname": host, "version": Version, "role": "engine-node", "engine": true, "v1_exposed": true, "v1_same_origin": true, "api_key": readAPIKey(), "capabilities": []string{"llama.cpp", "vllm", "models", "presets", "downloads", "engine-updates", "node-updates", "startup", "local-benchmarks"}})
 	})
 	// A node's inference credential is independent from its management token.
 	inference := func(w http.ResponseWriter, r *http.Request) {
@@ -383,6 +384,7 @@ func serveEngineWorker(addr string) error {
 	// No newWebMux, Brain, MCP prewarm, provider keyring or harness probes/loops.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go startConfiguredEngine(ctx)
 	srv := &http.Server{Handler: newEngineWorkerMux(token), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	go func() {
 		<-ctx.Done()

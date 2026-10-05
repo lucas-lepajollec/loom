@@ -79,6 +79,10 @@ capability boundaries; see [engines](engines.md).
 ## Cloud destinations and credentials
 
 The common cloud adapter implements Chat Completions and bounded SSE streaming.
+Enabled Internet access adds only `web_search` for models supporting function
+calls, with bounded rounds/results and accumulated reported usage. No shell,
+file, MCP or private-memory tools are exposed. Search providers and page reading
+are separate; see [web search](web-search.md).
 It uses the configured base URL/model, rejects redirects and sanitizes upstream
 errors. HTTPS is required except explicitly local-network HTTP. It does not
 silently convert another provider protocol, retry a paid turn or infer native
@@ -92,7 +96,16 @@ usage options for providers that reject them.
 
 Provider records contain configuration, not credentials. Keys live in the
 workspace's server memory and can be explicitly remembered in the OS keychain.
-Startup restores available remembered keys; otherwise reconnect after a restart.
+When unavailable on a headless host, explicit saving uses the encrypted server
+store `LOOM_HOME/secrets/providers`: AES-GCM, per-provider authenticated identity,
+private 0600 files and a private installation-local 32-byte key. Startup restores
+saved keys; an unavailable or corrupted store leaves the provider disconnected.
+The local encryption key protects against accidental plaintext exposure, not a
+compromised operating-system account. The optional Loom vault is independent: it
+does not password-wrap this credential key. Back up both `.key` and the sealed files
+privately; losing the key cannot be repaired by regenerating it. Credentials are
+absent from provider JSON and browser storage. Forgetting removes remembered
+credentials and reports failures.
 Keys are not saved in provider records or browser storage. The optional Loom
 vault protects supported Loom stores; it is separate from OS keychain storage.
 Linked-engine credentials use the optionally encrypted node record. MCP files,
@@ -272,3 +285,32 @@ candidate exclusion, selected preference sharing, native import replay/dedup and
 incremental opt-in semantic indexing with synthetic providers. Narrow viewport
 checks include project saves and memory actions. Physical Brave mobile, real ACP
 accounts and multilingual/GPU quality remain separate acceptance checks.
+
+## Native discussions across machines
+
+Open **Settings → Machines → selected machine**. Each ready detected harness
+has an **Import discussions** action, even when it has not been added to Loom.
+The action selects that exact source; choose a connected destination harness on
+the main host or another machine. Returning goes back to the source machine.
+
+`GET /api/harness-history` enumerates installed local ACP adapters and harnesses
+from saved SSH detections, including those not selected as executors. Refresh a
+machine to update detections. `?source=local:ID` or
+`?source=remote:MACHINE:HARNESS` reads that source's native `session/list` history.
+The source must implement native listing/replay; unsupported histories are
+reported explicitly. Reading does not generate or run tools.
+
+`POST /api/harness-history/transfer` requires `source`, `sessionId`, `cwd`,
+`choice_id`, optional `project_id`/`title`, and `consent:true`. It preserves the original native source
+and creates a fresh portable discussion routed to a connected destination
+harness/model. Deduplication includes source machine/harness/session and target
+choice. The target machine's default workspace/project folder is used; source
+folder permissions and native session IDs are cleared. Transcript bounds and
+non-portable content checks still apply.
+
+No native database, account credential, approval, private tool state, source file
+or working tree is copied. The destination receives the portable transcript only
+on the next user-initiated turn; import itself does not materialize a native
+session or consume a model quota. This works between local and remote executors
+or two remote machines through Loom, without pretending ACP defines generic
+native-history database writes.

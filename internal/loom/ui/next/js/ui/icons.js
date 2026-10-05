@@ -33,6 +33,8 @@ const P = {
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z',
   download: 'M12 4v12M6 10l6 6 6-6M4 20h16',
   play: 'M7 5v14l11-7Z',
+  power: 'M12 2v10M6 5a9 9 0 1 0 12 0',
+  history: 'M3 12a9 9 0 1 0 3-6M3 3v6h6M12 7v5l3 2',
   refresh: 'M21 12a9 9 0 1 1-2.6-6.3M21 3v6h-6',
   chat: 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z',
   activity: 'M3 12h4l3-8 4 16 3-8h4',

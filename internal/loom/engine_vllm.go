@@ -192,7 +192,7 @@ func vllmArgs(model string, port int, gpuUtil float64, maxLen int) []string {
 	return args
 }
 
-func (v *vllmState) start(ctx context.Context, model string, values map[string]string, gpus int) error {
+func (v *vllmState) start(ctx context.Context, model string, values map[string]string, gpus int, offline ...bool) error {
 	port, err := freePort()
 	if err != nil {
 		return err
@@ -206,6 +206,9 @@ func (v *vllmState) start(ctx context.Context, model string, values map[string]s
 	// system CUDA compiler at first use, which fails on many machines: use
 	// vLLM's built-in sampler instead.
 	cmd.Env = append(os.Environ(), "VLLM_NO_USAGE_STATS=1", "VLLM_USE_FLASHINFER_SAMPLER=0")
+	if len(offline) > 0 && offline[0] {
+		cmd.Env = append(cmd.Env, "HF_HUB_OFFLINE=1", "TRANSFORMERS_OFFLINE=1")
+	}
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		return err

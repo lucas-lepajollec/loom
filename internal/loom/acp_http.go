@@ -26,7 +26,8 @@ func (c acpConfiguration) present() bool {
 	return c.FilesystemPolicy != nil || c.WorkspaceID != nil || c.MCPServers != nil || c.Workdir != nil || c.AdditionalDirs != nil || c.Permission != nil || c.Mode != nil || c.Config != nil
 }
 
-// Called under the session lock while no turn is running. No prompt is sent.
+// Caller reserves this discussion while preparing outside the global lock.
+// No prompt is sent.
 func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfiguration, consent bool) error {
 	old := cloneACPState(s.ACPState)
 	if c.MCPServers != nil {

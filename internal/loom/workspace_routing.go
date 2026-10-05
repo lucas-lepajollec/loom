@@ -3,10 +3,15 @@ package loom
 import (
 	"context"
 	"errors"
+	"reflect"
 	"time"
 )
 
 func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort ...string) (RuntimeSession, error) {
+	return m.selectModelContext(context.Background(), id, choiceID, consent, effort...)
+}
+
+func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID string, consent bool, effort ...string) (RuntimeSession, error) {
 	choices := modelCatalog(m.providers())
 	var choice ModelChoice
 	found := false
@@ -21,20 +26,26 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 		return RuntimeSession{}, errors.New("model missing from selector; enable it in Models")
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	s, ok := m.getLocked(id)
 	if !ok {
+		m.mu.Unlock()
 		return s, errors.New("discussion not found")
 	}
-	if m.runs[id] != nil || m.nativeRunning(s) {
+	if m.preparing[id] || m.runs[id] != nil || m.nativeRunning(s) {
+		m.mu.Unlock()
 		return s, errors.New("wait for or stop the response before changing models")
 	}
 	if (choice.Kind == "cloud" || choice.Kind == "harness") && !consent {
+		m.mu.Unlock()
 		return s, errors.New("confirm sending the thread and context to this destination")
 	}
 	if choice.Kind == "cloud" && m.keys[choice.ProviderID] == "" {
+		m.mu.Unlock()
 		return s, errors.New("connect this provider in Models → Providers")
 	}
+	original := s
+	s = cloneRuntimeSession(s)
+	m.mu.Unlock()
 	previousRuntime, previousModel := s.RuntimeID, s.Model
 	s.RuntimeID = "llama.cpp"
 	if choice.Kind == "cloud" {
@@ -63,7 +74,7 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 					if err != nil {
 						return s, err
 					}
-					dir, err := prepareWorkspace(context.Background(), workspace, workspace.Managed)
+					dir, err := prepareWorkspace(ctx, workspace, workspace.Managed)
 					if err != nil {
 						return s, err
 					}
@@ -94,6 +105,18 @@ func (m *runtimeSessions) selectModel(id, choiceID string, consent bool, effort 
 	s.ProviderName = choice.ProviderName
 	s.Endpoint = choice.Endpoint
 	s.Model = choice.Model
+	if err := ctx.Err(); err != nil {
+		return s, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	current, exists := m.getLocked(id)
+	if !exists || !reflect.DeepEqual(current, original) || m.preparing[id] || m.runs[id] != nil || m.nativeRunning(current) {
+		return s, errors.New("discussion changed while preparing the executor; try again")
+	}
+	if choice.Kind == "cloud" && m.keys[choice.ProviderID] == "" {
+		return s, errors.New("provider disconnected while preparing the executor")
+	}
 	if previousRuntime != s.RuntimeID || previousModel != s.Model {
 		m.closeACP(id)
 		if previousRuntime != s.RuntimeID {
