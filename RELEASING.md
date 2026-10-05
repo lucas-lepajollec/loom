@@ -5,7 +5,7 @@ A version in source is not a release. Publish installation instructions only wit
 ## Before creating a tag
 
 1. Confirm the intended commit is on the repository’s `main` branch. Work from a clean checkout and verify the exact source commit to be tagged.
-2. Choose the version with the maintainer. Set the same version in `internal/loom/run.go` and `cmd/loom/versioninfo.json`, then move user-visible changes from `[Unreleased]` into `## [X.Y.Z]` in `CHANGELOG.md`.
+2. Choose the version with the maintainer. Set the same version in `internal/loom/run.go` and `cmd/loom/versioninfo.json`, regenerate compiled Windows resources with `go generate ./cmd/loom`, verify them with `python3 tools/check-version-resources.py`, then move user-visible changes from `[Unreleased]` into `## [X.Y.Z]` in `CHANGELOG.md`.
 3. Run `go test -short ./...`, `go vet ./...`, `make check-ui`, `npm --prefix demo run check` and `make build`. The UI is embedded directly from `internal/loom/ui/next`; there is no asset assembly step. Check that validation leaves no generated tracked-file diff.
 4. Review installation, migration and removal instructions against the tagged source. Back up an existing `LOOM_HOME` before upgrade tests. Test loopback and authenticated LAN behavior with sanitized fixtures.
 5. Test real Windows and macOS installations, not only cross-compilation. Confirm the installed binary path, service/process lifecycle, fresh install, update, data preservation and rollback. A missing platform test must be recorded as a release limitation, not silently treated as passing.
