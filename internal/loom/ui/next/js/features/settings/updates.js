@@ -3,6 +3,7 @@ import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { confirm } from '../../ui/dialog.js';
 import { Line, Group } from './kit.js';
+import { Seg } from '../../ui/controls.js';
 
 export async function waitForUpdatedVersion(version, read = get, pause = ms => new Promise(resolve => setTimeout(resolve, ms)), alive = () => true, ping = '/api/ping') {
   for (let i = 0; i < 30 && alive(); i++) {
@@ -22,14 +23,15 @@ export function LoomUpdates({ node = false, endpoint = '' } = {}) {
   const running = useRef(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => { if (!node) check(); }, []);
   const check = async () => {
     if (running.current) return;
     running.current = true; setBusy(true); setError(''); setMessage('');
     try {
       const result = await get(base);
-      if (result.error) throw new Error(result.error);
+      if (result.error) { setInfo(result.channel ? { channel: result.channel } : null); throw new Error(result.error); }
       setInfo(result);
-    } catch (err) { setInfo(null); setError(err.message); }
+    } catch (err) { setInfo(old => old && !old.current ? old : null); setError(err.message); }
     finally { running.current = false; setBusy(false); }
   };
   const install = async () => {
@@ -50,10 +52,19 @@ export function LoomUpdates({ node = false, endpoint = '' } = {}) {
     } catch (err) { setMessage(''); setError(err.message); }
     finally { running.current = false; if (alive.current) setBusy(false); }
   };
+  const setChannel = async channel => {
+    if (running.current || channel === info?.channel) return;
+    try {
+      const result = await post(base + '/channel', { channel });
+      if (!result.ok) throw new Error(result.error || t('updates.failed'));
+      await check();
+    } catch (err) { setError(err.message); }
+  };
   return html`<${Group} title=${t(node ? 'node.updates' : 'settings.page.mises_a_jour')}>
+    ${!node && html`<${Line} label=${t('updates.channel')} tip=${t('updates.channel_tip')}><${Seg} size="sm" label=${t('updates.channel')} value=${info?.channel || 'stable'} onChange=${setChannel} options=${[{ value: 'stable', label: t('updates.stable'), disabled: busy }, { value: 'edge', label: t('updates.edge'), disabled: busy }]} /></${Line}>`}
     <${Line} label=${t('updates.source')}><a href="https://github.com/lucas-lepajollec/loom/releases" target="_blank" rel="noopener noreferrer">${t('updates.releases')}</a></${Line}>
     <${Line} label=${t('updates.version')}>
-      ${info && html`<span class="state">${info.available ? t('updates.available', { version: info.latest }) : t('updates.current', { version: info.current })}</span>`}
+      ${info?.current && html`<span class="state">${info.available ? t('updates.available', { version: info.latest }) : t('updates.current', { version: info.current })}</span>`}
       <button class="btn sm" disabled=${busy} onClick=${check}>${t('settings.page.verifier')}</button>
       ${info?.available && html`<button class="btn sm primary" disabled=${busy || !info.can_apply} onClick=${install}>${t('updates.install')}</button>`}
     </${Line}>

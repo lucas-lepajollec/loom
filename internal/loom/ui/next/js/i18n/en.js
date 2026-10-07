@@ -1,5 +1,9 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "updates.channel": "Channel",
+  "updates.channel_tip": "Stable: published releases. Development: a test build rebuilt after every merged change, to get fixes right away. It may contain defects.",
+  "updates.stable": "Stable",
+  "updates.edge": "Development",
   "chat.tools.not_run": "Not run.",
   "chat.engine.older_omitted": "{n} older messages are not sent to the model to stay within the context limit; they remain in the discussion.",
   "chat.engine.selection_changed": "The execution choice changed in another tab. Reopen this discussion before sending; your draft is preserved.",

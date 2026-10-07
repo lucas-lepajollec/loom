@@ -23,8 +23,12 @@ import (
 
 const updateRepo = "lucas-lepajollec/loom"
 
+// releasesAPI is replaced by tests only.
+var releasesAPI = "https://api.github.com/repos/" + updateRepo + "/releases/"
+
 type Release struct {
 	TagName string `json:"tag_name"`
+	Name    string `json:"name"`
 	HTMLURL string `json:"html_url"`
 	Assets  []struct {
 		Name               string `json:"name"`
@@ -76,8 +80,42 @@ func EnsureV(s string) string {
 	return s
 }
 
-func FetchLatestRelease() (*Release, error) {
-	req, _ := http.NewRequest("GET", "https://api.github.com/repos/"+updateRepo+"/releases/latest", nil)
+// Update channels. Stable follows published releases; Development follows the
+// "edge" pre-release that CI rebuilds from every change merged into main.
+const (
+	ChannelStable = "stable"
+	ChannelEdge   = "edge"
+)
+
+// EdgeTitlePrefix starts the edge pre-release title, followed by its version.
+const EdgeTitlePrefix = "edge "
+
+func FetchLatestRelease() (*Release, error) { return FetchRelease(ChannelStable) }
+
+// FetchRelease returns the newest release of a channel. For the edge channel the
+// version comes from the release title and replaces the moving "edge" tag, so
+// callers compare and verify it exactly like a stable release.
+func FetchRelease(channel string) (*Release, error) {
+	if channel == ChannelEdge {
+		rel, err := fetchRelease("tags/edge")
+		if err != nil {
+			if strings.Contains(err.Error(), "404") {
+				return nil, fmt.Errorf("no development build is published yet")
+			}
+			return nil, err
+		}
+		v := strings.TrimSpace(strings.TrimPrefix(rel.Name, EdgeTitlePrefix))
+		if !strings.HasPrefix(rel.Name, EdgeTitlePrefix) || !strings.Contains(v, "-dev.") {
+			return nil, fmt.Errorf("development build unavailable")
+		}
+		rel.TagName = v
+		return rel, nil
+	}
+	return fetchRelease("latest")
+}
+
+func fetchRelease(path string) (*Release, error) {
+	req, _ := http.NewRequest("GET", releasesAPI+path, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "loom-update")
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)

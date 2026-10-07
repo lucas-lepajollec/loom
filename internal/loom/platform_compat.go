@@ -75,7 +75,7 @@ func updateAssetName() string                          { return platform.UpdateA
 func assetNameFor(goos, goarch string) string          { return platform.AssetNameFor(goos, goarch) }
 func pickAsset(rel *ghRelease) (string, string, int64) { return platform.PickAsset(rel) }
 func ensureV(s string) string                          { return platform.EnsureV(s) }
-func fetchLatestRelease() (*ghRelease, error)          { return platform.FetchLatestRelease() }
+func fetchLatestRelease() (*ghRelease, error)          { return platform.FetchRelease(updateChannel()) }
 func updatePermissionError(exe string) error           { return platform.UpdatePermissionError(exe) }
 func checkUpdateWritable(exe string) error             { return platform.CheckUpdateWritable(exe) }
 func downloadTo(url, dst string) error                 { return platform.DownloadTo(url, dst) }

@@ -10,7 +10,7 @@ root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--windows-exe", nargs="*", default=[])
 args = parser.parse_args()
-version = re.search(r'const Version = "([0-9]+\.[0-9]+\.[0-9]+)"', (root / "internal/loom/run.go").read_text()).group(1)
+version = re.search(r'var Version = "([0-9]+\.[0-9]+\.[0-9]+)"', (root / "internal/loom/run.go").read_text()).group(1)
 parts = tuple(map(int, version.split("."))) + (0,)
 info = json.loads((root / "cmd/loom/versioninfo.json").read_text())
 for label in ("FileVersion", "ProductVersion"):

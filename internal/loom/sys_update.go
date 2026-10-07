@@ -3,6 +3,7 @@ package loom
 import (
 	"context"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/platform"
 	"golang.org/x/mod/semver"
 	"net/http"
 	"os"
@@ -23,13 +24,14 @@ type updateInfo struct {
 	URL         string `json:"url"`
 	CanApply    bool   `json:"can_apply"`
 	ApplyReason string `json:"apply_reason,omitempty"`
+	Channel     string `json:"channel"`
 }
 
 // checkForUpdate interroge GitHub et compare à la version courante. Réutilisé
 // par `loom update` (CLI) et par l'endpoint web /api/update.
 func checkForUpdate() (updateInfo, error) {
 	can, reason := updateCapability()
-	info := updateInfo{Current: Version, CanApply: can, ApplyReason: reason}
+	info := updateInfo{Current: Version, CanApply: can, ApplyReason: reason, Channel: updateChannel()}
 	rel, err := fetchLatestRelease()
 	if err != nil {
 		return info, err
@@ -66,7 +68,7 @@ func applyUpdateVersion(expected string) (string, error) {
 	}
 	if err := checkUpdateWritable(exe); err != nil {
 		if !isEngineWorker() && canUseSystemUpdater(exe) {
-			version, err := runSystemUpdater(expected)
+			version, err := runSystemUpdater(expected, updateChannel())
 			if err == nil {
 				loomInstalledUpdate = version
 			}
@@ -237,7 +239,7 @@ func handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	info, err := checkForUpdate()
 	if err != nil {
-		sendJSON(w, 502, map[string]any{"current": Version, "available": false, "error": "Could not check GitHub releases: " + err.Error()})
+		sendJSON(w, 502, map[string]any{"current": Version, "available": false, "channel": info.Channel, "error": "Could not check GitHub releases: " + err.Error()})
 		return
 	}
 	sendJSON(w, 200, info)
@@ -348,3 +350,36 @@ func restartHintText() string {
 }
 
 func printRestartHint() { fmt.Println(restartHintText()) }
+
+const updateChannelKey = "update_channel"
+
+// updateChannel is the release channel this installation follows.
+func updateChannel() string {
+	var c string
+	if getStoreJSON(bkState, updateChannelKey, &c) && c == platform.ChannelEdge {
+		return c
+	}
+	return platform.ChannelStable
+}
+
+// POST /api/update/channel {"channel":"stable"|"edge"}
+func handleUpdateChannel(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		Channel string `json:"channel"`
+	}
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	if req.Channel != platform.ChannelStable && req.Channel != platform.ChannelEdge {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown update channel"})
+		return
+	}
+	if err := putStoreJSON(bkState, updateChannelKey, req.Channel); err != nil {
+		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "channel": req.Channel})
+}

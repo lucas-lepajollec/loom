@@ -4,6 +4,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Added
+
+- Update channels: Settings › About › Updates can follow **Development**, an
+  `edge` pre-release rebuilt after every merged change, instead of waiting for
+  the next stable release. Works with the Linux system updater too.
+
 ## [0.2.9] - 2026-10-07
 
 ### Fixed

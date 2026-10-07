@@ -23,6 +23,21 @@ foreground runs and macOS require a manual restart; Windows uses the existing
 application restart helper. Windows/macOS behavior still needs real-device
 acceptance for this change.
 
+## Update channels
+
+Settings › About › Updates › **Channel** chooses what this installation follows:
+
+- **Stable** (default): published releases only.
+- **Development**: the `edge` pre-release, rebuilt by CI after every change
+  merged into `main`. Its version looks like `0.2.10-dev.20261007171200` (next
+  patch, then the build time in UTC), so it is always newer than the release it
+  starts from and older than the next stable release. Use it to receive fixes
+  right away on a test or personal installation; it may contain defects.
+
+Both channels download official assets of this repository and verify them
+against the published `SHA256SUMS.txt`. Switching back to Stable never
+downgrades: the installation simply waits for the next stable release.
+
 ## System installation permissions on Linux
 
 For a regular, root-owned `/usr/local/bin/loom` installation, the installer sets
