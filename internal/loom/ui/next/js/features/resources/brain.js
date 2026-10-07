@@ -12,7 +12,7 @@ import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
 import { useVisibleRefresh } from '../usage/refresh.js';
 
-export const brainTabs = () => [{ value: 'sources', label: t('second_brain.nav') }, { value: 'skills', label: t('resources.page.skills') }, { value: 'mcp', label: t('resources.page.serveurs_mcp') }];
+export const brainTabs = () => [{ value: 'sources', label: t('second_brain.nav') }, { value: 'memory', label: t('memory.tab') }, { value: 'skills', label: t('resources.page.skills') }, { value: 'mcp', label: t('resources.page.serveurs_mcp') }];
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
 // Sources intégrées : noms affichés en français.
 export const brainLabel = s => ({ conversations: t("resources.brain.discussions_de_loom"), memory: t("resources.brain.memoire_de_l_agent_local"), distilled: t("resources.dist.section") })[s.id] || s.label;
