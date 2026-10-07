@@ -150,3 +150,17 @@ printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux
 		}
 	}
 }
+
+func TestRemoteOutputIgnoresShellBanner(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "echo 'System: Fedora 44 Kernel 7.2.5-200'; echo; "+remoteOutputStart+"echo 2.1.292")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := afterRemoteMarker(string(out)); got != "2.1.292\n" {
+		t.Fatalf("%q", got)
+	}
+	if got := afterRemoteMarker("0.160.1\n"); got != "0.160.1\n" {
+		t.Fatalf("unmarked output changed: %q", got)
+	}
+}

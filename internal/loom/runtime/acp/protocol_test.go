@@ -170,3 +170,24 @@ func TestClientBidirectionalOrderingCancellationAndSanitizedErrors(t *testing.T)
 		t.Fatalf("%s %v", b, err)
 	}
 }
+
+// Over SSH a remote shell may print a login banner before the agent starts.
+func TestClientSkipsBannerBeforeFirstFrame(t *testing.T) {
+	cmd := exec.Command("sh", "-c", `printf '\n  System: Fedora\n  Kernel: 7.2.5\n\n'; read line; echo '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}'; sleep 1`)
+	c, err := NewClient(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := c.Start(); err != nil {
+		t.Fatal(err)
+	}
+	var r struct {
+		ProtocolVersion int `json:"protocolVersion"`
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := c.Call(ctx, "initialize", map[string]any{}, &r); err != nil || r.ProtocolVersion != 1 {
+		t.Fatalf("%v %v", err, r)
+	}
+}

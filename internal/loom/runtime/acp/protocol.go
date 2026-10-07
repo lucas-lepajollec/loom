@@ -130,11 +130,19 @@ func (c *Client) read(out io.Reader) {
 	defer c.Close()
 	sc := bufio.NewScanner(out)
 	sc.Buffer(make([]byte, 64<<10), MaxFrame)
+	started := false
 	for sc.Scan() {
 		var f Frame
 		if json.Unmarshal(sc.Bytes(), &f) != nil || f.JSONRPC != "2.0" {
+			// Over SSH, a user's shell startup files may print a banner
+			// (fastfetch, motd…) before the agent speaks: skip it. Once the
+			// protocol has started, anything else is a broken stream.
+			if !started && len(sc.Bytes()) < 4096 {
+				continue
+			}
 			return
 		}
+		started = true
 		if f.Method == "" {
 			c.mu.Lock()
 			ch := c.pending[string(f.ID)]

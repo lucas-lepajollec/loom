@@ -74,23 +74,23 @@ func TestHarnessLifecycleCommandArgv(t *testing.T) {
 	}
 	m := RemoteMachine{ID: "box", Host: "host.example", User: "user", Port: 2222, OS: "Linux"}
 	remote, err := buildHarnessLifecycleCommand(&m, "/key with space", argv)
-	want := []string{"ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new", "-i", "/key with space", "-p", "2222", "user@host.example", "sh", "-c", shellQuote(remotePathPreamble + remoteNPMPrefixScript(argv) + "exec npm install -g --prefix \"$loom_npm_prefix\" @openai/codex@latest")}
+	want := []string{"ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new", "-i", "/key with space", "-p", "2222", "user@host.example", "sh", "-c", shellQuote(remoteOutputStart + remotePathPreamble + remoteNPMPrefixScript(argv) + "exec npm install -g --prefix \"$loom_npm_prefix\" @openai/codex@latest")}
 	if err != nil || !reflect.DeepEqual(remote, want) {
 		t.Fatalf("got %q\nwant %q\n%v", remote, want, err)
 	}
 	hostile := []string{"tool", "a' ; $(touch /tmp/not-created)\nvalue"}
 	remote, err = buildHarnessLifecycleCommand(&m, "", hostile)
-	want = append([]string{"ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new", "-p", "2222", "user@host.example", "sh", "-c"}, shellQuote(remotePathPreamble+"exec tool "+shellQuote(hostile[1])))
+	want = append([]string{"ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new", "-p", "2222", "user@host.example", "sh", "-c"}, shellQuote(remoteOutputStart+remotePathPreamble+"exec tool "+shellQuote(hostile[1])))
 	if err != nil || !reflect.DeepEqual(remote, want) {
 		t.Fatalf("unsafe argv: %q", remote)
 	}
 	probe, _ := buildHarnessLifecycleCommand(&m, "", []string{"command", "-v", "npm"})
-	if probe[len(probe)-1] != shellQuote(remotePathPreamble+"command -v npm") {
+	if probe[len(probe)-1] != shellQuote(remoteOutputStart+remotePathPreamble+"command -v npm") {
 		t.Fatal(probe)
 	}
 	spec, _ := harnessInspectSpec("hermes")
 	script, _ := buildHarnessLifecycleCommand(&m, "", spec.Install["unix"])
-	expected := remotePathPreamble + "loom_installer=$(mktemp) || exit 1\ntrap 'rm -f \"$loom_installer\"' EXIT HUP INT TERM\ncurl -fsSL https://hermes-agent.nousresearch.com/install.sh -o \"$loom_installer\" || exit 1\nbash \"$loom_installer\" --non-interactive"
+	expected := remoteOutputStart + remotePathPreamble + "loom_installer=$(mktemp) || exit 1\ntrap 'rm -f \"$loom_installer\"' EXIT HUP INT TERM\ncurl -fsSL https://hermes-agent.nousresearch.com/install.sh -o \"$loom_installer\" || exit 1\nbash \"$loom_installer\" --non-interactive"
 	if script[len(script)-1] != shellQuote(expected) {
 		t.Fatalf("script: %s", script[len(script)-1])
 	}
