@@ -6,6 +6,13 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Agents: each agent on each machine (Loom's own included) has two separate
+  choices, **Manage** (Loom follows it: account, versions, updates, history
+  import) and **Use in Loom** (it can run discussions). On other machines both
+  start off. Machines › a machine lists its detected agents with these two
+  switches; the Agents page groups "Used in Loom" and "Managed" agents with a
+  chip per machine, and **Add an agent** proposes agents detected on your
+  machines, installs one here, or adds an ACP command.
 - Edit the last message: a pencil on your last message lets you change it and
   resend; the previous exchange is removed and the agent restarts from the
   remaining history.

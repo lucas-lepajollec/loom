@@ -156,6 +156,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/runtimes/{id}/quota", handleRuntimeQuota)
 	api("/api/startup", handleStartup)
 	api("/api/harness-history", handleHarnessHistory)
+	api("/api/agents/installations", handleAgentInstallations)
 	api("/api/harness-history/transfer", handleHarnessTransfer)
 	api("/api/providers", handleProviders)
 	api("/api/providers/save", handleProviderSave)
