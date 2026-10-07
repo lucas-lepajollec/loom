@@ -106,3 +106,16 @@ func TestPiAndOpenCodeListLoomSourcesWithoutWritingKeys(t *testing.T) {
 		t.Fatal("sources passées sans activation")
 	}
 }
+
+func TestPiDeclaresDeepSeekThinkingSwitch(t *testing.T) {
+	testHome(t)
+	if _, err := workspaceSessions.saveProvider(CloudProvider{Name: "DeepSeek", Endpoint: "https://api.deepseek.com/v1", Model: "deepseek-chat", Models: []string{"deepseek-chat"}}, "sk-fixture"); err != nil {
+		t.Fatal(err)
+	}
+	provider, _ := piCloudProviders()["loom-deepseek"].(map[string]any)
+	compat, _ := provider["compat"].(map[string]any)
+	models, _ := provider["models"].([]any)
+	if compat["thinkingFormat"] != "deepseek" || len(models) != 1 || models[0].(map[string]any)["reasoning"] != true {
+		t.Fatalf("DeepSeek must expose its thinking switch to Pi: %+v", provider)
+	}
+}
