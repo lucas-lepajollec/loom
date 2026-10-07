@@ -649,3 +649,5 @@
 .sec-tabs a:hover{color:var(--text)}
 .sec-tabs a[aria-current="page"]{background:var(--panel);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
 .machines-body{gap:22px}
+/* note rattachée sous une carte (page d'import, sections) */
+.sec>.card+.note{margin-top:8px;padding:0 4px}

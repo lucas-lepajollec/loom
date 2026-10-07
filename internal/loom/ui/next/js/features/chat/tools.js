@@ -4,6 +4,9 @@ import { t } from '../../core/i18n.js';
 // diff, plan, demandes d'autorisation. Le texte des outils est affiché brut.
 import { html, useState, useMemo, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
+import { get } from '../../core/api.js';
+import { toast } from '../../ui/dialog.js';
+import { chat } from './engine.js';
 
 const KIND = () => ({
   read: ['file', t("chat.tools.lecture")], search: ['search', t("chat.tools.recherche")], fetch: ['globe', 'Web'], execute: ['terminal', t("harnesses.page.commande")],
@@ -44,8 +47,16 @@ const Status = ({ s }) => s === 'failed' ? html`<span class="tc-st err"><${Icon}
   : s === 'interrupted' ? html`<span class="tc-st muted">${t("chat.tools.interrompu")}</span>` : s === 'completed' ? null : html`<span class="spinner tc-spin"></span>`;
 
 // Une action : ligne compacte (lecture, recherche) ou carte dépliable.
-export function ToolCard({ tool: localT, root }) {
+export function ToolCard({ tool: shown, root }) {
   const [open, setOpen] = useState(false);
+  // Long tool texts arrive trimmed; the full call is fetched on demand.
+  const [full, setFull] = useState(null);
+  const localT = full || shown;
+  const loadFull = async () => {
+    const id = chat.get().sessionId;
+    try { const r = await get('/api/runtime/sessions/tool?id=' + encodeURIComponent(id) + '&tool=' + encodeURIComponent(shown.id)); if (r.ok && r.tool) setFull(r.tool); else toast(r.error || t('chat.tools.full_failed'), 'err'); }
+    catch (e) { toast(e.message, 'err'); }
+  };
   const [ico, label] = KIND()[localT.kind] || KIND().other;
   const diffs = localT.diffs || [];
   const stats = diffs.map(d => diffStat(lineDiff(d.old, d.new)));
@@ -64,6 +75,7 @@ export function ToolCard({ tool: localT, root }) {
       <${Status} s=${localT.status} />${body && html`<${Icon} n="chevron" class="caret" />`}</button>
     ${open && html`<div class="tc-b">
       ${diffs.map(d => html`<div class="tc-file"><div class="tc-path">${rel(d.path, root)}</div><${Diff} d=${d} /></div>`)}
+      ${localT.truncated && html`<button type="button" class="btn sm ghost tool-more" onClick=${loadFull}>${t('chat.tools.show_full')}</button>`}
       ${localT.output && html`<pre class="tool-out">${localT.output}</pre>`}
       ${!localT.output && localT.kind === 'execute' && html`<pre class="tool-out muted">${localT.status === 'completed' ? t("chat.tools.aucune_sortie") : ['failed', 'interrupted'].includes(localT.status) ? t('chat.tools.not_run') : t("chat.tools.en_cours")}</pre>`}
     </div>`}

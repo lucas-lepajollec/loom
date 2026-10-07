@@ -275,5 +275,5 @@ func handleRuntimeSessionLocal(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "session": s, "context": discussionContext(s)})
+	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s), "context": discussionContext(s)})
 }

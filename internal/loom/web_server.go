@@ -137,6 +137,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/runtime/sessions/approval", handleACPApproval)
 	api("/api/runtime/sessions/files", handleACPFiles)
 	api("/api/runtime/sessions/diff", handleACPDiff)
+	api("/api/runtime/sessions/tool", handleRuntimeSessionTool)
 	api("/api/fs/dirs", handleACPDirs)
 	api("/api/runtimes/{id}/connect", handleRuntimeConnect)
 	api("/api/runtimes/{id}/probe", handleACPProbe)

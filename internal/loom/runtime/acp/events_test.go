@@ -67,3 +67,13 @@ func TestUpdateEventWireShapesAndMissingValues(t *testing.T) {
 		t.Fatal(clipped)
 	}
 }
+
+func TestToolOutputFromMetaChunks(t *testing.T) {
+	tools := map[string]map[string]any{}
+	Tool(tools, map[string]any{"toolCallId": "c1", "kind": "execute", "status": "in_progress"})
+	Tool(tools, map[string]any{"toolCallId": "c1", "_meta": map[string]any{"terminal_output_delta": map[string]any{"data": "hello ", "terminal_id": "c1"}}})
+	got := Tool(tools, map[string]any{"toolCallId": "c1", "status": "completed", "rawOutput": map[string]any{"exit_code": 0}, "_meta": map[string]any{"terminal_output_delta": map[string]any{"data": "world\n", "terminal_id": "c1"}}})
+	if got["output"] != "hello world\n" || got["status"] != "completed" {
+		t.Fatalf("%v", got)
+	}
+}

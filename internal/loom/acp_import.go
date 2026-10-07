@@ -248,7 +248,7 @@ func handleACPImport(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "session": s})
+	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s)})
 }
 
 // nativeLoadError explains known, harmless reasons a harness refuses to reopen

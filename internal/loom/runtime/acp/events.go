@@ -46,6 +46,22 @@ func Tool(tools map[string]map[string]any, update map[string]any) map[string]any
 	if input, ok := update["rawInput"]; ok && input != nil {
 		t["input"] = Compact(input, 4<<10)
 	}
+	// Some adapters (codex-acp) stream command output in _meta instead of
+	// content: terminal_output_delta chunks, or terminal_output once.
+	streamed := ""
+	if meta, ok := update["_meta"].(map[string]any); ok {
+		for _, key := range []string{"terminal_output_delta", "terminal_output"} {
+			if chunk, ok := meta[key].(map[string]any); ok {
+				if data, ok := chunk["data"].(string); ok {
+					streamed += data
+				}
+			}
+		}
+	}
+	if streamed != "" {
+		prev, _ := t["output"].(string)
+		t["output"] = Clip(prev+streamed, 64<<10)
+	}
 	if contents, ok := update["content"].([]any); ok {
 		diffs := []any{}
 		output := ""
@@ -68,8 +84,10 @@ func Tool(tools map[string]map[string]any, update map[string]any) map[string]any
 			}
 		}
 		t["diffs"] = diffs
-		t["output"] = Clip(output, 64<<10)
-	} else if v, ok := update["rawOutput"]; ok && v != nil {
+		if output != "" || streamed == "" && t["output"] == "" {
+			t["output"] = Clip(output, 64<<10)
+		}
+	} else if v, ok := update["rawOutput"]; ok && v != nil && t["output"] == "" {
 		if text, ok := v.(string); ok {
 			t["output"] = Clip(text, 64<<10)
 		} else {

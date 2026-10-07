@@ -76,7 +76,7 @@ func handleDiscussionEvents(w http.ResponseWriter, r *http.Request) {
 				state := DiscussionEvent{"state": conv.state()}
 				if req.ID != "" {
 					if s, ok := workspaceSessions.get(req.ID); ok {
-						state["session"] = s
+						state["session"] = clientSession(s)
 						state["context"] = discussionContext(s)
 					}
 				}

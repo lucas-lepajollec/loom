@@ -33,6 +33,9 @@ type agySession struct {
 	mode  string
 	turn  context.CancelFunc
 	seen  map[string]string // file contents read or written this session, for diffs
+	// denied lists the commands agy refused during the last turn (Cautious
+	// mode cannot ask for approval headlessly): Loom asks the user instead.
+	denied []string
 }
 
 var agyModes = []map[string]any{
@@ -59,6 +62,24 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 	}
 	update := func(sid string, u map[string]any) {
 		send(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": sid, "update": u}})
+	}
+	pending := map[string]chan Frame{}
+	var nextRequest int
+	request := func(ctx context.Context, method string, params any) (Frame, error) {
+		mu.Lock()
+		nextRequest++
+		id, _ := json.Marshal(fmt.Sprintf("agy-req-%d", nextRequest))
+		ch := make(chan Frame, 1)
+		pending[string(id)] = ch
+		mu.Unlock()
+		defer func() { mu.Lock(); delete(pending, string(id)); mu.Unlock() }()
+		send(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "method": method, "params": params})
+		select {
+		case f := <-ch:
+			return f, nil
+		case <-ctx.Done():
+			return Frame{}, ctx.Err()
+		}
 	}
 	models, catalogErr := DiscoverAgyModelsNamed(context.Background(), b.Read)
 	defaultModel := ""
@@ -91,8 +112,17 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 	sc.Buffer(make([]byte, 64<<10), MaxFrame)
 	for sc.Scan() {
 		var f Frame
-		if json.Unmarshal(sc.Bytes(), &f) != nil || f.Method == "" {
-			continue // responses to our (none) requests, or noise
+		if json.Unmarshal(sc.Bytes(), &f) != nil {
+			continue
+		}
+		if f.Method == "" {
+			mu.Lock()
+			ch := pending[string(f.ID)]
+			mu.Unlock()
+			if ch != nil {
+				ch <- f
+			}
+			continue
 		}
 		var params map[string]any
 		_ = json.Unmarshal(f.Params, &params)
@@ -174,7 +204,31 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 			mu.Unlock()
 			go func(id json.RawMessage, s *agySession) {
 				defer cancel()
-				stop, err := b.turn(ctx, s, text, func(u map[string]any) { update(sid, u) })
+				upd := func(u map[string]any) { update(sid, u) }
+				stop, err := b.turn(ctx, s, text, upd)
+				// Cautious mode: agy refused commands it could not ask about.
+				// Ask the user through Loom, then resume with those actions allowed.
+				for round := 0; err == nil && stop == "end_turn" && s.mode == "default" && len(s.denied) > 0 && round < 3; round++ {
+					cmds := s.denied
+					call := map[string]any{"toolCallId": "agy-approval-" + randomHex(4), "title": strings.Join(cmds, " ; "), "kind": "execute", "status": "pending", "rawInput": map[string]any{"commands": cmds}}
+					options := []any{map[string]any{"optionId": "allow", "name": "Allow and continue", "kind": "allow_once"}, map[string]any{"optionId": "reject", "name": "Reject", "kind": "reject_once"}}
+					answer, rerr := request(ctx, "session/request_permission", map[string]any{"sessionId": sid, "toolCall": call, "options": options})
+					var decision struct {
+						Outcome struct {
+							Outcome  string `json:"outcome"`
+							OptionID string `json:"optionId"`
+						} `json:"outcome"`
+					}
+					_ = json.Unmarshal(answer.Result, &decision)
+					if rerr != nil || decision.Outcome.Outcome != "selected" || decision.Outcome.OptionID != "allow" {
+						upd(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "\n\n(Not run: " + strings.Join(cmds, " ; ") + ")"}})
+						break
+					}
+					// Only this resumed turn runs with permissions skipped.
+					s.mode = "full"
+					stop, err = b.turn(ctx, s, "The user approved the actions you could not run: "+strings.Join(cmds, " ; ")+". Run exactly these now, then continue the task.", upd)
+					s.mode = "default"
+				}
 				if err != nil && ctx.Err() == nil {
 					fail(id, err.Error())
 					return
@@ -348,6 +402,15 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 	// Cautious mode where it cannot ask for approval): closed at turn end.
 	open := map[int]map[string]any{}
 	answered := false
+	s.denied = nil
+	// Commands agy reports DONE without output or error: if the result then
+	// lists denied commands, these are the ones it refused.
+	type silentCmd struct {
+		id   string
+		call map[string]any
+		cmd  string
+	}
+	silent := []silentCmd{}
 	turnStart := time.Now().Add(-time.Second)
 	if s.seen == nil {
 		s.seen = map[string]string{}
@@ -360,6 +423,9 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 			} `json:"-"`
 			Conv   string `json:"conversation_id"`
 			Result struct {
+				Denied []struct {
+					Action string `json:"action"`
+				} `json:"denied_actions"`
 				Status string `json:"status"`
 				Conv   string `json:"conversation_id"`
 				Usage  *struct {
@@ -376,6 +442,7 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 					Name       string                     `json:"name"`
 					Parameters map[string]json.RawMessage `json:"parameters"`
 					Error      json.RawMessage            `json:"error"`
+					Output     string                     `json:"output"`
 				} `json:"tool_info"`
 				Conv string `json:"conversation_id"`
 			} `json:"step_update"`
@@ -441,15 +508,39 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 						}
 						s.seen[target] = *after
 					}
+					if _, diff := u["content"]; !diff && ev.Step.Info.Output != "" {
+						u["content"] = []any{map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": ev.Step.Info.Output}}}
+					}
+					if cmd := firstString(ev.Step.Info.Parameters, "CommandLine", "Command"); st == "completed" && cmd != "" && ev.Step.Info.Output == "" {
+						silent = append(silent, silentCmd{id, agyToolCall(name, ev.Step.Info.Parameters, s.cwd), cmd})
+					}
 					update(u)
 				}
 			}
 		case "result":
 			status = ev.Result.Status
+			refused := 0
+			for _, d := range ev.Result.Denied {
+				if d.Action == "command" {
+					refused++
+				}
+			}
+			if refused > len(silent) {
+				refused = len(silent)
+			}
+			for _, c := range silent[len(silent)-refused:] {
+				c.call["sessionUpdate"], c.call["toolCallId"], c.call["status"] = "tool_call_update", c.id, "failed"
+				c.call["content"] = []any{map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": AgyNotRunHint(s.mode)}}}
+				update(c.call)
+				s.denied = append(s.denied, c.cmd)
+			}
 		}
 	}
 	waitErr := cmd.Wait()
 	for index, call := range open {
+		if cmd, _ := call["title"].(string); call["kind"] == "execute" && cmd != "" {
+			s.denied = append(s.denied, cmd)
+		}
 		call["sessionUpdate"], call["toolCallId"], call["status"] = "tool_call_update", fmt.Sprintf("agy-%d", index), "failed"
 		call["content"] = []any{map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": AgyNotRunHint(s.mode)}}}
 		update(call)
@@ -457,7 +548,7 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 	if ctx.Err() != nil {
 		return "cancelled", nil
 	}
-	if len(open) > 0 && !answered {
+	if len(open) > 0 && !answered && (s.mode != "default" || len(s.denied) == 0) {
 		update(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": AgyNotRunHint(s.mode)}})
 	}
 	if status == "" && waitErr != nil {
@@ -537,7 +628,7 @@ type AgyBridge struct {
 // AgyNotRunHint explains a tool agy started but never finished.
 func AgyNotRunHint(mode string) string {
 	if mode == "default" || mode == "" {
-		return "Antigravity did not run this action: in Cautious mode it cannot ask for your approval without its own interface. Switch the agent mode to Accept edits or Full access to let it run commands."
+		return "Not run: in Cautious mode Antigravity cannot ask for approval itself, so Loom asks you instead."
 	}
 	return "Antigravity stopped before finishing this action."
 }

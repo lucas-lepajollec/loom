@@ -1,5 +1,7 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "chat.tools.show_full": "Show full output",
+  "chat.tools.full_failed": "Full output unavailable.",
   "app.groups.models": "Models",
   "app.groups.agents": "Agents",
   "app.groups.activity": "Activity",
