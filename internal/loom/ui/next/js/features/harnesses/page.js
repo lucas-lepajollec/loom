@@ -136,7 +136,7 @@ const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 
 
 // Sessions déjà ouvertes dans le harness (hors Loom) : les importer pour les
 // continuer ici, avec la mémoire native du harness.
-function NativeSessions({ rt }) {
+function NativeSessions({ rt, embedded, onCount }) {
   const [list, setList] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
@@ -148,7 +148,11 @@ function NativeSessions({ rt }) {
     setErr(''); setList(null);
     const r = await get('/api/runtimes/' + rt.id + '/sessions', { timeout: 95000 }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) { setErr(r.error || t("harnesses.page.lecture_impossible")); setList([]); return; }
-    setList((r.sessions || []).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))));
+    // Sessions Loom itself opened in the agent carry Loom's handoff text: they
+    // are already discussions here.
+    const own = x => /^Loom portable discussion/.test(x.title || '');
+    const sessions = (r.sessions || []).filter(x => !own(x)).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+    setList(sessions); onCount && onCount(sessions.filter(x => !x.imported).length);
   };
   useEffect(() => { if (rt.available !== false) load(); }, [rt.id]);
   const importOne = async x => {
@@ -160,6 +164,18 @@ function NativeSessions({ rt }) {
     await refreshNav(); openChat(r.session.id); go('chat');
   };
   const shown = (list || []).filter(x => !q || ((x.title || '') + ' ' + x.cwd).toLowerCase().includes(q.toLowerCase()));
+  const rows = list === null ? html`<div class="card pad"><div class="state"><span class="spinner"></span>${t("harnesses.page.lecture_des_sessions_de")} ${rt.name}…</div></div>`
+      : err ? html`<div class="card pad"><p class="note err">${err}</p></div>`
+      : !shown.length ? html`<div class="card pad"><p class="note">${q ? t("harnesses.page.aucune_session_ne_correspond") : t('agents.native_empty', { name: rt.name })}</p></div>`
+      : html`<div class="card rows">${shown.slice(0, 30).map(x => html`<div class="row" key=${x.sessionId}>
+          <div class="grow"><div class="t">${x.title || t("harnesses.page.session_sans_titre")}</div>
+            <div class="s">${[x.cwd.replace(/^\/home\/[^/]+/, '~'), x.updatedAt ? ago(Date.parse(x.updatedAt)) : ''].filter(Boolean).join(' · ')}</div></div>
+          <button class=${cls('btn sm', x.imported && 'ghost')} disabled=${!!busy} onClick=${() => importOne(x)}>${busy === x.sessionId ? html`<span class="spinner"></span>${t("harnesses.page.import")}` : x.imported ? t("harnesses.page.ouvrir") : t("harnesses.page.importer")}</button></div>`)}</div>`;
+  if (embedded) return html`<div class="import-bar">
+      <label class="field inline"><span>${t('harnesses.import.project')}</span><select class="select sm" value=${project} onChange=${e => setProject(e.target.value)}><option value="">—</option>${projects.map(p => html`<option value=${p.id}>${p.name}</option>`)}</select></label>
+      <label class="check"><input type="checkbox" checked=${fresh} onChange=${e => setFresh(e.target.checked)} /><span>${t('agents.import_fresh')}</span><${Tip} text=${t('harnesses.import.fresh') + ' ' + t('harnesses.import.note')} /></label>
+      <span class="grow"></span>${list && list.length > 6 && html`<label class="search" style="width:200px"><${Icon} n="search" /><input placeholder="${t("harnesses.page.filtrer")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>`}
+      <button class="btn sm ghost" onClick=${load}><${Icon} n="refresh" />${t("harnesses.page.actualiser")}</button></div>${rows}`;
   return html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.sessions_de")} ${rt.name} <span class="count">${list ? list.length : ''}</span><${Tip} text=${t("harnesses.page.les_discussions_que_tu_as_eues_directement_dans") + rt.name + t("harnesses.page.les_importer_les_ajoute_a_loom_tu_les_continues_ici_avec_la_memoi")} /></h2>
       <span style="display:flex;gap:8px">${list && list.length > 6 && html`<label class="search" style="width:220px"><${Icon} n="search" /><input placeholder="${t("harnesses.page.filtrer")}" aria-label="${t("harnesses.page.filtrer_les_sessions")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>`}
       <button class="btn sm ghost" onClick=${load}><${Icon} n="refresh" />${t("harnesses.page.actualiser")}</button></span></div>
@@ -178,7 +194,7 @@ function NativeSessions({ rt }) {
 
 // Source du modèle : Natif (le harness choisit parmi ses modèles) et, quand
 // le harness le permet, Loom (tes modèles locaux ajoutés à sa propre liste).
-function ModelSource({ rt }) {
+function ModelSource({ rt, line }) {
   const [x, setX] = useState(null);
   const [busy, setBusy] = useState(false);
   const load = () => get('/api/harness/model-source?id=' + encodeURIComponent(rt.id)).then(setX).catch(() => setX(null));
@@ -200,6 +216,8 @@ function ModelSource({ rt }) {
     toast(on ? t("harnesses.page.modeles_de_loom_proposes_dans") + rt.name : t("harnesses.page.modeles_de_loom_retires_de") + rt.name);
     load(); refreshWorkspace(); setTimeout(refreshWorkspace, 8000);
   };
+  if (line) return html`<div class="set-line"><div class="set-l"><span>${t("harnesses.page.modeles_de_loom")}</span><${Tip} text="${t("harnesses.page.natif_le_harness_utilise_ses_propres_modeles_et_son_compte_loom_t")}" />${x.supported && html`<span class="muted" style="font-size:12px;margin-left:8px">${t('harnesses.models.local', { n: x.models })}</span>`}</div>
+    <div class="set-c">${x.supported ? html`<${Switch} checked=${x.enabled} disabled=${busy} label=${t("harnesses.page.proposer_les_modeles_de_loom_dans") + rt.name} onChange=${toggle} />` : html`<span class="muted">${t("harnesses.page.pas_encore_pris_en_charge_par_ce_harness")}</span>`}</div></div>`;
   return html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.source_du_modele")}<${Tip} text="${t("harnesses.page.natif_le_harness_utilise_ses_propres_modeles_et_son_compte_loom_t")}" /></h2></div>
     <div class="card">
       <div class="set-line"><div class="set-l"><span>${t("harnesses.page.natif")}</span></div><div class="set-c"><span class="state"><i class="dot green"></i>${t("harnesses.page.toujours_disponible")}</span></div></div>
@@ -262,15 +280,6 @@ function LoomResources({ rt }) {
 // dossiers : version, compte, clés présentes, MCP, plugins, skills. Mise à jour
 // par sa propre commande, sur demande.
 const MCP_STATE = () => ({ connected: ['green', t("harnesses.page.connecte_2")], enabled: ['green', t("harnesses.page.active")], 'needs-auth': ['amber', t("harnesses.page.a_authentifier")], disabled: ['', t("harnesses.page.desactive")], error: ['red', 'erreur'] });
-// Harness sur une machine connectée : sa version et ses mises à jour, là-bas.
-function RemoteState({ rt }) {
-  const [localT, setT] = useState(undefined);
-  useEffect(() => { remoteHarnessTarget(rt.id).then(setT); }, [rt.id]);
-  if (!localT) return null;
-  return html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.sur")} ${localT.machine.name}</h2></div>
-    <div class="card pad"><${Lifecycle} target=${localT.target} id=${localT.id} name=${rt.name} where=${t("harnesses.page.sur_2") + localT.machine.name} /></div></section>`;
-}
-
 function MachineState({ rt, commands, accountRevision = 0 }) {
   const [x, setX] = useState(null);
   const load = async refresh => {
@@ -311,88 +320,104 @@ function MachineState({ rt, commands, accountRevision = 0 }) {
   </section>`;
 }
 
-// Ce que l'agent fait pour toi en ce moment, et la seule action utile ensuite.
-function AgentStateBanner({ rt, installs, missing, onUse, onChanged }) {
-  const here = installs.find(i => i.runtime_id === rt.id) || installs.find(i => i.machine === 'local');
-  const manage = async () => { const r = await post('/api/agents/installations', { machine: here.machine, harness: here.harness, managed: true }); if (!r.ok) return toast(r.error, 'err'); onChanged(); };
-  const [tone, text, action] = missing ? ['', t('agents.banner.missing'), null]
-    : here && !here.managed ? ['', t('agents.banner.unmanaged'), html`<button class="btn sm" onClick=${manage}>${t('agents.manage')}</button>`]
-    : rt.connected ? ['green', t('agents.banner.used'), null]
-    : ['amber', t('agents.banner.managed'), html`<button class="btn sm primary" onClick=${onUse}>${t('agents.use')}</button>`];
-  return html`<div class=${'agent-banner ' + tone}><i class=${'dot ' + tone}></i><span>${text}</span>${action}</div>`;
-}
+// ---------------------------------------------------------------- page d'un agent
+// Une page = l'état de l'agent et l'action utile, où il est installé, ses
+// discussions, ses modèles, ses réglages. Le reste est dans « Détails ».
 
-// Une ligne par machine où l'agent est installé : version et mises à jour,
-// gérer et utiliser, import de ses discussions.
-function AgentInstallations({ rt, installs, onChanged }) {
-  const list = installs.filter(i => i.installed);
-  if (!list.length) return null;
-  const change = async (i, patch) => {
-    if (patch.enabled && !await confirm(t('agents.enable_title', { name: i.name }), t('agents.enable_note', { name: i.name, machine: i.machine_name }), { ok: t('agents.enable_ok') })) return;
+// Une ligne par machine : version (et mise à jour), gérer, utiliser.
+function MachineRow({ i, onChanged }) {
+  const [x, setX] = useState(null);
+  const [busy, setBusy] = useState('');
+  const load = () => i.managed ? get('/api/harness/lifecycle?target=' + encodeURIComponent(i.machine) + '&id=' + encodeURIComponent(i.harness)).then(r => setX(r.state || false)).catch(() => setX(false)) : setX(false);
+  useEffect(() => { setX(null); load(); }, [i.machine, i.harness, i.managed]);
+  const where = i.machine === 'local' ? t('agents.this_machine') : i.machine_name;
+  const change = async patch => {
+    if (patch.enabled && !await confirm(t('agents.enable_title', { name: i.name }), t('agents.enable_note', { name: i.name, machine: where }), { ok: t('agents.enable_ok') })) return;
+    setBusy('switch');
     const r = await post('/api/agents/installations', { machine: i.machine, harness: i.harness, ...patch, consent: !!patch.enabled }).catch(e => ({ ok: false, error: e.message }));
+    setBusy('');
     if (!r.ok) return toast(r.error || t('agents.change_failed'), 'err');
     await refreshWorkspace(); onChanged();
   };
-  return html`<section class="sec"><div class="sec-h"><h2>${t('agents.installs.title')} <span class="count">${list.length}</span></h2></div>
-    <div class="ag-installs">${list.map(i => html`<div class="card ag-inst" key=${i.machine}>
-      <div class="ag-inst-h"><${Icon} n=${i.machine === 'local' ? 'chip' : 'server'} /><b>${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}</b>
-        <span class="grow"></span>
-        <label class="ag-sw"><span>${t('agents.manage')}</span><${Switch} label=${t('agents.manage')} checked=${i.managed} onChange=${v => change(i, { managed: v })} /></label>
-        <label class="ag-sw"><span>${t('agents.use')}</span><${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${!i.ready} onChange=${v => change(i, { enabled: v })} /></label></div>
-      ${i.managed ? html`<${Lifecycle} target=${i.machine} id=${i.harness} name=${i.name} where=${i.machine === 'local' ? t('agents.this_machine') : i.machine_name} onChange=${onChanged} />
-        <div class="set-actions"><button class="btn sm ghost" onClick=${() => go('settings', 'harness-history', (i.machine === 'local' ? 'local:' + i.harness : 'remote:' + i.machine + ':' + i.harness))}><${Icon} n="history" />${t('history.entry')}</button></div>`
-        : html`<p class="set-note">${t('agents.installs.unmanaged')}</p>`}
-    </div>`)}</div></section>`;
+  const update = async () => {
+    if (!await confirm(t('harnesses.lifecycle.mettre_a_jour') + ' ' + i.name, t('agents.update_note', { name: i.name, machine: where }))) return;
+    setBusy('update');
+    const r = await post('/api/harness/lifecycle', { target: i.machine, id: i.harness, action: 'update' }).catch(e => ({ ok: false, error: e.message }));
+    setBusy('');
+    if (r.state) setX(r.state); else load();
+    r.ok ? toast(i.name + t('harnesses.lifecycle.mis_a_jour')) : toast(r.error || t('harnesses.lifecycle.echec'), 'err');
+  };
+  const version = String((x && x.version) || i.version || '').match(/\d+(?:\.\d+)+[\w.+-]*/)?.[0] || '';
+  return html`<div class="am-row">
+    <span class="am-m"><${Icon} n=${i.machine === 'local' ? 'chip' : 'server'} /><b>${where}</b></span>
+    <span class="am-v">${!i.managed ? html`<span class="muted">—</span>` : x === null ? html`<span class="spinner"></span>` : html`<span class="mono">${version || '?'}</span>
+      ${x && x.update_available ? html`<button class="btn sm" disabled=${!!busy} onClick=${update}>${busy === 'update' ? html`<span class="spinner"></span>` : html`<${Icon} n="download" />`}${x.latest}</button>` : x && x.latest ? html`<span class="muted">${t('harnesses.lifecycle.a_jour')}</span>` : ''}`}</span>
+    <${Switch} label=${t('agents.manage')} checked=${i.managed} disabled=${!!busy} onChange=${v => change({ managed: v })} />
+    <${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${!!busy || !i.ready} onChange=${v => change({ enabled: v })} />
+  </div>`;
 }
 
-function AcpDetail({ rt, models, onEdit }) {
+function AgentMachines({ installs, onChanged }) {
+  const list = installs.filter(i => i.installed);
+  if (!list.length) return null;
+  return html`<section class="sec"><div class="sec-h"><h2>${t('agents.machines')}<${Tip} text=${t('agents.machine_tip')} /></h2></div>
+    <div class="card am">
+      <div class="am-row am-head"><span>${t('agents.col.machine')}</span><span>${t('harnesses.lifecycle.version')}</span><span>${t('agents.manage')}</span><span>${t('agents.use')}</span></div>
+      ${list.map(i => html`<${MachineRow} key=${i.machine} i=${i} onChanged=${onChanged} />`)}
+    </div></section>`;
+}
+
+// Discussions : celles de Loom, et celles faites directement dans l'agent
+// (hors sessions que Loom a lui-même ouvertes), importables ici.
+function AgentDiscussions({ rt, talks, canList }) {
+  const [tab, setTab] = useState('loom');
+  const [native, setNative] = useState(null);
+  return html`<section class="sec"><div class="sec-h"><h2>${t('agents.discussions')}</h2>
+      ${canList && html`<${Seg} size="sm" value=${tab} onChange=${setTab} label=${t('agents.discussions')} options=${[{ value: 'loom', label: t('agents.tab.loom'), count: talks.length }, { value: 'native', label: t('agents.tab.native', { name: rt.name }), count: native == null ? '' : native }]} />`}</div>
+    ${tab === 'native' && canList ? html`<${NativeSessions} rt=${rt} embedded onCount=${setNative} />`
+      : talks.length ? html`<div class="card rows">${talks.slice(0, 8).map(c => html`<button type="button" class="row link-row" key=${c.id} onClick=${() => { openChat(c.id); go('chat'); }}>
+          <div class="grow"><div class="t">${c.title || t("harnesses.page.discussion")}</div><div class="s">${[c.model && c.model !== 'default' ? c.model : '', c.workdir ? c.workdir.split('/').pop() : '', c.updated_at ? ago(c.updated_at) : ''].filter(Boolean).join(' · ')}</div></div>
+          <${Icon} n="right" /></button>`)}</div>`
+      : html`<div class="card pad"><p class="note">${t('agents.no_talks', { name: rt.name })}</p></div>`}
+  </section>`;
+}
+
+function AgentDetail({ rt, models, onEdit }) {
   const nav = useStore(app, a => a.nav);
   const [installs, setInstalls] = useState([]);
-  const loadInstalls = () => get('/api/agents/installations').then(r => r.ok && setInstalls((r.installations || []).filter(i => i.harness === (rt.machine ? rt.logo : rt.id) || i.runtime_id === rt.id))).catch(() => {});
-  useEffect(() => { loadInstalls(); }, [rt.id]);
   const [probe, setProbe] = useState(null);
+  const [info, setInfo] = useState(null);
   const [busy, setBusy] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [accountRevision, setAccountRevision] = useState(0);
-  const [extra, setExtra] = useState({ usage: [], quota: null, target: null, mcp: [] });
-  const [native, setNative] = useState(null);
-  // Usage natif (toutes les sessions du harness, 7 jours), lu en arrière-plan.
-  useEffect(() => { setNative(null); get('/api/usage/native?days=7').then(r => { const h = (r.harnesses || []).find(x => x.runtime_id === rt.id); setNative(h && !h.error && (h.sessions || h.total_tokens) ? h : null); }).catch(() => {}); }, [rt.id]);
-  useVisibleRefresh(async alive => {
-    if (accountOpen || rt.connected !== true || rt.available === false || !(rt.capabilities || []).includes('quota')) return;
-    await post('/api/runtimes/' + encodeURIComponent(rt.id) + '/quota', {}, { retryAuth: false, timeout: 65000 }).catch(() => null);
-    const result = await get('/api/usage', { retryAuth: false });
-    if (alive() && result.ok !== false) setExtra(previous => ({ ...previous, quota: (result.quotas || []).find(q => q.runtime_id === rt.id) || null }));
-  }, 30000, rt.id + '|' + rt.connected + '|' + accountOpen);
+  const [resources, setResources] = useState(false);
   const [custom, setCustom] = useState(null);
-  const load = async () => {
-    const [p, u, localT, m] = await Promise.all([get('/api/runtimes/' + rt.id + '/probe').catch(() => ({})), get('/api/usage').catch(() => ({})),
-      get('/api/skills/targets').catch(() => ({})), get('/api/mcp').catch(() => ({}))]);
-    setProbe((p && p.probe) || {});
-    setExtra({ usage: ((u && u.models) || []).filter(x => x.runtime_id === rt.id), quota: ((u && u.quotas) || []).find(q => q.runtime_id === rt.id) || null,
-      target: ((localT && localT.targets) || []).find(x => x.harnesses.includes(rt.id)) || null, mcp: Object.keys((m && m.servers) || {}) });
+  const [usage, setUsage] = useState(null);
+  const family = rt.machine ? rt.logo : rt.id;
+  const loadInstalls = () => get('/api/agents/installations').then(r => r.ok && setInstalls((r.installations || []).filter(i => i.harness === family || i.runtime_id === rt.id))).catch(() => {});
+  const loadProbe = () => get('/api/runtimes/' + rt.id + '/probe').then(p => setProbe((p && p.probe) || {})).catch(() => setProbe({}));
+  const loadInfo = refresh => get('/api/runtimes/' + rt.id + '/inspect' + (refresh ? '?refresh=1' : '')).then(r => setInfo(r && r.ok ? r.inspection : false)).catch(() => setInfo(false));
+  useEffect(() => {
+    loadInstalls(); loadProbe(); if (!rt.machine) loadInfo();
+    if (rt.custom) get('/api/harness/custom').then(r => setCustom((r.agents || []).find(a => a.id === rt.id) || null)).catch(() => {});
+    get('/api/usage/native?days=7').then(r => setUsage((r.harnesses || []).find(x => x.runtime_id === rt.id) || null)).catch(() => {});
+  }, [rt.id]);
+  const here = installs.find(i => i.runtime_id === rt.id) || installs.find(i => i.machine === 'local');
+  const managed = !!(here && here.managed) || !!rt.custom, used = !!rt.connected;
+  const missing = rt.available === false;
+  const setScope = async patch => {
+    if (patch.enabled && !await confirm(t('agents.enable_title', { name: rt.name }), t('agents.enable_note', { name: rt.name, machine: here ? (here.machine === 'local' ? t('agents.this_machine') : here.machine_name) : '' }), { ok: t('agents.enable_ok') })) return;
+    setBusy(true);
+    const r = await post('/api/agents/installations', { machine: here.machine, harness: here.harness, ...patch, consent: !!patch.enabled }).catch(e => ({ ok: false, error: e.message }));
+    setBusy(false);
+    if (!r.ok) return toast(r.error || t('agents.change_failed'), 'err');
+    await refreshWorkspace(); loadInstalls(); loadProbe();
   };
-  useEffect(() => { load(); if (rt.custom) get('/api/harness/custom').then(r => setCustom((r.agents || []).find(a => a.id === rt.id) || null)).catch(() => {}); }, [rt.id]);
-  const refresh = async () => {
-    if (!rt.connected && !await confirm(t('harnesses.connection.connect'), t('harnesses.connection.consent'))) return;
+  const reread = async () => {
     setBusy(true);
     const r = await post('/api/runtimes/' + rt.id + '/connect', { consent: true }).catch(e => ({ ok: false, error: e.message }));
     setBusy(false);
     if (!r.ok) toast(r.error || t("harnesses.page.lecture_impossible"), 'err');
-    await refreshWorkspace(); load();
-  };
-  const disconnect = async () => {
-    if (!await confirm(t('harnesses.connection.disconnect'), t('harnesses.connection.disconnect_note'))) return;
-    const r = await post('/api/runtimes/' + rt.id + '/disconnect', {});
-    if (!r.ok) return toast(r.error, 'err');
-    await refreshWorkspace();
-  };
-  const login = async () => {
-    setAccountOpen(true);
-  };
-  const startWith = async choice => {
-    if (!choice) return toast(t("harnesses.page.ce_harness_n_est_pas_encore_disponible"), 'err');
-    await newDiscussion(); await chooseRemote(choice);
+    await refreshWorkspace(); loadProbe(); if (!rt.machine) loadInfo(true);
   };
   const del = async () => {
     if (!await confirm(t("harnesses.page.supprimer") + rt.name, t("harnesses.page.le_harness_disparait_de_loom_les_discussions_passees_restent_lisi"), { ok: t("harnesses.page.supprimer_2"), danger: true })) return;
@@ -403,79 +428,66 @@ function AcpDetail({ rt, models, onEdit }) {
   const cfg = (probe && probe.config) || [];
   const modelOpt = byCat(cfg, 'model'), effortOpt = byCat(cfg, 'thought_level');
   const list = optValues(modelOpt);
+  const groups = splitEffort(list);
   const choices = models.filter(m => m.runtime_id === rt.id);
   const choiceFor = v => choices.find(c => c.id === rt.id + ':' + v) || choices[0];
+  const startWith = async choice => { if (!choice) return toast(t("harnesses.page.ce_harness_n_est_pas_encore_disponible"), 'err'); await newDiscussion(); await chooseRemote(choice); };
   const talks = ((nav && nav.conversations) || []).filter(c => c.runtime_id === rt.id).sort((x, y) => (y.updated_at || 0) - (x.updated_at || 0));
-  const turns = extra.usage.reduce((n, u) => n + u.turns, 0);
-  const cost = extra.usage.reduce((n, u) => n + (u.reported_cost || 0), 0);
-  const currency = (extra.usage.find(u => u.currency) || {}).currency || 'USD';
-  const launch = custom ? [custom.command, ...(custom.args || [])].join(' ') : rt.install_hint || rt.cli;
+  const auth = (info && info.auth) || {};
+  // An agent that lists its models has a working account even when Loom cannot read it.
+  const accountKnown = !!info && (auth.connected || !cfg.length);
+  const account = info ? (auth.connected ? [auth.method, auth.account].filter(Boolean).join(' · ') || t("harnesses.page.connecte_2") : auth.status || t('agents.account.none')) : '';
   const ver = probe && probe.agent && probe.agent.version;
-  const missing = rt.available === false;
-  return html`<div class="h-detail anim-fade">
-    <div class="h-head"><div style="display:flex;gap:14px;align-items:center"><${Logo} name=${rt.logo || rt.id} size="lg" />
-        <div><h2>${rt.name}${ver && (rt.id === 'antigravity' ? html` <span class="tag" title="${t("harnesses.page.antigravity_est_pilote_par_le_pont_acp_integre_a_loom")}">${t("harnesses.page.pont_loom")}</span>` : html` <span class="tag" title="${t("harnesses.page.version_de_l_adaptateur_acp_utilise_par_loom")}">ACP ${ver}</span>`)}</h2><p>${tSource(rt.description) || ''}</p></div></div>
-      <div class="acts">${rt.custom && html`<button class="btn ghost" onClick=${() => onEdit(custom)}>${t("harnesses.page.modifier")}</button><button class="icon-btn" aria-label="${t("harnesses.page.supprimer_2")}" onClick=${del}><${Icon} n="trash" /></button>`}
-        ${rt.connected && html`<button class="btn" disabled=${busy || missing} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}${t("harnesses.page.actualiser")}</button>
-        <button class="btn primary" disabled=${missing || !choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />${t("harnesses.page.nouvelle_discussion")}</button>`}</div></div>
+  const canList = !!(probe && probe.capabilities && probe.capabilities.sessionCapabilities && probe.capabilities.sessionCapabilities.list);
+  const [tone, state] = missing ? ['', t("harnesses.page.non_installe")] : used ? ['green', t('agents.state.used')] : managed ? ['amber', t('agents.state.managed')] : ['', t('agents.state.unmanaged')];
+  const launch = custom ? [custom.command, ...(custom.args || [])].join(' ') : rt.install_hint || rt.cli;
+  return html`<div class="agent anim-fade">
+    <div class="agent-h"><${Logo} name=${rt.logo || rt.id} size="lg" />
+      <div class="grow"><div class="agent-t"><h2>${rt.name}</h2><span class=${'pill ' + tone}><i class=${'dot ' + tone}></i>${state}</span></div>
+        <p>${tSource(rt.description) || ''}</p>
+        <div class="agent-meta">${ver && html`<span>${rt.id === 'antigravity' ? t("harnesses.page.pont_loom") : 'ACP'} ${ver}</span>`}${accountKnown && html`<span><i class=${'dot ' + (auth.connected ? 'green' : 'amber')}></i>${account}</span>`}${usage && usage.total_tokens ? html`<a href="#/usage">${fmtTok(usage.total_tokens)} tokens · 7 j</a>` : ''}</div></div>
+      <div class="acts">
+        ${rt.custom && html`<button class="btn ghost" onClick=${() => onEdit(custom)}>${t("harnesses.page.modifier")}</button><button class="icon-btn" aria-label=${t("harnesses.page.supprimer_2")} onClick=${del}><${Icon} n="trash" /></button>`}
+        ${accountKnown && !auth.connected && !missing && html`<button class="btn" onClick=${() => setAccountOpen(true)}>${t('agents.account.login')}</button>`}
+        ${missing ? '' : !managed ? html`<button class="btn primary" disabled=${busy || !here} onClick=${() => setScope({ managed: true })}>${t('agents.manage')}</button>`
+          : !used ? html`<button class="btn primary" disabled=${busy || !here} onClick=${() => setScope({ enabled: true })}>${t('agents.use')}</button>`
+          : html`<button class="icon-btn" title=${t("harnesses.page.actualiser")} aria-label=${t("harnesses.page.actualiser")} disabled=${busy} onClick=${reread}><${Icon} n="refresh" /></button>
+            <button class="btn primary" disabled=${!choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />${t("harnesses.page.nouvelle_discussion")}</button>`}</div></div>
+    ${!missing && probe && probe.error && html`<div class="alert amber"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
+    ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => loadInfo(true)} onConnect=${reread} />`}
 
-    <${AgentStateBanner} rt=${rt} installs=${installs} missing=${missing} onUse=${refresh} onChanged=${loadInstalls} />
-    ${!missing && probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
-    ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => setAccountRevision(n => n + 1)} onConnect=${refresh} />`}
-    <${AgentInstallations} rt=${rt} installs=${installs} onChanged=${loadInstalls} />
-    ${(probe && probe.capabilities && probe.capabilities.sessionCapabilities && probe.capabilities.sessionCapabilities.list) ? html`<${NativeSessions} rt=${rt} />` : ''}
+    <${AgentMachines} installs=${installs} onChanged=${() => { loadInstalls(); loadProbe(); }} />
+    ${managed && html`<${AgentDiscussions} rt=${rt} talks=${talks} canList=${canList} />`}
 
-    <section class="sec"><div class="sec-h"><h2>${t("harnesses.page.discussions_recentes_dans_loom")} <span class="count">${talks.length}</span></h2></div>
-      ${talks.length ? html`<div class="card rows">${talks.slice(0, 8).map(c => html`<button type="button" class="row link-row" key=${c.id} onClick=${() => { openChat(c.id); go('chat'); }}>
-          <div class="grow"><div class="t">${c.title || t("harnesses.page.discussion")}</div><div class="s">${[c.model && c.model !== 'default' ? c.model : '', c.workdir ? c.workdir.split('/').pop() : '', c.updated_at ? ago(c.updated_at) : ''].filter(Boolean).join(' · ')}</div></div>
-          <${Icon} n="right" /></button>`)}</div>`
-        : html`<div class="card pad"><p class="note">${t("harnesses.page.aucune_discussion_avec")} ${rt.name} ${t("harnesses.page.pour_l_instant")}</p></div>`}
-    </section>
-    <section class="sec"><div class="sec-h"><h2>${t("harnesses.page.modeles")} <span class="count">${splitEffort(list).length}</span></h2></div>
-      ${list.length ? html`<div class="card rows">${splitEffort(list).map(g => { const def = g.levels.find(l => l.value === modelOpt.currentValue) || g.levels.find(l => l.level === 'medium') || g.levels[0]; return html`<div class="row" key=${g.family}>
-          <div class="grow"><div class="t">${g.name}${g.levels.some(l => l.value === modelOpt.currentValue) && html` <span class="tag">${t("harnesses.page.par_defaut_2")}</span>`}</div>
-            ${g.levels.length > 1 ? html`<div class="chips lvl">${g.levels.map(l => html`<span class=${cls('tag', l.value === modelOpt.currentValue && 'on')}>${l.label || l.level}</span>`)}</div>` : html`<div class="s">${(list.find(x => x.value === def.value) || {}).description || def.value}</div>`}</div>
-          <button class="btn sm ghost" disabled=${missing} onClick=${() => startWith(choiceFor(def.value))}>${t("harnesses.page.discuter")}</button></div>`; })}</div>`
-        : html`<div class="card pad"><p class="note">${missing ? t("harnesses.page.installe_le_cli_pour_lire_ses_modeles") : t("harnesses.page.pas_encore_lus_actualiser_ouvre_une_session_vide_sans_prompt_pour")}</p></div>`}
-    </section>
+    ${groups.length > 0 && html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.modeles")} <span class="count">${groups.length}</span></h2></div>
+      <div class="model-chips">${groups.map(g => { const def = g.levels.find(l => l.value === modelOpt.currentValue) || g.levels.find(l => l.level === 'medium') || g.levels[0]; const isDef = g.levels.some(l => l.value === modelOpt.currentValue);
+        return html`<button type="button" class=${cls('mchip', isDef && 'on')} disabled=${!used} title=${used ? t("harnesses.page.discuter") : ''} onClick=${() => startWith(choiceFor(def.value))}><b>${g.name}</b>${g.levels.length > 1 ? html`<small>${g.levels.map(l => l.label || l.level).join(' · ')}</small>` : (list.find(x => x.value === def.value) || {}).description ? html`<small>${(list.find(x => x.value === def.value) || {}).description}</small>` : ''}${isDef && html`<em>${t("harnesses.page.par_defaut_2")}</em>`}</button>`; })}</div></section>`}
 
-    <details class="sec more-info"><summary>${t('agents.more_info')}</summary>
-    <div class=${cls('card local-strip' , native && 'five')}>
-      <div><div class="lbl">${t("harnesses.page.etat")}</div><div class="v"><i class=${'dot ' + (missing ? '' : probe && probe.error && !cfg.length ? 'red' : 'green')}></i><span class="t">${missing ? t("harnesses.account.unavailable") : probe && probe.error && !cfg.length ? t("harnesses.page.a_verifier") : t("harnesses.page.pret")}</span></div>
-        <div class="sub">${probe && probe.at ? t("harnesses.page.lu") + ago(probe.at) : t("harnesses.page.pas_encore_lu")}</div></div>
-      <div><div class="lbl">${t("harnesses.page.modeles")}</div><div class="v"><b>${list.length || '—'}</b></div><div class="sub">${modelOpt ? t("harnesses.page.par_defaut") + ((list.find(x => x.value === modelOpt.currentValue) || {}).name || modelOpt.currentValue) : t("harnesses.page.non_annonces")}</div></div>
-      <div><div class="lbl">${t("harnesses.page.discussions")}</div><div class="v"><b>${talks.length}</b></div><div class="sub">${turns} ${t("harnesses.page.tour")}${turns > 1 ? 's' : ''} ${t("harnesses.page.dans_loom")}</div></div>
-      <div><div class="lbl">${t("harnesses.page.cout_declare")}<${Tip} text="${t("harnesses.page.cout_que_le_harness_declare_lui_meme_pour_les_sessions_ouvertes_p")}" /></div>
-        <div class="v"><b>${cost ? Number(cost).toLocaleString(locale(), { style: 'currency', currency, maximumFractionDigits: 2 }) : '—'}</b></div><div class="sub">${extra.quota && extra.quota.windows ? t("harnesses.page.quotas_lisibles_dans_usage") : t("harnesses.page.sessions_loom")}</div></div>
-      ${native && html`<div><div class="lbl">${t('harnesses.native.label')}<${Tip} text=${t('harnesses.native.tip')} /></div>
-        <div class="v"><b>${fmtTok(native.total_tokens)}</b><span class="t">tokens</span></div><div class="sub"><a href="#/usage">${t('harnesses.native.sessions', { n: native.sessions })}</a></div></div>`}
-    </div>
-    ${!rt.custom && html`<${MachineState} rt=${rt} accountRevision=${accountRevision} commands=${probe && probe.commands ? probe.commands.length : null} />`}
-    ${rt.custom && rt.machine && html`<${RemoteState} rt=${rt} />`}
-    <${ModelSource} rt=${rt} />
-    <${LoomResources} rt=${rt} />
-
-    ${(effortOpt || (probe && probe.modes && probe.modes.length)) && html`<div class="grid2 sec">
-      ${effortOpt && html`<div class="card pad"><div class="sec-h"><h2>${t("harnesses.page.reflexion")}</h2></div>
-        <div class="chips">${optValues(effortOpt).map(v => html`<span class=${cls('tag', v.value === effortOpt.currentValue && 'on')}>${v.name || v.value}</span>`)}</div>
-        <p class="note" style="margin-top:10px">${t("harnesses.page.reglable_par_discussion_dans_le_panneau_de_droite")}</p></div>`}
-      ${probe && probe.modes && probe.modes.length > 0 && html`<div class="card pad"><div class="sec-h"><h2>${t("harnesses.page.modes_de_l_agent")}</h2></div>
-        ${probe.modes.map(m => html`<div class="kv" key=${m.id}><span>${rt.id === 'antigravity' ? tSource(m.name) || m.id : m.name || m.id}${m.description && html`<${Tip} text=${rt.id === 'antigravity' ? tSource(m.description) : m.description} />`}</span>${m.id === probe.mode ? html`<span class="tag">${t("harnesses.page.par_defaut_2")}</span>` : html`<span></span>`}</div>`)}</div>`}
-    </div>`}
-
-    <section class="sec"><div class="sec-h"><h2>${t("harnesses.page.integration_loom")}</h2></div>
+    ${managed && html`<section class="sec"><div class="sec-h"><h2>${t('agents.settings')}</h2></div>
       <div class="card">
-        <div class="set-line"><div class="set-l"><span>${t("harnesses.page.dossier_et_autorisations")}</span><${Tip} text="${t("harnesses.page.choisis_les_par_discussion_dans_le_panneau_de_droite_demander_mod")}" /></div><div class="set-c"><span class="state">${t("harnesses.page.par_discussion")}</span></div></div>
-        <div class="set-line"><div class="set-l"><span>${t("harnesses.page.skills_loom")}</span></div><div class="set-c">${extra.target ? html`<span class="state"><i class=${'dot ' + (extra.target.enabled ? 'green' : '')}></i>${extra.target.enabled ? extra.target.written.length + t("harnesses.page.distribuees") : t("harnesses.page.non_distribuees")}</span><a class="btn sm ghost" href="#/brain">${t("harnesses.page.gerer")}</a>` : html`<span class="muted">${t("harnesses.page.pas_de_dossier_de_skills_connu")}</span>`}</div></div>
-        <div class="set-line"><div class="set-l"><span>${t("harnesses.page.serveurs_mcp_loom")}</span></div><div class="set-c">${(rt.capabilities || []).includes('mcp') ? html`<span class="state">${extra.mcp.length ? extra.mcp.length + t("harnesses.page.transmis_a_chaque_session") : t("harnesses.page.aucun_defini")}</span><a class="btn sm ghost" href="#/brain/mcp">${t("harnesses.page.gerer")}</a>` : html`<span class="muted">${t("harnesses.page.non_transmis_machine_distante")}</span>`}</div></div>
-        <div class="set-line"><div class="set-l"><span>${t("harnesses.page.lancement")}</span><${Tip} text="${t("harnesses.page.commande_executee_par_loom_l_agent_parle_acp_sur_son_entree_et_sa")}" /></div><div class="set-c"><code class="mono trunc" style="max-width:420px">${launch}</code></div></div>
-        <div class="set-line"><div class="set-l"><span>${t("harnesses.page.compte")}</span></div><div class="set-c"><span class="state">${(probe && probe.auth && probe.auth.length) ? probe.auth.map(a => a.name || a.id).join(' · ') : t("harnesses.page.celui_du_cli")}</span></div></div>
-        ${rt.docs && html`<div class="set-line"><div class="set-l"><span>${t("harnesses.page.documentation")}</span></div><div class="set-c"><a class="btn sm ghost" href=${rt.docs} target="_blank" rel="noopener noreferrer">${t("harnesses.page.ouvrir")}</a></div></div>`}
-      </div></section>
+        <${ModelSource} rt=${rt} line />
+        <div class="set-line"><div class="set-l"><span>${t('agents.resources')}</span><${Tip} text=${t("harnesses.page.loom_garde_la_definition_de_tes_skills_et_serveurs_mcp_tu_choisis") + rt.name + t("harnesses.page.recoit_le_harness_reste_maitre_de_leur_execution")} /></div>
+          <div class="set-c"><button class="btn sm ghost" onClick=${() => setResources(true)}>${t('agents.choose')}</button></div></div>
+        <div class="set-line"><div class="set-l"><span>${t("harnesses.page.dossier_et_autorisations")}</span><${Tip} text=${t("harnesses.page.choisis_les_par_discussion_dans_le_panneau_de_droite_demander_mod")} /></div><div class="set-c"><span class="muted">${t('agents.per_discussion')}</span></div></div>
+      </div></section>`}
+    ${resources && html`<${Modal} wide title=${t('agents.resources')} onClose=${() => setResources(false)}><${LoomResources} rt=${rt} /></${Modal}>`}
 
-    </details>
+    <details class="sec more-info"><summary>${t('agents.details')}</summary>
+      <div class="card pad details-kv">
+        ${info && html`<div class="kv"><span>${t("harnesses.page.emplacement")}</span><code class="mono">${info.path.replace(/^\/home\/[^/]+/, '~')}</code></div>`}
+        <div class="kv"><span>${t("harnesses.page.lancement")}</span><code class="mono">${launch || '—'}</code></div>
+        ${info && html`<div class="kv"><span>${t("harnesses.page.cles_d_api_detectees")}</span><span>${info.env.length ? info.env.join(' · ') : t("harnesses.page.aucune_dans_l_environnement")}</span></div>
+          <div class="kv"><span>${t("harnesses.page.serveurs_mcp_du_harness")}</span><span>${info.mcp_known ? info.mcp.map(m => m.name).join(' · ') || '0' : t("harnesses.page.non_lus")}</span></div>
+          <div class="kv"><span>${t("harnesses.page.plugins")}</span><span>${info.plugins.join(' · ') || '0'}</span></div>
+          <div class="kv"><span>${t("harnesses.page.skills_installees")}</span><span>${info.skills.map(k => k.name).join(' · ') || '0'}</span></div>`}
+        ${probe && probe.commands && html`<div class="kv"><span>${t("harnesses.page.commandes_disponibles")}</span><span>${probe.commands.length}</span></div>`}
+        ${probe && probe.modes && probe.modes.length > 0 && html`<div class="kv"><span>${t("harnesses.page.modes_de_l_agent")}</span><span>${probe.modes.map(m => rt.id === 'antigravity' ? tSource(m.name) || m.id : m.name || m.id).join(' · ')}</span></div>`}
+        ${effortOpt && html`<div class="kv"><span>${t("harnesses.page.reflexion")}</span><span>${optValues(effortOpt).map(v => v.name || v.value).join(' · ')}</span></div>`}
+        ${rt.docs && html`<div class="kv"><span>${t("harnesses.page.documentation")}</span><a href=${rt.docs} target="_blank" rel="noopener noreferrer">${rt.docs.replace(/^https?:\/\//, '')}</a></div>`}
+      </div></details>
   </div>`;
 }
+
 
 // Où une famille d'agents est gérée : une puce par machine, verte si l'agent
 // y mène des discussions Loom.
@@ -486,13 +498,13 @@ function Card({ rt, models, installs = [] }) {
   const supported = rt.implemented && rt.capabilities && rt.capabilities.length > 0;
   const caps = CAPS().filter(([id]) => (rt.capabilities || []).includes(id)).map(([id]) => [id, SHORT()[id]]);
   const acp = isACP(rt), missing = rt.available === false;
-  const state = !supported ? null : missing ? ['', t("harnesses.page.non_installe")] : acp ? (installs.some(i => i.enabled) || rt.connected ? ['green', t('agents.use')] : ['', t('agents.state.managed')]) : n ? ['green', t("harnesses.page.connecte_3")] : ['', t("harnesses.page.non_connecte")];
+  const state = !supported ? null : missing ? ['', t("harnesses.page.non_installe")] : acp ? (installs.some(i => i.enabled) || rt.connected ? ['green', t('agents.state.used')] : ['', t('agents.state.managed')]) : n ? ['green', t("harnesses.page.connecte_3")] : ['', t("harnesses.page.non_connecte")];
   return html`<button type="button" class=${cls('hx', (!supported || missing) && 'is-soon')} onClick=${() => go('harnesses', rt.id)}>
     <div class="hx-top"><${Logo} name=${rt.id} />
       <span class="grow"><b>${rt.name}</b>${rt.machine ? html`<code>${t("harnesses.page.sur_3")} ${rt.machine}</code>` : rt.cli && html`<code>${acp ? 'ACP' + (rt.cli === 'npx' ? '' : ' · ' + rt.cli.split('/').pop()) : rt.cli}</code>`}</span>
       ${!supported ? html`<span class="soon-pill">${t("harnesses.page.bientot_2")}</span>` : html`<span class="state"><i class=${'dot ' + state[0]}></i>${state[1]}</span>`}</div>
     ${rt.description && html`<p>${tSource(rt.description)}</p>`}
-    ${supported && installs.length > 0 && html`<div class="hx-inst"><span>${t('agents.installations')}</span>${installs.map(i => html`<span class="hx-chip" key=${i.machine} title=${i.enabled ? t('agents.use') : t('agents.managed_only')}><i class=${'dot ' + (i.enabled ? 'green' : '')}></i>${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}${i.version && html`<em>${i.version.replace(/^v/, '').split(' ')[0]}</em>`}</span>`)}</div>`}
+    ${supported && installs.length > 0 && html`<div class="hx-inst"><span>${t('agents.installations')}</span>${installs.map(i => html`<span class="hx-chip" key=${i.machine} title=${i.enabled ? t('agents.state.used') : t('agents.managed_only')}><i class=${'dot ' + (i.enabled ? 'green' : '')}></i>${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}${i.version && html`<em>${i.version.replace(/^v/, '').split(' ')[0]}</em>`}</span>`)}</div>`}
     <div class="hx-foot">${!supported ? (rt.id === 'hermes' ? t("harnesses.page.connecte_sa_machine_avec_connecter_une_machine") : t("harnesses.page.adaptateur_en_preparation")) : missing ? t("harnesses.page.installe") + (rt.cli === 'npx' ? t("harnesses.page.node_js_et_le_cli") : rt.cli) + t("harnesses.page.pour_l_utiliser")
       : acp ? (rt.custom ? t("harnesses.page.personnalise") : '') + t("harnesses.page.dossier_outils_et_autorisations_dans_loom") : n ? n + t("harnesses.page.modele_2") + (n > 1 ? 's' : '') + t("harnesses.page.dans_le_selecteur") : t("harnesses.page.ouvre_pour_connecter_ton_compte")}</div>
   </button>`;
@@ -520,11 +532,11 @@ export function HarnessesPage({ route }) {
   if (route.sub === 'history') return html`<${HarnessHistory} />`;
   return html`<div class="view page"><div class="page-in wide">
     ${cur ? html`<button class="btn ghost sm back" onClick=${() => go('harnesses')}><${Icon} n="left" />${t('app.groups.agents')}</button>
-      <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
+      <div style="margin-top:14px">${isACP(cur) ? html`<${AgentDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
         : html`<${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} />`}</div>`
     : html`<${SectionTabs} /><div class="page-head"><div><h1>${t('app.groups.agents')}</h1><p>${t("harnesses.page.des_agents_qui_gardent_leurs_outils_leur_compte_et_leurs_permissi")}</p></div>
         <div class="acts"><a class="btn" href="#/machines"><${Icon} n="server" />${t("harnesses.page.machines")}</a><button class="btn primary" onClick=${() => setDlg({ add: true })}><${Icon} n="plus" />${t('agents.add.title')}</button></div></div>
-      ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`${[true, false].map(connected => html`<section class="sec"><div class="sec-h"><h2>${connected ? t('agents.section.used') : t('agents.section.managed')}</h2></div><div class="hx-grid stagger">${families.filter(r => used(r) === connected).sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} installs=${installationsOf(r, installs)} />`)}</div></section>`)}`}
+      ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`${[true, false].filter(connected => families.some(r => used(r) === connected)).map(connected => html`<section class="sec"><div class="sec-h"><h2>${connected ? t('agents.section.used') : t('agents.section.managed')}</h2></div><div class="hx-grid stagger">${families.filter(r => used(r) === connected).sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} installs=${installationsOf(r, installs)} />`)}</div></section>`)}`}
 `}
     ${dlg && dlg.add && html`<${AddAgentDialog} installs=${installs} onClose=${() => setDlg(null)} onCustom=${() => setDlg({})} onChanged=${list => list ? setInstalls(list) : loadInstalls()} />`}
     ${dlg && !dlg.add && !dlg.machine && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}

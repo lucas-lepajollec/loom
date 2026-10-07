@@ -2,7 +2,7 @@ import { t, locale, tSource } from '../../core/i18n.js';
 // Panneau de droite : s'adapte à l'exécution choisie. Local = paramètres
 // llama.cpp ; Cloud = fournisseur, usage, coût ; Harness = session native.
 // Un second onglet montre le contexte partagé de la discussion.
-import { html, useState, useEffect, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
+import { html, useState, useEffect, useRef, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Seg, Switch, Tip } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
@@ -84,13 +84,44 @@ export function splitEffort(opts) {
   return [...groups.values()];
 }
 
+// Un nom de modèle lisible : « loom-deepseek/deepseek-flash (via Loom) » devient
+// « deepseek-flash » rangé sous « deepseek · via Loom ».
+export function modelLabel(name) {
+  const raw = String(name || '').replace(/ \(via Loom\)$/, '');
+  const m = raw.match(/^([\w.-]+)\/(.+)$/);
+  if (!m) return { group: '', label: raw };
+  const group = m[1] === 'loom' ? t('inspector.models.local') : m[1].startsWith('loom-') ? m[1].slice(5) + ' · ' + t('inspector.models.via_loom') : m[1];
+  return { group, label: m[2].replace(/\.gguf$/i, '') };
+}
+
+// Liste déroulante tenue dans le panneau (un select natif ouvre une liste
+// aussi large que son plus long libellé, qui déborde de l'écran).
+export function ListPick({ value, options, onChange, label }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef();
+  useEffect(() => {
+    if (!open) return;
+    const close = e => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
+    const esc = e => { if (e.key === 'Escape') setOpen(false); };
+    addEventListener('mousedown', close); addEventListener('keydown', esc);
+    return () => { removeEventListener('mousedown', close); removeEventListener('keydown', esc); };
+  }, [open]);
+  const cur = options.find(o => o.value === value);
+  const groups = [...new Set(options.map(o => o.group || ''))];
+  return html`<div class="lpick" ref=${box}>
+    <button type="button" class="select lpick-b" aria-haspopup="listbox" aria-expanded=${String(open)} aria-label=${label} title=${cur ? cur.label : ''} onClick=${() => setOpen(!open)}><span class="trunc">${cur ? cur.label : '—'}</span></button>
+    ${open && html`<div class="lpick-list" role="listbox" aria-label=${label}>${groups.map(g => html`${g && html`<div class="lpick-g">${g}</div>`}
+      ${options.filter(o => (o.group || '') === g).map(o => html`<button type="button" role="option" aria-selected=${String(o.value === value)} class=${cls('lpick-o', o.value === value && 'on')} title=${o.label} onClick=${() => { setOpen(false); if (o.value !== value) onChange(o.value); }}><span class="trunc">${o.label}</span></button>`)}`)}</div>`}
+  </div>`;
+}
+
 function ModelOption({ o, onChange }) {
   const opts = (o.options || []).flatMap(x => x.options ? x.options : [x]);
   const groups = splitEffort(opts);
   const current = groups.find(g => g.levels.some(l => l.value === o.currentValue)) || groups[0];
   const level = current.levels.find(l => l.value === o.currentValue) || current.levels[0];
   const pick = family => { const g = groups.find(x => x.family === family); const same = g.levels.find(l => l.level === level.level) || g.levels.find(l => l.level === 'medium') || g.levels[0]; onChange(same.value); };
-  return html`<select class="select" aria-label=${o.name} value=${current.family} onChange=${e => pick(e.target.value)}>${groups.map(g => html`<option value=${g.family} selected=${g === current}>${g.name}</option>`)}</select>
+  return html`<${ListPick} label=${o.name} value=${current.family} onChange=${pick} options=${groups.map(g => { const l = modelLabel(g.name); return { value: g.family, label: l.label, group: l.group }; })} />
     ${current.levels.length > 1 && html`<div class="hs-sub">${t('inspector.reasoning_level')}</div>
       <${Seg} value=${level.value} onChange=${onChange} label=${t('inspector.reasoning_level')} options=${current.levels.map(l => ({ value: l.value, label: l.label || l.level }))} />`}`;
 }
@@ -99,7 +130,7 @@ function ConfigOption({ o, onChange }) {
   const opts = (o.options || []).flatMap(x => x.options ? x.options : [x]);
   if (o.type === 'boolean') return html`<div class="prow"><span class="prow-l"><span>${o.name}</span></span><${Switch} checked=${!!o.currentValue} label=${o.name} onChange=${v => onChange(v)} /></div>`;
   return html`<div class="prow"><span class="prow-l"><span>${o.name}</span>${o.description && html`<${Tip} text=${o.description} />`}</span>
-    <select class="select sm" value=${o.currentValue} onChange=${e => onChange(e.target.value)}>${opts.map(x => html`<option value=${x.value} selected=${x.value === o.currentValue}>${x.name || x.value}</option>`)}</select></div>`;
+    <div class="prow-c"><${ListPick} label=${o.name} value=${o.currentValue} onChange=${onChange} options=${opts.map(x => ({ value: x.value, label: x.name || x.value }))} /></div></div>`;
 }
 
 // Terminal dans le dossier de travail du harness, sur sa machine.
@@ -144,6 +175,9 @@ function HarnessPanel() {
   const fromCatalog = catalog.filter(m => m.runtime_id === s.runtime_id && m.enabled !== false);
   const modelOpt = nativeModel || (fromCatalog.length > 1 ? { id: 'model', name: t('inspector.model'), category: 'model', currentValue: s.model, options: fromCatalog.map(m => ({ value: m.model, name: m.name })) } : null);
   const others = config.filter(o => o.category !== 'model' && !(filesystem !== 'native' && ['mode','sandbox','sandbox_mode'].includes(o.id)) && !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode')));
+  // Some agents (Pi) announce the same choice as modes and as an option: keep the option.
+  const modeIds = new Set(modes.map(m => m.id));
+  const modesDuplicated = others.some(o => { const vals = (o.options || []).flatMap(x => x.options ? x.options : [x]).map(x => x.value); return vals.length > 1 && vals.every(v => modeIds.has(v)); });
   const files = h.files || [];
   const usage = h.usage || null;
   const localT = lastTurn(s), u = localT && localT.usage;
@@ -170,7 +204,7 @@ function HarnessPanel() {
     ${canAsk && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.autorisations")}<${Tip} text=${LEVEL_TIP()} /></div>
       <${Seg} value=${level} onChange=${setLevel} label="${t("inspector.inspector.niveau_d_autorisation")}" options=${LEVELS()} /></div>`}
 
-    ${modes.length > 1 && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.mode_de_l_agent")}<${Tip} text="${t("inspector.inspector.modes_proposes_par_le_harness_lui_meme_par_exemple_planifier_avan")}" /></div>
+    ${modes.length > 1 && !modesDuplicated && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.mode_de_l_agent")}<${Tip} text="${t("inspector.inspector.modes_proposes_par_le_harness_lui_meme_par_exemple_planifier_avan")}" /></div>
       <select class="select" disabled=${filesystem !== 'native'} value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${tSource(m.name)}</option>`)}</select></div>`}
 
     ${canDir && html`<div class="hs-sec"><div class="hs-h">${t('filesystem.title')}<${Tip} text=${t('filesystem.note')} /></div>
