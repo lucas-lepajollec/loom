@@ -66,5 +66,18 @@
       "hermes"
     ],
     "docs": "https://hermes-agent.nousresearch.com/docs/"
+  },
+  {
+    "id": "openclaw",
+    "name": "OpenClaw",
+    "logo": "openclaw",
+    "command": "openclaw",
+    "args": [
+      "acp"
+    ],
+    "detect": [
+      "openclaw"
+    ],
+    "docs": "https://github.com/openclaw/openclaw/blob/main/docs/cli/acp.md"
   }
 ]

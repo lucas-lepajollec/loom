@@ -314,5 +314,38 @@
       "node"
     ],
     "source": "https://opencode.ai/docs/"
+  },
+  "openclaw": {
+    "binary": "openclaw",
+    "version": [
+      "openclaw",
+      "--version"
+    ],
+    "install": {
+      "unix": [
+        "npm",
+        "install",
+        "-g",
+        "openclaw"
+      ],
+      "windows": [
+        "npm",
+        "install",
+        "-g",
+        "openclaw"
+      ]
+    },
+    "update": [
+      "openclaw",
+      "update"
+    ],
+    "latest": {
+      "npm": "openclaw"
+    },
+    "requires": [
+      "npm",
+      "node"
+    ],
+    "source": "https://github.com/openclaw/openclaw#readme"
   }
 }

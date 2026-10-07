@@ -5,6 +5,7 @@ import { t, locale, tSource } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Seg, Switch, Tip } from '../../ui/controls.js';
+import { ListPick } from '../../ui/listpick.js';
 import { Logo } from '../../ui/logo.js';
 import { WorkspacePicker } from '../workspaces/folders.js';
 import { Modal, toast, confirm, prompt } from '../../ui/dialog.js';
@@ -92,27 +93,6 @@ export function modelLabel(name) {
   if (!m) return { group: '', label: raw };
   const group = m[1] === 'loom' ? t('inspector.models.local') : m[1].startsWith('loom-') ? m[1].slice(5) + ' · ' + t('inspector.models.via_loom') : m[1];
   return { group, label: m[2].replace(/\.gguf$/i, '') };
-}
-
-// Liste déroulante tenue dans le panneau (un select natif ouvre une liste
-// aussi large que son plus long libellé, qui déborde de l'écran).
-export function ListPick({ value, options, onChange, label }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef();
-  useEffect(() => {
-    if (!open) return;
-    const close = e => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
-    const esc = e => { if (e.key === 'Escape') setOpen(false); };
-    addEventListener('mousedown', close); addEventListener('keydown', esc);
-    return () => { removeEventListener('mousedown', close); removeEventListener('keydown', esc); };
-  }, [open]);
-  const cur = options.find(o => o.value === value);
-  const groups = [...new Set(options.map(o => o.group || ''))];
-  return html`<div class="lpick" ref=${box}>
-    <button type="button" class="select lpick-b" aria-haspopup="listbox" aria-expanded=${String(open)} aria-label=${label} title=${cur ? cur.label : ''} onClick=${() => setOpen(!open)}><span class="trunc">${cur ? cur.label : '—'}</span></button>
-    ${open && html`<div class="lpick-list" role="listbox" aria-label=${label}>${groups.map(g => html`${g && html`<div class="lpick-g">${g}</div>`}
-      ${options.filter(o => (o.group || '') === g).map(o => html`<button type="button" role="option" aria-selected=${String(o.value === value)} class=${cls('lpick-o', o.value === value && 'on')} title=${o.label} onClick=${() => { setOpen(false); if (o.value !== value) onChange(o.value); }}><span class="trunc">${o.label}</span></button>`)}`)}</div>`}
-  </div>`;
 }
 
 function ModelOption({ o, onChange }) {
@@ -205,13 +185,11 @@ function HarnessPanel() {
       <${Seg} value=${level} onChange=${setLevel} label="${t("inspector.inspector.niveau_d_autorisation")}" options=${LEVELS()} /></div>`}
 
     ${modes.length > 1 && !modesDuplicated && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.mode_de_l_agent")}<${Tip} text="${t("inspector.inspector.modes_proposes_par_le_harness_lui_meme_par_exemple_planifier_avan")}" /></div>
-      <select class="select" disabled=${filesystem !== 'native'} value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${tSource(m.name)}</option>`)}</select></div>`}
+      <${ListPick} label=${t("inspector.inspector.mode_de_l_agent")} disabled=${filesystem !== 'native'} value=${mode} onChange=${v => configure(s, { mode: v })} options=${modes.map(m => ({ value: m.id, label: tSource(m.name) }))} /></div>`}
 
     ${canDir && html`<div class="hs-sec"><div class="hs-h">${t('filesystem.title')}<${Tip} text=${t('filesystem.note')} /></div>
-      <select class="select" value=${filesystem} onChange=${e => setFilesystem(e.target.value)} aria-label=${t('filesystem.title')}>
-        <option value="native">${t('filesystem.native')}</option><option value="workspace-only" disabled>${t('filesystem.workspace_only')} · ${t('filesystem.unavailable')}</option>
-        ${['workspace-write', 'full-access'].map(p => html`<option value=${p} disabled=${!protections.includes(p)}>${p === 'workspace-write' ? t('filesystem.workspace_write') : t('filesystem.full')}${!protections.includes(p) ? ' · ' + t('filesystem.unavailable') : ''}</option>`)}
-      </select><p class="note">${filesystem === 'workspace-write' ? t('filesystem.workspace_write_note') : t('filesystem.native_note')}</p>
+      <${ListPick} label=${t('filesystem.title')} value=${filesystem} onChange=${setFilesystem} options=${[{ value: 'native', label: t('filesystem.native') }, { value: 'workspace-only', label: t('filesystem.workspace_only'), note: t('filesystem.unavailable'), disabled: true },
+        ...['workspace-write', 'full-access'].map(p => ({ value: p, label: p === 'workspace-write' ? t('filesystem.workspace_write') : t('filesystem.full'), note: protections.includes(p) ? '' : t('filesystem.unavailable'), disabled: !protections.includes(p) }))]} /><p class="note">${filesystem === 'workspace-write' ? t('filesystem.workspace_write_note') : t('filesystem.native_note')}</p>
     </div>`}
 
 
