@@ -419,7 +419,7 @@ func eligible(s Source, rel string, excludes []*regexp.Regexp) bool {
 }
 func skipDir(name string) bool {
 	switch strings.ToLower(name) {
-	case ".git", ".ssh", ".gnupg", ".aws", ".codex", ".claude", ".project-local", "node_modules", "vendor", "dist", "build":
+	case ".git", ".ssh", ".gnupg", ".aws", ".codex", ".claude", ".project-local", ".loom", "node_modules", "vendor", "dist", "build":
 		return true
 	}
 	return false

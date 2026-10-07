@@ -6,6 +6,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Brain v2 memory items: scoped knowledge with provenance and retained history,
+  Markdown/YAML files in the primary vault (encrypted fallback), HTTP/MCP
+  operations, and a one-time import of accepted/legacy distilled items.
+
 - OpenClaw in the agent catalog (ACP bridge `openclaw acp`, which needs its
   Gateway; official npm install and `openclaw update`; detected on connected
   machines too).

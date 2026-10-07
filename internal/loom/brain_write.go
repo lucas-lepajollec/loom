@@ -72,6 +72,9 @@ func secondBrainPath(sourceID, relative string) (string, error) {
 	if ext := strings.ToLower(filepath.Ext(relative)); ext != ".md" && ext != ".markdown" {
 		return "", errors.New("second-brain writes are limited to Markdown files")
 	}
+	if relative == ".loom" || strings.HasPrefix(relative, ".loom"+string(filepath.Separator)) {
+		return "", errors.New(".loom is managed by Loom; use memory operations instead")
+	}
 	full := filepath.Join(root, relative)
 	rel, err := filepath.Rel(root, full)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
