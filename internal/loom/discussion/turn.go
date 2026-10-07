@@ -1,5 +1,7 @@
 package discussion
 
+import "strings"
+
 func PortablePrefix(prefix, messages []Message) bool {
 	if len(prefix) > len(messages) {
 		return false
@@ -15,7 +17,20 @@ func PortablePrefix(prefix, messages []Message) bool {
 }
 
 // TitleFromText keeps the historical 70-rune automatic discussion title.
+// Pasted text attachments (composer) never become part of the title; a
+// message made only of attachments is titled after its first file.
 func TitleFromText(text string) string {
+	const attachments = "--- Loom text attachments ---\n"
+	if i := strings.Index(text, attachments); i >= 0 {
+		head := strings.TrimSpace(text[:i])
+		if head == "" {
+			rest := text[i+len(attachments):]
+			if j := strings.Index(rest, " ("); j > 0 {
+				head = rest[:j]
+			}
+		}
+		text = head
+	}
 	title := []rune(text)
 	if len(title) > 70 {
 		title = title[:70]

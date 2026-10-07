@@ -118,7 +118,11 @@ func handleRuntimeSessionSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := workspaceSessions.start(req.ID, req.RequestID, req.Text, req.ContextRevision); err != nil {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+		out := map[string]any{"ok": false, "error": err.Error()}
+		if errors.Is(err, errContextChanged) {
+			out["code"] = "context_changed"
+		}
+		sendJSON(w, 409, out)
 		return
 	}
 	sendJSON(w, 202, map[string]any{"ok": true})
@@ -237,7 +241,7 @@ func handleRuntimeSessionPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := prepareDiscussion(s, req.Text)
-	sendJSON(w, 200, map[string]any{"ok": true, "preview": p, "runtime_id": s.RuntimeID, "provider_name": s.ProviderName, "model": s.Model, "endpoint": s.Endpoint, "running": s.Status == "running"})
+	sendJSON(w, 200, map[string]any{"ok": true, "preview": p, "runtime_id": s.RuntimeID, "provider_id": s.ProviderID, "provider_name": s.ProviderName, "model": s.Model, "endpoint": s.Endpoint, "reasoning_effort": s.ReasoningEffort, "running": s.Status == "running"})
 }
 func handleModelChoice(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodPost) {

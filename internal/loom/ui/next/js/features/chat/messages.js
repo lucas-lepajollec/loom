@@ -7,6 +7,7 @@ import { ToolCard, QuietGroup, Plan, Approval, QUIET } from './tools.js';
 import { post } from '../../core/api.js';
 import { toast } from '../../ui/dialog.js';
 import { runtimeKind } from '../../core/state.js';
+import { splitPastedMessage, downloadPaste } from './pasted-text.js';
 
 const TOOL = () => ({
   bash: ['terminal', 'Terminal'], write: ['file', t("chat.messages.ecriture")], edit: ['edit', t("chat.messages.edition")],
@@ -163,9 +164,17 @@ export function Messages({ items, gen, compacting, root, sessionId }) {
       case 'plan': return html`<${Plan} key=${i} entries=${it.entries || []} />`;
       case 'approval': return html`<${Approval} key=${i} a=${it.approval} resolved=${it.resolved} root=${root} onAnswer=${opt => answer(sessionId, it.approval.id, opt)} />`;
       case 'tool': if (it.tool) return html`<${ToolCard} key=${i} tool=${it.tool} root=${root} />`; return html`<${Tool} key=${i} tu=${it.tu} live=${it.live} />`;
-      case 'user': return html`<div key=${i} class=${cls('msg-user', it.pending && 'pending')}>
+      case 'user': {
+        const pasted = splitPastedMessage(it.text);
+        return html`<div key=${i} class=${cls('msg-user', it.pending && 'pending')}>
         ${it.files && it.files.length ? html`<div class="msg-files">${it.files.map(f => html`<span class="file-pill"><${Icon} n="file" />${f.name || String(f).split('/').pop()}</span>`)}</div>` : ''}
-        <div class="bubble">${it.text}</div></div>`;
+        ${pasted.text && html`<div class="bubble">${pasted.text}</div>`}
+        ${pasted.files.map(f => html`<${Collapsible} icon="file" label=${f.name}>
+          <button class="btn sm" onClick=${() => downloadPaste(f)}>${t('chat.composer.download_text')}</button>
+          <${Body} text=${f.content} isPlain=${true} />
+        </${Collapsible}>`)}
+        </div>`;
+      }
       case 'reasoning': return html`<${Collapsible} key=${i} icon="brain" live=${it.live} cls="reason"
         label=${it.live ? t("chat.messages.reflexion_en_cours") : it.summary ? t("chat.messages.resume_de_reflexion") : it.tok > 0 ? t("chat.messages.reflexion_2") + fmtTok(it.tok) + ' tok' : t("chat.messages.reflexion")}>
         <${Body} text=${it.text} isPlain=${it.summary} live=${it.live} /></${Collapsible}>`;

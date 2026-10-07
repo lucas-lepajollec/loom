@@ -212,10 +212,14 @@ func (m *runtimeSessions) start(id, requestID, text string, expectedRevision ...
 
 // Preparation can read files, retrieve Brain passages and check a remote
 // directory. It must never hold the registry lock needed by unrelated reads.
+// errContextChanged: what would be sent differs from what the client prepared
+// (route, history or automatic context). The client prepares again and retries.
+var errContextChanged = errors.New("the model, thread or its context changed; check the Context panel then resend your message")
+
 func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func(RuntimeSession, string) DiscussionPreview, expectedRevision ...string) error {
 	text = strings.TrimSpace(text)
-	if text == "" || len(text) > 24000 || len(requestID) < 8 || len(requestID) > 100 {
-		return errors.New("message required (maximum 24000 bytes) and valid request ID")
+	if text == "" || len(text) > maxMessageBytes || len(requestID) < 8 || len(requestID) > 100 {
+		return errors.New("message required (maximum 64 KiB) and valid request ID")
 	}
 	m.mu.Lock()
 	s, ok := m.getLocked(id)
@@ -236,7 +240,7 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 	original := s
 	prepared := prepare(s, text)
 	if len(expectedRevision) > 0 && (expectedRevision[0] == "" || expectedRevision[0] != prepared.Context.Revision) {
-		return errors.New("the model, thread or its context changed; check the Context panel then resend your message")
+		return errContextChanged
 	}
 	if prepared.Problem != "" {
 		return errors.New(prepared.Problem)
