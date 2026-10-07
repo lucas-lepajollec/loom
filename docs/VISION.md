@@ -60,6 +60,10 @@ Authentication separates browser sessions, inference API credentials and machine
 credentials. Public code, examples and tests contain synthetic data, not private
 corpora, credentials or machine-specific rules.
 
+The accepted long-term direction (Machines/Nodes, capabilities, Brain v2,
+interface architecture, tasks, orchestration and voice) is in
+[DIRECTION.md](DIRECTION.md).
+
 See the [current roadmap](ROADMAP.md), [workspace contracts](workspace-architecture.md)
 and [Brain API and limits](brain.md). Graph indexing and automatic routing come
 after stability and real-device/provider acceptance. Consumer ChatGPT/Gemini web

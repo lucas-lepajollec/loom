@@ -70,6 +70,9 @@ Implemented, with synthetic Go/UI/browser checks:
 
 ## Later
 
+The ordered phases after this consolidation are in [DIRECTION.md](DIRECTION.md).
+
+
 Graphify/graph indexes, Jev/context scheduling and advanced automatic routing
 follow clean state, predictable retrieval and stable daily use. They must not
 replace canonical sources or conceal unsupported capabilities. Automatic memory
