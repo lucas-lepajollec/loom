@@ -16,11 +16,15 @@ const (
 )
 
 type Source struct {
-	Connector   string    `json:"connector,omitempty"`
-	Remote      string    `json:"remote,omitempty"`
-	Branch      string    `json:"branch,omitempty"`
-	Permission  string    `json:"permission,omitempty"`
-	Primary     bool      `json:"primary,omitempty"`
+	Connector  string `json:"connector,omitempty"`
+	Remote     string `json:"remote,omitempty"`
+	Branch     string `json:"branch,omitempty"`
+	Permission string `json:"permission,omitempty"`
+	Primary    bool   `json:"primary,omitempty"`
+	// Secondary brains are never injected into context automatically: the
+	// model is told they exist and searches them only when a request needs
+	// them (Loom's brain search). Read-only unless their permission says so.
+	Secondary   bool      `json:"secondary,omitempty"`
 	Exclude     []string  `json:"exclude,omitempty"`
 	ID          string    `json:"id"`
 	Label       string    `json:"label"`

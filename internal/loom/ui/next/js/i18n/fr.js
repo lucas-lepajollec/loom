@@ -1,5 +1,13 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "second_brain.role": "Rôle",
+  "second_brain.role.primary": "Principal",
+  "second_brain.role.context": "Contexte",
+  "second_brain.role.secondary": "Secondaire",
+  "second_brain.role.primary_note": "La mémoire de travail de Loom : utilisé pour chaque demande pertinente, et seul cerveau où Loom et les agents écrivent.",
+  "second_brain.role.context_note": "Ses passages utiles sont ajoutés automatiquement aux demandes.",
+  "second_brain.role.secondary_note": "Jamais ajouté de lui-même : l'agent sait qu'il existe et le consulte seulement quand la demande en a besoin.",
+  "second_brain.ask": "Demander avant de modifier",
   "machines.card.agents": "{used} utilisés · {managed} gérés",
   "machines.card.engine_here": "ici",
   "terminals.open_list": "Ouverts",

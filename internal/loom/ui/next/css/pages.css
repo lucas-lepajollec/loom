@@ -782,3 +782,6 @@
 .bench .grid-bench>.card:first-child .choice{flex:0 1 300px;border-color:var(--line)}
 .bench .bench-g .choice-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:4px 10px;max-height:360px}
 .bench>.card{margin-top:14px}
+.brain-role{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.brain-role .seg{align-self:flex-start}
+.brain-role .note{margin:0}
