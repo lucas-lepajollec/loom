@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-07
+
 ### Fixed
 
 - Sending no longer fails with "the model, thread or its context changed" when
