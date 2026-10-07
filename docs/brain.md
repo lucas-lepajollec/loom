@@ -452,8 +452,8 @@ stable ties. A zero/omitted limit returns all matches; negative limits fail.
 The authenticated `/mcp/brain` server also exposes `remember`, `update_memory`,
 `forget_memory`, and read-only `list_memory`, using the corresponding JSON
 request/result shapes above. MCP filters use `classes` / `scopes` arrays.
-These operations record and manage knowledge; this backend slice does not add
-items to context selection or change the existing UI.
+These operations record and manage knowledge. Discussion context selection uses
+these same items; the existing UI is unchanged.
 
 On first use of each store, Loom imports accepted distilled items:
 `decision` → `episodic`, `fact` / `preference` → `semantic`, `todo` → `working`.
@@ -463,6 +463,77 @@ discussion ID, message index and date. Deterministic IDs allow retries after an
 interruption; `imported_distilled: true` is saved only after all files succeed.
 The original `distilled.json` is never changed or removed by import. Later
 review changes do not rerun this one-time conversion.
+
+## Context engine
+
+Discussion preparation selects a deterministic memory pack without a model
+call. Scope filtering precedes scoring: only `global`, the discussion's
+`project:<id>` (when attached), and `agent:<runtime id>` are eligible. Only
+`active` and `uncertain` items participate; uncertain items rank after active
+items within their class. Machine and task items are excluded because this
+slice has no corresponding discussion binding. Working memory requires the
+matching project scope; global and agent working items are not injected.
+
+Selection visits classes in this order, under explicit token ceilings:
+
+| Class | Default ceiling | Selection |
+| --- | ---: | --- |
+| Reflex | 300 | Always eligible, highest importance first |
+| Working | 300 | Matching project state, highest importance first |
+| Procedural | 300 | Relevant methods |
+| Semantic | 500 | Relevant facts and preferences |
+| Episodic | 300 | Relevant events, newest creation date first |
+| Session | 0 | Disabled by default |
+
+The shared total ceiling is **1500 estimated tokens**, even though the class
+ceilings sum to 1700. Unused class space does not raise another class's ceiling.
+`brain.MemoryBudgets` and `brain.DefaultMemoryBudgets()` expose these defaults
+for later configuration. Estimates use the existing one-token-per-four-Unicode-
+characters heuristic. Rendered class/scope labels and the memory header count
+against the ceilings. Whole items that do not fit are skipped; text is never
+truncated, and a later smaller item can still fit.
+
+Procedural, semantic and episodic items need lexical overlap between the latest
+user text and their text or tags. Both passage and memory queries keep the last
+2000 bytes of the trimmed user text. Matching uses Brain's existing English/
+French stop words, case and accent folding. Procedural and semantic ranking
+combines query-term overlap with importance, confidence and a small recency
+bonus. Episodic ranking prefers the newest relevant event. Recency uses creation/
+update timestamps relative to the newest eligible candidate, never the wall
+clock or `last_used_at`, keeping unchanged previews stable.
+
+A relevant eligible successor suppresses its retained predecessors, following
+supersession chains across classes. Items whose normalized text is already
+contained in retrieved Brain passages or a previously selected memory item are
+skipped. The compact `Loom memory (why: class/scope):` block follows project
+instructions/files/passages and precedes skills, Brain declarations and the
+discussion's instructions. Non-project discussions still receive eligible
+global and runtime-scoped memory. Unavailable or locked memory blocks preparation
+rather than silently sending a different context.
+
+`DiscussionContext.items` explains every included part of `system`, in order.
+Each entry has `kind`, `label`, `source`, `reason` and estimated `tokens`; memory
+entries also have `class` and `scope`, with their stable memory ID as `source`.
+Kinds are `global_preferences`, `project` (continuity or instructions),
+`project_files`, `brain_passage`, `memory`, `skill`, `primary_brain`,
+`secondary_brains`, and `discussion_instructions`. Passages and secondary
+Brain declarations each get their own entry. Headers, separators and rounding
+are attributed to the following item, so item costs and `budget.by_kind` sum
+exactly to `estimated_tokens`. Existing `brain_citations` remain available.
+
+`DiscussionContext.budget.memory` contains `used`, `available` (1500 by default),
+and a `classes` map with the same used/available pair per class. These memory
+costs measure the memory block itself, including its header, independently of
+separators between system sections. This permits displays such as
+`1240 / 1500 memory tokens` without confusing memory and vault-passage budgets.
+Explanations and budget metadata do not enter the context revision hash;
+unchanged system text retains the existing route/history revision semantics.
+
+Preview and preparation never call `Touch`. Both portable execution and native
+local generation touch only included memory IDs when the accepted turn reaches
+the runtime send boundary. Rejected/stale sends and idempotent retries do not
+mark items used. Usage writes are best-effort bookkeeping and do not turn an
+accepted send into a retry if storage becomes unavailable.
 
 ## Project continuity and retrieval scope
 

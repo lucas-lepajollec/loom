@@ -16,6 +16,7 @@ type ACPState = discussion.ACPState
 type NativeImport = discussion.NativeImport
 type RuntimeSession = discussion.RuntimeSession[RuntimeUsage, StatsEvent]
 type RuntimeTurnRecord = discussion.RuntimeTurnRecord[RuntimeUsage, StatsEvent]
+type ContextItem = discussion.ContextItem
 type DiscussionContext = discussion.DiscussionContext[Capability]
 type DiscussionPreview = discussion.DiscussionPreview[Capability]
 

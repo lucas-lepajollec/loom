@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
 // Projects inherit connected second brains. The latest user message selects
@@ -77,15 +78,30 @@ func autoContextBrainSources(p ChatProject) []string {
 // primarySecondBrainContext tells the model about the primary brain (its
 // working memory) and the secondary brains it may consult on demand.
 func primarySecondBrainContext() string {
+	text := ""
+	for _, part := range primarySecondBrainParts() {
+		if text != "" {
+			text += part.separator
+		}
+		text += part.text
+	}
+	return text
+}
+
+func primarySecondBrainParts() []contextPart {
 	e, err := theBrain().get()
 	if err != nil {
-		return ""
+		return nil
 	}
-	parts := []string{}
-	secondary := []string{}
+	parts := []contextPart{}
+	secondary := []contextPart{}
 	for _, source := range e.Sources() {
 		if source.Primary && !source.ReadOnly && source.Permission == "write" {
-			parts = append(parts, "Primary second brain: "+source.Label+" at "+source.Path+". It is a user-owned source of truth. Proactively keep durable decisions, preferences and project facts current there when your available file tools can do so; update existing Markdown instead of duplicating it. Do not write credentials or private conversation transcripts.")
+			parts = append(parts, contextPart{
+				text:      "Primary second brain: " + source.Label + " at " + source.Path + ". It is a user-owned source of truth. Proactively keep durable decisions, preferences and project facts current there when your available file tools can do so; update existing Markdown instead of duplicating it. Do not write credentials or private conversation transcripts.",
+				separator: "\n\n",
+				item:      discussion.ContextItem{Kind: "primary_brain", Label: source.Label, Source: source.ID, Reason: "primary vault instructions"},
+			})
 		} else if source.Secondary && !source.ReadOnly {
 			access := "read-only"
 			if source.Permission == "write" {
@@ -93,13 +109,19 @@ func primarySecondBrainContext() string {
 			} else if source.Permission == "ask" {
 				access = "ask before any change"
 			}
-			secondary = append(secondary, "- "+source.Label+" (source id "+source.ID+", "+access+")")
+			secondary = append(secondary, contextPart{
+				text:      "- " + source.Label + " (source id " + source.ID + ", " + access + ")",
+				separator: "\n",
+				item:      discussion.ContextItem{Kind: "secondary_brains", Label: source.Label, Source: source.ID, Reason: "available for on-demand search"},
+			})
 		}
 	}
 	if len(secondary) > 0 {
-		parts = append(parts, "Secondary brains, consulted only when the request needs them (search them with Loom's brain search using their source id; never assume their content):\n"+strings.Join(secondary, "\n"))
+		secondary[0].text = "Secondary brains, consulted only when the request needs them (search them with Loom's brain search using their source id; never assume their content):\n" + secondary[0].text
+		secondary[0].separator = "\n\n"
+		parts = append(parts, secondary...)
 	}
-	return strings.Join(parts, "\n\n")
+	return parts
 }
 
 func attachPrimarySecondBrain(s *RuntimeSession, agent acpAgent) {
@@ -116,17 +138,24 @@ func attachPrimarySecondBrain(s *RuntimeSession, agent acpAgent) {
 // projectBrainContext returns the Brain passages for a project and query, and
 // the citations, or "" when the project uses no Brain source.
 func projectBrainContext(p ChatProject, query string) (string, []string) {
+	pack := projectBrainPack(p, query)
+	cites := []string{}
+	for _, c := range pack.Citations {
+		cites = append(cites, c.Citation)
+	}
+	return pack.Text, cites
+}
+
+func projectBrainPack(p ChatProject, query string) brain.Pack {
 	sources := autoContextBrainSources(p)
 	if len(sources) == 0 || strings.TrimSpace(query) == "" {
-		return "", nil
+		return brain.Pack{}
 	}
 	budget := p.BrainBudget
 	if budget <= 0 {
 		budget = 1500
 	}
-	if len(query) > 2000 {
-		query = query[len(query)-2000:]
-	}
+	query = brain.ContextQuery(query)
 	kinds := brainSourceKinds()
 	personal := false
 	for _, id := range sources {
@@ -138,13 +167,9 @@ func projectBrainContext(p ChatProject, query string) (string, []string) {
 	defer cancel()
 	pack, err := theBrain().PackContext(ctx, brain.PackRequest{Query: query, BudgetTokens: budget, Sources: sources, Personal: personal, PathPrefixes: projectReferenceScope(p)})
 	if err != nil || strings.TrimSpace(pack.Text) == "" {
-		return "", nil
+		return brain.Pack{}
 	}
-	cites := []string{}
-	for _, c := range pack.Citations {
-		cites = append(cites, c.Citation)
-	}
-	return pack.Text, cites
+	return pack
 }
 
 // Conversation continuity follows project membership. Moving a discussion in

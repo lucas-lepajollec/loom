@@ -60,7 +60,7 @@ func TestDiscussionSnapshotThenLiveAndReconnect(t *testing.T) {
 		emit(StreamEvent{NativeSessionID: "native-id", DurationSeconds: 1.5})
 		return context.Canceled
 	}}
-	m.generate(context.Background(), run, adapter, nil)
+	m.generate(context.Background(), run, adapter, nil, DiscussionContext{})
 	<-done
 	var live []DiscussionEvent
 	for len(events) > 0 {

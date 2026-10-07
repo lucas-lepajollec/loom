@@ -246,6 +246,11 @@ func nativeDiscussionContext(archiveID, projectID string) string {
 // The native path uses the current draft exactly once, like every other
 // executor. Selected preferences or projects that became unreadable block send.
 func nativePreparedContext(archiveID, projectID, query string) (string, error) {
+	c, err := nativePreparedDiscussionContext(archiveID, projectID, query)
+	return c.System, err
+}
+
+func nativePreparedDiscussionContext(archiveID, projectID, query string) (DiscussionContext, error) {
 	session := RuntimeSession{RuntimeID: "llama.cpp", ProjectID: projectID}
 	for _, s := range workspaceSessions.list() {
 		if s.NativeArchive == archiveID && s.RuntimeID == "llama.cpp" {
@@ -255,9 +260,9 @@ func nativePreparedContext(archiveID, projectID, query string) (string, error) {
 	}
 	c := discussionContextFor(session, query)
 	if c.Problem != "" {
-		return "", errors.New(c.Problem)
+		return c, errors.New(c.Problem)
 	}
-	return c.System, nil
+	return c, nil
 }
 
 func handleRuntimeSessionLocal(w http.ResponseWriter, r *http.Request) {

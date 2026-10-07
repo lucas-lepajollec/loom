@@ -8,22 +8,49 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 	"github.com/lucas-lepajollec/loom/internal/loom/project"
 )
+
+type contextPart struct {
+	text      string
+	separator string
+	item      discussion.ContextItem
+}
 
 func discussionContext(s RuntimeSession) DiscussionContext {
 	return discussionContextFor(s, lastUserText(s.Messages))
 }
 
+// appendContextPart attributes headers, separators and rounding to the next
+// included item, so item and per-kind costs sum to EstimatedTokens exactly.
+func appendContextPart(c *DiscussionContext, part contextPart) {
+	before := brain.Tokens(c.System)
+	if c.System != "" {
+		c.System += part.separator
+	}
+	c.System += part.text
+	part.item.Tokens = brain.Tokens(c.System) - before
+	c.Items = append(c.Items, part.item)
+	c.Budget.ByKind[part.item.Kind] += part.item.Tokens
+}
+
 func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
-	c := DiscussionContext{MCPServers: s.MCPServers, ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}}
-	parts := []string{}
+	c := DiscussionContext{MCPServers: s.MCPServers, ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}, Items: []discussion.ContextItem{}}
+	c.Budget.ByKind = map[string]int{}
+	add := func(kind, label, source, reason, text string) {
+		appendContextPart(&c, contextPart{text: text, separator: "\n\n", item: discussion.ContextItem{Kind: kind, Label: label, Source: source, Reason: reason}})
+	}
 	if text, err := globalPreferences(s.RuntimeID != "llama.cpp"); err != nil {
 		c.Problem = err.Error()
 	} else if text != "" {
-		parts = append(parts, text)
+		var selected sharedPreferences
+		getStoreJSON(bkState, sharedPreferencesKey, &selected)
+		add("global_preferences", selected.Page, selected.Page, "selected shared preferences", text)
 		c.GlobalPreferences = text
 	}
+	passageText := ""
+	skillParts := []contextPart{}
 	if s.ProjectID != "" {
 		p, ok := getProject(s.ProjectID)
 		if !ok {
@@ -31,7 +58,7 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 		} else {
 			if text := project.Text(p.Continuity); text != "" {
 				text = "Project identity: " + p.ID + "\n" + text
-				parts = append(parts, "Project continuity:\n"+text)
+				add("project", p.Name, p.ID, "project continuity", "Project continuity:\n"+text)
 				c.Minimum = text
 			}
 			if p.Continuity != nil {
@@ -44,39 +71,100 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 				c.MCPServers = p.MCPServers
 			}
 			if p.Instructions != "" {
-				parts = append(parts, "Project instructions:\n"+p.Instructions)
+				add("project", p.Name, p.ID, "project instructions", "Project instructions:\n"+p.Instructions)
 			}
-			// Files the user chose in the project folder (explicit opt-in).
 			files, warning := projectContextFiles(p)
-			parts = append(parts, files...)
+			for _, text := range files {
+				path, _, _ := strings.Cut(strings.TrimPrefix(text, "Project file "), ":\n")
+				add("project_files", path, path, "selected project file", text)
+			}
 			if warning != "" {
 				c.Warning = warning
 			}
-			// Brain passages relevant to the latest message.
-			if text, cites := projectBrainContext(p, query); text != "" {
-				parts = append(parts, text)
-				c.BrainCitations = cites
+			pack := projectBrainPack(p, query)
+			passageText = pack.Text
+			for i, chunk := range pack.Chunks {
+				cite := pack.Citations[i]
+				text := "\n[" + cite.Source + ": " + cite.Citation + "]\n" + chunk.Text + "\n"
+				separator := ""
+				if i == 0 {
+					text = "Context from the user's Brain:\n" + text
+					separator = "\n\n"
+				}
+				appendContextPart(&c, contextPart{text: text, separator: separator, item: discussion.ContextItem{Kind: "brain_passage", Label: cite.Citation, Source: cite.Source, Reason: "matches your message"}})
+				c.BrainCitations = append(c.BrainCitations, cite.Citation)
 			}
 			for _, id := range p.CapabilityIDs {
 				if skill, ok := getCapability(id); ok && skill.Instructions != "" {
 					c.Skills = append(c.Skills, skill)
-					parts = append(parts, "Skill: "+skill.Name+"\n"+skill.Instructions)
+					skillParts = append(skillParts, contextPart{text: "Skill: " + skill.Name + "\n" + skill.Instructions, separator: "\n\n", item: discussion.ContextItem{Kind: "skill", Label: skill.Name, Source: skill.ID, Reason: "selected project skill"}})
 				} else {
 					c.Warning = "A project skill is no longer available and will not be sent."
 				}
 			}
 		}
 	}
-	if text := primarySecondBrainContext(); text != "" {
-		parts = append(parts, text)
+	budgets := brain.DefaultMemoryBudgets()
+	c.Budget.Memory = discussion.MemoryBudget{TokenBudget: discussion.TokenBudget{Available: budgets.Total}, Classes: map[string]discussion.TokenBudget{}}
+	for class, limit := range budgets.Classes() {
+		c.Budget.Memory.Classes[class] = discussion.TokenBudget{Available: limit}
+	}
+	scopes := []string{"global"}
+	if s.ProjectID != "" {
+		scopes = append(scopes, "project:"+s.ProjectID)
+	}
+	if s.RuntimeID != "" {
+		scopes = append(scopes, "agent:"+s.RuntimeID)
+	}
+	if list, err := theBrain().ListMemory(brain.MemoryFilter{Scopes: scopes, Status: "all"}); err != nil {
+		if c.Problem == "" {
+			c.Problem = "Loom memory is unavailable: " + err.Error()
+		}
+	} else {
+		pack := brain.SelectMemory(list.Items, s.ProjectID, s.RuntimeID, query, passageText, budgets)
+		c.Budget.Memory.Used = brain.Tokens(pack.Text)
+		for class, used := range pack.Used {
+			limit := c.Budget.Memory.Classes[class]
+			limit.Used = used
+			c.Budget.Memory.Classes[class] = limit
+		}
+		for i, selected := range pack.Items {
+			item := selected.Item
+			words := strings.Fields(item.Text)
+			label := strings.Join(words[:min(len(words), 8)], " ")
+			separator := ""
+			if i == 0 {
+				separator = "\n\n"
+			}
+			appendContextPart(&c, contextPart{text: selected.Section, separator: separator, item: discussion.ContextItem{Kind: "memory", Label: label, Source: item.ID, Class: item.Class, Scope: item.Scope, Reason: selected.Reason}})
+		}
+	}
+	for _, part := range skillParts {
+		appendContextPart(&c, part)
+	}
+	for _, part := range primarySecondBrainParts() {
+		appendContextPart(&c, part)
 	}
 	if s.Instructions != "" {
-		parts = append(parts, "Discussion instructions:\n"+s.Instructions)
+		add("discussion_instructions", "Discussion instructions", s.ID, "discussion instructions", "Discussion instructions:\n"+s.Instructions)
 	}
-	c.System = strings.Join(parts, "\n\n")
 	c.EstimatedTokens = brain.Tokens(c.System)
 	c.Revision = discussionContextRevision(s, c)
 	return c
+}
+
+// Usage is best-effort bookkeeping on an accepted execution, never preparation.
+// A write failure must not turn a successfully accepted message into a resend.
+func touchContextMemory(c DiscussionContext) {
+	ids := []string{}
+	for _, item := range c.Items {
+		if item.Kind == "memory" {
+			ids = append(ids, item.Source)
+		}
+	}
+	if len(ids) > 0 {
+		_ = theBrain().TouchMemory(ids)
+	}
 }
 
 func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions, revision string, consent bool, harness ...acpConfiguration) (RuntimeSession, error) {

@@ -12,17 +12,42 @@ const MaxPortableBytes = 128 << 10
 const MaxPortableMessages = 200
 const MaxMessageBytes = 64 << 10
 
+// ContextItem explains one ordered part of the assembled system text.
+type ContextItem struct {
+	Kind   string `json:"kind"`
+	Label  string `json:"label"`
+	Source string `json:"source"`
+	Class  string `json:"class,omitempty"`
+	Scope  string `json:"scope,omitempty"`
+	Reason string `json:"reason"`
+	Tokens int    `json:"tokens"`
+}
+type TokenBudget struct {
+	Used      int `json:"used"`
+	Available int `json:"available"`
+}
+type MemoryBudget struct {
+	TokenBudget
+	Classes map[string]TokenBudget `json:"classes"`
+}
+type ContextBudget struct {
+	ByKind map[string]int `json:"by_kind"`
+	Memory MemoryBudget   `json:"memory"`
+}
+
 // DiscussionContext is a fresh read model, not a second memory store. Revision
 // binds the route, portable history and instructions seen by the client.
 type DiscussionContext[Capability any] struct {
-	GlobalPreferences string    `json:"global_preferences,omitempty"`
-	Minimum           string    `json:"minimum,omitempty"`
-	EstimatedTokens   int       `json:"estimated_tokens"`
-	ReferenceIDs      []string  `json:"reference_ids,omitempty"`
-	MCPServers        *[]string `json:"mcp_servers,omitempty"`
-	ProjectID         string    `json:"project_id"`
-	ProjectName       string    `json:"project_name"`
-	Instructions      string    `json:"project_instructions"`
+	Items             []ContextItem `json:"items"`
+	Budget            ContextBudget `json:"budget"`
+	GlobalPreferences string        `json:"global_preferences,omitempty"`
+	Minimum           string        `json:"minimum,omitempty"`
+	EstimatedTokens   int           `json:"estimated_tokens"`
+	ReferenceIDs      []string      `json:"reference_ids,omitempty"`
+	MCPServers        *[]string     `json:"mcp_servers,omitempty"`
+	ProjectID         string        `json:"project_id"`
+	ProjectName       string        `json:"project_name"`
+	Instructions      string        `json:"project_instructions"`
 	// BrainCitations: where the Brain passages of this context come from.
 	BrainCitations []string     `json:"brain_citations,omitempty"`
 	Skills         []Capability `json:"skills"`
