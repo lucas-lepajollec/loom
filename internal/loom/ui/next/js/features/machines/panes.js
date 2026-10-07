@@ -14,7 +14,7 @@ import { WorkspaceManager } from '../workspaces/folders.js';
 export function EnginePage() {
   const v = useVllm();
   return html`<${GroupPage} title=${t('engine.page.title')} lead=${t('engine.page.lead')}>
-    <section class="set-group"><h3>${t('engine.page.running')}</h3><${EngineRuntime} /></section>
+    <${EngineRuntime} />
     ${v.x && v.x.installed && html`<section class="set-group"><h3>vLLM</h3><${VllmEngine} /></section>`}
     <${Engine} />
   </${GroupPage}>`;

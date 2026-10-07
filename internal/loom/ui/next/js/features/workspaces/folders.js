@@ -4,6 +4,7 @@ import { get, post } from '../../core/api.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { Modal, toast, confirm } from '../../ui/dialog.js';
 import { Icon } from '../../ui/icons.js';
+import { ListPick } from '../../ui/listpick.js';
 import { Line, Group } from '../settings/kit.js';
 
 const endpoint = target => '/api/workspaces?target=' + encodeURIComponent(target || 'local');
@@ -67,10 +68,8 @@ export function WorkspacePicker({ target = 'local', current = '', onPick, inheri
   };
   const inherited = items.find(w => w.default);
   return html`<div class="workspace-picker">
-    <select class="select" aria-label=${t('workspaces.title')} disabled=${busy || !target} value=${items.find(w => w.path === current)?.id || ''} onChange=${e => e.target.value ? select(e.target.value) : onPick({ path: '' })}>
-      <option value="" disabled=${!inheritDefault}>${current || (inheritDefault && inherited ? inherited.name + ' · ' + t('workspaces.default') : t('workspaces.choose'))}</option>
-      ${items.map(w => html`<option key=${w.id} value=${w.id}>${w.name}${w.default ? ' · ' + t('workspaces.default') : ''}</option>`)}
-    </select>
+    <${ListPick} label=${t('workspaces.title')} disabled=${busy || !target} value=${items.find(w => w.path === current)?.id || ''} onChange=${v => v ? select(v) : onPick({ path: '' })}
+      options=${[{ value: '', label: current || (inheritDefault && inherited ? inherited.name + ' · ' + t('workspaces.default') : t('workspaces.choose')), disabled: !inheritDefault }, ...items.map(w => ({ value: w.id, label: w.name + (w.default ? ' · ' + t('workspaces.default') : '') }))]} />
     <button class="btn ghost sm" onClick=${() => setForm(true)}>${t('workspaces.new')}</button>
     ${form && html`<${FolderForm} target=${target} current=${current} choose onClose=${() => setForm(false)} onDone=${async w => { const picked = await onPick(w); if (picked === false) return false; await refresh(); }} />`}
   </div>`;

@@ -430,3 +430,7 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .lpick-o:hover{background:var(--hover)}
 .lpick-o.on{background:var(--sel)}
 .prow .prow-c{flex:0 1 60%;min-width:0}
+.lpick-o small{margin-left:auto;padding-left:10px;font-size:11px;color:var(--text-3);white-space:nowrap}
+.lpick-o:disabled{opacity:.5;cursor:default}
+.lpick-o:disabled:hover{background:none}
+.insp-body .prow .prow-c{flex:1 1 60%;max-width:64%}

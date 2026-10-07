@@ -187,45 +187,49 @@ export function EngineRuntime() {
   const slots = (srv && srv.slots && srv.slots.items) || [];
   const busy = slots.filter(s => s.busy).length;
   const curl = srv ? `curl ${srv.url}/chat/completions ${srv.key_required ? '-H \'Authorization: Bearer YOUR_API_KEY\' ' : ''}\\\n  -H 'Content-Type: application/json' \\\n  -d '{"model":"loom","messages":[{"role":"user","content":"Bonjour"}]}'` : '';
-  return html`<div class="engine stagger">
-    <div class="card engine-hero">
-      <div class="eh-main"><div class="eh-state"><i class=${'dot ' + st.tone}></i><b>${status && status.active ? (status.health ? t("local.page.moteur_actif") : status.model ? t("local.page.chargement_du_modele") : t("local.page.moteur_pret")) : t("local.page.moteur_arrete")}</b></div>
-        <span class="mono muted">${lc ? `llama.cpp ${lc.commit || ''} · ${lc.plan && lc.plan.backend ? lc.plan.backend.toUpperCase() : lc.kind} · ${srv ? srv.url : ''}` : '…'}</span></div>
-      <div class="stat"><b>${srv && srv.model_name ? baseName(srv.model_name).replace(/\.gguf$/i, '') : '—'}</b><span>${t("local.page.modele_2")}</span></div>
-      <div class="stat"><b>${busy} / ${slots.length || (srv && srv.np) || 0}</b><span>${t("local.page.slots_actifs")}</span></div>
-      <div class="stat"><b>${srv && srv.stats ? (srv.stats.live_toks || srv.stats.avg_toks || 0).toFixed(1) : '0'}</b><span>${t("local.page.tok_s")}</span></div>
-      <div class="eh-acts">
-        ${status && status.active ? html`<button class="btn" onClick=${() => act('restart')}><${Icon} n="refresh" />${t("local.page.redemarrer")}</button><button class="btn" onClick=${() => act('stop')}>${t("local.page.arreter")}</button>`
-          : html`<button class="btn primary" onClick=${() => act('start')}><${Icon} n="play" />${t("local.page.demarrer")}</button>`}
-        <button class="icon-btn" aria-label="${t("local.page.journal")}" title="${t("local.page.journal_du_moteur")}" onClick=${async () => { const r = await get('/api/service/log?n=200'); setLog(r.log || ''); }}><${Icon} n="file" /></button>
+  const running = status && status.active;
+  const state = running ? (status.health ? t("local.page.moteur_actif") : status.model ? t("local.page.chargement_du_modele") : t("local.page.moteur_pret")) : t("local.page.moteur_arrete");
+  const model = srv && srv.model_name ? baseName(srv.model_name).replace(/\.gguf$/i, '') : '';
+  const rate = srv && srv.stats ? (srv.stats.live_toks || srv.stats.avg_toks || 0).toFixed(1) : '0.0';
+  return html`<div class="engine">
+    <section class="set-group"><h3>${t('engine.page.running')}</h3>
+      <div class="card">
+        <div class="eng-top"><i class=${'dot ' + st.tone}></i><div class="grow"><b>${state}</b>
+            <span class="mono muted">${lc ? ['llama.cpp ' + (lc.commit || ''), lc.plan && lc.plan.backend ? lc.plan.backend.toUpperCase() : lc.kind, srv ? srv.url : ''].filter(Boolean).join(' · ') : '…'}</span></div>
+          <button class="icon-btn" aria-label=${t("local.page.journal")} title=${t("local.page.journal_du_moteur")} onClick=${async () => { const r = await get('/api/service/log?n=200'); setLog(r.log || ''); }}><${Icon} n="file" /></button>
+          ${running ? html`<button class="btn sm" onClick=${() => act('restart')}><${Icon} n="refresh" />${t("local.page.redemarrer")}</button><button class="btn sm" onClick=${() => act('stop')}>${t("local.page.arreter")}</button>`
+            : html`<button class="btn sm primary" onClick=${() => act('start')}><${Icon} n="play" />${t("local.page.demarrer")}</button>`}</div>
+        <div class="eng-stats">
+          <div><span>${t("local.page.modele_2")}</span><b class="trunc" title=${model}>${model || '—'}</b></div>
+          <div><span>${t("local.page.slots_actifs")}</span><b>${busy} / ${slots.length || (srv && srv.np) || 0}</b></div>
+          <div><span>${t("local.page.tok_s")}</span><b>${rate}</b></div>
+        </div>
       </div>
-    </div>
-    ${status && status.load_error && html`<div class="alert red"><${Icon} n="alert" /><span>${status.load_error}</span></div>`}
-    <div class="grid2">
-      <div class="card pad">
-        <div class="sec-h"><h2>${t("local.page.slots")}</h2><span class="muted">${slots[0] ? Math.round(slots[0].ctx / 1024) + t("local.page.k_de_contexte_par_slot") : ''}</span></div>
-        <div class="slots">${slots.map(s => html`<div class=${cls('slot', s.busy && 'busy')}><span class="mono">#${s.id}</span>
-          <div class="meter"><i style=${`width:${s.busy && s.ctx ? Math.min(100, (s.prompt + s.tokens) * 100 / s.ctx) : 0}%;background:var(--blue)`}></i></div>
-          <span class="mono">${s.busy ? (s.toks || 0).toFixed(1) + ' tok/s' : t('local.page.free')}</span></div>`)}</div>
-        <div class="np-row">${srv?.np_supported === false ? html`<a class="btn sm" href="#/engine">${t("node.vllm_parameters")}</a>` : html`<span>${t("local.page.slots_paralleles")}<${Tip} text="${t("local.page.requetes_traitees_en_meme_temps_le_contexte_est_partage_entre_les")}" /></span>
-          <input class="input sm num" type="number" min="1" max="32" value=${np} onInput=${e => setNp(e.target.value)} />
-          <button class="btn sm" onClick=${async () => { const r = await post('/api/server', { np: +np }); if (!r.ok) toast(r.error, 'err'); else toast(t("local.page.rechargement_avec") + np + ' slots…'); }}>${t("local.page.appliquer")}</button>`}</div>
+      ${status && status.load_error && html`<div class="alert red" style="margin-top:10px"><${Icon} n="alert" /><span>${status.load_error}</span></div>`}
+    </section>
+
+    <section class="set-group"><h3>${t("local.page.api_compatible_openai")}</h3>
+      <div class="card">
+        <div class="set-line"><div class="set-l"><span>${t('engine.api.address')}</span>${srv && html`<span class=${'tag ' + (srv.lan ? 'amber' : 'green')}>${srv.lan ? t("local.page.reseau_local_2") : t("local.page.cette_machine")}</span>`}</div>
+          <div class="set-c"><code class="mono">${srv ? srv.url : '…'}</code><button class="icon-btn" aria-label=${t("local.page.copier_l_url")} onClick=${() => copy(srv.url)}><${Icon} n="copy" /></button></div></div>
+        <div class="set-line"><div class="set-l"><span>${t("local.page.cle_api")}</span></div><div class="set-c">${srv && srv.key_required ? html`<span class="state"><i class="dot green"></i>${t("local.page.exigee")}</span>` : html`<span class="muted">${t("local.page.aucune")}</span>`}</div></div>
+        <div class="set-line"><div class="set-l"><span>${t("local.page.expose_sur_le_reseau")}</span><${Tip} text=${t("local.page.allume_un_autre_appareil_du_reseau_local_peut_utiliser_ce_serveur")} /></div>
+          <div class="set-c">${srv?.node_managed ? html`<span class="muted">${t("node.network_managed")}</span>` : html`<${Switch} checked=${srv && srv.lan} label=${t("local.page.reseau_local")} onChange=${async on => { const r = await post('/api/network', { exposed: on }); if (r.ok === false) toast(r.error, 'err'); load(); }} />`}</div></div>
+        <div class="set-line"><div class="set-l"><span>${t("local.page.slots_paralleles")}</span><${Tip} text=${t("local.page.requetes_traitees_en_meme_temps_le_contexte_est_partage_entre_les")} />${slots[0] ? html`<span class="muted" style="font-size:12px;margin-left:8px">${Math.round(slots[0].ctx / 1024)}${t("local.page.k_de_contexte_par_slot")}</span>` : ''}</div>
+          <div class="set-c">${srv?.np_supported === false ? html`<a class="btn sm ghost" href="#/engine">${t("node.vllm_parameters")}</a>` : html`<input class="input sm num" type="number" min="1" max="32" value=${np} onInput=${e => setNp(e.target.value)} />
+            <button class="btn sm" onClick=${async () => { const r = await post('/api/server', { np: +np }); if (!r.ok) toast(r.error, 'err'); else toast(t("local.page.rechargement_avec") + np + ' slots…'); }}>${t("local.page.appliquer")}</button>`}</div></div>
+        ${slots.some(x => x.busy) && html`<div class="set-line stack"><div class="slots">${slots.map(x => html`<div class=${cls('slot', x.busy && 'busy')}><span class="mono">#${x.id}</span>
+          <div class="meter"><i style=${`width:${x.busy && x.ctx ? Math.min(100, (x.prompt + x.tokens) * 100 / x.ctx) : 0}%;background:var(--blue)`}></i></div>
+          <span class="mono">${x.busy ? (x.toks || 0).toFixed(1) + ' tok/s' : t('local.page.free')}</span></div>`)}</div></div>`}
+        <details class="set-line curl-line"><summary>${t("local.page.exemple_curl")}</summary><pre class="mono">${curl}</pre><button class="btn sm" onClick=${() => copy(curl)}>${t("local.page.copier")}</button></details>
       </div>
-      <div class="card pad">
-        <div class="sec-h"><h2>${t("local.page.api_compatible_openai")}</h2>${srv && html`<span class=${'tag ' + (srv.lan ? 'amber' : 'green')}>${srv.lan ? t("local.page.reseau_local_2") : t("local.page.cette_machine")}</span>`}</div>
-        <div class="url-row"><code class="mono">${srv ? srv.url : '…'}</code><button class="icon-btn" aria-label="${t("local.page.copier_l_url")}" onClick=${() => copy(srv.url)}><${Icon} n="copy" /></button></div>
-        <div class="kv"><span>${t("local.page.cle_api")}</span><span>${srv && srv.key_required ? html`<span class="tag green">${t("local.page.exigee")}</span>` : html`<span class="tag">${t("local.page.aucune")}</span>`}</span></div>
-        <div class="kv"><span>${t("local.page.expose_sur_le_reseau")}<${Tip} text="${t("local.page.allume_un_autre_appareil_du_reseau_local_peut_utiliser_ce_serveur")}" /></span>
-          ${srv?.node_managed ? html`<span class="muted">${t("node.network_managed")}</span>` : html`<${Switch} checked=${srv && srv.lan} label="${t("local.page.reseau_local")}" onChange=${async on => { const r = await post('/api/network', { exposed: on }); if (r.ok === false) toast(r.error, 'err'); load(); }} />`}</div>
-        <details class="curl"><summary>${t("local.page.exemple_curl")}</summary><pre class="mono">${curl}</pre><button class="btn sm" onClick=${() => copy(curl)}>${t("local.page.copier")}</button></details>
-      </div>
-    </div>
-    <div class="card pad">
-      <div class="sec-h"><h2>${t("local.page.requetes_recentes")}</h2></div>
-      ${srv && srv.recent && srv.recent.length ? html`<div class="req-list">${srv.recent.slice(0, 12).map(r => html`<div class="req"><span class="mono">${t("local.page.slot")} ${r.slot}</span><span class="mono muted">${r.prompt || 0} → ${r.tokens || 0} ${t("local.page.tok")}</span><span class="mono muted">${r.ms ? (r.ms / 1000).toFixed(1) + ' s' : ''}</span><span class="mono">${(r.toks || 0).toFixed(1)} ${t("local.page.tok_s")}</span></div>`)}</div>`
-        : html`<p class="note">${t("local.page.aucune_requete_depuis_le_demarrage_les_applications_connectees_a")}</p>`}
-    </div>
-    ${log !== null && html`<${Drawer} title="${t("local.page.journal_du_moteur")}" onClose=${() => setLog(null)}><pre class="log mono">${log || t("local.page.journal_vide")}</pre></${Drawer}>`}
+    </section>
+
+    <section class="set-group"><h3>${t("local.page.requetes_recentes")}</h3>
+      <div class="card">${srv && srv.recent && srv.recent.length ? html`<div class="req-list">${srv.recent.slice(0, 12).map(r => html`<div class="req"><span class="mono">${t("local.page.slot")} ${r.slot}</span><span class="mono muted">${r.prompt || 0} → ${r.tokens || 0}</span></div>`)}</div>`
+        : html`<p class="set-note">${t("local.page.aucune_requete_depuis_le_demarrage_les_applications_connectees_a")}</p>`}</div>
+    </section>
+    ${log !== null && html`<${Drawer} title=${t("local.page.journal_du_moteur")} onClose=${() => setLog(null)}><pre class="log mono">${log || t("local.page.journal_vide")}</pre></${Drawer}>`}
   </div>`;
 }
 

@@ -57,6 +57,7 @@ var remoteHarnessDefs = []struct {
 	{"codex", "Codex", "codex", []string{"codex", "npx"}, nil},
 	{"pi", "Pi", "pi", []string{"pi", "npx"}, nil},
 	{"opencode", "OpenCode", "opencode", []string{"opencode"}, []string{"opencode", "acp"}},
+	{"openclaw", "OpenClaw", "openclaw", []string{"openclaw"}, []string{"openclaw", "acp"}},
 }
 
 // remoteLaunch returns the ACP command for a harness id, reusing the local
@@ -97,7 +98,7 @@ func afterRemoteMarker(out string) string {
 
 const remoteProbeScript = remotePathPreamble + `T=""; command -v timeout >/dev/null 2>&1 && T="timeout 5"
 j=""
-for t in hermes claude codex pi opencode agy npm npx node; do
+for t in hermes claude codex pi opencode openclaw agy npm npx node; do
   p=$(command -v "$t" 2>/dev/null) || continue
   v=$($T "$p" --version </dev/null 2>/dev/null | head -n 1 | tr -d '"\\' | cut -c1-60)
   j="$j{\"id\":\"$t\",\"path\":\"$p\",\"version\":\"$v\"},"

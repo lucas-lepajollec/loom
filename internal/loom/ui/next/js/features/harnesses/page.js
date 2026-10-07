@@ -136,7 +136,10 @@ const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 
 
 // Sessions déjà ouvertes dans le harness (hors Loom) : les importer pour les
 // continuer ici, avec la mémoire native du harness.
-function NativeSessions({ rt, embedded, onCount }) {
+// Sessions natives d'un agent, sur cette machine ou sur une autre machine où
+// il est géré. Une session d'une autre machine est reprise ici par l'agent
+// utilisé (target), avec sa transcription.
+function NativeSessions({ rt, embedded, onCount, source = 'local', target = null }) {
   const [list, setList] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
@@ -146,7 +149,7 @@ function NativeSessions({ rt, embedded, onCount }) {
   const projects = useStore(app, s => s.workspace?.projects || []);
   const load = async () => {
     setErr(''); setList(null);
-    const r = await get('/api/runtimes/' + rt.id + '/sessions', { timeout: 95000 }).catch(e => ({ ok: false, error: e.message }));
+    const r = await get(source === 'local' ? '/api/runtimes/' + rt.id + '/sessions' : '/api/harness-history?source=' + encodeURIComponent(source), { timeout: 95000 }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) { setErr(r.error || t("harnesses.page.lecture_impossible")); setList([]); return; }
     // Sessions Loom itself opened in the agent carry Loom's handoff text: they
     // are already discussions here.
@@ -154,9 +157,18 @@ function NativeSessions({ rt, embedded, onCount }) {
     const sessions = (r.sessions || []).filter(x => !own(x)).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
     setList(sessions); onCount && onCount(sessions.filter(x => !x.imported).length);
   };
-  useEffect(() => { if (rt.available !== false) load(); }, [rt.id]);
+  useEffect(() => { if (source !== 'local' || rt.available !== false) load(); }, [rt.id, source]);
   const importOne = async x => {
     if (x.imported) { openChat(x.imported); go('chat'); return; }
+    if (source !== 'local') {
+      if (!target) return toast(t('agents.import.no_target'), 'err');
+      if (!await confirm(t('agents.import.remote_title'), t('agents.import.remote_note', { name: rt.name, target: target.name }), { ok: t("harnesses.page.importer") })) return;
+      setBusy(x.sessionId);
+      const r = await post('/api/harness-history/transfer', { source, choice_id: target.id, project_id: project, consent: true, ...x }, { timeout: 190000 }).catch(e => ({ ok: false, error: e.message }));
+      setBusy('');
+      if (!r.ok) return toast(r.error || t("harnesses.page.import_impossible"), 'err');
+      await refreshNav(); openChat(r.session.id); go('chat'); return;
+    }
     setBusy(x.sessionId);
     const r = await post('/api/runtimes/' + rt.id + '/sessions/import', { sessionId: x.sessionId, cwd: x.cwd, title: x.title || '', project_id: project, fresh }, { timeout: 190000 }).catch(e => ({ ok: false, error: e.message }));
     setBusy('');
@@ -173,7 +185,7 @@ function NativeSessions({ rt, embedded, onCount }) {
           <button class=${cls('btn sm', x.imported && 'ghost')} disabled=${!!busy} onClick=${() => importOne(x)}>${busy === x.sessionId ? html`<span class="spinner"></span>${t("harnesses.page.import")}` : x.imported ? t("harnesses.page.ouvrir") : t("harnesses.page.importer")}</button></div>`)}</div>`;
   if (embedded) return html`<div class="import-bar">
       <label class="field inline"><span>${t('harnesses.import.project')}</span><select class="select sm" value=${project} onChange=${e => setProject(e.target.value)}><option value="">—</option>${projects.map(p => html`<option value=${p.id}>${p.name}</option>`)}</select></label>
-      <label class="check"><input type="checkbox" checked=${fresh} onChange=${e => setFresh(e.target.checked)} /><span>${t('agents.import_fresh')}</span><${Tip} text=${t('harnesses.import.fresh') + ' ' + t('harnesses.import.note')} /></label>
+      ${source === 'local' && html`<label class="check"><input type="checkbox" checked=${fresh} onChange=${e => setFresh(e.target.checked)} /><span>${t('agents.import_fresh')}</span><${Tip} text=${t('harnesses.import.fresh') + ' ' + t('harnesses.import.note')} /></label>`}
       <span class="grow"></span>${list && list.length > 6 && html`<label class="search" style="width:200px"><${Icon} n="search" /><input placeholder="${t("harnesses.page.filtrer")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>`}
       <button class="btn sm ghost" onClick=${load}><${Icon} n="refresh" />${t("harnesses.page.actualiser")}</button></div>${rows}`;
   return html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.sessions_de")} ${rt.name} <span class="count">${list ? list.length : ''}</span><${Tip} text=${t("harnesses.page.les_discussions_que_tu_as_eues_directement_dans") + rt.name + t("harnesses.page.les_importer_les_ajoute_a_loom_tu_les_continues_ici_avec_la_memoi")} /></h2>
@@ -350,7 +362,7 @@ function MachineRow({ i, onChanged }) {
   const version = String((x && x.version) || i.version || '').match(/\d+(?:\.\d+)+[\w.+-]*/)?.[0] || '';
   return html`<div class="am-row">
     <span class="am-m"><${Icon} n=${i.machine === 'local' ? 'chip' : 'server'} /><b>${where}</b></span>
-    <span class="am-v">${!i.managed ? html`<span class="muted">—</span>` : x === null ? html`<span class="spinner"></span>` : html`<span class="mono">${version || '?'}</span>
+    <span class="am-v">${!i.installed ? html`<${Lifecycle} compact target=${i.machine} id=${i.harness} name=${i.name} where=${where} onChange=${onChanged} />` : !i.managed ? html`<span class="muted">—</span>` : x === null ? html`<span class="spinner"></span>` : html`<span class="mono">${version || '?'}</span>
       ${x && x.update_available ? html`<button class="btn sm" disabled=${!!busy} onClick=${update}>${busy === 'update' ? html`<span class="spinner"></span>` : html`<${Icon} n="download" />`}${x.latest}</button>` : x && x.latest ? html`<span class="muted">${t('harnesses.lifecycle.a_jour')}</span>` : ''}`}</span>
     <${Switch} label=${t('agents.manage')} checked=${i.managed} disabled=${!!busy} onChange=${v => change({ managed: v })} />
     <${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${!!busy || !i.ready} onChange=${v => change({ enabled: v })} />
@@ -358,7 +370,8 @@ function MachineRow({ i, onChanged }) {
 }
 
 function AgentMachines({ installs, onChanged }) {
-  const list = installs.filter(i => i.installed);
+  // Installed somewhere, plus Loom's machine where it can be installed.
+  const list = installs.filter(i => i.installed || i.machine === 'local');
   if (!list.length) return null;
   return html`<section class="sec"><div class="sec-h"><h2>${t('agents.machines')}<${Tip} text=${t('agents.machine_tip')} /></h2></div>
     <div class="card am">
@@ -369,18 +382,26 @@ function AgentMachines({ installs, onChanged }) {
 
 // Discussions : celles de Loom, et celles faites directement dans l'agent
 // (hors sessions que Loom a lui-même ouvertes), importables ici.
-function AgentDiscussions({ rt, talks, canList }) {
+function AgentDiscussions({ rt, talks, canList, installs, target }) {
   const [tab, setTab] = useState('loom');
   const [native, setNative] = useState(null);
+  // Où lire les sessions : chaque machine où l'agent est géré et prêt.
+  const sources = installs.filter(i => i.managed && i.installed && (i.machine !== 'local' ? i.ready : canList))
+    .map(i => ({ value: i.machine === 'local' ? 'local' : 'remote:' + i.machine + ':' + i.harness, label: i.machine === 'local' ? t('agents.this_machine') : i.machine_name }));
+  const [source, setSource] = useState(null);
+  const from = source || (sources[0] && sources[0].value) || 'local';
   return html`<section class="sec"><div class="sec-h"><h2>${t('agents.discussions')}</h2>
-      ${canList && html`<${Seg} size="sm" value=${tab} onChange=${setTab} label=${t('agents.discussions')} options=${[{ value: 'loom', label: t('agents.tab.loom'), count: talks.length }, { value: 'native', label: t('agents.tab.native', { name: rt.name }), count: native == null ? '' : native }]} />`}</div>
-    ${tab === 'native' && canList ? html`<${NativeSessions} rt=${rt} embedded onCount=${setNative} />`
+      ${sources.length > 0 && html`<${Seg} size="sm" value=${tab} onChange=${setTab} label=${t('agents.discussions')} options=${[{ value: 'loom', label: t('agents.tab.loom'), count: talks.length }, { value: 'native', label: t('agents.tab.native', { name: rt.name }), count: native == null ? '' : native }]} />`}</div>
+    ${tab === 'native' && sources.length ? html`${sources.length > 1 && html`<div class="src-pick"><span>${t('agents.import.from')}</span><${Seg} size="sm" value=${from} onChange=${v => { setSource(v); setNative(null); }} label=${t('agents.import.from')} options=${sources} /></div>`}
+        <${NativeSessions} key=${from} rt=${rt} embedded source=${from} target=${target} onCount=${setNative} />`
       : talks.length ? html`<div class="card rows">${talks.slice(0, 8).map(c => html`<button type="button" class="row link-row" key=${c.id} onClick=${() => { openChat(c.id); go('chat'); }}>
           <div class="grow"><div class="t">${c.title || t("harnesses.page.discussion")}</div><div class="s">${[c.model && c.model !== 'default' ? c.model : '', c.workdir ? c.workdir.split('/').pop() : '', c.updated_at ? ago(c.updated_at) : ''].filter(Boolean).join(' · ')}</div></div>
           <${Icon} n="right" /></button>`)}</div>`
       : html`<div class="card pad"><p class="note">${t('agents.no_talks', { name: rt.name })}</p></div>`}
   </section>`;
 }
+
+const MODEL_LIMIT = 8;
 
 function AgentDetail({ rt, models, onEdit }) {
   const nav = useStore(app, a => a.nav);
@@ -392,6 +413,7 @@ function AgentDetail({ rt, models, onEdit }) {
   const [resources, setResources] = useState(false);
   const [custom, setCustom] = useState(null);
   const [usage, setUsage] = useState(null);
+  const [allModels, setAllModels] = useState(false);
   const family = rt.machine ? rt.logo : rt.id;
   const loadInstalls = () => get('/api/agents/installations').then(r => r.ok && setInstalls((r.installations || []).filter(i => i.harness === family || i.runtime_id === rt.id))).catch(() => {});
   const loadProbe = () => get('/api/runtimes/' + rt.id + '/probe').then(p => setProbe((p && p.probe) || {})).catch(() => setProbe({}));
@@ -435,7 +457,7 @@ function AgentDetail({ rt, models, onEdit }) {
   const talks = ((nav && nav.conversations) || []).filter(c => c.runtime_id === rt.id).sort((x, y) => (y.updated_at || 0) - (x.updated_at || 0));
   const auth = (info && info.auth) || {};
   // An agent that lists its models has a working account even when Loom cannot read it.
-  const accountKnown = !!info && (auth.connected || !cfg.length);
+  const accountKnown = !!info && info.installed !== false && managed && (auth.connected || !cfg.length);
   const account = info ? (auth.connected ? [auth.method, auth.account].filter(Boolean).join(' · ') || t("harnesses.page.connecte_2") : auth.status || t('agents.account.none')) : '';
   const ver = probe && probe.agent && probe.agent.version;
   const canList = !!(probe && probe.capabilities && probe.capabilities.sessionCapabilities && probe.capabilities.sessionCapabilities.list);
@@ -457,13 +479,13 @@ function AgentDetail({ rt, models, onEdit }) {
     ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => loadInfo(true)} onConnect=${reread} />`}
 
     <${AgentMachines} installs=${installs} onChanged=${() => { loadInstalls(); loadProbe(); }} />
-    ${managed && html`<${AgentDiscussions} rt=${rt} talks=${talks} canList=${canList} />`}
+    ${managed && !missing && html`<${AgentDiscussions} rt=${rt} talks=${talks} canList=${canList} installs=${installs} target=${used ? choiceFor(modelOpt && modelOpt.currentValue) : null} />`}
 
     ${groups.length > 0 && html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.modeles")} <span class="count">${groups.length}</span></h2></div>
-      <div class="model-chips">${groups.map(g => { const def = g.levels.find(l => l.value === modelOpt.currentValue) || g.levels.find(l => l.level === 'medium') || g.levels[0]; const isDef = g.levels.some(l => l.value === modelOpt.currentValue);
-        return html`<button type="button" class=${cls('mchip', isDef && 'on')} disabled=${!used} title=${used ? t("harnesses.page.discuter") : ''} onClick=${() => startWith(choiceFor(def.value))}><b>${g.name}</b>${g.levels.length > 1 ? html`<small>${g.levels.map(l => l.label || l.level).join(' · ')}</small>` : (list.find(x => x.value === def.value) || {}).description ? html`<small>${(list.find(x => x.value === def.value) || {}).description}</small>` : ''}${isDef && html`<em>${t("harnesses.page.par_defaut_2")}</em>`}</button>`; })}</div></section>`}
+      <div class="model-chips">${(allModels ? groups : groups.slice(0, MODEL_LIMIT)).map(g => { const def = g.levels.find(l => l.value === modelOpt.currentValue) || g.levels.find(l => l.level === 'medium') || g.levels[0]; const isDef = g.levels.some(l => l.value === modelOpt.currentValue);
+        return html`<button type="button" class=${cls('mchip', isDef && 'on')} disabled=${!used} title=${used ? t("harnesses.page.discuter") : ''} onClick=${() => startWith(choiceFor(def.value))}><b>${g.name}</b>${g.levels.length > 1 ? html`<small>${g.levels.map(l => l.label || l.level).join(' · ')}</small>` : (list.find(x => x.value === def.value) || {}).description ? html`<small>${(list.find(x => x.value === def.value) || {}).description}</small>` : ''}${isDef && html`<em>${t("harnesses.page.par_defaut_2")}</em>`}</button>`; })}</div>${groups.length > MODEL_LIMIT && html`<button class="btn sm ghost more-models" onClick=${() => setAllModels(!allModels)}>${allModels ? t('agents.models.less') : t('agents.models.all', { n: groups.length })}</button>`}</section>`}
 
-    ${managed && html`<section class="sec"><div class="sec-h"><h2>${t('agents.settings')}</h2></div>
+    ${managed && !missing && html`<section class="sec"><div class="sec-h"><h2>${t('agents.settings')}</h2></div>
       <div class="card">
         <${ModelSource} rt=${rt} line />
         <div class="set-line"><div class="set-l"><span>${t('agents.resources')}</span><${Tip} text=${t("harnesses.page.loom_garde_la_definition_de_tes_skills_et_serveurs_mcp_tu_choisis") + rt.name + t("harnesses.page.recoit_le_harness_reste_maitre_de_leur_execution")} /></div>
@@ -474,9 +496,9 @@ function AgentDetail({ rt, models, onEdit }) {
 
     <details class="sec more-info"><summary>${t('agents.details')}</summary>
       <div class="card pad details-kv">
-        ${info && html`<div class="kv"><span>${t("harnesses.page.emplacement")}</span><code class="mono">${info.path.replace(/^\/home\/[^/]+/, '~')}</code></div>`}
+        ${info && info.path && html`<div class="kv"><span>${t("harnesses.page.emplacement")}</span><code class="mono">${info.path.replace(/^\/home\/[^/]+/, '~')}</code></div>`}
         <div class="kv"><span>${t("harnesses.page.lancement")}</span><code class="mono">${launch || '—'}</code></div>
-        ${info && html`<div class="kv"><span>${t("harnesses.page.cles_d_api_detectees")}</span><span>${info.env.length ? info.env.join(' · ') : t("harnesses.page.aucune_dans_l_environnement")}</span></div>
+        ${info && info.installed !== false && info.env && html`<div class="kv"><span>${t("harnesses.page.cles_d_api_detectees")}</span><span>${info.env.length ? info.env.join(' · ') : t("harnesses.page.aucune_dans_l_environnement")}</span></div>
           <div class="kv"><span>${t("harnesses.page.serveurs_mcp_du_harness")}</span><span>${info.mcp_known ? info.mcp.map(m => m.name).join(' · ') || '0' : t("harnesses.page.non_lus")}</span></div>
           <div class="kv"><span>${t("harnesses.page.plugins")}</span><span>${info.plugins.join(' · ') || '0'}</span></div>
           <div class="kv"><span>${t("harnesses.page.skills_installees")}</span><span>${info.skills.map(k => k.name).join(' · ') || '0'}</span></div>`}
@@ -491,7 +513,7 @@ function AgentDetail({ rt, models, onEdit }) {
 
 // Où une famille d'agents est gérée : une puce par machine, verte si l'agent
 // y mène des discussions Loom.
-const installationsOf = (rt, all) => all.filter(i => i.managed && i.installed && (i.harness === rt.id || i.runtime_id === rt.id));
+const installationsOf = (rt, all) => all.filter(i => i.managed && (i.installed || i.machine === 'local') && (i.harness === rt.id || i.runtime_id === rt.id));
 
 function Card({ rt, models, installs = [] }) {
   const n = groupVariants(models.filter(m => m.runtime_id === rt.id)).length;
@@ -504,7 +526,7 @@ function Card({ rt, models, installs = [] }) {
       <span class="grow"><b>${rt.name}</b>${rt.machine ? html`<code>${t("harnesses.page.sur_3")} ${rt.machine}</code>` : rt.cli && html`<code>${acp ? 'ACP' + (rt.cli === 'npx' ? '' : ' · ' + rt.cli.split('/').pop()) : rt.cli}</code>`}</span>
       ${!supported ? html`<span class="soon-pill">${t("harnesses.page.bientot_2")}</span>` : html`<span class="state"><i class=${'dot ' + state[0]}></i>${state[1]}</span>`}</div>
     ${rt.description && html`<p>${tSource(rt.description)}</p>`}
-    ${supported && installs.length > 0 && html`<div class="hx-inst"><span>${t('agents.installations')}</span>${installs.map(i => html`<span class="hx-chip" key=${i.machine} title=${i.enabled ? t('agents.state.used') : t('agents.managed_only')}><i class=${'dot ' + (i.enabled ? 'green' : '')}></i>${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}${i.version && html`<em>${i.version.replace(/^v/, '').split(' ')[0]}</em>`}</span>`)}</div>`}
+    ${supported && installs.length > 0 && html`<div class="hx-inst"><span>${t('agents.installations')}</span>${installs.map(i => html`<span class="hx-chip" key=${i.machine} title=${i.enabled ? t('agents.state.used') : t('agents.managed_only')}><i class=${'dot ' + (i.enabled ? 'green' : '')}></i>${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}${!i.installed && html`<em>${t('agents.to_install')}</em>`}${i.version && html`<em>${i.version.replace(/^v/, '').split(' ')[0]}</em>`}</span>`)}</div>`}
     <div class="hx-foot">${!supported ? (rt.id === 'hermes' ? t("harnesses.page.connecte_sa_machine_avec_connecter_une_machine") : t("harnesses.page.adaptateur_en_preparation")) : missing ? t("harnesses.page.installe") + (rt.cli === 'npx' ? t("harnesses.page.node_js_et_le_cli") : rt.cli) + t("harnesses.page.pour_l_utiliser")
       : acp ? (rt.custom ? t("harnesses.page.personnalise") : '') + t("harnesses.page.dossier_outils_et_autorisations_dans_loom") : n ? n + t("harnesses.page.modele_2") + (n > 1 ? 's' : '') + t("harnesses.page.dans_le_selecteur") : t("harnesses.page.ouvre_pour_connecter_ton_compte")}</div>
   </button>`;

@@ -1,5 +1,13 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "engine.api.address": "Address",
+  "agents.to_install": "to install",
+  "agents.models.all": "Show all {n} models",
+  "agents.models.less": "Show less",
+  "agents.import.from": "From",
+  "agents.import.no_target": "Use this agent in Loom first to continue a discussion from another machine here.",
+  "agents.import.remote_title": "Import from another machine",
+  "agents.import.remote_note": "This {name} discussion's transcript is copied into Loom and continued here with {target}. The original session stays untouched on its machine.",
   "inspector.models.local": "Loom local models",
   "inspector.models.via_loom": "via Loom",
   "agents.machines": "On your machines",
@@ -66,7 +74,7 @@ export default {
   "startup.page.lead": "What starts on its own on each machine: Loom, the engine and the model loaded at launch.",
   "workspaces.page.lead": "The folders discussions and agents work in, machine by machine.",
   "agents.this_machine": "This machine",
-  "agents.installations": "Installed on",
+  "agents.installations": "Machines",
   "agents.state.connected": "Connected",
   "agents.state.disconnected": "Not connected",
   "chat.tools.show_full": "Show full output",

@@ -6,6 +6,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- OpenClaw in the agent catalog (ACP bridge `openclaw acp`, which needs its
+  Gateway; official npm install and `openclaw update`; detected on connected
+  machines too).
+- Agent page: import discussions from any machine where the agent is managed
+  (a session from another machine is continued here by the agent you use);
+  machines where it is not installed get an Install button; Loom's machine
+  shows every catalog agent as managed, installed or not; models are limited
+  to 8 with "Show all".
 - Agents: each agent on each machine (Loom's own included) has two separate
   choices, **Manage** (Loom follows it: account, versions, updates, history
   import) and **Use in Loom** (it can run discussions). On other machines both
@@ -37,6 +45,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 - Navigation labels follow the interface language; import page note spacing.
 - Pi with DeepSeek through Loom: turning reasoning off now really disables
   DeepSeek's thinking (its models are declared with DeepSeek's thinking switch).
+- Engine page: the running state, API and slots use the same rows as the rest
+  of the page instead of a separate status card.
+- Every session panel menu (folder, mode, file protection, options) stays
+  inside the panel.
 - Session panel menus stay inside the panel (custom list instead of native
   selects), model names are cleaned and grouped ("deepseek · via Loom"), and
   Pi no longer shows its thinking level twice.
