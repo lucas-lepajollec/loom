@@ -13,6 +13,7 @@ import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace, refreshNav } from '../../core/state.js';
 import { groupVariants } from '../chat/picker.js';
+import { splitEffort } from '../inspector/inspector.js';
 import { setVisible } from '../cloud/page.js';
 import { newDiscussion, chooseRemote, open as openChat } from '../chat/engine.js';
 
@@ -310,8 +311,45 @@ function MachineState({ rt, commands, accountRevision = 0 }) {
   </section>`;
 }
 
+// Ce que l'agent fait pour toi en ce moment, et la seule action utile ensuite.
+function AgentStateBanner({ rt, installs, missing, onUse, onChanged }) {
+  const here = installs.find(i => i.runtime_id === rt.id) || installs.find(i => i.machine === 'local');
+  const manage = async () => { const r = await post('/api/agents/installations', { machine: here.machine, harness: here.harness, managed: true }); if (!r.ok) return toast(r.error, 'err'); onChanged(); };
+  const [tone, text, action] = missing ? ['', t('agents.banner.missing'), null]
+    : here && !here.managed ? ['', t('agents.banner.unmanaged'), html`<button class="btn sm" onClick=${manage}>${t('agents.manage')}</button>`]
+    : rt.connected ? ['green', t('agents.banner.used'), null]
+    : ['amber', t('agents.banner.managed'), html`<button class="btn sm primary" onClick=${onUse}>${t('agents.use')}</button>`];
+  return html`<div class=${'agent-banner ' + tone}><i class=${'dot ' + tone}></i><span>${text}</span>${action}</div>`;
+}
+
+// Une ligne par machine où l'agent est installé : version et mises à jour,
+// gérer et utiliser, import de ses discussions.
+function AgentInstallations({ rt, installs, onChanged }) {
+  const list = installs.filter(i => i.installed);
+  if (!list.length) return null;
+  const change = async (i, patch) => {
+    if (patch.enabled && !await confirm(t('agents.enable_title', { name: i.name }), t('agents.enable_note', { name: i.name, machine: i.machine_name }), { ok: t('agents.enable_ok') })) return;
+    const r = await post('/api/agents/installations', { machine: i.machine, harness: i.harness, ...patch, consent: !!patch.enabled }).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) return toast(r.error || t('agents.change_failed'), 'err');
+    await refreshWorkspace(); onChanged();
+  };
+  return html`<section class="sec"><div class="sec-h"><h2>${t('agents.installs.title')} <span class="count">${list.length}</span></h2></div>
+    <div class="ag-installs">${list.map(i => html`<div class="card ag-inst" key=${i.machine}>
+      <div class="ag-inst-h"><${Icon} n=${i.machine === 'local' ? 'chip' : 'server'} /><b>${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}</b>
+        <span class="grow"></span>
+        <label class="ag-sw"><span>${t('agents.manage')}</span><${Switch} label=${t('agents.manage')} checked=${i.managed} onChange=${v => change(i, { managed: v })} /></label>
+        <label class="ag-sw"><span>${t('agents.use')}</span><${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${!i.ready} onChange=${v => change(i, { enabled: v })} /></label></div>
+      ${i.managed ? html`<${Lifecycle} target=${i.machine} id=${i.harness} name=${i.name} where=${i.machine === 'local' ? t('agents.this_machine') : i.machine_name} onChange=${onChanged} />
+        <div class="set-actions"><button class="btn sm ghost" onClick=${() => go('settings', 'harness-history', (i.machine === 'local' ? 'local:' + i.harness : 'remote:' + i.machine + ':' + i.harness))}><${Icon} n="history" />${t('history.entry')}</button></div>`
+        : html`<p class="set-note">${t('agents.installs.unmanaged')}</p>`}
+    </div>`)}</div></section>`;
+}
+
 function AcpDetail({ rt, models, onEdit }) {
   const nav = useStore(app, a => a.nav);
+  const [installs, setInstalls] = useState([]);
+  const loadInstalls = () => get('/api/agents/installations').then(r => r.ok && setInstalls((r.installations || []).filter(i => i.harness === (rt.machine ? rt.logo : rt.id) || i.runtime_id === rt.id))).catch(() => {});
+  useEffect(() => { loadInstalls(); }, [rt.id]);
   const [probe, setProbe] = useState(null);
   const [busy, setBusy] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -378,10 +416,30 @@ function AcpDetail({ rt, models, onEdit }) {
     <div class="h-head"><div style="display:flex;gap:14px;align-items:center"><${Logo} name=${rt.logo || rt.id} size="lg" />
         <div><h2>${rt.name}${ver && (rt.id === 'antigravity' ? html` <span class="tag" title="${t("harnesses.page.antigravity_est_pilote_par_le_pont_acp_integre_a_loom")}">${t("harnesses.page.pont_loom")}</span>` : html` <span class="tag" title="${t("harnesses.page.version_de_l_adaptateur_acp_utilise_par_loom")}">ACP ${ver}</span>`)}</h2><p>${tSource(rt.description) || ''}</p></div></div>
       <div class="acts">${rt.custom && html`<button class="btn ghost" onClick=${() => onEdit(custom)}>${t("harnesses.page.modifier")}</button><button class="icon-btn" aria-label="${t("harnesses.page.supprimer_2")}" onClick=${del}><${Icon} n="trash" /></button>`}
-        <button class="btn" disabled=${busy || missing} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}${rt.connected ? t("harnesses.page.actualiser") : t("harnesses.connection.connect")}</button>
-        <button class="btn primary" disabled=${missing || !choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />${t("harnesses.page.nouvelle_discussion")}</button></div></div>
+        ${rt.connected && html`<button class="btn" disabled=${busy || missing} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}${t("harnesses.page.actualiser")}</button>
+        <button class="btn primary" disabled=${missing || !choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />${t("harnesses.page.nouvelle_discussion")}</button>`}</div></div>
 
-    <section class="sec"><div class="card pad"><div class="kv"><span>${t('harnesses.connection.loom')}</span><span>${rt.connected ? t('harnesses.connection.connected') : t('harnesses.connection.disconnected')}</span></div><div class="acts"><button class="btn" onClick=${login}>${t('harnesses.connection.login')}</button>${rt.connected && html`<button class="btn ghost" onClick=${disconnect}>${t('harnesses.connection.disconnect')}</button>`}</div><p class="note">${t('harnesses.connection.account_note')}</p></div></section>
+    <${AgentStateBanner} rt=${rt} installs=${installs} missing=${missing} onUse=${refresh} onChanged=${loadInstalls} />
+    ${!missing && probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
+    ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => setAccountRevision(n => n + 1)} onConnect=${refresh} />`}
+    <${AgentInstallations} rt=${rt} installs=${installs} onChanged=${loadInstalls} />
+    ${(probe && probe.capabilities && probe.capabilities.sessionCapabilities && probe.capabilities.sessionCapabilities.list) ? html`<${NativeSessions} rt=${rt} />` : ''}
+
+    <section class="sec"><div class="sec-h"><h2>${t("harnesses.page.discussions_recentes_dans_loom")} <span class="count">${talks.length}</span></h2></div>
+      ${talks.length ? html`<div class="card rows">${talks.slice(0, 8).map(c => html`<button type="button" class="row link-row" key=${c.id} onClick=${() => { openChat(c.id); go('chat'); }}>
+          <div class="grow"><div class="t">${c.title || t("harnesses.page.discussion")}</div><div class="s">${[c.model && c.model !== 'default' ? c.model : '', c.workdir ? c.workdir.split('/').pop() : '', c.updated_at ? ago(c.updated_at) : ''].filter(Boolean).join(' · ')}</div></div>
+          <${Icon} n="right" /></button>`)}</div>`
+        : html`<div class="card pad"><p class="note">${t("harnesses.page.aucune_discussion_avec")} ${rt.name} ${t("harnesses.page.pour_l_instant")}</p></div>`}
+    </section>
+    <section class="sec"><div class="sec-h"><h2>${t("harnesses.page.modeles")} <span class="count">${splitEffort(list).length}</span></h2></div>
+      ${list.length ? html`<div class="card rows">${splitEffort(list).map(g => { const def = g.levels.find(l => l.value === modelOpt.currentValue) || g.levels.find(l => l.level === 'medium') || g.levels[0]; return html`<div class="row" key=${g.family}>
+          <div class="grow"><div class="t">${g.name}${g.levels.some(l => l.value === modelOpt.currentValue) && html` <span class="tag">${t("harnesses.page.par_defaut_2")}</span>`}</div>
+            ${g.levels.length > 1 ? html`<div class="chips lvl">${g.levels.map(l => html`<span class=${cls('tag', l.value === modelOpt.currentValue && 'on')}>${l.label || l.level}</span>`)}</div>` : html`<div class="s">${(list.find(x => x.value === def.value) || {}).description || def.value}</div>`}</div>
+          <button class="btn sm ghost" disabled=${missing} onClick=${() => startWith(choiceFor(def.value))}>${t("harnesses.page.discuter")}</button></div>`; })}</div>`
+        : html`<div class="card pad"><p class="note">${missing ? t("harnesses.page.installe_le_cli_pour_lire_ses_modeles") : t("harnesses.page.pas_encore_lus_actualiser_ouvre_une_session_vide_sans_prompt_pour")}</p></div>`}
+    </section>
+
+    <details class="sec more-info"><summary>${t('agents.more_info')}</summary>
     <div class=${cls('card local-strip' , native && 'five')}>
       <div><div class="lbl">${t("harnesses.page.etat")}</div><div class="v"><i class=${'dot ' + (missing ? '' : probe && probe.error && !cfg.length ? 'red' : 'green')}></i><span class="t">${missing ? t("harnesses.account.unavailable") : probe && probe.error && !cfg.length ? t("harnesses.page.a_verifier") : t("harnesses.page.pret")}</span></div>
         <div class="sub">${probe && probe.at ? t("harnesses.page.lu") + ago(probe.at) : t("harnesses.page.pas_encore_lu")}</div></div>
@@ -392,19 +450,10 @@ function AcpDetail({ rt, models, onEdit }) {
       ${native && html`<div><div class="lbl">${t('harnesses.native.label')}<${Tip} text=${t('harnesses.native.tip')} /></div>
         <div class="v"><b>${fmtTok(native.total_tokens)}</b><span class="t">tokens</span></div><div class="sub"><a href="#/usage">${t('harnesses.native.sessions', { n: native.sessions })}</a></div></div>`}
     </div>
-    ${!missing && probe && probe.error && html`<div class="alert amber" style="margin-top:12px"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
-    ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => setAccountRevision(n => n + 1)} onConnect=${refresh} />`}
     ${!rt.custom && html`<${MachineState} rt=${rt} accountRevision=${accountRevision} commands=${probe && probe.commands ? probe.commands.length : null} />`}
     ${rt.custom && rt.machine && html`<${RemoteState} rt=${rt} />`}
     <${ModelSource} rt=${rt} />
     <${LoomResources} rt=${rt} />
-
-    <section class="sec"><div class="sec-h"><h2>${t("harnesses.page.modeles")} <span class="count">${list.length}</span></h2></div>
-      ${list.length ? html`<div class="card rows">${list.map(m => html`<div class="row" key=${m.value}>
-          <div class="grow"><div class="t">${m.name || m.value}${modelOpt.currentValue === m.value && html` <span class="tag">${t("harnesses.page.par_defaut_2")}</span>`}</div><div class="s">${m.description || m.value}</div></div>
-          <button class="btn sm ghost" disabled=${missing} onClick=${() => startWith(choiceFor(m.value))}>${t("harnesses.page.discuter")}</button></div>`)}</div>`
-        : html`<div class="card pad"><p class="note">${missing ? t("harnesses.page.installe_le_cli_pour_lire_ses_modeles") : t("harnesses.page.pas_encore_lus_actualiser_ouvre_une_session_vide_sans_prompt_pour")}</p></div>`}
-    </section>
 
     ${(effortOpt || (probe && probe.modes && probe.modes.length)) && html`<div class="grid2 sec">
       ${effortOpt && html`<div class="card pad"><div class="sec-h"><h2>${t("harnesses.page.reflexion")}</h2></div>
@@ -424,14 +473,7 @@ function AcpDetail({ rt, models, onEdit }) {
         ${rt.docs && html`<div class="set-line"><div class="set-l"><span>${t("harnesses.page.documentation")}</span></div><div class="set-c"><a class="btn sm ghost" href=${rt.docs} target="_blank" rel="noopener noreferrer">${t("harnesses.page.ouvrir")}</a></div></div>`}
       </div></section>
 
-    ${(probe && probe.capabilities && probe.capabilities.sessionCapabilities && probe.capabilities.sessionCapabilities.list) ? html`<${NativeSessions} rt=${rt} />` : ''}
-
-    <section class="sec"><div class="sec-h"><h2>${t("harnesses.page.discussions_recentes_dans_loom")} <span class="count">${talks.length}</span></h2></div>
-      ${talks.length ? html`<div class="card rows">${talks.slice(0, 8).map(c => html`<button type="button" class="row link-row" key=${c.id} onClick=${() => { openChat(c.id); go('chat'); }}>
-          <div class="grow"><div class="t">${c.title || t("harnesses.page.discussion")}</div><div class="s">${[c.model && c.model !== 'default' ? c.model : '', c.workdir ? c.workdir.split('/').pop() : '', c.updated_at ? ago(c.updated_at) : ''].filter(Boolean).join(' · ')}</div></div>
-          <${Icon} n="right" /></button>`)}</div>`
-        : html`<div class="card pad"><p class="note">${t("harnesses.page.aucune_discussion_avec")} ${rt.name} ${t("harnesses.page.pour_l_instant")}</p></div>`}
-    </section>
+    </details>
   </div>`;
 }
 
@@ -477,7 +519,7 @@ export function HarnessesPage({ route }) {
   const order = r => (r.implemented && r.capabilities && r.capabilities.length ? 0 : 1);
   if (route.sub === 'history') return html`<${HarnessHistory} />`;
   return html`<div class="view page"><div class="page-in wide">
-    ${cur ? html`<button class="btn ghost sm back" onClick=${() => go('harnesses')}><${Icon} n="left" />${t("harnesses.page.harnesses")}</button>
+    ${cur ? html`<button class="btn ghost sm back" onClick=${() => go('harnesses')}><${Icon} n="left" />${t('app.groups.agents')}</button>
       <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
         : html`<${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} />`}</div>`
     : html`<${SectionTabs} /><div class="page-head"><div><h1>${t('app.groups.agents')}</h1><p>${t("harnesses.page.des_agents_qui_gardent_leurs_outils_leur_compte_et_leurs_permissi")}</p></div>

@@ -1,5 +1,12 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "agents.more_info": "Informations supplémentaires",
+  "agents.banner.missing": "Pas installé sur cette machine : installe-le depuis « Ajouter un agent » ou la ligne ci-dessous.",
+  "agents.banner.unmanaged": "Loom ne gère pas cet agent ici : ni son compte, ni ses versions, ni ses discussions.",
+  "agents.banner.used": "Utilisé dans Loom : il peut mener tes discussions.",
+  "agents.banner.managed": "Géré : Loom suit son compte, ses versions et ses discussions, mais ne lui confie pas encore de discussion.",
+  "agents.installs.title": "Installations",
+  "agents.installs.unmanaged": "Non géré sur cette machine : active « Gérer » pour suivre sa version, ses mises à jour et importer ses discussions.",
   "agents.state.managed": "G\u00e9r\u00e9",
   "agents.add.title": "Ajouter un agent",
   "agents.add.sub": "Gère un agent déjà installé sur une de tes machines, installe-en un ici, ou branche une commande ACP.",
