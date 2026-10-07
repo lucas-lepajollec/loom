@@ -72,8 +72,8 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
         <span class="grow"></span>
         <button class="btn sm" onClick=${() => openTerminalWith({ target, dir: isLocal ? '' : m.home || '', title: name })}><${Icon} n="prompt" />${t("settings.machines.terminal")}</button>
         ${!isLocal && html`<button class="btn sm ghost" onClick=${onEdit}>${t("settings.machines.modifier")}</button><button class="icon-btn" aria-label=${t("settings.machines.retirer") + m.name} onClick=${remove}><${Icon} n="trash" /></button>`}</div></div>
-    <${EngineSection} m=${m} />
     <${HarnessesSection} m=${m} onChange=${onChange} />
+    <${EngineSection} m=${m} />
     <${FoldersSection} target=${target} m=${m} />
     <${TerminalsSection} target=${target} name=${name} m=${m} />`;
 }
