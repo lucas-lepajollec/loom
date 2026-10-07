@@ -414,18 +414,32 @@ function RemoteNote() {
     <small>${n ? t("harnesses.page.leurs_harnesses_moteur_dossiers_et_terminaux_se_gerent_dans_regla") : t("harnesses.page.connecte_une_machine_en_ssh_dans_reglages_machines_pour_utiliser")}</small></span><${Icon} n="right" /></a>`;
 }
 
-function Card({ rt, models }) {
+// Où une famille d'agents est installée : cette machine, puis chaque machine
+// connectée (version lue sur place), et si Loom l'y pilote déjà.
+function installations(rt, family, machines) {
+  const out = [];
+  if (rt.machine) return [{ key: rt.id, name: rt.machine, ok: true, version: '' }];
+  if (rt.available !== false) out.push({ key: 'local', name: t('agents.this_machine'), ok: true, version: '' });
+  for (const m of machines.machines || []) {
+    const offer = ((machines.offers || {})[m.id] || []).find(o => o.id === rt.id);
+    const linked = family.some(r => r.machine && r.machine === m.name);
+    if (offer?.installed || linked) out.push({ key: m.id, name: m.name || m.host, ok: !!(offer?.ready || linked), version: offer?.version || '', linked });
+  }
+  return out;
+}
+
+function Card({ rt, models, family = [], machines = {} }) {
   const n = groupVariants(models.filter(m => m.runtime_id === rt.id)).length;
   const supported = rt.implemented && rt.capabilities && rt.capabilities.length > 0;
   const caps = CAPS().filter(([id]) => (rt.capabilities || []).includes(id)).map(([id]) => [id, SHORT()[id]]);
   const acp = isACP(rt), missing = rt.available === false;
-  const state = !supported ? null : missing ? ['', t("harnesses.page.non_installe")] : acp ? [rt.connected ? 'green' : '', rt.connected ? t('harnesses.connection.connected') : t('harnesses.connection.disconnected')] : n ? ['green', t("harnesses.page.connecte_3")] : ['', t("harnesses.page.non_connecte")];
+  const state = !supported ? null : missing ? ['', t("harnesses.page.non_installe")] : acp ? [rt.connected ? 'green' : '', rt.connected ? t('agents.state.connected') : t('agents.state.disconnected')] : n ? ['green', t("harnesses.page.connecte_3")] : ['', t("harnesses.page.non_connecte")];
   return html`<button type="button" class=${cls('hx', (!supported || missing) && 'is-soon')} onClick=${() => go('harnesses', rt.id)}>
     <div class="hx-top"><${Logo} name=${rt.id} />
       <span class="grow"><b>${rt.name}</b>${rt.machine ? html`<code>${t("harnesses.page.sur_3")} ${rt.machine}</code>` : rt.cli && html`<code>${acp ? 'ACP' + (rt.cli === 'npx' ? '' : ' · ' + rt.cli.split('/').pop()) : rt.cli}</code>`}</span>
       ${!supported ? html`<span class="soon-pill">${t("harnesses.page.bientot_2")}</span>` : html`<span class="state"><i class=${'dot ' + state[0]}></i>${state[1]}</span>`}</div>
     ${rt.description && html`<p>${tSource(rt.description)}</p>`}
-    ${caps.length > 0 && html`<ul>${caps.map(([id, label]) => html`<li key=${id}><${Icon} n="check" />${label}</li>`)}</ul>`}
+    ${supported && (() => { const list = installations(rt, family, machines); return list.length ? html`<div class="hx-inst"><span>${t('agents.installations')}</span>${list.map(i => html`<span class="hx-chip" key=${i.key} title=${i.version}><i class=${'dot ' + (i.ok ? 'green' : '')}></i>${i.name}${i.version && html`<em>${i.version.replace(/^v/, '').split(' ')[0]}</em>`}</span>`)}</div>` : null; })()}
     <div class="hx-foot">${!supported ? (rt.id === 'hermes' ? t("harnesses.page.connecte_sa_machine_avec_connecter_une_machine") : t("harnesses.page.adaptateur_en_preparation")) : missing ? t("harnesses.page.installe") + (rt.cli === 'npx' ? t("harnesses.page.node_js_et_le_cli") : rt.cli) + t("harnesses.page.pour_l_utiliser")
       : acp ? (rt.custom ? t("harnesses.page.personnalise") : '') + t("harnesses.page.dossier_outils_et_autorisations_dans_loom") : n ? n + t("harnesses.page.modele_2") + (n > 1 ? 's' : '') + t("harnesses.page.dans_le_selecteur") : t("harnesses.page.ouvre_pour_connecter_ton_compte")}</div>
   </button>`;
@@ -439,7 +453,12 @@ export function HarnessesPage({ route }) {
   const models = (ws && ws.models) || [];
   const [selected, setSelected] = useState(null);
   const [dlg, setDlg] = useState(null);
+  const [machines, setMachines] = useState({});
+  useEffect(() => { get('/api/machines').then(r => r.ok && setMachines(r)).catch(() => {}); }, []);
   useEffect(() => { setSelected(s => s && s.runtime !== route.sub ? null : s); }, [route.sub]);
+  // Un agent piloté sur une autre machine rejoint la carte de sa famille.
+  const familyOf = r => runtimes.filter(x => x.machine && x.logo === r.id);
+  const shown = runtimes.filter(r => !r.machine || !runtimes.some(x => !x.machine && x.id === r.logo));
   const selectedRuntime = runtimes.find(r => r.id === selected?.runtime);
   const selectedModel = models.find(m => m.id === selected?.model);
   const cur = runtimes.find(r => r.id === route.sub);
@@ -449,9 +468,9 @@ export function HarnessesPage({ route }) {
     ${cur ? html`<button class="btn ghost sm back" onClick=${() => go('harnesses')}><${Icon} n="left" />${t("harnesses.page.harnesses")}</button>
       <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
         : html`<${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} />`}</div>`
-    : html`<${SectionTabs} /><div class="page-head"><div><h1>${t("harnesses.page.harnesses")}</h1><p>${t("harnesses.page.des_agents_qui_gardent_leurs_outils_leur_compte_et_leurs_permissi")}</p></div>
+    : html`<${SectionTabs} /><div class="page-head"><div><h1>${t('app.groups.agents')}</h1><p>${t("harnesses.page.des_agents_qui_gardent_leurs_outils_leur_compte_et_leurs_permissi")}</p></div>
         <div class="acts"><a class="btn" href="#/machines"><${Icon} n="server" />${t("harnesses.page.machines")}</a><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />${t("harnesses.page.ajouter_un_harness")}</button></div></div>
-      ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`${[true, false].map(connected => html`<section class="sec"><div class="sec-h"><h2>${connected ? t('harnesses.connection.connected') : t('harnesses.connection.disconnected')}</h2></div><div class="hx-grid stagger">${runtimes.filter(r => !!r.connected === connected).sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} />`)}</div></section>`)}`}
+      ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`${[true, false].map(connected => html`<section class="sec"><div class="sec-h"><h2>${connected ? t('harnesses.connection.connected') : t('harnesses.connection.disconnected')}</h2></div><div class="hx-grid stagger">${shown.filter(r => !!(r.connected || familyOf(r).some(x => x.connected)) === connected).sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} family=${familyOf(r)} machines=${machines} />`)}</div></section>`)}`}
       <${RemoteNote} />`}
     ${dlg && !dlg.machine && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}
     ${selectedRuntime && html`<${Drawer} title=${selectedModel?.name || selectedRuntime.name} onClose=${() => setSelected(null)}><${SelectionInfo} model=${selectedModel} runtime=${selectedRuntime} models=${models} /></${Drawer}>`}
