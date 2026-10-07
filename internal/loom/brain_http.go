@@ -214,6 +214,7 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 			Branch     string   `json:"branch"`
 			Permission string   `json:"permission"`
 			Primary    bool     `json:"primary"`
+			Secondary  bool     `json:"secondary"`
 			Exclude    []string `json:"exclude"`
 			Action     string   `json:"action"`
 			ID         string   `json:"id"`
@@ -277,9 +278,10 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 			}
 			if err == nil && req.Primary {
 				req.Permission = "write"
+				req.Secondary = false
 			}
 			if err == nil {
-				err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include, Connector: req.Connector, Remote: strings.TrimSpace(req.Remote), Branch: strings.TrimSpace(req.Branch), Permission: req.Permission, Primary: req.Primary, Exclude: req.Exclude})
+				err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include, Connector: req.Connector, Remote: strings.TrimSpace(req.Remote), Branch: strings.TrimSpace(req.Branch), Permission: req.Permission, Primary: req.Primary, Secondary: req.Secondary, Exclude: req.Exclude})
 			}
 			// Retain managed checkouts on rejected configuration: reconnect may
 			// have reused an existing repository containing user edits.

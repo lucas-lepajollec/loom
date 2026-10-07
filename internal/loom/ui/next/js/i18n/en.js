@@ -1,5 +1,13 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "second_brain.role": "Role",
+  "second_brain.role.primary": "Primary",
+  "second_brain.role.context": "Context",
+  "second_brain.role.secondary": "Secondary",
+  "second_brain.role.primary_note": "Loom's working memory: used for every relevant request, and the only brain Loom and agents write to.",
+  "second_brain.role.context_note": "Its useful passages are added to requests automatically.",
+  "second_brain.role.secondary_note": "Never added on its own: the agent knows it exists and consults it only when the request needs it.",
+  "second_brain.ask": "Ask before changing",
   "machines.card.agents": "{used} used · {managed} managed",
   "machines.card.engine_here": "here",
   "terminals.open_list": "Open",

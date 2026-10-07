@@ -45,3 +45,37 @@ func TestProjectBrainContextReachesTheDiscussion(t *testing.T) {
 		t.Fatal("a project no longer inherited its connected second brains")
 	}
 }
+
+// A secondary brain is announced to the model but never injected on its own.
+func TestSecondaryBrainIsConsultedOnlyOnDemand(t *testing.T) {
+	testHome(t)
+	brainSvcMu.Lock()
+	brainSvc = nil
+	brainSvcMu.Unlock()
+	archive := t.TempDir()
+	_ = os.WriteFile(filepath.Join(archive, "infra.md"), []byte("# Réseau\n\nLa VM de dev s'appelle forge-dev.\n"), 0o644)
+	e, err := theBrain().get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Update(brain.Source{ID: "archive", Label: "Archives", Path: archive, Kind: "context", Secondary: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	p, err := saveProjectContext(ChatProject{Name: "Infra", BrainBudget: 800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := discussionContext(RuntimeSession{ID: "s", ProjectID: p.ID, Messages: []Message{{Role: "user", Content: "Comment s'appelle la VM de dev ?"}}})
+	if strings.Contains(c.System, "forge-dev") || len(c.BrainCitations) > 0 {
+		t.Fatalf("a secondary brain was injected: %q", c.System)
+	}
+	if !strings.Contains(c.System, "Archives (source id archive, read-only)") {
+		t.Fatalf("the model is not told about the secondary brain: %q", c.System)
+	}
+	if !hasName(effectiveProjectBrainSources(p), "archive") {
+		t.Fatal("a secondary brain must stay searchable on demand")
+	}
+}
