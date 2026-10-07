@@ -16,7 +16,7 @@ test('last Usage section labels all metrics and distinguishes historical cloud p
     { kind: 'harness', runtime_id: 'pi', name: 'loom:gemma.gguf', provider: 'Pi', turns: 1, reported_turns: 0, usage: {} },
     { kind: 'harness', runtime_id: 'claude-code', name: 'Native', provider: 'Claude Code', turns: 1, reported_turns: 1, usage: { prompt_tokens: 1, completion_tokens: 2 }, reported_cost: .5, currency: 'USD' },
   ];
-  const env = { html, t: french, locale: () => 'fr-FR', app: {}, Logo: 'Logo', Tip: 'Tip', Empty: 'Empty',
+  const env = { html, t: french, SectionTabs: 'SectionTabs', locale: () => 'fr-FR', app: {}, Logo: 'Logo', Tip: 'Tip', Empty: 'Empty',
     recall: () => null, remember: (_key, value) => value, fmtTok: String, useStore: () => ({ runtimes: [] }), useVisibleRefresh: task => polls.push(task),
     useState: initial => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => slots[i] = v]; },
     get: async () => ({ ok: true, models, quotas: [] }) };
@@ -41,7 +41,7 @@ test('Usage keeps last quotas visible while a remounted page refreshes, includin
   const flat = x => Array.isArray(x) ? x.flatMap(flat) : x && typeof x === 'object' ? [x, ...flat(x.children)] : [];
   let cursor = 0; const slots = [], polls = [];
   let reject;
-  const env = { html, t: french, locale: () => 'fr-FR', app: {}, Logo: 'Logo', Tip: 'Tip', Empty: 'Empty', Icon:'Icon',
+  const env = { html, t: french, SectionTabs: 'SectionTabs', locale: () => 'fr-FR', app: {}, Logo: 'Logo', Tip: 'Tip', Empty: 'Empty', Icon:'Icon',
     fmtTok:String, recall, remember,
     useStore:() => ({runtimes:[{id:'fixture', available:true, capabilities:['quota']}]}),
     useVisibleRefresh:task=>polls.push(task),

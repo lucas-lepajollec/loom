@@ -42,7 +42,7 @@ const text = x => Array.isArray(x) ? x.map(text).join('') : x && typeof x === 'o
 test('Bench launches only supported selected models with external consent and renders full responses', async () => {
   let cursor = 0, tree;
   const slots = [], polls = [], posts = [], consents = [], cancellations = [];
-  const env = { html, t: french, Icon: 'Icon', Logo: 'Logo', Empty: 'Empty', Modal: 'Modal',
+  const env = { html, t: french, SectionTabs: 'SectionTabs', Icon: 'Icon', Logo: 'Logo', Empty: 'Empty', Modal: 'Modal',
     app: {}, cls: (...v) => v.filter(Boolean).join(' '), fmtBytes: () => '', vendorOf: () => '',
     useStore: () => ({ models: [], presets: [] }),
     useState: initial => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = typeof v === 'function' ? v(slots[i]) : v; }]; },

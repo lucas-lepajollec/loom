@@ -4,6 +4,13 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Changed
+
+- Navigation grouped by domain: **Models** (Local, Cloud), **Agents**,
+  **Machines** (Machines, Terminals, Environment), **Brain** and **Activity**
+  (Usage, Bench), with tabs inside each group. Machines is now a page of its
+  own instead of a Settings section; old `#/settings/machines` links redirect.
+
 ## [0.2.10] - 2026-10-07
 
 ### Added

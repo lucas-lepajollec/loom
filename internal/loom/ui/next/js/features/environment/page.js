@@ -3,6 +3,7 @@ import { t } from '../../core/i18n.js';
 // Services déclarés (avec une matrice « depuis quelle machine ça répond »),
 // conteneurs Docker de chaque machine, ressources Proxmox.
 import { html, useState, useEffect, cls } from '../../core/lib.js';
+import { SectionTabs } from '../../app/sections.js';
 import { Icon } from '../../ui/icons.js';
 import { Tabs, Switch, Tip, Empty } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
@@ -154,8 +155,8 @@ export function EnvironmentPage({ route }) {
   const tab = ['docker', 'proxmox'].includes(route.sub) ? route.sub : 'services';
   const machines = useMachines();
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>${t("environment.page.environnement")}</h1><p>${t("environment.page.ce_qui_tourne_autour_de_loom_sur_tes_machines_et_qui_peut_le_join")}</p></div>
-      <div class="acts"><a class="btn" href="#/settings/machines"><${Icon} n="server" />${t("environment.page.machines")}</a></div></div>
+    <${SectionTabs} /><div class="page-head"><div><h1>${t("environment.page.environnement")}</h1><p>${t("environment.page.ce_qui_tourne_autour_de_loom_sur_tes_machines_et_qui_peut_le_join")}</p></div>
+      <div class="acts"><a class="btn" href="#/machines"><${Icon} n="server" />${t("environment.page.machines")}</a></div></div>
     <${Tabs} value=${tab} onChange=${localT => go('environment', localT)} label="${t("environment.page.environnement")}" options=${[{ value: 'services', label: t("environment.page.services") }, { value: 'docker', label: t("environment.page.docker") }, { value: 'proxmox', label: t("environment.page.proxmox") }]} />
     <div class="tab-body" key=${tab}>${tab === 'services' ? html`<${Services} machines=${machines} />` : tab === 'docker' ? html`<${Docker} machines=${machines} />` : html`<${Proxmox} />`}</div>
   </div></div>`;

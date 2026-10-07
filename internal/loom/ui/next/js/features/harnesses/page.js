@@ -1,5 +1,6 @@
 import { useVisibleRefresh } from '../usage/refresh.js';
 import { t, locale, tSource } from '../../core/i18n.js';
+import { SectionTabs } from '../../app/sections.js';
 // Harnesses : agents qui exécutent (Codex, Antigravity…). Loom garde la
 // discussion ; chaque harness garde son compte, ses permissions et sa mémoire.
 import { Logo } from '../../ui/logo.js';
@@ -408,7 +409,7 @@ function RemoteNote() {
   const [n, setN] = useState(null);
   useEffect(() => { get('/api/machines').then(r => setN(r.ok ? r.machines.length : 0)).catch(() => setN(0)); }, []);
   if (n === null) return null;
-  return html`<a class="card pad mc-note" href="#/settings/machines"><span class="mx-ico"><${Icon} n="server" /></span>
+  return html`<a class="card pad mc-note" href="#/machines"><span class="mx-ico"><${Icon} n="server" /></span>
     <span class="grow"><b>${n ? n + t("harnesses.page.machine") + (n > 1 ? 's' : '') + t("harnesses.page.connectee") + (n > 1 ? 's' : '') : t("harnesses.page.harnesses_sur_une_autre_machine")}</b>
     <small>${n ? t("harnesses.page.leurs_harnesses_moteur_dossiers_et_terminaux_se_gerent_dans_regla") : t("harnesses.page.connecte_une_machine_en_ssh_dans_reglages_machines_pour_utiliser")}</small></span><${Icon} n="right" /></a>`;
 }
@@ -448,8 +449,8 @@ export function HarnessesPage({ route }) {
     ${cur ? html`<button class="btn ghost sm back" onClick=${() => go('harnesses')}><${Icon} n="left" />${t("harnesses.page.harnesses")}</button>
       <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
         : html`<${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} />`}</div>`
-    : html`<div class="page-head"><div><h1>${t("harnesses.page.harnesses")}</h1><p>${t("harnesses.page.des_agents_qui_gardent_leurs_outils_leur_compte_et_leurs_permissi")}</p></div>
-        <div class="acts"><a class="btn" href="#/settings/machines"><${Icon} n="server" />${t("harnesses.page.machines")}</a><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />${t("harnesses.page.ajouter_un_harness")}</button></div></div>
+    : html`<${SectionTabs} /><div class="page-head"><div><h1>${t("harnesses.page.harnesses")}</h1><p>${t("harnesses.page.des_agents_qui_gardent_leurs_outils_leur_compte_et_leurs_permissi")}</p></div>
+        <div class="acts"><a class="btn" href="#/machines"><${Icon} n="server" />${t("harnesses.page.machines")}</a><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />${t("harnesses.page.ajouter_un_harness")}</button></div></div>
       ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`${[true, false].map(connected => html`<section class="sec"><div class="sec-h"><h2>${connected ? t('harnesses.connection.connected') : t('harnesses.connection.disconnected')}</h2></div><div class="hx-grid stagger">${runtimes.filter(r => !!r.connected === connected).sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} />`)}</div></section>`)}`}
       <${RemoteNote} />`}
     ${dlg && !dlg.machine && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}

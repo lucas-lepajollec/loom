@@ -23,7 +23,7 @@ const NAMES = { hermes: 'Hermes', 'claude-code': 'Claude Code', codex: 'Codex', 
 const LOCAL_HARNESSES = ['claude-code', 'codex', 'pi', 'opencode', 'hermes', 'antigravity'];
 
 // Lien vers cette page depuis les endroits qui en ont besoin.
-export const MachinesLink = ({ label }) => html`<a class="btn sm ghost" href="#/settings/machines"><${Icon} n="server" />${label || t("settings.machines.gerer_les_machines")}</a>`;
+export const MachinesLink = ({ label }) => html`<a class="btn sm ghost" href="#/machines"><${Icon} n="server" />${label || t("settings.machines.gerer_les_machines")}</a>`;
 
 export function MachinesSettings({ route }) {
   const [data, setData] = useState(null);
@@ -43,16 +43,15 @@ export function MachinesSettings({ route }) {
       ${dlg && html`<${MachineDialog} machine=${dlg.machine} onClose=${x => { setDlg(null); if (x) load(); }} />`}`;
   }
   return html`
-    <${Group} title="${t("settings.machines.machines")}">
-      <div class="set-note">${t("settings.machines.loom_travaille_sur_cette_machine_et_sur_les_machines_que_tu_conne")}</div>
-      <a class="mc-row" href="#/settings/machines/local"><span class="mx-ico"><${Icon} n="chip" /></span>
+    <${Group}>
+      <a class="mc-row" href="#/machines/local"><span class="mx-ico"><${Icon} n="chip" /></span>
         <span class="grow"><b>${(local && local.hostname) || t("settings.machines.cette_machine_2")}</b><small>${t("settings.machines.cette_machine")}${local ? ' · ' + local.os : ''}</small></span><${Icon} n="right" /></a>
-      ${data.machines.map(m => html`<a class="mc-row" key=${m.id} href=${'#/settings/machines/' + encodeURIComponent(m.id)}><span class="mx-ico"><${Icon} n="server" /></span>
+      ${data.machines.map(m => html`<a class="mc-row" key=${m.id} href=${'#/machines/' + encodeURIComponent(m.id)}><span class="mx-ico"><${Icon} n="server" /></span>
         <span class="grow"><b>${m.name}</b><small class="mono">${m.user}@${m.host}${m.port !== 22 ? ':' + m.port : ''}${m.os ? ' · ' + m.os : ''}</small></span>
         <span class="mc-hs">${(m.harnesses || []).map(h => html`<${Logo} key=${h} name=${h} size="sm" />`)}</span><${Icon} n="right" /></a>`)}
       <div class="set-actions"><button class="btn" onClick=${() => setDlg({})}><${Icon} n="plus" />${t("settings.machines.connecter_une_machine")}</button></div>
     </${Group}>
-    ${dlg && html`<${MachineDialog} machine=${null} onClose=${x => { setDlg(null); if (x) { load(); go('settings', 'machines', x.id); } }} />`}`;
+    ${dlg && html`<${MachineDialog} machine=${null} onClose=${x => { setDlg(null); if (x) { load(); go('machines', x.id); } }} />`}`;
 }
 
 function MachineDetail({ m, local, offers, onChange, onEdit }) {
@@ -64,10 +63,10 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
     if (!await confirm(t("settings.machines.retirer") + m.name, t("settings.machines.ses_harnesses_disparaissent_de_loom_les_discussions_deja_faites_r"), { ok: t("settings.machines.retirer_2"), danger: true })) return;
     const r = await post('/api/machines/delete', { id: m.id });
     if (!r.ok) return toast(r.error || t("settings.machines.suppression_impossible"), 'err');
-    await refreshWorkspace(); go('settings', 'machines');
+    await refreshWorkspace(); go('machines');
   };
   return html`
-    <div class="mc-head anim-rise"><a class="btn sm ghost" href="#/settings/machines"><${Icon} n="left" />${t("settings.machines.machines")}</a>
+    <div class="mc-head anim-rise"><a class="btn sm ghost" href="#/machines"><${Icon} n="left" />${t("settings.machines.machines")}</a>
       <div class="mc-title"><span class="mx-ico"><${Icon} n=${isLocal ? 'chip' : 'server'} /></span><div><h2>${name}</h2>
         <p class="mono">${isLocal ? (local ? local.user + ' · ' + home(local.home) + ' · ' + local.os : '') : m.user + '@' + m.host + (m.port !== 22 ? ':' + m.port : '') + (m.os ? ' · ' + m.os : '') + (m.home ? ' · ' + m.home : '')}</p></div>
         <span class="grow"></span>

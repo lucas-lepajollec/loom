@@ -1,5 +1,8 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "app.groups.models": "Modèles",
+  "app.groups.agents": "Agents",
+  "app.groups.activity": "Activité",
   "updates.channel": "Canal",
   "updates.channel_tip": "Stable : les versions publiées. Développement : une version de test reconstruite après chaque changement validé, pour recevoir les correctifs tout de suite. Elle peut contenir des défauts.",
   "updates.stable": "Stable",

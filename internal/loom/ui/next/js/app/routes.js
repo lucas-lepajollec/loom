@@ -13,20 +13,24 @@ import { SettingsPage } from '../features/settings/page.js';
 import { ProjectPage } from '../features/projects/page.js';
 import { TerminalsPage } from '../features/terminals/page.js';
 import { EnvironmentPage } from '../features/environment/page.js';
+import { MachinesPage } from '../features/machines/page.js';
+import { GROUPS } from './sections.js';
 
 export const ROUTES = [
   { id: 'chat', page: ChatView },
-  { id: 'local', page: LocalPage, nav: { get label() { return t("app.routes.local"); }, icon: 'chip' } },
-  { id: 'cloud', page: CloudPage, nav: { get label() { return t("app.routes.cloud"); }, icon: 'cloud' } },
-  { id: 'harnesses', page: HarnessesPage, nav: { get label() { return t("app.routes.harnesses"); }, icon: 'terminal' } },
-  { id: 'brain', page: ResourcesPage, nav: { get label() { return t('resources.page.brain'); }, icon: 'brain' } },
+  { id: 'local', page: LocalPage },
+  { id: 'cloud', page: CloudPage },
+  { id: 'harnesses', page: HarnessesPage },
+  { id: 'brain', page: ResourcesPage },
   { id: 'resources', page: ResourcesPage },
-  { id: 'terminals', page: TerminalsPage, nav: { get label() { return t("app.routes.terminaux"); }, icon: 'prompt' } },
-  { id: 'environment', page: EnvironmentPage, nav: { get label() { return t("app.routes.environnement"); }, icon: 'globe' } },
-  { id: 'bench', page: BenchPage, nav: { get label() { return t("app.routes.bench"); }, icon: 'gauge' } },
-  { id: 'usage', page: UsagePage, nav: { get label() { return t("app.routes.usage"); }, icon: 'chart' } },
+  { id: 'terminals', page: TerminalsPage },
+  { id: 'environment', page: EnvironmentPage },
+  { id: 'bench', page: BenchPage },
+  { id: 'usage', page: UsagePage },
+  { id: 'machines', page: MachinesPage },
   { id: 'project', page: ProjectPage },
   { id: 'settings', page: SettingsPage },
 ];
 export const pageFor = id => (ROUTES.find(r => r.id === id) || {}).page;
-export const NAV_ITEMS = ROUTES.filter(r => r.nav);
+// Une entrée de barre latérale par groupe, qui ouvre sa première page.
+export const NAV_ITEMS = GROUPS.map(g => ({ id: g.id, href: '#/' + g.tabs[0][0], nav: { label: g.label, icon: g.icon } }));

@@ -4,6 +4,7 @@ import { t } from '../../core/i18n.js';
 // agent pour vérifier ou dépanner, une appli à lancer). Un terminal survit à
 // l'onglet : on le retrouve avec sa sortie récente.
 import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
+import { SectionTabs } from '../../app/sections.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty, Tip } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
@@ -112,7 +113,7 @@ function NewTerminal({ onClose, preset }) {
     <div class="field"><span>${t("terminals.page.ou")}</span><div class="chips">
       <button type="button" class=${cls('chip-btn', !remote && 'on')} onClick=${() => setV({ ...v, target: 'local', dir: '' })}><${Icon} n="chip" />${t("terminals.page.cette_machine_2")}</button>
       ${machines.map(x => html`<button type="button" class=${cls('chip-btn', v.target === x.id && 'on')} onClick=${() => setV({ ...v, target: x.id, dir: x.home || '' })}><${Icon} n="server" />${x.name}</button>`)}
-    </div><small>${machines.length ? '' : t("terminals.page.pour_une_autre_machine")}<a href="#/settings/machines" onClick=${() => onClose()}>${machines.length ? t("terminals.page.gerer_les_machines") : t("terminals.page.reglages_machines")}</a></small></div>
+    </div><small>${machines.length ? '' : t("terminals.page.pour_une_autre_machine")}<a href="#/machines" onClick=${() => onClose()}>${machines.length ? t("terminals.page.gerer_les_machines") : t("terminals.page.reglages_machines")}</a></small></div>
     <div class="field"><span>${t("terminals.page.dossier")}</span>
       ${remote ? html`<input class="input mono" placeholder=${(m && m.home) || '/home/moi'} value=${v.dir} onInput=${e => setV({ ...v, dir: e.target.value })} />`
         : html`<button class="hs-dir" onClick=${() => setPick(true)}><${Icon} n="folder" /><span class="mono trunc">${home(v.dir) || t("terminals.page.dossier_personnel")}</span><span class="muted">${t("terminals.page.changer")}</span></button>`}
@@ -139,7 +140,7 @@ export function TerminalsPage({ route }) {
     load();
   };
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>${t("terminals.page.terminaux")}</h1><p>${t("terminals.page.lance_des_applis_ou_le_cli_d_un_agent_pour_verifier_ou_depanner_i")}</p></div>
+    <${SectionTabs} /><div class="page-head"><div><h1>${t("terminals.page.terminaux")}</h1><p>${t("terminals.page.lance_des_applis_ou_le_cli_d_un_agent_pour_verifier_ou_depanner_i")}</p></div>
       <div class="acts"><button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.nouveau_terminal")}</button></div></div>
     <${PreviewPanel} target=${cur?.target || 'local'} />
     ${!supported ? html`<${Empty} icon="info" title="${t("terminals.page.pas_encore_disponible_sur_ce_systeme")}" text="${t("terminals.page.les_terminaux_fonctionnent_sous_linux_et_macos_windows_arrive_plu")}" />`

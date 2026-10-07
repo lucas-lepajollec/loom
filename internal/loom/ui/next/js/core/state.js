@@ -17,6 +17,11 @@ export const app = createStore({
 // ---------- routes : #/section/sous-section/id ----------
 export function parseRoute() {
   const [section, sub, id] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  // Machines left the settings: old links and bookmarks keep working.
+  if (section === 'settings' && sub === 'machines') {
+    history.replaceState(null, '', '#/machines' + (id ? '/' + encodeURIComponent(id) : ''));
+    return { section: 'machines', sub: id || '', id: '' };
+  }
   return { section: section || 'chat', sub: sub || '', id: id || '' };
 }
 export function go(section, sub, id) {
