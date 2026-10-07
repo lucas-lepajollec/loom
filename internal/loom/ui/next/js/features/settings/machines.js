@@ -6,7 +6,7 @@ import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
-import { Empty, Tip } from '../../ui/controls.js';
+import { Empty, Tip, Switch } from '../../ui/controls.js';
 import { confirm, prompt, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
@@ -73,7 +73,7 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
         <button class="btn sm" onClick=${() => openTerminalWith({ target, dir: isLocal ? '' : m.home || '', title: name })}><${Icon} n="prompt" />${t("settings.machines.terminal")}</button>
         ${!isLocal && html`<button class="btn sm ghost" onClick=${onEdit}>${t("settings.machines.modifier")}</button><button class="icon-btn" aria-label=${t("settings.machines.retirer") + m.name} onClick=${remove}><${Icon} n="trash" /></button>`}</div></div>
     <${EngineSection} m=${m} />
-    <${HarnessesSection} m=${m} target=${target} where=${where} offers=${offers} onChange=${onChange} />
+    <${HarnessesSection} m=${m} onChange=${onChange} />
     <${FoldersSection} target=${target} m=${m} />
     <${TerminalsSection} target=${target} name=${name} m=${m} />`;
 }
@@ -137,47 +137,38 @@ function MachineNodeMaintenance({ m }) {
   </${Group}>${info?.linked && html`<${LoomUpdates} key=${info.url} node=${true} endpoint=${base + '/update'} />`}`;
 }
 
-function HarnessesSection({ m, target, where, offers, onChange }) {
+// Agents détectés sur cette machine : deux choix seulement ici. « Gérer »
+// (Loom suit l'agent : compte, versions, import de discussions) et « Utiliser
+// dans Loom » (il peut mener des discussions). Tout le reste est sur la page
+// Agents.
+function HarnessesSection({ m, onChange }) {
+  const machine = m ? m.id : 'local';
+  const [list, setList] = useState(null);
   const [busy, setBusy] = useState('');
-  const ws = useStore(app, a => a.workspace);
-  const isLocal = !m;
-  const runtimes = ((ws && ws.runtimes) || []);
-  // Sur cette machine : l'état réel de chaque harness du catalogue.
-  const [states, setStates] = useState(null);
-  useEffect(() => {
-    if (!isLocal) return;
-    Promise.all(LOCAL_HARNESSES.map(id => get('/api/harness/lifecycle?target=local&id=' + id).then(r => [id, r.state]).catch(() => [id, null])))
-      .then(list => setStates(Object.fromEntries(list)));
-  }, [isLocal]);
-  if (isLocal && !states) return html`<${Group} title="${t("settings.machines.harnesses")}"><div class="set-note"><span class="spinner"></span> ${t("settings.machines.lecture_des_harnesses_de_cette_machine")}</div></${Group}>`;
-  const list = isLocal ? LOCAL_HARNESSES.filter(id => states[id]).map(id => ({ id, name: NAMES[id] || id, logo: id }))
-    : (offers || []).map(o => ({ ...o }));
-  const added = id => isLocal || (m.harnesses || []).includes('custom-' + m.id + '-' + id);
-  const add = async o => {
-    setBusy(o.id);
-    const ids = (m.harnesses || []).map(h => h.slice(('custom-' + m.id + '-').length));
-    const r = await post('/api/machines', { machine: { id: m.id, name: m.name, host: m.host, user: m.user, port: m.port }, harnesses: [...new Set([...ids, o.id])] }).catch(e => ({ ok: false, error: e.message }));
+  const load = () => get('/api/agents/installations').then(r => setList((r.installations || []).filter(i => i.machine === machine))).catch(() => setList([]));
+  useEffect(() => { load(); }, [machine]);
+  const change = async (i, patch) => {
+    if (patch.enabled && !await confirm(t('agents.enable_title', { name: i.name }), t('agents.enable_note', { name: i.name, machine: i.machine_name }), { ok: t('agents.enable_ok') })) return;
+    setBusy(i.harness);
+    const r = await post('/api/agents/installations', { machine, harness: i.harness, ...patch, consent: !!patch.enabled }).catch(e => ({ ok: false, error: e.message }));
     setBusy('');
-    if (!r.ok) return toast(r.error || t("settings.machines.ajout_impossible"), 'err');
-    toast(o.name + t("settings.machines.ajoute_a_loom")); await refreshWorkspace(); onChange();
+    if (!r.ok) return toast(r.error || t('agents.change_failed'), 'err');
+    setList((r.installations || []).filter(x => x.machine === machine));
+    await refreshWorkspace(); onChange && onChange();
   };
-  const runtime = id => runtimes.find(r => r.id === id) || {};
-  const installed = o => isLocal ? !!(states[o.id] && states[o.id].installed) : o.installed;
-  const card = o => html`<div class="mh-item card pad" key=${o.id}>
-      <div class="mh-head"><${Logo} name=${o.logo || o.id} /><b>${o.name}</b><span class="grow"></span>
-        ${isLocal ? (runtime(o.id).id ? html`<a class="btn sm ghost" href=${'#/harnesses/' + o.id}>${t("settings.machines.page_du_harness")}</a>` : html`<span class="muted">${t("settings.machines.pas_encore_pilote_par_loom")}</span>`)
-          : added(o.id) ? html`<span class="state"><i class="dot green"></i>${t("settings.machines.dans_loom")}</span><a class="btn sm ghost" href=${'#/harnesses/custom-' + m.id + '-' + o.id}>${t("settings.machines.page_du_harness")}</a>`
-          : o.ready ? html`<button class="btn sm" disabled=${busy === o.id} onClick=${() => add(o)}>${t("settings.machines.ajouter_a_loom")}</button>`
-          : o.missing ? html`<span class="state err">${o.missing}</span>` : ''}</div>
-      <${Lifecycle} target=${target} id=${o.id} name=${o.name} where=${where} onChange=${onChange} />
-      ${(!isLocal && o.ready) && html`<div class="set-actions"><button class="btn sm ghost" onClick=${() => go('settings', 'harness-history', 'remote:' + m.id + ':' + o.id)}><${Icon} n="history" />${t('history.entry')}</button></div>`}
-    </div>`;
-  const absent = list.filter(o => !installed(o));
-  return html`<section class="set-group anim-rise"><h3>${t("settings.machines.harnesses")}<${Tip} text=${t("settings.machines.version_installee_et_derniere_publiee_installation_et_mises_a_jou") + where + t("settings.machines.un_harness_ajoute_a_loom_apparait_dans_le_selecteur_de_modeles")} /></h3>
-    <div class="mh-list">${list.filter(installed).map(card)}
-      ${absent.length > 0 && html`<div class="card mh-absent"><div class="mh-absent-h">${t("settings.machines.a_installer")} ${where}</div>
-        ${absent.map(o => html`<div class="mh-row" key=${o.id}><${Logo} name=${o.logo || o.id} size="sm" /><span class="grow">${o.name}</span>
-          <${Lifecycle} compact target=${target} id=${o.id} name=${o.name} where=${where} onChange=${onChange} /></div>`)}</div>`}
+  if (!list) return html`<${Group} title=${t('app.groups.agents')}><div class="set-note"><span class="spinner"></span> ${t('settings.machines.lecture_des_harnesses_de_cette_machine')}</div></${Group}>`;
+  const installed = list.filter(i => i.installed), absent = list.filter(i => !i.installed);
+  return html`<section class="set-group anim-rise"><h3>${t('app.groups.agents')}<${Tip} text=${t('agents.machine_tip')} /></h3>
+    <div class="card">
+      ${installed.length ? html`<div class="ag-row ag-head"><span></span><span>${t('agents.manage')}</span><span>${t('agents.use')}</span></div>` : ''}
+      ${installed.map(i => html`<div class="ag-row" key=${i.harness}>
+        <span class="ag-name"><${Logo} name=${i.logo || i.harness} size="sm" /><b>${i.name}</b>${i.version && html`<em class="mono">${i.version.split(' ')[0]}</em>`}
+          ${i.managed && html`<a class="btn sm ghost" href=${'#/harnesses/' + i.runtime_id}>${t('agents.open')}</a>`}</span>
+        <${Switch} label=${t('agents.manage')} checked=${i.managed} disabled=${busy === i.harness} onChange=${v => change(i, { managed: v })} />
+        <${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${busy === i.harness || !i.ready} onChange=${v => change(i, { enabled: v })} />
+      </div>`)}
+      ${!installed.length && html`<div class="set-note">${t('agents.none_here')}</div>`}
+      ${absent.length > 0 && html`<div class="set-note">${t('agents.not_installed')} ${absent.map(i => i.name).join(', ')}. <a href="#/harnesses">${t('agents.install_from_agents')}</a></div>`}
     </div></section>`;
 }
 

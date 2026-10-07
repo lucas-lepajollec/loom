@@ -35,6 +35,37 @@ const PRESETS = () => ([{ label: t("harnesses.page.agent_sur_cette_machine"), na
 const splitArgs = localT => (String(localT).match(/"[^"]*"|'[^']*'|\S+/g) || []).map(a => a.replace(/^(["'])(.*)\1$/, '$2'));
 const joinArgs = a => (a || []).map(x => /\s/.test(x) ? '"' + x + '"' : x).join(' ');
 
+// Ajouter un agent : d'abord ceux déjà détectés sur tes machines (à gérer, et
+// éventuellement à utiliser), puis ceux à installer ici, puis une commande ACP.
+function AddAgentDialog({ installs, onClose, onChanged, onCustom }) {
+  const [busy, setBusy] = useState('');
+  const detected = installs.filter(i => i.installed && !i.managed);
+  const missing = installs.filter(i => i.machine === 'local' && !i.installed);
+  const apply = async (i, use) => {
+    if (use && !await confirm(t('agents.enable_title', { name: i.name }), t('agents.enable_note', { name: i.name, machine: i.machine_name }), { ok: t('agents.enable_ok') })) return;
+    setBusy(i.machine + i.harness);
+    const r = await post('/api/agents/installations', { machine: i.machine, harness: i.harness, managed: true, ...(use ? { enabled: true, consent: true } : {}) }).catch(e => ({ ok: false, error: e.message }));
+    setBusy('');
+    if (!r.ok) return toast(r.error || t('agents.change_failed'), 'err');
+    await refreshWorkspace(); onChanged(r.installations || []);
+  };
+  return html`<${Modal} title=${t('agents.add.title')} sub=${t('agents.add.sub')} onClose=${onClose}>
+    <div class="add-agents">
+      <h4>${t('agents.add.detected')}</h4>
+      ${detected.length ? html`<div class="card">${detected.map(i => html`<div class="set-line" key=${i.machine + i.harness}>
+          <div class="set-l"><${Logo} name=${i.logo || i.harness} size="sm" /><span>${i.name}</span><span class="muted">· ${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}${i.version ? ' · ' + i.version.split(' ')[0] : ''}</span></div>
+          <div class="set-c"><button class="btn sm ghost" disabled=${!!busy} onClick=${() => apply(i, false)}>${t('agents.manage')}</button>
+            <button class="btn sm" disabled=${!!busy || !i.ready} onClick=${() => apply(i, true)}>${t('agents.add.manage_use')}</button></div></div>`)}</div>`
+        : html`<p class="note">${t('agents.add.none_detected')}</p>`}
+      ${missing.length > 0 && html`<h4>${t('agents.add.install')}</h4><div class="card">${missing.map(i => html`<div class="set-line" key=${i.harness}>
+          <div class="set-l"><${Logo} name=${i.logo || i.harness} size="sm" /><span>${i.name}</span></div>
+          <div class="set-c"><${Lifecycle} compact target="local" id=${i.harness} name=${i.name} where=${t('agents.this_machine')} onChange=${() => onChanged(null)} /></div></div>`)}</div>
+        <p class="note">${t('agents.add.install_note')}</p>`}
+      <h4>${t('agents.add.custom')}</h4>
+      <div class="card"><div class="set-line"><div class="set-l"><span>${t('agents.add.custom_text')}</span></div><div class="set-c"><button class="btn sm ghost" onClick=${onCustom}>${t('agents.add.custom_btn')}</button></div></div></div>
+    </div></${Modal}>`;
+}
+
 function CustomDialog({ agent, onClose }) {
   const [v, setV] = useState(agent ? { name: agent.name, command: agent.command, args: joinArgs(agent.args), remote: !!agent.remote } : { ...PRESETS()[0] });
   const [busy, setBusy] = useState(false);
@@ -404,42 +435,22 @@ function AcpDetail({ rt, models, onEdit }) {
   </div>`;
 }
 
-// Harnesses d'autres machines : tout se règle dans Réglages › Machines.
-function RemoteNote() {
-  const [n, setN] = useState(null);
-  useEffect(() => { get('/api/machines').then(r => setN(r.ok ? r.machines.length : 0)).catch(() => setN(0)); }, []);
-  if (n === null) return null;
-  return html`<a class="card pad mc-note" href="#/machines"><span class="mx-ico"><${Icon} n="server" /></span>
-    <span class="grow"><b>${n ? n + t("harnesses.page.machine") + (n > 1 ? 's' : '') + t("harnesses.page.connectee") + (n > 1 ? 's' : '') : t("harnesses.page.harnesses_sur_une_autre_machine")}</b>
-    <small>${n ? t("harnesses.page.leurs_harnesses_moteur_dossiers_et_terminaux_se_gerent_dans_regla") : t("harnesses.page.connecte_une_machine_en_ssh_dans_reglages_machines_pour_utiliser")}</small></span><${Icon} n="right" /></a>`;
-}
+// Où une famille d'agents est gérée : une puce par machine, verte si l'agent
+// y mène des discussions Loom.
+const installationsOf = (rt, all) => all.filter(i => i.managed && i.installed && (i.harness === rt.id || i.runtime_id === rt.id));
 
-// Où une famille d'agents est installée : cette machine, puis chaque machine
-// connectée (version lue sur place), et si Loom l'y pilote déjà.
-function installations(rt, family, machines) {
-  const out = [];
-  if (rt.machine) return [{ key: rt.id, name: rt.machine, ok: true, version: '' }];
-  if (rt.available !== false) out.push({ key: 'local', name: t('agents.this_machine'), ok: true, version: '' });
-  for (const m of machines.machines || []) {
-    const offer = ((machines.offers || {})[m.id] || []).find(o => o.id === rt.id);
-    const linked = family.some(r => r.machine && r.machine === m.name);
-    if (offer?.installed || linked) out.push({ key: m.id, name: m.name || m.host, ok: !!(offer?.ready || linked), version: offer?.version || '', linked });
-  }
-  return out;
-}
-
-function Card({ rt, models, family = [], machines = {} }) {
+function Card({ rt, models, installs = [] }) {
   const n = groupVariants(models.filter(m => m.runtime_id === rt.id)).length;
   const supported = rt.implemented && rt.capabilities && rt.capabilities.length > 0;
   const caps = CAPS().filter(([id]) => (rt.capabilities || []).includes(id)).map(([id]) => [id, SHORT()[id]]);
   const acp = isACP(rt), missing = rt.available === false;
-  const state = !supported ? null : missing ? ['', t("harnesses.page.non_installe")] : acp ? [rt.connected ? 'green' : '', rt.connected ? t('agents.state.connected') : t('agents.state.disconnected')] : n ? ['green', t("harnesses.page.connecte_3")] : ['', t("harnesses.page.non_connecte")];
+  const state = !supported ? null : missing ? ['', t("harnesses.page.non_installe")] : acp ? (installs.some(i => i.enabled) || rt.connected ? ['green', t('agents.use')] : ['', t('agents.state.managed')]) : n ? ['green', t("harnesses.page.connecte_3")] : ['', t("harnesses.page.non_connecte")];
   return html`<button type="button" class=${cls('hx', (!supported || missing) && 'is-soon')} onClick=${() => go('harnesses', rt.id)}>
     <div class="hx-top"><${Logo} name=${rt.id} />
       <span class="grow"><b>${rt.name}</b>${rt.machine ? html`<code>${t("harnesses.page.sur_3")} ${rt.machine}</code>` : rt.cli && html`<code>${acp ? 'ACP' + (rt.cli === 'npx' ? '' : ' · ' + rt.cli.split('/').pop()) : rt.cli}</code>`}</span>
       ${!supported ? html`<span class="soon-pill">${t("harnesses.page.bientot_2")}</span>` : html`<span class="state"><i class=${'dot ' + state[0]}></i>${state[1]}</span>`}</div>
     ${rt.description && html`<p>${tSource(rt.description)}</p>`}
-    ${supported && (() => { const list = installations(rt, family, machines); return list.length ? html`<div class="hx-inst"><span>${t('agents.installations')}</span>${list.map(i => html`<span class="hx-chip" key=${i.key} title=${i.version}><i class=${'dot ' + (i.ok ? 'green' : '')}></i>${i.name}${i.version && html`<em>${i.version.replace(/^v/, '').split(' ')[0]}</em>`}</span>`)}</div>` : null; })()}
+    ${supported && installs.length > 0 && html`<div class="hx-inst"><span>${t('agents.installations')}</span>${installs.map(i => html`<span class="hx-chip" key=${i.machine} title=${i.enabled ? t('agents.use') : t('agents.managed_only')}><i class=${'dot ' + (i.enabled ? 'green' : '')}></i>${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}${i.version && html`<em>${i.version.replace(/^v/, '').split(' ')[0]}</em>`}</span>`)}</div>`}
     <div class="hx-foot">${!supported ? (rt.id === 'hermes' ? t("harnesses.page.connecte_sa_machine_avec_connecter_une_machine") : t("harnesses.page.adaptateur_en_preparation")) : missing ? t("harnesses.page.installe") + (rt.cli === 'npx' ? t("harnesses.page.node_js_et_le_cli") : rt.cli) + t("harnesses.page.pour_l_utiliser")
       : acp ? (rt.custom ? t("harnesses.page.personnalise") : '') + t("harnesses.page.dossier_outils_et_autorisations_dans_loom") : n ? n + t("harnesses.page.modele_2") + (n > 1 ? 's' : '') + t("harnesses.page.dans_le_selecteur") : t("harnesses.page.ouvre_pour_connecter_ton_compte")}</div>
   </button>`;
@@ -453,12 +464,13 @@ export function HarnessesPage({ route }) {
   const models = (ws && ws.models) || [];
   const [selected, setSelected] = useState(null);
   const [dlg, setDlg] = useState(null);
-  const [machines, setMachines] = useState({});
-  useEffect(() => { get('/api/machines').then(r => r.ok && setMachines(r)).catch(() => {}); }, []);
+  const [installs, setInstalls] = useState([]);
+  const loadInstalls = () => get('/api/agents/installations').then(r => r.ok && setInstalls(r.installations || [])).catch(() => {});
+  useEffect(() => { loadInstalls(); }, []);
   useEffect(() => { setSelected(s => s && s.runtime !== route.sub ? null : s); }, [route.sub]);
-  // Un agent piloté sur une autre machine rejoint la carte de sa famille.
-  const familyOf = r => runtimes.filter(x => x.machine && x.logo === r.id);
-  const shown = runtimes.filter(r => !r.machine || !runtimes.some(x => !x.machine && x.id === r.logo));
+  // Une carte par famille gérée quelque part ; un agent personnalisé a la sienne.
+  const families = runtimes.filter(r => !r.machine && (r.custom || installationsOf(r, installs).length > 0));
+  const used = r => r.custom ? !!r.connected : installationsOf(r, installs).some(i => i.enabled);
   const selectedRuntime = runtimes.find(r => r.id === selected?.runtime);
   const selectedModel = models.find(m => m.id === selected?.model);
   const cur = runtimes.find(r => r.id === route.sub);
@@ -469,10 +481,11 @@ export function HarnessesPage({ route }) {
       <div style="margin-top:14px">${isACP(cur) ? html`<${AcpDetail} key=${cur.id} rt=${cur} models=${models} onEdit=${a => setDlg({ agent: a })} />`
         : html`<${Detail} key=${cur.id} rt=${cur} models=${models} onInspect=${m => setSelected({ runtime: cur.id, model: m.id })} />`}</div>`
     : html`<${SectionTabs} /><div class="page-head"><div><h1>${t('app.groups.agents')}</h1><p>${t("harnesses.page.des_agents_qui_gardent_leurs_outils_leur_compte_et_leurs_permissi")}</p></div>
-        <div class="acts"><a class="btn" href="#/machines"><${Icon} n="server" />${t("harnesses.page.machines")}</a><button class="btn primary" onClick=${() => setDlg({})}><${Icon} n="plus" />${t("harnesses.page.ajouter_un_harness")}</button></div></div>
-      ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`${[true, false].map(connected => html`<section class="sec"><div class="sec-h"><h2>${connected ? t('harnesses.connection.connected') : t('harnesses.connection.disconnected')}</h2></div><div class="hx-grid stagger">${shown.filter(r => !!(r.connected || familyOf(r).some(x => x.connected)) === connected).sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} family=${familyOf(r)} machines=${machines} />`)}</div></section>`)}`}
-      <${RemoteNote} />`}
-    ${dlg && !dlg.machine && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}
+        <div class="acts"><a class="btn" href="#/machines"><${Icon} n="server" />${t("harnesses.page.machines")}</a><button class="btn primary" onClick=${() => setDlg({ add: true })}><${Icon} n="plus" />${t('agents.add.title')}</button></div></div>
+      ${!ws ? html`<div class="skeleton" style="height:220px"></div>` : html`${[true, false].map(connected => html`<section class="sec"><div class="sec-h"><h2>${connected ? t('agents.section.used') : t('agents.section.managed')}</h2></div><div class="hx-grid stagger">${families.filter(r => used(r) === connected).sort((a, b) => order(a) - order(b)).map(r => html`<${Card} key=${r.id} rt=${r} models=${models} installs=${installationsOf(r, installs)} />`)}</div></section>`)}`}
+`}
+    ${dlg && dlg.add && html`<${AddAgentDialog} installs=${installs} onClose=${() => setDlg(null)} onCustom=${() => setDlg({})} onChanged=${list => list ? setInstalls(list) : loadInstalls()} />`}
+    ${dlg && !dlg.add && !dlg.machine && html`<${CustomDialog} agent=${dlg.agent} onClose=${a => { setDlg(null); if (a && !dlg.agent) go('harnesses', a.id); }} />`}
     ${selectedRuntime && html`<${Drawer} title=${selectedModel?.name || selectedRuntime.name} onClose=${() => setSelected(null)}><${SelectionInfo} model=${selectedModel} runtime=${selectedRuntime} models=${models} /></${Drawer}>`}
   </div></div>`;
 }

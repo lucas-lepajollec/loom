@@ -449,14 +449,21 @@ test('mobile Settings opens its index, follows section links and returns without
 });
 
 
-test('unlinked remote harness offers import without registering it as an executor', async () => {
- const source = fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8') + fs.readFileSync(new URL('../next/js/features/settings/machines.js', import.meta.url), 'utf8');
- const navigations = [];
- const h = harness(source, 'HarnessesSection', { state: { workspace: { runtimes: [] } }, go: (...args) => navigations.push(args) });
- const tree = await h.ready({ m: {id:'fixture-remote', name:'Synthetic remote', harnesses:[]}, target:'fixture-remote', where:'Synthetic remote', offers:[{id:'codex', name:'Codex', ready:true, installed:true}], onChange:()=>{} });
- const entry = button(tree, 'Importer des discussions');
- assert.ok(entry, 'import must be available without a linked runtime');
- entry.props.onClick();
- assert.deepEqual(navigations, [['settings', 'harness-history', 'remote:fixture-remote:codex']]);
- assert.deepEqual(h.posts, [], 'opening history must not register a harness');
+test('machine agents: managing is separate from using, enabling asks for consent', async () => {
+  const source = fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8') + fs.readFileSync(new URL('../next/js/features/settings/machines.js', import.meta.url), 'utf8');
+  const h = harness(source, 'HarnessesSection', { state: { workspace: { runtimes: [] } }, refreshWorkspace: async () => {} });
+  h.data['/api/agents/installations'] = { ok: true, installations: [
+    { machine: 'fixture-remote', machine_name: 'Synthetic remote', harness: 'codex', name: 'Codex', runtime_id: 'custom-fixture-remote-codex', installed: true, ready: true, managed: false, enabled: false },
+    { machine: 'other', harness: 'pi', name: 'Pi', installed: true, ready: true, managed: true, enabled: true },
+  ] };
+  const tree = await h.ready({ m: { id: 'fixture-remote', name: 'Synthetic remote' }, onChange: () => {} });
+  const switches = flatten(tree).filter(n => n.type === 'Switch');
+  assert.equal(switches.length, 2, 'only this machine is listed, with manage and use');
+  assert.equal(switches[0].props.checked, false);
+  await switches[0].props.onChange(true);
+  assert.equal(JSON.stringify(h.posts.at(-1).slice(0, 2)), JSON.stringify(['/api/agents/installations', { machine: 'fixture-remote', harness: 'codex', managed: true, consent: false }]));
+  h.env.accept = false;
+  await switches[1].props.onChange(true);
+  assert.equal(h.confirmations.length, 1);
+  assert.equal(h.posts.length, 1, 'using an agent without consent posts nothing');
 });
