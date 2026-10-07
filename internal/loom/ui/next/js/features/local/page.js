@@ -207,7 +207,7 @@ function Engine() {
         <div class="slots">${slots.map(s => html`<div class=${cls('slot', s.busy && 'busy')}><span class="mono">#${s.id}</span>
           <div class="meter"><i style=${`width:${s.busy && s.ctx ? Math.min(100, (s.prompt + s.tokens) * 100 / s.ctx) : 0}%;background:var(--blue)`}></i></div>
           <span class="mono">${s.busy ? (s.toks || 0).toFixed(1) + ' tok/s' : t('local.page.free')}</span></div>`)}</div>
-        <div class="np-row">${srv?.np_supported === false ? html`<a class="btn sm" href="#/settings/engine">${t("node.vllm_parameters")}</a>` : html`<span>${t("local.page.slots_paralleles")}<${Tip} text="${t("local.page.requetes_traitees_en_meme_temps_le_contexte_est_partage_entre_les")}" /></span>
+        <div class="np-row">${srv?.np_supported === false ? html`<a class="btn sm" href="#/engine">${t("node.vllm_parameters")}</a>` : html`<span>${t("local.page.slots_paralleles")}<${Tip} text="${t("local.page.requetes_traitees_en_meme_temps_le_contexte_est_partage_entre_les")}" /></span>
           <input class="input sm num" type="number" min="1" max="32" value=${np} onInput=${e => setNp(e.target.value)} />
           <button class="btn sm" onClick=${async () => { const r = await post('/api/server', { np: +np }); if (!r.ok) toast(r.error, 'err'); else toast(t("local.page.rechargement_avec") + np + ' slots…'); }}>${t("local.page.appliquer")}</button>`}</div>
       </div>
@@ -239,7 +239,7 @@ function DirectEngine({ node }) {
   const pick = async m => { const r = await post('/api/load-model', { model: m }); if (r.ok === false) return toast(r.error, 'err'); setCur(m); refreshEngineNode(); refreshStatus(); toast(t("local.page.modele_utilise") + m); };
   return html`<div class="view page"><div class="page-in wide">
     <${SectionTabs} /><div class="page-head"><div><h1>${t("local.page.local")}</h1><p>${t("local.page.moteur")} ${KIND[node.kind] || node.kind} ${t("local.page.lie_directement_sur")} <b>${node.hostname}</b>${t("local.page.ses_modeles_et_reglages_se_gerent_sur_sa_machine")}</p></div>
-      <div class="acts"><a class="btn" href="#/settings/engine">${t("local.page.emplacement_du_moteur")}</a></div></div>
+      <div class="acts"><a class="btn" href="#/engine">${t("local.page.emplacement_du_moteur")}</a></div></div>
     <div class="card"><div class="sec-h pad-h"><h2>${t("local.page.modeles_servis")} <span class="count">${models ? models.length : ''}</span></h2><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.reachable ? t('common.reachable') : t('common.unreachable')} · <span class="mono">${node.url}</span></span></div>
       ${!models ? html`<div class="skeleton" style="height:80px;margin:0 16px 16px"></div>` : html`<div class="rows">${models.map(m => html`<div class="row" key=${m.value}>
         <div class="grow"><div class="t mono">${m.name}</div></div>
