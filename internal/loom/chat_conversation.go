@@ -460,7 +460,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	projectID := c.ActiveProject
 	archiveID := c.ID
 	c.mu.Unlock()
-	sharedContext, contextErr := nativePreparedContext(archiveID, projectID, lastUserText(msgs))
+	preparedContext, contextErr := nativePreparedDiscussionContext(archiveID, projectID, lastUserText(msgs))
 	if contextErr != nil {
 		c.appendDelta(epoch, map[string]any{"error": contextErr.Error()})
 		return
@@ -488,7 +488,11 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	// Non-nil = elle remplace l'historique (elle contient déjà le tour en cours).
 	var newBase []Message
 	var content strings.Builder
-	final = withProjectContext(final, sharedContext)
+	final = withProjectContext(final, preparedContext.System)
+	if ctx.Err() != nil {
+		return
+	}
+	touchContextMemory(preparedContext)
 	extra, _ := localChatRuntime().Run(ctx, RuntimeTurn{Messages: InjectSkills(final, caps), Temperature: temperature, Caps: caps}, func(ev StreamEvent) bool {
 		switch {
 		case ev.Err != nil:

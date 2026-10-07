@@ -6,6 +6,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Brain v2 context engine: deterministic scoped memory packs with class and
+  total token budgets, supersession/dedupe, ordered context explanations and
+  budget summaries; memory usage updates only on sends.
 - Brain v2 memory items: scoped knowledge with provenance and retained history,
   Markdown/YAML files in the primary vault (encrypted fallback), HTTP/MCP
   operations, and a one-time import of accepted/legacy distilled items.

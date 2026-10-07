@@ -338,7 +338,7 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 	run := &runtimeRun{session: s, cancel: cancel}
 	m.runs[id] = run
 	m.publishLocked(id, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true, "provenance": s.Turns[len(s.Turns)-1], "session": cloneRuntimeSession(s), "context": turnContext(s, prepared.Context)})
-	go m.generate(ctx, run, adapter, prepared.Messages)
+	go m.generate(ctx, run, adapter, prepared.Messages, prepared.Context)
 	return nil
 }
 
@@ -376,11 +376,14 @@ func turnContext(s RuntimeSession, c DiscussionContext) DiscussionContext {
 	return c
 }
 
-func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter RuntimeAdapter, messages []Message) {
+func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter RuntimeAdapter, messages []Message, preparedContext DiscussionContext) {
 	defer run.cancel()
 	caps := Caps{}
 	if adapter.Descriptor().Kind == "cloud" {
 		caps.Internet = getBool(bkState, "internet")
+	}
+	if ctx.Err() == nil {
+		touchContextMemory(preparedContext)
 	}
 	_, err := adapter.Run(ctx, RuntimeTurn{Messages: messages, Temperature: 0.7, Caps: caps}, func(event StreamEvent) bool {
 		m.mu.Lock()
