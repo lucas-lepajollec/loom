@@ -47,6 +47,11 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   DeepSeek's thinking (its models are declared with DeepSeek's thinking switch).
 - Engine page: the running state, API and slots use the same rows as the rest
   of the page instead of a separate status card.
+- Machines: one card per machine with its agents (used and managed), engine
+  and open terminals. Terminals: the open list has the same frame and header
+  as the terminal, and application previews moved below. Bench: one column
+  (test, models in a grid, results). Workspace form and the project settings
+  button in the sidebar are cleaned up.
 - Every session panel menu (folder, mode, file protection, options) stays
   inside the panel.
 - Session panel menus stay inside the panel (custom list instead of native

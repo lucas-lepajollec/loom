@@ -43,13 +43,15 @@ function FolderForm({ target, current, editing, onClose, onDone, choose }) {
   };
   return html`<${Modal} title=${editing ? t('workspaces.edit') : t('workspaces.new')} onClose=${busy ? undefined : onClose}
     foot=${html`<button class="btn ghost" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !path.trim() || ((save || def) && !name.trim())} onClick=${submit}>${t('ui.dialog.enregistrer')}</button>`}>
-    <form onSubmit=${submit}>
-      <label class="lbl">${t('workspaces.path')}</label>
-      <div class="row"><input class="input" aria-label=${t('workspaces.path')} value=${path} onInput=${e => setPath(e.target.value)} placeholder=${t('workspaces.absolute_path')} />${target === 'local' && html`<button type="button" class="btn" onClick=${() => setPick(true)}><${Icon} n="folder" /></button>`}</div>
-      ${choose && html`<label class="row"><input type="checkbox" disabled=${!target} checked=${save || def} onChange=${e => { setSave(e.target.checked); if (!e.target.checked) setDef(false); }} />${t('workspaces.save')}</label>`}
-      ${(save || def) && html`<label class="lbl">${t('workspaces.name')}</label><input class="input" aria-label=${t('workspaces.name')} value=${name} onInput=${e => setName(e.target.value)} />`}
-      <label class="row"><input type="checkbox" disabled=${!target} checked=${def} onChange=${e => { setDef(e.target.checked); if (e.target.checked) setSave(true); }} />${t('workspaces.make_default')}</label>
-      ${(save || def) && html`<label class="row"><input type="checkbox" checked=${create} onChange=${e => setCreate(e.target.checked)} />${t('workspaces.create')}</label>`}
+    <form class="ws-form" onSubmit=${submit}>
+      <label class="field"><span>${t('workspaces.path')}</span>
+        <div class="field-row"><input class="input" aria-label=${t('workspaces.path')} value=${path} onInput=${e => setPath(e.target.value)} placeholder=${t('workspaces.absolute_path')} />${target === 'local' && html`<button type="button" class="btn" title=${t('workspaces.browse')} aria-label=${t('workspaces.browse')} onClick=${() => setPick(true)}><${Icon} n="folder" /></button>`}</div></label>
+      ${(save || def || !choose) && html`<label class="field"><span>${t('workspaces.name')}</span><input class="input" aria-label=${t('workspaces.name')} value=${name} onInput=${e => setName(e.target.value)} /></label>`}
+      <div class="ws-checks">
+        ${choose && html`<label class="check"><input type="checkbox" disabled=${!target} checked=${save || def} onChange=${e => { setSave(e.target.checked); if (!e.target.checked) setDef(false); }} /><span>${t('workspaces.save')}</span></label>`}
+        <label class="check"><input type="checkbox" disabled=${!target} checked=${def} onChange=${e => { setDef(e.target.checked); if (e.target.checked) setSave(true); }} /><span>${t('workspaces.make_default')}</span></label>
+        ${(save || def) && html`<label class="check"><input type="checkbox" checked=${create} onChange=${e => setCreate(e.target.checked)} /><span>${t('workspaces.create')}</span></label>`}
+      </div>
     </form>
     ${pick && html`<${FolderPicker} start=${path} onClose=${() => setPick(false)} onPick=${p => { setPath(p); setPick(false); }} />`}
   </${Modal}>`;
