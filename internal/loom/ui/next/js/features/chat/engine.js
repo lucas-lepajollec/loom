@@ -89,7 +89,8 @@ function onEvent(d) {
       if (turn.foot) { turn.foot.rt = d.provenance; turn.foot.running = false; touch(); }
       else push({ k: 'foot', rt: d.provenance || null, ms: d.elapsed_ms || 0, tok: turn.tok, rate: st.gen_per_second || null, stats: st });
       turn = newTurn(); chat.set({ busy: false, gen: null });
-      refreshNav();
+      // A replayed turn is not new: refresh the sidebar once, after real turns.
+      if (!chat.get().replaying) refreshNav();
       return;
     }
     case 'error':
