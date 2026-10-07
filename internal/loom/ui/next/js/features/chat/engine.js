@@ -277,21 +277,33 @@ async function sendThread(text) {
   if (!s || chat.get().busy || s.status === 'running') return false;
   let p = pendingReq.get(s.id);
   if (!p || p.text !== text) { p = { text, request_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random() }; pendingReq.set(s.id, p); }
-  chat.set({ busy: true });
+  const ep = epoch;
+  chat.set({ busy: true, notice: '' });
   let r;
   try {
-    let revision = chat.get().context?.revision || '';
-    const project = app.get().workspace?.projects?.find(project => project.id === s.project_id);
-    if (project?.brain_budget > 0 && project.brain_sources?.length) {
+    // Context also includes automatic project continuity, even without an
+    // explicit Brain budget/source list. Prepare the actual draft every time.
+    // If that context moves before the server starts (background indexing,
+    // another tab), prepare once more and resend instead of blocking the user.
+    for (let attempt = 0; attempt < 2; attempt++) {
       const preview = await post('/api/runtime/sessions/preview', { id: s.id, text });
-      if (!preview.ok || preview.preview?.problem) throw new Error(preview.error || preview.preview?.problem);
-      revision = preview.preview.context.revision;
-      if (chat.get().session?.id !== s.id) return false;
+      if (!preview.ok || preview.preview?.problem || !preview.preview?.context?.revision) throw new Error(preview.error || preview.preview?.problem || t('chat.engine.envoi_refuse'));
+      if (ep !== epoch || chat.get().session?.id !== s.id) { if (ep === epoch) chat.set({ busy: false }); return false; }
+      if (preview.runtime_id !== s.runtime_id || preview.model !== s.model ||
+          (preview.endpoint || '') !== (s.endpoint || '') ||
+          (preview.provider_id || '') !== (s.provider_id || '') ||
+          (preview.reasoning_effort || '') !== (s.reasoning_effort || '') ||
+          (preview.preview.context.project_id || '') !== (s.project_id || '')) {
+        throw new Error(t('chat.engine.selection_changed'));
+      }
       chat.set({ context: preview.preview.context });
+      if (preview.preview.omitted > 0 && attempt === 0) toast(t('chat.engine.older_omitted', { n: preview.preview.omitted }));
+      r = await post('/api/runtime/sessions/send', { id: s.id, ...p, context_revision: preview.preview.context.revision });
+      if (r.ok || r.code !== 'context_changed' || ep !== epoch) break;
     }
-    r = await post('/api/runtime/sessions/send', { id: s.id, ...p, context_revision: revision });
   }
-  catch (e) { chat.set({ busy: false, notice: e.message }); return false; }
+  catch (e) { if (ep === epoch) chat.set({ busy: false, notice: e.message }); return false; }
+  if (ep !== epoch) return r.ok;
   if (!r.ok) { chat.set({ busy: false, notice: r.error }); toast(r.error, 'err'); return false; }
   pendingReq.delete(s.id);
   return true;

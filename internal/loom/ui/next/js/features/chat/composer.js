@@ -11,6 +11,7 @@ import { runtimeCaps, app } from '../../core/state.js';
 import { chat, send, stop, compact } from './engine.js';
 import { currentExec } from './picker.js';
 import { slashEntries, runChoice } from './slash.js';
+import { attachPaste, pastedMessage, downloadPaste, MAX_MESSAGE_BYTES } from './pasted-text.js';
 
 // Sonde du harness par runtime (commandes « / », réglages, modes) : évite de
 // relancer l'agent avant la première réponse.
@@ -45,7 +46,7 @@ export function Composer() {
   const [files, setFiles] = useState([]);
   const [tools, setTools] = useState({ internet: toolOn('internet'), mcp: toolOn('mcp') });
   const [menu, setMenu] = useState(null);
-  const ta = useRef(), fileIn = useRef();
+  const ta = useRef(), fileIn = useRef(), pasteNumber = useRef(0), submitting = useRef(false);
   const exec = currentExec();
   const native = c.mode === 'native';
   const ctxMax = (status && status.ctx) || 0;
@@ -61,13 +62,30 @@ export function Composer() {
 
 
   const submit = async () => {
-    const localT = text.trim();
+    const localT = pastedMessage(text, files);
     if (!localT && !files.length) return;
-    if (c.busy || blocked) return;
-    if (!native && files.length) { toast(t("chat.composer.ce_mode_accepte_uniquement_du_texte")); return; }
-    setText('');
-    const sent = await send(localT, { files: native ? files.map(f => f.path) : [], internet: tools.internet, mcp: tools.mcp });
-    if (sent) setFiles([]); else setText(localT);
+    if (c.busy || blocked || submitting.current) return;
+    const uploaded = files.filter(f => f.path);
+    if (!native && uploaded.length) { toast(t("chat.composer.ce_mode_accepte_uniquement_du_texte")); return; }
+    if (new TextEncoder().encode(localT).length > MAX_MESSAGE_BYTES) { toast(t('chat.composer.text_too_large'), 'err'); return; }
+    submitting.current = true;
+    // Keep the editable draft and attachments intact until acceptance.
+    try {
+      const sent = await send(localT, { files: native ? uploaded.map(f => f.path) : [], internet: tools.internet, mcp: tools.mcp });
+      if (sent) { setText(current => current === text ? '' : current); setFiles(current => current.filter(f => !files.includes(f))); }
+    } finally { submitting.current = false; }
+  };
+  const onPaste = e => {
+    if (c.busy || submitting.current) return;
+    const content = e.clipboardData?.getData('text/plain') || '';
+    const next = attachPaste(text, e.currentTarget.selectionStart, e.currentTarget.selectionEnd, content, pasteNumber.current + 1);
+    if (!next) return;
+    if (new TextEncoder().encode(pastedMessage(next.text, [...files, next.file])).length > MAX_MESSAGE_BYTES || files.length >= 32) {
+      e.preventDefault(); toast(t('chat.composer.text_too_large'), 'err'); return;
+    }
+    e.preventDefault(); pasteNumber.current++;
+    setText(next.text); setFiles(current => [...current, next.file]);
+    setTimeout(() => ta.current?.setSelectionRange(next.caret, next.caret), 0);
   };
   // Commandes « / » annoncées par le harness (available_commands_update).
   const rtId = !native && c.session ? c.session.runtime_id : '';
@@ -156,8 +174,8 @@ export function Composer() {
         ${level ? html`<b>${x.label}</b>${x.current && html`<em>${t("chat.composer.actuel")}</em>`}<span>${x.description || ''}</span>`
           : html`<b>/${x.name}</b>${x.hint && html`<em>${x.hint}</em>`}<span>${x.description || ''}</span>${(x.children || x.load) && html`<${Icon} n="right" />`}`}</button>`)}</div>`}
     <div class="composer">
-      ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}<button aria-label="${t("chat.composer.retirer")}" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
-      <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey}
+      ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}${typeof f.content === 'string' && html`<button title=${t('chat.composer.download_text')} aria-label=${t('chat.composer.download_text')} onClick=${() => downloadPaste(f)}><${Icon} n="download" /></button>`}<button aria-label="${t("chat.composer.retirer")}" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
+      <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey} onPaste=${onPaste}
         placeholder=${exec.name ? t("chat.composer.ecrire_a") + exec.name + '…' : t('chat.composer.placeholder')} aria-label="${t("chat.composer.message")}"></textarea>
       <div class="composer-bar">
         ${native && html`<button class="icon-btn" aria-label="${t("chat.composer.joindre_un_fichier")}" title="${t("chat.composer.joindre")}" onClick=${() => fileIn.current.click()}><${Icon} n="paperclip" /></button>

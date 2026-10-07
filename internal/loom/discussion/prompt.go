@@ -10,6 +10,7 @@ import (
 const MaxDiscussionInstructions = 12000
 const MaxPortableBytes = 128 << 10
 const MaxPortableMessages = 200
+const MaxMessageBytes = 64 << 10
 
 // DiscussionContext is a fresh read model, not a second memory store. Revision
 // binds the route, portable history and instructions seen by the client.
@@ -41,6 +42,9 @@ type DiscussionPreview[Capability any] struct {
 	MaxBytes     int                           `json:"max_bytes"`
 	MaxMessages  int                           `json:"max_messages"`
 	Problem      string                        `json:"problem,omitempty"`
+	// Omitted counts the oldest history messages left out so the rest fits the
+	// portable budget. Stored history is never changed.
+	Omitted int `json:"omitted,omitempty"`
 }
 
 // PrepareDiscussion is shared by the read-only preview and execution. It never
@@ -69,12 +73,44 @@ func PrepareDiscussion[Usage, Stats, Capability any](s RuntimeSession[Usage, Sta
 	for _, msg := range p.Messages {
 		p.TextBytes += len(msg.Content.(string))
 	}
-	if len(draft) > 24000 {
-		p.Problem = "Message too long (maximum 24000 bytes)."
-	} else if p.TextBytes > MaxPortableBytes || len(p.Messages) > MaxPortableMessages {
-		p.Problem = "Context too long: maximum 128 KiB of text and 200 messages, including instructions. No text was truncated."
+	if len(draft) > MaxMessageBytes {
+		p.Problem = "Message too long (maximum 64 KiB)."
+		return p
+	}
+	if p.TextBytes > MaxPortableBytes || len(p.Messages) > MaxPortableMessages {
+		p.fitWindow()
 	}
 	return p
+}
+
+// fitWindow keeps the instructions, the draft and the most recent history that
+// fits the portable budget: a long discussion stays usable instead of being
+// refused forever. Whole messages are dropped, oldest first, and the window
+// starts on a user turn; nothing is truncated or summarized.
+func (p *DiscussionPreview[Capability]) fitWindow() {
+	first := 0
+	if len(p.Messages) > 0 && p.Messages[0].Role == "system" {
+		first = 1
+	}
+	last := len(p.Messages)
+	if p.DraftAdded {
+		last--
+	}
+	drop := 0
+	for drop < last-first && (p.TextBytes > MaxPortableBytes || len(p.Messages)-drop > MaxPortableMessages ||
+		p.Messages[first+drop].Role != "user") {
+		p.TextBytes -= len(p.Messages[first+drop].Content.(string))
+		drop++
+	}
+	if p.TextBytes > MaxPortableBytes || len(p.Messages)-drop > MaxPortableMessages {
+		p.Problem = "Context too long: the instructions and this message alone exceed 128 KiB of text."
+		return
+	}
+	if drop > 0 {
+		p.Messages = append(p.Messages[:first], p.Messages[first+drop:]...)
+		p.HistoryCount -= drop
+		p.Omitted = drop
+	}
 }
 
 // ContextRevision binds the same ordered route, history and assembled context.

@@ -25,7 +25,7 @@ const ctx = vm.createContext({
  createStore: initial => { let state = initial; return {get:()=>state,set:p=>state={...state,...p}}; },
  document:{addEventListener(){}}, refreshNav(){}, refreshWorkspace(){}, go(){}, app:{get:()=>({})},
  toast(){}, confirm:async()=>true, crypto:{randomUUID:()=> 'request-id'}, Date,
- post:async()=> { vm.runInContext("onEvent({type:'turn_done',session:{id:'s',status:'complete'}})",ctx); return {ok:true}; },
+ post:async url=> { if (url.endsWith('/preview')) return {ok:true,preview:{context:{revision:'r'}}}; vm.runInContext("onEvent({type:'turn_done',session:{id:'s',status:'complete'}})",ctx); return {ok:true}; },
 });
 vm.runInContext(source,ctx);
 const emit = e => { ctx.event = e; vm.runInContext('onEvent(event)',ctx); };

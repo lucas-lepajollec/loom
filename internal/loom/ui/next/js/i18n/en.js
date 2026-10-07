@@ -1,5 +1,9 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "chat.engine.older_omitted": "{n} older messages are not sent to the model to stay within the context limit; they remain in the discussion.",
+  "chat.engine.selection_changed": "The execution choice changed in another tab. Reopen this discussion before sending; your draft is preserved.",
+  "chat.composer.text_too_large": "Message too large (maximum 64 KiB of text). Your draft is preserved; split the text into several messages.",
+  "chat.composer.download_text": "Download pasted text",
   "history.entry": "Import discussions",
   "search.provider": "Search provider",
   "search.provider_tip": "Select the service that receives model search queries. Page extraction is configured separately.",

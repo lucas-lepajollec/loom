@@ -4,6 +4,21 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- Sending no longer fails with "the model, thread or its context changed" when
+  automatic project context moves between preparation and sending: the draft is
+  always prepared with its real text and resent once after a context change.
+- Long discussions stay usable: past 128 KiB or 200 messages, the oldest whole
+  messages are left out of what the model receives (with a notice) instead of
+  refusing every new message. Stored history is unchanged.
+
+### Added
+
+- Pasting more than 2,500 characters turns the text into a `pasted-text-N.txt`
+  attachment that can be removed, downloaded and expanded in the thread; the
+  model receives the full text. Messages may now hold up to 64 KiB.
+
 ## [0.2.6] - 2026-10-05
 
 ### Added
