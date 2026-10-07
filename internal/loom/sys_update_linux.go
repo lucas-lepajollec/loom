@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/platform"
 	"io"
 	"os"
 	"os/exec"
@@ -69,10 +70,11 @@ func canUseSystemUpdater(exe string) bool {
 	return exec.Command("sudo", "-n", "-l", systemUpdateHelper).Run() == nil
 }
 
-func runSystemUpdater(expected string) (string, error) {
+func runSystemUpdater(expected, channel string) (string, error) {
 	body, _ := json.Marshal(struct {
 		Version string `json:"version"`
-	}{expected})
+		Channel string `json:"channel,omitempty"`
+	}{expected, channel})
 	cmd := exec.Command("sudo", "-n", systemUpdateHelper)
 	cmd.Stdin = bytes.NewReader(body)
 	var out, stderr bytes.Buffer
@@ -115,13 +117,19 @@ func cmdSystemUpdate(args []string) error {
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
 	var req struct {
 		Version string `json:"version"`
+		Channel string `json:"channel"`
 	}
 	dec := json.NewDecoder(io.LimitReader(os.Stdin, 128))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
 		return fmt.Errorf("invalid system update request")
 	}
-	rel, err := fetchLatestRelease()
+	if req.Channel != "" && req.Channel != platform.ChannelStable && req.Channel != platform.ChannelEdge {
+		return fmt.Errorf("invalid system update request")
+	}
+	// Both channels are official releases of the fixed repository, verified
+	// against their published SHA256SUMS.
+	rel, err := platform.FetchRelease(req.Channel)
 	if err != nil {
 		return err
 	}

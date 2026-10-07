@@ -1,5 +1,9 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "updates.channel": "Canal",
+  "updates.channel_tip": "Stable : les versions publiées. Développement : une version de test reconstruite après chaque changement validé, pour recevoir les correctifs tout de suite. Elle peut contenir des défauts.",
+  "updates.stable": "Stable",
+  "updates.edge": "Développement",
   "chat.tools.not_run": "Non exécutée.",
   "chat.engine.older_omitted": "{n} anciens messages ne sont pas envoyés au modèle pour rester dans la limite de contexte ; ils restent dans la discussion.",
   "chat.engine.selection_changed": "L’exécuteur a changé dans un autre onglet. Rouvre cette discussion avant d’envoyer ; ton brouillon est conservé.",

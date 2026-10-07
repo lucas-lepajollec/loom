@@ -29,7 +29,7 @@ jobs:
           test "$(git cat-file -t "refs/tags/$TAG")" = tag
           git merge-base --is-ancestor HEAD origin/main
           VERSION="${TAG#v}"
-          grep -Fq "const Version = \"$VERSION\"" internal/loom/run.go
+          grep -Fq "var Version = \"$VERSION\"" internal/loom/run.go
           grep -Fq "\"ProductVersion\": \"$VERSION\"" cmd/loom/versioninfo.json
           grep -Fq "## [$VERSION]" CHANGELOG.md
       - name: Check compiled Windows version resources
