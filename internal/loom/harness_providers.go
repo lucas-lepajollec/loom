@@ -207,12 +207,24 @@ func chatSources() []CloudProvider {
 func piCloudProviders() map[string]any {
 	out := map[string]any{}
 	for _, p := range chatSources() {
+		// DeepSeek models think unless told otherwise: declare them as
+		// reasoning models with DeepSeek's thinking switch, so Pi's "off"
+		// level really sends thinking:{type:disabled}.
+		deepseek := strings.Contains(strings.ToLower(p.Endpoint), "deepseek.com")
 		models := []any{}
 		for _, m := range p.Models {
-			models = append(models, map[string]any{"id": m, "name": m + " (via Loom)"})
+			entry := map[string]any{"id": m, "name": m + " (via Loom)"}
+			if deepseek {
+				entry["reasoning"] = true
+			}
+			models = append(models, entry)
 		}
-		out[providerSlug(p)] = map[string]any{"baseUrl": providerProtocols(p.Endpoint)["chat"], "api": "openai-completions",
+		provider := map[string]any{"baseUrl": providerProtocols(p.Endpoint)["chat"], "api": "openai-completions",
 			"apiKey": "$" + providerKeyEnv(p.ID), "models": models}
+		if deepseek {
+			provider["compat"] = map[string]any{"thinkingFormat": "deepseek"}
+		}
+		out[providerSlug(p)] = provider
 	}
 	return out
 }

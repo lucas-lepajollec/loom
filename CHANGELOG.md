@@ -34,6 +34,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   events are sent once with long tool texts trimmed (full output on demand).
   An imported 100 MB Codex thread went from 58 MB to 4.6 MB on opening.
 - Navigation labels follow the interface language; import page note spacing.
+- Pi with DeepSeek through Loom: turning reasoning off now really disables
+  DeepSeek's thinking (its models are declared with DeepSeek's thinking switch).
 - Session panel: changing an agent's model no longer closes its session; when
   the agent offers that model, it switches in place and keeps its context,
   modes and options. Agents that fold the reasoning level into the model name
