@@ -26,6 +26,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   (Antigravity) show one model choice and a separate reasoning level. The
   model choice is always shown (from Loom's catalog before the agent session
   exists), sections follow one order, and menus no longer overflow the panel.
+- One engine page: **Models › Engine** shows what runs (state, start/stop,
+  slots, OpenAI-compatible API, recent requests) then where and with what
+  (location, llama.cpp, vLLM, installation). Local keeps Library and Hub;
+  `#/local/engine` redirects.
 - Faster interface: discussion lists (polled every 30 s by the sidebar and
   `/api/workspace`) carry turn metadata only (14 MB → 15 KB with one large
   imported thread), and opening a discussion no longer refreshes the sidebar

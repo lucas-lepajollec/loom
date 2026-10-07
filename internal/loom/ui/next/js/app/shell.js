@@ -67,7 +67,7 @@ function EngineCard() {
   const { status, gpus } = useStore(app, s => ({ status: s.status, gpus: s.gpus }));
   const st = engineState(status), g = (gpus || [])[0];
   const pct = g && g.total ? Math.round(g.used * 100 / g.total) : 0;
-  return html`<button class="engine-card" onClick=${() => go('local', 'engine')} aria-label=${t("app.shell.moteur_local") + st.label}>
+  return html`<button class="engine-card" onClick=${() => go('engine')} aria-label=${t("app.shell.moteur_local") + st.label}>
     <span class="top"><i class=${'dot ' + st.tone}></i><span>${st.label}</span>
       <em>${g ? `${(g.used / 1024).toFixed(1)} / ${(g.total / 1024).toFixed(1)}${t('common.units.gb')}` : 'llama.cpp'}</em></span>
     ${g && html`<span class="gauge"><i style=${`width:${pct}%`}></i></span>`}

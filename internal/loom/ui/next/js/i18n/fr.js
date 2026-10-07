@@ -1,5 +1,6 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "engine.page.running": "En marche",
   "chat.edit.label": "Modifier et renvoyer",
   "chat.edit.note": "Remplace ce message et la réponse qui suit.",
   "chat.edit.cancel": "Annuler",
