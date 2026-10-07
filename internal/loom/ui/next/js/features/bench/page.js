@@ -1,6 +1,7 @@
 import { t } from '../../core/i18n.js';
 // One model-only test across engines, APIs and supported native accounts.
 import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../../core/lib.js';
+import { SectionTabs } from '../../app/sections.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
@@ -101,7 +102,7 @@ export function BenchPage() {
     ${list.length ? html`<div class="choice-list">${list.map(i => html`<${Pick} key=${i.key} i=${i} on=${i.supported && !!pick[i.key]} onChange=${v => setPick(old => ({ ...old, [i.key]: v }))} />`)}</div>` : html`<p class="note">${empty}</p>`}</div>`;
 
   return html`<div class="view page"><div class="page-in">
-    <div class="page-head"><div><h1>${t("bench.page.bench")}</h1><p>${t('bench.description')}</p></div>
+    <${SectionTabs} /><div class="page-head"><div><h1>${t("bench.page.bench")}</h1><p>${t('bench.description')}</p></div>
       <div class="acts">${busy ? html`<button class="btn" onClick=${stop}>${t("bench.page.arreter_la_file")}</button>`
         : html`<button class="btn primary" disabled=${!chosen.length || chosen.length > 16 || sending} onClick=${run}><${Icon} n="play" />${t("bench.page.lancer")}${chosen.length ? ' (' + chosen.length + ')' : ''}</button>`}</div></div>
     <div class="bench">

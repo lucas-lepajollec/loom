@@ -1,5 +1,8 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "app.groups.models": "Models",
+  "app.groups.agents": "Agents",
+  "app.groups.activity": "Activity",
   "updates.channel": "Channel",
   "updates.channel_tip": "Stable: published releases. Development: a test build rebuilt after every merged change, to get fixes right away. It may contain defects.",
   "updates.stable": "Stable",

@@ -15,13 +15,12 @@ import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav, refreshEn
 import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
-import { MachinesSettings } from './machines.js';
 import { WorkspaceManager } from '../workspaces/folders.js';
 import { LoomUpdates } from './updates.js';
 import { VLLMEngine } from './vllm.js';
 import { StartupSettings } from './startup.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['machines', t("settings.page.machines"), 'server'], ['workspaces', t('workspaces.title'), 'folder'], ['engine', t("settings.page.moteurs"), 'chip'], ['startup', t('startup.title'), 'power'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['workspaces', t('workspaces.title'), 'folder'], ['engine', t("settings.page.moteurs"), 'chip'], ['startup', t('startup.title'), 'power'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 function usePref() {
@@ -200,7 +199,7 @@ function EngineLocation() {
   return html`<${Group} title="${t("settings.page.emplacement_du_moteur")}">
     <${Line} label="${t("settings.page.le_moteur_tourne")}" tip="${t("settings.page.sur_cette_machine_sur_une_machine_ou_loom_est_installe_reglages_m")}">
       ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? KIND_LABEL[node.kind] + t("settings.page.sur") : t("settings.page.sur_2")}<b>${node.hostname}</b></span><button class="btn sm ghost" onClick=${unlink}>${t("settings.page.revenir_a_cette_machine")}</button>`
-        : html`<span class="state">${t("settings.page.sur_cette_machine")}</span>${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.page.lier_un_moteur_par_son_adresse")}</button><a class="btn sm ghost" href="#/settings/machines">${t("settings.page.loom_d_une_autre_machine")}</a>`}`}</${Line}>
+        : html`<span class="state">${t("settings.page.sur_cette_machine")}</span>${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.page.lier_un_moteur_par_son_adresse")}</button><a class="btn sm ghost" href="#/machines">${t("settings.page.loom_d_une_autre_machine")}</a>`}`}</${Line}>
     ${node && html`<${Line} label="${t("settings.page.adresse")}"><code class="mono">${node.url}</code>${!node.reachable && html`<span class="tag amber">${t("settings.page.injoignable")}</span>`}</${Line}>`}
     ${node && node.direct && html`<${Line} label="${t("settings.page.modele_utilise")}"><code class="mono">${node.model}</code></${Line}>`}
     ${direct && !node && html`<${DirectEngineForm} onDone=${() => setDirect(false)} />`}
@@ -531,7 +530,7 @@ export function SettingsPage({ route }) {
   const selected = sections.find(s => s[0] === route.sub);
   const sec = selected ? selected[0] : 'general';
   const detail = !mobile || !!selected;
-  const View = { general: General, workspaces: WorkspaceManager, machines: MachinesSettings, engine: Engine, startup: StartupSettings, internet: Internet, security: Security, about: About }[sec];
+  const View = { general: General, workspaces: WorkspaceManager, engine: Engine, startup: StartupSettings, internet: Internet, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
     <div class="page-head settings-head"><div>
       ${mobile && selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}

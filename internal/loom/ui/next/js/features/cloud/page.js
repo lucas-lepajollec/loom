@@ -2,6 +2,7 @@ import { t } from '../../core/i18n.js';
 // Cloud : fournisseurs d'API compatibles Chat Completions et modèles proposés
 // dans le sélecteur. La clé reste en mémoire côté serveur.
 import { Logo } from '../../ui/logo.js';
+import { SectionTabs } from '../../app/sections.js';
 import { html, useState, useStore, cls } from '../../core/lib.js';
 import { Drawer, inspectTrigger } from '../../ui/drawer.js';
 import { SelectionInfo } from '../inspector/selection.js';
@@ -112,7 +113,7 @@ export function CloudPage() {
   const opened = providers.find(p => p.id === open);
   const tile = (e, p) => html`<${Tile} key=${(p && p.id) || e.name} e=${e} p=${p} onOpen=${() => setOpen(p.id)} onConnect=${() => setDlg({ entry: e })} />`;
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>${t("cloud.page.cloud")}</h1><p>${t("cloud.page.connecte_tes_fournisseurs_d_ia_les_cles_restent_en_memoire_ou_dan")}<${Tip} text="${t("cloud.page.une_discussion_n_envoie_que_du_texte_au_fournisseur_apres_ton_acc")}" /></p></div>
+    <${SectionTabs} /><div class="page-head"><div><h1>${t("cloud.page.cloud")}</h1><p>${t("cloud.page.connecte_tes_fournisseurs_d_ia_les_cles_restent_en_memoire_ou_dan")}<${Tip} text="${t("cloud.page.une_discussion_n_envoie_que_du_texte_au_fournisseur_apres_ton_acc")}" /></p></div>
       <div class="acts"><span class="cl-sum"><i class=${cls('dot', ready && 'green')}></i>${ready} ${t("cloud.page.connecte")}${ready > 1 ? 's' : ''}${warn ? ' · ' + warn + t("cloud.page.a_reconnecter_2") : ''}</span></div></div>
     <div class="cl-bar">
       ${[['all', t("cloud.page.tous"), ALL.length], ['on', t("cloud.page.connectes"), ready], ['warn', t("cloud.page.a_reconnecter"), warn]].map(([v, l, n]) => html`<button class="chipf" aria-pressed=${String(filter === v)} onClick=${() => setFilter(v)}>${l}<span>${n}</span></button>`)}

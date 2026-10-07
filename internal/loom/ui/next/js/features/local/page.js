@@ -2,6 +2,7 @@ import { t } from '../../core/i18n.js';
 // Local : tes modèles sur cette machine, servis par llama.cpp.
 // Onglets : Bibliothèque · Hub · Moteur & API.
 import { useVllm, VllmLibrary, VllmHub, VllmEngine } from '../settings/vllm.js';
+import { SectionTabs } from '../../app/sections.js';
 import { Logo } from '../../ui/logo.js';
 import { vendorOf } from '../chat/picker.js';
 import { html, useState, useEffect, useRef, useStore, useMemo, cls, fmtBytes, baseName } from '../../core/lib.js';
@@ -237,7 +238,7 @@ function DirectEngine({ node }) {
   useEffect(() => { get('/api/models').then(r => setModels(Array.isArray(r) ? r : [])).catch(() => setModels([])); }, [node.url]);
   const pick = async m => { const r = await post('/api/load-model', { model: m }); if (r.ok === false) return toast(r.error, 'err'); setCur(m); refreshEngineNode(); refreshStatus(); toast(t("local.page.modele_utilise") + m); };
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>${t("local.page.local")}</h1><p>${t("local.page.moteur")} ${KIND[node.kind] || node.kind} ${t("local.page.lie_directement_sur")} <b>${node.hostname}</b>${t("local.page.ses_modeles_et_reglages_se_gerent_sur_sa_machine")}</p></div>
+    <${SectionTabs} /><div class="page-head"><div><h1>${t("local.page.local")}</h1><p>${t("local.page.moteur")} ${KIND[node.kind] || node.kind} ${t("local.page.lie_directement_sur")} <b>${node.hostname}</b>${t("local.page.ses_modeles_et_reglages_se_gerent_sur_sa_machine")}</p></div>
       <div class="acts"><a class="btn" href="#/settings/engine">${t("local.page.emplacement_du_moteur")}</a></div></div>
     <div class="card"><div class="sec-h pad-h"><h2>${t("local.page.modeles_servis")} <span class="count">${models ? models.length : ''}</span></h2><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.reachable ? t('common.reachable') : t('common.unreachable')} · <span class="mono">${node.url}</span></span></div>
       ${!models ? html`<div class="skeleton" style="height:80px;margin:0 16px 16px"></div>` : html`<div class="rows">${models.map(m => html`<div class="row" key=${m.value}>
@@ -262,7 +263,7 @@ export function LocalPage({ route }) {
   if (node && node.direct && !ownVllm(node)) return html`<${DirectEngine} node=${node} />`;
   const isV = which === 'vllm';
   return html`<div class="view page"><div class="page-in wide">
-    <div class="page-head"><div><h1>${t("local.page.local")}</h1><p>${isV ? t('vllm.local.lead') : node && !node.direct ? html`${t("local.page.les_modeles_de")} <b>${node.hostname}</b>${t("local.page.servis_par_llama_cpp_sur_cette_autre_machine")}` : t("local.page.les_modeles_de_cette_machine_servis_par_llama_cpp")}</p></div>
+    <${SectionTabs} /><div class="page-head"><div><h1>${t("local.page.local")}</h1><p>${isV ? t('vllm.local.lead') : node && !node.direct ? html`${t("local.page.les_modeles_de")} <b>${node.hostname}</b>${t("local.page.servis_par_llama_cpp_sur_cette_autre_machine")}` : t("local.page.les_modeles_de_cette_machine_servis_par_llama_cpp")}</p></div>
       <div class="acts">${vllmOn && html`<${Seg} label=${t('vllm.local.engine')} value=${which} onChange=${setEngine} options=${[{ value: 'llama', label: 'llama.cpp' }, { value: 'vllm', label: 'vLLM' }]} />`}
         <button class="btn primary" onClick=${() => go('local', 'hub')}><${Icon} n="download" />${t("local.page.telecharger_un_modele")}</button></div></div>
     ${!isV && html`<${Strip} />`}

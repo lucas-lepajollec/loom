@@ -10,6 +10,7 @@ import { get, post } from '../core/api.js';
 import { app, go, engineState, refreshNav } from '../core/state.js';
 import { chat, open, newDiscussion } from '../features/chat/engine.js';
 import { NAV_ITEMS } from './routes.js';
+import { groupOf } from './sections.js';
 import { Activity } from './activity.js';
 import { openPalette } from './palette.js';
 
@@ -99,7 +100,7 @@ export function Sidebar() {
       <span class="brand-acts"><button class="icon-btn" aria-label="${t("app.shell.rechercher")}" title="${t("app.shell.rechercher_ctrl_k")}" onClick=${openPalette}><${Icon} n="search" /></button><${Activity} /></span>
       <button class="icon-btn only-mobile" aria-label="${t("app.shell.fermer")}" onClick=${() => app.set({ sideOpen: false })}><${Icon} n="close" /></button></div>
     <button class="new-chat" onClick=${() => newDiscussion()}><${Icon} n="plus" />${t("app.shell.nouvelle_discussion")}<kbd><span class="kbd">${t("app.shell.ctrl")}</span><span class="kbd">${t("app.shell.maj")}</span><span class="kbd">${t("app.shell.o")}</span></kbd></button>
-    <nav class="nav">${NAV_ITEMS.map(r => html`<a href=${'#/' + r.id} aria-current=${route.section === r.id ? 'page' : undefined}><${Icon} n=${r.nav.icon} />${r.nav.label}</a>`)}</nav>
+    <nav class="nav">${NAV_ITEMS.map(r => html`<a href=${r.href} aria-current=${groupOf(route.section)?.id === r.id ? 'page' : undefined}><${Icon} n=${r.nav.icon} />${r.nav.label}</a>`)}</nav>
     <div class="side-sec">
       <div class="side-sec-h"><span>${t("app.shell.projets")}</span><button class="icon-btn" style="width:24px;height:24px" aria-label="${t("app.shell.nouveau_projet")}" onClick=${newProject}><${Icon} n="plus" /></button></div>
       <div class="side-list">${nav.projects.map(p => html`<div class="proj">

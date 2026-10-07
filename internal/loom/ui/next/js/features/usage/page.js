@@ -2,6 +2,7 @@ import { t, tSource, locale } from '../../core/i18n.js';
 // Usage : quotas des abonnements (lecture automatique, sans génération) et
 // tokens/coûts estimés des discussions. Une donnée absente reste « inconnue ».
 import { Logo } from '../../ui/logo.js';
+import { SectionTabs } from '../../app/sections.js';
 import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty, Tip, Seg } from '../../ui/controls.js';
@@ -170,7 +171,7 @@ export function UsagePage() {
   const isCloud = m => m.kind === 'cloud' || (!m.kind && (!m.runtime_id || m.runtime_id === 'openai-compatible' || runtimes.some(rt => rt.id === m.runtime_id && rt.kind === 'cloud')));
   const cost = m => m.reported_cost != null ? html`<span title="${t("usage.page.cout_declare_par_le_harness")}">${fmtMoney(m.reported_cost, m.currency)}</span>` : isCloud(m) ? money(m) : '—';
   return html`<div class="view page"><div class="page-in">
-    <div class="page-head"><div><h1>${t("usage.page.usage")}</h1><p>${t("usage.page.quotas_de_tes_abonnements_et_consommation_dans_loom_une_donnee_ab")}</p></div></div>
+    <${SectionTabs} /><div class="page-head"><div><h1>${t("usage.page.usage")}</h1><p>${t("usage.page.quotas_de_tes_abonnements_et_consommation_dans_loom_une_donnee_ab")}</p></div></div>
     ${!d ? html`<div class="skeleton" style="height:200px"></div>` : html`
       <section class="sec" aria-busy=${String(loading || reading)}><div class="sec-h"><h2>${t("usage.page.abonnements")}</h2>${(loading || reading) && html`<span class="muted" role="status"><span class="spinner"></span> ${t('usage.refreshing')}</span>`}${quotas.length > 1 && html`<button class="btn sm" disabled=${reading} onClick=${readAll}>${reading ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`} ${t("usage.page.read_all")}</button>`}</div>
         <div class="grid3 stagger">${quotas.map(q => html`<${Quota} key=${q.runtime_id} q=${q} rt=${runtimes.find(r => r.id === q.runtime_id)} onRefresh=${load} />`)}</div></section>

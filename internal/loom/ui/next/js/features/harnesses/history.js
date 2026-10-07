@@ -51,7 +51,7 @@ export function HarnessHistory() {
   };
   const filtered = (rows || []).filter(r => [r.title, r.cwd, r.sessionId].join(' ').toLowerCase().includes(query.toLowerCase()));
   return html`<div class="view page"><div class="page-in wide">
-    <button class="btn ghost sm back" onClick=${() => go('settings', 'machines', machine || '')}><${Icon} n="left" />${t('settings.page.machines')}</button>
+    <button class="btn ghost sm back" onClick=${() => go('machines', machine || '')}><${Icon} n="left" />${t('settings.page.machines')}</button>
     <div class="page-head"><div><h1>${t('history.title')}</h1><p>${t('history.intro')}</p></div></div>
     <section class="sec"><div class="card pad history-options">
       <label class="field"><span>${t('history.source')}</span><select class="select" disabled=${!!busy} value=${source} onChange=${e => setSource(e.target.value)}>
