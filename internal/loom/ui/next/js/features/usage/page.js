@@ -30,7 +30,7 @@ function Quota({ q, rt, onRefresh }) {
       ${readable && html`<button class="icon-btn" aria-label="${t("usage.page.lire_le_compte")}" title="${t("usage.page.lire_le_compte_sans_generation")}" disabled=${busy} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}</button>`}</div>
     ${q.error && html`<p class="note err">${q.error}</p>`}
     ${(q.windows || []).length ? q.windows.map(w => { const known = typeof w.remaining_percent === 'number'; const used = known ? 100 - Math.max(0, Math.min(100, w.remaining_percent)) : 0;
-      return html`<div class="qw"><div class="qw-h"><span>${w.group}${w.name ? ' · ' + w.name : ''}</span><b class="mono">${known ? Math.round(w.remaining_percent) + t("usage.page.restant") : '—'}</b></div>
+      return html`<div class="qw"><div class="qw-h"><span>${w.group && w.group !== q.name && w.name ? w.group + ' · ' + w.name : w.name || w.group}</span><b class="mono">${known ? Math.round(w.remaining_percent) + t("usage.page.restant") : '—'}</b></div>
         ${known && html`<div class="meter"><i style=${`width:${used}%;background:${used > 85 ? 'var(--amber)' : 'var(--text)'}`}></i></div>`}
         <small class="muted">${t("usage.page.reset")} ${when(w.reset_at)}</small></div>`; })
       : html`<p class="note">${readable ? (q.fetched_at ? t("usage.page.le_compte_ne_communique_pas_de_quota") : t("usage.page.lis_ton_compte_pour_voir_quotas_et_resets_aucune_generation_aucun")) : t("usage.page.lecture_des_quotas_pas_encore_integree_pour_ce_harness")}</p>`}
@@ -174,7 +174,7 @@ export function UsagePage() {
     <${SectionTabs} /><div class="page-head"><div><h1>${t("usage.page.usage")}</h1><p>${t("usage.page.quotas_de_tes_abonnements_et_consommation_dans_loom_une_donnee_ab")}</p></div></div>
     ${!d ? html`<div class="skeleton" style="height:200px"></div>` : html`
       <section class="sec" aria-busy=${String(loading || reading)}><div class="sec-h"><h2>${t("usage.page.abonnements")}</h2>${(loading || reading) && html`<span class="muted" role="status"><span class="spinner"></span> ${t('usage.refreshing')}</span>`}${quotas.length > 1 && html`<button class="btn sm" disabled=${reading} onClick=${readAll}>${reading ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`} ${t("usage.page.read_all")}</button>`}</div>
-        <div class="grid3 stagger">${quotas.map(q => html`<${Quota} key=${q.runtime_id} q=${q} rt=${runtimes.find(r => r.id === q.runtime_id)} onRefresh=${load} />`)}</div></section>
+        <div class="grid3 stagger quotas">${quotas.map(q => html`<${Quota} key=${q.runtime_id} q=${q} rt=${runtimes.find(r => r.id === q.runtime_id)} onRefresh=${load} />`)}</div></section>
       <${Balances} />
       <${NativeUsage} runtimes=${runtimes} />
       <section class="sec"><div class="sec-h"><h2>${t("usage.page.in_loom")}<${Tip} text="${t("usage.page.tokens_rapportes_par_les_runtimes_dans_tes_discussions_loom_le_co")}" /></h2></div>

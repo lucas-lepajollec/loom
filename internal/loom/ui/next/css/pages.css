@@ -690,3 +690,9 @@
 .ag-inst .set-note{padding:12px 18px}
 .h-detail .agent-banner{margin-top:14px}
 .chips.lvl{margin-top:6px;gap:4px}.chips.lvl .tag{font-size:11px}
+.quotas{align-items:start}
+.grid-bench{align-items:start}
+.bench .sec-h select{width:auto;max-width:280px}
+.choice.off{opacity:.65;cursor:default}
+.sec-h>[role=status]{margin-left:auto;margin-right:10px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+.bench .card .note{margin-top:10px}

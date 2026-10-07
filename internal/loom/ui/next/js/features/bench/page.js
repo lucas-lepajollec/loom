@@ -99,7 +99,9 @@ export function BenchPage() {
   const group = (title, list, empty) => html`<div class="bench-g">
     <div class="bench-gh"><span>${title}</span><span class="count">${list.filter(i => i.supported && pick[i.key]).length}/${list.length}</span><span class="grow"></span>
       ${list.some(i => i.supported) && html`<button class="btn sm ghost" onClick=${() => setMany(list, !list.filter(i => i.supported).every(i => pick[i.key]))}>${list.filter(i => i.supported).every(i => pick[i.key]) ? t("bench.page.aucun") : t("bench.page.tout")}</button>`}</div>
-    ${list.length ? html`<div class="choice-list">${list.map(i => html`<${Pick} key=${i.key} i=${i} on=${i.supported && !!pick[i.key]} onChange=${v => setPick(old => ({ ...old, [i.key]: v }))} />`)}</div>` : html`<p class="note">${empty}</p>`}</div>`;
+    ${list.length ? html`<div class="choice-list">${list.filter(i => i.supported).map(i => html`<${Pick} key=${i.key} i=${i} on=${!!pick[i.key]} onChange=${v => setPick(old => ({ ...old, [i.key]: v }))} />`)}
+      ${Object.entries(list.filter(i => !i.supported).reduce((by, i) => ((by[i.provider || i.name] ||= []).push(i), by), {})).map(([provider, items]) => html`<div class="choice off" key=${'off-' + provider}>
+        <${Logo} name=${items[0].logo} size="sm" /><span class="grow"><b>${provider}</b><small>${t('bench.unsupported_group', { n: items.length })} · ${items[0].reason_text || items[0].sub.split(' · ').slice(1).join(' · ')}</small></span></div>`)}</div>` : html`<p class="note">${empty}</p>`}</div>`;
 
   return html`<div class="view page"><div class="page-in">
     <${SectionTabs} /><div class="page-head"><div><h1>${t("bench.page.bench")}</h1><p>${t('bench.description')}</p></div>

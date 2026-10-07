@@ -1,5 +1,6 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "bench.unsupported_group": {"one": "{n} modèle non testable", "other": "{n} modèles non testables"},
   "agents.more_info": "Informations supplémentaires",
   "agents.banner.missing": "Pas installé sur cette machine : installe-le depuis « Ajouter un agent » ou la ligne ci-dessous.",
   "agents.banner.unmanaged": "Loom ne gère pas cet agent ici : ni son compte, ni ses versions, ni ses discussions.",

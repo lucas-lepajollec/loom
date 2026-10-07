@@ -17,6 +17,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   an Installations section per machine (version, updates, manage/use, history
   import), recent discussions, models grouped with their reasoning levels, and
   everything else folded under "More information".
+- Activity: subscription cards keep their own height and no longer repeat the
+  agent's name in each quota; Bench lists only testable models and shows each
+  adapter without a model-only mode once, with its reason.
 - Edit the last message: a pencil on your last message lets you change it and
   resend; the previous exchange is removed and the agent restarts from the
   remaining history.
