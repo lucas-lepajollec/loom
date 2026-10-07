@@ -82,6 +82,19 @@ for d in "$HOME"/.nvm/versions/node/*/bin; do [ -d "$d" ] && P="$d:$P"; done
 export PATH="$P"
 `
 
+// remoteOutputMarker separates what a remote user's shell startup files print
+// (banners such as fastfetch or motd) from the output of Loom's own command.
+const remoteOutputMarker = "LOOM-OUTPUT-BEGIN"
+const remoteOutputStart = "printf '\\n%s\\n' " + remoteOutputMarker + "\n"
+
+// afterRemoteMarker keeps only the output printed after remoteOutputStart.
+func afterRemoteMarker(out string) string {
+	if i := strings.LastIndex(out, "\n"+remoteOutputMarker+"\n"); i >= 0 {
+		return out[i+len(remoteOutputMarker)+2:]
+	}
+	return out
+}
+
 const remoteProbeScript = remotePathPreamble + `T=""; command -v timeout >/dev/null 2>&1 && T="timeout 5"
 j=""
 for t in hermes claude codex pi opencode agy npm npx node; do

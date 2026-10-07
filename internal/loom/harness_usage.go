@@ -182,7 +182,7 @@ func harnessUsageCommand(ctx context.Context, a acpAgent, argv []string) ([]byte
 			for i, arg := range argv {
 				parts[i] = shellQuote(arg)
 			}
-			script := remotePathPreamble
+			script := remoteOutputStart + remotePathPreamble
 			// Include directories learned during linking, without executing stored ACP argv.
 			for _, tool := range machine.Tools {
 				if tool.Path != "" {
@@ -215,7 +215,7 @@ func harnessUsageCommand(ctx context.Context, a acpAgent, argv []string) ([]byte
 	if err := cmd.Run(); err != nil {
 		return nil, errors.New("native reading unavailable")
 	}
-	return out.Bytes(), nil
+	return []byte(afterRemoteMarker(out.String())), nil
 }
 
 func handleNativeUsage(w http.ResponseWriter, r *http.Request) {

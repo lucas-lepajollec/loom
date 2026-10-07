@@ -183,7 +183,7 @@ func buildHarnessLifecycleCommand(m *RemoteMachine, key string, argv []string) (
 	for i, arg := range argv {
 		parts[i] = shellQuote(arg)
 	}
-	script := remotePathPreamble
+	script := remoteOutputStart + remotePathPreamble
 	if lifecycleGlobalNPM(argv) {
 		// Probe on the target, never with the controller's permissions/home.
 		script += remoteNPMPrefixScript(argv)
@@ -352,6 +352,9 @@ func runHarnessLifecycleCommand(ctx context.Context, m *RemoteMachine, argv []st
 	err := cmd.Run()
 	if ctx.Err() != nil {
 		err = ctx.Err()
+	}
+	if m != nil {
+		return afterRemoteMarker(out.String()), err
 	}
 	return out.String(), err
 }

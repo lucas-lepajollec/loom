@@ -4,6 +4,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- Remote machines whose shell prints a banner on every SSH connection (for
+  example `fastfetch` or a message of the day in `.bashrc`) now work: importing
+  their harness discussions and running their harnesses no longer fails with
+  "the agent does not respond to the ACP protocol", and harness versions in
+  Settings › Machines no longer show the banner text.
+
 ## [0.2.8] - 2026-10-07
 
 ### Fixed
