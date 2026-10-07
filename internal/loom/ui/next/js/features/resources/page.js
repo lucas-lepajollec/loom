@@ -9,6 +9,7 @@ import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace } from '../../core/state.js';
 import { Brain, brainTabs } from './brain.js';
+import { MemoryItems } from './memory-items.js';
 import { FolderPicker } from '../../ui/folder.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
@@ -209,10 +210,10 @@ function McpSources({ onAdopted }) {
 
 export function ResourcesPage({ route }) {
   const requested = route.sub;
-  const tab = ['skills', 'mcp'].includes(requested) ? requested : 'sources';
+  const tab = ['memory', 'skills', 'mcp'].includes(requested) ? requested : 'sources';
   return html`<div class="view page"><div class="page-in">
     <div class="page-head brain-page-head"><div><h1>${t('resources.page.brain')}</h1><p>${t('second_brain.page_subtitle')}</p></div></div>
     <${Tabs} value=${tab} onChange=${localT => go('brain', localT)} label="${t("resources.page.brain")}" options=${brainTabs()} />
-    <div class="tab-body" key=${tab}>${tab === 'sources' ? html`<${Brain} section="sources" />` : tab === 'skills' ? html`<${Skills} />` : html`<${Mcp} />`}</div>
+    <div class="tab-body" key=${tab}>${tab === 'sources' ? html`<${Brain} section="sources" />` : tab === 'memory' ? html`<${MemoryItems} />` : tab === 'skills' ? html`<${Skills} />` : html`<${Mcp} />`}</div>
   </div></div>`;
 }

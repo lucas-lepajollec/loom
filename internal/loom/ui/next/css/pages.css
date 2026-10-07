@@ -785,3 +785,16 @@
 .brain-role{display:flex;flex-direction:column;gap:8px;margin-top:6px}
 .brain-role .seg{align-self:flex-start}
 .brain-role .note{margin:0}
+/* mémoire du Brain */
+.mi{display:flex;flex-direction:column;gap:18px}
+.mi-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.mi-bar .search{width:240px}
+.mi-status{width:150px}
+.mi-note{margin:-6px 0 0}
+.mi-item{display:flex;align-items:flex-start;gap:10px;padding:12px 18px;border-top:1px solid var(--line-soft)}
+.mi-item:first-child{border-top:0}
+.mi-item.dim{opacity:.6}
+.mi-item .grow{min-width:0}
+.mi-text{font-size:13.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.mi-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:6px;font-size:12px;color:var(--text-3)}
+.mi-meta a{color:inherit;text-decoration:underline}
