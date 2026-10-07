@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-10-07
+
 ### Fixed
 
 - A tool can no longer stay "running" forever: when a turn ends, unfinished
