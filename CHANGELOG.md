@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-10-07
+
 ### Added
 
 - Update channels: Settings › About › Updates can follow **Development**, an
