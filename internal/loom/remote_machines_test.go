@@ -115,7 +115,7 @@ printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux
 			t.Fatal(err)
 		}
 	}
-	for _, body := range []string{
+	for pass, body := range []string{
 		`{"machine":{"id":"gpu","name":"GPU","host":"fixture","user":"fixture"},"harnesses":[]}`,
 		`{"machine":{"id":"gpu","name":"GPU renamed","host":"fixture","user":"fixture"},"harnesses":[]}`,
 	} {
@@ -133,14 +133,23 @@ printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux
 		if len(loadCustomACPAgents()) != 0 {
 			t.Fatal("registered an unselected harness")
 		}
-		found := false
-		for _, source := range harnessHistorySources() {
-			if source.ID == "remote:gpu:codex" {
-				found = true
+		listed := func() bool {
+			for _, source := range harnessHistorySources() {
+				if source.ID == "remote:gpu:codex" {
+					return true
+				}
 			}
+			return false
 		}
-		if !found {
-			t.Fatal("unselected ready harness cannot serve history")
+		// The choice to manage survives editing the machine (second pass).
+		if pass == 0 && listed() {
+			t.Fatal("an agent of another machine serves history before the user manages it")
+		}
+		if _, err := historySource("remote:gpu:codex"); pass == 0 && err == nil {
+			t.Fatal("an unmanaged remote agent opened as a history source")
+		}
+		if err := setHarnessManaged("gpu", "codex", true); err != nil || !listed() {
+			t.Fatalf("a managed, unused remote agent must serve history: %v", err)
 		}
 		if _, err := historySource("remote:gpu:codex"); err != nil {
 			t.Fatal(err)
