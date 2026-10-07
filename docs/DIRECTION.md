@@ -197,6 +197,12 @@ releases.
 - One spacing rule for settings cards, inner notes and notes below cards; a
   full visual pass of every page on desktop and phone.
 - Remote harness work and imports verified from the VM against a GPU machine.
+- Session continuity across machines: continue a Claude Code or Codex session on
+  another machine with full fidelity (the native session moves with it, same
+  harness and account), and a portable handoff (summary + recent turns + linked
+  Brain notes) when the destination harness differs or the source is huge.
+  Import reads transcripts read-only even while the harness's own app keeps the
+  session open.
 - **Exit:** the owner works only from the server install for a week.
 
 ### 1. Interface architecture

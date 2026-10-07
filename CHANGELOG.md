@@ -13,6 +13,11 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 - Settings spacing: notes inside cards have consistent padding and separators,
   notes below a card align with it, and grouped sections keep the same gap.
 - The llama.cpp install recommendation is translated.
+- Importing a harness session that is still open in the harness's own app (for
+  example a Codex desktop conversation) now says so and asks to close it there,
+  instead of a vague "could not reopen" error.
+- Reading native usage no longer leaves one empty Claude Code project per
+  reading in `~/.claude/projects`; it runs in a single stable directory.
 
 ## [0.2.7] - 2026-10-07
 
