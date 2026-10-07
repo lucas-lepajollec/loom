@@ -12,7 +12,7 @@ import (
 
 // Version is the release version. Development-channel builds override it at
 // link time (-ldflags "-X …/internal/loom.Version=0.2.10-dev.<UTC timestamp>").
-var Version = "0.2.9"
+var Version = "0.2.10"
 
 // Main est le vrai main() du binaire (cmd/loom ne fait que l'appeler).
 func Main() {
