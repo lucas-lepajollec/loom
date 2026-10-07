@@ -420,3 +420,18 @@ The existing English-focused `nomic` default remains unchanged. The optional
 [official model card](https://huggingface.co/nomic-ai/nomic-embed-text-v2-moe-GGUF/blob/main/README.md).
 Its runtime/quality acceptance depends on the installed llama.cpp and the user's
 corpus; selection alone does not download or prove multilingual retrieval quality.
+
+## Brain roles
+
+Each connected second brain has one role:
+
+- **Primary**: Loom's working memory. Retrieved for every relevant request and
+  the only brain Loom and agents write durable knowledge to.
+- **Context**: its useful passages are added to requests automatically.
+- **Secondary**: never added on its own. The model is told the brain exists
+  (label, source id, access) and searches it through Loom's brain search only
+  when a request needs it. Read-only by default; "ask before changing" or
+  writable can be granted per brain.
+
+The role is stored on the source (`primary`, `secondary`) in `sources.json`;
+existing sources keep their behaviour (Context) until changed.

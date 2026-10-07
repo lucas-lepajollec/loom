@@ -56,17 +56,50 @@ func effectiveProjectBrainSources(p ChatProject) []string {
 	return out
 }
 
+// autoContextBrainSources are the sources whose passages Loom may add to a
+// request on its own: every source except secondary brains.
+func autoContextBrainSources(p ChatProject) []string {
+	secondary := map[string]bool{}
+	if e, err := theBrain().get(); err == nil {
+		for _, source := range e.Sources() {
+			secondary[source.ID] = source.Secondary && !source.Primary
+		}
+	}
+	out := []string{}
+	for _, id := range effectiveProjectBrainSources(p) {
+		if !secondary[id] {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// primarySecondBrainContext tells the model about the primary brain (its
+// working memory) and the secondary brains it may consult on demand.
 func primarySecondBrainContext() string {
 	e, err := theBrain().get()
 	if err != nil {
 		return ""
 	}
+	parts := []string{}
+	secondary := []string{}
 	for _, source := range e.Sources() {
 		if source.Primary && !source.ReadOnly && source.Permission == "write" {
-			return "Primary second brain: " + source.Label + " at " + source.Path + ". It is a user-owned source of truth. Proactively keep durable decisions, preferences and project facts current there when your available file tools can do so; update existing Markdown instead of duplicating it. Do not write credentials or private conversation transcripts."
+			parts = append(parts, "Primary second brain: "+source.Label+" at "+source.Path+". It is a user-owned source of truth. Proactively keep durable decisions, preferences and project facts current there when your available file tools can do so; update existing Markdown instead of duplicating it. Do not write credentials or private conversation transcripts.")
+		} else if source.Secondary && !source.ReadOnly {
+			access := "read-only"
+			if source.Permission == "write" {
+				access = "writable when the user asks"
+			} else if source.Permission == "ask" {
+				access = "ask before any change"
+			}
+			secondary = append(secondary, "- "+source.Label+" (source id "+source.ID+", "+access+")")
 		}
 	}
-	return ""
+	if len(secondary) > 0 {
+		parts = append(parts, "Secondary brains, consulted only when the request needs them (search them with Loom's brain search using their source id; never assume their content):\n"+strings.Join(secondary, "\n"))
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func attachPrimarySecondBrain(s *RuntimeSession, agent acpAgent) {
@@ -83,7 +116,7 @@ func attachPrimarySecondBrain(s *RuntimeSession, agent acpAgent) {
 // projectBrainContext returns the Brain passages for a project and query, and
 // the citations, or "" when the project uses no Brain source.
 func projectBrainContext(p ChatProject, query string) (string, []string) {
-	sources := effectiveProjectBrainSources(p)
+	sources := autoContextBrainSources(p)
 	if len(sources) == 0 || strings.TrimSpace(query) == "" {
 		return "", nil
 	}

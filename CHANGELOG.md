@@ -6,6 +6,11 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Secondary brains: a second brain can be Primary (Loom's working memory and
+  the only one written to), Context (passages added automatically) or
+  Secondary (never added on its own; the agent is told it exists and searches
+  it only when a request needs it). Secondary brains are read-only by default,
+  with "ask before changing" or writable as options.
 - OpenClaw in the agent catalog (ACP bridge `openclaw acp`, which needs its
   Gateway; official npm install and `openclaw update`; detected on connected
   machines too).
