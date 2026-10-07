@@ -1,5 +1,6 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "chat.tools.not_run": "Non exécutée.",
   "chat.engine.older_omitted": "{n} anciens messages ne sont pas envoyés au modèle pour rester dans la limite de contexte ; ils restent dans la discussion.",
   "chat.engine.selection_changed": "L’exécuteur a changé dans un autre onglet. Rouvre cette discussion avant d’envoyer ; ton brouillon est conservé.",
   "chat.composer.text_too_large": "Message trop volumineux (maximum 64 Kio de texte). Ton brouillon est conservé ; divise le texte en plusieurs messages.",

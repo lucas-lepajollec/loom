@@ -4,6 +4,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- A tool can no longer stay "running" forever: when a turn ends, unfinished
+  tools are closed as not run. Antigravity actions refused in Cautious mode
+  (it cannot ask for approval headlessly) now end with an explanation instead
+  of a silent, endless "in progress".
+- Settings spacing: notes inside cards have consistent padding and separators,
+  notes below a card align with it, and grouped sections keep the same gap.
+- The llama.cpp install recommendation is translated.
+
 ## [0.2.7] - 2026-10-07
 
 ### Fixed

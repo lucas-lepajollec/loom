@@ -344,6 +344,10 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 	// the contents of files seen this session and the turn's start time, so a
 	// write becomes an exact diff when the file was seen, a creation otherwise.
 	before := map[int]*string{}
+	// Tool steps announced ACTIVE and never finished (agy refused them, e.g. in
+	// Cautious mode where it cannot ask for approval): closed at turn end.
+	open := map[int]map[string]any{}
+	answered := false
 	turnStart := time.Now().Add(-time.Second)
 	if s.seen == nil {
 		s.seen = map[string]string{}
@@ -387,6 +391,7 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 			switch ev.Step.Type {
 			case "agent_response":
 				if ev.Step.Text != "" {
+					answered = true
 					update(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": ev.Step.Text}})
 				}
 			case "tool":
@@ -405,9 +410,13 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 					call := agyToolCall(name, ev.Step.Info.Parameters, s.cwd)
 					call["sessionUpdate"], call["toolCallId"], call["status"] = "tool_call", id, "in_progress"
 					update(call)
-				} else if ev.Step.State == "DONE" {
+					open[ev.Step.Index] = agyToolCall(name, ev.Step.Info.Parameters, s.cwd)
+				} else if ev.Step.State != "" {
+					// DONE, or any other terminal state agy reports (refused,
+					// cancelled, error): the tool call always ends.
+					delete(open, ev.Step.Index)
 					st := "completed"
-					if len(ev.Step.Info.Error) > 0 && string(ev.Step.Info.Error) != "null" {
+					if ev.Step.State != "DONE" || (len(ev.Step.Info.Error) > 0 && string(ev.Step.Info.Error) != "null") {
 						st = "failed"
 					}
 					u := agyToolCall(name, ev.Step.Info.Parameters, s.cwd)
@@ -440,8 +449,16 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 		}
 	}
 	waitErr := cmd.Wait()
+	for index, call := range open {
+		call["sessionUpdate"], call["toolCallId"], call["status"] = "tool_call_update", fmt.Sprintf("agy-%d", index), "failed"
+		call["content"] = []any{map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": AgyNotRunHint(s.mode)}}}
+		update(call)
+	}
 	if ctx.Err() != nil {
 		return "cancelled", nil
+	}
+	if len(open) > 0 && !answered {
+		update(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": AgyNotRunHint(s.mode)}})
 	}
 	if status == "" && waitErr != nil {
 		return "", fmt.Errorf("Antigravity interrupted the turn")
@@ -515,4 +532,12 @@ type AgyRead func(context.Context, ...string) ([]byte, error)
 type AgyBridge struct {
 	Read       AgyRead
 	Executable string
+}
+
+// AgyNotRunHint explains a tool agy started but never finished.
+func AgyNotRunHint(mode string) string {
+	if mode == "default" || mode == "" {
+		return "Antigravity did not run this action: in Cautious mode it cannot ask for your approval without its own interface. Switch the agent mode to Accept edits or Full access to let it run commands."
+	}
+	return "Antigravity stopped before finishing this action."
 }

@@ -234,7 +234,7 @@ function Engine() {
       <${Job} />
     </${Group}>
     ${!lc.installed && !(lc.prebuilt && lc.prebuilt.bin) && html`<${Group} title="${t("settings.page.installer_llama_cpp")}">
-      <div class="set-note">${lc.reco && lc.reco.why}</div>
+      <div class="set-note">${lc.reco && (({ 'linux-cuda': t('welcome.reco.linux-cuda'), 'linux-hip': t('welcome.reco.linux-hip') })[lc.reco.code] || lc.reco.why)}</div>
       <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/install', { dir: '' }, t("settings.page.compilation_lancee"))}>${t("settings.page.compiler_llama_cpp")}</button><button class="btn" onClick=${() => run('/api/llamacpp/prebuilt', {}, t("settings.page.telechargement_lance"))}>${t("settings.page.binaire_officiel")}</button></div>
     </${Group}>`}
     <${ModelDirs} />`;

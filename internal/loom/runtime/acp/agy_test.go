@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -154,4 +155,27 @@ func TestAgyBridgeSpeaksACP(t *testing.T) {
 		t.Fatalf("reprise absente: %s", args)
 	}
 	inW.Close()
+}
+
+// A tool agy starts but never finishes (refused in Cautious mode) must not stay
+// "in progress" forever: it is closed as failed with an explanation.
+func TestAgyBridgeClosesUnfinishedTools(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\ncat > /dev/null\ncat <<'EOS'\n" +
+		`{"event":"step_update","step_update":{"step_index":1,"step_type":"tool","state":"ACTIVE","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"git status -sb"}}}}` + "\n" +
+		`{"event":"result","result":{"status":"SUCCESS"}}` + "\nEOS\n"
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	updates := []map[string]any{}
+	stop, err := (AgyBridge{Executable: filepath.Join(bin, "agy")}).turn(context.Background(), &agySession{mode: "default", cwd: t.TempDir()}, "status", func(u map[string]any) { updates = append(updates, u) })
+	if err != nil || stop != "end_turn" || len(updates) != 3 {
+		t.Fatalf("%v %v %v", stop, err, updates)
+	}
+	if updates[1]["sessionUpdate"] != "tool_call_update" || updates[1]["status"] != "failed" || updates[1]["toolCallId"] != "agy-1" {
+		t.Fatalf("unfinished tool not closed: %v", updates[1])
+	}
+	if updates[2]["sessionUpdate"] != "agent_message_chunk" || !strings.Contains(fmt.Sprint(updates[2]["content"]), "Cautious") {
+		t.Fatalf("no explanation: %v", updates[2])
+	}
 }
