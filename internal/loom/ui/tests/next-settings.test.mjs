@@ -403,7 +403,7 @@ test('node updates target only the node and warn about stopping engines', async 
 });
 
 test('node server view uses its protected endpoint without an ineffective network toggle', async () => {
-  const h = harness(local, 'Engine', { setInterval: () => 1, clearInterval: () => {}, engineState: () => ({ tone: 'muted' }) });
+  const h = harness(local, 'EngineRuntime', { setInterval: () => 1, clearInterval: () => {}, engineState: () => ({ tone: 'muted' }) });
   h.data['/api/server'] = { node_managed: true, key_required: true, url: 'http://fixture:2511/v1', slots: { items: [] }, stats: {} };
   const tree = await h.ready();
   assert.equal(nodes(tree, 'Switch').length, 0);

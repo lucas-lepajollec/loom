@@ -1,6 +1,6 @@
 import { t } from '../../core/i18n.js';
 // Local : tes modèles sur cette machine, servis par llama.cpp.
-// Onglets : Bibliothèque · Hub · Moteur & API.
+// Onglets : Bibliothèque · Hub. Le moteur (état, API, installation) est la page Modèles › Moteur.
 import { useVllm, VllmLibrary, VllmHub, VllmEngine } from '../settings/vllm.js';
 import { SectionTabs } from '../../app/sections.js';
 import { Logo } from '../../ui/logo.js';
@@ -16,7 +16,7 @@ import { ParamsEditor, draftSource, liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { Hub } from './hub.js';
 
-const TABS = () => ([{ value: 'library', label: t("local.page.bibliotheque") }, { value: 'hub', label: t("local.page.hub") }, { value: 'engine', label: t("local.page.moteur_api") }]);
+const TABS = () => ([{ value: 'library', label: t("local.page.bibliotheque") }, { value: 'hub', label: t("local.page.hub") }]);
 const gib = mb => ((+mb || 0) / 1024).toFixed(1);
 
 const QUANT = /(?:^|[-_.])((?:I?Q\d(?:_[A-Z0-9]+)*)|F16|BF16|F32)(?=[-_.]|$)/i;
@@ -173,7 +173,7 @@ function Library() {
   </div>`;
 }
 
-function Engine() {
+export function EngineRuntime() {
   const status = useStore(app, s => s.status);
   const [srv, setSrv] = useState(null);
   const [lc, setLc] = useState(null);
@@ -253,6 +253,7 @@ function DirectEngine({ node }) {
 const ownVllm = node => node && node.direct && node.kind === 'vllm' && /^http:\/\/127\.0\.0\.1:/.test(node.url || '');
 
 export function LocalPage({ route }) {
+  if (route.sub === 'engine') { go('engine'); return null; }
   const tab = TABS().some(localT => localT.value === route.sub) ? route.sub : 'library';
   const node = useStore(app, a => a.engineNode);
   const v = useVllm();
@@ -269,7 +270,7 @@ export function LocalPage({ route }) {
     ${!isV && html`<${Strip} />`}
     <${Tabs} value=${tab} options=${TABS()} onChange=${localT => go('local', localT)} label="${t("local.page.local")}" />
     <div class="tab-body" key=${which + tab}>${isV
-      ? (tab === 'library' ? html`<${VllmLibrary} onHub=${() => go('local', 'hub')} />` : tab === 'hub' ? html`<${VllmHub} />` : html`<${VllmEngine} />`)
-      : (tab === 'library' ? html`<${Library} />` : tab === 'hub' ? html`<${Hub} />` : html`<${Engine} />`)}</div>
+      ? (tab === 'library' ? html`<${VllmLibrary} onHub=${() => go('local', 'hub')} />` : html`<${VllmHub} />`)
+      : (tab === 'library' ? html`<${Library} />` : html`<${Hub} />`)}</div>
   </div></div>`;
 }
