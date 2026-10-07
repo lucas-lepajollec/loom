@@ -13,6 +13,13 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   switches; the Agents page groups "Used in Loom" and "Managed" agents with a
   chip per machine, and **Add an agent** proposes agents detected on your
   machines, installs one here, or adds an ACP command.
+- Agent page: a state banner with the one useful action (manage, use in Loom),
+  an Installations section per machine (version, updates, manage/use, history
+  import), recent discussions, models grouped with their reasoning levels, and
+  everything else folded under "More information".
+- Activity: subscription cards keep their own height and no longer repeat the
+  agent's name in each quota; Bench lists only testable models and shows each
+  adapter without a model-only mode once, with its reason.
 - Edit the last message: a pencil on your last message lets you change it and
   resend; the previous exchange is removed and the agent restarts from the
   remaining history.
@@ -50,6 +57,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   providers added since are listed.
 
 ### Changed
+
+- Development builds are published only after CI passed on main.
 
 - Navigation grouped by domain: **Models** (Local, Cloud), **Agents**,
   **Machines** (Machines, Terminals, Environment), **Brain** and **Activity**

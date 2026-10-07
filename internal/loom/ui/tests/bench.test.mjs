@@ -59,9 +59,10 @@ test('Bench launches only supported selected models with external consent and re
   const render = () => { cursor = 0; polls.length = 0; tree = env.page(); return tree; };
   render(); await polls[1](() => true); render();
   const picks = flatten(tree).filter(x => typeof x.type === 'function' && x.type.name === 'Pick');
-  assert.equal(picks.length, 4);
+  assert.equal(picks.length, 2, 'only testable models are selectable');
+  assert.ok(!picks.some(x => x.props.i.key === 'agy'), 'an adapter without a model-only mode is shown once, not as a checkbox');
+  assert.ok(flatten(tree).some(x => x.props?.class === 'choice off'));
   picks.find(x => x.props.i.key === 'native').props.onChange(true);
-  picks.find(x => x.props.i.key === 'agy').props.onChange(true); // stale/forged UI selection is filtered.
   render();
   const run = flatten(tree).find(x => x.type === 'button' && text(x).startsWith('Lancer'));
   assert.equal(run.props.disabled, false);

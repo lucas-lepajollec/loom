@@ -1,5 +1,13 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "bench.unsupported_group": {"one": "{n} model not testable", "other": "{n} models not testable"},
+  "agents.more_info": "More information",
+  "agents.banner.missing": "Not installed on this machine: install it from Add an agent or the row below.",
+  "agents.banner.unmanaged": "Loom does not manage this agent here: not its account, versions or discussions.",
+  "agents.banner.used": "Used in Loom: it can run your discussions.",
+  "agents.banner.managed": "Managed: Loom follows its account, versions and discussions, but does not give it discussions yet.",
+  "agents.installs.title": "Installations",
+  "agents.installs.unmanaged": "Not managed on this machine: turn on Manage to follow its version and updates and import its discussions.",
   "agents.state.managed": "Managed",
   "agents.add.title": "Add an agent",
   "agents.add.sub": "Manage an agent already installed on one of your machines, install one here, or plug an ACP command.",
