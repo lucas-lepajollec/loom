@@ -65,7 +65,7 @@ export function ToolCard({ tool: localT, root }) {
     ${open && html`<div class="tc-b">
       ${diffs.map(d => html`<div class="tc-file"><div class="tc-path">${rel(d.path, root)}</div><${Diff} d=${d} /></div>`)}
       ${localT.output && html`<pre class="tool-out">${localT.output}</pre>`}
-      ${!localT.output && localT.kind === 'execute' && html`<pre class="tool-out muted">${localT.status === 'completed' ? t("chat.tools.aucune_sortie") : t("chat.tools.en_cours")}</pre>`}
+      ${!localT.output && localT.kind === 'execute' && html`<pre class="tool-out muted">${localT.status === 'completed' ? t("chat.tools.aucune_sortie") : ['failed', 'interrupted'].includes(localT.status) ? t('chat.tools.not_run') : t("chat.tools.en_cours")}</pre>`}
     </div>`}
   </div>`;
 }

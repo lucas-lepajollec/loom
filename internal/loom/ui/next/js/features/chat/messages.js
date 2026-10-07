@@ -112,8 +112,10 @@ function arrange(items, live) {
   const out = [];
   turns.forEach((turn, n) => {
     const last = n === turns.length - 1;
-    // Un tour antérieur ne peut plus rien attendre : demandes et actions en suspens sont closes.
-    if (!last) turn = turn.map(it => it.k === 'approval' && !it.resolved ? { ...it, resolved: { cancelled: true } }
+    // Un tour terminé (antérieur, ou le dernier une fois la génération finie)
+    // ne peut plus rien attendre : demandes et actions en suspens sont closes.
+    const ended = !last || (!live && !turn.some(it => it.live || (it.k === 'foot' && it.running)));
+    if (ended) turn = turn.map(it => it.k === 'approval' && !it.resolved ? { ...it, resolved: { cancelled: true } }
       : it.k === 'tool' && it.tool && !['completed', 'failed'].includes(it.tool.status) ? { ...it, tool: { ...it.tool, status: 'interrupted' } }
       : it.k === 'plan' ? { ...it, entries: (it.entries || []).map(e => e.status === 'in_progress' ? { ...e, status: 'pending' } : e) }
       : it.k === 'foot' && it.running ? { ...it, running: false } : it);

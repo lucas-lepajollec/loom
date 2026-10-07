@@ -213,7 +213,15 @@
 .set-line.stack .set-c>div{display:flex}
 .path{font-size:12px;color:var(--text-2);word-break:break-all}
 .set-actions{display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--line-soft)}
-.set-note{padding:14px 18px 0;font-size:13px;color:var(--text-2)}
+.set-note{padding:14px 18px;font-size:13px;line-height:1.5;color:var(--text-2)}
+/* Règle d'espacement des réglages : un bloc qui regroupe plusieurs groupes garde
+   l'écart des groupes ; une note intérieure a la marge d'une ligne ; une note
+   sous une carte s'y rattache et s'aligne sur son contenu. */
+.set-body>div:not([class]){display:flex;flex-direction:column;gap:22px;min-width:0}
+.card .pad{padding:14px 18px}
+.card .pad:not(:first-child),.card .set-note:not(:first-child){border-top:1px solid var(--line-soft)}
+.card .pad .note+.note{margin-top:8px}
+.set-group+.note,.set-group+p.note{margin-top:-12px;padding:0 4px}
 .job{margin:0 18px 16px;border-radius:10px;border:1px solid var(--line-soft);background:var(--bg-2);overflow:hidden}
 .job-h{display:flex;align-items:center;gap:9px;padding:10px 12px;font-size:13px}
 .job-h b{flex:1;font-weight:500}
