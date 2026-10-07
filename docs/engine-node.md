@@ -218,7 +218,7 @@ removing old services.
 
 ## Maintenance for each connected machine
 
-In **Settings › Machines › a machine**, configure its engine-node address and
+On the **Machines** page, open a machine and, configure its engine-node address and
 management token under **Engine node management**. The same page can check and
 apply a Loom release for that node even when a different engine serves current
 discussions. Linking an engine through a matching machine address remembers its

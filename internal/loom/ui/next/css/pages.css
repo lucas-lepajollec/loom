@@ -651,3 +651,9 @@
 .machines-body{gap:22px}
 /* note rattachée sous une carte (page d'import, sections) */
 .sec>.card+.note{margin-top:8px;padding:0 4px}
+.hx-inst{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:auto;padding-top:14px}
+.hx-inst>span:first-child{font-size:12px;color:var(--text-3);margin-right:2px}
+.hx-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--text-2)}
+.hx-chip em{font-style:normal;color:var(--text-3);font-family:var(--mono);font-size:11px}
+.hx{min-height:170px}
+.hx-inst+.hx-foot{display:none}

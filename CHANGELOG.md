@@ -30,6 +30,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   **Machines** (Machines, Terminals, Environment), **Brain** and **Activity**
   (Usage, Bench), with tabs inside each group. Machines is now a page of its
   own instead of a Settings section; old `#/settings/machines` links redirect.
+- Agents page: each agent card shows where it is installed (this machine and
+  every connected machine, with the version read there); an agent driven on
+  another machine joins its family's card. Capability lists moved out of the
+  overview, and the state reads "Connected" / "Not connected".
 
 ## [0.2.10] - 2026-10-07
 
