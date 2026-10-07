@@ -122,7 +122,7 @@ The UI is organised by the user's questions, not by internal components:
 | **Projects** | What am I working on? | project settings |
 | **Models** | What can think? | Local, Cloud, engine libraries (llama.cpp, vLLM, linked servers) |
 | **Agents** | What can act for me? | Harnesses, installations per machine, surfaces, sessions/import |
-| **Machines** | Where does it run? | Settings › Machines, Terminals, Environment, node maintenance, engine location |
+| **Machines** | Where does it run? | Machines (overview and detail), Workspaces, Startup, Terminals, Environment, node maintenance |
 | **Brain** | What does Loom know? | second brains, memory, skills, MCP |
 | **Tasks** | What is working right now? | (with phase 4) |
 | Activity | secondary group | Usage, Bench |

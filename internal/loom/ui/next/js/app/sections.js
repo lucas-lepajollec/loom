@@ -6,9 +6,9 @@ import { t } from '../core/i18n.js';
 import { app } from '../core/state.js';
 
 export const GROUPS = [
-  { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [['local', () => t('local.page.local')], ['cloud', () => t('app.routes.cloud')]] },
+  { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [['local', () => t('local.page.local')], ['cloud', () => t('app.routes.cloud')], ['engine', () => t('engine.page.title')]] },
   { id: 'agents', icon: 'terminal', get label() { return t('app.groups.agents'); }, tabs: [['harnesses', () => t('app.routes.harnesses')]] },
-  { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')], ['terminals', () => t('app.routes.terminaux')], ['environment', () => t('app.routes.environnement')]] },
+  { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')], ['workspaces', () => t('workspaces.title')], ['startup', () => t('startup.title')], ['terminals', () => t('app.routes.terminaux')], ['environment', () => t('app.routes.environnement')]] },
   { id: 'brain', icon: 'brain', get label() { return t('resources.page.brain'); }, tabs: [['brain', () => t('resources.page.brain')], ['resources']] },
   { id: 'activity', icon: 'chart', get label() { return t('app.groups.activity'); }, tabs: [['usage', () => t('app.routes.usage')], ['bench', () => t('app.routes.bench')]] },
 ];
@@ -21,4 +21,13 @@ export function SectionTabs() {
   const tabs = group ? group.tabs.filter(([, label]) => label) : [];
   if (tabs.length < 2) return null;
   return html`<nav class="sec-tabs" aria-label=${group.label}>${tabs.map(([id, label]) => html`<a href=${'#/' + id} aria-current=${id === section ? 'page' : undefined}>${label()}</a>`)}</nav>`;
+}
+
+// Une page de groupe qui accueille un ancien panneau des réglages.
+export function GroupPage({ title, lead, children }) {
+  return html`<div class="view page"><div class="page-in">
+    <${SectionTabs} />
+    <div class="page-head"><div><h1>${title}</h1>${lead && html`<p>${lead}</p>`}</div></div>
+    <div class="set-body">${children}</div>
+  </div></div>`;
 }

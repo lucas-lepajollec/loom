@@ -22,6 +22,11 @@ export function parseRoute() {
     history.replaceState(null, '', '#/machines' + (id ? '/' + encodeURIComponent(id) : ''));
     return { section: 'machines', sub: id || '', id: '' };
   }
+  // Engine, startup and workspaces moved to their domain pages.
+  if (section === 'settings' && ['engine', 'startup', 'workspaces'].includes(sub)) {
+    history.replaceState(null, '', '#/' + sub);
+    return { section: sub, sub: '', id: '' };
+  }
   return { section: section || 'chat', sub: sub || '', id: id || '' };
 }
 export function go(section, sub, id) {

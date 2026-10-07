@@ -34,6 +34,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   every connected machine, with the version read there); an agent driven on
   another machine joins its family's card. Capability lists moved out of the
   overview, and the state reads "Connected" / "Not connected".
+- Settings only hold Loom itself (General, Internet, Security and data,
+  About). The engine moved to **Models › Engine**; workspaces and startup moved
+  to **Machines** tabs. Old `#/settings/engine|startup|workspaces` links
+  redirect.
 
 ## [0.2.10] - 2026-10-07
 

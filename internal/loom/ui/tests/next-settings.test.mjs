@@ -432,21 +432,19 @@ test('mobile Settings opens its index, follows section links and returns without
   assert.equal(nodes(tree, 'nav').length, 1);
   assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
   const links = nodes(tree, 'a');
-  assert.equal(links.length, 7);
-  assert.ok(!links.some(n => textOf(n).includes('Machines')), 'Machines is a page of its own, not a settings section');
-  assert.equal(links.find(n => textOf(n).includes('Espaces de travail')).props.href, '#/settings/workspaces');
-  tree = h.render({ route: { sub: 'workspaces' } });
+  assert.equal(links.length, 4);
+  for (const moved of ['Machines', 'Espaces de travail', 'Moteurs', 'Démarrage']) assert.ok(!links.some(n => textOf(n).includes(moved)), moved + ' lives on its domain page, not in Settings');
+  assert.equal(links.find(n => textOf(n).includes('Internet')).props.href, '#/settings/internet');
+  tree = h.render({ route: { sub: 'internet' } });
   assert.equal(nodes(tree, 'nav').length, 0);
   assert.equal(nodes(tree, 'a')[0].props.href, '#/settings');
-  assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Espaces de travail');
-  assert.equal(nodes(tree, 'WorkspaceManager').length, 1);
+  assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Internet');
   tree = h.render({ route: { sub: 'unknown' } });
   assert.equal(nodes(tree, 'nav').length, 1);
   assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
   media.matches = false; media.change();
-  tree = h.render({ route: { sub: 'workspaces' } });
+  tree = h.render({ route: { sub: 'internet' } });
   assert.equal(nodes(tree, 'nav').length, 1);
-  assert.equal(nodes(tree, 'WorkspaceManager').length, 1);
   assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Réglages');
 });
 

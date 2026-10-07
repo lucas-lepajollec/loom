@@ -165,7 +165,7 @@ export function VllmEngine() {
         <span class="mono muted">vLLM ${x.version || ''}</span></div>
       <div class="stat"><b class="mono">${x.model || '—'}</b><span>${t('local.page.modele_2')}</span></div>
       <div class="eh-acts">${(x.running || x.job === 'start') && html`<button class="btn" onClick=${() => v.act({ action: 'stop' })}>${t('settings.page.arreter')}</button>`}
-        <a class="btn ghost" href="#/settings/engine">${t('vllm.eng.settings')}</a></div>
+        <a class="btn ghost" href="#/engine">${t('vllm.eng.settings')}</a></div>
     </div>
     ${x.error && html`<div class="alert red"><${Icon} n="alert" /><span>${x.error}</span></div>`}
     ${!x.running && !x.job && html`<p class="note">${t('vllm.eng.hint')}</p>`}

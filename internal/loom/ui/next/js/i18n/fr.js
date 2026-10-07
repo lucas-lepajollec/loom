@@ -1,5 +1,9 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "engine.page.title": "Moteur",
+  "engine.page.lead": "Où tourne le moteur de modèles locaux, sa version, son accélération et son installation.",
+  "startup.page.lead": "Ce qui démarre seul sur chaque machine : Loom, le moteur et le modèle chargé au lancement.",
+  "workspaces.page.lead": "Les dossiers où travaillent les discussions et les agents, machine par machine.",
   "agents.this_machine": "Cette machine",
   "agents.installations": "Installé sur",
   "agents.state.connected": "Connecté",

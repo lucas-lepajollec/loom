@@ -28,7 +28,7 @@ async function readActivity() {
     const label = { install: t("app.activity.installation_de_llama_cpp"), update: t("app.activity.mise_a_jour_de_llama_cpp"), prebuilt: t("app.activity.telechargement_de_llama_cpp") }[job.action] || 'llama.cpp';
     items.push({ id: 'job', icon: 'server', title: label, err: !job.running && job.error ? job.error : '',
       sub: job.running ? (tSource(job.phase) || t("app.activity.en_cours")) : job.error ? job.error : t("app.activity.termine"),
-      p: null, cancel: job.running ? null : () => post('/api/llamacpp/job/dismiss', {}), cancelLabel: t("app.activity.masquer"), to: () => go('settings', 'engine') });
+      p: null, cancel: job.running ? null : () => post('/api/llamacpp/job/dismiss', {}), cancelLabel: t("app.activity.masquer"), to: () => go('engine') });
   }
   const b = bench && bench.job;
   if (b && b.status === 'running') {

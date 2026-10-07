@@ -15,12 +15,10 @@ import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav, refreshEn
 import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
-import { WorkspaceManager } from '../workspaces/folders.js';
 import { LoomUpdates } from './updates.js';
 import { VLLMEngine } from './vllm.js';
-import { StartupSettings } from './startup.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['workspaces', t('workspaces.title'), 'folder'], ['engine', t("settings.page.moteurs"), 'chip'], ['startup', t('startup.title'), 'power'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 function usePref() {
@@ -206,7 +204,7 @@ function EngineLocation() {
   </${Group}>`;
 }
 
-function Engine() {
+export function Engine() {
   const node = useStore(app, a => a.engineNode);
   const [lc, setLc] = useState(null);
   const load = async () => { setLc(await get('/api/llamacpp')); };
@@ -530,7 +528,7 @@ export function SettingsPage({ route }) {
   const selected = sections.find(s => s[0] === route.sub);
   const sec = selected ? selected[0] : 'general';
   const detail = !mobile || !!selected;
-  const View = { general: General, workspaces: WorkspaceManager, engine: Engine, startup: StartupSettings, internet: Internet, security: Security, about: About }[sec];
+  const View = { general: General, internet: Internet, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
     <div class="page-head settings-head"><div>
       ${mobile && selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}
