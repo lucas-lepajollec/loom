@@ -142,16 +142,16 @@ export function TerminalsPage({ route }) {
   return html`<div class="view page"><div class="page-in wide">
     <${SectionTabs} /><div class="page-head"><div><h1>${t("terminals.page.terminaux")}</h1><p>${t("terminals.page.lance_des_applis_ou_le_cli_d_un_agent_pour_verifier_ou_depanner_i")}</p></div>
       <div class="acts"><button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.nouveau_terminal")}</button></div></div>
-    <${PreviewPanel} target=${cur?.target || 'local'} />
     ${!supported ? html`<${Empty} icon="info" title="${t("terminals.page.pas_encore_disponible_sur_ce_systeme")}" text="${t("terminals.page.les_terminaux_fonctionnent_sous_linux_et_macos_windows_arrive_plu")}" />`
       : !list ? html`<div class="skeleton" style="height:320px"></div>`
       : !list.length ? html`<${Empty} icon="terminal" title="${t("terminals.page.aucun_terminal_ouvert")}" text="${t("terminals.page.un_terminal_reste_ouvert_meme_si_tu_fermes_l_onglet_tu_le_retrouv")}"><button class="btn" onClick=${() => setDlg(true)}>${t("terminals.page.ouvrir_un_terminal")}</button></${Empty}>`
       : html`<div class="term-layout">
-          <div class="term-list card">${list.map(localT => html`<div class=${cls('term-item', cur && cur.id === localT.id && 'on')} key=${localT.id}>
+          <div class="term-list"><div class="term-list-h">${t('terminals.open_list')} <span class="count">${list.length}</span></div><div class="term-items">${list.map(localT => html`<div class=${cls('term-item', cur && cur.id === localT.id && 'on')} key=${localT.id}>
               <button class="term-pick" onClick=${() => go('terminals', localT.id)}><i class=${'dot ' + (localT.running ? 'green' : '')}></i><span class="grow"><b class="trunc">${localT.title}</b><small class="trunc">${localT.target === 'local' ? t("terminals.page.cette_machine") : localT.target} · ${home(localT.dir) || '~'}</small></span></button>
-              <button class="icon-btn" aria-label=${t("terminals.page.fermer_2") + localT.title} onClick=${() => close(localT)}><${Icon} n="close" /></button></div>`)}</div>
+              <button class="icon-btn" aria-label=${t("terminals.page.fermer_2") + localT.title} onClick=${() => close(localT)}><${Icon} n="close" /></button></div>`)}</div></div>
           ${cur && html`<${TermView} key=${cur.id} t=${cur} onExit=${load} />`}
         </div>`}
+    ${supported && html`<div class="term-previews"><${PreviewPanel} target=${cur?.target || 'local'} /></div>`}
     ${dlg && html`<${NewTerminal} onClose=${() => { setDlg(false); load(); }} />`}
   </div></div>`;
 }

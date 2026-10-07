@@ -33,7 +33,12 @@ export function MachinesSettings({ route }) {
     get('/api/machines').then(r => setData(r.ok ? r : { machines: [], offers: {} })).catch(() => setData({ machines: [], offers: {} })),
     get('/api/machines/local').then(setLocal).catch(() => setLocal(null)),
   ]);
-  useEffect(() => { load(); }, []);
+  const [installs, setInstalls] = useState([]);
+  const [terminals, setTerminals] = useState([]);
+  const node = useStore(app, x => x.engineNode);
+  // Le moteur tourne sur cette machine, sauf s'il est lié ailleurs.
+  const engineAt = node && node.machine_id ? node.machine_id : node && (node.direct || node.remote) ? '' : 'local';
+  useEffect(() => { load(); get('/api/agents/installations').then(r => setInstalls(r.installations || [])).catch(() => {}); get('/api/terminals').then(r => setTerminals(r.terminals || [])).catch(() => {}); }, []);
   const id = route && route.id;
   if (!data) return html`<div class="skeleton" style="height:240px"></div>`;
   if (id) {
@@ -42,15 +47,27 @@ export function MachinesSettings({ route }) {
     return html`<${MachineDetail} m=${m} local=${local} offers=${m ? (data.offers || {})[m.id] || [] : null} onChange=${load} onEdit=${() => setDlg({ machine: m })} />
       ${dlg && html`<${MachineDialog} machine=${dlg.machine} onClose=${x => { setDlg(null); if (x) load(); }} />`}`;
   }
+  // Une carte par machine : ce qui y tourne pour Loom, d'un coup d'œil.
+  const card = (id, name, sub, icon) => {
+    const mine = installs.filter(i => i.machine === id && i.installed);
+    const used = mine.filter(i => i.enabled).length, managed = mine.filter(i => i.managed).length;
+    const terms = terminals.filter(x => x.target === id).length;
+    return html`<a class="mcard" key=${id} href=${'#/machines/' + encodeURIComponent(id)}>
+      <div class="mcard-h"><span class="mx-ico"><${Icon} n=${icon} /></span><span class="grow"><b>${name}</b><small class="mono">${sub}</small></span><${Icon} n="right" /></div>
+      <div class="mcard-s">
+        <div><span>${t('app.groups.agents')}</span><b>${mine.length ? t('machines.card.agents', { used, managed }) : '—'}</b></div>
+        <div><span>${t('engine.page.title')}</span><b>${id === engineAt ? t('machines.card.engine_here') : '—'}</b></div>
+        <div><span>${t('app.routes.terminaux')}</span><b>${terms || '—'}</b></div>
+      </div>
+      ${mine.length > 0 && html`<div class="mcard-a">${mine.map(i => html`<span class=${'mcard-chip' + (i.enabled ? ' on' : '')} key=${i.harness} title=${i.name}><${Logo} name=${i.logo || i.harness} size="sm" /></span>`)}</div>`}
+    </a>`;
+  };
   return html`
-    <${Group}>
-      <a class="mc-row" href="#/machines/local"><span class="mx-ico"><${Icon} n="chip" /></span>
-        <span class="grow"><b>${(local && local.hostname) || t("settings.machines.cette_machine_2")}</b><small>${t("settings.machines.cette_machine")}${local ? ' · ' + local.os : ''}</small></span><${Icon} n="right" /></a>
-      ${data.machines.map(m => html`<a class="mc-row" key=${m.id} href=${'#/machines/' + encodeURIComponent(m.id)}><span class="mx-ico"><${Icon} n="server" /></span>
-        <span class="grow"><b>${m.name}</b><small class="mono">${m.user}@${m.host}${m.port !== 22 ? ':' + m.port : ''}${m.os ? ' · ' + m.os : ''}</small></span>
-        <span class="mc-hs">${(m.harnesses || []).map(h => html`<${Logo} key=${h} name=${h} size="sm" />`)}</span><${Icon} n="right" /></a>`)}
-      <div class="set-actions"><button class="btn" onClick=${() => setDlg({})}><${Icon} n="plus" />${t("settings.machines.connecter_une_machine")}</button></div>
-    </${Group}>
+    <div class="mcards">
+      ${card('local', (local && local.hostname) || t("settings.machines.cette_machine_2"), t("settings.machines.cette_machine") + (local ? ' · ' + local.os : ''), 'chip')}
+      ${data.machines.map(m => card(m.id, m.name, m.user + '@' + m.host + (m.port !== 22 ? ':' + m.port : '') + (m.os ? ' · ' + m.os : ''), 'server'))}
+      <button type="button" class="mcard add" onClick=${() => setDlg({})}><${Icon} n="plus" /><span>${t("settings.machines.connecter_une_machine")}</span></button>
+    </div>
     ${dlg && html`<${MachineDialog} machine=${null} onClose=${x => { setDlg(null); if (x) { load(); go('machines', x.id); } }} />`}`;
 }
 

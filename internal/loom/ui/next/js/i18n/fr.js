@@ -1,5 +1,9 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "machines.card.agents": "{used} utilisés · {managed} gérés",
+  "machines.card.engine_here": "ici",
+  "terminals.open_list": "Ouverts",
+  "workspaces.browse": "Parcourir",
   "engine.api.address": "Adresse",
   "agents.to_install": "à installer",
   "agents.models.all": "Afficher les {n} modèles",
