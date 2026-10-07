@@ -80,7 +80,7 @@ func handleRuntimeSessions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		c := discussionContext(s)
-		sendJSON(w, 200, map[string]any{"ok": true, "session": s, "shared_context": c.System, "context": c})
+		sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s), "shared_context": c.System, "context": c})
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "sessions": workspaceSessions.list()})
@@ -102,7 +102,7 @@ func handleRuntimeSessionCreate(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "session": s})
+	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s)})
 }
 func handleRuntimeSessionSend(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -178,7 +178,7 @@ func handleRuntimeSessionSelect(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "session": s, "context": discussionContext(s)})
+	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s), "context": discussionContext(s)})
 }
 
 func handleRuntimeSessionConfigure(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +217,7 @@ func handleRuntimeSessionConfigure(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "session": s, "context": discussionContext(s)})
+	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s), "context": discussionContext(s)})
 }
 
 // Preview is read-only despite POST: drafts stay in the request, never in the
@@ -304,5 +304,5 @@ func handleRuntimeSessionImport(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "session": s})
+	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s)})
 }

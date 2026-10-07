@@ -34,6 +34,7 @@ sleep 0.3; printf 'salut' > note.txt
 cat <<'EOS'
 {"event":"step_update","step_update":{"step_index":2,"step_type":"tool","state":"DONE","tool_name":"write_to_file","tool_info":{"name":"write_to_file","parameters":{"TargetFile":"note.txt"}}}}
 {"event":"step_update","step_update":{"step_index":3,"step_type":"tool","state":"DONE","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"ls"},"error":{"message":"denied"}}}}
+{"event":"step_update","step_update":{"step_index":4,"step_type":"tool","state":"DONE","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"echo hi"},"output":"hi\r\n"}}}
 {"event":"result","result":{"conversation_id":"conv-1","status":"SUCCESS","response":"Je lis."}}
 EOS
 `
@@ -127,7 +128,7 @@ func TestAgyBridgeSpeaksACP(t *testing.T) {
 	for _, u := range updates {
 		kinds = append(kinds, u["sessionUpdate"].(string))
 	}
-	if strings.Join(kinds, ",") != "agent_message_chunk,tool_call,tool_call_update,tool_call_update" {
+	if strings.Join(kinds, ",") != "agent_message_chunk,tool_call,tool_call_update,tool_call_update,tool_call_update" {
 		t.Fatalf("mises à jour: %v", kinds)
 	}
 	write := updates[2]
@@ -140,6 +141,9 @@ func TestAgyBridgeSpeaksACP(t *testing.T) {
 	}
 	if updates[3]["status"] != "failed" || updates[3]["title"] != "ls" || updates[3]["kind"] != "execute" {
 		t.Fatalf("commande refusée: %v", updates[3])
+	}
+	if out := fmt.Sprint(updates[4]["content"]); !strings.Contains(out, "hi") {
+		t.Fatalf("command output not forwarded: %v", updates[4])
 	}
 	args, _ := os.ReadFile(argsFile)
 	for _, want := range []string{"--model gem-low", "--dangerously-skip-permissions", "--add-dir /srv/lib", "--output-format stream-json"} {
@@ -168,14 +172,87 @@ func TestAgyBridgeClosesUnfinishedTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	updates := []map[string]any{}
-	stop, err := (AgyBridge{Executable: filepath.Join(bin, "agy")}).turn(context.Background(), &agySession{mode: "default", cwd: t.TempDir()}, "status", func(u map[string]any) { updates = append(updates, u) })
-	if err != nil || stop != "end_turn" || len(updates) != 3 {
+	session := &agySession{mode: "default", cwd: t.TempDir()}
+	stop, err := (AgyBridge{Executable: filepath.Join(bin, "agy")}).turn(context.Background(), session, "status", func(u map[string]any) { updates = append(updates, u) })
+	if err != nil || stop != "end_turn" || len(updates) != 2 {
 		t.Fatalf("%v %v %v", stop, err, updates)
 	}
 	if updates[1]["sessionUpdate"] != "tool_call_update" || updates[1]["status"] != "failed" || updates[1]["toolCallId"] != "agy-1" {
 		t.Fatalf("unfinished tool not closed: %v", updates[1])
 	}
-	if updates[2]["sessionUpdate"] != "agent_message_chunk" || !strings.Contains(fmt.Sprint(updates[2]["content"]), "Cautious") {
-		t.Fatalf("no explanation: %v", updates[2])
+	if strings.Join(session.denied, ",") != "git status -sb" {
+		t.Fatalf("refused command not reported for approval: %v", session.denied)
+	}
+}
+
+// In Cautious mode a refused command becomes a Loom permission request; once
+// allowed, the bridge resumes the conversation with that action permitted.
+func TestAgyBridgeAsksApprovalForRefusedCommands(t *testing.T) {
+	bin := t.TempDir()
+	script := `#!/bin/sh
+case "$1" in
+  --version) echo "1.3.1"; exit 0;;
+  models) printf 'gem\tGem\n'; exit 0;;
+esac
+cat > /dev/null
+case "$*" in
+  *--dangerously-skip-permissions*)
+    echo '{"event":"step_update","step_update":{"step_index":3,"step_type":"tool","state":"DONE","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"touch probe.txt"},"output":"ok"}}}'
+    echo '{"event":"result","result":{"conversation_id":"c1","status":"SUCCESS"}}';;
+  *)
+    echo '{"event":"init","conversation_id":"c1"}'
+    echo '{"event":"step_update","step_update":{"step_index":2,"step_type":"tool","state":"ACTIVE","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"touch probe.txt"}}}}'
+    echo '{"event":"step_update","step_update":{"step_index":2,"step_type":"tool","state":"DONE","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"touch probe.txt"}}}}'
+    echo '{"event":"result","result":{"conversation_id":"c1","status":"SUCCESS","denied_actions":[{"action":"command","display_name":"RunCommand"}]}}';;
+esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	exe := filepath.Join(bin, "agy")
+	inR, inW := io.Pipe()
+	outR, outW := io.Pipe()
+	go func() {
+		(AgyBridge{Executable: exe, Read: func(ctx context.Context, args ...string) ([]byte, error) {
+			return exec.CommandContext(ctx, exe, args...).Output()
+		}}).Run(inR, outW)
+		outW.Close()
+	}()
+	sc := bufio.NewScanner(outR)
+	send := func(v map[string]any) { b, _ := json.Marshal(v); _, _ = inW.Write(append(b, '\n')) }
+	next := func() map[string]any {
+		if !sc.Scan() {
+			t.Fatal("bridge closed")
+		}
+		var m map[string]any
+		_ = json.Unmarshal(sc.Bytes(), &m)
+		return m
+	}
+	send(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "session/new", "params": map[string]any{"cwd": t.TempDir()}})
+	sid := next()["result"].(map[string]any)["sessionId"].(string)
+	send(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "session/prompt", "params": map[string]any{"sessionId": sid, "prompt": []any{map[string]any{"type": "text", "text": "touch"}}}})
+	asked, outputs := false, ""
+	for {
+		m := next()
+		if m["method"] == "session/request_permission" {
+			asked = true
+			title := m["params"].(map[string]any)["toolCall"].(map[string]any)["title"]
+			if title != "touch probe.txt" {
+				t.Fatalf("permission title: %v", title)
+			}
+			send(map[string]any{"jsonrpc": "2.0", "id": m["id"], "result": map[string]any{"outcome": map[string]any{"outcome": "selected", "optionId": "allow"}}})
+			continue
+		}
+		if m["method"] == "session/update" {
+			outputs += fmt.Sprint(m["params"].(map[string]any)["update"].(map[string]any)["content"])
+			continue
+		}
+		if m["id"] == float64(2) {
+			break
+		}
+	}
+	inW.Close()
+	if !asked || !strings.Contains(outputs, "ok") {
+		t.Fatalf("asked=%v outputs=%s", asked, outputs)
 	}
 }

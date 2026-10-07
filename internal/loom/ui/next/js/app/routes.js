@@ -33,4 +33,4 @@ export const ROUTES = [
 ];
 export const pageFor = id => (ROUTES.find(r => r.id === id) || {}).page;
 // Une entrée de barre latérale par groupe, qui ouvre sa première page.
-export const NAV_ITEMS = GROUPS.map(g => ({ id: g.id, href: '#/' + g.tabs[0][0], nav: { label: g.label, icon: g.icon } }));
+export const NAV_ITEMS = GROUPS.map(g => ({ id: g.id, href: '#/' + g.tabs[0][0], nav: { get label() { return g.label; }, icon: g.icon } }));

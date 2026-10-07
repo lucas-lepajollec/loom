@@ -9,6 +9,12 @@ type discussionSubscriber struct{ events chan DiscussionEvent }
 
 // A slow reader reconnects from a snapshot. It never blocks generation.
 func (m *runtimeSessions) publishLocked(id string, events ...DiscussionEvent) {
+	if len(m.subscribers[id]) == 0 {
+		return
+	}
+	for i, e := range events {
+		events[i] = clientEvent(e)
+	}
 	for sub := range m.subscribers[id] {
 		for _, event := range events {
 			select {
@@ -49,7 +55,7 @@ func (m *runtimeSessions) subscribeDiscussion(ctx context.Context, id string, em
 	if !emit(DiscussionEvent{"pad": strings.Repeat("·", 2048)}) {
 		return true
 	}
-	for _, e := range runtimeReplay(s) {
+	for _, e := range clientReplay(s) {
 		if ctx.Err() != nil || !emit(e) {
 			return true
 		}

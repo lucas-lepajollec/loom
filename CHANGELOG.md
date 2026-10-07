@@ -4,6 +4,17 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- Command output is shown again for Codex (output sent in `_meta` terminal
+  chunks) and Antigravity (`tool_info.output`) instead of "No output".
+- Antigravity in Cautious mode: refused commands now become a Loom approval
+  request; once allowed, Antigravity resumes with exactly those actions.
+- Large discussions open fast: sessions are sent without turn events, replayed
+  events are sent once with long tool texts trimmed (full output on demand).
+  An imported 100 MB Codex thread went from 58 MB to 4.6 MB on opening.
+- Navigation labels follow the interface language; import page note spacing.
+
 ### Changed
 
 - Navigation grouped by domain: **Models** (Local, Cloud), **Agents**,
