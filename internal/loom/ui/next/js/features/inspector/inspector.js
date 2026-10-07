@@ -70,6 +70,31 @@ async function switchModel(s, value) {
   await refreshWorkspace(); open(s.id, true);
 }
 
+// Some agents fold the reasoning level into the model name ("Gemini 3.8
+// Flash (Medium)", "…-high"). Show one model choice and one level choice.
+const EFFORT = /^(.*?)(?:-| \()(minimal|low|medium|high|xhigh|max)\)?$/i;
+export function splitEffort(opts) {
+  const groups = new Map();
+  for (const x of opts) {
+    const byValue = String(x.value).match(EFFORT), byName = String(x.name || '').match(EFFORT);
+    const family = byValue ? byValue[1] : String(x.value), level = byValue ? byValue[2].toLowerCase() : '';
+    if (!groups.has(family)) groups.set(family, { family, name: byName ? byName[1] : (byValue ? String(x.name || x.value).replace(/-(minimal|low|medium|high|xhigh|max)$/i, '') : x.name || x.value), levels: [] });
+    groups.get(family).levels.push({ level, value: x.value, label: byName ? byName[2] : level });
+  }
+  return [...groups.values()];
+}
+
+function ModelOption({ o, onChange }) {
+  const opts = (o.options || []).flatMap(x => x.options ? x.options : [x]);
+  const groups = splitEffort(opts);
+  const current = groups.find(g => g.levels.some(l => l.value === o.currentValue)) || groups[0];
+  const level = current.levels.find(l => l.value === o.currentValue) || current.levels[0];
+  const pick = family => { const g = groups.find(x => x.family === family); const same = g.levels.find(l => l.level === level.level) || g.levels.find(l => l.level === 'medium') || g.levels[0]; onChange(same.value); };
+  return html`<select class="select" aria-label=${o.name} value=${current.family} onChange=${e => pick(e.target.value)}>${groups.map(g => html`<option value=${g.family} selected=${g === current}>${g.name}</option>`)}</select>
+    ${current.levels.length > 1 && html`<div class="hs-sub">${t('inspector.reasoning_level')}</div>
+      <${Seg} value=${level.value} onChange=${onChange} label=${t('inspector.reasoning_level')} options=${current.levels.map(l => ({ value: l.value, label: l.label || l.level }))} />`}`;
+}
+
 function ConfigOption({ o, onChange }) {
   const opts = (o.options || []).flatMap(x => x.options ? x.options : [x]);
   if (o.type === 'boolean') return html`<div class="prow"><span class="prow-l"><span>${o.name}</span></span><${Switch} checked=${!!o.currentValue} label=${o.name} onChange=${v => onChange(v)} /></div>`;
@@ -99,6 +124,7 @@ async function resumeInTerminal(s) {
 function HarnessPanel() {
   const { s, h } = useStore(chat, c => ({ s: c.session, h: c.harness || {} }));
   const runtimes = useStore(app, a => (a.workspace && a.workspace.runtimes) || []);
+  const catalog = useStore(app, a => (a.workspace && a.workspace.models) || []);
   const [diff, setDiff] = useState(null);
   if (!s) return null;
   const caps = ((runtimes.find(r => r.id === s.runtime_id) || {}).capabilities) || [];
@@ -112,6 +138,12 @@ function HarnessPanel() {
   const modes = h.modes || s.available_modes || [];
   const mode = h.mode || s.mode || '';
   const config = h.config || s.config_options || [];
+  // The model choice always has a place, even before the agent's session
+  // exists: then it comes from Loom's catalog for this agent.
+  const nativeModel = config.find(o => o.category === 'model');
+  const fromCatalog = catalog.filter(m => m.runtime_id === s.runtime_id && m.enabled !== false);
+  const modelOpt = nativeModel || (fromCatalog.length > 1 ? { id: 'model', name: t('inspector.model'), category: 'model', currentValue: s.model, options: fromCatalog.map(m => ({ value: m.model, name: m.name })) } : null);
+  const others = config.filter(o => o.category !== 'model' && !(filesystem !== 'native' && ['mode','sandbox','sandbox_mode'].includes(o.id)) && !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode')));
   const files = h.files || [];
   const usage = h.usage || null;
   const localT = lastTurn(s), u = localT && localT.usage;
@@ -128,6 +160,8 @@ function HarnessPanel() {
   return html`<div class="insp-body">
     <div class="insp-model"><${Logo} name=${s.runtime_id} /><div><b>${s.model && s.model !== 'default' ? baseName(s.model).replace(/^[\w.-]+:(?=.)/, '').replace(/\.gguf$/i, '') : s.provider_name}</b><span>${s.model && s.model !== 'default' ? s.provider_name + ' · ' : ''}${/^loom[:/]/.test(s.model || '') ? t("inspector.inspector.modele_local_servi_par_loom") : /^(provider:|loom-)/.test(s.model || '') ? t("inspector.inspector.fournisseur_cloud_via_loom") : t("inspector.inspector.compte_natif")}</span></div></div>
 
+    ${modelOpt && html`<div class="hs-sec"><div class="hs-h">${t('inspector.model')}</div><${ModelOption} o=${{ ...modelOpt, name: t('inspector.model') }} onChange=${v => switchModel(s, v)} /></div>`}
+
     ${canDir && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.dossier_de_travail")}</div>
       <${WorkspacePicker} target=${remote ? ((runtimes.find(r => r.id === s.runtime_id) || {}).machine_id || s.workspace_target || '') : 'local'} current=${workdir} onPick=${async w => { const ok = await configure(s, w.id ? { workspace_id: w.id } : { workdir: w.path }); if (ok) open(s.id, true); return ok; }} />
       ${workdir && html`<button class="btn sm ghost hs-term" onClick=${() => openHarnessTerminal(s, workdir, remote)}><${Icon} n="prompt" />${t("inspector.inspector.ouvrir_un_terminal_ici")}</button>`}
@@ -136,17 +170,19 @@ function HarnessPanel() {
     ${canAsk && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.autorisations")}<${Tip} text=${LEVEL_TIP()} /></div>
       <${Seg} value=${level} onChange=${setLevel} label="${t("inspector.inspector.niveau_d_autorisation")}" options=${LEVELS()} /></div>`}
 
+    ${modes.length > 1 && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.mode_de_l_agent")}<${Tip} text="${t("inspector.inspector.modes_proposes_par_le_harness_lui_meme_par_exemple_planifier_avan")}" /></div>
+      <select class="select" disabled=${filesystem !== 'native'} value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${tSource(m.name)}</option>`)}</select></div>`}
+
     ${canDir && html`<div class="hs-sec"><div class="hs-h">${t('filesystem.title')}<${Tip} text=${t('filesystem.note')} /></div>
       <select class="select" value=${filesystem} onChange=${e => setFilesystem(e.target.value)} aria-label=${t('filesystem.title')}>
         <option value="native">${t('filesystem.native')}</option><option value="workspace-only" disabled>${t('filesystem.workspace_only')} · ${t('filesystem.unavailable')}</option>
         ${['workspace-write', 'full-access'].map(p => html`<option value=${p} disabled=${!protections.includes(p)}>${p === 'workspace-write' ? t('filesystem.workspace_write') : t('filesystem.full')}${!protections.includes(p) ? ' · ' + t('filesystem.unavailable') : ''}</option>`)}
       </select><p class="note">${filesystem === 'workspace-write' ? t('filesystem.workspace_write_note') : t('filesystem.native_note')}</p>
     </div>`}
-    ${modes.length > 1 && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.mode_de_l_agent")}<${Tip} text="${t("inspector.inspector.modes_proposes_par_le_harness_lui_meme_par_exemple_planifier_avan")}" /></div>
-      <select class="select" disabled=${filesystem !== 'native'} value=${mode} onChange=${e => configure(s, { mode: e.target.value })}>${modes.map(m => html`<option value=${m.id} selected=${m.id === mode}>${tSource(m.name)}</option>`)}</select></div>`}
 
-    ${config.filter(o => !(filesystem !== 'native' && ['mode','sandbox','sandbox_mode'].includes(o.id)) && !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).length > 0 && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.reglages_du_harness")}</div>
-      <div class="prows">${config.filter(o => !(filesystem !== 'native' && ['mode','sandbox','sandbox_mode'].includes(o.id)) && !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).map(o => html`<${ConfigOption} key=${o.id} o=${o} onChange=${v => o.category === 'model' ? switchModel(s, v) : configure(s, { config: { [o.id]: v } })} />`)}</div></div>`}
+
+    ${others.length > 0 && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.reglages_du_harness")}</div>
+      <div class="prows">${others.map(o => html`<${ConfigOption} key=${o.id} o=${o} onChange=${v => configure(s, { config: { [o.id]: v } })} />`)}</div></div>`}
 
     <div class="hs-sec"><div class="hs-h">${t("inspector.inspector.contexte")}</div>
       ${ctxPct != null ? html`<div class="vram"><div class="vram-h"><span>${t("inspector.inspector.utilise")}</span><b>${fmtTok(usage.context.used)} <small>/ ${fmtTok(usage.context.size)}</small></b></div>

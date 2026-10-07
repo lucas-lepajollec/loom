@@ -1,6 +1,6 @@
 import { t, getLang } from '../../core/i18n.js';
 // Fil de discussion : rendu des éléments produits par le moteur.
-import { html, useState, useEffect, useRef, useMemo, cls, fmtTok, fmtSecs } from '../../core/lib.js';
+import { html, useState, useEffect, useRef, useMemo, useStore, cls, fmtTok, fmtSecs } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { md, plain } from './md.js';
 import { ToolCard, QuietGroup, Plan, Approval, QUIET } from './tools.js';
@@ -8,6 +8,7 @@ import { post } from '../../core/api.js';
 import { toast } from '../../ui/dialog.js';
 import { runtimeKind } from '../../core/state.js';
 import { splitPastedMessage, downloadPaste } from './pasted-text.js';
+import { chat, editLast } from './engine.js';
 
 const TOOL = () => ({
   bash: ['terminal', 'Terminal'], write: ['file', t("chat.messages.ecriture")], edit: ['edit', t("chat.messages.edition")],
@@ -157,7 +158,26 @@ async function answer(sessionId, approvalId, optionId) {
   if (!r.ok) toast(r.error || t("chat.messages.reponse_impossible"), 'err');
 }
 
+// Le dernier message envoyé peut être modifié puis renvoyé : l'échange
+// précédent est retiré de la discussion.
+function EditableUser({ it, pasted }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(it.text);
+  const busy = useStore(chat, c => c.busy);
+  if (editing) return html`<div class="msg-user editing">
+    <textarea class="input edit-box" rows=${Math.min(12, Math.max(3, text.split('\n').length))} value=${text} onInput=${e => setText(e.target.value)}
+      onKeyDown=${e => { if (e.key === 'Escape') setEditing(false); if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { setEditing(false); editLast(text); } }}></textarea>
+    <div class="edit-acts"><span class="muted">${t('chat.edit.note')}</span><button class="btn sm ghost" onClick=${() => setEditing(false)}>${t('chat.edit.cancel')}</button>
+      <button class="btn sm primary" disabled=${busy || !text.trim()} onClick=${() => { setEditing(false); editLast(text); }}>${t('chat.edit.resend')}</button></div></div>`;
+  return html`<div class="msg-user can-edit">
+    ${pasted.text && html`<div class="bubble">${pasted.text}</div>`}
+    ${pasted.files.map(f => html`<${Collapsible} icon="file" label=${f.name}><button class="btn sm" onClick=${() => downloadPaste(f)}>${t('chat.composer.download_text')}</button><${Body} text=${f.content} isPlain=${true} /></${Collapsible}>`)}
+    <button type="button" class="icon-btn msg-edit" aria-label=${t('chat.edit.label')} title=${t('chat.edit.label')} disabled=${busy} onClick=${() => { setText(it.text); setEditing(true); }}><${Icon} n="edit" /></button>
+  </div>`;
+}
+
 export function Messages({ items, gen, compacting, root, sessionId }) {
+  let lastUser = -1; items.forEach((it, i) => { if (it.k === 'user') lastUser = i; });
   const render = it => {
     const i = it.key;
     switch (it.k) {
@@ -168,6 +188,7 @@ export function Messages({ items, gen, compacting, root, sessionId }) {
       case 'tool': if (it.tool) return html`<${ToolCard} key=${i} tool=${it.tool} root=${root} />`; return html`<${Tool} key=${i} tu=${it.tu} live=${it.live} />`;
       case 'user': {
         const pasted = splitPastedMessage(it.text);
+        if (sessionId && it.key === lastUser && !it.pending && !gen) return html`<${EditableUser} key=${i} it=${it} pasted=${pasted} />`;
         return html`<div key=${i} class=${cls('msg-user', it.pending && 'pending')}>
         ${it.files && it.files.length ? html`<div class="msg-files">${it.files.map(f => html`<span class="file-pill"><${Icon} n="file" />${f.name || String(f).split('/').pop()}</span>`)}</div>` : ''}
         ${pasted.text && html`<div class="bubble">${pasted.text}</div>`}

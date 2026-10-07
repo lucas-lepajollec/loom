@@ -404,3 +404,19 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .hs-more{margin-top:6px;align-self:flex-start}
 .hs-term{margin-top:6px;align-self:flex-start}
 .tool-more{margin:0 0 8px}
+
+/* panneau de session : une règle pour tous les réglages, sans débordement */
+.insp-body .prow .select{width:auto;flex:0 1 60%;min-width:0;max-width:60%;text-overflow:ellipsis}
+.insp-body .workspace-picker{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+.insp-body .workspace-picker .btn{align-self:flex-start}
+.insp-body .select{min-width:0;text-overflow:ellipsis}
+.insp-body .note{margin:0}
+.hs-sub{font-size:12px;color:var(--text-3);margin-top:2px}
+.msg-user.can-edit{position:relative}
+.msg-user .msg-edit{position:absolute;left:-36px;top:6px;opacity:0;transition:opacity var(--fast)}
+.msg-user.can-edit:hover .msg-edit,.msg-user .msg-edit:focus-visible{opacity:1}
+@media (hover:none){.msg-user .msg-edit{opacity:.7}}
+.msg-user.editing{display:flex;flex-direction:column;align-items:stretch;gap:8px;width:100%}
+.edit-box{width:100%;resize:vertical;font:inherit;line-height:1.5}
+.edit-acts{display:flex;align-items:center;justify-content:flex-end;gap:8px;font-size:12px}
+.edit-acts .muted{margin-right:auto}

@@ -2,6 +2,7 @@ package loom
 
 import (
 	"errors"
+	"net/http"
 	"reflect"
 	"strings"
 	"time"
@@ -153,4 +154,69 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 	}
 	m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(s), "context": turnContext(s, nextContext)})
 	return s, nil
+}
+
+// rewindLast removes the last user message and everything after it, and
+// returns that message so it can be edited and sent again. The agent's own
+// session also holds the removed exchange: it is dropped, and the next turn
+// hands the remaining history over as text.
+func (m *runtimeSessions) rewindLast(id string) (RuntimeSession, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.getLocked(id)
+	if !ok {
+		return s, "", errors.New("discussion not found or locked")
+	}
+	if m.preparing[id] || m.runs[id] != nil || m.nativeRunning(s) {
+		return s, "", errors.New("wait for or stop the response before editing the last message")
+	}
+	last := -1
+	for i := len(s.Messages) - 1; i >= 0; i-- {
+		if s.Messages[i].Role == "user" {
+			last = i
+			break
+		}
+	}
+	if last < 0 {
+		return s, "", errors.New("no message to edit")
+	}
+	s = cloneRuntimeSession(s)
+	text, _ := s.Messages[last].Content.(string)
+	s.Messages = s.Messages[:last]
+	kept := []RuntimeTurnRecord{}
+	for _, turn := range s.Turns {
+		if turn.MessageIndex < last {
+			kept = append(kept, turn)
+		}
+	}
+	s.Turns = kept
+	m.closeACP(id)
+	s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
+	s.Status, s.Error = "idle", ""
+	s.UpdatedAt = time.Now().UnixMilli()
+	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
+		return s, "", err
+	}
+	m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(s), "context": discussionContext(s)})
+	return s, text, nil
+}
+
+// POST /api/runtime/sessions/rewind {id}: remove the last exchange and return
+// the user's message for editing.
+func handleRuntimeSessionRewind(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	s, text, err := workspaceSessions.rewindLast(req.ID)
+	if err != nil {
+		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "text": text, "session": clientSession(s), "context": discussionContext(s)})
 }

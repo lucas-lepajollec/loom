@@ -272,6 +272,17 @@ export async function send(text, opts = {}) {
 }
 function dropPending(text) { chat.set({ items: items().filter(i => !(i.k === 'user' && i.pending && i.text === text)) }); }
 
+// Modifier le dernier message : retire le dernier échange côté serveur, puis
+// renvoie le texte modifié comme un nouveau message.
+export async function editLast(text) {
+  const s = chat.get().session;
+  if (!s || chat.get().busy || s.status === 'running' || !text.trim()) return false;
+  const r = await post('/api/runtime/sessions/rewind', { id: s.id });
+  if (!r.ok) { toast(r.error || t('chat.edit.failed'), 'err'); return false; }
+  await open(s.id, true);
+  return sendThread(text.trim());
+}
+
 const pendingReq = new Map();
 async function sendThread(text) {
   const s = chat.get().session;

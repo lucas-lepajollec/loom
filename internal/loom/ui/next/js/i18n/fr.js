@@ -1,5 +1,12 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "chat.edit.label": "Modifier et renvoyer",
+  "chat.edit.note": "Remplace ce message et la réponse qui suit.",
+  "chat.edit.cancel": "Annuler",
+  "chat.edit.resend": "Renvoyer",
+  "chat.edit.failed": "Modification impossible.",
+  "inspector.model": "Mod\u00e8le",
+  "inspector.reasoning_level": "Niveau de réflexion",
   "engine.page.title": "Moteur",
   "engine.page.lead": "Où tourne le moteur de modèles locaux, sa version, son accélération et son installation.",
   "startup.page.lead": "Ce qui démarre seul sur chaque machine : Loom, le moteur et le modèle chargé au lancement.",
