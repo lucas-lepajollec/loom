@@ -39,6 +39,15 @@ type Writer interface {
 	WriteSecondBrain(WriteRequest) error
 	EditSecondBrain(EditRequest) error
 }
+
+// MemoryOperations is optional; every invocation goes through the authenticated
+// application boundary, including availability and selected storage checks.
+type MemoryOperations interface {
+	Remember(RememberRequest) (MemoryItem, error)
+	UpdateMemory(UpdateMemoryRequest) (MemoryItem, error)
+	ForgetMemory(ForgetMemoryRequest) (MemoryItem, error)
+	ListMemory(MemoryFilter) (MemoryList, error)
+}
 type SearchResult struct {
 	Hits []Hit `json:"hits"`
 }
@@ -82,6 +91,25 @@ func MCPServer(reader Reader) *mcp.Server {
 		mcp.AddTool(s, &mcp.Tool{Name: "brain_edit", Description: "Update a page in a write-authorized second brain by replacing one exact unique text fragment. Omit source for the primary.", Annotations: writeAnnotations}, func(ctx context.Context, req *mcp.CallToolRequest, args EditRequest) (*mcp.CallToolResult, WriteResult, error) {
 			err := writer.EditSecondBrain(args)
 			return nil, WriteResult{OK: err == nil, File: args.File}, err
+		})
+	}
+	if memory, ok := reader.(MemoryOperations); ok {
+		writes := &mcp.ToolAnnotations{ReadOnlyHint: false, OpenWorldHint: &closed}
+		mcp.AddTool(s, &mcp.Tool{Name: "remember", InputSchema: memoryToolSchema[RememberRequest](), Description: "Write durable knowledge through Loom, never by editing .loom files. Choose a class and explicit scope (global, project:<id>, machine:<id>, agent:<id>, task:<id>) and provenance. Active identical normalized text in the same class/scope updates recency and maximum importance. Defaults: importance 0.5, confidence 0.7, status active.", Annotations: writes}, func(ctx context.Context, req *mcp.CallToolRequest, args RememberRequest) (*mcp.CallToolResult, MemoryResult, error) {
+			item, err := memory.Remember(args)
+			return nil, MemoryResult{OK: err == nil, Item: item}, err
+		})
+		mcp.AddTool(s, &mcp.Tool{Name: "update_memory", InputSchema: memoryToolSchema[UpdateMemoryRequest](), Description: "Patch a durable memory item by id. With supersede=true, a meaningful normalized text change creates a successor, preserving the original as superseded. Omitted patch fields remain unchanged.", Annotations: writes}, func(ctx context.Context, req *mcp.CallToolRequest, args UpdateMemoryRequest) (*mcp.CallToolResult, MemoryResult, error) {
+			item, err := memory.UpdateMemory(args)
+			return nil, MemoryResult{OK: err == nil, Item: item}, err
+		})
+		mcp.AddTool(s, &mcp.Tool{Name: "forget_memory", InputSchema: memoryToolSchema[ForgetMemoryRequest](), Description: "Expire a memory item by id; retain its file and provenance for history.", Annotations: writes}, func(ctx context.Context, req *mcp.CallToolRequest, args ForgetMemoryRequest) (*mcp.CallToolResult, MemoryResult, error) {
+			item, err := memory.ForgetMemory(args)
+			return nil, MemoryResult{OK: err == nil, Item: item}, err
+		})
+		mcp.AddTool(s, &mcp.Tool{Name: "list_memory", InputSchema: memoryToolSchema[MemoryFilter](), Description: "List durable memory by classes, scopes, status (default active; all includes history), case-insensitive text query and limit. Project scopes also return global items. Sorted by importance then update recency. Reports skipped malformed files as malformed; does not perform context retrieval or generation.", Annotations: annotations}, func(ctx context.Context, req *mcp.CallToolRequest, args MemoryFilter) (*mcp.CallToolResult, MemoryList, error) {
+			result, err := memory.ListMemory(args)
+			return nil, result, err
 		})
 	}
 	return s

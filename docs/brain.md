@@ -360,6 +360,110 @@ codec; older plaintext distilled data requires such a write after encryption
 is enabled. As with other local data, vault locking blocks access immediately.
 
 
+## Memory items (`.loom/`)
+
+Brain v2 adds durable memory items alongside existing free-form memory pages
+and distilled review candidates. Loom writes these files through its memory
+operations; agents must use HTTP or MCP rather than edit `.loom/` directly.
+The generic `brain_write` / `brain_edit` tools reject `.loom/` paths.
+
+With a writable primary second brain, items live in the user-owned vault at
+`<vault>/.loom/memory/<class>/<id>.md`, as plaintext YAML frontmatter and a
+Markdown/plain-text body. These files remain readable by other tools even when
+Loom's private vault encryption is enabled. Without a writable primary, the
+same layout lives under `LOOM_HOME/brain/loom-memory/memory/<class>/<id>.md`;
+files use the existing at-rest codec when encryption is enabled. The companion
+`brain.yaml` is in `.loom/` or `loom-memory/`, respectively, and contains
+`format: 1`, `created_at` (Unix milliseconds), and `imported_distilled: true`
+after the one-time import completes. Unrelated metadata keys are preserved.
+Loom's vault availability check protects both stores, including cached reads.
+
+Example item:
+
+```markdown
+---
+id: mem_example
+class: semantic
+scope: project:example
+tags: [release]
+importance: 0.5
+confidence: 0.7
+created_at: 1791417600000
+updated_at: 1791417600000
+last_used_at: 0
+provenance:
+    kind: user
+    note: Explicitly requested by the owner
+supersedes: []
+status: active
+---
+Release candidates require a successful local validation run.
+```
+
+Every field except `text` appears in frontmatter; `text` is the exact body,
+limited to 8 KiB of valid UTF-8. IDs are stable, unique, safe filename tokens
+(1–128 ASCII letters/digits/underscore/hyphen, starting with a letter/digit);
+creation generates one when omitted. The supported fields are:
+
+| Field | Values / meaning |
+| --- | --- |
+| `class` | `working`, `session`, `episodic`, `semantic`, `procedural`, `reflex` |
+| `scope` | `global`, or `project:<id>`, `machine:<id>`, `agent:<id>`, `task:<id>` with a nonempty ID |
+| `tags` | String array (up to 128 tags, 256 bytes each) |
+| `importance`, `confidence` | Finite scores from 0 to 1; creation defaults 0.5 / 0.7; explicit zero is retained |
+| `created_at`, `updated_at`, `last_used_at` | Unix milliseconds; `last_used_at: 0` means never touched |
+| `provenance` | Required `kind`: `user`, `agent`, `discussion`, `import`, `distilled`; optional `discussion_id`, zero-based `message_index`, `agent`, `note` |
+| `supersedes` | Array of predecessor IDs (up to 128); history files remain present |
+| `status` | `active` (creation/list default), `superseded`, `uncertain`, `expired` |
+
+Writes use a temporary file and atomic rename, confined to the selected root.
+Lists scan the six class directories and cache items until Loom writes. Invalid
+item files are skipped and counted in the returned `malformed` field; metadata
+or storage access errors remain errors. There is no filesystem watcher: edits
+made outside Loom can require a service restart to refresh a cached list.
+
+`remember` matches active items with the same class, scope and normalized text
+(case folded with whitespace collapsed). It updates recency and keeps the
+maximum importance instead of duplicating; existing text/provenance remain.
+`update` patches only supplied text, tags, importance, confidence, status and
+scope fields. When `supersede:true` accompanies a meaningful normalized text
+change, it creates a successor that references the old ID, and marks the old
+file `superseded`. `forget` marks an item `expired` without deleting its file.
+Go callers can use `MemoryStore.Remember`, `Update`, `Forget`, `List` and
+`Touch`; touching IDs updates only `last_used_at` for later context use.
+
+All item routes use the existing authenticated-session/control-key wrapper,
+strict bounded JSON and `Cache-Control: no-store`. Errors return
+`{ok:false,error}` (423 while Loom's vault is locked).
+
+| Method / path | Input | Output |
+| --- | --- | --- |
+| `GET /api/brain/items` | Optional `classes`, `scopes` (comma-separated or repeated; singular `class` / `scope` also accepted), `status`, `query`, `limit` | `{ok:true,items:[...],malformed:N}` |
+| `POST /api/brain/items` | `{class,scope,text,provenance,...}`; optional `id`, `tags`, `importance`, `confidence`, `supersedes`, `status` | `{ok:true,item}` |
+| `POST /api/brain/items/update` | `{id,patch:{text?,tags?,importance?,confidence?,status?,scope?},supersede?}` | `{ok:true,item}` |
+| `POST /api/brain/items/forget` | `{id}` | `{ok:true,item}` with status `expired` |
+
+Lists default to active items; `status=all` includes history. A project scope
+also includes `global`; other scopes match exactly. Classes/scopes combine as
+unions within each filter. Text queries are case-insensitive substrings. Results
+sort by importance descending, then update recency descending, then ID for
+stable ties. A zero/omitted limit returns all matches; negative limits fail.
+
+The authenticated `/mcp/brain` server also exposes `remember`, `update_memory`,
+`forget_memory`, and read-only `list_memory`, using the corresponding JSON
+request/result shapes above. MCP filters use `classes` / `scopes` arrays.
+These operations record and manage knowledge; this backend slice does not add
+items to context selection or change the existing UI.
+
+On first use of each store, Loom imports accepted distilled items:
+`decision` → `episodic`, `fact` / `preference` → `semantic`, `todo` → `working`.
+Legacy items with empty review import as `uncertain`; pending/rejected items are
+excluded. Imported items have global scope and retain distilled provenance,
+discussion ID, message index and date. Deterministic IDs allow retries after an
+interruption; `imported_distilled: true` is saved only after all files succeed.
+The original `distilled.json` is never changed or removed by import. Later
+review changes do not rerun this one-time conversion.
+
 ## Project continuity and retrieval scope
 
 The project form deliberately stores only the project title, machine, workspace
