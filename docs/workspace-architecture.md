@@ -286,16 +286,34 @@ incremental opt-in semantic indexing with synthetic providers. Narrow viewport
 checks include project saves and memory actions. Physical Brave mobile, real ACP
 accounts and multilingual/GPU quality remain separate acceptance checks.
 
+## Agents on each machine: manage and use
+
+Every agent detected on a machine (Loom's own machine included) has two
+independent choices, shown in **Machines → a machine → Agents** and on the agent's
+page:
+
+- **Manage**: Loom follows the agent there: account, version and updates,
+  history import, usage. On by default on Loom's machine; off by default on any
+  other machine (on when the agent there is already used by Loom).
+- **Use in Loom**: the agent can run Loom discussions (the local connection, or
+  the registered remote agent). It asks for consent and implies Manage; turning
+  Manage off also turns Use off.
+
+`GET /api/agents/installations` lists every agent on every machine from cached
+detection (no SSH round trip) with `installed`, `ready`, `version`, `managed` and
+`enabled`. `POST` with `{machine, harness, managed?, enabled?, consent?}` changes
+them. **Agents → Add an agent** proposes detected agents that are not managed yet,
+installs a missing one on this machine, or adds a custom ACP command.
+
 ## Native discussions across machines
 
-Open **Settings → Machines → selected machine**. Each ready detected harness
-has an **Import discussions** action, even when it has not been added to Loom.
-The action selects that exact source; choose a connected destination harness on
-the main host or another machine. Returning goes back to the source machine.
+On an agent's page, each managed installation has an **Import discussions**
+action. The action selects that exact source; choose a connected destination
+harness on the main host or another machine.
 
-`GET /api/harness-history` enumerates installed local ACP adapters and harnesses
-from saved SSH detections, including those not selected as executors. Refresh a
-machine to update detections. `?source=local:ID` or
+`GET /api/harness-history` enumerates managed local ACP adapters and managed
+harnesses of saved SSH detections, including those not used as executors.
+Refresh a machine to update detections. `?source=local:ID` or
 `?source=remote:MACHINE:HARNESS` reads that source's native `session/list` history.
 The source must implement native listing/replay; unsupported histories are
 reported explicitly. Reading does not generate or run tools.
