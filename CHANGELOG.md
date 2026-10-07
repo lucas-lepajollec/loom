@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-10-07
+
 ### Fixed
 
 - Remote machines whose shell prints a banner on every SSH connection (for
