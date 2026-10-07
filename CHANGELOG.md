@@ -6,6 +6,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Context panel › In context: every part Loom adds to a discussion (memory
+  items, Brain passages, project, primary brain, skills, instructions) with its
+  class, why it is there and its token cost, plus the memory budget used.
 - Brain v2 context engine: deterministic scoped memory packs with class and
   total token budgets, supersession/dedupe, ordered context explanations and
   budget summaries; memory usage updates only on sends.
