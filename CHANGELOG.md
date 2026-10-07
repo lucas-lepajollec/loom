@@ -14,6 +14,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   events are sent once with long tool texts trimmed (full output on demand).
   An imported 100 MB Codex thread went from 58 MB to 4.6 MB on opening.
 - Navigation labels follow the interface language; import page note spacing.
+- Faster interface: discussion lists (polled every 30 s by the sidebar and
+  `/api/workspace`) carry turn metadata only (14 MB → 15 KB with one large
+  imported thread), and opening a discussion no longer refreshes the sidebar
+  once per replayed turn.
 - Pi: its startup notice and provider retry messages are no longer shown as
   the answer; a failed turn now shows the model's real error (read from Pi's
   own session journal, since pi-acp does not forward it), e.g. "engine

@@ -199,7 +199,8 @@ func (m *runtimeSessions) list() []RuntimeSession {
 		if s, ok := m.getLocked(id); ok {
 			s.MessageCount = len(s.Messages)
 			s.Messages = nil
-			out = append(out, s)
+			// Lists poll every 30 s: turn metadata only, never turn events.
+			out = append(out, clientSession(s))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt > out[j].UpdatedAt })
