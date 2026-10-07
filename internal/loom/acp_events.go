@@ -1,7 +1,10 @@
 package loom
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -29,6 +32,18 @@ func (p *acpBinding) handleNotification(f acpFrame) {
 		c, _ := u["content"].(map[string]any)
 		text, _ := c["text"].(string)
 		if strings.HasPrefix(strings.TrimSpace(text), "Warning: Model metadata for") {
+			p.mu.Unlock()
+			return
+		}
+	}
+	// pi-acp sends its startup notice and provider retries as answer text.
+	if u["sessionUpdate"] == "agent_message_chunk" {
+		c, _ := u["content"].(map[string]any)
+		text, _ := c["text"].(string)
+		if trimmed := strings.TrimSpace(text); trimmed != "" && (trimmed == p.prelude || piRetryNotice(trimmed)) {
+			if piRetryNotice(trimmed) && strings.HasPrefix(trimmed, "Retrying") {
+				p.retries++
+			}
 			p.mu.Unlock()
 			return
 		}
@@ -124,4 +139,49 @@ func (p *acpBinding) insideRootsLocked(path string) bool {
 		}
 	}
 	return false
+}
+
+var piRetryPattern = regexp.MustCompile(`^(Retrying( \(attempt \d+/\d+, waiting \d+s\))?\.\.\.)+( ?Retry finished, resuming\.)?$|^Retry finished, resuming\.$`)
+
+func piRetryNotice(text string) bool { return piRetryPattern.MatchString(text) }
+
+// piTurnError reads Pi's own session journal for the error of a turn that
+// produced no answer: pi-acp does not forward provider errors.
+func piTurnError(since time.Time) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	files, _ := filepath.Glob(filepath.Join(home, ".pi", "agent", "sessions", "*", "*.jsonl"))
+	newest, newestTime := "", since
+	for _, f := range files {
+		if info, err := os.Stat(f); err == nil && info.ModTime().After(newestTime) {
+			newest, newestTime = f, info.ModTime()
+		}
+	}
+	if newest == "" {
+		return ""
+	}
+	data, err := os.ReadFile(newest)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	for i := len(lines) - 1; i >= 0 && i >= len(lines)-20; i-- {
+		var entry struct {
+			Message struct {
+				Role         string `json:"role"`
+				StopReason   string `json:"stopReason"`
+				ErrorMessage string `json:"errorMessage"`
+			} `json:"message"`
+		}
+		if json.Unmarshal([]byte(lines[i]), &entry) != nil || entry.Message.Role != "assistant" {
+			continue
+		}
+		if entry.Message.StopReason == "error" {
+			return entry.Message.ErrorMessage
+		}
+		return ""
+	}
+	return ""
 }

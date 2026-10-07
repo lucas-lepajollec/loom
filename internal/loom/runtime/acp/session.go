@@ -19,6 +19,12 @@ type SessionResponse struct {
 			Description string `json:"description"`
 		} `json:"availableModels"`
 	} `json:"models"`
+	// pi-acp: the startup notice it then sends as an agent message.
+	Meta *struct {
+		Pi struct {
+			StartupInfo string `json:"startupInfo"`
+		} `json:"piAcp"`
+	} `json:"_meta,omitempty"`
 }
 
 // LegacyModelKey marks the model option Loom built from the older API.

@@ -39,6 +39,11 @@ type acpBinding struct {
 	loomModel     bool // the harness runs a Loom model through its launch environment
 	loading       bool
 	answer        string
+	agentID       string
+	remote        bool
+	prelude       string    // startup notice the agent repeats as a message (pi-acp)
+	retries       int       // provider retries announced as messages this turn (pi-acp)
+	turnStart     time.Time // for reading the agent's own journal after a silent failure
 	approvalGrace time.Duration
 	requestWG     sync.WaitGroup
 	active        bool
@@ -153,6 +158,11 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	}
 	fresh := false
 	if p == nil {
+		// Pi reads Loom's models and cloud providers from its own file: bring
+		// it up to date before Pi starts (a provider added since is listed).
+		if agent.ID == "pi" && !agent.Remote {
+			_ = syncModelSinks()
+		}
 		processDir := s.Workdir
 		if agent.Remote {
 			processDir, _ = os.UserHomeDir()
@@ -161,7 +171,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		if err != nil {
 			return nil, err
 		}
-		p = &acpBinding{client: c, state: cloneACPState(s.ACPState), tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, manager: m, id: s.ID, ctx: requestCtx, emit: emit, active: true, mcpRevision: mcpRevision, loomModel: env != nil}
+		p = &acpBinding{client: c, state: cloneACPState(s.ACPState), tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, manager: m, id: s.ID, ctx: requestCtx, emit: emit, active: true, mcpRevision: mcpRevision, loomModel: env != nil, agentID: agent.ID, remote: agent.Remote}
 		if p.state.Permission == "" {
 			p.state.Permission = "ask"
 		}
@@ -372,6 +382,9 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	var result struct {
 		StopReason string `json:"stopReason"`
 	}
+	p.mu.Lock()
+	p.retries, p.turnStart = 0, time.Now()
+	p.mu.Unlock()
 	err = p.client.call(ctx, "session/prompt", map[string]any{"sessionId": state.NativeSessionID, "prompt": []any{map[string]any{"type": "text", "text": prompt}}}, &result)
 	requestCancel()
 	p.mu.Lock()
@@ -395,8 +408,22 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	// Text captured by the callback is the canonical Loom answer. Hash exactly
 	// that portable history so a route/context change starts a fresh handoff.
 	p.mu.Lock()
-	answer := p.answer
+	answer, retries, since := p.answer, p.retries, p.turnStart
 	p.mu.Unlock()
+	// pi-acp ends a failed turn normally without the provider's error.
+	if strings.TrimSpace(answer) == "" && p.agentID == "pi" {
+		msg := ""
+		if !p.remote {
+			msg = piTurnError(since.Add(-time.Second))
+		}
+		if msg == "" && retries > 0 {
+			msg = fmt.Sprintf("no answer from the model after %d attempts", retries)
+		}
+		if msg != "" {
+			p.publish(nil)
+			return nil, errors.New("Pi: " + msg)
+		}
+	}
 	history := append(append([]Message{}, turn.Messages...), Message{Role: "assistant", Content: answer})
 	p.mu.Lock()
 	p.state.NativeContext = acpContextHash(history)
@@ -410,6 +437,9 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 }
 
 func (p *acpBinding) applySessionResponse(r acpSessionResponse) {
+	if r.Meta != nil {
+		p.prelude = strings.TrimSpace(r.Meta.Pi.StartupInfo)
+	}
 	if r.Modes != nil {
 		p.state.Mode = r.Modes.Current
 		p.state.AvailableModes = r.Modes.Available
