@@ -140,13 +140,15 @@ jobs:
         run: |
           set -eu
           notes="Development build of $GITHUB_SHA (not a stable release). Loom installs it only when Settings › About › Updates › Channel is set to Development."
+          # The "edge" tag also exists on Forgejo: the Forgejo -> GitHub push
+          # mirror deletes GitHub-only tags and resets moved ones, so it is
+          # never moved here. The built commit is named in the notes.
           if gh release view edge >/dev/null 2>&1; then
-            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/edge" -f sha="$GITHUB_SHA" -F force=true >/dev/null
             # Binaries first, checksums next, version title last: a client
             # never sees the new version before its files are complete.
             gh release upload edge release-assets/loom-* --clobber
             gh release upload edge release-assets/SHA256SUMS.txt --clobber
-            gh release edit edge --prerelease --latest=false --title "edge $VERSION" --notes "$notes"
+            gh release edit edge --draft=false --prerelease --latest=false --title "edge $VERSION" --notes "$notes"
           else
             gh release create edge --target "$GITHUB_SHA" --prerelease --latest=false --title "edge $VERSION" --notes "$notes" release-assets/*
           fi

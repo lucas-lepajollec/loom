@@ -34,6 +34,10 @@ Settings › About › Updates › **Channel** chooses what this installation fo
   starts from and older than the next stable release. Use it to receive fixes
   right away on a test or personal installation; it may contain defects.
 
+The `edge` tag is kept on Forgejo as well (the push mirror removes GitHub-only
+tags) and is never moved; the release notes name the commit each build comes
+from.
+
 Both channels download official assets of this repository and verify them
 against the published `SHA256SUMS.txt`. Switching back to Stable never
 downgrades: the installation simply waits for the next stable release.
