@@ -161,7 +161,7 @@ func readNativeACPSession(ctx context.Context, agent acpAgent, info acpSessionIn
 	defer c.close()
 	var loaded acpSessionResponse
 	if err := c.call(ctx, "session/load", map[string]any{"sessionId": info.SessionID, "cwd": cwd, "mcpServers": []any{}}, &loaded); err != nil {
-		return s, errors.New("the harness could not reopen this session")
+		return s, nativeLoadError(err)
 	}
 	time.Sleep(300 * time.Millisecond) // trailing updates sent just after the response
 	messages, turns, commands := b.Finish(agent.ID, agent.Name, info.SessionID)
@@ -249,4 +249,14 @@ func handleACPImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "session": s})
+}
+
+// nativeLoadError explains known, harmless reasons a harness refuses to reopen
+// a session; other upstream messages stay hidden (they may contain secrets).
+func nativeLoadError(err error) error {
+	var re *acpRPCError
+	if errors.As(err, &re) && strings.Contains(strings.ToLower(re.Message), "in use by another") {
+		return errors.New("this session is open in another client of the harness (its desktop app, CLI or IDE extension): close it there, then import again")
+	}
+	return errors.New("the harness could not reopen this session")
 }

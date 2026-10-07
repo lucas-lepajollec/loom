@@ -200,17 +200,19 @@ func harnessUsageCommand(ctx context.Context, a acpAgent, argv []string) ([]byte
 		}
 		cmd = exec.CommandContext(ctx, native[0], native[1:]...)
 	}
-	dir, err := os.MkdirTemp("", "loom-native-usage-")
-	if err != nil {
+	// One stable, empty directory: harnesses such as Claude Code record a
+	// project per working directory, so a fresh temporary one per reading
+	// would pile up hundreds of empty projects in their history.
+	dir := nativeUsageDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, errors.New("temporary directory unavailable")
 	}
-	defer os.RemoveAll(dir)
 	cmd.Dir = dir
 	cmd.WaitDelay = time.Second
 	var out usageOutput
 	cmd.Stdout = &out
 	cmd.Stderr = io.Discard
-	if err = cmd.Run(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return nil, errors.New("native reading unavailable")
 	}
 	return out.Bytes(), nil
@@ -280,4 +282,11 @@ func handleNativeUsageRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "harness": q})
+}
+
+func nativeUsageDir() string {
+	if cache, err := os.UserCacheDir(); err == nil {
+		return filepath.Join(cache, "loom", "native-usage")
+	}
+	return filepath.Join(os.TempDir(), "loom-native-usage")
 }

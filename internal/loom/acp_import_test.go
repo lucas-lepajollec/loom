@@ -93,3 +93,13 @@ func TestNativeImportFreshProvenanceDedupAndContext(t *testing.T) {
 		t.Fatal("native ID collided across machines")
 	}
 }
+
+func TestNativeLoadErrorExplainsBusySession(t *testing.T) {
+	busy := nativeLoadError(&acpRPCError{Code: -32600, Message: "Invalid request: This Codex session is in use by another Codex client (the Codex app)."})
+	if !strings.Contains(busy.Error(), "open in another client") {
+		t.Fatal(busy)
+	}
+	if other := nativeLoadError(&acpRPCError{Message: "token sk-secret"}); strings.Contains(other.Error(), "secret") {
+		t.Fatal("upstream message leaked")
+	}
+}
