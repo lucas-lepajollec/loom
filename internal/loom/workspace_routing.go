@@ -108,6 +108,37 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 	if err := ctx.Err(); err != nil {
 		return s, err
 	}
+	// Same agent, model offered by its live session: switch in place. The
+	// native session, its context, modes and options are kept.
+	live := false
+	if choice.Kind == "harness" && previousRuntime == s.RuntimeID && previousModel != s.Model {
+		option := acpModelOption(s.AvailableConfigOptions)
+		if optionID, _ := option["id"].(string); optionID != "" && acpConfigValueAllowed(option, s.Model) {
+			m.acpMu.Lock()
+			p := m.acp[id]
+			m.acpMu.Unlock()
+			if p != nil {
+				configureCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+				err := p.configure(configureCtx, "", map[string]any{optionID: s.Model})
+				cancel()
+				if err == nil {
+					live = true
+					p.mu.Lock()
+					s.AvailableConfigOptions = cloneACPState(p.state).AvailableConfigOptions
+					p.mu.Unlock()
+				}
+			} else if s.NativeSessionID != "" {
+				// Applied when the native session is reopened.
+				live = true
+			}
+			if live {
+				if s.ConfigOptions == nil {
+					s.ConfigOptions = map[string]any{}
+				}
+				s.ConfigOptions[optionID] = s.Model
+			}
+		}
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	current, exists := m.getLocked(id)
@@ -117,7 +148,7 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 	if choice.Kind == "cloud" && m.keys[choice.ProviderID] == "" {
 		return s, errors.New("provider disconnected while preparing the executor")
 	}
-	if previousRuntime != s.RuntimeID || previousModel != s.Model {
+	if !live && (previousRuntime != s.RuntimeID || previousModel != s.Model) {
 		m.closeACP(id)
 		if previousRuntime != s.RuntimeID {
 			s.FilesystemPolicy = ""

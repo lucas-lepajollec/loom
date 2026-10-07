@@ -4,6 +4,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Added
+
+- Edit the last message: a pencil on your last message lets you change it and
+  resend; the previous exchange is removed and the agent restarts from the
+  remaining history.
+
 ### Fixed
 
 - Command output is shown again for Codex (output sent in `_meta` terminal
@@ -14,6 +20,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   events are sent once with long tool texts trimmed (full output on demand).
   An imported 100 MB Codex thread went from 58 MB to 4.6 MB on opening.
 - Navigation labels follow the interface language; import page note spacing.
+- Session panel: changing an agent's model no longer closes its session; when
+  the agent offers that model, it switches in place and keeps its context,
+  modes and options. Agents that fold the reasoning level into the model name
+  (Antigravity) show one model choice and a separate reasoning level. The
+  model choice is always shown (from Loom's catalog before the agent session
+  exists), sections follow one order, and menus no longer overflow the panel.
 - Faster interface: discussion lists (polled every 30 s by the sidebar and
   `/api/workspace`) carry turn metadata only (14 MB → 15 KB with one large
   imported thread), and opening a discussion no longer refreshes the sidebar

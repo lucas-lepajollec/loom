@@ -1,5 +1,12 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "chat.edit.label": "Edit and resend",
+  "chat.edit.note": "Replaces this message and the answer after it.",
+  "chat.edit.cancel": "Cancel",
+  "chat.edit.resend": "Resend",
+  "chat.edit.failed": "Could not edit the message.",
+  "inspector.model": "Model",
+  "inspector.reasoning_level": "Reasoning level",
   "engine.page.title": "Engine",
   "engine.page.lead": "Where the local model engine runs, its version, acceleration and installation.",
   "startup.page.lead": "What starts on its own on each machine: Loom, the engine and the model loaded at launch.",
