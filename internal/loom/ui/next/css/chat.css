@@ -420,3 +420,13 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .edit-box{width:100%;resize:vertical;font:inherit;line-height:1.5}
 .edit-acts{display:flex;align-items:center;justify-content:flex-end;gap:8px;font-size:12px}
 .edit-acts .muted{margin-right:auto}
+/* liste déroulante du panneau */
+.lpick{position:relative;width:100%;min-width:0}
+.lpick-b{width:100%;display:flex;align-items:center;text-align:left;cursor:pointer;min-width:0}
+.lpick-b .trunc{flex:1;min-width:0}
+.lpick-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;max-height:340px;overflow-y:auto;padding:4px;border-radius:var(--r-md);background:var(--panel);box-shadow:var(--shadow-pop)}
+.lpick-g{padding:8px 10px 4px;font-size:11.5px;font-weight:500;color:var(--text-3)}
+.lpick-o{display:flex;width:100%;min-height:32px;align-items:center;padding:0 10px;border-radius:calc(var(--r-md) - 2px);font-size:13px;color:var(--text);text-align:left}
+.lpick-o:hover{background:var(--hover)}
+.lpick-o.on{background:var(--sel)}
+.prow .prow-c{flex:0 1 60%;min-width:0}

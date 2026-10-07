@@ -13,10 +13,11 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   switches; the Agents page groups "Used in Loom" and "Managed" agents with a
   chip per machine, and **Add an agent** proposes agents detected on your
   machines, installs one here, or adds an ACP command.
-- Agent page: a state banner with the one useful action (manage, use in Loom),
-  an Installations section per machine (version, updates, manage/use, history
-  import), recent discussions, models grouped with their reasoning levels, and
-  everything else folded under "More information".
+- Agent page rebuilt: header with state, version, account and the one useful
+  action; "On your machines" table (version and update, manage, use);
+  Discussions with "In Loom" and "To import" tabs (sessions Loom itself opened
+  in the agent are no longer offered for import); models as compact cards with
+  their reasoning levels; one Settings card; technical details folded.
 - Activity: subscription cards keep their own height and no longer repeat the
   agent's name in each quota; Bench lists only testable models and shows each
   adapter without a model-only mode once, with its reason.
@@ -36,6 +37,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 - Navigation labels follow the interface language; import page note spacing.
 - Pi with DeepSeek through Loom: turning reasoning off now really disables
   DeepSeek's thinking (its models are declared with DeepSeek's thinking switch).
+- Session panel menus stay inside the panel (custom list instead of native
+  selects), model names are cleaned and grouped ("deepseek · via Loom"), and
+  Pi no longer shows its thinking level twice.
 - Session panel: changing an agent's model no longer closes its session; when
   the agent offers that model, it switches in place and keeps its context,
   modes and options. Agents that fold the reasoning level into the model name
