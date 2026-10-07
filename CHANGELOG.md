@@ -14,6 +14,11 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   events are sent once with long tool texts trimmed (full output on demand).
   An imported 100 MB Codex thread went from 58 MB to 4.6 MB on opening.
 - Navigation labels follow the interface language; import page note spacing.
+- Pi: its startup notice and provider retry messages are no longer shown as
+  the answer; a failed turn now shows the model's real error (read from Pi's
+  own session journal, since pi-acp does not forward it), e.g. "engine
+  unavailable". Loom refreshes Pi's provider file before starting Pi, so cloud
+  providers added since are listed.
 
 ### Changed
 
