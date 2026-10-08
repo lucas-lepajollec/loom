@@ -252,6 +252,9 @@ func (c *Client) read() {
 
 // Diagnostic text stays private to the runtime. Bound it and remove launch
 // credentials before surfacing process failures; never write it to a log file.
+// Diagnostics is a bounded, credential-redacted stderr buffer for owned native processes.
+type Diagnostics = diagnosticBuffer
+
 type diagnosticBuffer struct {
 	mu   sync.Mutex
 	text string

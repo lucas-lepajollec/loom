@@ -57,7 +57,7 @@ func builtinACPAgents() []acpAgent {
 }
 
 func registerACPAgents() {
-	// Antigravity speaks no ACP: Loom's own bridge (loom agy-acp) drives agy.
+	// Installed agy stream-json is preferred; Loom's ACP bridge remains the fallback.
 	if executable, err := os.Executable(); err == nil {
 		registerRuntime(&acpAdapter{agent: acpAgent{ID: "antigravity", Name: "Antigravity", Logo: "antigravity", Command: executable,
 			Args: []string{"agy-acp"}, Detect: []string{"agy"}, Docs: "https://antigravity.google/"}})
@@ -114,6 +114,9 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		caps = nativeAgentCaps(a.agent.ID)
 		cli = a.agent.ID
 		hint = a.agent.ID
+		if a.agent.ID == "antigravity" {
+			cli, hint = "agy", "agy"
+		}
 	}
 	available := a.agent.available()
 	connected := harnessConnected(a.agent)
@@ -147,7 +150,9 @@ func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallbac
 	}
 	var result []Message
 	var err error
-	if nativeAgentProtocol(a.agent) == "opencode-http" {
+	if nativeAgentProtocol(a.agent) == "agy-stream-json" {
+		result, err = a.sessions.runAntigravity(ctx, a.agent, a.session, turn, emit)
+	} else if nativeAgentProtocol(a.agent) == "opencode-http" {
 		result, err = a.sessions.runOpenCode(ctx, a.agent, a.session, turn, emit)
 	} else if nativeAgentProtocol(a.agent) != "" {
 		result, err = a.sessions.runNativeAgent(ctx, a.agent, a.session, turn, emit)

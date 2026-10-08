@@ -35,6 +35,9 @@ func nativeHistoryClient(ctx context.Context, a acpAgent, cwd string) (*codexapp
 	return s, cleanup, nil
 }
 func listNativeAgentSessions(ctx context.Context, a acpAgent) ([]acpSessionInfo, error) {
+	if a.ID == "antigravity" {
+		return nil, errors.New("Antigravity stream-json has no session-list API; use the native CLI/IDE conversation catalog")
+	}
 	if a.ID == "opencode" {
 		return listOpenCodeSessions(ctx, a)
 	}
@@ -136,6 +139,9 @@ func readNativeAgentHistory(ctx context.Context, a acpAgent, info acpSessionInfo
 	messages := []Message{}
 	turns := []RuntimeTurnRecord{}
 	sessionFile := ""
+	if a.ID == "antigravity" {
+		return nil, nil, "", errors.New("Antigravity stream-json has no history-read API; native conversation resume is supported")
+	}
 	if a.ID == "opencode" {
 		messages, err := readOpenCodeHistory(ctx, info.SessionID, cwd)
 		if err != nil {

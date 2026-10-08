@@ -1,0 +1,2 @@
+{"frame":{"event":"init","conversation_id":"fixture-conversation","init":{"cwd":"/fixture/project","permission_mode":"request-review","tools":["run_command","write_to_file"]}},"events":["turn.started","raw"]}
+{"frame":{"event":"result","result":{"conversation_id":"fixture-conversation","status":"SUCCESS","response":"Hello"}},"events":["content.delta","raw","turn.completed"]}

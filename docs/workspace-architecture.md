@@ -187,9 +187,10 @@ Remote/custom launchers retain ACP. Native startup/authentication/resume failure
 are visible and never silently retried through another protocol. See
 [agent compatibility](agents-compat.md) for tested versions, fixture maintenance,
 canonical event/request JSON and the backend-only UI contract.
-Antigravity uses Loom's own ACP bridge to `agy`; authentication, native models
-and access modes remain with that CLI. It does not receive Loom provider keys or
-MCP servers and does not provide an interactive Loom approval RPC. Hermes can
+Antigravity prefers the installed `agy` structured stream with Loom's ACP bridge
+as fallback; authentication, native models, conversation IDs and access modes
+remain with that CLI. It does not receive Loom provider keys or MCP servers and
+its headless stream has no interactive permission/question reply channel. Hermes can
 run through a custom or discovered SSH ACP launcher; its built-in local entry
 provides quotas and usage, not chat.
 

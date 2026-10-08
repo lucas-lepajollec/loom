@@ -379,12 +379,20 @@ func (b AgyBridge) turn(ctx context.Context, s *agySession, text string, update 
 		return "", fmt.Errorf("agy CLI not found")
 	}
 	input, _ := json.Marshal(map[string]any{"event": "user", "message": map[string]string{"content": text}})
-	cmd := exec.CommandContext(ctx, path, agyArgs(s)...)
+	args := agyArgs(s)
+	if b.TextInput {
+		// Older CLIs expose structured output before NDJSON input. Preserve the
+		// bridge with the documented one-shot print invocation in that case.
+		args = append(args[2:], "--print", text)
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = s.cwd
 	if cmd.Dir == "" {
 		cmd.Dir, _ = os.UserHomeDir()
 	}
-	cmd.Stdin = strings.NewReader(string(input) + "\n")
+	if !b.TextInput {
+		cmd.Stdin = strings.NewReader(string(input) + "\n")
+	}
 	cmd.Stderr = io.Discard
 	cmd.WaitDelay = 2 * time.Second
 	stdout, err := cmd.StdoutPipe()
@@ -623,6 +631,7 @@ type AgyRead func(context.Context, ...string) ([]byte, error)
 type AgyBridge struct {
 	Read       AgyRead
 	Executable string
+	TextInput  bool // Legacy structured output without --input-format.
 }
 
 // AgyNotRunHint explains a tool agy started but never finished.

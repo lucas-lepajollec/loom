@@ -113,7 +113,8 @@ native fitted values. Real-GPU fitting still needs separate acceptance.
 
 The ordered registry and runtime contracts live in `internal/loom/runtime`;
 `runtime_compat.go` preserves the existing Loom names and signatures. Cloud and
-Antigravity protocols and the local adapter live in `runtime/{openai,antigravity,local}`
+Antigravity protocols (native CLI stream, with ACP bridge fallback) and the local
+adapter live in `runtime/{openai,antigravity,local}`
 behind Loom compatibility wrappers. Startup registration remains in
 `workspace_runtime.go`; optional connect/quota HTTP dispatch stays in `web_runtimes.go`.
 Planned descriptors stay capability-less. The current contract is a typed,
