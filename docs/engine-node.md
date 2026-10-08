@@ -197,9 +197,9 @@ All other management routes, including ping/info, require
 are not accepted by a node. `node.token` must be a regular private file (0600).
 The management token and inference key are distinct random 256-bit credentials.
 Authenticated `GET /api/node/info` retains its existing fields and adds `id`,
-`name`, `handshake:1` and `modules:["engine","harness"]` by default. Unknown handshake majors are
+`name`, `handshake:1` and `modules:["engine","harness","observe"]` by default. Unknown handshake majors are
 refused with an update message. Missing handshake fields remain accepted only
-for legacy token links. A disabled harness module is omitted; `observe` is not advertised.
+for legacy token links. Disabled harness and observe modules are omitted.
 Direct API clients need the inference key for `/v1`, not the management token.
 
 The main Loom strips browser cookies/origin headers and substitutes the machine
@@ -210,8 +210,8 @@ forwarding inference to its local native engine and uses that engine's key.
 ## Run agents on a paired machine
 
 Pair by code as above; SSH is not required for harnesses. Nodes advertise
-`modules:["engine","harness"]` with `handshake:1` by default, including existing
-nodes after updating. To keep an engine-only node, initialize with:
+`modules:["engine","harness","observe"]` with `handshake:1` by default, including existing
+nodes after updating. To disable harness execution while retaining read-only observation, initialize with:
 
 ```sh
 loom node init --no-harness
@@ -284,6 +284,53 @@ node picker response above. Without `path`, the existing `{"ok":true,"folders":
 […]}` favourite-folder response remains unchanged. Workspace validation and
 explicit creation also use the node, without SSH. Terminals on a machine without
 SSH return `terminals need SSH for now`.
+
+## Machine metrics
+
+The independent `observe` module is on by default. Disable it with
+`loom node init --no-observe`, or restore it with `--no-observe=false`.
+The persisted `node_observe_disabled` flag is preserved when init omits the flag.
+Refresh/re-pair links after changing advertised modules. Disabled observation
+returns HTTP 409 with `{"error":"node observe module is disabled"}`.
+
+These backend-only, read-only endpoints return `Cache-Control: no-store`:
+
+| Route | Response |
+| --- | --- |
+| `GET /api/machines/local/metrics` | This machine's `MachineMetrics`. |
+| `GET /api/node/observe` | Node `MachineMetrics`; requires its machine token. |
+| `GET /api/machines/{id}/metrics` | Proxies an advertised `observe` node, or samples a saved SSH machine. |
+| `GET /api/machines/metrics` | `{"metrics":{"local":{…},"machine-id":{…}|{"error":"…"}}}`. Poll every ten seconds. |
+
+```json
+{
+  "at": 1700000000000, "cpu": 25, "load1": 0.8, "cores": 8,
+  "ram_used": 8589934592, "ram_total": 17179869184,
+  "disk": {"path": "/home/user", "used": 107374182400, "total": 536870912000},
+  "gpus": [{"name": "GPU", "util": 40, "vram_used": 2147483648, "vram_total": 8589934592}],
+  "uptime_seconds": 3600, "os": "linux"
+}
+```
+
+`at` is Unix milliseconds; RAM, disk and VRAM sizes are bytes. CPU/GPU usage is
+0–100 percent; `load1` is the one-minute load average. Disk describes the home
+filesystem (used = total minus free blocks, including reserved space in total).
+Linux CPU uses two `/proc/stat` samples about 300 ms apart, excluding duplicate
+guest counters and counting idle/iowait as idle; RAM uses `MemAvailable`.
+Local/node samples, including existing NVIDIA/AMD SMI/ROCm readers, are cached
+for two seconds and share in-flight reads. Empty `gpus` means no supported reader
+returned data. macOS/Windows reuse known RAM/disk data with `"partial":true`;
+unknown CPU/load/uptime values are zero. Incomplete Linux samples also set
+`partial:true`: unavailable observations must not be treated as measured zeros.
+
+SSH uses one fixed command with a five-second deadline and the same parsers;
+samples and failures are cached per machine for ten seconds. Observation never
+generates SSH keys. Non-Linux SSH returns exactly `{"supported":false}`.
+Individual failures return HTTP 502 with `{"error":"…"}`. Aggregate collection
+runs concurrently, with five-second remote deadlines and a six-second overall
+collection deadline; failures remain beside successful samples. Remote and
+aggregate requests require an unlocked vault when encrypted. No observation
+starts inference, installs tools, signs in or exports context. UI is separate.
 
 ## Optional user service
 
@@ -375,7 +422,8 @@ service configuration, not through the native engine's network toggle.
 
 No UI/auth-session, discussion, Brain/MCP, cloud/provider, harness lifecycle,
 project, terminal or environment routes are registered. The optional harness
-module exposes only inventory, ACP transport and directory/workspace control.
+module exposes only inventory, ACP transport and directory/workspace control;
+the optional observe module exposes read-only machine metrics.
 Unknown paths return 404. Native Windows/macOS node mode is explicitly
 unsupported in this initial Linux implementation; direct inference-server links
 remain available there. Migration from a previous full Loom is manual and

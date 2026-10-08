@@ -30,6 +30,9 @@ func nodeModules() []string {
 	if nodeHarnessEnabled() {
 		modules = append(modules, "harness")
 	}
+	if nodeObserveEnabled() {
+		modules = append(modules, "observe")
+	}
 	return modules
 }
 func remoteToolDirs(m RemoteMachine) []string {
@@ -70,11 +73,22 @@ func acpSessionArgs(agent acpAgent, cwd string) []string {
 	return args
 }
 func nodeMachineAccess(machine string) (nodeBridgeAccess, error) {
+	return nodeMachineAccessForModule(machine, "harness")
+}
+
+func nodeMachineAccessForModule(machine, module string) (nodeBridgeAccess, error) {
 	m, err := workspaceMachine(machine)
 	if err != nil {
 		return nodeBridgeAccess{}, err
 	}
-	if !hasNodeModule(m.Modules, "harness") {
+	return nodeMachineModuleAccess(m, module)
+}
+
+func nodeMachineModuleAccess(m RemoteMachine, module string) (nodeBridgeAccess, error) {
+	if !hasNodeModule(m.Modules, module) {
+		if module == "observe" {
+			return nodeBridgeAccess{}, errors.New(nodeObserveDisabled)
+		}
 		return nodeBridgeAccess{}, errors.New(nodeHarnessDisabled)
 	}
 	n := savedMachineNode(m)
@@ -84,7 +98,7 @@ func nodeMachineAccess(machine string) (nodeBridgeAccess, error) {
 	if err := checkNodeHandshake(n.Handshake); err != nil {
 		return nodeBridgeAccess{}, err
 	}
-	return nodeBridgeAccess{Machine: machine, URL: n.URL, Token: n.WebKey}, nil
+	return nodeBridgeAccess{Machine: m.ID, URL: n.URL, Token: n.WebKey}, nil
 }
 
 // A subprocess cannot read the main's in-memory vault key. For encrypted state
@@ -222,7 +236,11 @@ func runNodeBridge(ctx context.Context, args []string, in io.Reader, out io.Writ
 }
 
 func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, body io.Reader, result any) error {
-	access, err := nodeMachineAccess(m.ID)
+	module := "harness"
+	if path == "/api/node/observe" {
+		module = "observe"
+	}
+	access, err := nodeMachineAccessForModule(m.ID, module)
 	if err != nil {
 		return err
 	}
@@ -251,6 +269,9 @@ func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, 
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 409 {
+			if module == "observe" {
+				return errors.New(nodeObserveDisabled)
+			}
 			return errors.New(nodeHarnessDisabled)
 		}
 		return errors.New("node machine rejected the request; check credential and directory")

@@ -210,24 +210,14 @@ func RamUsageMB() (used, total int) {
 	if err != nil {
 		return 0, 0
 	}
-	var totalKB, availKB int
-	for _, line := range strings.Split(string(b), "\n") {
-		f := strings.Fields(line)
-		if len(f) < 2 {
-			continue
-		}
-		v, _ := strconv.Atoi(f[1]) // kB
-		switch f[0] {
-		case "MemTotal:":
-			totalKB = v
-		case "MemAvailable:":
-			availKB = v
-		}
-	}
-	if totalKB == 0 {
+	totalBytes, availableBytes, _ := ParseProcMeminfo(string(b))
+	if totalBytes == 0 {
 		return 0, 0
 	}
-	return (totalKB - availKB) / 1024, totalKB / 1024
+	if availableBytes > totalBytes {
+		availableBytes = totalBytes
+	}
+	return int((totalBytes - availableBytes) / (1024 * 1024)), int(totalBytes / (1024 * 1024))
 }
 
 // --- Supervision de processus détachés (worker de lien, service en mode
