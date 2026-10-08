@@ -38,6 +38,35 @@ const joinArgs = a => (a || []).map(x => /\s/.test(x) ? '"' + x + '"' : x).join(
 
 // Ajouter un agent : d'abord ceux déjà détectés sur tes machines (à gérer, et
 // éventuellement à utiliser), puis ceux à installer ici, puis une commande ACP.
+// Catalogue officiel ACP (registre tenu par le projet ACP) : tout agent listé
+// s'ajoute d'un clic, à la version publiée. Les agents que Loom intègre déjà
+// nativement n'y sont pas proposés en double.
+function Catalogue({ onAdded }) {
+  const [list, setList] = useState(null);
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState('');
+  useEffect(() => { get('/api/agents/catalog').then(r => setList(Array.isArray(r) ? r : [])).catch(() => setList([])); }, []);
+  const add = async a => {
+    setBusy(a.id);
+    const r = await post('/api/agents/catalog/add', { id: a.id }).catch(e => ({ ok: false, error: e.message }));
+    setBusy('');
+    if (!r.ok) return toast(r.install_hint ? t('agents.catalog.install_first', { name: a.name }) : r.error || t('agents.change_failed'), 'err');
+    await refreshWorkspace(); onAdded(r.agent && r.agent.id);
+  };
+  if (list === null) return html`<div class="skeleton" style="height:120px"></div>`;
+  const needle = q.trim().toLowerCase();
+  const rows = list.filter(a => !a.builtin && (!needle || (a.name + ' ' + (a.description || '')).toLowerCase().includes(needle)));
+  return html`<div class="cat-search"><${Icon} n="search" /><input class="input" placeholder=${t('agents.catalog.search')} value=${q} onInput=${e => setQ(e.target.value)} /></div>
+    <div class="card cat-list">${rows.map(a => html`<div class="set-line" key=${a.id}>
+      <div class="set-l cat-l">${a.icon ? html`<img class="cat-ico" src=${a.icon} alt="" loading="lazy" />` : html`<${Logo} name=${a.id} size="sm" />`}
+        <div class="grow"><div class="cat-name">${a.name} <span class="muted mono">${a.version}</span></div>${a.description && html`<div class="cat-d">${a.description}</div>`}</div></div>
+      <div class="set-c">${a.added ? html`<span class="muted">${t('agents.catalog.added')}</span>`
+        : a.installed ? html`<button class="btn sm" disabled=${!!busy} onClick=${() => add(a)}>${t('agents.catalog.add')}</button>`
+        : html`<a class="btn sm ghost" href=${a.repository || '#'} target="_blank" rel="noopener noreferrer" title=${t('agents.catalog.not_installed')}>${t('agents.catalog.install')}</a>`}</div></div>`)}
+      ${!rows.length && html`<p class="note pad">${t('agents.catalog.empty')}</p>`}</div>
+    <p class="note">${t('agents.catalog.note')}</p>`;
+}
+
 function AddAgentDialog({ installs, onClose, onChanged, onCustom }) {
   const [busy, setBusy] = useState('');
   const detected = installs.filter(i => i.installed && !i.managed);
@@ -62,6 +91,8 @@ function AddAgentDialog({ installs, onClose, onChanged, onCustom }) {
           <div class="set-l"><${Logo} name=${i.logo || i.harness} size="sm" /><span>${i.name}</span></div>
           <div class="set-c"><${Lifecycle} compact target="local" id=${i.harness} name=${i.name} where=${t('agents.this_machine')} onChange=${() => onChanged(null)} /></div></div>`)}</div>
         <p class="note">${t('agents.add.install_note')}</p>`}
+      <h4>${t('agents.catalog.title')}</h4>
+      <${Catalogue} onAdded=${id => { onClose(); if (id) go('harnesses', id); }} />
       <h4>${t('agents.add.custom')}</h4>
       <div class="card"><div class="set-line"><div class="set-l"><span>${t('agents.add.custom_text')}</span></div><div class="set-c"><button class="btn sm ghost" onClick=${onCustom}>${t('agents.add.custom_btn')}</button></div></div></div>
     </div></${Modal}>`;
@@ -402,6 +433,8 @@ function AgentDiscussions({ rt, talks, canList, installs, target }) {
 }
 
 const MODEL_LIMIT = 8;
+// Voie de connexion officielle de chaque agent (voir docs/agents-compat.md).
+const PROTOCOL = { 'app-server': 'App Server', 'pi-rpc': 'RPC', 'opencode-http': 'Serveur', 'agy-stream-json': 'Stream JSON', acp: 'ACP' };
 
 function AgentDetail({ rt, models, onEdit }) {
   const nav = useStore(app, a => a.nav);
@@ -460,6 +493,7 @@ function AgentDetail({ rt, models, onEdit }) {
   const accountKnown = !!info && info.installed !== false && managed && (auth.connected || !cfg.length);
   const account = info ? (auth.connected ? [auth.method, auth.account].filter(Boolean).join(' · ') || t("harnesses.page.connecte_2") : auth.status || t('agents.account.none')) : '';
   const ver = probe && probe.agent && probe.agent.version;
+  const compat = (probe && probe.compatibility) || rt.compatibility || {};
   const canList = !!(probe && probe.capabilities && probe.capabilities.sessionCapabilities && probe.capabilities.sessionCapabilities.list);
   const [tone, state] = missing ? ['', t("harnesses.page.non_installe")] : used ? ['green', t('agents.state.used')] : managed ? ['amber', t('agents.state.managed')] : ['', t('agents.state.unmanaged')];
   const launch = custom ? [custom.command, ...(custom.args || [])].join(' ') : rt.install_hint || rt.cli;
@@ -467,7 +501,7 @@ function AgentDetail({ rt, models, onEdit }) {
     <div class="agent-h"><${Logo} name=${rt.logo || rt.id} size="lg" />
       <div class="grow"><div class="agent-t"><h2>${rt.name}</h2><span class=${'pill ' + tone}><i class=${'dot ' + tone}></i>${state}</span></div>
         <p>${tSource(rt.description) || ''}</p>
-        <div class="agent-meta">${ver && html`<span>${rt.id === 'antigravity' ? t("harnesses.page.pont_loom") : 'ACP'} ${ver}</span>`}${accountKnown && html`<span><i class=${'dot ' + (auth.connected ? 'green' : 'amber')}></i>${account}</span>`}${usage && usage.total_tokens ? html`<a href="#/usage">${fmtTok(usage.total_tokens)} tokens · 7 j</a>` : ''}</div></div>
+        <div class="agent-meta">${(compat.protocol || ver) && html`<span title=${compat.tested_version ? t('agents.compat.tested', { v: compat.tested_version }) : ''}>${PROTOCOL[compat.protocol] || (rt.id === 'antigravity' ? t("harnesses.page.pont_loom") : 'ACP')} ${compat.version || ver || ''}</span>`}${accountKnown && html`<span><i class=${'dot ' + (auth.connected ? 'green' : 'amber')}></i>${account}</span>`}${usage && usage.total_tokens ? html`<a href="#/usage">${fmtTok(usage.total_tokens)} tokens · 7 j</a>` : ''}</div></div>
       <div class="acts">
         ${rt.custom && html`<button class="btn ghost" onClick=${() => onEdit(custom)}>${t("harnesses.page.modifier")}</button><button class="icon-btn" aria-label=${t("harnesses.page.supprimer_2")} onClick=${del}><${Icon} n="trash" /></button>`}
         ${accountKnown && !auth.connected && !missing && html`<button class="btn" onClick=${() => setAccountOpen(true)}>${t('agents.account.login')}</button>`}
@@ -476,6 +510,7 @@ function AgentDetail({ rt, models, onEdit }) {
           : html`<button class="icon-btn" title=${t("harnesses.page.actualiser")} aria-label=${t("harnesses.page.actualiser")} disabled=${busy} onClick=${reread}><${Icon} n="refresh" /></button>
             <button class="btn primary" disabled=${!choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />${t("harnesses.page.nouvelle_discussion")}</button>`}</div></div>
     ${!missing && probe && probe.error && html`<div class="alert amber"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
+    ${!missing && compat.warning && html`<div class="alert"><${Icon} n="info" /><span>${compat.version && compat.tested_version ? t('agents.compat.drift', { v: compat.version, tested: compat.tested_version }) : t('agents.compat.unverified')}</span></div>`}
     ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => loadInfo(true)} onConnect=${reread} />`}
 
     <${AgentMachines} installs=${installs} onChanged=${() => { loadInstalls(); loadProbe(); }} />
