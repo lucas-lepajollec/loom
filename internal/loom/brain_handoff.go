@@ -681,3 +681,17 @@ func saveDiscussionHandoff(s RuntimeSession, summary string) error {
 	defer b.handoffs.mu.Unlock()
 	return b.handoffs.lastError
 }
+
+// moveHandoffProject carries a discussion's existing handoff into another
+// project (or none) right away: the old project's state drops it and the new
+// one shows it, without counting its commands or requests twice.
+func moveHandoffProject(id, project string) {
+	var state handoffState
+	if handoffLoad("discussion:"+id, &state) != nil || state.ID == "" || state.ProjectID == project {
+		return
+	}
+	t := handoffTurn{handoffState: state, Completed: true}
+	t.ProjectID, t.At = project, time.Now().UnixMilli()
+	t.Requests, t.Files, t.Commands, t.CommandTitles = nil, nil, 0, nil
+	theBrain().queueHandoff(t)
+}

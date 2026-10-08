@@ -79,7 +79,7 @@ External Claude Code, Codex, OpenCode and Gemini CLI sessions can use one `loom`
 
 ## Terminals and environment
 
-Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, locally or over SSH. Sessions survive closing a browser tab and replay recent output while Loom is running. Resume a supported harness's native session in a terminal on its machine. See [terminals](docs/terminals.md).
+Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, locally, over SSH or through a paired node’s terminal module. Sessions survive closing a browser tab and replay recent output while Loom is running. Resume a supported harness's native session in a terminal on its machine. See [terminals](docs/terminals.md).
 
 <img src="docs/screenshots/terminals.png" alt="Local and SSH terminal sessions in Loom" width="1000" />
 
@@ -205,7 +205,7 @@ Loom is licensed under the [MIT License](LICENSE). Engines, models and other dep
 
 ### GPU machine without another full Loom
 
-Run `loom node` on Linux to expose engine management, inference and an optional harness module, with separate data and a machine credential. `loom node pair` prints a one-time, ten-minute code; the main backend pairs by address/code and discovers LAN nodes over UDP 2512, without SSH or copying tokens (UI integration is separate). Keep discussions and Brain on the main Loom; selected harnesses can execute on a paired node without SSH. `loom node init --no-harness` disables this module; terminals still require SSH. The independent `observe` module provides read-only machine metrics by default (`loom node init --no-observe` disables it). Backend metrics APIs cover this machine, paired nodes and Linux SSH machines, with a concurrent aggregate for ten-second polling; UI integration is separate. Starting with v0.1.4, use the same release installer with `sh -s -- --node`; it creates a separate user service and binary. See [Engine node](docs/engine-node.md) for pairing, installation, control coverage and updates. The main interface now defaults to port **2510**; explicit `loom web PORT` values remain supported.
+Run `loom node` on Linux to expose engine management, inference and optional harness and terminal modules, with separate data and a machine credential. `loom node pair` prints a one-time, ten-minute code; the main backend pairs by address/code and discovers LAN nodes over UDP 2512, without SSH or copying tokens (UI integration is separate). Keep discussions and Brain on the main Loom; selected harnesses can execute on a paired node without SSH. `loom node init --no-harness` disables harness execution. Paired terminals use real PTYs without SSH and reuse the existing tickets/reconnect UX; `loom node init --no-terminal` disables that independent module (eight terminals per node). The independent `observe` module provides read-only machine metrics by default (`loom node init --no-observe` disables it). Backend metrics APIs cover this machine, paired nodes and Linux SSH machines, with a concurrent aggregate for ten-second polling; UI integration is separate. Starting with v0.1.4, use the same release installer with `sh -s -- --node`; it creates a separate user service and binary. See [Engine node](docs/engine-node.md) for pairing, installation, control coverage and updates. The main interface now defaults to port **2510**; explicit `loom web PORT` values remain supported.
 
 The [control plane audit](docs/control-plane-audit.md) records the security,
 performance and architecture review, its regression gates and operational limits.

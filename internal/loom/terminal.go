@@ -22,8 +22,8 @@ import (
 )
 
 // Terminals: real shells opened from Loom, on this machine or on a connected
-// remote machine (through ssh), in a chosen folder, optionally running a
-// command (an agent's own CLI to check or repair something, an app to run).
+// remote machine (through SSH or its paired node), in a chosen folder,
+// optionally running a command (an agent's own CLI to check or repair something, an app to run).
 // A terminal outlives the browser tab: its process keeps running and the last
 // output is replayed when a tab reattaches. The browser connects with a
 // one-time ticket obtained through the authenticated API, because a WebSocket
@@ -57,7 +57,7 @@ type Terminal struct {
 	done    chan struct{}
 }
 
-// termProcess is the platform pseudo-terminal (terminal_pty_*.go).
+// termProcess abstracts a local PTY, SSH PTY or paired-node WebSocket.
 type termProcess interface {
 	Read([]byte) (int, error)
 	Write([]byte) (int, error)
@@ -185,6 +185,7 @@ func remoteTerminalArgs(m RemoteMachine, key, dir, command string) []string {
 var terminalOpenMu sync.Mutex
 
 func openTerminal(target, dir, command, title string) (*Terminal, error) {
+	command = strings.TrimSpace(command)
 	terminalOpenMu.Lock()
 	defer terminalOpenMu.Unlock()
 	terminals.Lock()
@@ -198,22 +199,7 @@ func openTerminal(target, dir, command, title string) (*Terminal, error) {
 	if running >= maxTerminals {
 		return nil, errors.New("maximum 16 open terminals: close one")
 	}
-	input, err := remoteTerminalInitialInput(target, dir, command)
-	if err != nil {
-		return nil, err
-	}
-	argv, cwd, err := terminalCommand(target, dir, command)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := exec.LookPath(argv[0]); err != nil {
-		return nil, errors.New(argv[0] + " not found")
-	}
-	env := []string{"TERM=xterm-256color", "COLORTERM=truecolor"}
-	if target == "" || target == "local" {
-		env = append(env, "PATH="+lifecycleLocalPath())
-	}
-	proc, err := startPTY(argv, cwd, env)
+	proc, input, err := startTerminalProcess(target, dir, command)
 	if err != nil {
 		return nil, err
 	}
@@ -247,6 +233,61 @@ func openTerminal(target, dir, command, title string) (*Terminal, error) {
 		}
 	}
 	return t, nil
+}
+
+// Select the transport before building SSH argv or injecting login-shell input.
+func startTerminalProcess(target, dir, command string) (termProcess, string, error) {
+	if target != "" && target != "local" {
+		m, err := workspaceMachine(target)
+		if err != nil {
+			return nil, "", err
+		}
+		if usesNodeTerminal(m) {
+			proc, err := startNodeTerminal(m, dir, command)
+			return proc, "", err
+		}
+	}
+	if !ptySupported {
+		return nil, "", errors.New("terminals are not available on this system yet")
+	}
+	input, err := remoteTerminalInitialInput(target, dir, command)
+	if err != nil {
+		return nil, "", err
+	}
+	argv, cwd, err := terminalCommand(target, dir, command)
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := exec.LookPath(argv[0]); err != nil {
+		return nil, "", errors.New(argv[0] + " not found")
+	}
+	proc, err := startPTY(argv, cwd, terminalEnvironment(target))
+	return proc, input, err
+}
+
+func terminalEnvironment(target string) []string {
+	env := []string{"TERM=xterm-256color", "COLORTERM=truecolor"}
+	if target == "" || target == "local" {
+		env = append(env, "PATH="+lifecycleLocalPath())
+	}
+	return env
+}
+
+func validTerminalSize(cols, rows uint16) bool {
+	return cols > 0 && rows > 0 && cols <= 1000 && rows <= 500
+}
+
+// Both browser and node sockets use the same resize control framing.
+func terminalResizeMessage(typ websocket.MessageType, data []byte) (uint16, uint16, bool) {
+	if typ == websocket.MessageText && len(data) > 0 && data[0] == '{' {
+		var msg struct {
+			Resize []uint16 `json:"resize"`
+		}
+		if json.Unmarshal(data, &msg) == nil && len(msg.Resize) == 2 {
+			return msg.Resize[0], msg.Resize[1], true
+		}
+	}
+	return 0, 0, false
 }
 
 // pump copies the process output to the scrollback and to every attached tab.
@@ -362,14 +403,10 @@ func handleTerminals(w http.ResponseWriter, r *http.Request) {
 		}
 		terminals.Unlock()
 		sort.Slice(list, func(i, j int) bool { return list[i].CreatedAt < list[j].CreatedAt })
-		sendJSON(w, 200, map[string]any{"ok": true, "terminals": list, "supported": ptySupported})
+		sendJSON(w, 200, map[string]any{"ok": true, "terminals": list, "supported": terminalsSupported()})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
-		return
-	}
-	if !ptySupported {
-		sendJSON(w, 501, map[string]any{"ok": false, "error": "terminals are not available on this system yet"})
 		return
 	}
 	var req struct {
@@ -381,6 +418,13 @@ func handleTerminals(w http.ResponseWriter, r *http.Request) {
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
+	}
+	if !ptySupported {
+		m, _ := workspaceMachine(req.Target)
+		if !usesNodeTerminal(m) {
+			sendJSON(w, 501, map[string]any{"ok": false, "error": "terminals are not available on this system yet"})
+			return
+		}
 	}
 	if len([]rune(req.Title)) > 60 {
 		req.Title = string([]rune(req.Title)[:60])
@@ -545,14 +589,9 @@ func handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 			if !tk.grant.valid() {
 				return
 			}
-			if typ == websocket.MessageText && len(data) > 0 && data[0] == '{' {
-				var msg struct {
-					Resize []uint16 `json:"resize"`
-				}
-				if json.Unmarshal(data, &msg) == nil && len(msg.Resize) == 2 {
-					_ = t.proc.Resize(msg.Resize[0], msg.Resize[1])
-					continue
-				}
+			if cols, rows, ok := terminalResizeMessage(typ, data); ok {
+				_ = t.proc.Resize(cols, rows)
+				continue
 			}
 			if _, err := t.proc.Write(data); err != nil {
 				return

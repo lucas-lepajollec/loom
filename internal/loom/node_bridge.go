@@ -30,6 +30,9 @@ func nodeModules() []string {
 	if nodeHarnessEnabled() {
 		modules = append(modules, "harness")
 	}
+	if nodeTerminalEnabled() {
+		modules = append(modules, "terminal")
+	}
 	if nodeObserveEnabled() {
 		modules = append(modules, "observe")
 	}
@@ -88,6 +91,9 @@ func nodeMachineModuleAccess(m RemoteMachine, module string) (nodeBridgeAccess, 
 	if !hasNodeModule(m.Modules, module) {
 		if module == "observe" {
 			return nodeBridgeAccess{}, errors.New(nodeObserveDisabled)
+		}
+		if module == "terminal" {
+			return nodeBridgeAccess{}, errors.New(nodeTerminalDisabled)
 		}
 		return nodeBridgeAccess{}, errors.New(nodeHarnessDisabled)
 	}

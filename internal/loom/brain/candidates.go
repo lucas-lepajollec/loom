@@ -11,13 +11,22 @@ import (
 type CandidateDraft struct {
 	Class string
 	Text  string
+	// Explicit: the user asked to be remembered ("retiens…", "sache que…"),
+	// so the item is kept directly instead of waiting for review.
+	Explicit bool
 }
+
+// An explicit memory request; its sentence becomes a reflex when it tells the
+// agent how to answer or act, otherwise a fact about the user.
+var explicitMemory = candidatePattern(`retiens|souviens-toi|n'oublie pas|sache que|saches que|je voudrais que tu saches|je veux que tu saches|pour mes (futures|prochaines) demandes|à l'avenir|remember|keep in mind|for future requests|in the future`)
+var mentionsProject = candidatePattern(`ce projet|le projet|this project|the project|ce dépôt|this repo`)
+var instructionLike = candidatePattern(`réponds|répond|répondre|utilise|écris|parle|fais|évite|structur\p{L}*|answer|reply|respond|use|write|avoid`)
 
 var candidateRules = []struct {
 	class string
 	match *regexp.Regexp
 }{
-	{"semantic", candidatePattern(`retiens|souviens-toi|n'oublie pas|remember|keep in mind|note that`)},
+	{"semantic", candidatePattern(`retiens|souviens-toi|n'oublie pas|sache que|saches que|je voudrais que tu saches|je veux que tu saches|pour mes (futures|prochaines) demandes|à l'avenir|remember|keep in mind|note that|for future requests|in the future`)},
 	// Rules only: a leading or obligatory "always/never", not any sentence using the word.
 	{"reflex", candidatePattern(`désormais|dorénavant|à partir de maintenant|from now on|(tu dois|il faut|vous devez|you must|you should|make sure to) (toujours|jamais|always|never)|ne jamais|n'utilise jamais`)},
 	{"reflex", regexp.MustCompile(`(?i)^[\s"'«(]*(toujours|jamais|always|never)([^\p{L}\p{N}_]|$)`)},
@@ -60,6 +69,10 @@ func CandidatesFromMessage(text string) []CandidateDraft {
 			match := strings.ReplaceAll(sentence, "’", "'")
 			for _, rule := range candidateRules {
 				if rule.match.MatchString(match) {
+					class, explicit := rule.class, explicitMemory.MatchString(match)
+					if explicit && instructionLike.MatchString(match) {
+						class = "reflex"
+					}
 					if len(sentence) > 500 {
 						end := 500
 						for !utf8.RuneStart(sentence[end]) {
@@ -67,7 +80,7 @@ func CandidatesFromMessage(text string) []CandidateDraft {
 						}
 						sentence = strings.TrimSpace(sentence[:end])
 					}
-					out = append(out, CandidateDraft{Class: rule.class, Text: sentence})
+					out = append(out, CandidateDraft{Class: class, Text: sentence, Explicit: explicit})
 					return
 				}
 			}
@@ -119,6 +132,13 @@ func (s *MemoryStore) AddCandidates(drafts []CandidateDraft, scope string, prove
 		}
 		now := time.Now().UnixMilli()
 		item := MemoryItem{ID: newMemoryID(), Class: draft.Class, Scope: scope, Text: draft.Text, Tags: []string{"auto"}, Importance: .5, Confidence: .4, CreatedAt: now, UpdatedAt: now, Provenance: provenance, Status: "candidate"}
+		if draft.Explicit {
+			item.Status, item.Importance, item.Confidence = "active", .8, .7
+			// A preference about the user holds everywhere unless it names the project.
+			if !mentionsProject.MatchString(strings.ReplaceAll(draft.Text, "’", "'")) {
+				item.Scope = "global"
+			}
+		}
 		if err := validateMemory(item); err != nil {
 			return out, err
 		}

@@ -407,3 +407,26 @@ func TestHandoffModelRefinementDoesNotReplaceDiscussion(t *testing.T) {
 		}
 	}
 }
+
+// Regression (Lucas, 2026-10-08): a discussion moved into a project after its
+// exchanges left the project state empty for the next discussion.
+func TestMovedDiscussionFeedsProjectState(t *testing.T) {
+	testHome(t)
+	b := theBrain()
+	b.queueHandoff(handoffTurn{handoffState: handoffState{ID: "moved", Title: "Esprit logique", First: "Sache que je suis un esprit logique", Recap: "Noté : réponses structurées.", At: 1, Turn: "r1"}, Completed: true})
+	b.waitHandoffs()
+	moveHandoffProject("moved", "p")
+	b.waitHandoffs()
+	list, err := b.ListMemory(brain.MemoryFilter{Classes: []string{"working"}, Scopes: []string{"project:p"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := continuityMemory(list.Items, "working", "project:p", "project-state", "")
+	if !strings.Contains(state.Text, "esprit logique") {
+		t.Fatalf("project state after move: %q", state.Text)
+	}
+	var h handoffState
+	if handoffLoad("discussion:moved", &h); h.ProjectID != "p" || h.Commands != 0 || len(h.Requests) > 1 {
+		t.Fatalf("handoff after move: %+v", h)
+	}
+}

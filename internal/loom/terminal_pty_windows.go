@@ -36,7 +36,11 @@ type windowsPTY struct {
 	closeErr      error
 }
 
-func startPTY(argv []string, dir string, env []string) (_ termProcess, err error) {
+func startPTY(argv []string, dir string, env []string) (termProcess, error) {
+	return startPTYSize(argv, dir, env, 100, 30)
+}
+
+func startPTYSize(argv []string, dir string, env []string, cols, rows uint16) (_ termProcess, err error) {
 	if !ptySupported {
 		return nil, errors.New("terminals are not available on Windows yet: ConPTY requires Windows 10 1809 or later")
 	}
@@ -86,7 +90,7 @@ func startPTY(argv []string, dir string, env []string) (_ termProcess, err error
 			_ = p.Close()
 		}
 	}()
-	if err = windows.CreatePseudoConsole(windows.Coord{X: 100, Y: 30}, inRead, outWrite, 0, &p.console); err != nil {
+	if err = windows.CreatePseudoConsole(windows.Coord{X: int16(cols), Y: int16(rows)}, inRead, outWrite, 0, &p.console); err != nil {
 		return nil, err
 	}
 	attrs, err := windows.NewProcThreadAttributeList(1)
@@ -156,7 +160,7 @@ func startPTY(argv []string, dir string, env []string) (_ termProcess, err error
 func (p *windowsPTY) Read(b []byte) (int, error)  { return p.output.Read(b) }
 func (p *windowsPTY) Write(b []byte) (int, error) { return p.input.Write(b) }
 func (p *windowsPTY) Resize(cols, rows uint16) error {
-	if cols == 0 || rows == 0 || cols > 1000 || rows > 500 {
+	if !validTerminalSize(cols, rows) {
 		return errors.New("invalid size")
 	}
 	p.mu.Lock()

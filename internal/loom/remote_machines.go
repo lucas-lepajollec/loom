@@ -353,11 +353,24 @@ func machineName(id string) string {
 	return ""
 }
 
+// Public capabilities are derived from saved transport identity, never requests.
+type remoteMachineInfo struct {
+	RemoteMachine
+	Capabilities []string `json:"capabilities"`
+}
+
 // GET: machines, Loom's public key and the setup block.
 // POST {machine, harnesses}: check, save the machine and (re)register its harnesses.
 func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		list := loadRemoteMachines()
+		list := []remoteMachineInfo{}
+		for _, m := range loadRemoteMachines() {
+			caps := []string{}
+			if machineTerminalsSupported(m) {
+				caps = append(caps, "terminals")
+			}
+			list = append(list, remoteMachineInfo{m, caps})
+		}
 		_, pub, err := loomSSHKey()
 		// Paired nodes remain usable on a main without SSH tooling.
 		if err != nil && len(list) == 0 {
@@ -370,7 +383,7 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 		}
 		offers := map[string]any{}
 		for _, m := range list {
-			offers[m.ID] = remoteOffers(m)
+			offers[m.ID] = remoteOffers(m.RemoteMachine)
 		}
 		sendJSON(w, 200, map[string]any{"ok": true, "machines": list, "offers": offers, "key": pub, "setup": setup, "script": remoteProbeScript})
 		return

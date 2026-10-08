@@ -1,15 +1,24 @@
 # Terminals
 
-Loom opens real shells on this machine or a saved SSH machine, optionally in a
-chosen folder and with a command to run. Open them from Terminals, a project,
+Loom opens real shells on this machine, a saved SSH machine or a paired node
+with the `terminal` module, optionally in a chosen folder and with a command to
+run. Open them from Terminals, a project,
 a harness discussion or a machine. A terminal survives closing its browser tab
 and replays up to 256 KiB of recent output when reattached. It ends when its shell
 exits, when explicitly closed or when Loom exits; sessions do not survive a Loom
-restart. At most 16 terminals may run at once. **Resume in a terminal** reopens
+restart. At most 16 terminals may run at once on the main; each node permits eight
+concurrent terminals independently of its harness limit. **Resume in a terminal**
+reopens
 a supported harness’s native session on its original machine and in its working
 folder: Claude Code, Codex, OpenCode, Pi and Hermes have known resume
 commands; Antigravity does not currently have one in Loom. The discussion must
 already have a native session ID.
+
+Paired nodes use their saved machine credential only in a WebSocket handshake
+header. Browser reconnection reattaches through the existing ticket and leaves
+the main-to-node connection alive. A lost node connection ends the terminal;
+commands are never automatically restarted. See [engine node](engine-node.md#terminals-on-a-paired-machine)
+for the route, independent module opt-out and authentication boundary.
 
 ## Platforms and shells
 
@@ -44,7 +53,7 @@ The interface session or automation control key protects terminal management. We
 
 | Route | Behavior |
 | --- | --- |
-| `GET /api/terminals` | Lists terminal snapshots and the host's `supported` capability. |
+| `GET /api/terminals` | Lists terminal snapshots and `supported` (local PTY or an advertised paired-node terminal). |
 | `POST /api/terminals` | Opens `{target,dir,command,title,request_id?}`; `target` is `local` or a saved machine ID. |
 | `POST /api/terminals/ticket` | `{id}` returns the one-time attachment ticket. |
 | `GET /api/terminals/ws?ticket=…` | Binary output, keystroke input and text `{"resize":[cols,rows]}` messages. |
@@ -54,8 +63,12 @@ The interface session or automation control key protects terminal management. We
 ## Validation
 
 Portable tests cover Windows shell selection, shell argv/command composition,
-Unicode environment blocks and encoded interactive Windows SSH commands. Native
-ConPTY tests are Windows-only and cover output/exit codes, interactive input,
+Unicode environment blocks and encoded interactive Windows SSH commands.
+Node transport tests cover header-only authentication, directory/dimension
+validation, disabled modules, independent limits, PTY resize and process-group
+cleanup. Main-side fake-node WebSockets run through in-memory connections and
+cover input, resize, exit, tickets and reattachment. Native PTY checks skip when
+unavailable. ConPTY tests are Windows-only and cover output/exit codes, interactive input,
 resize validation, repeated close without a reader, and descendant termination.
 Run `go test -short ./internal/loom/ -run Term` on each target OS; cross-building
 and Windows `go vet` check compilation but do not execute ConPTY on Linux.
