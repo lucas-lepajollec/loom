@@ -3,7 +3,7 @@ package loom
 import (
 	"fmt"
 	"github.com/lucas-lepajollec/loom/internal/loom/project"
-	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +53,8 @@ func saveCapability(c Capability) (Capability, error) {
 
 // deleteCapability removes a skill of Loom's folder (linked ones are not Loom's).
 func deleteCapability(id string) error {
+	workspaceMu.Lock()
+	defer workspaceMu.Unlock()
 	c, ok := getCapability(id)
 	if !ok {
 		return fmt.Errorf("skill not found")
@@ -60,7 +62,12 @@ func deleteCapability(id string) error {
 	if c.ReadOnly {
 		return errReadOnlySkill
 	}
-	return os.RemoveAll(c.Dir)
+	root, err := openOwnedSkillsRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return root.RemoveAll(filepath.Base(c.Dir))
 }
 
 func saveProjectContext(p ChatProject) (ChatProject, error) {

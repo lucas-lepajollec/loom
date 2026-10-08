@@ -43,7 +43,7 @@ func (s *brainService) get() (*brain.Engine, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.engine == nil {
-		e, err := brain.New(brain.Options{Storage: s.storage, Conversations: brainConversations, Memory: brainMemory, Distilled: s.distilledDocuments, Available: brainAvailable})
+		e, err := brain.New(brain.Options{Storage: s.storage, ExcludedDirectories: s.skillsIndexExclusions, Conversations: brainConversations, Memory: brainMemory, Distilled: s.distilledDocuments, Available: brainAvailable})
 		if err != nil {
 			return nil, err
 		}
@@ -297,6 +297,9 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			brainResponse(w, nil, err)
 			return
+		}
+		if skillsHomeConfig().Mode == "brain" {
+			syncSkillSinksAsync()
 		}
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources(), "refreshing": e.Refreshing(), "refresh_seconds": 180})

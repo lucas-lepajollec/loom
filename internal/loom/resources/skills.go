@@ -3,6 +3,7 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -99,22 +100,45 @@ func SkillFileContent(slug string, c Capability) string {
 
 // ReadSkillDir reads one skill folder of a source.
 func ReadSkillDir(src SkillSource, dir string) (Capability, bool) {
-	raw, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
+	base := src.Path
+	rel, err := filepath.Rel(src.Path, dir)
+	if err != nil || !filepath.IsLocal(rel) {
+		return Capability{}, false
+	}
+	if !src.Writable {
+		base, rel = dir, "."
+	}
+	root, err := os.OpenRoot(base)
 	if err != nil {
 		return Capability{}, false
 	}
+	defer root.Close()
+	skillPath := filepath.Join(rel, "SKILL.md")
+	info, err := root.Stat(skillPath)
+	if err != nil || !info.Mode().IsRegular() {
+		return Capability{}, false
+	}
+	f, err := root.Open(skillPath)
+	if err != nil {
+		return Capability{}, false
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, (1<<20)+1))
+	if err != nil || len(raw) > 1<<20 {
+		return Capability{}, false
+	}
 	meta, body := ParseSkillMarkdown(string(raw))
-	base := filepath.Base(dir)
+	slug := filepath.Base(dir)
 	c := Capability{ID: meta["metadata.loom-id"], Name: meta["metadata.title"], Description: meta["description"], Instructions: body,
 		Source: src.ID, SourceLabel: src.Label, Dir: dir, ReadOnly: !src.Writable}
 	if c.ID == "" {
-		c.ID = src.ID + ":" + base
+		c.ID = src.ID + ":" + slug
 	}
 	if c.Name == "" {
 		c.Name = meta["name"]
 	}
 	if c.Name == "" {
-		c.Name = base
+		c.Name = slug
 	}
 	if entries, err := os.ReadDir(dir); err == nil {
 		c.Files = len(entries) - 1
@@ -144,14 +168,16 @@ func ASCIIFold(s string) string {
 
 // Library receives the owned skills directory and ID generator from Loom.
 type Library struct {
-	Root  string
-	NewID func() string
+	ManagedLinks map[string]string
+	Root         string
+	OpenRoot     func() (*os.Root, error)
+	NewID        func() string
 }
 
 // isLoomSkillLink: a link or copy that Loom put in a harness folder.
 func (lib Library) IsLoomSkillLink(dir string) bool {
 	if target, err := os.Readlink(dir); err == nil {
-		return strings.HasPrefix(filepath.Clean(target), filepath.Clean(lib.Root)+string(filepath.Separator))
+		return (lib.ManagedLinks[dir] != "" && filepath.Clean(target) == filepath.Clean(lib.ManagedLinks[dir])) || strings.HasPrefix(filepath.Clean(target), filepath.Clean(lib.Root)+string(filepath.Separator))
 	}
 	_, err := os.Stat(filepath.Join(dir, ".loom-copy"))
 	return err == nil
@@ -191,29 +217,55 @@ func (lib Library) ScanSkills(sources []SkillSource) []Capability {
 // writeLoomSkill creates or rewrites SKILL.md in Loom's folder; other files
 // of the skill folder are left untouched. dir is the existing folder, if any.
 func (lib Library) WriteSkill(c Capability, dir string) (string, error) {
-	root := lib.Root
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	var root *os.Root
+	var err error
+	if lib.OpenRoot != nil {
+		root, err = lib.OpenRoot()
+	} else {
+		if err = os.MkdirAll(lib.Root, 0o755); err == nil {
+			root, err = os.OpenRoot(lib.Root)
+		}
+	}
+	if err != nil {
 		return "", err
 	}
+	defer root.Close()
 	if c.ID == "" {
-		c.ID = lib.NewID() // stable even if the folder is renamed later
+		c.ID = lib.NewID()
 	}
+	rel := ""
 	if dir == "" {
 		slug := SkillDirSlug(c.Name)
-		dir = filepath.Join(root, slug)
+		rel = slug
 		for i := 2; ; i++ {
-			if _, err := os.Stat(dir); os.IsNotExist(err) {
+			if _, err := root.Lstat(rel); os.IsNotExist(err) {
 				break
+			} else if err != nil {
+				return "", err
 			}
-			dir = filepath.Join(root, fmt.Sprintf("%s-%d", slug, i))
+			rel = fmt.Sprintf("%s-%d", slug, i)
 		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return "", err
+	} else {
+		rel, err = filepath.Rel(lib.Root, dir)
+		if err != nil || !filepath.IsLocal(rel) || rel == "." {
+			return "", errors.New("skill folder must stay inside Loom's library")
 		}
 	}
-	tmp := filepath.Join(dir, ".SKILL.md.loom-tmp")
-	if err := os.WriteFile(tmp, []byte(SkillFileContent(filepath.Base(dir), c)), 0o644); err != nil {
+	if err := root.MkdirAll(rel, 0o755); err != nil {
 		return "", err
 	}
-	return dir, os.Rename(tmp, filepath.Join(dir, "SKILL.md"))
+	tmp := filepath.Join(rel, ".SKILL.md.loom-tmp")
+	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return "", err
+	}
+	defer root.Remove(tmp)
+	_, err = f.WriteString(SkillFileContent(filepath.Base(rel), c))
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = root.Rename(tmp, filepath.Join(rel, "SKILL.md"))
+	}
+	return filepath.Join(lib.Root, rel), err
 }

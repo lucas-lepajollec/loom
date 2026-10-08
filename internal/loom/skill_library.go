@@ -12,7 +12,7 @@ import (
 
 // Skills are folders in the Agent Skills format (<name>/SKILL.md plus any
 // files), the format Claude Code, Codex, Pi and others read. Loom keeps its own
-// skills in LOOM_HOME/skills, editable with any editor and versionable with
+// skills in LOOM_HOME/skills or the primary Brain, editable and versionable with
 // Git, and can link folders the user already has (another tool's skills
 // folder, a repository of skills). Linked folders are read-only: Loom lists
 // and distributes their skills, never rewrites them.
@@ -31,8 +31,6 @@ const skillSourcesState = "skill_sources"
 
 var skillLibMu sync.Mutex
 
-func loomSkillsDir() string { return filepath.Join(LoomHome(), "skills") }
-
 func linkedSkillSources() []SkillSource {
 	list := []SkillSource{}
 	_ = getStoreJSON(bkState, skillSourcesState, &list)
@@ -45,7 +43,7 @@ func skillSources() []SkillSource {
 }
 
 // migrateSkillsToFolders writes the skills stored in the database before
-// folders existed into LOOM_HOME/skills (once, keeping their ids).
+// folders existed into the active skills home (once, keeping their ids).
 var skillMigrateOnce sync.Once
 
 func migrateSkillsToFolders() {

@@ -6,6 +6,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Skills home in the primary second brain: backend detection and switching,
+  non-overwriting migration with retained backups, safe harness link re-sync,
+  note-index exclusion, and read-only Brain MCP skill discovery/read tools.
+
 - Brain v2 cheap consolidation: background FR/EN heuristics propose reviewed
   memory candidates without model calls, with dedupe, pending caps and an
   automatic-collection toggle; opt-in discussion consolidation reuses

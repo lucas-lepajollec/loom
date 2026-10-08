@@ -129,10 +129,11 @@ type Document struct {
 // Provider emits documents one at a time and stops when emit returns false.
 type Provider func(context.Context, func(Document) bool) error
 type Options struct {
-	Storage       Storage
-	Conversations Provider
-	Memory        Provider
-	Distilled     Provider
+	ExcludedDirectories func() []string
+	Storage             Storage
+	Conversations       Provider
+	Memory              Provider
+	Distilled           Provider
 	// Available is checked on every read and refresh (e.g. vault locking).
 	Available func() error
 }

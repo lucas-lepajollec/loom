@@ -38,7 +38,7 @@ func loadSkillSinks() []skillSinkTarget {
 	out := skillSinkDefs()
 	for i := range out {
 		if s, ok := saved[out[i].ID]; ok {
-			out[i].Enabled, out[i].Written = s.Enabled, s.Written
+			out[i].Enabled, out[i].Written, out[i].Links = s.Enabled, s.Written, s.Links
 		}
 	}
 	return out
@@ -47,7 +47,7 @@ func loadSkillSinks() []skillSinkTarget {
 func saveSkillSinks(list []skillSinkTarget) error {
 	m := map[string]skillSinkTarget{}
 	for _, t := range list {
-		m[t.ID] = skillSinkTarget{ID: t.ID, Enabled: t.Enabled, Written: t.Written}
+		m[t.ID] = skillSinkTarget{ID: t.ID, Enabled: t.Enabled, Written: t.Written, Links: t.Links}
 	}
 	return putStoreJSON(bkState, skillSinkState, m)
 }
