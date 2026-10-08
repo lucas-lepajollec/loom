@@ -934,3 +934,5 @@ button.mcard:hover{border-color:var(--line-strong)}
 .view.page>.page-in>:nth-child(n+3){animation-delay:40ms}
 .tab-body{animation:page-in 260ms cubic-bezier(.2,.8,.2,1) both}
 @media (prefers-reduced-motion:reduce){.sec-pill,.view.page>.page-in>*,.tab-body{transition:none;animation:none}}
+.mi-path{display:flex;align-items:center;gap:6px;margin:-4px 0 10px}
+.mi-path .ico{width:13px;height:13px}

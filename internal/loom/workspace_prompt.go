@@ -2,7 +2,6 @@ package loom
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -56,6 +55,10 @@ func appendContextPart(c *DiscussionContext, part contextPart) {
 }
 
 func assembleDiscussionContext(s RuntimeSession, query string) DiscussionContext {
+	return assembleDiscussionContextParts(s, query, true)
+}
+
+func assembleDiscussionContextParts(s RuntimeSession, query string, notes bool) DiscussionContext {
 	c := DiscussionContext{MCPServers: s.MCPServers, ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}, Items: []discussion.ContextItem{}}
 	c.Budget.ByKind = map[string]int{}
 	add := func(kind, label, source, reason, text string) {
@@ -69,7 +72,6 @@ func assembleDiscussionContext(s RuntimeSession, query string) DiscussionContext
 		add("global_preferences", selected.Page, selected.Page, "selected shared preferences", text)
 		c.GlobalPreferences = text
 	}
-	passageText := ""
 	skillParts := []contextPart{}
 	if s.ProjectID != "" {
 		p, ok := getProject(s.ProjectID)
@@ -101,8 +103,10 @@ func assembleDiscussionContext(s RuntimeSession, query string) DiscussionContext
 			if warning != "" {
 				c.Warning = warning
 			}
-			pack := projectBrainPack(p, query)
-			passageText = pack.Text
+			pack := brain.Pack{}
+			if notes {
+				pack = projectBrainPack(p, query)
+			}
 			for i, chunk := range pack.Chunks {
 				cite := pack.Citations[i]
 				text := "\n[" + cite.Source + ": " + cite.Citation + "]\n" + chunk.Text + "\n"
@@ -124,56 +128,26 @@ func assembleDiscussionContext(s RuntimeSession, query string) DiscussionContext
 			}
 		}
 	}
-	budgets := brain.DefaultMemoryBudgets()
-	c.Budget.Memory = discussion.MemoryBudget{TokenBudget: discussion.TokenBudget{Available: budgets.Total}, Classes: map[string]discussion.TokenBudget{}}
-	for class, limit := range budgets.Classes() {
-		c.Budget.Memory.Classes[class] = discussion.TokenBudget{Available: limit}
-	}
-	scopes := []string{"global"}
-	discussionID := ""
-	turns := len(s.Turns)
-	if turns == 0 {
-		var state handoffState
-		if handoffLoad("discussion:"+s.ID, &state) == nil {
-			turns = state.Turns
-		}
-	}
-	if turns >= handoffContextTurns {
-		discussionID = s.ID
-	}
-	if discussionID != "" {
-		scopes = append(scopes, "task:"+s.ID)
-	}
-	if s.ContinuedFrom != "" {
-		scopes = append(scopes, "task:"+s.ContinuedFrom)
-	}
-	if s.ProjectID != "" {
-		scopes = append(scopes, "project:"+s.ProjectID)
-	}
-	if s.RuntimeID != "" {
-		scopes = append(scopes, "agent:"+s.RuntimeID)
-	}
-	if list, err := theBrain().ListMemory(brain.MemoryFilter{Scopes: scopes, Status: "all"}); err != nil {
+	c.Budget.Memory = discussion.MemoryBudget{TokenBudget: discussion.TokenBudget{Available: 15000}, Classes: map[string]discussion.TokenBudget{}}
+	if indexes, err := theBrain().MemoryIndex(brain.MemoryIndexRequest{ProjectID: s.ProjectID}); err != nil {
 		if c.Problem == "" {
 			c.Problem = "Loom memory is unavailable: " + err.Error()
 		}
 	} else {
-		pack := brain.SelectMemory(list.Items, s.ProjectID, s.RuntimeID, query, passageText, budgets, discussionID, s.ContinuedFrom)
-		c.Budget.Memory.Used = brain.Tokens(pack.Text)
-		for class, used := range pack.Used {
-			limit := c.Budget.Memory.Classes[class]
-			limit.Used = used
-			c.Budget.Memory.Classes[class] = limit
-		}
-		for i, selected := range pack.Items {
-			item := selected.Item
-			words := strings.Fields(item.Text)
-			label := strings.Join(words[:min(len(words), 8)], " ")
-			separator := ""
-			if i == 0 {
-				separator = "\n\n"
+		for _, part := range brain.FileMemoryContext(indexes.Global, indexes.Project, query, loomTranscript(s)) {
+			scope := part.Scope
+			if scope == "project" {
+				scope = "project:" + s.ProjectID
 			}
-			appendContextPart(&c, contextPart{text: selected.Section, separator: separator, item: discussion.ContextItem{Kind: "memory", Label: label, Source: item.ID, Class: item.Class, Scope: item.Scope, Reason: selected.Reason}})
+			add("memory", part.File, part.File, part.Reason, part.Text)
+			c.Items[len(c.Items)-1].Scope = scope
+			c.Budget.Memory.Used += c.Items[len(c.Items)-1].Tokens
+		}
+		if indexes.Global.Warning != "" {
+			c.Warning = indexes.Global.Warning
+		}
+		if indexes.Project != nil && indexes.Project.Warning != "" {
+			c.Warning = indexes.Project.Warning
 		}
 	}
 	for _, part := range skillParts {
@@ -191,20 +165,6 @@ func assembleDiscussionContext(s RuntimeSession, query string) DiscussionContext
 	c.EstimatedTokens = brain.Tokens(c.System)
 	c.Revision = discussionContextRevision(s, c)
 	return c
-}
-
-// Usage is best-effort bookkeeping on an accepted execution, never preparation.
-// A write failure must not turn a successfully accepted message into a resend.
-func touchContextMemory(c DiscussionContext) {
-	ids := []string{}
-	for _, item := range c.Items {
-		if item.Kind == "memory" {
-			ids = append(ids, item.Source)
-		}
-	}
-	if len(ids) > 0 {
-		_ = theBrain().TouchMemory(ids)
-	}
 }
 
 func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions, revision string, consent bool, harness ...acpConfiguration) (RuntimeSession, error) {
@@ -281,10 +241,18 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 		return s, err
 	}
 	m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(s), "context": turnContext(s, nextContext)})
-	// Moving a discussion carries its handoff into the new project's state (and
-	// out of the old one) now, not at its next exchange.
+	// Moving a discussion updates its canonical transcript folder.
 	if original.ProjectID != projectID {
-		moveHandoffProject(id, projectID)
+		if s.RuntimeID == "llama.cpp" && s.NativeArchive != "" {
+			if archive, ok := loadArchive(s.NativeArchive); ok {
+				archive.ProjectID = projectID
+				if err := saveArchive(archive); err != nil {
+					return s, err
+				}
+			}
+			conv.setActiveProjectIfMatch(s.NativeArchive, projectID)
+		}
+		theBrain().queueSessionTranscript(s)
 	}
 	return s, nil
 }
@@ -357,25 +325,17 @@ func handleRuntimeSessionRewind(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, 200, map[string]any{"ok": true, "text": text, "session": clientSession(s), "context": discussionContext(s)})
 }
 
-// memoryProtocol is Hermes' habit for any agent Loom launches: it keeps the
-// small core notes current itself, with the loom MCP tools it already has, so
-// continuity costs no extra model call and needs no local engine.
+// Native agents read the same files; gateway tools provide access when file
+// tools are unavailable. Background consolidation is Loom's own responsibility.
+// memoryProtocol is for agents that can act on memory (files or the loom MCP
+// tools); Loom-held chats have no such tools and Pi has no MCP.
 func memoryProtocol(s RuntimeSession) string {
 	registered, ok := registeredRuntimes.lookup(s.RuntimeID)
 	if !ok {
 		return ""
 	}
-	if _, acp := registered.(*acpAdapter); !acp {
+	if _, acp := registered.(*acpAdapter); !acp || s.RuntimeID == "pi" || strings.HasSuffix(s.RuntimeID, "-pi") {
 		return ""
 	}
-	// Pi has no MCP: asking it to use memory tools sends it grepping files.
-	// It still receives the pinned core notes and project state.
-	if s.RuntimeID == "pi" || strings.HasSuffix(s.RuntimeID, "-pi") {
-		return ""
-	}
-	project := "this discussion has no project, so skip project notes"
-	if s.ProjectID != "" {
-		project = fmt.Sprintf("the project notes: the semantic item tagged %s with scope project:%s (at most %d characters; its conventions, decisions and environment)", brain.ProjectNotesTag, s.ProjectID, brain.ProjectNotesLimit)
-	}
-	return fmt.Sprintf("Loom memory (tools on the MCP server \"loom\"): keep two short core notes current yourself, with update_memory (or remember when absent): the user profile, the global semantic item tagged %s (at most %d characters; who the user is, preferences, how they work), and %s. Update them when you learn something durable or finish meaningful work; condense instead of growing when a write reports the note is full. Use search_discussions to recall earlier discussions before asking the user to repeat. Never store secrets.", brain.ProfileTag, brain.ProfileLimit, project)
+	return "Memory is stored as Markdown in the second brain. Read MEMORY.md indexes above at session start, then relevant topic files on demand using file access or memory_read. Use memory_write and memory_delete to keep indexes consistent. Types: user, feedback, project, reference. Feedback/project memories include **Why:** and **How to apply:**. Prefer updating existing files to near-duplicates. Never store secrets or facts derivable from code/git. Use search_discussions for verbatim recall."
 }

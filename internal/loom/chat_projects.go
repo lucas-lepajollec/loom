@@ -106,7 +106,13 @@ func deleteProject(id string) error {
 	if conv.currentProject() == id {
 		conv.setActiveProject("")
 	}
-	return putBytes(bkProjects, id, nil)
+	if err := putBytes(bkProjects, id, nil); err != nil {
+		return err
+	}
+	if err := theBrain().syncBrainAgents(); err != nil {
+		return fmt.Errorf("project deleted; agent links: %w", err)
+	}
+	return nil
 }
 
 func setArchiveProject(id, projectID string) error {

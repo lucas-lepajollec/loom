@@ -17,22 +17,20 @@ import (
 
 // Each mux owns its Brain service; no new application global is introduced.
 type brainService struct {
-	handoffMu       sync.Mutex
-	mu              sync.Mutex
-	storage         brainStorage
-	engine          *brain.Engine
-	semantic        *brainSemantic
-	itemsMu         sync.Mutex
-	items           *brain.MemoryStore
-	itemsDir        string
-	itemsBase       string
-	itemsEncrypted  bool
-	distillMu       sync.Mutex
-	consolidationMu sync.Mutex
-	continuity      brainContinuity
-	handoffs        brainHandoffs
-	candidateWrites sync.WaitGroup
-	writeRefresh    sync.WaitGroup
+	mu             sync.Mutex
+	storage        brainStorage
+	engine         *brain.Engine
+	semantic       *brainSemantic
+	itemsMu        sync.Mutex
+	items          *brain.MarkdownStore
+	itemsDir       string
+	itemsEncrypted bool
+	distillMu      sync.Mutex
+	consolidation  memoryConsolidation
+	transcriptMu   sync.Mutex
+	transcriptTail chan struct{}
+	writeRefresh   sync.WaitGroup
+	leaveJobs      sync.WaitGroup
 }
 
 func newBrainService(home string) *brainService {
@@ -45,7 +43,7 @@ func (s *brainService) get() (*brain.Engine, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.engine == nil {
-		e, err := brain.New(brain.Options{Storage: s.storage, ExcludedDirectories: func() []string { return append(s.skillsIndexExclusions(), s.coreFilesIndexExclusions()...) }, Conversations: brainConversations, Memory: brainMemory, Distilled: s.distilledDocuments, Available: brainAvailable})
+		e, err := brain.New(brain.Options{Storage: s.storage, ExcludedDirectories: s.brainIndexExclusions, Conversations: s.discussionDocuments, Memory: s.memoryDocuments, Distilled: s.distilledDocuments, Available: brainAvailable})
 		if err != nil {
 			return nil, err
 		}
@@ -54,10 +52,15 @@ func (s *brainService) get() (*brain.Engine, error) {
 	return s.engine, nil
 }
 func (s *brainService) run(ctx context.Context) {
-	defer s.waitHandoffs()
-	continuityDone := make(chan struct{})
-	go func() { defer close(continuityDone); s.continuityLoop(ctx) }()
-	defer func() { <-continuityDone }()
+	defer func() {
+		s.cancelMemoryConsolidation()
+		s.leaveJobs.Wait()
+		transcriptJobs.Wait()
+		s.writeRefresh.Wait()
+	}()
+	consolidationDone := make(chan struct{})
+	go func() { defer close(consolidationDone); s.memoryConsolidationLoop(ctx) }()
+	defer func() { <-consolidationDone }()
 	defer func() {
 		s.mu.Lock()
 		m := s.semantic
@@ -71,7 +74,7 @@ func (s *brainService) run(ctx context.Context) {
 			_ = e.Refresh(ctx)
 			s.refreshSemanticIfSelected()
 			syncPortableMCP()
-			_ = s.syncCoreFiles()
+			_ = s.syncBrainAgents()
 		}
 	}
 	refresh()
@@ -310,6 +313,10 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 			syncSkillSinksAsync()
 		}
 		syncPortableMCP()
+		if err = s.syncBrainAgents(); err != nil {
+			brainResponse(w, nil, fmt.Errorf("source saved; agent links: %w", err))
+			return
+		}
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources(), "refreshing": e.Refreshing(), "refresh_seconds": 180})
 }
@@ -384,7 +391,7 @@ func theBrain() *brainService {
 
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	s := theBrain()
-	for route, handler := range map[string]http.HandlerFunc{"items": s.itemsHTTP, "items/update": s.updateMemoryHTTP, "items/forget": s.forgetMemoryHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "consolidate": s.consolidateHTTP, "consolidation": s.consolidationHTTP, "core-files": s.coreFilesHTTP, "continuity": s.continuityHTTP, "continuity/run": s.continuityRunHTTP, "continuity/status": s.continuityStatusHTTP, "continuity/handoff": s.handoffHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
+	for route, handler := range map[string]http.HandlerFunc{"agents": s.agentsHTTP, "memory": s.memoryHTTP, "memory/delete": s.memoryDeleteHTTP, "memory/consolidate": s.memoryConsolidateHTTP, "memory/status": s.memoryStatusHTTP, "memory/settings": s.memorySettingsHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
 		protected := requireWebAuth(handler)
 		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")

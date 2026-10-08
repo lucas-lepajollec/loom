@@ -70,7 +70,7 @@ func engineGenerationLease(ctx context.Context) func() {
 }
 
 func engineNativeGenerating() bool {
-	if continuityGenerating() || benchBusy.Load() {
+	if discussionGenerating() || benchBusy.Load() {
 		return true
 	}
 	var leases map[string]int64

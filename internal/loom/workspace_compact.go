@@ -174,13 +174,11 @@ func (m *runtimeSessions) compactNow(ctx context.Context, id string) (RuntimeSes
 	defer release()
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	next, summary, changed, err := m.compactSnapshot(ctx, s, key)
+	next, _, changed, err := m.compactSnapshot(ctx, s, key)
 	if err != nil || !changed {
 		return s, false, err
 	}
-	if err = saveDiscussionHandoff(next, summary); err != nil {
-		return s, false, err
-	}
+	theBrain().queueSessionTranscript(next)
 	err = func() error {
 		m.mu.Lock()
 		defer m.mu.Unlock()

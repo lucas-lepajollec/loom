@@ -47,8 +47,6 @@ function Edit({ onClose }) {
 // Pourquoi chaque élément est dans le contexte : sa nature, la raison et son
 // coût en tokens, dans l'ordre du texte préparé pour le modèle.
 const KIND = () => ({ global_preferences: [t('why.kind.preferences'), 'sliders'], project: [t('why.kind.project'), 'folder'], project_files: [t('why.kind.project_files'), 'file'], brain_passage: [t('why.kind.brain'), 'brain'], memory: [t('why.kind.memory'), 'brain'], skill: [t('why.kind.skill'), 'sparkle'], primary_brain: [t('why.kind.primary'), 'brain'], secondary_brains: [t('why.kind.secondary'), 'brain'], discussion_instructions: [t('why.kind.discussion'), 'edit'] });
-const MEMORY_REASON = () => ({ reflex: t('why.reason.reflex'), working: t('why.reason.working') });
-const CLASS = () => ({ reflex: t('memory.class.reflex'), working: t('memory.class.working'), procedural: t('memory.class.procedural'), semantic: t('memory.class.semantic'), episodic: t('memory.class.episodic'), session: t('memory.class.session') });
 
 function WhyInContext({ ctx }) {
   const items = ctx.items || [];
@@ -58,9 +56,9 @@ function WhyInContext({ ctx }) {
   return html`<div class="ctx-block why"><div class="lbl">${t('why.title')}<span class="muted">~${(ctx.estimated_tokens || 0).toLocaleString(locale())} tok</span></div>
     ${mem && html`<div class="why-budget"><span>${t('why.memory_budget')}</span><b>${mem.used} / ${mem.available}</b><div class="gauge"><i style=${`width:${pct}%`}></i></div></div>`}
     <div class="why-list">${items.map((it, i) => { const [kind, ico] = KIND()[it.kind] || [it.kind, 'info'];
-      const reason = it.kind === 'memory' ? (MEMORY_REASON()[it.class] || t('why.reason.matches')) : it.kind === 'brain_passage' ? t('why.reason.passage') : '';
+      const reason = it.kind === 'memory' ? (it.label === 'MEMORY.md' ? t('why.reason.index') : t('why.reason.matches')) : it.kind === 'brain_passage' ? t('why.reason.passage') : '';
       return html`<div class="why-item" key=${i} title=${it.reason || ''}><${Icon} n=${ico} /><div class="grow"><b class="trunc">${it.label || kind}</b>
-        <small>${[it.kind === 'memory' ? CLASS()[it.class] || it.class : kind, reason].filter(Boolean).join(' · ')}</small></div><span class="mono muted">${it.tokens || 0}</span></div>`; })}</div>
+        <small>${[it.kind === 'memory' ? (it.scope === 'global' ? t('memory.scope.everywhere') : t('memory.type.project')) : kind, reason].filter(Boolean).join(' · ')}</small></div><span class="mono muted">${it.tokens || 0}</span></div>`; })}</div>
   </div>`;
 }
 

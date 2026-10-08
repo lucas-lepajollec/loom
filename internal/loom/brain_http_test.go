@@ -58,7 +58,7 @@ func TestBrainRecordsBatchingStopAndReadOnlyArchives(t *testing.T) {
 	if err != nil || complete || count != 1 {
 		t.Fatalf("early stop: %d %v %v", count, complete, err)
 	}
-	if err = brainConversations(context.Background(), func(d brain.Document) bool {
+	if err = theBrain().discussionDocuments(context.Background(), func(d brain.Document) bool {
 		if strings.Contains(d.Text, "hiddenword") {
 			t.Fatal("reasoning indexed")
 		}
@@ -162,7 +162,7 @@ func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
 	}
 	defer session.Close()
 	tools, err := session.ListTools(ctx, nil)
-	if err != nil || len(tools.Tools) != 13 {
+	if err != nil || len(tools.Tools) != 12 {
 		t.Fatalf("streamable tools: %v %v", tools, err)
 	}
 	tool, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "brain_pack", Arguments: brain.PackRequest{Query: "unicorn", Sources: []string{"project"}}})
@@ -188,10 +188,8 @@ func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
 
 func TestBrainLoomStorageBuiltinsAndVaultLock(t *testing.T) {
 	testHome(t)
-	if err := os.MkdirAll(memoryDir(), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeMemFile("brain-page.md", []byte("# Memo\nprivatebrainword")); err != nil {
+	service := theBrain()
+	if _, err := service.MemoryWrite(brain.MemoryWrite{Scope: "global", Name: "Memo", Description: "Private recall", Type: "reference", Text: "privatebrainword"}); err != nil {
 		t.Fatal(err)
 	}
 	workspaceSessions = newRuntimeSessions()
@@ -200,8 +198,8 @@ func TestBrainLoomStorageBuiltinsAndVaultLock(t *testing.T) {
 	if err := putStoreJSON(bkRuntimeSessions, session.ID, session); err != nil {
 		t.Fatal(err)
 	}
-	storage := brainStorage{filepath.Join(LoomHome(), "brain")}
-	e, err := brain.New(brain.Options{Storage: storage, Memory: brainMemory, Conversations: brainConversations, Available: brainAvailable})
+	storage := service.storage
+	e, err := service.get()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -106,8 +106,8 @@ Only model-facing messages change: `messages`, turn provenance and display/tool
 journals remain available for replay. `portable_messages` is an internal
 persisted prompt history and is omitted from client payloads. Compaction records
 are retained as `compactions:[{at,runtime_id,provider_id?,model,before,after}]`;
-`at` is Unix milliseconds and token counts are estimates. The summary is appended
-to the discussion handoff's Recap in the existing Brain memory store.
+`at` is Unix milliseconds and token counts are estimates. The display journal remains the source of the verbatim Brain transcript;
+compaction does not create a handoff memory item.
 
 A successful Loom compaction returns HTTP 200 with
 `{ok:true,compacted:true,session}` and publishes `{type:"compacted"}` over the
@@ -130,14 +130,11 @@ discussion to it, then creates the successor there. Errors return HTTP 409
 `{ok:false,error}`. Creation sends no model request and copies no native session,
 approval, usage or tool state.
 
-The successor stores `continued_from:"original-discussion-id"`. Its context
-engine pins the predecessor's `discussion-state` alongside the project's
-`project-state`, sharing the existing bounded working-memory allowance.
-Deterministic handoffs are updated at completed turns from visible goals,
-recaps, plans and reported files/commands, without hidden reasoning or a model
-call. They use the existing Brain store; optional model-generated continuity
-remains an independent refinement. These APIs provide backend actions and
-warning state; this slice adds no interface controls.
+The successor stores `continued_from:"original-discussion-id"`. Verbatim Brain
+transcripts remain available through `search_discussions` and `brain_read`.
+Project/global memory indexes and topics supply durable context; no predecessor
+handoff or project-state memory is pinned. Creating a continuation sends no
+model request and introduces no interface controls.
 
 ## Cloud destinations and credentials
 

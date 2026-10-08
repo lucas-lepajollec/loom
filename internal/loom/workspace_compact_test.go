@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,8 +12,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-
-	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 )
 
 func compactFixture(t *testing.T) (*runtimeSessions, RuntimeSession) {
@@ -37,7 +36,7 @@ func compactFixture(t *testing.T) (*runtimeSessions, RuntimeSession) {
 	if err := putStoreJSON(bkRuntimeSessions, s.ID, s); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { theBrain().candidateWrites.Wait() })
+	t.Cleanup(func() { transcriptJobs.Wait() })
 	return m, s
 }
 func compactModel(t *testing.T) *atomic.Int32 {
@@ -111,7 +110,7 @@ func TestWorkspaceContextStateAndWarning(t *testing.T) {
 		t.Fatal("list lost context estimate")
 	}
 }
-func TestWorkspaceCompactNowPreservesJournalAndUpdatesHandoff(t *testing.T) {
+func TestWorkspaceCompactNowPreservesJournalAndTranscript(t *testing.T) {
 	m, original := compactFixture(t)
 	calls := compactModel(t)
 	events := make(chan DiscussionEvent, 8)
@@ -133,14 +132,6 @@ func TestWorkspaceCompactNowPreservesJournalAndUpdatesHandoff(t *testing.T) {
 	if e := <-events; e["type"] != "compacted" {
 		t.Fatal(e)
 	}
-	list, err := theBrain().ListMemory(brain.MemoryFilter{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	state := continuityMemory(list.Items, "working", "task:"+original.ID, "discussion-state", original.ID)
-	if !strings.Contains(state.Text, "## Recap") || !strings.Contains(state.Text, "verify restore") {
-		t.Fatal("handoff recap", state.Text)
-	}
 	prepared := prepareDiscussion(got, "pending new request")
 	if strings.Count(renderTranscript(prepared.Messages), "pending new request") != 1 || len(prepared.Messages) >= len(original.Messages) {
 		t.Fatal("prompt uses display journal")
@@ -156,8 +147,8 @@ func TestWorkspaceCompactNowPreservesJournalAndUpdatesHandoff(t *testing.T) {
 		}
 	}
 	next, err := m.continueDiscussion(got.ID, "Recap project")
-	if err != nil || !strings.Contains(discussionContext(next).System, "verify restore") {
-		t.Fatal("compaction recap not carried into successor", err)
+	if err != nil || next.ContinuedFrom != got.ID {
+		t.Fatal("successor lost its predecessor", err)
 	}
 	stored, _ := m.get(got.ID)
 	if !reflect.DeepEqual(stored.PortableMessages, got.PortableMessages) {
@@ -286,7 +277,7 @@ func TestWorkspaceCompactAndContinueRefuseBusy(t *testing.T) {
 		t.Fatal("compacted generating native turn")
 	}
 }
-func TestWorkspaceContinuePinsHandoffAndProject(t *testing.T) {
+func TestWorkspaceContinueRetainsTranscriptAndProject(t *testing.T) {
 	for _, projectMode := range []string{"none", "same", "new"} {
 		t.Run(projectMode, func(t *testing.T) {
 			m, s := compactFixture(t)
@@ -324,21 +315,39 @@ func TestWorkspaceContinuePinsHandoffAndProject(t *testing.T) {
 			if projectMode == "same" && next.ProjectID != s.ProjectID || projectMode == "new" && (next.ProjectID == "" || next.ProjectID != old.ProjectID) {
 				t.Fatal("project attachment", old.ProjectID, next.ProjectID)
 			}
-			c := discussionContext(next)
-			discussionPinned, projectPinned := false, false
-			for _, item := range c.Items {
-				if item.Kind == "memory" && item.Scope == "task:"+s.ID {
-					discussionPinned = true
-				}
-				if item.Kind == "memory" && item.Scope == "project:"+next.ProjectID && item.Class == "working" {
-					projectPinned = true
+			// Indexes are only injected when they list something.
+			store, err := theBrain().memoryStore()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.Write(brain.MemoryWrite{Scope: "global", Name: "Profile", Description: "who the user is", Type: "user", Text: "Prefers short answers."}, nil); err != nil {
+				t.Fatal(err)
+			}
+			if next.ProjectID != "" {
+				if _, err := store.Write(brain.MemoryWrite{Scope: "project:" + next.ProjectID, Name: "Release", Description: "how to release", Type: "project", Text: "Tag then publish."}, nil); err != nil {
+					t.Fatal(err)
 				}
 			}
-			if !discussionPinned || next.ProjectID != "" && !projectPinned {
-				t.Fatal("continuation state not pinned", c.Items)
+			next.FrozenContext, next.FrozenRevision = "", ""
+			c := discussionContext(next)
+			globalIndex, projectIndex := false, false
+			for _, item := range c.Items {
+				if item.Kind == "memory" && item.Scope == "global" && item.Label == "MEMORY.md" {
+					globalIndex = true
+				}
+				if item.Kind == "memory" && item.Scope == "project:"+next.ProjectID && item.Label == "MEMORY.md" {
+					projectIndex = true
+				}
+			}
+			if !globalIndex || next.ProjectID != "" && !projectIndex {
+				t.Fatal("continuation memory indexes missing", c.Items)
 			}
 			if c.Budget.Memory.Used > c.Budget.Memory.Available {
-				t.Fatal("pinning exceeded budget")
+				t.Fatal("memory exceeded budget")
+			}
+			transcriptJobs.Wait()
+			if path, err := store.DiscussionPath(s.ID); err != nil || path == "" {
+				t.Fatal("original transcript missing", err)
 			}
 			if projectMode == "new" {
 				p, _ := getProject(next.ProjectID)

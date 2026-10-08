@@ -201,7 +201,7 @@ test('language-aware component wrappers retain identity and subscribe to live ch
 });
 
 
-test('usage classifies English absence messages and Brain detects server consent requests', () => {
+test('usage classifies English absence messages', () => {
   const usage = fs.readFileSync(new URL('../next/js/features/usage/page.js', import.meta.url), 'utf8');
   const declaration = usage.match(/^const quiet = .*;$/m)[0];
   const quiet = vm.runInNewContext(declaration + '\nquiet');
@@ -211,10 +211,4 @@ test('usage classifies English absence messages and Brain detects server consent
   assert.equal(quiet('reading interrupted'), false);
   assert.equal(quiet('unrecognized Codex quota format'), false);
   assert.equal(quiet(''), false);
-  const brain = fs.readFileSync(new URL('../next/js/features/resources/memory-items.js', import.meta.url), 'utf8');
-  const consent = vm.runInNewContext(brain.match(/(\/[^\n]+\/i)\.test\(r\.error\)/)[1]);
-  const server = fs.readFileSync(new URL('../../brain_consolidation.go', import.meta.url), 'utf8');
-  const error = server.match(/errors.New\("(consent required[^"\n]+)"\)/)[1];
-  assert.equal(consent.test(error), true);
-  assert.equal(consent.test('invalid discussion_id'), false);
 });

@@ -54,10 +54,7 @@ func (m *runtimeSessions) continueDiscussion(id, projectName string) (RuntimeSes
 			return old, err
 		}
 	}
-	if err := saveDiscussionHandoff(old, ""); err != nil {
-		rollback()
-		return old, err
-	}
+	theBrain().queueSessionTranscript(old)
 	next := cloneRuntimeSession(old)
 	now := time.Now().UnixMilli()
 	next.FrozenSnapshot = discussion.FrozenSnapshot{}

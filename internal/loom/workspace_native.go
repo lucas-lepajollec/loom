@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
@@ -266,19 +265,8 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 		}
 		s.Title, s.ProjectID = a.Title, a.ProjectID
 		s.Model, s.Status, s.UpdatedAt = ReadConfig()["MODEL"], "idle", time.Now().UnixMilli()
-		summary := ""
-		if a.CompactCount > len(s.Compactions) {
-			for _, msg := range a.Messages {
-				if strings.HasPrefix(msgText(msg), compactSummaryPrefix) {
-					summary = msgText(msg)
-				}
-			}
-		}
 		recordNativeCompactions(&s, a.CompactCount, before, s.PortableMessages)
 		_ = putStoreJSON(bkRuntimeSessions, id, s)
-		if summary != "" {
-			_ = saveDiscussionHandoff(s, summary)
-		}
 	}
 }
 

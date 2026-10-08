@@ -14,7 +14,7 @@ import (
 )
 
 // Static configuration and portable rewrites invalidate a snapshot. Mutable
-// memory, handoffs, queries and native-reported settings never enter this hash.
+// memory, queries and native-reported settings never enter this hash.
 func frozenContextRevision(s RuntimeSession) string {
 	if registered, ok := registeredRuntimes.lookup(s.RuntimeID); ok {
 		if acp, ok := registered.(*acpAdapter); ok {
@@ -31,7 +31,8 @@ func frozenContextRevision(s RuntimeSession) string {
 			attachPrimarySecondBrain(&s, acp.agent)
 		}
 	}
-	tuple := []any{s.ID, s.ProjectID, s.Instructions, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.FilesystemPolicy, s.MCPServers, s.ContinuedFrom, len(s.Compactions), discussion.PortableRevision(s.FrozenSnapshot, s.PortableMessages)}
+	// Upgrade old class-based snapshots once; subsequent file edits stay frozen.
+	tuple := []any{"markdown-memory-v1", s.ID, s.ProjectID, s.Instructions, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.FilesystemPolicy, s.MCPServers, s.ContinuedFrom, len(s.Compactions), discussion.PortableRevision(s.FrozenSnapshot, s.PortableMessages)}
 	if p, ok := getProject(s.ProjectID); ok {
 		// Project configuration is static; working state lives in Brain memory.
 		if p.Continuity != nil {
@@ -59,10 +60,18 @@ func frozenContextRevision(s RuntimeSession) string {
 func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 	// Reading still validates accessible selected sources. Their mutable contents
 	// do not affect the revision or replace a valid snapshot.
-	c := assembleDiscussionContext(s, "")
+	captureQuery := query
+	for _, message := range s.Messages {
+		if message.Role == "user" {
+			captureQuery = msgText(message)
+			break
+		}
+	}
+	c := assembleDiscussionContextParts(s, "", false)
 	snapshot := discussion.CloneFrozenSnapshot(s.FrozenSnapshot)
 	revision := frozenContextRevision(s)
 	if snapshot.FrozenRevision == "" || snapshot.FrozenRevision != revision {
+		c = assembleDiscussionContextParts(s, captureQuery, false)
 		for i := range c.Items {
 			c.Items[i].Frozen = true
 		}
@@ -90,14 +99,12 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 		}
 		extra := DiscussionContext{Budget: discussion.ContextBudget{ByKind: map[string]int{}}}
 		for _, item := range fresh.Items {
-			if item.Kind != "memory" && item.Kind != "brain_passage" || strings.Contains(c.System, item.Text) {
+			if item.Kind != "brain_passage" || strings.Contains(c.System, item.Text) {
 				continue
 			}
 			item.Frozen = false
 			appendContextPart(&extra, contextPart{text: item.Text, separator: "\n\n", item: item})
-			if item.Kind == "brain_passage" {
-				c.BrainCitations = append(c.BrainCitations, item.Label)
-			}
+			c.BrainCitations = append(c.BrainCitations, item.Label)
 		}
 		c.Extras = extra.System
 		if c.Extras != "" {
@@ -108,14 +115,6 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 			c.Items = append(c.Items, extra.Items...)
 			for kind, tokens := range extra.Budget.ByKind {
 				c.Budget.ByKind[kind] += tokens
-			}
-			for _, item := range extra.Items {
-				if item.Kind == "memory" {
-					c.Budget.Memory.Used += item.Tokens
-					class := c.Budget.Memory.Classes[item.Class]
-					class.Used += item.Tokens
-					c.Budget.Memory.Classes[item.Class] = class
-				}
 			}
 		}
 	}
