@@ -6,17 +6,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Brain page: Skills tab shows where the library lives (a primary-brain folder or Loom) and moves it; MCP tab leads with the agent gateway, servers and brain imports; Memory tab gains the automatic continuity card.
 - Skills home in the primary second brain: backend detection and switching,
   non-overwriting migration with retained backups, safe harness link re-sync,
   note-index exclusion, and read-only Brain MCP skill discovery/read tools.
-
 - One `/mcp/loom` Streamable HTTP gateway for Brain/memory and enabled MCP
   upstreams, preserving raw results and per-tool masks, with read-only upstream
   status, a dedicated hashed/rotatable token and explicit single-entry
   registration for Claude Code, Codex, OpenCode and Gemini CLI. Registered ACP
   harnesses avoid duplicating globally inherited MCP servers. The primary Brain
   carries secret-free `.loom/mcp.json` definitions for explicit disabled import.
-
 - Automatic Brain continuity: idle discussion summaries and project/discussion
   working state, consent-aware local or connected-provider chat, run-now/settings/
   status APIs, reviewed fact candidates, and deterministic budgeted state pinning.

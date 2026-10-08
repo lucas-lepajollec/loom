@@ -141,7 +141,10 @@ export function Skills() {
   const [dlg, setDlg] = useState(null);
   const [h, setH] = useState(null);
   const [q, setQ] = useState('');
-  const loadHome = () => get('/api/skills/home').then(r => setH(r.ok === false ? null : r)).catch(() => setH(null));
+  const loadHome = () => Promise.all([get('/api/skills/home'), get('/api/brain/sources').catch(() => ({}))]).then(([r, b]) => {
+    const src = ((b && b.sources) || []).find(s => s.id === r.brain_source);
+    setH(r.ok === false ? null : { ...r, brain_label: src ? src.label : r.brain_source });
+  }).catch(() => setH(null));
   useEffect(() => { loadHome(); }, []);
   const skills = (ws && ws.capabilities) || [], projects = (ws && ws.projects) || [];
   const del = async s => { if (!await confirm(t("resources.page.supprimer_la_skill"), t("resources.page.son_dossier") + home(s.dir) + t("resources.page.est_supprime") + s.name + t("resources.page.ne_sera_plus_ajoutee_aux_projets_ni_aux_harnesses"), { ok: t("resources.page.supprimer"), danger: true })) return; const r = await post('/api/capabilities/delete', { id: s.id }); if (!r.ok) toast(r.error, 'err'); refreshWorkspace(); loadHome(); };

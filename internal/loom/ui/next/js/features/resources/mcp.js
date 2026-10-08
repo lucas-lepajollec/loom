@@ -78,7 +78,7 @@ function Portable({ onImported }) {
   const [p, setP] = useState(null);
   const load = () => get('/api/mcp/portable').then(r => setP(r.ok === false ? null : r)).catch(() => setP(null));
   useEffect(() => { load(); }, []);
-  const entries = (p && (p.entries || p.servers || p.missing)) || [];
+  const entries = (p && p.servers) || [];
   if (!entries.length) return null;
   const names = entries.map(e => e.name || e);
   const run = async () => {
