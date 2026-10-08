@@ -40,12 +40,15 @@ func TestProjectContinuityHydratesNewExecutorsAndScopesReferences(t *testing.T) 
 	}
 	for _, runtime := range []string{"llama.cpp", "openai-compatible", "fixture-harness"} {
 		preview := prepareDiscussion(RuntimeSession{ID: "fresh-" + runtime, RuntimeID: runtime, ProjectID: p.ID}, "quartz")
-		for _, part := range []string{p.Continuity.Core.Purpose, p.Continuity.Core.Rationale, p.Continuity.Core.Decisions, p.Continuity.WorkingState, "chosen rationale"} {
+		for _, part := range []string{p.Continuity.Core.Purpose, p.Continuity.Core.Rationale, p.Continuity.Core.Decisions, p.Continuity.WorkingState} {
 			if !strings.Contains(preview.Context.System, part) {
 				t.Fatalf("%s lost %s", runtime, part)
 			}
 		}
-		if strings.Contains(preview.Context.System, "excluded rationale") || preview.Context.EstimatedTokens <= 0 {
+		if loomTranscript(RuntimeSession{RuntimeID: runtime}) && !strings.Contains(preview.Context.Extras, "chosen rationale") {
+			t.Fatalf("%s lost retrieved passage", runtime)
+		}
+		if strings.Contains(preview.Context.System+preview.Context.Extras, "excluded rationale") || preview.Context.EstimatedTokens <= 0 {
 			t.Fatal("unselected reference leaked or missing inspector estimate")
 		}
 	}
@@ -59,7 +62,8 @@ func TestProjectContinuityHydratesNewExecutorsAndScopesReferences(t *testing.T) 
 			t.Fatalf("project scope expanded a narrower caller scope: %v %v", limited, err)
 		}
 	}
-	native, err := nativePreparedContext("unbound-archive", p.ID, "quartz")
+	nativeContext, err := nativePreparedDiscussionContext("unbound-archive", p.ID, "quartz")
+	native := nativeContext.System + nativeContext.Extras
 	if err != nil || strings.Count(native, "chosen rationale") != 1 || strings.Contains(native, "excluded rationale") {
 		t.Fatalf("native local context must retrieve once for the current draft: %q %v", native, err)
 	}

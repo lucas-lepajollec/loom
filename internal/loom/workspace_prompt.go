@@ -20,7 +20,25 @@ type contextPart struct {
 }
 
 func discussionContext(s RuntimeSession) DiscussionContext {
-	return discussionContextFor(s, lastUserText(s.Messages))
+	c := discussionContextFor(s, "")
+	if len(s.Turns) > 0 {
+		turn := s.Turns[len(s.Turns)-1]
+		if s.FrozenRevision != "" && s.FrozenRevision == c.Snapshot.FrozenRevision && turn.FrozenRevision == s.FrozenRevision {
+			c.Items, c.Extras = turn.ContextItems, s.ContextExtras
+			if turn.ContextBudget != nil {
+				c.Budget = *turn.ContextBudget
+			}
+			c.EstimatedTokens = 0
+			for _, item := range c.Items {
+				c.EstimatedTokens += item.Tokens
+				if item.Kind == "brain_passage" {
+					c.BrainCitations = append(c.BrainCitations, item.Label)
+				}
+			}
+			c.Revision = discussionContextRevision(s, c)
+		}
+	}
+	return c
 }
 
 // appendContextPart attributes headers, separators and rounding to the next
@@ -31,12 +49,13 @@ func appendContextPart(c *DiscussionContext, part contextPart) {
 		c.System += part.separator
 	}
 	c.System += part.text
+	part.item.Text = part.text
 	part.item.Tokens = brain.Tokens(c.System) - before
 	c.Items = append(c.Items, part.item)
 	c.Budget.ByKind[part.item.Kind] += part.item.Tokens
 }
 
-func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
+func assembleDiscussionContext(s RuntimeSession, query string) DiscussionContext {
 	c := DiscussionContext{MCPServers: s.MCPServers, ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}, Items: []discussion.ContextItem{}}
 	c.Budget.ByKind = map[string]int{}
 	add := func(kind, label, source, reason, text string) {
@@ -294,6 +313,7 @@ func (m *runtimeSessions) rewindLast(id string) (RuntimeSession, string, error) 
 	s.Messages = s.Messages[:last]
 	s.PortableMessages = nil
 	s.Compactions = nil
+	s.FrozenSnapshot = discussion.FrozenSnapshot{}
 	kept := []RuntimeTurnRecord{}
 	for _, turn := range s.Turns {
 		if turn.MessageIndex < last {

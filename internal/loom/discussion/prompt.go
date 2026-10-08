@@ -12,8 +12,10 @@ const MaxPortableBytes = 128 << 10
 const MaxPortableMessages = 200
 const MaxMessageBytes = 64 << 10
 
-// ContextItem explains one ordered part of the assembled system text.
+// ContextItem explains one ordered part of the outgoing Loom context.
 type ContextItem struct {
+	Frozen bool   `json:"frozen,omitempty"`
+	Text   string `json:"-"` // assembled segment, used only for outgoing retrieval
 	Kind   string `json:"kind"`
 	Label  string `json:"label"`
 	Source string `json:"source"`
@@ -38,16 +40,18 @@ type ContextBudget struct {
 // DiscussionContext is a fresh read model, not a second memory store. Revision
 // binds the route, portable history and instructions seen by the client.
 type DiscussionContext[Capability any] struct {
-	Items             []ContextItem `json:"items"`
-	Budget            ContextBudget `json:"budget"`
-	GlobalPreferences string        `json:"global_preferences,omitempty"`
-	Minimum           string        `json:"minimum,omitempty"`
-	EstimatedTokens   int           `json:"estimated_tokens"`
-	ReferenceIDs      []string      `json:"reference_ids,omitempty"`
-	MCPServers        *[]string     `json:"mcp_servers,omitempty"`
-	ProjectID         string        `json:"project_id"`
-	ProjectName       string        `json:"project_name"`
-	Instructions      string        `json:"project_instructions"`
+	Snapshot          FrozenSnapshot `json:"-"`
+	Extras            string         `json:"extras,omitempty"`
+	Items             []ContextItem  `json:"items"`
+	Budget            ContextBudget  `json:"budget"`
+	GlobalPreferences string         `json:"global_preferences,omitempty"`
+	Minimum           string         `json:"minimum,omitempty"`
+	EstimatedTokens   int            `json:"estimated_tokens"`
+	ReferenceIDs      []string       `json:"reference_ids,omitempty"`
+	MCPServers        *[]string      `json:"mcp_servers,omitempty"`
+	ProjectID         string         `json:"project_id"`
+	ProjectName       string         `json:"project_name"`
+	Instructions      string         `json:"project_instructions"`
 	// BrainCitations: where the Brain passages of this context come from.
 	BrainCitations []string     `json:"brain_citations,omitempty"`
 	Skills         []Capability `json:"skills"`
@@ -99,6 +103,7 @@ func PrepareDiscussion[Usage, Stats, Capability any](s RuntimeSession[Usage, Sta
 		p.Messages = append(p.Messages, Message{Role: "user", Content: draft})
 		p.DraftAdded = true
 	}
+	p.Messages = WithContextExtras(p.Messages, c.Extras)
 	for _, msg := range p.Messages {
 		p.TextBytes += len(msg.Content.(string))
 	}
@@ -146,10 +151,104 @@ func (p *DiscussionPreview[Capability]) fitWindow() {
 func ContextRevision[Usage, Stats, Capability any](s RuntimeSession[Usage, Stats], c DiscussionContext[Capability]) string {
 	// No credentials, unchosen folder contents, global/local-only prompt or hidden state.
 	tuple := []any{s.ID, s.Title, s.ProjectID, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.Mode, s.ConfigOptions, c.MCPServers, s.Messages, c.System, c.Problem, c.Warning}
+	if c.Extras != "" || c.Snapshot.FrozenRevision != "" {
+		tuple = append(tuple, c.Extras, c.Snapshot.FrozenRevision)
+	}
 	if s.PortableMessages != nil || s.ContinuedFrom != "" {
 		tuple = append(tuple, s.PortableMessages, s.ContinuedFrom)
 	}
 	encoded, _ := json.Marshal(tuple)
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:])
+}
+
+// WithContextExtras copies the outgoing last user message. Neither the display
+// journal nor the model-facing stored history receives retrieval scaffolding.
+func WithContextExtras(messages []Message, extras string) []Message {
+	if extras == "" {
+		return messages
+	}
+	out := append([]Message(nil), messages...)
+	for i := len(out) - 1; i >= 0; i-- {
+		if out[i].Role != "user" {
+			continue
+		}
+		prefix := "<loom-context>\n" + extras + "\n</loom-context>\n\n"
+		switch content := out[i].Content.(type) {
+		case string:
+			out[i].Content = prefix + content
+		case []map[string]any:
+			parts := append([]map[string]any{{"type": "text", "text": prefix}}, content...)
+			out[i].Content = parts
+		case []any:
+			out[i].Content = append([]any{map[string]any{"type": "text", "text": prefix}}, content...)
+		}
+		break
+	}
+	return out
+}
+
+// WithoutContextExtras removes only the exact scaffolding added for this turn
+// when a local engine returns a rewritten model history after compaction.
+func WithoutContextExtras(messages []Message, extras string) []Message {
+	if extras == "" {
+		return messages
+	}
+	out := append([]Message(nil), messages...)
+	prefix := "<loom-context>\n" + extras + "\n</loom-context>\n\n"
+	for i := len(out) - 1; i >= 0; i-- {
+		if out[i].Role != "user" {
+			continue
+		}
+		switch content := out[i].Content.(type) {
+		case string:
+			if strings.HasPrefix(content, prefix) {
+				out[i].Content = strings.TrimPrefix(content, prefix)
+				return out
+			}
+		case []map[string]any:
+			if len(content) > 0 && content[0]["type"] == "text" && content[0]["text"] == prefix {
+				out[i].Content = append([]map[string]any(nil), content[1:]...)
+				return out
+			}
+		case []any:
+			if len(content) > 0 {
+				if part, ok := content[0].(map[string]any); ok && part["type"] == "text" && part["text"] == prefix {
+					out[i].Content = append([]any(nil), content[1:]...)
+					return out
+				}
+			}
+		}
+	}
+	return out
+}
+
+func PortableHash(messages []Message) string {
+	encoded, _ := json.Marshal(messages)
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
+}
+
+// PortableRevision follows a rolling append guard, while the revision used by
+// the frozen prompt remains unchanged. Any rewrite of retained history breaks
+// the guard, including changes to messages appended since snapshot capture.
+func PortableRevision(snapshot FrozenSnapshot, messages []Message) string {
+	if snapshot.FrozenRevision != "" && snapshot.FrozenPortableCount >= 0 && snapshot.FrozenPortableCount <= len(messages) && snapshot.FrozenPortableHash == PortableHash(messages[:snapshot.FrozenPortableCount]) {
+		return snapshot.FrozenPortableRevision
+	}
+	if snapshot.FrozenRevision == "" {
+		return PortableHash(messages)
+	}
+	// A rewrite back to the original history is still a new context boundary.
+	encoded, _ := json.Marshal([]any{"portable rewrite", snapshot.FrozenPortableRevision, snapshot.FrozenPortableHash, messages})
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
+}
+
+func TrackFrozenPortable(snapshot FrozenSnapshot, messages []Message) FrozenSnapshot {
+	if snapshot.FrozenRevision != "" && PortableRevision(snapshot, messages) == snapshot.FrozenPortableRevision {
+		snapshot.FrozenPortableCount = len(messages)
+		snapshot.FrozenPortableHash = PortableHash(messages)
+	}
+	return snapshot
 }

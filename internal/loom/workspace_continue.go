@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
 func (m *runtimeSessions) continueDiscussion(id, projectName string) (RuntimeSession, error) {
@@ -58,6 +60,8 @@ func (m *runtimeSessions) continueDiscussion(id, projectName string) (RuntimeSes
 	}
 	next := cloneRuntimeSession(old)
 	now := time.Now().UnixMilli()
+	next.FrozenSnapshot = discussion.FrozenSnapshot{}
+	next.ContextExtras = ""
 	next.ID, next.ContinuedFrom = newSessionID(), old.ID
 	next.Title, next.CustomTitle = old.Title+" ›", true
 	next.CreatedAt, next.UpdatedAt, next.Status, next.Error = now, now, "idle", ""
