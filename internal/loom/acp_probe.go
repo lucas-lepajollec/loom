@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"net/http"
 	"os"
 	"sync"
@@ -15,16 +16,18 @@ import (
 // costs nothing), records what the agent announces, and closes it.
 
 type acpProbe struct {
-	At       int64            `json:"at"`
-	Agent    map[string]any   `json:"agent,omitempty"` // agentInfo: name, version
-	Auth     []map[string]any `json:"auth,omitempty"`  // authMethods
-	Caps     map[string]any   `json:"capabilities,omitempty"`
-	Modes    []map[string]any `json:"modes,omitempty"`
-	Mode     string           `json:"mode,omitempty"`
-	Config   []map[string]any `json:"config,omitempty"`
-	Commands []map[string]any `json:"commands,omitempty"` // "/" commands announced by the agent
-	Error    string           `json:"error,omitempty"`
-	Duration float64          `json:"duration_seconds,omitempty"`
+	NativeModels  []json.RawMessage          `json:"native_models,omitempty"`
+	Compatibility *agent.CompatibilityRecord `json:"compatibility,omitempty"`
+	At            int64                      `json:"at"`
+	Agent         map[string]any             `json:"agent,omitempty"` // agentInfo: name, version
+	Auth          []map[string]any           `json:"auth,omitempty"`  // authMethods
+	Caps          map[string]any             `json:"capabilities,omitempty"`
+	Modes         []map[string]any           `json:"modes,omitempty"`
+	Mode          string                     `json:"mode,omitempty"`
+	Config        []map[string]any           `json:"config,omitempty"`
+	Commands      []map[string]any           `json:"commands,omitempty"` // "/" commands announced by the agent
+	Error         string                     `json:"error,omitempty"`
+	Duration      float64                    `json:"duration_seconds,omitempty"`
 }
 
 const acpProbeKey = "acp_probe_"
@@ -38,6 +41,9 @@ func loadACPProbe(id string) (acpProbe, bool) {
 }
 
 func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
+	if nativeAgentProtocol(agent) != "" {
+		return probeNativeAgent(ctx, agent)
+	}
 	started := time.Now()
 	out := acpProbe{At: started.UnixMilli()}
 	fail := func(err error) acpProbe {
@@ -100,6 +106,10 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 		return fail(errors.New("the agent does not respond to the ACP protocol"))
 	}
 	out.Agent, out.Auth, out.Caps = init.AgentInfo, init.AuthMethods, init.AgentCapabilities
+	version, _ := init.AgentInfo["version"].(string)
+	executable, _ := lifecycleLookPath(agent.Command)
+	out.Compatibility = &runtimeCompatibilityRecord{Runtime: agent.ID, Executable: executable, Version: version, Protocol: "acp", AdapterVersion: agentAdapterVersion, Capabilities: []string{"chat", "stream", "cancel", "approvals", "elicitation"}}
+	_ = putStoreJSON(bkState, "agent_compat_"+agent.ID, out.Compatibility)
 	probeDir := dir
 	if agent.Remote {
 		// A remote agent needs a folder of its own machine: its home, read
@@ -134,6 +144,9 @@ func refreshACPProbe(ctx context.Context, agent acpAgent) acpProbe {
 	if old, ok := loadACPProbe(agent.ID); ok && p.Error != "" && len(old.Config) > 0 {
 		// Keep the last good catalog; only report the new failure.
 		old.Error, old.At = p.Error, p.At
+		if p.Compatibility != nil {
+			old.Compatibility = p.Compatibility
+		}
 		p = old
 	}
 	_ = putStoreJSON(bkState, acpProbeKey+agent.ID, p)

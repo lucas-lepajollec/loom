@@ -1,0 +1,6 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"extension_ui_request","id":"dialog-1","method":"confirm","title":"Allow command?","message":"Fixture extension guard"},"events":["request.opened","request.resolved"],"answer":{"answers":{"value":["yes"]}},"response":{"type":"extension_ui_response","confirmed":true}}
+{"frame":{"type":"tool_execution_start","toolCallId":"tool-1","toolName":"bash","args":{"command":"echo fixture"}},"events":["item.started"]}
+{"frame":{"type":"tool_execution_update","toolCallId":"tool-1","toolName":"bash","partialResult":{"content":[{"type":"text","text":"fixture\n"}]}},"events":["item.updated"]}
+{"frame":{"type":"tool_execution_end","toolCallId":"tool-1","toolName":"bash","result":{"content":[{"type":"text","text":"fixture\n"}]},"isError":false},"events":["item.completed"]}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}

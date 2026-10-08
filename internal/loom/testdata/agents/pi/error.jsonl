@@ -1,0 +1,4 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"fixture provider failure"}},"events":["item.completed"]}
+{"frame":{"type":"auto_retry_end","success":false,"attempt":3,"finalError":"fixture provider failure"},"events":["error"]}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}

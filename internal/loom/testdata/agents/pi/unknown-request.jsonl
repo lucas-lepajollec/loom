@@ -1,0 +1,3 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"extension_ui_request","id":"unknown-1","method":"future_dialog","title":"Unknown"},"events":["raw","error"],"response":{"type":"extension_ui_response","cancelled":true,"error":"unsupported Pi extension request: future_dialog"}}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}

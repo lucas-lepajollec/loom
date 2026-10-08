@@ -1,0 +1,7 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"transient"}},"events":["item.completed"]}
+{"frame":{"type":"agent_end","messages":[],"willRetry":true},"events":["raw"]}
+{"frame":{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":1,"errorMessage":"transient"},"events":["raw"]}
+{"frame":{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Hello"}],"stopReason":"stop","usage":{"input":10,"output":3,"cacheRead":1,"totalTokens":13}}},"events":["content.delta","item.completed","usage.spent"]}
+{"frame":{"type":"auto_retry_end","success":true,"attempt":1},"events":["raw"]}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}

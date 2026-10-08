@@ -1,0 +1,4 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"extension_ui_request","id":"dialog-2","method":"select","title":"Color?","options":["Blue","Green"]},"events":["request.opened","request.resolved"],"answer":{"answers":{"value":["Blue"]}},"response":{"type":"extension_ui_response","value":"Blue"}}
+{"frame":{"type":"extension_ui_request","id":"dialog-3","method":"input","title":"Any note?"},"events":["request.opened","request.resolved"],"answer":{"answers":{"value":["fixture note"]}},"response":{"type":"extension_ui_response","value":"fixture note"}}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}

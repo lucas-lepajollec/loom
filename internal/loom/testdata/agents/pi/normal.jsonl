@@ -1,0 +1,8 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"message_start","message":{"role":"assistant","content":[]}},"events":["item.started"]}
+{"frame":{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"Hello"}},"events":["content.delta"]}
+{"frame":{"type":"message_update","assistantMessageEvent":{"type":"thinking_delta","contentIndex":1,"delta":"Thought"}},"events":["content.delta"]}
+{"frame":{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Hello"}],"stopReason":"stop","usage":{"input":10,"output":3,"cacheRead":1,"totalTokens":13}}},"events":["item.completed","usage.spent"]}
+{"frame":{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"Hello"}],"stopReason":"stop","usage":{"input":10,"output":3,"cacheRead":1,"totalTokens":13}}],"willRetry":false},"events":["raw"]}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}
+{"command":"get_session_stats","frame":{"type":"response","command":"get_session_stats","success":true,"data":{"sessionId":"fixture-session","contextUsage":{"tokens":42,"contextWindow":200000,"percent":0.021}}},"events":["context.updated"]}

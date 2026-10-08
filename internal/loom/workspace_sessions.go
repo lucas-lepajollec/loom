@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
+	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 )
 
 type runtimeRun struct {
@@ -27,6 +28,7 @@ type runtimeSessions struct {
 	shutdownOnce sync.Once
 	acpMu        sync.Mutex
 	acp          map[string]*acpBinding
+	requests     map[string]*agent.RequestBroker
 	providerMu   sync.Mutex
 	nativeMu     sync.Mutex
 	mu           sync.Mutex
@@ -188,6 +190,13 @@ func (m *runtimeSessions) getLocked(id string) (RuntimeSession, bool) {
 	if s.Status == "running" {
 		s.Status = "interrupted"
 		s.Error = "Loom restarted during the response. No automatic resend."
+		for _, request := range s.PendingRequests {
+			if len(s.Turns) > 0 {
+				e := AgentEvent{Type: "request.resolved", Runtime: s.RuntimeID, RequestID: request.ID, Outcome: "cancelled", Decision: "cancel", Raw: agent.JSON(map[string]any{"reason": "Loom restarted"})}
+				s.Turns[len(s.Turns)-1].ACPEvents = append(s.Turns[len(s.Turns)-1].ACPEvents, DiscussionEvent{"type": "request.resolved", "request_id": request.ID, "outcome": "cancelled", "agent_event": e})
+			}
+		}
+		s.PendingRequests = nil
 	}
 	return s, true
 }
@@ -434,14 +443,16 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 			if m.runs[run.session.ID] != run {
 				return false
 			}
-			if ctx.Err() != nil && event.ACPEvent != nil && event.ACPEvent["type"] != "approval_resolved" {
+			if ctx.Err() != nil && event.ACPEvent != nil && event.ACPEvent["type"] != "approval_resolved" && event.ACPEvent["type"] != "request.resolved" {
 				return false
 			}
 			if ctx.Err() != nil && event.ACPEvent == nil && event.ACPState == nil {
 				return false
 			}
 			if event.ACPState != nil {
+				pending := run.session.PendingRequests
 				run.session.ACPState = cloneACPState(*event.ACPState)
+				run.session.PendingRequests = pending
 				turn := &run.session.Turns[len(run.session.Turns)-1]
 				turn.NativeSessionID = run.session.NativeSessionID
 				for _, option := range run.session.AvailableConfigOptions {
@@ -450,6 +461,21 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 							turn.Model = model
 						}
 					}
+				}
+			}
+			if event.AgentEvent != nil {
+				e := event.AgentEvent
+				if e.Type == "request.opened" && e.Request != nil {
+					run.session.PendingRequests = append(run.session.PendingRequests, *e.Request)
+				}
+				if e.Type == "request.resolved" {
+					next := run.session.PendingRequests[:0]
+					for _, r := range run.session.PendingRequests {
+						if r.ID != e.RequestID {
+							next = append(next, r)
+						}
+					}
+					run.session.PendingRequests = next
 				}
 			}
 			if event.ACPEvent != nil {
@@ -463,7 +489,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 				}
 				encoded, _ := json.Marshal(e)
 				run.acpBytes += len(encoded)
-				if (run.acpBytes > 64<<20 || len(run.session.Turns[len(run.session.Turns)-1].ACPEvents) >= 16384) && e["type"] != "approval_resolved" {
+				if (run.acpBytes > 64<<20 || len(run.session.Turns[len(run.session.Turns)-1].ACPEvents) >= 16384) && e["type"] != "approval_resolved" && e["type"] != "request.resolved" {
 					run.acpError = "ACP journal too large; turn stopped, received events preserved."
 					run.cancel()
 					return false
@@ -485,6 +511,9 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 				i := len(run.session.Messages) - 1
 				previous, _ := run.session.Messages[i].Content.(string)
 				run.session.Messages[i].Content = previous + event.Content
+			}
+			if event.AssistantSnapshot != nil {
+				run.session.Messages[len(run.session.Messages)-1].Content = *event.AssistantSnapshot
 			}
 			if event.Usage != nil {
 				u := *event.Usage
@@ -540,6 +569,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	if run.acpError != "" {
 		err = errors.New(run.acpError)
 	}
+	s.PendingRequests = nil
 	s.Status = "complete"
 	s.UpdatedAt = time.Now().UnixMilli()
 	// Runtimes that do not report a duration get Loom's wall-clock measure.

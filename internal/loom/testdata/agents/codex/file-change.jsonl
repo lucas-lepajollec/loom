@@ -1,0 +1,4 @@
+{"frame":{"method":"turn/started","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"inProgress","items":[],"error":null}}},"events":["turn.started"]}
+{"frame":{"method":"item/fileChange/requestApproval","params":{"threadId":"fixture-thread","turnId":"turn-1","itemId":"file-1","startedAtMs":1,"reason":"Edit fixture"},"id":19},"events":["request.opened","request.resolved"],"answer":{"decision":"deny"},"response":{"result":{"decision":"decline"}}}
+{"frame":{"method":"item/completed","params":{"threadId":"fixture-thread","turnId":"turn-1","item":{"id":"file-1","type":"fileChange","status":"failed","changes":[{"path":"/fixture/file.txt","kind":{"type":"update","move_path":null},"diff":"-old\n+new"}]}}},"events":["item.completed"]}
+{"frame":{"method":"turn/completed","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"completed","items":[],"error":null}}},"events":["turn.completed"]}

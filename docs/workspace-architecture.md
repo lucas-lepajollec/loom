@@ -178,14 +178,22 @@ text history and selected context; that can include earlier replies.
 
 ## Harnesses and native sessions
 
-Codex, Claude Code, Pi and OpenCode have built-in ACP launchers.
+Local builtin Codex prefers the installed `codex app-server` protocol; local
+builtin Pi prefers `pi --mode rpc`. Missing native protocol support selects the
+existing pinned ACP fallback. Claude Code and OpenCode use their ACP launchers.
+Remote/custom launchers retain ACP. Native startup/authentication/resume failures
+are visible and never silently retried through another protocol. See
+[agent compatibility](agents-compat.md) for tested versions, fixture maintenance,
+canonical event/request JSON and the backend-only UI contract.
 Antigravity uses Loom's own ACP bridge to `agy`; authentication, native models
 and access modes remain with that CLI. It does not receive Loom provider keys or
 MCP servers and does not provide an interactive Loom approval RPC. Hermes can
 run through a custom or discovered SSH ACP launcher; its built-in local entry
 provides quotas and usage, not chat.
 
-Availability requires the native CLI and adapter launcher. Capabilities come
+Availability requires the native CLI and its selected protocol or ACP launcher.
+Runtime descriptors expose observed compatibility records through
+`compatibility` and `GET /api/runtimes/{id}/compat`. Capabilities come
 from descriptors and handshake results, not a model association. ACP exposes
 native tools, diffs, plans, permissions, settings and reported usage where the
 agent supplies them. Hidden reasoning is never reconstructed. An agent-reported
@@ -206,7 +214,10 @@ references; OpenCode receives launch configuration. Antigravity uses its native 
 machine and is not a universal binding. Native global permissions are never
 changed to make a source work.
 
-Shared MCP definitions can be scoped globally, per project and per discussion;
+Native Codex/Pi adapters use CLI-owned MCP configuration for this slice; explicit
+Loom-scoped MCP selections fail visibly until native provisioning is implemented.
+They do not advertise the `mcp` capability. Shared MCP definitions can be scoped
+globally, per project and per discussion;
 disabled servers are always excluded. Local ACP agents receive supported
 selected definitions. Remote launchers do not receive local MCP commands or
 Loom-delegated local filesystem access. Opt-in skill sinks distribute owned
@@ -280,6 +291,9 @@ requests. Important existing routes include:
   it does not load a model or generate a reply.
 - `GET/POST /api/runtime/sessions/preview` prepares portable text.
 - `POST /api/runtimes/{id}/connect|quota` dispatches optional registry actions.
+- `POST /api/workspace/sessions/{id}/requests/{request_id}` resolves durable
+  approvals, questions and form/URL elicitations through the permission service.
+  Requests are private session/journal state; completion cancels them.
 - ACP approval, configuration and file routes are described in the
   [ACP notes](agents/acp-implementation.md).
 

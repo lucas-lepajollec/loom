@@ -5,6 +5,8 @@ import "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 // Compatibility during the leaf-first migration: runtime owns the contracts and
 // registry state; Loom supplies the existing chat and usage types and owns the
 // adapter boundaries, startup registration and HTTP actions.
+type runtimeCompatibilityRecord = runtime.CompatibilityRecord
+type AgentEvent = runtime.AgentEvent
 type RuntimeDescriptor = runtime.RuntimeDescriptor
 type RuntimeTurn = runtime.RuntimeTurn[Message, Caps]
 type RuntimeAdapter = runtime.RuntimeAdapter[Message, Caps, StreamEvent]

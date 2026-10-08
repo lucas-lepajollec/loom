@@ -155,6 +155,7 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 	if rootsChanged {
 		m.closeACP(s.ID)
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
+		s.NativeSessionFile = ""
 		s.Files = nil
 		s.FileBaselines = nil
 		s.AvailableModes = nil

@@ -42,25 +42,27 @@ type ACPChangedFile struct {
 // ACPState is runtime-private display state, never part of prepared messages.
 // MCP definitions/env values are deliberately absent from this persisted state.
 type ACPState struct {
-	FilesystemPolicy       string            `json:"filesystem_policy,omitempty"`
-	WorkspaceID            string            `json:"workspace_id,omitempty"`
-	WorkspaceTarget        string            `json:"workspace_target,omitempty"`
-	MCPServers             *[]string         `json:"mcp_servers,omitempty"`
-	NativeSessionID        string            `json:"native_session_id,omitempty"`
-	NativeRuntimeID        string            `json:"native_runtime_id,omitempty"`
-	NativeContext          string            `json:"native_context,omitempty"`
-	Workdir                string            `json:"workdir,omitempty"`
-	AdditionalDirs         []string          `json:"additional_dirs,omitempty"`
-	Permission             string            `json:"permission,omitempty"`
-	Mode                   string            `json:"mode,omitempty"`
-	ConfigOptions          map[string]any    `json:"config_options,omitempty"`
-	AvailableModes         []map[string]any  `json:"available_modes,omitempty"`
-	AvailableConfigOptions []map[string]any  `json:"available_config_options,omitempty"`
-	FileBaselines          map[string]string `json:"file_baselines,omitempty"`
-	Files                  []ACPChangedFile  `json:"changed_files,omitempty"`
-	ACPUsage               map[string]any    `json:"harness_usage,omitempty"`
-	Commands               []map[string]any  `json:"commands,omitempty"`
-	AgentCapabilities      map[string]any    `json:"agent_capabilities,omitempty"`
+	NativeSessionFile      string                 `json:"native_session_file,omitempty"`
+	PendingRequests        []runtime.AgentRequest `json:"pending_requests,omitempty"`
+	FilesystemPolicy       string                 `json:"filesystem_policy,omitempty"`
+	WorkspaceID            string                 `json:"workspace_id,omitempty"`
+	WorkspaceTarget        string                 `json:"workspace_target,omitempty"`
+	MCPServers             *[]string              `json:"mcp_servers,omitempty"`
+	NativeSessionID        string                 `json:"native_session_id,omitempty"`
+	NativeRuntimeID        string                 `json:"native_runtime_id,omitempty"`
+	NativeContext          string                 `json:"native_context,omitempty"`
+	Workdir                string                 `json:"workdir,omitempty"`
+	AdditionalDirs         []string               `json:"additional_dirs,omitempty"`
+	Permission             string                 `json:"permission,omitempty"`
+	Mode                   string                 `json:"mode,omitempty"`
+	ConfigOptions          map[string]any         `json:"config_options,omitempty"`
+	AvailableModes         []map[string]any       `json:"available_modes,omitempty"`
+	AvailableConfigOptions []map[string]any       `json:"available_config_options,omitempty"`
+	FileBaselines          map[string]string      `json:"file_baselines,omitempty"`
+	Files                  []ACPChangedFile       `json:"changed_files,omitempty"`
+	ACPUsage               map[string]any         `json:"harness_usage,omitempty"`
+	Commands               []map[string]any       `json:"commands,omitempty"`
+	AgentCapabilities      map[string]any         `json:"agent_capabilities,omitempty"`
 }
 
 func CloneACPState(s ACPState) ACPState {

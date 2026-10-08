@@ -106,7 +106,15 @@ function onEvent(d) {
       push({ k: 'approval', approval: d.approval, resolved: false }); return;
     case 'approval_resolved': {
       const item = items().find(i => i.k === 'approval' && i.approval.id === d.id);
-      if (item) { item.resolved = { option_id: d.option_id, auto: d.auto }; touch(); }
+      if (item) { item.resolved = { option_id: d.option_id, auto: d.auto, allowed: /^allow|^accept|^approve/.test(String(d.option_id || '')), cancelled: d.outcome === 'cancelled' }; touch(); }
+      return;
+    }
+    case 'request.opened':
+      if (d.request && !items().some(i => i.k === 'request' && i.request.id === d.request.id)) push({ k: 'request', request: d.request, resolved: false });
+      return;
+    case 'request.resolved': {
+      const item = items().find(i => i.k === 'request' && i.request.id === d.request_id);
+      if (item) { item.resolved = { outcome: d.outcome }; touch(); }
       return;
     }
     case 'mode':

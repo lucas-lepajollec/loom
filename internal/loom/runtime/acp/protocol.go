@@ -19,6 +19,7 @@ const maxInboundRequests = 32
 var ErrClosed = errors.New("ACP agent disconnected")
 
 type Frame struct {
+	Raw     json.RawMessage `json:"-"`
 	Replied func()          `json:"-"`
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
@@ -143,6 +144,7 @@ func (c *Client) read(out io.Reader) {
 			return
 		}
 		started = true
+		f.Raw = append(json.RawMessage(nil), sc.Bytes()...)
 		if f.Method == "" {
 			c.mu.Lock()
 			ch := c.pending[string(f.ID)]

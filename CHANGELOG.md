@@ -6,6 +6,17 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Agents v2 backend: canonical runtime events with bounded provider payloads,
+  durable approval/question/form/URL requests and a shared resolution endpoint
+  at `POST /api/workspace/sessions/{id}/requests/{request_id}`. Unknown agent
+  notifications retain generic rows and unknown requests receive visible
+  protocol rejections. Local Codex prefers installed app-server; Pi prefers
+  native RPC, with automatic ACP fallback when the native protocol is absent.
+  Native IDs, model catalogs, reported failures and compatibility records are
+  retained; versioned Codex schemas and synthetic stdio fixture replays cover
+  the tested contracts. New question/form UI and native Loom MCP provisioning
+  remain separate; see `docs/agents-compat.md`.
+
 - Native Markdown memory in the primary second brain (`Memory/` and stable
   project folders), bounded `MEMORY.md` indexes, HTTP/MCP file operations,
   verbatim `Discussions/` transcripts and single-call background consolidation

@@ -9,6 +9,7 @@ import { toast } from '../../ui/dialog.js';
 import { runtimeKind } from '../../core/state.js';
 import { splitPastedMessage, downloadPaste } from './pasted-text.js';
 import { chat, editLast } from './engine.js';
+import { RequestCard } from './requests.js';
 
 const TOOL = () => ({
   bash: ['terminal', 'Terminal'], write: ['file', t("chat.messages.ecriture")], edit: ['edit', t("chat.messages.edition")],
@@ -106,7 +107,7 @@ function group(items, base) {
 
 // Une fois un tour terminé, tout le travail (réflexion, outils, plan, messages
 // intermédiaires, autorisations réglées) se replie au-dessus de la réponse finale.
-const WORK = new Set(['reasoning', 'tool', 'plan', 'approval', 'assistant']);
+const WORK = new Set(['reasoning', 'tool', 'plan', 'approval', 'request', 'assistant']);
 function arrange(items, live) {
   const turns = [];
   items.forEach((it, i) => { if (it.k === 'user' || !turns.length) turns.push([]); turns[turns.length - 1].push({ ...it, key: i }); });
@@ -117,10 +118,11 @@ function arrange(items, live) {
     // ne peut plus rien attendre : demandes et actions en suspens sont closes.
     const ended = !last || (!live && !turn.some(it => it.live || (it.k === 'foot' && it.running)));
     if (ended) turn = turn.map(it => it.k === 'approval' && !it.resolved ? { ...it, resolved: { cancelled: true } }
+      : it.k === 'request' && !it.resolved ? { ...it, resolved: { outcome: 'cancelled' } }
       : it.k === 'tool' && it.tool && !['completed', 'failed'].includes(it.tool.status) ? { ...it, tool: { ...it.tool, status: 'interrupted' } }
       : it.k === 'plan' ? { ...it, entries: (it.entries || []).map(e => e.status === 'in_progress' ? { ...e, status: 'pending' } : e) }
       : it.k === 'foot' && it.running ? { ...it, running: false } : it);
-    const open = (last && live) || turn.some(it => it.live || (it.k === 'approval' && !it.resolved) || (it.k === 'foot' && it.running));
+    const open = (last && live) || turn.some(it => it.live || ((it.k === 'approval' || it.k === 'request') && !it.resolved) || (it.k === 'foot' && it.running));
     const final = turn.map(it => it.k).lastIndexOf('assistant');
     const work = open || final < 0 ? [] : turn.filter((it, i) => i < final && WORK.has(it.k));
     if (work.length < 2 && !(work.length === 1 && work[0].k !== 'assistant')) { out.push(...group(turn, 't' + n)); return; }
@@ -185,6 +187,7 @@ export function Messages({ items, gen, compacting, root, sessionId }) {
       case 'quiet': return html`<${QuietGroup} key=${i} tools=${it.tools} root=${root} />`;
       case 'plan': return html`<${Plan} key=${i} entries=${it.entries || []} />`;
       case 'approval': return html`<${Approval} key=${i} a=${it.approval} resolved=${it.resolved} root=${root} onAnswer=${opt => answer(sessionId, it.approval.id, opt)} />`;
+      case 'request': return html`<${RequestCard} key=${i} r=${it.request} resolved=${it.resolved} sessionId=${sessionId} />`;
       case 'tool': if (it.tool) return html`<${ToolCard} key=${i} tool=${it.tool} root=${root} />`; return html`<${Tool} key=${i} tu=${it.tu} live=${it.live} />`;
       case 'user': {
         const pasted = splitPastedMessage(it.text);

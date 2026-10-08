@@ -1,0 +1,3 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"future_event","newField":{"value":true}},"events":["raw"]}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}

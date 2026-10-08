@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	agentEvents "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"os"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ type acpDecision struct {
 	auto   bool
 }
 type acpBinding struct {
+	broker        *agentEvents.RequestBroker
 	mu            sync.Mutex
 	emitMu        sync.Mutex
 	fsMu          sync.Mutex
@@ -59,7 +61,11 @@ func (p *acpBinding) publish(e DiscussionEvent) bool {
 	if emit == nil {
 		return false
 	}
-	return emit(StreamEvent{ACPEvent: e, ACPState: &state})
+	var canonical *AgentEvent
+	if v, ok := e["agent_event"].(AgentEvent); ok {
+		canonical = &v
+	}
+	return emit(StreamEvent{ACPEvent: e, ACPState: &state, AgentEvent: canonical})
 }
 func (p *acpBinding) close() {
 	p.mu.Lock()
@@ -142,6 +148,16 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	m.acpMu.Lock()
 	p := m.acp[s.ID]
 	m.acpMu.Unlock()
+	// Initialization/configuration can fail before the turn cleanup below is
+	// installed. Release the request broker on those paths as well.
+	defer func() {
+		if p != nil && p.broker != nil {
+			p.broker.Cancel()
+		}
+		m.acpMu.Lock()
+		delete(m.requests, s.ID)
+		m.acpMu.Unlock()
+	}()
 	if p != nil {
 		p.mu.Lock()
 		valid := p.state.NativeRuntimeID == agent.ID && p.state.NativeContext == prefix && p.state.Workdir == s.Workdir && p.mcpRevision == mcpRevision && !p.active
@@ -199,6 +215,15 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			}
 			p.roots = append(p.roots, root)
 		}
+		p.broker = agentEvents.NewRequestBroker(agent.ID, func(e AgentEvent) bool {
+			return p.publish(DiscussionEvent{"type": e.Type, "request": e.Request, "request_id": e.RequestID, "outcome": e.Outcome, "agent_event": e})
+		})
+		m.acpMu.Lock()
+		if m.requests == nil {
+			m.requests = map[string]*agentEvents.RequestBroker{}
+		}
+		m.requests[s.ID] = p.broker
+		m.acpMu.Unlock()
 		c.handler = p.handleRequest
 		c.notify = p.handleNotification
 		if err := c.start(); err != nil {
@@ -213,7 +238,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			ProtocolVersion   int            `json:"protocolVersion"`
 			AgentCapabilities map[string]any `json:"agentCapabilities"`
 		}
-		err = c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": !agent.Remote, "writeTextFile": !agent.Remote}, "terminal": false}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init)
+		err = c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": !agent.Remote, "writeTextFile": !agent.Remote}, "terminal": false, "elicitation": map[string]any{"form": true, "url": true}}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init)
 		cancel()
 		if err != nil || init.ProtocolVersion != 1 {
 			m.closeACP(s.ID)
@@ -302,6 +327,15 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			return nil, err
 		}
 	} else {
+		p.broker = agentEvents.NewRequestBroker(agent.ID, func(e AgentEvent) bool {
+			return p.publish(DiscussionEvent{"type": e.Type, "request": e.Request, "request_id": e.RequestID, "outcome": e.Outcome, "agent_event": e})
+		})
+		m.acpMu.Lock()
+		if m.requests == nil {
+			m.requests = map[string]*agentEvents.RequestBroker{}
+		}
+		m.requests[s.ID] = p.broker
+		m.acpMu.Unlock()
 		p.mu.Lock()
 		p.ctx = requestCtx
 		p.answer = ""
@@ -391,12 +425,26 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	p.mu.Lock()
 	p.retries, p.turnStart = 0, time.Now()
 	p.mu.Unlock()
+	p.publish(DiscussionEvent{"type": "turn.started", "agent_event": AgentEvent{Type: "turn.started", Runtime: agent.ID, ThreadID: state.NativeSessionID, Raw: agentEvents.JSON(map[string]any{"method": "session/prompt", "sessionId": state.NativeSessionID})}})
 	err = p.client.call(ctx, "session/prompt", map[string]any{"sessionId": state.NativeSessionID, "prompt": []any{map[string]any{"type": "text", "text": prompt}}}, &result)
 	requestCancel()
+	if p.broker != nil {
+		p.broker.Cancel()
+	}
 	p.mu.Lock()
 	p.active = false
 	p.mu.Unlock()
 	p.requestWG.Wait()
+	status := "completed"
+	detail := ""
+	if err != nil {
+		status = "failed"
+		detail = err.Error()
+	}
+	if ctx.Err() != nil || result.StopReason == "cancelled" {
+		status = "cancelled"
+	}
+	p.publish(DiscussionEvent{"type": "turn.completed", "agent_event": AgentEvent{Type: "turn.completed", Runtime: agent.ID, ThreadID: state.NativeSessionID, Status: status, Error: detail, Raw: agentEvents.JSON(result)}})
 	if err != nil || result.StopReason == "cancelled" {
 		if ctx.Err() != nil {
 			_ = p.client.notification("session/cancel", map[string]any{"sessionId": state.NativeSessionID})

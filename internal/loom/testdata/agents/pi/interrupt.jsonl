@@ -1,0 +1,3 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"aborted"}},"events":["item.completed"]}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}

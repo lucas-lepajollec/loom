@@ -1,0 +1,4 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"tool_execution_start","toolCallId":"edit-1","toolName":"edit","args":{"path":"/fixture/file.txt","oldText":"old","newText":"new"}},"events":["item.started"]}
+{"frame":{"type":"tool_execution_end","toolCallId":"edit-1","toolName":"edit","result":{"content":[{"type":"text","text":"Edited fixture"}],"details":{"diff":"-old\n+new"}},"isError":false},"events":["item.completed"]}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}
