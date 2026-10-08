@@ -595,3 +595,67 @@ func (s *brainService) memoryStatusHTTP(w http.ResponseWriter, r *http.Request) 
 	s.consolidation.mu.Unlock()
 	brainResponse(w, status, nil)
 }
+
+// GET/POST /api/brain/memory/settings: which model consolidates memory.
+// model/fallback: "discussion" | "local-loaded" | "off" | {provider_id, model}.
+// Choosing a provider pair is the consent to send transcripts to it.
+func (s *brainService) memorySettingsHTTP(w http.ResponseWriter, r *http.Request) {
+	type setting struct {
+		Model    json.RawMessage `json:"model"`
+		Fallback json.RawMessage `json:"fallback"`
+	}
+	encode := func(v string) json.RawMessage {
+		if v == "" {
+			v = "discussion"
+		}
+		if strings.HasPrefix(v, "{") {
+			return json.RawMessage(v)
+		}
+		b, _ := json.Marshal(v)
+		return b
+	}
+	if r.Method == http.MethodPost {
+		var req setting
+		if !workspaceDecode(w, r, &req) {
+			return
+		}
+		apply := func(key string, raw json.RawMessage) error {
+			if len(raw) == 0 {
+				return nil
+			}
+			var word string
+			if json.Unmarshal(raw, &word) == nil {
+				if word != "discussion" && word != "local-loaded" && word != "off" {
+					return errors.New("model must be discussion, local-loaded, off or a provider/model pair")
+				}
+				return SetConfigKey(key, word)
+			}
+			var pair memoryModelPair
+			if err := json.Unmarshal(raw, &pair); err != nil || pair.ProviderID == "" || pair.Model == "" {
+				return errors.New("provider pair needs provider_id and model")
+			}
+			p, _, err := brainConnectedProvider(pair.ProviderID, "")
+			if err != nil {
+				return err
+			}
+			b, _ := json.Marshal(pair)
+			c, _ := json.Marshal(memoryModelConsent{ProviderID: pair.ProviderID, Endpoint: p.Endpoint, Model: pair.Model})
+			if err := SetConfigKey(key, string(b)); err != nil {
+				return err
+			}
+			return SetConfigKey("brain.consolidation_consent", string(c))
+		}
+		if err := apply("brain.consolidation_model", req.Model); err != nil {
+			brainResponse(w, nil, err)
+			return
+		}
+		if err := apply("brain.consolidation_fallback", req.Fallback); err != nil {
+			brainResponse(w, nil, err)
+			return
+		}
+	} else if !workspaceMethod(w, r, "GET") {
+		return
+	}
+	cfg := ReadConfig()
+	brainResponse(w, setting{Model: encode(cfg["brain.consolidation_model"]), Fallback: encode(cfg["brain.consolidation_fallback"])}, nil)
+}

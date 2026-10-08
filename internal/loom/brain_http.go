@@ -391,7 +391,7 @@ func theBrain() *brainService {
 
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	s := theBrain()
-	for route, handler := range map[string]http.HandlerFunc{"agents": s.agentsHTTP, "memory": s.memoryHTTP, "memory/delete": s.memoryDeleteHTTP, "memory/consolidate": s.memoryConsolidateHTTP, "memory/status": s.memoryStatusHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
+	for route, handler := range map[string]http.HandlerFunc{"agents": s.agentsHTTP, "memory": s.memoryHTTP, "memory/delete": s.memoryDeleteHTTP, "memory/consolidate": s.memoryConsolidateHTTP, "memory/status": s.memoryStatusHTTP, "memory/settings": s.memorySettingsHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
 		protected := requireWebAuth(handler)
 		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")

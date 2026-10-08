@@ -142,9 +142,12 @@ func (s *MarkdownStore) Migrate(legacyOpts MemoryStoreOptions, extra []MemoryIte
 		if contains(item.Tags, ProjectNotesTag) {
 			name, kind = "Project notes", "project"
 		}
-		file := "legacy-" + item.ID + ".md"
+		// Readable and deterministic: slug of the title plus a short id, so an
+		// interrupted migration resumes without duplicating.
+		base := []rune(Slug(name))
+		file := string(base[:min(len(base), 48)]) + "-" + shortIdentity(item.ID)[:6] + ".md"
 		if !memoryFilename(file) {
-			file = "legacy-" + shortIdentity(item.ID) + ".md"
+			file = "memory-" + shortIdentity(item.ID) + ".md"
 		}
 		if _, err = s.Read(MemoryRead{Scope: item.Scope, File: file}); err == nil {
 			fmt.Fprintf(&report, "- Already imported `%s` → `%s`.\n", item.ID, file)
@@ -152,17 +155,15 @@ func (s *MarkdownStore) Migrate(legacyOpts MemoryStoreOptions, extra []MemoryIte
 		} else if !os.IsNotExist(err) {
 			return err
 		}
+		// No invented Why/How: an empty rationale is better than a fake one.
 		text := item.Text
-		if kind == "feedback" || kind == "project" {
-			text += "\n\n**Why:** Retained from Loom's legacy memory; no additional rationale recorded.\n\n**How to apply:** Use when relevant; check against current facts.\n"
-		}
-		// Legacy text already fits 8 KiB; format additions must not discard it.
-		if len(text) > 8<<10 {
-			text = item.Text
+		description := strings.Join(strings.Fields(item.Text), " ")
+		if d := []rune(description); len(d) > 140 {
+			description = strings.TrimSpace(string(d[:139])) + "…"
 		}
 		// Distinct legacy records are preserved, even when they share a title.
 		// Deterministic IDs make an interrupted migration safe to resume.
-		_, err = s.writeMemory(MemoryWrite{Scope: item.Scope, File: file, Name: name, Description: "Imported Loom memory", Type: kind, Text: text}, map[string]any{"legacy_id": item.ID, "discussion_id": item.Provenance.DiscussionID}, false)
+		_, err = s.writeMemory(MemoryWrite{Scope: item.Scope, File: file, Name: name, Description: description, Type: kind, Text: text}, map[string]any{"legacy_id": item.ID, "discussion_id": item.Provenance.DiscussionID}, false)
 		if err != nil {
 			return err
 		}

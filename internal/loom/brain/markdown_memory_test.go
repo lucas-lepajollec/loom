@@ -241,7 +241,7 @@ func TestMarkdownMigrationReportAndIdempotence(t *testing.T) {
 	legacy, opts := memoryFixture(t)
 	profile := memoryRequest("User likes concise replies.")
 	profile.Tags = []string{ProfileTag}
-	first := mustRemember(t, legacy, profile)
+	mustRemember(t, legacy, profile)
 	pending := memoryRequest("Pending preference")
 	pending.Status = "candidate"
 	mustRemember(t, legacy, pending)
@@ -258,7 +258,7 @@ func TestMarkdownMigrationReportAndIdempotence(t *testing.T) {
 		t.Fatal(err)
 	}
 	list, _ := s.List("global")
-	if len(list.Items) != 1 || list.Items[0].Name != "Profile" || list.Items[0].Type != "user" || list.Items[0].File != "legacy-"+first.ID+".md" {
+	if len(list.Items) != 1 || list.Items[0].Name != "Profile" || list.Items[0].Type != "user" || !strings.HasPrefix(list.Items[0].File, "profile-") {
 		t.Fatal(list)
 	}
 	projectFiles, _ := s.List("project:work")
