@@ -2,6 +2,7 @@ import { html, useState, useEffect, useRef } from '../../core/lib.js';
 import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { Switch } from '../../ui/controls.js';
+import { ListPick } from '../../ui/listpick.js';
 import { toast } from '../../ui/dialog.js';
 import { Line, Group } from './kit.js';
 
@@ -35,7 +36,7 @@ export function StartupSettings() {
     } finally { if (id === generation.current) setBusy(false); }
   };
   return html`<${Group} title=${t('startup.services')}>
-    <${Line} label=${t('startup.machine')}><select class="select" disabled=${busy} value=${machine} onChange=${e => setMachine(e.target.value)}><option value="">${t('history.local')}</option>${machines.map(m => html`<option key=${m.id} value=${m.id}>${m.name}</option>`)}</select></${Line}>
+    <${Line} label=${t('startup.machine')}><div class="set-pick"><${ListPick} label=${t('startup.machine')} disabled=${busy} value=${machine} onChange=${setMachine} options=${[{ value: '', label: t('history.local') }, ...machines.map(m => ({ value: m.id, label: m.name }))]} /></div></${Line}>
     ${error && html`<div class="pad notice warn" role="alert">${error}</div>`}
     ${!state ? html`<div class="pad"><p class="note">${error ? t('startup.retry') : t('startup.loading')}</p></div>` : !state.supported ? html`<div class="pad"><p class="note">${t('startup.unsupported')}</p></div>` : html`
       ${(state.services || []).map(s => html`<${Line} key=${s.id} label=${({ ui: t('startup.service.ui'), engine: t('startup.service.engine'), node: t('startup.service.node') })[s.id] || s.unit} tip=${s.unit + ' · ' + (s.user ? t('startup.user_service') : t('startup.system_service'))}>
@@ -44,7 +45,7 @@ export function StartupSettings() {
       <div class="pad"><p class="note">${t('startup.service_hint')}</p>${(state.services || []).some(s => s.user && s.installed) && state.linger !== true && html`<p class="note">${t('startup.linger')}</p>`}</div>
     `}
     ${node?.supported && node.policy ? html`
-      <${Line} label=${t('startup.engine')} tip=${t('startup.engine_hint')}><select class="select" disabled=${busy} value=${engine} onChange=${e => setEngine(e.target.value)}><option value="off">${t('startup.off')}</option>${node.node && html`<option value="llama.cpp">llama.cpp</option>`}<option value="vllm">vLLM</option></select></${Line}>
+      <${Line} label=${t('startup.engine')} tip=${t('startup.engine_hint')}><div class="set-pick"><${ListPick} label=${t('startup.engine')} disabled=${busy} value=${engine} onChange=${setEngine} options=${[{ value: 'off', label: t('startup.off') }, ...(node.node ? [{ value: 'llama.cpp', label: 'llama.cpp' }] : []), { value: 'vllm', label: 'vLLM' }]} /></div></${Line}>
       ${engine === 'vllm' && html`<${Line} label=${t('startup.model')} stack><input class="input" disabled=${busy} value=${model} onInput=${e => setModel(e.target.value)} placeholder="org/model" /></${Line}>`}
       <${Line} label=${t('startup.policy')} tip=${t('startup.no_generation')}><button class="btn sm" disabled=${busy} onClick=${() => save(nodeURL, { policy: { engine, model: engine === 'vllm' ? model : '' } }, true)}>${t('settings.page.enregistrer')}</button></${Line}>
     ` : machine && html`<div class="pad"><p class="note">${t('startup.link_node')}</p></div>`}

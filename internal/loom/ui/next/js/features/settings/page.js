@@ -16,9 +16,10 @@ import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
 import { LoomUpdates } from './updates.js';
+import { StartupSettings } from './startup.js';
 import { VLLMEngine } from './vllm.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['startup', t('startup.title'), 'power'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 function usePref() {
@@ -528,7 +529,7 @@ export function SettingsPage({ route }) {
   const selected = sections.find(s => s[0] === route.sub);
   const sec = selected ? selected[0] : 'general';
   const detail = !mobile || !!selected;
-  const View = { general: General, internet: Internet, security: Security, about: About }[sec];
+  const View = { general: General, internet: Internet, startup: StartupSettings, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
     <div class="page-head settings-head"><div>
       ${mobile && selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}

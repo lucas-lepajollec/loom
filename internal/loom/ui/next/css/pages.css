@@ -806,3 +806,4 @@
 .mi-text{font-size:13.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .mi-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:6px;font-size:12px;color:var(--text-3)}
 .mi-meta a{color:inherit;text-decoration:underline}
+.set-pick{width:220px;max-width:100%}

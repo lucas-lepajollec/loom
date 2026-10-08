@@ -22,8 +22,13 @@ export function parseRoute() {
     history.replaceState(null, '', '#/machines' + (id ? '/' + encodeURIComponent(id) : ''));
     return { section: 'machines', sub: id || '', id: '' };
   }
-  // Engine, startup and workspaces moved to their domain pages.
-  if (section === 'settings' && ['engine', 'startup', 'workspaces'].includes(sub)) {
+  // Startup belongs to Loom's own settings.
+  if (section === 'startup') {
+    history.replaceState(null, '', '#/settings/startup');
+    return { section: 'settings', sub: 'startup', id: '' };
+  }
+  // Engine and workspaces moved to their domain pages.
+  if (section === 'settings' && ['engine', 'workspaces'].includes(sub)) {
     history.replaceState(null, '', '#/' + sub);
     return { section: sub, sub: '', id: '' };
   }
