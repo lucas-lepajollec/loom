@@ -217,6 +217,7 @@ func brainAgentBlock(layout brainAgentLayout) string {
 		"At session start, read this index and relevant linked topic files.\n" +
 		"For the current project, use Projects/<slug>/memory/ under " + quote(layout.Dir) + "; read its MEMORY.md too.\n" +
 		"Find the project directory, slug and memory folder in agent_projects in " + quote(filepath.Join(layout.Dir, ".loom", "brain.json")) + ".\n" +
+		"Save proactively, without being asked, whatever will help a later session: who the user is and how they like to work (user), their corrections and confirmed approaches (feedback), ongoing work and decisions not derivable from the code (project), where to find things (reference).\n" +
 		"Write durable memories as Markdown topic files with YAML frontmatter: name, description, type (user|feedback|project|reference).\n" +
 		"For feedback and project memories, include Why: and How to apply: in the body.\n" +
 		"Update the appropriate MEMORY.md index with one link line and a short description for each topic file.\n" +
