@@ -4,6 +4,7 @@
 import { html, useStore } from '../core/lib.js';
 import { t } from '../core/i18n.js';
 import { app } from '../core/state.js';
+import { TabNav } from '../ui/tabnav.js';
 
 export const GROUPS = [
   { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [['local', () => t('local.page.local')], ['cloud', () => t('app.routes.cloud')], ['engine', () => t('engine.page.title')]] },
@@ -20,7 +21,7 @@ export function SectionTabs() {
   const group = groupOf(section);
   const tabs = group ? group.tabs.filter(([, label]) => label) : [];
   if (tabs.length < 2) return null;
-  return html`<nav class="sec-tabs" aria-label=${group.label}>${tabs.map(([id, label]) => html`<a href=${'#/' + id} aria-current=${id === section ? 'page' : undefined}>${label()}</a>`)}</nav>`;
+  return html`<${TabNav} id=${group.id} label=${group.label} tabs=${tabs.map(([id, label]) => ({ href: '#/' + id, label: label(), current: id === section }))} />`;
 }
 
 // Une page de groupe qui accueille un ancien panneau des réglages.
