@@ -127,7 +127,7 @@ func RegisterMCPTools(s *mcp.Server, reader Reader) {
 	}
 	if memory, ok := reader.(MemoryOperations); ok {
 		writes := &mcp.ToolAnnotations{ReadOnlyHint: false, OpenWorldHint: &closed}
-		mcp.AddTool(s, &mcp.Tool{Name: "remember", InputSchema: memoryToolSchema[RememberRequest](), Description: "Write durable knowledge through Loom, never by editing .loom files. Choose a class and explicit scope (global, project:<id>, machine:<id>, agent:<id>, task:<id>) and provenance. Active identical normalized text in the same class/scope updates recency and maximum importance. Defaults: importance 0.5, confidence 0.7, status active.", Annotations: writes}, func(ctx context.Context, req *mcp.CallToolRequest, args RememberRequest) (*mcp.CallToolResult, MemoryResult, error) {
+		mcp.AddTool(s, &mcp.Tool{Name: "remember", InputSchema: memoryToolSchema[RememberRequest](), Description: "Write durable knowledge through Loom, never by editing .loom files. Choose a class and explicit scope (global, project:<id>, machine:<id>, agent:<id>, task:<id>) and provenance. Active identical normalized text in the same class/scope updates recency and maximum importance. Defaults: importance 0.5, confidence 0.7, status active. The user's profile is the single global semantic item tagged user-profile, always in context: update it with update_memory instead of creating another.", Annotations: writes}, func(ctx context.Context, req *mcp.CallToolRequest, args RememberRequest) (*mcp.CallToolResult, MemoryResult, error) {
 			item, err := memory.Remember(args)
 			return nil, MemoryResult{OK: err == nil, Item: item}, err
 		})

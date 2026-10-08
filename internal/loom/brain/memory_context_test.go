@@ -256,3 +256,19 @@ func TestMemoryContextContinuityPinningAndBudget(t *testing.T) {
 		t.Fatal("scope leak", other)
 	}
 }
+
+func TestSelectMemoryAlwaysIncludesUserProfile(t *testing.T) {
+	profile := MemoryItem{ID: "me", Class: "semantic", Scope: "global", Status: "active", Tags: []string{ProfileTag}, Text: "Lucas, non-developer, answers in French, prefers sober UIs.", UpdatedAt: 2}
+	old := profile
+	old.ID, old.UpdatedAt, old.Text = "me-old", 1, "Outdated profile."
+	other := MemoryItem{ID: "fact", Class: "semantic", Scope: "global", Status: "active", Text: "The NAS runs TrueNAS."}
+	pack := SelectMemory([]MemoryItem{other, old, profile}, "", "", "how do I publish a release", "", DefaultMemoryBudgets())
+	if len(pack.Items) != 1 || pack.Items[0].Item.ID != "me" || !strings.Contains(pack.Items[0].Reason, "profile") {
+		t.Fatalf("%+v", pack.Items)
+	}
+	profile.Text = strings.Repeat("long profile ", 400)
+	pack = SelectMemory([]MemoryItem{profile}, "", "", "x", "", DefaultMemoryBudgets())
+	if len(pack.Items) != 1 || !strings.HasSuffix(pack.Items[0].Section, "…") || pack.Used["semantic"] > DefaultMemoryBudgets().Classes()["semantic"] {
+		t.Fatalf("profile not truncated to budget: %+v", pack.Used)
+	}
+}

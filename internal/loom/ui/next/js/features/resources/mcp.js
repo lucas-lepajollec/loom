@@ -117,7 +117,8 @@ export function Mcp() {
       ${list === null ? html`<div class="skeleton" style="height:120px"></div>` : list.length ? html`<div class="card bs-list">${list.map(s => html`<${ServerRow} key=${s.name} s=${s} onToggle=${v => toggle(s, v)} onTest=${() => test(s)} onEdit=${() => setDlg({ server: s })} onDelete=${() => del(s)} />`)}</div>`
         : html`<div class="card"><${Empty} icon="plug" title="${t("resources.page.aucun_serveur_mcp")}" text=${t('mcp.empty')}><button class="btn primary" onClick=${() => setDlg({})}>${t("resources.page.ajouter_un_serveur")}</button></${Empty}></div>`}
     </section>
-    <details class="brain-advanced mcp-more"><summary>${t('mcp.files')}</summary><${McpFile} /><${McpSources} onAdopted=${load} /></details>
+    <${McpSources} onAdopted=${load} />
+    <${McpFile} />
     ${dlg && html`<${McpEditor} server=${dlg.server} onClose=${() => setDlg(null)} onSaved=${setList} />`}
   </div>`;
 }
@@ -127,19 +128,21 @@ function McpFile() {
   const [f, setF] = useState(null);
   useEffect(() => { get('/api/mcp/file').then(setF).catch(() => setF(null)); }, []);
   if (!f || !f.path) return null;
-  return html`<div class=${cls('mcp-file', f.error && 'err')}><${Icon} n="file" /><span>${t("resources.page.serveurs_enregistres_dans")} <code class="mono">${home(f.path)}</code>${t("resources.page.au_format_standard_claude_cursor_modifiable_avec_ton_editeur_relu")}</span>
-    ${f.error && html`<span class="tag red" title=${f.error}>${t("resources.page.fichier_invalide_la_derniere_version_correcte_reste_utilisee")}</span>`}</div>`;
+  return html`<p class=${cls('note mcp-file-note', f.error && 'err')}>${t("resources.page.serveurs_enregistres_dans")} <code class="mono">${home(f.path)}</code>${t("resources.page.au_format_standard_claude_cursor_modifiable_avec_ton_editeur_relu")}${f.error && html` <b>${t("resources.page.fichier_invalide_la_derniere_version_correcte_reste_utilisee")}</b>`}</p>`;
 }
 
-// Fichiers MCP d'autres outils, liés en lecture seule : leurs serveurs
-// s'affichent ici et peuvent être adoptés (copiés dans Loom, désactivés).
+// Reprendre depuis tes agents : Loom lit (sans les modifier) les configurations
+// MCP d'autres outils et copie un serveur choisi dans Loom, désactivé. L'entrée
+// « loom » de la passerelle n'est jamais proposée.
 function McpSources({ onAdopted }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState('');
   const load = () => get('/api/mcp/sources').then(setData).catch(() => setData(null));
   useEffect(() => { load(); }, []);
   const link = async (path, label, unlink) => {
-    const r = await post('/api/mcp/sources', { path, label: label || '', action: unlink ? 'unlink' : 'link' });
+    setBusy(path);
+    const r = await post('/api/mcp/sources', { path, label: label || '', action: unlink ? 'unlink' : 'link' }).catch(e => ({ ok: false, error: e.message }));
+    setBusy('');
     if (!r.ok) return toast(r.error || t("resources.page.impossible"), 'err');
     setData(r);
   };
@@ -153,19 +156,22 @@ function McpSources({ onAdopted }) {
     toast(sv.name + t("resources.page.ajoute_a_loom_desactive") + (r.env_to_fill && r.env_to_fill.length ? t("resources.page.a_completer") + r.env_to_fill.join(', ') : '')); onAdopted();
   };
   if (!data) return null;
-  return html`<section class="sec"><div class="sec-h"><h2>${t("resources.page.fichiers_mcp_lies")}<${Tip} text="${t("resources.page.les_serveurs_mcp_configures_dans_d_autres_outils_loom_lit_ces_fic")}" /></h2>
-      <button class="btn sm ghost" onClick=${addFile}><${Icon} n="link" />${t("resources.page.lier_un_fichier")}</button></div>
-    ${(data.sources || []).map(src => html`<div class="card mcp-src" key=${src.path}>
-      <div class="row"><span class="mx-ico"><${Icon} n="link" /></span><div class="grow"><div class="t">${src.label}</div><div class="s mono">${home(src.path)}</div></div>
-        ${src.error ? html`<span class="tag red" title=${src.error}>${t("resources.page.illisible")}</span>` : html`<span class="muted">${src.servers.length} ${t("resources.page.serveur")}${src.servers.length > 1 ? 's' : ''}</span>`}
-        <button class="btn sm ghost" onClick=${() => link(src.path, '', true)}>${t("resources.page.delier")}</button></div>
-      ${src.servers.map(sv => html`<div class="row sub" key=${sv.name + (sv.project || '')}><span class="grow"><b>${sv.name}</b> <span class="tag">${sv.transport === 'http' ? 'HTTP' : 'local'}</span>${sv.project && html` <span class="muted mono">${home(sv.project)}</span>`}
-          ${sv.env_names && sv.env_names.length > 0 && html`<div class="s mono">${sv.env_names.join(' · ')}</div>`}</span>
-        <button class="btn sm" disabled=${busy === sv.source + sv.name} onClick=${() => adopt(sv)}>${t("resources.page.adopter")}</button></div>`)}
-    </div>`)}
-    ${(data.suggested || []).length > 0 && html`<div class="card rows">${data.suggested.map(g => html`<div class="row sugg" key=${g.path}>
-      <span class="mx-ico"><${Icon} n="file" /></span><div class="grow"><div class="t">${g.label}</div><div class="s mono">${home(g.path)}</div></div>
-      <span class="muted">${t("resources.page.trouve_sur_cette_machine")}</span><button class="btn sm" onClick=${() => link(g.path, g.label)}>${t("resources.page.lier")}</button></div>`)}</div>`}
+  const sources = (data.sources || []).map(src => ({ ...src, servers: (src.servers || []).filter(sv => sv.name !== 'loom') }));
+  const sugg = data.suggested || [];
+  return html`<section class="sec"><div class="sec-h"><h2>${t('mcp.import.title')}<${Tip} text=${t('mcp.import.tip')} /></h2><span class="grow"></span>
+      <button class="btn sm ghost" onClick=${addFile}><${Icon} n="file" />${t('mcp.import.file')}</button></div>
+    ${sources.length || sugg.length ? html`<div class="card bs-list">
+      ${sources.map(src => html`<div class="mcp-src-b" key=${src.path}>
+        <div class="bs-row"><span class="mono-tile"><${Icon} n="file" /></span>
+          <div class="grow"><div class="bs-name">${src.label}</div><div class="bs-sub"><span class="mono trunc">${home(src.path)}</span>${src.error ? html`<span class="bs-state err" title=${src.error}>${t("resources.page.illisible")}</span>` : html`<span>${t('mcp.import.count', { n: src.servers.length })}</span>`}</div></div>
+          <button class="btn sm ghost" onClick=${() => link(src.path, '', true)}>${t('mcp.import.hide')}</button></div>
+        ${src.servers.map(sv => html`<div class="bs-row mcp-sv" key=${sv.name + (sv.project || '')}>
+          <div class="grow"><div class="bs-name">${sv.name}<span class="tag">${sv.transport === 'http' ? 'HTTP' : t('mcp.local')}</span></div>${(sv.project || (sv.env_names || []).length > 0) && html`<div class="bs-sub">${sv.project && html`<span class="mono trunc">${home(sv.project)}</span>`}${(sv.env_names || []).length > 0 && html`<span class="mono">${sv.env_names.join(' · ')}</span>`}</div>`}</div>
+          <button class="btn sm" disabled=${busy === sv.source + sv.name} onClick=${() => adopt(sv)}>${t('mcp.import.take')}</button></div>`)}
+      </div>`)}
+      ${sugg.map(g => html`<div class="bs-row" key=${g.path}><span class="mono-tile"><${Icon} n="file" /></span>
+        <div class="grow"><div class="bs-name">${g.label}<span class="tag">${t('skills.linked.found')}</span></div><div class="bs-sub"><span class="mono trunc">${home(g.path)}</span></div></div>
+        <button class="btn sm" disabled=${busy === g.path} onClick=${() => link(g.path, g.label)}>${t('mcp.import.show')}</button></div>`)}
+    </div>` : html`<div class="card bs-none"><div class="grow"><p>${t('mcp.import.empty')}</p></div></div>`}
   </section>`;
 }
-

@@ -840,9 +840,21 @@ Each connected second brain has one role:
 The role is stored on the source (`primary`, `secondary`) in `sources.json`;
 existing sources keep their behaviour (Context) until changed.
 
+## User profile
+
+One global `semantic` item tagged `user-profile` describes the user (who they
+are, how they work, preferences). The context engine always includes it first,
+truncated to the semantic budget rather than dropped. Brain › Memory edits it
+as **You**; agents update it with `update_memory` instead of creating another.
+
 ## Automatic cognitive continuity
 
-Continuity is enabled by default with a ten-minute idle threshold. While the
+Continuity is **off by default**: summaries cost model time locally and money
+with a provider. Once enabled (ten-minute idle threshold by default), it is
+frugal: with the local engine and `loaded_only` (default `true`), Loom uses the
+model already loaded and skips with `local engine has no model loaded` rather
+than loading one; an automatic run also waits until there are two new user
+messages or 1,500 characters of new text. Run-now ignores that minimum. While the
 Brain service runs, a cancellable scan runs at startup and once a minute, with
 one summary operation at a time. It reads native display transcripts and
 workspace discussion text, deduplicating native archives bound to discussions.

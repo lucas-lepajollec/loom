@@ -545,7 +545,11 @@
 .mcp-url{font-size:12px}
 .mcp-url code{font-size:11.5px;color:var(--text-2)}
 .mcp-portable{margin-bottom:8px}
-.mcp-more{margin-top:10px}
+.mcp-src-b{border-top:1px solid var(--line-soft)}
+.mcp-src-b:first-child{border-top:0}
+.bs-row.mcp-sv{padding-left:62px;border-top:1px dashed var(--line-soft)}
+.mcp-file-note{margin:6px 2px 0;overflow-wrap:anywhere}
+.mcp-file-note code{font-size:11.5px}
 .bs-pick{width:220px;flex:none}
 .bs-primary>.icon-btn,.bs-row>.icon-btn{flex:none;color:var(--text-2)}
 .brain-connectors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:18px}
@@ -814,6 +818,10 @@
 .mi-cont-h .mi-meta{margin-top:3px}
 .mi-cont-b{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft)}
 .mi-cont-b .field{margin:0}
+.mi-me .mi-cont-h{align-items:flex-start}
+.mi-me .mi-cont-h b{display:inline-flex;align-items:center;gap:6px}
+.mi-me-text{margin-top:4px;font-size:13px;line-height:1.5;color:var(--text-2);white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.mi-cont-wide{grid-column:1/-1}
 .mi-sugg{display:flex;flex-direction:column;gap:8px}
 .mi-sugg-h{display:flex;align-items:center;gap:8px;min-height:32px}
 .mi-sugg-h b{font-size:13.5px}
