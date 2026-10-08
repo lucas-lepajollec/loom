@@ -59,7 +59,8 @@ func nativeAgentProtocol(a acpAgent) string {
 		defer cancel()
 		argv, err := harnessNativeArgv([]string{path, "--help"})
 		if err == nil {
-			out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).Output()
+			// Some CLIs (OpenCode) print their help on stderr.
+			out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
 			needle := "app-server"
 			if a.ID == "opencode" {
 				needle = "opencode serve"

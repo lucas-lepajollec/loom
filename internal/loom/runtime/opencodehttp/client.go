@@ -17,6 +17,10 @@ import (
 const TestedVersion = "1.18.33"
 const MaxFrame = 4 << 20
 
+// MaxResponse bounds one JSON reply; /provider returns the whole models.dev
+// catalogue, far larger than one SSE frame.
+const MaxResponse = 64 << 20
+
 type Client struct {
 	BaseURL, Username, Password string
 	HTTP                        *http.Client
@@ -71,11 +75,11 @@ func (c *Client) Call(ctx context.Context, method, path, dir string, body, resul
 		return err
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxFrame+1))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponse+1))
 	if err != nil {
 		return err
 	}
-	if len(data) > MaxFrame {
+	if len(data) > MaxResponse {
 		return errors.New("OpenCode response too large")
 	}
 	if result != nil && json.Unmarshal(data, result) != nil {
