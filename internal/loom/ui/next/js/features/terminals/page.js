@@ -127,11 +127,18 @@ function NewTerminal({ onClose, preset }) {
   </${Modal}>`;
 }
 
+// Un shell de la machine de Loom s'ouvre de lui-même quand aucun terminal
+// n'existe ; une seule fois par chargement, pour qu'un terminal fermé reste fermé.
+let autoOpened = false;
 export function TerminalsPage({ route }) {
   const [list, setList] = useState(null);
   const [supported, setSupported] = useState(true);
   const [dlg, setDlg] = useState(false);
-  const load = () => get('/api/terminals').then(r => { setList(r.terminals || []); setSupported(r.supported !== false); }).catch(() => setList([]));
+  const load = () => get('/api/terminals').then(r => {
+    const terms = r.terminals || [];
+    if (!terms.length && r.supported !== false && !autoOpened) { autoOpened = true; return openTerminalWith({}).then(load); }
+    setList(terms); setSupported(r.supported !== false);
+  }).catch(() => setList([]));
   useEffect(() => { load(); }, [route.sub]);
   const cur = list && (list.find(localT => localT.id === route.sub) || list[list.length - 1]);
   const close = async localT => {
