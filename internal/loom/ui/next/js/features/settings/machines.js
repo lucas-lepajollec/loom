@@ -31,15 +31,19 @@ function PairDialog({ start, onClose }) {
   const [v, setV] = useState({ address: (start && start.address) || '', code: '' });
   const [busy, setBusy] = useState(false);
   const fmt = c => { const x = c.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 8); return x.length > 4 ? x.slice(0, 4) + '-' + x.slice(4) : x; };
-  const pair = async () => {
+  const pair = async force => {
     setBusy(true);
-    const r = await post('/api/machines/pair', { address: v.address.trim(), code: v.code.replace('-', '') }, { timeout: 30000 }).catch(e => ({ ok: false, error: e.message }));
+    const r = await post('/api/machines/pair', { address: v.address.trim(), code: v.code.replace('-', ''), ...(force ? { force: true } : {}) }, { timeout: 30000 }).catch(e => ({ ok: false, error: e.message }));
     setBusy(false);
+    if (!r.ok && r.error_code === 'already_paired' && !force) {
+      if (await confirm(t('machines.pair.already_title'), r.error + '. ' + t('machines.pair.already_text'), { ok: t('machines.pair.already_ok') })) return pair(true);
+      return;
+    }
     if (!r.ok) return toast(r.error || t('machines.pair.failed'), 'err');
     toast(t('machines.pair.done', { name: (r.machine && r.machine.name) || v.address })); await refreshEngineNode(); refreshWorkspace(); onClose(r.machine || true);
   };
   return html`<${Modal} title=${start && start.name ? t('machines.pair.title_named', { name: start.name }) : t('machines.pair.title')} sub=${t('machines.pair.sub')} onClose=${busy ? undefined : () => onClose()}
-      foot=${html`<button class="btn ghost" disabled=${busy} onClick=${() => onClose()}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !v.address.trim() || v.code.replace('-', '').length !== 8} onClick=${pair}>${busy ? t('settings.machines.verification') : t('machines.pair.ok')}</button>`}>
+      foot=${html`<button class="btn ghost" disabled=${busy} onClick=${() => onClose()}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !v.address.trim() || v.code.replace('-', '').length !== 8} onClick=${() => pair(false)}>${busy ? t('settings.machines.verification') : t('machines.pair.ok')}</button>`}>
     <div class="ws-form">
       <div class="pair-how"><span class="mono">loom node pair</span><span>${t('machines.pair.how')}</span></div>
       <label class="field"><span>${t('machines.pair.address')}</span><input class="input mono" value=${v.address} placeholder="192.168.1.20:2511" onInput=${e => setV({ ...v, address: e.target.value })} /></label>
