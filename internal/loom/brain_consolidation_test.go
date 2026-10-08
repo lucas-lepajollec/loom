@@ -42,7 +42,7 @@ func TestBrainConsolidationSettingsAndCollection(t *testing.T) {
 	if w := call("POST", `{"auto_candidates":false}`); w.Code != 200 {
 		t.Fatal(w.Body)
 	}
-	collectDiscussionCandidates(session, 3, "Remember our release procedure.")
+	collectDiscussionCandidates(session, 3, "I prefer short release notes.")
 	s.candidateWrites.Wait()
 	list, err := s.ListMemory(brain.MemoryFilter{Status: "candidate"})
 	if err != nil || len(list.Items) != 0 {
@@ -52,7 +52,7 @@ func TestBrainConsolidationSettingsAndCollection(t *testing.T) {
 		t.Fatal("opt-out not persisted")
 	}
 	call("POST", `{"auto_candidates":true}`)
-	collectDiscussionCandidates(session, 3, "Remember our release procedure.")
+	collectDiscussionCandidates(session, 3, "I prefer short release notes.")
 	s.candidateWrites.Wait()
 	list, err = s.ListMemory(brain.MemoryFilter{Status: "candidate"})
 	if err != nil || len(list.Items) != 1 {
