@@ -223,7 +223,7 @@ export function MemoryItems({ q = '' }) {
   return html`<div class="bs">
     <${CoreMemory} onSaved=${load} />
     <${Suggestions} projects=${projects} onChanged=${load} />
-    <section class="sec"><div class="sec-h"><h2>${t('memory.items')}${data && !data.error && html` <span class="count">${items.length}</span>`}<${Tip} text=${t('memory.intro')} /></h2><span class="grow"></span>
+    <section class="sec"><div class="sec-h mi-items-h"><h2>${t('memory.items')}${data && !data.error && html` <span class="count">${items.length}</span>`}<${Tip} text=${t('memory.intro')} /></h2><span class="grow"></span>
         <div class="mi-pick"><${ListPick} label=${t('memory.class')} value=${cls_} onChange=${setClass} options=${[{ value: 'all', label: t('memory.all_classes') }, ...MEMORY_CLASSES.map(c => ({ value: c, label: CLASS()[c] }))]} /></div>
         <div class="mi-pick"><${ListPick} label=${t('memory.status')} value=${status} onChange=${setStatus} options=${STATUSES.map(s => ({ value: s, label: STATUS()[s] }))} /></div></div>
       ${data === null ? html`<div class="skeleton" style="height:180px"></div>`
