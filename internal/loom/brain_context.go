@@ -17,8 +17,8 @@ const maxProjectBrainBudget = 8000
 func lastUserText(messages []Message) string {
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role == "user" {
-			if t, ok := messages[i].Content.(string); ok && strings.TrimSpace(t) != "" {
-				return t
+			if text := msgText(messages[i]); strings.TrimSpace(text) != "" {
+				return text
 			}
 		}
 	}

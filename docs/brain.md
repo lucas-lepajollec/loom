@@ -691,6 +691,57 @@ returns 423, other invalid requests return 400.
 
 ## Context engine
 
+
+### Frozen discussion snapshot
+
+Loom captures the system context when a turn starts without a valid snapshot,
+then reuses that text byte for byte on later turns. Read-only previews prepare a
+candidate but never save it. The snapshot includes selected shared preferences,
+project instructions/files and continuity, bounded query-independent memory,
+project skills, Brain declarations, the harness memory protocol and discussion
+instructions. Memory edits and deterministic project/discussion handoffs do not
+rewrite an existing snapshot. This preserves cloud prompt-prefix caching and
+ACP native sessions, including their private tool state.
+
+The persisted discussion fields `frozen_context` and `frozen_revision` hold the
+system text and a hash of static inputs. The revision tracks the project
+configuration (excluding mutable working state), discussion instructions,
+runtime/provider/model route, selected preferences, primary/secondary Brain
+declarations, project skills, `continued_from`, compaction count and rewrites of
+portable history, detected with a rolling append guard. Ordinary history appends, query text,
+memory contents and handoff updates do not invalidate it. Native archives retain
+the same snapshot across restoration. Selected inaccessible sources still block
+sending.
+
+Local and Cloud discussions, including native chat, select fresh memory for the
+current message and retrieve Brain passages. Parts already present in the frozen
+text are omitted. The remaining text is prepended only to the outgoing last user
+message as `<loom-context>\n…\n</loom-context>\n\n`, before the user's text.
+Neither the display journal nor `portable_messages` stores that scaffolding.
+ACP harnesses receive no per-message extras; their Loom MCP tools provide memory
+and Brain retrieval on demand. After a native engine returns compacted history,
+Loom removes the exact injected block before retaining that history.
+
+`POST /api/runtime/sessions/refresh-context` accepts `{"id":"discussion-id"}`.
+HTTP 200 returns `{"ok":true,"session":{…}}` with the saved snapshot cleared;
+the next turn captures current context. It starts no generation and does not
+change the transcript. Active replies or configuration, missing discussions and
+storage errors return HTTP 409 with `{"ok":false,"error":"…"}`. The normal
+runtime API authentication and destination consent apply. An ACP binding is
+closed on refresh so the next turn hands over the refreshed context.
+
+`POST /api/runtime/sessions/preview {id,text}` returns the actual prepared
+`preview.messages` and `preview.context`. In that context, `system` is the frozen
+system and optional `extras` is this message's retrieval block content. Ordered
+`items` cover both, with `frozen:true` on snapshot items (omitted on extras).
+`estimated_tokens` and `budget.by_kind` include extras and delimiter framing.
+Memory budget availability describes the selection allowance; its used count
+includes retained frozen memory plus this turn's extra memory. Turn provenance
+retains `context_items`, `context_budget` and `frozen_revision`; the discussion
+retains the latest `context_extras` separately from its journals. Replay and GET
+preview show the accepted turn's items instead of selecting new memory for an
+already completed message.
+
 Discussion preparation selects a deterministic memory pack without a model
 call. Scope filtering precedes scoring: only `global`, the discussion's
 `project:<id>` (when attached), and `agent:<runtime id>` are eligible. Only
@@ -740,7 +791,7 @@ discussion's instructions. Non-project discussions still receive eligible
 global and runtime-scoped memory. Unavailable or locked memory blocks preparation
 rather than silently sending a different context.
 
-`DiscussionContext.items` explains every included part of `system`, in order.
+`DiscussionContext.items` explains every included part of `system` and `extras`, in order.
 Each entry has `kind`, `label`, `source`, `reason` and estimated `tokens`; memory
 entries also have `class` and `scope`, with their stable memory ID as `source`.
 Kinds are `global_preferences`, `project` (continuity or instructions),
@@ -755,8 +806,9 @@ and a `classes` map with the same used/available pair per class. These memory
 costs measure the memory block itself, including its header, independently of
 separators between system sections. This permits displays such as
 `1240 / 1500 memory tokens` without confusing memory and vault-passage budgets.
-Explanations and budget metadata do not enter the context revision hash;
-unchanged system text retains the existing route/history revision semantics.
+Explanations and budget metadata do not enter the send revision hash; that hash
+binds frozen system text, outgoing extras, static snapshot revision and the
+existing route/history revision semantics.
 
 Preview and preparation never call `Touch`. Both portable execution and native
 local generation touch only included memory IDs when the accepted turn reaches

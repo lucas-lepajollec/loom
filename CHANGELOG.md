@@ -88,6 +88,13 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Fixed
 
+- ACP sessions restarted when Loom context changed between turns. Discussions
+  now retain a frozen system snapshot; mutable memory and handoffs preserve
+  native session continuity and cloud prompt-prefix caching. Local/Cloud query
+  retrieval stays in outgoing-only user context, inspectors distinguish frozen
+  items, and `POST /api/runtime/sessions/refresh-context` explicitly refreshes
+  the next turn.
+
 - Command output is shown again for Codex (output sent in `_meta` terminal
   chunks) and Antigravity (`tool_info.output`) instead of "No output".
 - Antigravity in Cautious mode: refused commands now become a Loom approval
