@@ -18,7 +18,9 @@ func pairTestTransport(t *testing.T, handler http.Handler) {
 	previous := nodeClient.Transport
 	t.Cleanup(func() { nodeClient.Transport = previous })
 	nodeClient.Transport = discussionTransport(func(r *http.Request) (*http.Response, error) {
-		if r.Header.Get("Authorization") != "" || r.Header.Get("Origin") != "" || r.Header.Get("Cookie") != "" {
+		// The node's own machine token (inventory after pairing) is expected;
+		// what must never leave is the browser's credential, cookie or origin.
+		if strings.Contains(r.Header.Get("Authorization"), "browser-fixture") || r.Header.Get("Origin") != "" || r.Header.Get("Cookie") != "" {
 			t.Error("browser secrets forwarded")
 		}
 		copy := r.Clone(r.Context())
