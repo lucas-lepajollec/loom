@@ -155,21 +155,19 @@ func (s *brainService) syncCoreFiles() error {
 }
 
 // The core folder is mirrored memory, not notes: keep it out of the index.
+// Called while the Brain engine is being built (under its lock): read the
+// primary from storage, never through s.get().
 func (s *brainService) coreFilesIndexExclusions() []string {
 	cfg := s.coreFilesConfig()
 	if !cfg.Enabled || !validCoreFolder(cfg.Folder) {
 		return nil
 	}
-	e, err := s.get()
+	src, err := skillsPrimary(s.storage)
 	if err != nil {
 		return nil
 	}
-	for _, src := range e.Sources() {
-		if src.Primary {
-			if dir, err := filepath.EvalSymlinks(filepath.Join(src.Path, cfg.Folder)); err == nil {
-				return []string{dir}
-			}
-		}
+	if dir, err := filepath.EvalSymlinks(filepath.Join(src.Path, cfg.Folder)); err == nil {
+		return []string{dir}
 	}
 	return nil
 }
