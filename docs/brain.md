@@ -414,7 +414,7 @@ creation generates one when omitted. The supported fields are:
 | `created_at`, `updated_at`, `last_used_at` | Unix milliseconds; `last_used_at: 0` means never touched |
 | `provenance` | Required `kind`: `user`, `agent`, `discussion`, `import`, `distilled`; optional `discussion_id`, zero-based `message_index`, `agent`, `note` |
 | `supersedes` | Array of predecessor IDs (up to 128); history files remain present |
-| `status` | `active` (creation/list default), `superseded`, `uncertain`, `expired` |
+| `status` | `active` (creation/list default), `candidate`, `superseded`, `uncertain`, `expired` |
 
 Writes use a temporary file and atomic rename, confined to the selected root.
 Lists scan the six class directories and cache items until Loom writes. Invalid
@@ -443,7 +443,8 @@ strict bounded JSON and `Cache-Control: no-store`. Errors return
 | `POST /api/brain/items/update` | `{id,patch:{text?,tags?,importance?,confidence?,status?,scope?},supersede?}` | `{ok:true,item}` |
 | `POST /api/brain/items/forget` | `{id}` | `{ok:true,item}` with status `expired` |
 
-Lists default to active items; `status=all` includes history. A project scope
+Lists default to active items; `status=candidate` lists pending review and
+`status=all` includes candidates and history. A project scope
 also includes `global`; other scopes match exactly. Classes/scopes combine as
 unions within each filter. Text queries are case-insensitive substrings. Results
 sort by importance descending, then update recency descending, then ID for
@@ -463,6 +464,71 @@ discussion ID, message index and date. Deterministic IDs allow retries after an
 interruption; `imported_distilled: true` is saved only after all files succeed.
 The original `distilled.json` is never changed or removed by import. Later
 review changes do not rerun this one-time conversion.
+
+## Cheap consolidation and candidate review
+
+A `candidate` is a proposed memory item, persisted in the same class directory
+as active memory. Candidates never enter `SelectMemory` or discussion context;
+default HTTP and MCP lists still return only active items. Review uses the
+existing operations: accept with
+`POST /api/brain/items/update {"id":"mem_…","patch":{"status":"active"}}`,
+optionally including `text` in the patch; reject with
+`POST /api/brain/items/forget {"id":"mem_…"}` (retained as `expired`). Editing
+a candidate, including with `supersede:true`, keeps it pending unless the
+patch explicitly changes its status.
+
+After a user message is accepted, Loom runs a deterministic collector in the
+background. It makes no model call and reads only that user message, excluding
+attachments, prepared context, assistant output and private runtime state.
+Detection is case-insensitive with Unicode word boundaries:
+
+| Signals | Proposed class |
+| --- | --- |
+| `retiens`, `souviens-toi`, `n'oublie pas`, `remember`, `keep in mind`, `note that` | `semantic` |
+| `toujours`, `jamais`, `désormais`, `à partir de maintenant`, `always`, `never`, `from now on` | `reflex` |
+| `je préfère`, `j'aime pas`, `je veux pas`, `I prefer`, `I don't like` | `semantic` |
+| `pour publier`, `la procédure`, `les étapes`, `steps to`, `the way to` | `procedural` |
+
+The first matching row determines the class. Each matching sentence proposes
+one item, split on `.`, `!`, `?` or newlines. Fenced/indented code, questions,
+sentences shorter than 12 Unicode characters and messages over 4000 UTF-8 bytes
+are skipped. Trimmed text is bounded to 500 bytes without splitting UTF-8.
+At most three candidates are proposed per message. Candidates have importance
+0.5, confidence 0.4, tag `auto`, and `discussion` provenance with the discussion
+ID, zero-based portable message index and agent ID when known. Scope is
+`project:<id>` when the discussion has a project, otherwise `global`.
+
+Candidate insertion skips matching text in any class/scope whose status is
+neither `superseded` nor `expired`. Matching lowercases text, collapses whitespace
+and trims surrounding punctuation. Existing items are left unchanged. At most
+50 candidates may be pending in the selected memory store; further suggestions
+are dropped until review frees space. Dedupe and the cap share the store lock.
+Collection errors are logged and do not fail the send. A locked or unavailable
+Brain prevents collection.
+
+`brain.auto_candidates` defaults to true. Brain has no general configuration
+route, so its persisted value in `LOOM_HOME/brain/consolidation.json` is managed
+through the following dedicated authenticated, no-store routes:
+
+| Method / path | Input | Output |
+| --- | --- | --- |
+| `GET /api/brain/consolidation` | No body | `{"auto_candidates":true}` (current boolean) |
+| `POST /api/brain/consolidation` | `{"auto_candidates":false}` (required boolean) | `{"auto_candidates":false}` (saved boolean) |
+| `POST /api/brain/consolidate` | `{"discussion_id":"discussion-id","consent":true}` (`consent` defaults false) | `{"ok":true,"items":[MemoryItem,…]}` |
+
+Whole-discussion consolidation is opt-in and uses the existing distillation
+selection, batching, strict model-output validation and selected chat engine.
+A linked engine outside loopback requires explicit `consent:true` before any
+transcript is sent. It writes new candidate memory items, with `distilled`
+provenance and the same scores/tag, dedupe and pending cap described above:
+`decision` → `episodic`, `fact`/`preference` → `semantic`, `todo` → `working`.
+The response includes only newly saved items, in model-result order; duplicates
+and suggestions beyond the cap are omitted (`items:[]` when none are saved).
+Turning off automatic collection does not disable explicit consolidation.
+The legacy `/api/brain/distill` and `/api/brain/distilled*` routes and their
+`distilled.json` review workflow remain available. Consolidation never writes
+that legacy file. Errors use `{"ok":false,"error":"…"}`; a locked vault
+returns 423, other invalid requests return 400.
 
 ## Context engine
 

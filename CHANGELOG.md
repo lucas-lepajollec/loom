@@ -6,6 +6,10 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Brain v2 cheap consolidation: background FR/EN heuristics propose reviewed
+  memory candidates without model calls, with dedupe, pending caps and an
+  automatic-collection toggle; opt-in discussion consolidation reuses
+  distillation and writes candidates into the existing memory store.
 - Context panel › In context: every part Loom adds to a discussion (memory
   items, Brain passages, project, primary brain, skills, instructions) with its
   class, why it is there and its token cost, plus the memory budget used.

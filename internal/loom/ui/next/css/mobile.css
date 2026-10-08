@@ -35,9 +35,7 @@
   .q-h .icon-btn{flex-shrink:0}
   .qw-h{flex-wrap:wrap;gap:4px 12px}
   .grid-bench{grid-template-columns:minmax(0,1fr)}
-  .brain-grid,.project-simple-grid{grid-template-columns:minmax(0,1fr)}
-  .brain-intro{align-items:flex-start;flex-direction:column}
-  .brain-intro .acts{width:100%;flex-wrap:wrap}
+  .project-simple-grid{grid-template-columns:minmax(0,1fr)}
   .project-setting{grid-template-columns:minmax(0,1fr);gap:10px}
   .grid-bench>.card{min-width:0}
   .bench .sec-h{flex-wrap:wrap;gap:8px}
@@ -114,14 +112,19 @@
   .usage-t .cell-main b,.native-t .cell-main b{flex-wrap:wrap;gap:4px}
   .native-t .cell-main .q-m{white-space:normal;max-width:100%}
   .brain-search>.search{flex:1 1 100%;min-width:0}
-  .brain-intro{align-items:flex-start;flex-direction:column;margin-top:20px}
-  .brain-intro .acts{width:100%;flex-wrap:wrap}
-  .brain-intro .acts .btn.primary{flex:1}
-  .brain-grid{gap:10px}
-  .second-brain-card{padding:14px}
-  .second-brain-actions{flex-wrap:wrap}
-  .second-brain-actions .grow{display:none}
   .brain-connectors,.brain-permissions{grid-template-columns:minmax(0,1fr)}
+  .mi-bar{flex-wrap:wrap}
+  .mi-sugg-h{flex-wrap:wrap}
+  .mi-sugg .mi-item{flex-wrap:wrap}
+  .mi-sugg .mi-acts{margin:0;width:100%;justify-content:flex-end}
+  .mi-q{flex:1 1 calc(100% - 140px);width:auto;min-width:0}
+  .mi-pick{order:2;flex:1 1 calc(50% - 4px);width:auto;min-width:0}
+  .bs-primary,.bs-none{flex-wrap:wrap;padding:14px}
+  .bs-primary>.grow{flex:1 1 calc(100% - 90px)}
+  .bs-wide{order:3;flex:1 1 100%}
+  .bs-none .btn{flex:1 1 100%}
+  .bs-row{align-items:flex-start;padding:12px 10px 12px 14px}
+  .bs-pick{width:100%}
   .project-setting{grid-template-columns:minmax(0,1fr);gap:10px;padding:15px 14px}
   .project-save{flex-wrap:wrap}
   .project-save .danger{width:100%;justify-content:flex-start}

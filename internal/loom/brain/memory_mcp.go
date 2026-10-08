@@ -23,7 +23,7 @@ func memoryToolSchema[T any]() *jsonschema.Schema {
 			case "scopes":
 				p.Items.Pattern = `^(global|(project|machine|agent|task):[^\s\x00].*)$`
 			case "status":
-				p.Enum = memoryEnum([]string{"active", "superseded", "uncertain", "expired"})
+				p.Enum = memoryEnum([]string{"active", "candidate", "superseded", "uncertain", "expired"})
 			case "kind":
 				p.Enum = memoryEnum([]string{"user", "agent", "discussion", "import", "distilled"})
 			case "importance", "confidence":

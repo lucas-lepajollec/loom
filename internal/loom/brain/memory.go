@@ -47,14 +47,14 @@ type RememberRequest struct {
 	Confidence *float64         `json:"confidence,omitempty" jsonschema:"score from 0 to 1; default 0.7"`
 	Provenance MemoryProvenance `json:"provenance"`
 	Supersedes []string         `json:"supersedes,omitempty"`
-	Status     string           `json:"status,omitempty" jsonschema:"status: active (default), superseded, uncertain or expired"`
+	Status     string           `json:"status,omitempty" jsonschema:"status: active (default), candidate, superseded, uncertain or expired"`
 }
 type MemoryPatch struct {
 	Text       *string   `json:"text,omitempty"`
 	Tags       *[]string `json:"tags,omitempty"`
 	Importance *float64  `json:"importance,omitempty" jsonschema:"score from 0 to 1"`
 	Confidence *float64  `json:"confidence,omitempty" jsonschema:"score from 0 to 1"`
-	Status     *string   `json:"status,omitempty" jsonschema:"status: active, superseded, uncertain or expired"`
+	Status     *string   `json:"status,omitempty" jsonschema:"status: active, candidate, superseded, uncertain or expired"`
 	Scope      *string   `json:"scope,omitempty"`
 }
 type UpdateMemoryRequest struct {
@@ -68,7 +68,7 @@ type ForgetMemoryRequest struct {
 type MemoryFilter struct {
 	Classes []string `json:"classes,omitempty" jsonschema:"memory classes to include; omit for all"`
 	Scopes  []string `json:"scopes,omitempty" jsonschema:"scope ids to include; project scopes also include global"`
-	Status  string   `json:"status,omitempty" jsonschema:"status: active (default), superseded, uncertain, expired or all"`
+	Status  string   `json:"status,omitempty" jsonschema:"status: active (default), candidate, superseded, uncertain, expired or all"`
 	Query   string   `json:"query,omitempty" jsonschema:"case-insensitive substring of item text"`
 	Limit   int      `json:"limit,omitempty" jsonschema:"nonnegative integer"`
 }
@@ -118,7 +118,7 @@ func validateMemory(item MemoryItem) error {
 			return errors.New("importance and confidence must be between 0 and 1")
 		}
 	}
-	if !contains([]string{"active", "superseded", "uncertain", "expired"}, item.Status) {
+	if !contains([]string{"active", "candidate", "superseded", "uncertain", "expired"}, item.Status) {
 		return errors.New("invalid memory status")
 	}
 	if !contains([]string{"user", "agent", "discussion", "import", "distilled"}, item.Provenance.Kind) || (item.Provenance.MessageIndex != nil && *item.Provenance.MessageIndex < 0) {
