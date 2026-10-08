@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,7 +15,8 @@ import (
 	"time"
 )
 
-const TestedVersion = "1.18.33"
+var TestedVersion = harness.LatestTestedVersion("opencode")
+
 const MaxFrame = 4 << 20
 
 // MaxResponse bounds one JSON reply; /provider returns the whole models.dev

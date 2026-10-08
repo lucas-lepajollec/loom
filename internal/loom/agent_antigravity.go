@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/antigravity"
 )
@@ -19,8 +20,9 @@ func antigravityCaps() []string {
 
 func antigravityCompatibility(a acpAgent, version string) *agent.CompatibilityRecord {
 	path, _ := lifecycleLookPath("agy")
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: antigravity.Protocol, AdapterVersion: agentAdapterVersion, AdapterPackage: "agy", TestedVersion: antigravity.TestedVersion, TestedVersions: []string{antigravity.TestedVersion}, Capabilities: antigravityCaps()}
-	if version != "" && version != r.TestedVersion {
+	// Tested versions live in harness/tested_versions.json, edited by the watch.
+	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: antigravity.Protocol, AdapterVersion: agentAdapterVersion, AdapterPackage: "agy", TestedVersion: harness.LatestTestedVersion("antigravity"), TestedVersions: harness.TestedVersions("antigravity"), Capabilities: antigravityCaps()}
+	if version != "" && !harness.VersionTested("antigravity", version) {
 		r.Warning = "Antigravity " + version + " differs from tested " + r.TestedVersion + "; protocol compatibility is unverified"
 	}
 	return r

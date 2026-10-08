@@ -57,6 +57,7 @@ func validCustomACPAgent(a acpAgent) (acpAgent, error) {
 	if !strings.HasPrefix(a.ID, "custom-") {
 		return a, errors.New("reserved ID")
 	}
+	a.RegistryID, a.RegistryVersion, a.RegistryPackage, a.RegistryKind = "", "", "", ""
 	a.Logo = logoForCustom(a)
 	a.Detect, a.Docs, a.Custom = nil, "", true
 	return a, nil

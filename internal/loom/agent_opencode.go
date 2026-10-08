@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/opencodehttp"
 )
@@ -29,8 +30,8 @@ func openCodeCaps() []string {
 }
 func openCodeCompatibility(a acpAgent, version string) *agent.CompatibilityRecord {
 	path, _ := lifecycleLookPath("opencode")
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: "opencode-http", AdapterVersion: agentAdapterVersion, AdapterPackage: "opencode", TestedVersion: opencodehttp.TestedVersion, TestedVersions: []string{opencodehttp.TestedVersion}, Capabilities: openCodeCaps()}
-	if version != "" && version != r.TestedVersion {
+	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: "opencode-http", AdapterVersion: agentAdapterVersion, AdapterPackage: "opencode", TestedVersion: opencodehttp.TestedVersion, TestedVersions: harness.TestedVersions("opencode"), TestedVersionSource: "loom", Capabilities: openCodeCaps()}
+	if version != "" && !harness.VersionTested("opencode", version) {
 		r.Warning = "OpenCode " + version + " differs from tested " + r.TestedVersion + "; protocol compatibility is unverified"
 	}
 	return r

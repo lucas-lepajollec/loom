@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/agentstdio"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/codexapp"
@@ -110,11 +111,13 @@ func agentCompatibility(a acpAgent) *agent.CompatibilityRecord {
 		if protocol == "acp" {
 			return acpCompatibility(a, map[string]any{"version": r.Version}, r.Capabilities)
 		}
-		return &r
+		if protocol == "opencode-http" {
+			return openCodeCompatibility(a, r.Version)
+		}
+		return nativeCompatibility(a, protocol, r.Executable, r.Version, r.Capabilities)
 	}
 	executable := a.Command
 	caps := []string{}
-	tested := ""
 	if protocol == "agy-stream-json" {
 		return antigravityCompatibility(a, "")
 	}
@@ -124,16 +127,9 @@ func agentCompatibility(a acpAgent) *agent.CompatibilityRecord {
 	if protocol == "acp" {
 		return acpCompatibility(a, nil, nil)
 	}
-	if protocol != "acp" {
-		executable, _ = lifecycleLookPath(a.ID)
-		caps = nativeAgentCaps(a.ID)
-		if a.ID == "codex" {
-			tested = codexapp.TestedVersion
-		} else {
-			tested = pirpc.TestedVersion
-		}
-	}
-	return &agent.CompatibilityRecord{Runtime: a.ID, Executable: executable, Protocol: protocol, AdapterVersion: agentAdapterVersion, TestedVersion: tested, Capabilities: caps}
+	executable, _ = lifecycleLookPath(a.ID)
+	caps = nativeAgentCaps(a.ID)
+	return nativeCompatibility(a, protocol, executable, "", caps)
 }
 
 func recordAgentCompatibility(ctx context.Context, a acpAgent, protocol string, caps []string) *agent.CompatibilityRecord {
@@ -152,18 +148,16 @@ func recordAgentCompatibility(ctx context.Context, a acpAgent, protocol string, 
 			version = boundedBytes(strings.TrimSpace(string(out)), 200)
 		}
 	}
-	tested := ""
-	if protocol == "app-server" {
-		tested = codexapp.TestedVersion
-	}
-	if protocol == "pi-rpc" {
-		tested = pirpc.TestedVersion
-	}
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, Protocol: protocol, AdapterVersion: agentAdapterVersion, TestedVersion: tested, Capabilities: caps}
-	if tested != "" && version != tested {
+	r := nativeCompatibility(a, protocol, path, version, caps)
+	_ = putStoreJSON(bkState, "agent_compat_"+a.ID, r)
+	return r
+}
+func nativeCompatibility(a acpAgent, protocol, executable, version string, caps []string) *agent.CompatibilityRecord {
+	tested := harness.LatestTestedVersion(a.ID)
+	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: executable, Version: version, AgentVersion: version, Protocol: protocol, AdapterVersion: agentAdapterVersion, TestedVersion: tested, TestedVersions: harness.TestedVersions(a.ID), TestedVersionSource: "loom", Capabilities: caps}
+	if version != "" && !harness.VersionTested(a.ID, version) {
 		r.Warning = fmt.Sprintf("%s %s differs from tested %s; protocol compatibility is unverified", a.Name, version, tested)
 	}
-	_ = putStoreJSON(bkState, "agent_compat_"+a.ID, r)
 	return r
 }
 func nativeAgentCaps(id string) []string {

@@ -302,15 +302,16 @@ func ValidateAnswer(r AgentRequest, a RequestAnswer) error {
 }
 
 type CompatibilityRecord struct {
-	Runtime        string   `json:"runtime"`
-	Executable     string   `json:"executable"`
-	Version        string   `json:"version"`
-	Protocol       string   `json:"protocol"`
-	AdapterVersion string   `json:"adapter_version"`
-	AdapterPackage string   `json:"adapter_package,omitempty"`
-	AgentVersion   string   `json:"agent_version,omitempty"`
-	TestedVersions []string `json:"tested_versions,omitempty"`
-	TestedVersion  string   `json:"tested_version"`
-	Capabilities   []string `json:"capabilities"`
-	Warning        string   `json:"warning,omitempty"`
+	TestedVersionSource string   `json:"tested_version_source,omitempty"`
+	Runtime             string   `json:"runtime"`
+	Executable          string   `json:"executable"`
+	Version             string   `json:"version"`
+	Protocol            string   `json:"protocol"`
+	AdapterVersion      string   `json:"adapter_version"`
+	AdapterPackage      string   `json:"adapter_package,omitempty"`
+	AgentVersion        string   `json:"agent_version,omitempty"`
+	TestedVersions      []string `json:"tested_versions,omitempty"`
+	TestedVersion       string   `json:"tested_version"`
+	Capabilities        []string `json:"capabilities"`
+	Warning             string   `json:"warning,omitempty"`
 }

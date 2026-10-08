@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/acp"
 )
@@ -24,22 +25,32 @@ func acpCompatibility(a acpAgent, info map[string]any, caps []string) *agent.Com
 	switch usageHarnessID(a) {
 	case "claude-code":
 		packageName = "@agentclientprotocol/claude-agent-acp"
-		tested = []string{"0.88.0"}
+		tested = harness.TestedVersions("claude-acp")
 	case "opencode":
 		packageName = "opencode"
-		tested = []string{"1.18.33"}
+		tested = harness.TestedVersions("opencode")
 	case "hermes":
 		packageName = "hermes-agent"
+		tested = harness.TestedVersions("hermes")
+	case "deepseek-tui":
+		packageName = "deepseek-tui"
+		tested = harness.TestedVersions("deepseek-tui")
 	case "openclaw":
 		packageName = "openclaw"
+		tested = harness.TestedVersions("openclaw")
 	case "antigravity":
 		packageName, pin = "loom agy-acp", Version
 	}
+	source := "loom"
+	if a.RegistryID != "" {
+		packageName, pin = a.RegistryPackage, a.RegistryVersion
+		tested, source = []string{a.RegistryVersion}, "registry"
+	}
 	version, _ := info["version"].(string)
 	path, _ := lifecycleLookPath(a.Command)
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: "acp", AdapterVersion: pin, AdapterPackage: packageName, TestedVersions: tested, Capabilities: caps}
+	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: "acp", AdapterVersion: pin, AdapterPackage: packageName, TestedVersions: tested, TestedVersionSource: source, Capabilities: caps}
 	if len(tested) > 0 {
-		r.TestedVersion = tested[0]
+		r.TestedVersion = tested[len(tested)-1]
 	}
 	if version != "" {
 		matched := false
@@ -50,6 +61,11 @@ func acpCompatibility(a acpAgent, info map[string]any, caps []string) *agent.Com
 		}
 		if !matched {
 			r.Warning = fmt.Sprintf("%s handshake version %s has not been tested; ACP compatibility is unverified", a.Name, version)
+		}
+	}
+	if a.ID == "hermes" || a.ID == "openclaw" || a.ID == "deepseek-tui" {
+		if len(harness.TestedVersions(a.ID)) == 0 {
+			r.Warning = "not yet verified with Loom"
 		}
 	}
 	return r

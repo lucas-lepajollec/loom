@@ -15,6 +15,11 @@ Loom is a single Go binary with a web UI. Run local inference, connect cloud pro
 - See native tools, permissions, usage and machine state in one workspace.
 - Keep data locally and choose when to share it with an external destination.
 
+The backend also offers the official ACP agent catalogue with pinned add/remove
+configuration and an offline snapshot, plus curated Hermes, OpenClaw and
+DeepSeek TUI launchers. See [agent compatibility](docs/agents-compat.md) for API
+shapes, verification limits and the weekly compatibility watch.
+
 ## Models and engines
 
 Install, compile or update **llama.cpp** from Loom, or link an existing binary. Router mode keeps the engine running while models load through its API. Browse and download GGUF models from Hugging Face, save presets and tune per-model parameters with an advisory VRAM estimate.
