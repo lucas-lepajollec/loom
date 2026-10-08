@@ -27,6 +27,9 @@ type MemoryStoreOptions struct {
 	Available       func() error
 	ImportDistilled func() ([]MemoryItem, error)
 }
+
+// MemoryStore is retained for legacy migration and fixtures. Runtime memory
+// operations use MarkdownStore; this store no longer participates in context.
 type MemoryStore struct {
 	mu        sync.Mutex
 	opts      MemoryStoreOptions

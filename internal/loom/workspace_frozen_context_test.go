@@ -2,8 +2,6 @@ package loom
 
 import (
 	"context"
-	"encoding/json"
-	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -11,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
@@ -37,7 +36,7 @@ func TestFrozenContextCapturedAtStartAndReused(t *testing.T) {
 		t.Fatal("first turn did not capture preview")
 	}
 	changedText := "New mutable preference."
-	if _, err := theBrain().UpdateMemory(brain.UpdateMemoryRequest{ID: originalMemory.ID, Patch: brain.MemoryPatch{Text: &changedText}}); err != nil {
+	if _, err := theBrain().MemoryWrite(brain.MemoryWrite{Scope: "global", File: originalMemory.File, Name: originalMemory.Name, Description: originalMemory.Description, Type: originalMemory.Type, Text: changedText}); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.start(s.ID, "second-frozen-request", "Different query"); err != nil {
@@ -131,80 +130,22 @@ func TestFrozenContextStaticInvalidation(t *testing.T) {
 	}
 }
 
-func TestFrozenContextCloudExtrasOutgoingOnlyAndPreview(t *testing.T) {
+func TestFrozenContextTopicsCapturedOnce(t *testing.T) {
 	testHome(t)
-	rememberContextItem(t, "reflex", "global", "Frozen core.")
 	fact := rememberContextItem(t, "semantic", "global", "quartz is the chosen mineral.")
-	s := RuntimeSession{ID: "cloud-extras", RuntimeID: "openai-compatible", Title: "Test", Messages: []Message{{Role: "user", Content: "Earlier"}, {Role: "assistant", Content: "Answer"}}, PortableMessages: []Message{{Role: "user", Content: "Earlier"}, {Role: "assistant", Content: "Answer"}}}
-	s.FrozenSnapshot = discussionContextFor(s, "").Snapshot
-	before := cloneRuntimeSession(s)
-	p := prepareDiscussion(s, "quartz question")
-	if strings.Contains(p.Context.System, fact.Text) || !strings.Contains(p.Context.Extras, fact.Text) {
-		t.Fatal("retrieval is not separated from frozen system")
+	session := RuntimeSession{ID: "cloud-topics", RuntimeID: "openai-compatible", Title: "Test"}
+	preview := prepareDiscussion(session, "quartz question")
+	if !strings.Contains(preview.Context.System, fact.Text) {
+		t.Fatal("first message did not capture topic")
 	}
-	outgoing := msgText(p.Messages[len(p.Messages)-1])
-	if !strings.HasPrefix(outgoing, "<loom-context>\n") || !strings.HasSuffix(outgoing, "</loom-context>\n\nquartz question") {
-		t.Fatal("bad outgoing extras", outgoing)
-	}
-	if msgText(s.Messages[0]) != msgText(before.Messages[0]) || msgText(s.PortableMessages[0]) != msgText(before.PortableMessages[0]) {
-		t.Fatal("preview mutated transcript")
-	}
-	frozen, extra := false, false
-	for _, item := range p.Context.Items {
-		if item.Source == fact.ID {
-			extra = !item.Frozen
-		}
-		frozen = frozen || item.Frozen
-	}
-	if !frozen || !extra {
-		t.Fatal("inspector flags do not describe outgoing text")
-	}
-	m := newRuntimeSessions()
-	old := workspaceSessions
-	workspaceSessions = m
-	t.Cleanup(func() { workspaceSessions = old })
-	if err := putStoreJSON(bkRuntimeSessions, s.ID, s); err != nil {
+	session.FrozenSnapshot = preview.Context.Snapshot
+	session.Messages = []Message{um("quartz question"), am("Answer")}
+	if _, err := theBrain().MemoryWrite(brain.MemoryWrite{Scope: "global", Name: "Later fact", Description: "ruby", Type: "reference", Text: "ruby added later"}); err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest("POST", "/api/runtime/sessions/preview", strings.NewReader(`{"id":"cloud-extras","text":"quartz question"}`))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	handleRuntimeSessionPreview(w, req)
-	var response struct {
-		Preview DiscussionPreview `json:"preview"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil || w.Code != 200 {
-		t.Fatal(w.Code, err, w.Body.String())
-	}
-	if msgText(response.Preview.Messages[len(response.Preview.Messages)-1]) != outgoing {
-		t.Fatal("HTTP preview differs from send")
-	}
-	s.Messages = append(s.Messages, Message{Role: "user", Content: "quartz question"}, Message{Role: "assistant", Content: ""})
-	s.PortableMessages = append(s.PortableMessages, Message{Role: "user", Content: "quartz question"})
-	s.Turns = []RuntimeTurnRecord{{MessageIndex: 3}}
-	recordTurnContext(&s.Turns[0], p.Context)
-	s.ContextExtras = p.Context.Extras
-	run := &runtimeRun{session: s, cancel: func() {}}
-	m.runs[s.ID] = run
-	adapter := memoryContextAdapter{id: s.RuntimeID, run: func(turn RuntimeTurn, emit ChatCallback) {
-		if msgText(turn.Messages[len(turn.Messages)-1]) != outgoing {
-			t.Error("wire lost extras")
-		}
-		emit(StreamEvent{Content: "Cloud answer"})
-	}}
-	m.generate(context.Background(), run, adapter, p.Messages, p.Context)
-	result, _ := m.get(s.ID)
-	for _, history := range [][]Message{result.Messages, result.PortableMessages} {
-		for _, msg := range history {
-			if strings.Contains(msgText(msg), "<loom-context>") {
-				t.Fatal("extras persisted into history")
-			}
-		}
-	}
-	rememberContextItem(t, "reflex", "global", "Changed while inspecting.")
-	actual := discussionContext(result)
-	if actual.Extras != p.Context.Extras || actual.System != p.Context.System {
-		t.Fatal("completed inspector recomputed sent context")
+	later := prepareDiscussion(session, "ruby question")
+	if later.Context.System != preview.Context.System || strings.Contains(later.Context.Extras, "ruby added later") {
+		t.Fatal("later topic entered frozen memory")
 	}
 }
 
@@ -245,7 +186,7 @@ func TestFrozenContextRefreshEndpoint(t *testing.T) {
 	}
 }
 
-func TestACPProjectFrozenContextReusesProcessAfterHandoff(t *testing.T) {
+func TestACPProjectFrozenContextReusesProcessAfterMemoryEdit(t *testing.T) {
 	testHome(t)
 	a := fakeACPAdapter(t)
 	isolateRuntimeRegistry(t, a)
@@ -259,14 +200,12 @@ func TestACPProjectFrozenContextReusesProcessAfterHandoff(t *testing.T) {
 	if err = putStoreJSON(bkRuntimeSessions, s.ID, s); err != nil {
 		t.Fatal(err)
 	}
-	if err = theBrain().saveHandoff([]handoffTurn{handoffFixtureTurn("prior", p.ID, 1000)}); err != nil {
-		t.Fatal(err)
-	}
+	rememberContextItem(t, "semantic", "project:"+p.ID, "Prior project decision")
 	if err = m.start(s.ID, "frozen-acp-first", "first project query"); err != nil {
 		t.Fatal(err)
 	}
 	first := waitACPTurn(t, m, s.ID)
-	theBrain().waitHandoffs()
+	transcriptJobs.Wait()
 	m.acpMu.Lock()
 	process := m.acp[s.ID]
 	m.acpMu.Unlock()
@@ -276,7 +215,7 @@ func TestACPProjectFrozenContextReusesProcessAfterHandoff(t *testing.T) {
 		t.Fatal("ACP received per-message extras")
 	}
 	if acpContextHash(preview.Messages[:len(preview.Messages)-1]) != first.NativeContext {
-		t.Fatal("handoff changed ACP prefix")
+		t.Fatal("memory edit changed ACP prefix")
 	}
 	if err = m.start(s.ID, "frozen-acp-second", "__loom_inspect_portable"); err != nil {
 		t.Fatal(err)
@@ -297,7 +236,7 @@ func TestACPProjectFrozenContextReusesProcessAfterHandoff(t *testing.T) {
 		t.Fatal("portable history was re-sent", second.Messages[len(second.Messages)-1].Content)
 	}
 	if first.FrozenContext != second.FrozenContext || first.FrozenRevision != second.FrozenRevision {
-		t.Fatal("handoff/query changed snapshot")
+		t.Fatal("memory edit/query changed snapshot")
 	}
 }
 
@@ -323,11 +262,11 @@ func TestNativeFrozenContextExtrasStayOutOfArchive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.System != second.System || !strings.Contains(second.Extras, fact.Text) {
+	if first.System != second.System || strings.Contains(second.Extras, fact.Text) {
 		t.Fatal("native snapshot/extras wrong")
 	}
 	outgoing := discussion.WithContextExtras(c.Messages, second.Extras)
-	if !strings.Contains(msgText(outgoing[len(outgoing)-1]), "<loom-context>") {
+	if strings.Contains(msgText(outgoing[len(outgoing)-1]), fact.Text) {
 		t.Fatal("native extras not sent")
 	}
 	a, ok := loadArchive(c.ID)

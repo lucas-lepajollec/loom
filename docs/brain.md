@@ -20,7 +20,7 @@ servers. The first connects canonical knowledge sources and exposes search and
 indexing status. Skills and MCP remain execution capabilities rather than
 knowledge stores. The owned skills home can live in the primary second brain
 so its folders sync with that vault; additional skills folders remain read-only
-linked sources. Loom's conversation indexing, reviewed memory,
+linked sources. Loom's conversation indexing, Markdown memory,
 retrieval and semantic layers operate in the background as cognitive
 continuity; users do not have to wire those layers into every project.
 
@@ -71,16 +71,12 @@ They narrow the normal file selection; at most 64 globs, 256 bytes each.
 
 Three built-ins are read-only:
 
-- `conversations`: user and assistant text from Loom's native display journal,
-  archives and common discussions. No system instructions, hidden reasoning,
-  approvals, tool results or runtime metadata. Bound native discussions are
-  not indexed twice. Paths identify the discussion and individual message.
-- `distilled`: durable decisions, facts, todos and preferences extracted only
-  on request, with discussion/message provenance. New items are review candidates, excluded from retrieval until accepted.
-  They can be edited/kept, rejected or deleted through dedicated endpoints.
-  The built-in source definition remains read-only.
-- `memory`: the existing local agent's Markdown pages, read through Loom's
-  decryption layer. Brain does not create another memory store or write pages.
+- `conversations`: canonical Markdown files in `Discussions/`, with visible
+  text and tool summaries. Missing historical files are backfilled from journals.
+- `distilled`: explicit distillation/review items; pending and rejected
+  suggestions stay out of retrieval.
+- `memory`: native Markdown memory indexes and files through the primary or
+  encrypted fallback store.
 
 Default requests include context, repositories, conversations, memory and distilled items.
 Personal sources are excluded even when `personal=true` alone is supplied:
@@ -272,8 +268,8 @@ Example personal tool call:
 ## One Loom MCP gateway per harness
 
 `/mcp/loom` is a stateless Streamable HTTP gateway. It shares the existing
-Brain and memory tool registration with `/mcp/brain`, including `remember`,
-`update_memory`, `forget_memory` and `list_memory`. It also proxies every enabled
+Brain and memory tool registration with `/mcp/brain`, including `memory_index`,
+`memory_read`, `memory_write` and `memory_delete`. It also proxies every enabled
 Loom MCP server through the same client pool used by Loom chat. Hidden tools
 (`disabledTools`) remain hidden. Arguments and MCP results, including content,
 structured content and `isError`, pass through without flattening or truncation;
@@ -519,338 +515,255 @@ codec; older plaintext distilled data requires such a write after encryption
 is enabled. As with other local data, vault locking blocks access immediately.
 
 
-## Memory items (`.loom/`)
+## Markdown memory in the primary brain
 
-Brain v2 adds durable memory items alongside existing free-form memory pages
-and distilled review candidates. Loom writes these files through its memory
-operations; agents must use HTTP or MCP rather than edit `.loom/` directly.
-The generic `brain_write` / `brain_edit` tools reject `.loom/` paths.
+The second brain owns durable memory; Loom connects it. Agents and people read
+and edit the same native Markdown files with or without Loom. Memory follows
+Claude Code auto memory: a short `MEMORY.md` index and one topic file per memory.
+No phrase detection, per-turn handoffs, continuity summaries or mirrored core
+notes participate in memory.
 
-With a writable primary second brain, items live in the user-owned vault at
-`<vault>/.loom/memory/<class>/<id>.md`, as plaintext YAML frontmatter and a
-Markdown/plain-text body. These files remain readable by other tools even when
-Loom's private vault encryption is enabled. Without a writable primary, the
-same layout lives under `LOOM_HOME/brain/loom-memory/memory/<class>/<id>.md`;
-files use the existing at-rest codec when encryption is enabled. The companion
-`brain.yaml` is in `.loom/` or `loom-memory/`, respectively, and contains
-`format: 1`, `created_at` (Unix milliseconds), and `imported_distilled: true`
-after the one-time import completes. Unrelated metadata keys are preserved.
-Loom's vault availability check protects both stores, including cached reads.
+The default layout is:
 
-Example item:
+```text
+Memory/MEMORY.md
+Memory/profile.md
+Projects/<stable-project-slug>/memory/MEMORY.md
+Projects/<stable-project-slug>/memory/<topic>.md
+Discussions/<project-slug-or-_>/<YYYY-MM-DD>-<title-slug>-<short-id>.md
+.loom/brain.json
+.loom/migration-memory.md
+```
+
+Dates are UTC and short discussion IDs are deterministic hashes. A project slug
+comes from its name, handles collisions and remains stable after renaming.
+Discussion filenames remain stable after creation; moving a discussion changes
+its folder and metadata. Loom writes only in these trees and `.loom/` metadata.
+Existing notes keep their structure. Relative paths, safe filenames, root-confined
+IO and refusal of symlinks protect the boundary. Writes use atomic replacement.
+
+`.loom/brain.json` preserves unrelated keys and supports:
+
+```json
+{
+  "memory_folder": "Memory",
+  "projects_folder": "Projects",
+  "project_memory_folder": "memory",
+  "discussions_folder": "Discussions",
+  "project_folders": {"project-id": "stable-project-slug"},
+  "discussion_files": {"discussion-id": "Discussions/_/2026-10-08-title-short-id.md"}
+}
+```
+
+Configured folder names are relative, cannot overlap and cannot contain hidden,
+parent or symlink paths. Loom owns the identity maps. Without an available
+writable primary, an equivalent tree lives in `LOOM_HOME/brain/loom-memory/`,
+using the existing encryption codec when enabled. Primary files remain plaintext;
+Loom's vault checks still block HTTP/MCP/context access while locked.
+
+A memory file is:
 
 ```markdown
 ---
-id: mem_example
-class: semantic
-scope: project:example
-tags: [release]
-importance: 0.5
-confidence: 0.7
-created_at: 1791417600000
-updated_at: 1791417600000
-last_used_at: 0
-provenance:
-    kind: user
-    note: Explicitly requested by the owner
-supersedes: []
-status: active
+name: Release checks
+description: Before preparing a release
+type: feedback
+metadata:
+  discussion_id: discussion-id
+  date: 2026-10-08T12:00:00Z
 ---
-Release candidates require a successful local validation run.
+Run the agreed release checks before publishing.
+
+**Why:** A previous release omitted validation.
+
+**How to apply:** Follow the current checklist and report its results.
 ```
 
-Every field except `text` appears in frontmatter; `text` is the exact body,
-limited to 8 KiB of valid UTF-8. IDs are stable, unique, safe filename tokens
-(1–128 ASCII letters/digits/underscore/hyphen, starting with a letter/digit);
-creation generates one when omitted. The supported fields are:
+`type` is `user`, `feedback`, `project` or `reference`. Names are at most 300
+bytes, descriptions 1000 bytes, bodies 8 KiB of valid UTF-8. Feedback/project
+memories state the rule/fact, then `**Why:**` and `**How to apply:**`;
+consolidation validates those headings. Unknown frontmatter/metadata keys survive
+updates. External edits are reread on every access. Malformed files remain listed
+with `malformed:true`, and Loom never overwrites or deletes them. Repair them
+with ordinary file editing.
 
-| Field | Values / meaning |
-| --- | --- |
-| `class` | `working`, `session`, `episodic`, `semantic`, `procedural`, `reflex` |
-| `scope` | `global`, or `project:<id>`, `machine:<id>`, `agent:<id>`, `task:<id>` with a nonempty ID |
-| `tags` | String array (up to 128 tags, 256 bytes each) |
-| `importance`, `confidence` | Finite scores from 0 to 1; creation defaults 0.5 / 0.7; explicit zero is retained |
-| `created_at`, `updated_at`, `last_used_at` | Unix milliseconds; `last_used_at: 0` means never touched |
-| `provenance` | Required `kind`: `user`, `agent`, `discussion`, `import`, `distilled`; optional `discussion_id`, zero-based `message_index`, `agent`, `note` |
-| `supersedes` | Array of predecessor IDs (up to 128); history files remain present |
-| `status` | `active` (creation/list default), `candidate`, `superseded`, `uncertain`, `expired` |
+Index entries are `- [Title](file.md) — retrieval hook`. Creates, updates and
+deletes rebuild the index. Matching normalized names or exact normalized text
+reuse an existing file. `MEMORY.md` is limited to its first 200 lines / 25 KiB.
+Oversized indexes or collections expose a `warning`; omitted topic files remain
+on disk and accessible by filename. Condense or merge memory when the index grows.
 
-Writes use a temporary file and atomic rename, confined to the selected root.
-Lists scan the six class directories and cache items until Loom writes. Invalid
-item files are skipped and counted in the returned `malformed` field; metadata
-or storage access errors remain errors. There is no filesystem watcher: edits
-made outside Loom can require a service restart to refresh a cached list.
-
-`remember` matches active items with the same class, scope and normalized text
-(case folded with whitespace collapsed). It updates recency and keeps the
-maximum importance instead of duplicating; existing text/provenance remain.
-`update` patches only supplied text, tags, importance, confidence, status and
-scope fields. When `supersede:true` accompanies a meaningful normalized text
-change, it creates a successor that references the old ID, and marks the old
-file `superseded`. `forget` marks an item `expired` without deleting its file.
-Go callers can use `MemoryStore.Remember`, `Update`, `Forget`, `List` and
-`Touch`; touching IDs updates only `last_used_at` for later context use.
-
-All item routes use the existing authenticated-session/control-key wrapper,
-strict bounded JSON and `Cache-Control: no-store`. Errors return
-`{ok:false,error}` (423 while Loom's vault is locked).
+All routes use Brain authentication, strict bounded JSON, vault checks and
+no-store responses. Scope is exactly `global` or `project:<id>`.
 
 | Method / path | Input | Output |
 | --- | --- | --- |
-| `GET /api/brain/items` | Optional `classes`, `scopes` (comma-separated or repeated; singular `class` / `scope` also accepted), `status`, `query`, `limit` | `{ok:true,items:[...],malformed:N}` |
-| `POST /api/brain/items` | `{class,scope,text,provenance,...}`; optional `id`, `tags`, `importance`, `confidence`, `supersedes`, `status` | `{ok:true,item}` |
-| `POST /api/brain/items/update` | `{id,patch:{text?,tags?,importance?,confidence?,status?,scope?},supersede?}` | `{ok:true,item}` |
-| `POST /api/brain/items/forget` | `{id}` | `{ok:true,item}` with status `expired` |
+| `GET /api/brain/memory` | `?scope=global` or `?scope=project:<id>`; default global | `{index,items:[{file,name,description,type,text,updated_at,metadata?,malformed?}],path,warning?}` |
+| `POST /api/brain/memory` | `{scope,file?,name,description,type,text}` | Saved `{file,name,description,type,text,updated_at,metadata?}` |
+| `POST /api/brain/memory/delete` | `{scope,file}` | `{ok:true}` |
+| `POST /api/brain/memory/consolidate` | `{discussion_id}` | Consolidation status after one run or a silent skip |
+| `GET /api/brain/memory/status` | — | `{running,last_run,last_error,last_operations:[...],discussion_id?}` |
 
-Lists default to active items; `status=candidate` lists pending review and
-`status=all` includes candidates and history. A project scope
-also includes `global`; other scopes match exactly. Classes/scopes combine as
-unions within each filter. Text queries are case-insensitive substrings. Results
-sort by importance descending, then update recency descending, then ID for
-stable ties. A zero/omitted limit returns all matches; negative limits fail.
+Timestamps are Unix milliseconds. Status persists with the existing codec.
+Storage/model/validation failures populate `last_error`; unavailable models,
+disconnected destinations and generating turns skip without errors.
 
-The authenticated `/mcp/brain` server also exposes `remember`, `update_memory`,
-`forget_memory`, and read-only `list_memory`, using the corresponding JSON
-request/result shapes above. MCP filters use `classes` / `scopes` arrays.
-These operations record and manage knowledge. Discussion context selection uses
-these same items; the existing UI is unchanged.
+Both Brain/gateway MCP servers expose:
 
-On first use of each store, Loom imports accepted distilled items:
-`decision` → `episodic`, `fact` / `preference` → `semantic`, `todo` → `working`.
-Legacy items with empty review import as `uncertain`; pending/rejected items are
-excluded. Imported items have global scope and retain distilled provenance,
-discussion ID, message index and date. Deterministic IDs allow retries after an
-interruption; `imported_distilled: true` is saved only after all files succeed.
-The original `distilled.json` is never changed or removed by import. Later
-review changes do not rerun this one-time conversion.
+- `memory_index {project_id?}` → `{global:{index,items,path,warning?},project?:{index,items,path,warning?}}`.
+- `memory_read {scope,file}` → one memory file object.
+- `memory_write {scope,file?,name,description,type,text}` → saved file object.
+- `memory_delete {scope,file}` → `{ok,file}`.
+- `search_discussions {query,project_id?,limit?}` → cited passages in the
+  canonical `Discussions/` tree, readable with `brain_read`.
 
-## Cheap consolidation and candidate review
+Existing brain search/pack/read and authorized note write/edit tools remain.
+Legacy `remember`, `update_memory`, `forget_memory`, `list_memory` and
+`get_handoff` MCP tools are removed. UI and agent wiring are separate work.
 
-A `candidate` is a proposed memory item, persisted in the same class directory
-as active memory. Candidates never enter `SelectMemory` or discussion context;
-default HTTP and MCP lists still return only active items. Review uses the
-existing operations: accept with
-`POST /api/brain/items/update {"id":"mem_…","patch":{"status":"active"}}`,
-optionally including `text` in the patch; reject with
-`POST /api/brain/items/forget {"id":"mem_…"}` (retained as `expired`). Editing
-a candidate, including with `supersede:true`, keeps it pending unless the
-patch explicitly changes its status.
+## Discussion transcripts
 
-After a user message is accepted, Loom runs a deterministic collector in the
-background. It makes no model call and reads only that user message, excluding
-attachments, prepared context, assistant output and private runtime state.
-Detection is case-insensitive with Unicode word boundaries:
+At every workspace and native chat turn end, Loom asynchronously writes the
+complete visible transcript as Markdown: title, project, executor, model,
+creation/update dates, verbatim user/assistant text and one summary line per tool
+call. It excludes hidden reasoning, system prompts, launch credentials,
+approvals and raw tool results. Existing visible text is preserved as it stands;
+this is not a secret scanner. Interrupted turns retain partial text. Ordered
+writes prevent older queued snapshots replacing newer ones.
 
-| Signals | Proposed class |
+The conversation source indexes `Discussions/`, including agent-written files.
+Missing historical files are backfilled from stored journals. Project scope
+follows current membership and canonical paths. Memory/transcript folders are
+excluded from ordinary source-file indexing, avoiding duplicate retrieval and
+persistence of their text in the disposable BM25 cache. Their built-in sources
+are indexed in memory through the availability/codec boundary.
+
+## Background memory consolidation
+
+Discussions become eligible after five minutes since their last turn, or when
+the user leaves them. The running service scans once a minute; navigation marks
+the prior discussion paused. On-demand consolidation bypasses the idle delay.
+One run is allowed at a time. Generation/context preparation prevents it; a new
+accepted turn cancels an in-flight background call. Changed discussion or memory
+snapshots cause stale results to be discarded.
+
+Each run makes **one model call**, with no retry or trigger phrases. Input
+contains the next unprocessed transcript segment (at most 24 KiB), both bounded
+indexes and up to 32 KiB of files they reference. Saved byte offsets/prefix hashes
+survive restart; transcript rewrites reset the checkpoint. Large transcripts are
+consumed in successive runs without skipping new text. Supplied text is untrusted.
+
+Save information useful later that cannot be derived from code/Git. User facts
+and preferences are `user`; corrections/confirmed approaches are `feedback`;
+ongoing work/decisions are `project`; pointers are `reference`. Never retain
+secrets or private runtime state. Keep files short and prefer updating existing
+files to creating near-duplicates.
+
+The model response is a strict JSON array, at most 32 operations:
+
+```json
+[
+  {"op":"create","scope":"global","name":"Writing style","description":"Answer length","type":"user","text":"Prefers concise replies."},
+  {"op":"update","scope":"project","file":"release.md","name":"Release checks","description":"Before release","type":"feedback","text":"Run checks.\n\n**Why:** Avoid omissions.\n\n**How to apply:** Follow the checklist."},
+  {"op":"delete","scope":"global","file":"obsolete.md"}
+]
+```
+
+Empty `[]` is valid. Create may specify a filename; update/delete require an
+existing safe filename. Project operations require the discussion's project.
+Unknown fields, duplicate keys, nulls, invalid types/scopes, missing fields,
+traversal and oversized text fail before applying the batch. Multiple operations
+on one filename are refused. IO failures may leave already applied operations;
+status records those, and the checkpoint advances only on success. Create/update
+record the discussion ID and UTC date in frontmatter `metadata`.
+
+Existing Loom configuration supports `brain.consolidation_model`:
+
+| Value | Behavior |
 | --- | --- |
-| `retiens`, `souviens-toi`, `n'oublie pas`, `remember`, `keep in mind`, `note that` | `semantic` |
-| `toujours`, `jamais`, `désormais`, `à partir de maintenant`, `always`, `never`, `from now on` | `reflex` |
-| `je préfère`, `j'aime pas`, `je veux pas`, `I prefer`, `I don't like` | `semantic` |
-| `pour publier`, `la procédure`, `les étapes`, `steps to`, `the way to` | `procedural` |
+| `discussion` (default) | Loom-held Local/Cloud discussion's own route; harnesses use `brain.consolidation_fallback` |
+| `{"provider_id":"saved-id","model":"exact-model"}` (JSON string value) | Connected provider/model pair |
+| `local-loaded` | An already-loaded local model; never load or restart an engine |
+| `off` | Disable all consolidation, including on demand |
 
-The first matching row determines the class. Each matching sentence proposes
-one item, split on `.`, `!`, `?` or newlines. Fenced/indented code, questions,
-sentences shorter than 12 Unicode characters and messages over 4000 UTF-8 bytes
-are skipped. Trimmed text is bounded to 500 bytes without splitting UTF-8.
-At most three candidates are proposed per message. Candidates have importance
-0.5, confidence 0.4, tag `auto`, and `discussion` provenance with the discussion
-ID, zero-based portable message index and agent ID when known. Scope is
-`project:<id>` when the discussion has a project, otherwise `global`.
+`brain.consolidation_fallback` accepts a provider pair, `local-loaded` or `off`,
+and defaults to no model. A discussion's accepted Cloud route retains destination
+consent. A separate provider requires `brain.consolidation_consent`, a JSON string
+`{provider_id,endpoint,model}` matching its saved endpoint and chosen model.
+Linked local routes outside loopback require `brain.consolidation_local_consent`
+equal to the exact engine base URL. Destination changes/disconnections invalidate
+eligibility. Credentials stay in their existing layer, never in Brain files.
+Status reads never invoke models. Consolidation can consume provider/model tokens.
 
-Candidate insertion skips matching text in any class/scope whose status is
-neither `superseded` nor `expired`. Matching lowercases text, collapses whitespace
-and trims surrounding punctuation. Existing items are left unchanged. At most
-50 candidates may be pending in the selected memory store; further suggestions
-are dropped until review frees space. Dedupe and the cap share the store lock.
-Collection errors are logged and do not fail the send. A locked or unavailable
-Brain prevents collection.
+## One-time migration
 
-`brain.auto_candidates` defaults to true. Brain has no general configuration
-route, so its persisted value in `LOOM_HOME/brain/consolidation.json` is managed
-through the following dedicated authenticated, no-store routes:
+First access converts legacy `.loom/memory/<class>/*.md`, encrypted fallback
+items and accepted distilled candidates. User-profile becomes a `user` file
+named Profile; project notes become project `project` files. Reflex/procedural
+become feedback; global semantic becomes user, project semantic becomes project;
+episodic/working become project. Handoffs, discussion/project state, session
+summaries and pending/expired/superseded items are skipped. Malformed originals
+remain retained and are counted in the report.
 
-| Method / path | Input | Output |
-| --- | --- | --- |
-| `GET /api/brain/consolidation` | No body | `{"auto_candidates":true}` (current boolean) |
-| `POST /api/brain/consolidation` | `{"auto_candidates":false}` (required boolean) | `{"auto_candidates":false}` (saved boolean) |
-| `POST /api/brain/consolidate` | `{"discussion_id":"discussion-id","consent":true}` (`consent` defaults false) | `{"ok":true,"items":[MemoryItem,…]}` |
+Old folders are renamed to `memory.legacy/` before creating new files, including
+on case-insensitive filesystems. Deterministic filenames and archived-source
+recovery make interrupted retries safe. `.loom/migration-memory.md` marks
+completion only after writes succeed; subsequent access leaves it unchanged.
+Old flat agent pages used for explicitly selected shared preferences remain
+readable by that preference API; they are not automatically user profiles.
 
-Whole-discussion consolidation is opt-in and uses the existing distillation
-selection, batching, strict model-output validation and selected chat engine.
-A linked engine outside loopback requires explicit `consent:true` before any
-transcript is sent. It writes new candidate memory items, with `distilled`
-provenance and the same scores/tag, dedupe and pending cap described above:
-`decision` → `episodic`, `fact`/`preference` → `semantic`, `todo` → `working`.
-The response includes only newly saved items, in model-result order; duplicates
-and suggestions beyond the cap are omitted (`items:[]` when none are saved).
-Turning off automatic collection does not disable explicit consolidation.
-The legacy `/api/brain/distill` and `/api/brain/distilled*` routes and their
-`distilled.json` review workflow remain available. Consolidation never writes
-that legacy file. Errors use `{"ok":false,"error":"…"}`; a locked vault
-returns 423, other invalid requests return 400.
+Removed HTTP routes: `/api/brain/items`, `/api/brain/items/update`,
+`/api/brain/items/forget`, `/api/brain/consolidation`, `/api/brain/consolidate`,
+`/api/brain/core-files`, `/api/brain/continuity`, `/api/brain/continuity/run`,
+`/api/brain/continuity/status`, `/api/brain/continuity/handoff`.
+Explicit distillation/review routes remain independently available.
 
 ## Context engine
 
-
 ### Frozen discussion snapshot
 
-Loom captures the system context when a turn starts without a valid snapshot,
-then reuses that text byte for byte on later turns. Read-only previews prepare a
-candidate but never save it. The snapshot includes selected shared preferences,
-project instructions/files and continuity, bounded query-independent memory,
-project skills, Brain declarations, the harness memory protocol and discussion
-instructions. Memory edits and deterministic project/discussion handoffs do not
-rewrite an existing snapshot. This preserves cloud prompt-prefix caching and
-ACP native sessions, including their private tool state.
+Loom retains its frozen-snapshot mechanism. Session start captures global and
+project `MEMORY.md` indexes and full text of `user` memories up to 1500 Unicode
+characters total. Local/Cloud discussions also capture up to three topic files
+ranked by BM25 against the **first user message**, within a separate 1500-token
+allowance. Topics appear once in frozen system text. Harnesses read them on
+demand through files or MCP.
 
-The persisted discussion fields `frozen_context` and `frozen_revision` hold the
-system text and a hash of static inputs. The revision tracks the project
-configuration (excluding mutable working state), discussion instructions,
-runtime/provider/model route, selected preferences, primary/secondary Brain
-declarations, project skills, `continued_from`, compaction count and rewrites of
-portable history, detected with a rolling append guard. Ordinary history appends, query text,
-memory contents and handoff updates do not invalidate it. Native archives retain
-the same snapshot across restoration. Selected inaccessible sources still block
-sending.
+The format upgrade invalidates old class-based snapshots once. Later
+memory/query changes never invalidate an existing snapshot. Project, route,
+instruction, compaction and explicit refresh changes retain existing invalidation
+rules. Frozen memory allowance is 15,000 estimated tokens, sufficient for both
+maximum indexes, profile and topics. No class-based selection, handoff pins or
+usage-touch writes remain. Context items retain source/scope/reason/token
+explanations; `classes` is an empty compatibility map. Memory is untrusted data,
+never permission.
 
-Local and Cloud discussions, including native chat, select fresh memory for the
-current message and retrieve Brain passages. Parts already present in the frozen
-text are omitted. The remaining text is prepended only to the outgoing last user
-message as `<loom-context>\n…\n</loom-context>\n\n`, before the user's text.
-Neither the display journal nor `portable_messages` stores that scaffolding.
-ACP harnesses receive no per-message extras; their Loom MCP tools provide memory
-and Brain retrieval on demand. After a native engine returns compacted history,
-Loom removes the exact injected block before retaining that history.
-
-`POST /api/runtime/sessions/refresh-context` accepts `{"id":"discussion-id"}`.
-HTTP 200 returns `{"ok":true,"session":{…}}` with the saved snapshot cleared;
-the next turn captures current context. It starts no generation and does not
-change the transcript. Active replies or configuration, missing discussions and
-storage errors return HTTP 409 with `{"ok":false,"error":"…"}`. The normal
-runtime API authentication and destination consent apply. An ACP binding is
-closed on refresh so the next turn hands over the refreshed context.
-
-`POST /api/runtime/sessions/preview {id,text}` returns the actual prepared
-`preview.messages` and `preview.context`. In that context, `system` is the frozen
-system and optional `extras` is this message's retrieval block content. Ordered
-`items` cover both, with `frozen:true` on snapshot items (omitted on extras).
-`estimated_tokens` and `budget.by_kind` include extras and delimiter framing.
-Memory budget availability describes the selection allowance; its used count
-includes retained frozen memory plus this turn's extra memory. Turn provenance
-retains `context_items`, `context_budget` and `frozen_revision`; the discussion
-retains the latest `context_extras` separately from its journals. Replay and GET
-preview show the accepted turn's items instead of selecting new memory for an
-already completed message.
-
-Discussion preparation selects a deterministic memory pack without a model
-call. Scope filtering precedes scoring: only `global`, the discussion's
-`project:<id>` (when attached), and `agent:<runtime id>` are eligible. Only
-`active` and `uncertain` items participate; uncertain items rank after active
-items within their class. Machine items are excluded. An unbound discussion
-can additionally select its own `task:<discussion_id>` working item tagged
-`discussion-state`. Other working memory requires the matching project scope;
-global and agent working items are not injected. The current continuity state
-is pinned first, before the usual class order.
-
-Selection visits classes in this order, under explicit token ceilings:
-
-| Class | Default ceiling | Selection |
-| --- | ---: | --- |
-| Reflex | 300 | Always eligible, highest importance first |
-| Working | 300 | Pinned continuity state, then matching project items by importance |
-| Procedural | 300 | Relevant methods |
-| Semantic | 500 | Relevant facts and preferences |
-| Episodic | 300 | Two newest project session summaries, then relevant events |
-| Session | 0 | Disabled by default |
-
-The shared total ceiling is **1500 estimated tokens**, even though the class
-ceilings sum to 1700. Unused class space does not raise another class's ceiling.
-`brain.MemoryBudgets` and `brain.DefaultMemoryBudgets()` expose these defaults
-for later configuration. Estimates use the existing one-token-per-four-Unicode-
-characters heuristic. Rendered class/scope labels and the memory header count
-against the ceilings. Pinned continuity state is truncated with an ellipsis
-when necessary. Other items that do not fit are skipped, and a later smaller
-item can still fit. Persisted memory text is never truncated.
-
-Procedural, semantic and other episodic items need lexical overlap between the
-latest user text and their text or tags; the two newest project session summaries
-are eligible without overlap. Both passage and memory queries keep the last
-2000 bytes of the trimmed user text. Matching uses Brain's existing English/
-French stop words, case and accent folding. Procedural and semantic ranking
-combines query-term overlap with importance, confidence and a small recency
-bonus. Episodic ranking prefers the newest relevant event. Recency uses creation/
-update timestamps relative to the newest eligible candidate, never the wall
-clock or `last_used_at`, keeping unchanged previews stable.
-
-A relevant eligible successor suppresses its retained predecessors, following
-supersession chains across classes. Items whose normalized text is already
-contained in retrieved Brain passages or a previously selected memory item are
-skipped. The compact `Loom memory (why: class/scope):` block follows project
-instructions/files/passages and precedes skills, Brain declarations and the
-discussion's instructions. Non-project discussions still receive eligible
-global and runtime-scoped memory. Unavailable or locked memory blocks preparation
-rather than silently sending a different context.
-
-`DiscussionContext.items` explains every included part of `system` and `extras`, in order.
-Each entry has `kind`, `label`, `source`, `reason` and estimated `tokens`; memory
-entries also have `class` and `scope`, with their stable memory ID as `source`.
-Kinds are `global_preferences`, `project` (continuity or instructions),
-`project_files`, `brain_passage`, `memory`, `skill`, `primary_brain`,
-`secondary_brains`, and `discussion_instructions`. Passages and secondary
-Brain declarations each get their own entry. Headers, separators and rounding
-are attributed to the following item, so item costs and `budget.by_kind` sum
-exactly to `estimated_tokens`. Existing `brain_citations` remain available.
-
-`DiscussionContext.budget.memory` contains `used`, `available` (1500 by default),
-and a `classes` map with the same used/available pair per class. These memory
-costs measure the memory block itself, including its header, independently of
-separators between system sections. This permits displays such as
-`1240 / 1500 memory tokens` without confusing memory and vault-passage budgets.
-Explanations and budget metadata do not enter the send revision hash; that hash
-binds frozen system text, outgoing extras, static snapshot revision and the
-existing route/history revision semantics.
-
-Preview and preparation never call `Touch`. Both portable execution and native
-local generation touch only included memory IDs when the accepted turn reaches
-the runtime send boundary. Rejected/stale sends and idempotent retries do not
-mark items used. Usage writes are best-effort bookkeeping and do not turn an
-accepted send into a retry if storage becomes unavailable.
+Brain **note passages** retain current-query retrieval and normal project budgets.
+They are prepended only to the outgoing user message as
+`<loom-context>\n…\n</loom-context>\n\n`, outside journals/portable history.
+Memory folders are excluded from that passage path. Previews never persist a
+new snapshot. `POST /api/runtime/sessions/refresh-context {id}` clears it for the
+next turn without generation. `frozen_context`, `frozen_revision`, turn
+`context_items`/`context_budget`, `context_extras` and revision guards retain the
+existing send/replay contract. Item costs include separators and framing.
 
 ## Project continuity and retrieval scope
 
-The project form deliberately stores only the project title, machine, workspace
-and default executor/model. An empty workspace inherits that machine's saved
-default. Every Loom discussion assigned to the project automatically belongs to
-its conversation-memory scope; users do not select reference discussions or
-maintain a parallel project synopsis.
+Projects retain instructions, folders, skills and membership. Current-query note
+retrieval and scoped verbatim discussion search work from the first turn. Default
+note budget is 1500 tokens, capped at 8000; semantic queries have a three-second
+bound with BM25 fallback. Historical project continuity fields remain readable;
+no model maintains another state store. Continuations retain `continued_from`;
+verbatim transcripts supply recall.
 
-Connected second brains, accepted distilled items and the project's discussion
-history are searched for the current draft from the first turn onward. The
-default context budget is 1500 estimated tokens, bounded by the existing 8000
-token maximum. Native local preparation retrieves once. Project semantic
-queries have a three-second bound and fall back to BM25 without generating a
-response. Historical project continuity fields remain readable for compatibility
-but are no longer exposed as required project setup.
+HTTP/MCP search/read/pack accept `project_id` and intersect narrower
+`path_prefixes` with allowed discussion paths. Personal sources require explicit
+IDs and `personal:true`. Unscoped operator calls retain existing policy.
+Runtime-private memory/tool state is not portable.
 
-HTTP search/read accepts optional `project_id`; pack and all MCP read-tool request
-schemas also accept it. This checks the project's effective sources and current
-project conversation paths, including known chunk IDs and native archive bindings.
-MCP search/read/pack and JSON pack schemas accept `path_prefixes` as a map of source IDs to relative
-path prefixes. Absent means unrestricted within the selected source; explicit
-`[]` denies it. Prefixes match an exact path or subtree boundary. Project scope
-intersects a caller's narrower conversation filter; it never expands it.
-General API calls without project scope keep their existing operator-wide policy.
-
-The prepared preview and sends share revision checks and text/message limits.
-Runtime-private memory and tool state do not transfer.
-
-`GET/POST /api/context/preferences` reads/saves `{page,external}` in Loom's existing
-configuration store. Select an existing readable memory page of at most 4000
-bytes; its text stays in the existing encrypted memory store. Empty selection
-turns it off. Local discussions receive a selected page; cloud/harnesses receive
-it only with `external:true` and the normal execution-sharing policy. A deleted,
-unreadable or oversized selected page blocks context preparation until resolved.
-Linked local engines retain the existing explicit engine destination policy.
+`GET/POST /api/context/preferences` retains `{page,external}` for older flat
+pages, with a 4000-byte limit and external-sharing opt-in. It remains separate
+from native Markdown user profiles.
 
 ## Freshness and automatic semantic maintenance
 
@@ -891,114 +804,3 @@ Each connected second brain has one role:
 
 The role is stored on the source (`primary`, `secondary`) in `sources.json`;
 existing sources keep their behaviour (Context) until changed.
-
-## User profile
-
-One global `semantic` item tagged `user-profile` describes the user (who they
-are, how they work, preferences). The context engine always includes it first,
-truncated to the semantic budget rather than dropped. Brain › Memory edits it
-as **You**; agents update it with `update_memory` instead of creating another.
-
-## Automatic cognitive continuity
-
-Continuity has an **always-on deterministic layer**. At every workspace or native
-Loom turn end, an asynchronous worker builds a discussion handoff without model
-calls, network access or an installed engine. Bursts coalesce per discussion.
-It uses the discussion title, first user message and last two requests (300
-characters each), the latest ACP plan and its statuses, up to 20 deduplicated
-reported edit/write/create targets, cumulative command count and last five
-command titles, and failures from the latest turn. Paths are relative to the
-workspace when possible. Reported write targets are not verified file diffs.
-
-The last completed turn's final assistant message supplies the recap (up to 800
-characters, cut at a sentence boundary where possible). Incomplete turns retain
-the previous completed recap and record their errors. Open items are unfinished
-plan entries and up to three questions from the latest assistant message. The
-fixed Markdown headings are `Goal`, `Plan`, `Done`, `Recap` and `Open`; values
-retain the discussion's language. Runtime, model and UTC time form the footer.
-The full handoff fits 2,000 Unicode characters, reducing Done details before the
-recap. Source text is quoted data, with HTML and code fences removed and
-whitespace collapsed; it is never a grant of instructions or permissions.
-
-Each discussion has a working item scoped to `task:<discussion_id>`, tagged
-`discussion-state` and `handoff`, with discussion provenance. Deterministic
-updates overwrite that item in place without creating supersession history.
-A small encrypted Loom-store record keeps incremental first/request/plan/file/
-command state; later updates read only the latest turn and stored state, never
-rescan the transcript. Vault locking applies to both records and memory items.
-
-A project also has a working `project-state` item, rebuilt from its three most
-recently active discussions, newest first (ties by ID). Each entry includes its
-title, first request, open items, recap's first sentence and `discussion:<id>`
-marker. It fits 2,500 characters and updates in place. When a model refinement
-is newer than those discussions, its bounded base text is retained above one
-`Recent discussions` section; later discussion activity makes stale refinement
-ineligible. The original refinement text is retained separately from aggregation.
-
-Project state is pinned even on a new discussion's very first turn. A continuing
-discussion adds its own handoff only from 20 turns onward, avoiding duplication
-of short transcripts. Project and discussion pins share the working budget;
-large pins are truncated instead of dropped. User-profile priority, scoped
-retrieval, supersession, deduplication and the total memory budget still apply.
-A project's two latest model-generated episodic summaries remain preferred
-within the episodic budget.
-
-**Refine with a model** is a separate opt-in layer, off by default. The existing
-`enabled` setting controls only this layer; disabling it never disables
-handoffs. With `loaded_only:true` (the default), local refinement uses an
-already-loaded model and skips if none is loaded. Automatic refinement waits
-for ten idle minutes by default and at least two new user messages or 1,500
-characters. A cancellable scan runs at startup and once a minute, with one
-model operation at a time. It deduplicates native archives bound to discussions,
-requires a new user message since the saved checkpoint, waits while generation
-or preparation is active, and discards results when the discussion changes.
-
-Settings live in `LOOM_HOME/brain/continuity.json`. An empty provider uses Loom's
-chat engine; `model` can override its request model. A provider ID selects an
-existing connected provider and its own credential. Cloud providers and
-non-loopback linked engines require stored `consent:true`. Credentials never
-enter Brain settings or memory files. Refinement costs model time or provider
-tokens; deterministic handoff construction costs neither. Pinned handoffs, like
-other context, count toward the selected executor's input context budget.
-
-A refinement receives the last 24 KiB of new user/assistant text, the previous
-episodic summary and current state, all marked untrusted. Strict JSON validation
-allows one retry; the operation has a two-minute timeout and lifecycle
-cancellation. It writes an episodic `session-summary` in the project or global
-scope and refined working state, retaining supersession history. For an unbound
-discussion with a handoff, refined working state uses `discussion-refinement`
-without replacing the deterministic handoff. Durable facts become review
-candidates. Successful model checkpoints in `brain_continuity` survive restart
-and participate in vault encryption.
-
-All HTTP endpoints use Brain authentication, vault checks and
-`Cache-Control: no-store`; timestamps are Unix milliseconds:
-
-| Method / path | Input | Output |
-| --- | --- | --- |
-| `GET /api/brain/continuity/handoff` | `?discussion_id=…` | `{"discussion_id":"…","text":"…","updated_at":0}` |
-| `GET /api/brain/continuity` | — | `{"enabled":false,"idle_minutes":10,"provider_id":"","model":"","consent":false,"loaded_only":true}` |
-| `POST /api/brain/continuity` | All settings except optional `loaded_only` (defaults true); idle minutes 1–1440 | Saved settings object |
-| `POST /api/brain/continuity/run` | `{"discussion_id":"…"}` | `{"discussion_id":"…","at":0,"summary_id":"…","state_id":"…","skipped_reason":""}` |
-| `GET /api/brain/continuity/status` | — | `{"running":false,"last_run":0,"last_error":"","recent":[]}` |
-
-The read-only Brain MCP tool `get_handoff` is available through `/mcp/brain` and
-`/mcp/loom`. Pass exactly one of `{"discussion_id":"…"}` or `{"project_id":"…"}`.
-It returns `{"discussion_id":"…","text":"…","updated_at":0}` or
-`{"project_id":"…","text":"…","updated_at":0}`. Missing handoffs return an
-error; reads never generate or call a network service.
-
-Model run-now is synchronous and bypasses the idle/minimum thresholds, but still
-requires enablement, a new user message, no generation and destination consent.
-Skips return 200 with empty item IDs and a reason; failures use `{ok:false,error}`.
-Concurrent model runs are rejected. Status keeps the latest 20 model observations
-in memory, newest first, and does not describe deterministic handoff activity.
-
-The model response schema is exactly:
-
-```json
-{"summary":"…","state":{"objective":"…","done":["…"],"next":["…"],"open":["…"]},"facts":[{"class":"semantic","text":"…"}]}
-```
-
-Fact class accepts `semantic`, `procedural` or `reflex`; arrays may be empty.
-Summary, rendered state and each fact fit 8 KiB, with up to 32 entries per array.

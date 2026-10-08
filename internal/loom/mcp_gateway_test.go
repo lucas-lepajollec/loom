@@ -342,12 +342,12 @@ func TestGatewayDiscoveryProxyAndStatus(t *testing.T) {
 	for _, tool := range list.Tools {
 		names[tool.Name] = true
 	}
-	for _, name := range []string{"brain_search", "brain_pack", "brain_read", "get_handoff", "brain_write", "brain_edit", "remember", "update_memory", "forget_memory", "list_memory", "list_skills", "read_skill", "search_discussions", "loom_gateway_status", "ok-server__echo"} {
+	for _, name := range []string{"brain_search", "brain_pack", "brain_read", "brain_write", "brain_edit", "memory_index", "memory_read", "memory_write", "memory_delete", "list_skills", "read_skill", "search_discussions", "loom_gateway_status", "ok-server__echo"} {
 		if !names[name] {
 			t.Fatal("missing", name)
 		}
 	}
-	if len(names) != 15 || names["ok-server__hidden"] {
+	if len(names) != 14 || names["ok-server__hidden"] {
 		t.Fatal(names)
 	}
 	args := json.RawMessage(`{"large":9007199254740993,"nested":{"value":"untouched"}}`)

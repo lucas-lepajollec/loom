@@ -48,7 +48,7 @@ func effectiveProjectBrainSources(p ChatProject) []string {
 	}
 	out := []string{}
 	for _, source := range e.Sources() {
-		if source.ID == "conversations" || source.ID == "memory" || source.ID == "distilled" || !source.ReadOnly {
+		if source.ID == "conversations" || source.ID == "distilled" || !source.ReadOnly {
 			if !hasName(out, source.ID) {
 				out = append(out, source.ID)
 			}
@@ -210,6 +210,32 @@ func projectReferenceScope(p ChatProject) map[string][]string {
 				var a convArchive
 				if getStoreJSON(bkChatHist, ref.DiscussionID, &a) {
 					add("native/" + a.ID)
+				}
+			}
+		}
+	}
+	if store, err := theBrain().memoryStore(); err == nil {
+		references := map[string]bool{}
+		if p.Continuity != nil {
+			for _, ref := range p.Continuity.References {
+				references[ref.DiscussionID] = true
+				if path, err := store.DiscussionPath(ref.DiscussionID); err == nil {
+					add(path)
+				}
+			}
+		}
+		for id := range allKV(bkRuntimeSessions) {
+			var session RuntimeSession
+			if getStoreJSON(bkRuntimeSessions, id, &session) && (session.ProjectID == p.ID || references[id] || references[session.NativeArchive]) {
+				if path, err := store.DiscussionPath(id); err == nil {
+					add(path)
+				}
+			}
+		}
+		for _, archive := range listArchives() {
+			if archive.ProjectID == p.ID || references[archive.ID] {
+				if path, err := store.DiscussionPath(archive.ID); err == nil {
+					add(path)
 				}
 			}
 		}

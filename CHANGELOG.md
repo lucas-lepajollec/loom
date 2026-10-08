@@ -6,6 +6,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Native Markdown memory in the primary second brain (`Memory/` and stable
+  project folders), bounded `MEMORY.md` indexes, HTTP/MCP file operations,
+  verbatim `Discussions/` transcripts and single-call background consolidation
+  after a five-minute pause or navigation. Frozen context uses indexes, user
+  profiles and first-message BM25 topics; the encrypted fallback remains.
+  Idempotent migration retains originals and writes an audit report. Removed
+  trigger-phrase collection, class-based context, handoff memory, continuity
+  summaries, core-file mirrors and their obsolete endpoints. Backend only;
+  UI and agent wiring are separate.
+
 - Paired-machine terminals through the independent node `terminal` module,
   enabled by default (`loom node init --no-terminal` disables it). Machine-token
   WebSockets start a real PTY without SSH, with input, resize, exit codes,

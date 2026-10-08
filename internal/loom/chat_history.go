@@ -240,8 +240,13 @@ func (c *Conversation) upsertSession() {
 // NewSession sauvegarde la conversation courante dans SA session puis démarre une
 // session vierge (nouvel id) — c'est le « clear chat » / « nouvelle session ».
 func (c *Conversation) NewSession() string {
+	oldID := c.currentID()
 	c.upsertSession()
 	c.Reset()
+	if c == conv {
+		theBrain().discussionViewed(oldID)
+		theBrain().discussionViewed(c.currentID())
+	}
 	return c.ID
 }
 
@@ -253,6 +258,9 @@ func (c *Conversation) OpenSession(id string) error {
 	a, ok := loadArchive(id)
 	if !ok {
 		return fmt.Errorf("session not found")
+	}
+	if c == conv {
+		theBrain().discussionViewed(id)
 	}
 	// 1. Sauver la conversation en cours dans sa session (rien ne se perd).
 	c.upsertSession()

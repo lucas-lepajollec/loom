@@ -16,7 +16,10 @@ func testHome(t *testing.T) string {
 		b := brainSvc
 		brainSvcMu.Unlock()
 		if b != nil {
-			b.waitHandoffs()
+			b.cancelMemoryConsolidation()
+			b.leaveJobs.Wait()
+			transcriptJobs.Wait()
+			b.writeRefresh.Wait()
 		}
 		firewallInert = false
 	})

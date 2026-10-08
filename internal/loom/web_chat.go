@@ -216,7 +216,10 @@ func handleChatHistoryMove(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	moveHandoffProject(body.ID, strings.TrimSpace(body.ProjectID))
+	if archive, ok := loadArchive(body.ID); ok {
+		workspaceSessions.syncNativeArchive(archive)
+	}
+	queueDiscussionTranscript(body.ID)
 	sendJSON(w, 200, map[string]any{"ok": true})
 }
 

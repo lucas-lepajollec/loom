@@ -61,10 +61,8 @@ the smallest context that is sufficient — quality per token, not volume.
 - A Brain is **a folder** the user owns (Markdown/Obsidian vault or a new one
   Loom creates). Loom adopts it as is; it does not impose a taxonomy or move
   notes. Other tools (Obsidian, other LLMs) keep working on the same folder.
-- Loom's additions live in **`.loom/` inside the vault**: `brain.yaml` (format
-  version), a **Brain profile** (what the user's folders, tags and frontmatter
-  mean, which paths are read-only/append-only/writable), Loom memory items,
-  relations and reflexes — plain, documented files.
+- Loom's additions live in **`.loom/` inside the vault**: `brain.json` (layout and identity maps), a **Brain profile** (what the user's folders, tags and frontmatter
+  mean, which paths are read-only/append-only/writable), stable project/discussion mappings and migration reports — plain, documented files.
 - Indexes (BM25, vectors, a future graph) are derived and rebuildable; they may
   live outside the vault. Deleting them loses nothing.
 - Backup, archive, move or share = copy the folder. A fresh Loom pointed at it
@@ -77,39 +75,30 @@ the smallest context that is sufficient — quality per token, not volume.
   Loom provides, and corrected in natural language. It changes mappings and
   metadata, never the user's file layout.
 - Loom is the single writer of `.loom/`; agents write through Brain operations
-  (`remember`, `update`, `forget`), not by editing files directly.
+  for `.loom/` metadata; native memory files remain directly editable.
 
 ### Cognitive memory
 
-Memory items share one model with attributes — `class`, `scope`, `importance`,
-`confidence`, `created/last_used`, `provenance`, `supersedes`, `status`
-(`active / superseded / uncertain / expired`) — instead of separate stores:
+Memory lives in the user's second brain as native Markdown: bounded `MEMORY.md`
+indexes and files with `name`, `description` and `type` (`user`, `feedback`,
+`project`, `reference`) frontmatter. Global memory uses `Memory/`; project
+memory uses stable `Projects/<slug>/memory/`. `.loom/` records identity maps
+and migration reports; agents can edit memory directly. No phrase-triggered
+candidates or parallel continuity state store remains.
 
-| Class | Holds | Lifetime |
-| --- | --- | --- |
-| Working | current objective, plan, state, open issues of a task | task |
-| Session | what happened in the current discussion | session |
-| Episodic | dated events and decisions, the project trajectory | weeks–months |
-| Semantic | durable facts and preferences, current value + history | long |
-| Procedural | how the user/Loom does things (release steps, review method) | long |
-| Reflex | a few hundred tokens of near-always rules | permanent, rare promotion |
-
-Scopes (`global`, `project:…`, `machine:…`, `agent:…`, `task:…`) are filtered
-before any semantic search. Every item answers "why does Loom believe this?"
-through provenance. Contradictions supersede rather than delete.
-
-Consolidation is cheap by default: heuristics collect candidates during turns;
-promotion runs at session end, task end, before compaction or when idle, with a
-small/local model for routine work and a strong model only for conflicts.
-Candidate review stays available (already implemented for distillation).
+Raw discussions remain searchable Markdown under `Discussions/`. Paused work
+consolidates useful knowledge with one model call, using the discussion route or
+a configured fallback, with destination consent. Frozen context captures both
+indexes, a small profile and first-message topic matches. On-demand topic reads
+and verbatim search provide recall. See [Brain](brain.md) for format and APIs.
 
 ### Context engine
 
 `intent → context plan → scoped candidates (metadata, BM25, then vectors, then
 optional reranker) → dedupe + conflict resolution → per-model token budget →
-context pack`. Budgets are explicit per class (reflex, working, semantic,
-episodic, procedural, vault documents, recent turns). The existing Context panel
-grows into **"why is this in context"**: every included item, its class, source
+context pack`. Budgets are explicit for memory indexes, profile, topic files,
+vault documents and recent turns. The existing Context panel
+grows into **"why is this in context"**: every included item, its type, source
 and token cost. A deterministic baseline must work without any routing model.
 
 ## Interface architecture
@@ -214,20 +203,14 @@ releases.
 - **Exit:** no page mixes "where", "what" and "who"; every setting has one home.
 
 ### 2. Brain v2
-- Primary and secondary brains with rules; `.loom/` sidecar, `brain.yaml`,
+- Primary and secondary brains with rules; `.loom/` sidecar, `brain.json`,
   Brain profile bootstrapped by a chosen model and editable in natural language.
-- Memory items as files with classes, scopes, provenance, supersession; cheap
-  consolidation; candidate review kept.
+- Native Markdown memory and stable project folders, verbatim discussion files,
+  background model consolidation, frozen indexes/profile/topic context.
 - Context engine with per-model budgets and the "why is this in context" view.
 - One-time import for non-adoptable formats with a zero-loss report.
-- Delivered on 2026-10-08: user profile ("You", always in context), automatic
-  continuity (off by default, uses only an already-loaded local model unless a
-  consented provider is chosen), skills in the primary brain, MCP gateway.
-- **Continuity without cost** (decided 2026-10-08): a deterministic handoff
-  per discussion, rebuilt at every turn end from structured signals (goal,
-  agent plan, files touched, commands, the agent's final recap, open
-  questions), aggregated into the project state. Always on, no model call, no
-  local engine needed. Model summaries stay an opt-in refinement.
+- Delivered: skills in the primary brain, MCP gateway and the Markdown memory
+  core. UI and native agent wiring follow independently.
 - **Compaction for every discussion** (accepted 2026-10-08). Today only Loom's
   native chat with the local engine compacts (Hermes-style head/torso/tail,
   automatic by default). Target, for Local, Cloud and Harness discussions:
@@ -235,7 +218,7 @@ releases.
   limit, a warning offering **compact now and stay here** (keep the important
   part, summarise the middle with the discussion's own model, or the harness's
   native compact command when it advertises one), **continue in a new
-  discussion of the same project** (the handoff carries the state) or **create
+  discussion of the same project** (the transcript remains searchable) or **create
   a project, attach this discussion and start a new one there**, with a link to
   the setting.
 - **Exit:** export → fresh Loom → identical canonical Brain; context packs stay

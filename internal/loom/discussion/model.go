@@ -135,6 +135,7 @@ type RuntimeTurnRecord[Usage, Stats any] struct {
 	ContextItems     []ContextItem     `json:"context_items,omitempty"`
 	ContextBudget    *ContextBudget    `json:"context_budget,omitempty"`
 	FrozenRevision   string            `json:"frozen_revision,omitempty"`
+	ToolSummaries    []string          `json:"tool_summaries,omitempty"`
 	ACPEvents        []DiscussionEvent `json:"acp_events,omitempty"`
 	MessageIndex     int               `json:"message_index"`
 	RuntimeID        string            `json:"runtime_id"`
@@ -184,6 +185,7 @@ func CloneRuntimeSession[Usage, Stats any](s RuntimeSession[Usage, Stats]) Runti
 }
 
 func CloneRuntimeTurn[Usage, Stats any](turn RuntimeTurnRecord[Usage, Stats]) RuntimeTurnRecord[Usage, Stats] {
+	turn.ToolSummaries = append([]string(nil), turn.ToolSummaries...)
 	snapshot := CloneFrozenSnapshot(FrozenSnapshot{FrozenItems: turn.ContextItems, FrozenBudget: turn.ContextBudget})
 	turn.ContextItems, turn.ContextBudget = snapshot.FrozenItems, snapshot.FrozenBudget
 

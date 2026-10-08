@@ -20,10 +20,8 @@ type runtimeRun struct {
 	finalError  string
 	acpBytes    int
 	acpError    string
-	handoff     handoffTurn
 	providerKey string
-	recap       strings.Builder
-	hasText     bool
+	toolPending bool
 }
 type runtimeSessions struct {
 	shutdownOnce sync.Once
@@ -350,10 +348,10 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 		cancel()
 		ctx, cancel = context.WithCancel(context.Background())
 	}
+	theBrain().cancelMemoryConsolidation()
 	run := &runtimeRun{session: s, cancel: cancel, providerKey: key}
 	m.runs[id] = run
 	m.publishLocked(id, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true, "provenance": s.Turns[len(s.Turns)-1], "session": cloneRuntimeSession(s), "context": turnContext(s, prepared.Context)})
-	collectDiscussionCandidates(s, len(messages)-1, text)
 	go m.generate(ctx, run, adapter, prepared.Messages, prepared.Context)
 	return nil
 }
@@ -406,10 +404,10 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 		window := discussionWindow(snapshot)
 		used := promptTokens(messages)
 		if window > 0 && float64(used) >= float64(window)*compactTriggerFrac {
-			next, summary, changed, compactErr := m.compactSnapshot(ctx, snapshot, run.providerKey)
+			next, _, changed, compactErr := m.compactSnapshot(ctx, snapshot, run.providerKey)
 			err = compactErr
 			if err == nil && changed {
-				err = saveDiscussionHandoff(next, summary)
+				theBrain().queueSessionTranscript(next)
 				if err == nil {
 					prepared := prepareDiscussion(next, "")
 					messages, preparedContext = prepared.Messages, prepared.Context
@@ -430,9 +428,6 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 		}
 	}
 	if err == nil {
-		if ctx.Err() == nil {
-			touchContextMemory(preparedContext)
-		}
 		_, err = adapter.Run(ctx, RuntimeTurn{Messages: messages, Temperature: 0.7, Caps: caps}, func(event StreamEvent) bool {
 			m.mu.Lock()
 			defer m.mu.Unlock()
@@ -479,19 +474,12 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 					event.Content, _ = e["text"].(string)
 				}
 			}
-			if event.ToolUsed != nil {
-				if !event.ToolUsed.Done {
-					run.recap.Reset()
+			if tool := event.ToolUsed; tool != nil && !tool.Typing {
+				turn := &run.session.Turns[len(run.session.Turns)-1]
+				if (!tool.Done || !run.toolPending) && len(turn.ToolSummaries) < 512 {
+					turn.ToolSummaries = append(turn.ToolSummaries, boundedBytes(strings.Join(strings.Fields(tool.Name), " "), 200))
 				}
-				workdir := run.session.Workdir
-				if workdir == "" {
-					workdir = agentWorkspace()
-				}
-				run.handoff.nativeTool(event.ToolUsed, workdir)
-			}
-			if event.Content != "" {
-				run.recap.WriteString(event.Content)
-				run.hasText = true
+				run.toolPending = !tool.Done
 			}
 			if event.Content != "" {
 				i := len(run.session.Messages) - 1
@@ -589,7 +577,7 @@ func (m *runtimeSessions) stop(id string) error {
 			if err := putStoreJSON(bkRuntimeSessions, id, recovered); err != nil {
 				return err
 			}
-			theBrain().queueHandoff(handoffRuntimeTurn(recovered))
+			theBrain().queueSessionTranscript(recovered)
 			m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(recovered), "context": discussionContext(recovered)})
 			delete(m.runs, id)
 		} else {
@@ -621,15 +609,7 @@ func (m *runtimeSessions) remove(id string) error {
 
 func (m *runtimeSessions) finishDiscussionLocked(s RuntimeSession) {
 	if s.Status != "unsaved" {
-		t := handoffRuntimeTurn(s)
-		if run := m.runs[s.ID]; run != nil {
-			t.Files, t.Commands, t.CommandTitles = run.handoff.Files, run.handoff.Commands, run.handoff.CommandTitles
-			t.Errors = append(t.Errors, run.handoff.Errors...)
-			if run.hasText {
-				t.Recap = run.recap.String()
-			}
-		}
-		theBrain().queueHandoff(t)
+		theBrain().queueSessionTranscript(s)
 	}
 	snapshot := cloneRuntimeSession(s)
 	if s.Error != "" {

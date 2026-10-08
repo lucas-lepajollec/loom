@@ -375,10 +375,28 @@ func TestAutomaticSemanticRefreshOnlyEmbedsChangedSelectedText(t *testing.T) {
 	calls := 0
 	brainFakeModelClient(t, func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		io.WriteString(w, `{"data":[{"index":0,"embedding":[1,0]}]}`)
+		var request struct {
+			Input []string `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+		}
+		data := make([]any, len(request.Input))
+		for i := range data {
+			data[i] = map[string]any{"index": i, "embedding": []int{1, 0}}
+		}
+		json.NewEncoder(w).Encode(map[string]any{"data": data})
 	})
 	save := func(text string) {
-		if err := putStoreJSON(bkRuntimeSessions, "selected", RuntimeSession{ID: "selected", Messages: []Message{{Role: "user", Content: text}}}); err != nil {
+		session := RuntimeSession{ID: "selected", Messages: []Message{{Role: "user", Content: text}}}
+		if err := putStoreJSON(bkRuntimeSessions, "selected", session); err != nil {
+			t.Fatal(err)
+		}
+		store, err := s.memoryStore()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = store.WriteTranscript(sessionTranscript(session)); err != nil {
 			t.Fatal(err)
 		}
 		e, err := s.get()
@@ -417,27 +435,29 @@ func TestAutomaticSemanticRefreshOnlyEmbedsChangedSelectedText(t *testing.T) {
 	}
 	s.refreshSemanticIfSelected()
 	wait()
-	if calls != 1 {
+	if calls == 0 {
 		t.Fatal("selected missing passage not embedded")
 	}
+	initialCalls := calls
 	s.refreshSemanticIfSelected()
 	wait()
-	if calls != 1 {
+	if calls != initialCalls {
 		t.Fatal("unchanged index repeated embedding requests")
 	}
 	save("A changed passage")
 	s.refreshSemanticIfSelected()
 	wait()
-	if calls != 2 {
+	if calls <= initialCalls {
 		t.Fatal("changed passage did not update embeddings")
 	}
+	changedCalls := calls
 	off := false
 	if err = m.configure(brainSemanticRequest{Action: "auto", AutoIndex: &off}); err != nil {
 		t.Fatal(err)
 	}
 	save("Another change")
 	s.refreshSemanticIfSelected()
-	if calls != 2 {
+	if calls != changedCalls {
 		t.Fatal("automatic indexing continued after opt-out")
 	}
 	m.close()

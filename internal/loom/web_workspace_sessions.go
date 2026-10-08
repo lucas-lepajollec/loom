@@ -74,6 +74,7 @@ func handleRuntimeSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if id := r.URL.Query().Get("id"); id != "" {
+		theBrain().discussionViewed(id)
 		s, ok := workspaceSessions.get(id)
 		if !ok {
 			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found or locked"})

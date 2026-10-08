@@ -1,53 +1,95 @@
 package loom
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"slices"
-	"strconv"
-	"strings"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 )
 
-// The application boundary chooses the primary writable vault, just as
-// primarySecondBrain does, without changing retrieval/source selection.
-func (s *brainService) memoryStore() (*brain.MemoryStore, error) {
+func (s *brainService) memoryStore() (*brain.MarkdownStore, error) {
 	if err := brainAvailable(); err != nil {
 		return nil, err
 	}
-	e, err := s.get()
+	sources, err := s.storage.LoadSources()
 	if err != nil {
 		return nil, err
 	}
-	dir, base := s.storage.dir, "loom-memory"
-	for _, source := range e.Sources() {
-		if source.Primary && !source.ReadOnly && source.Permission == "write" {
-			dir, base = source.Path, ".loom"
+	dir := filepath.Join(s.storage.dir, "loom-memory")
+	primary := false
+	for _, source := range sources {
+		if source.Primary && source.Permission == "write" {
+			// An unavailable primary uses the existing encrypted fallback, never a
+			// different user vault. Probe metadata writability without touching notes.
+			root, openErr := os.OpenRoot(source.Path)
+			if openErr == nil {
+				if info, e := root.Lstat(".loom"); e == nil && info.Mode()&os.ModeSymlink != 0 {
+					openErr = errors.New("primary metadata is a symlink")
+				}
+				if openErr == nil {
+					openErr = root.MkdirAll(".loom", 0700)
+				}
+				if openErr == nil {
+					f, e := root.OpenFile(".loom/.writable-"+fmt.Sprint(time.Now().UnixNano()), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+					if e == nil {
+						name := f.Name()
+						f.Close()
+						_ = root.Remove(filepath.Join(".loom", filepath.Base(name)))
+					}
+					openErr = e
+				}
+				root.Close()
+			}
+			if openErr == nil {
+				dir, primary = source.Path, true
+			}
 			break
 		}
 	}
-	encrypted := base == "loom-memory" && memEncActive()
+	encrypted := !primary && memEncActive()
 	s.itemsMu.Lock()
 	defer s.itemsMu.Unlock()
-	if s.items == nil || s.itemsDir != dir || s.itemsBase != base || s.itemsEncrypted != encrypted {
-		if base == "loom-memory" {
-			if err := os.MkdirAll(dir, 0o700); err != nil {
-				return nil, err
-			}
-		}
-		opts := brain.MemoryStoreOptions{Dir: dir, Base: base, Available: brainAvailable, ImportDistilled: s.importDistilledMemory}
-		if base == "loom-memory" {
-			opts.Encode, opts.Decode = encodeMemContent, decodeMemContent
-		}
-		s.items = brain.NewMemoryStore(opts)
-		s.itemsDir, s.itemsBase, s.itemsEncrypted = dir, base, encrypted
+	if s.items != nil && s.itemsDir == dir && s.itemsEncrypted == encrypted {
+		return s.items, nil
 	}
-	return s.items, nil
+	if !primary {
+		if err = os.MkdirAll(dir, 0700); err != nil {
+			return nil, err
+		}
+	}
+	opts := brain.MarkdownOptions{Dir: dir, Available: brainAvailable, ProjectName: func(id string) (string, error) {
+		if p, ok := getProject(id); ok {
+			return p.Name, nil
+		}
+		return id, nil
+	}}
+	legacy := brain.MemoryStoreOptions{Dir: dir, Base: ".loom", Available: brainAvailable}
+	if !primary {
+		opts.Encode, opts.Decode = encodeMemContent, decodeMemContent
+		legacy.Dir, legacy.Base = s.storage.dir, "loom-memory"
+		legacy.Encode, legacy.Decode = encodeMemContent, decodeMemContent
+	}
+	store := brain.NewMarkdownStore(opts)
+	imported, err := s.importDistilledMemory()
+	if err != nil {
+		return nil, err
+	}
+	others := []brain.MemoryStoreOptions{}
+	if primary {
+		others = append(others, brain.MemoryStoreOptions{Dir: s.storage.dir, Base: "loom-memory", Encode: encodeMemContent, Decode: decodeMemContent, Available: brainAvailable})
+	}
+	if err = store.Migrate(legacy, imported, others...); err != nil {
+		return nil, err
+	}
+	s.items, s.itemsDir, s.itemsEncrypted = store, dir, encrypted
+	return store, nil
 }
 func (s *brainService) importDistilledMemory() ([]brain.MemoryItem, error) {
 	s.distillMu.Lock()
@@ -59,7 +101,7 @@ func (s *brainService) importDistilledMemory() ([]brain.MemoryItem, error) {
 	out := []brain.MemoryItem{}
 	classes := map[string]string{"decision": "episodic", "fact": "semantic", "preference": "semantic", "todo": "working"}
 	for _, old := range distilled {
-		if old.Review != "" && old.Review != "accepted" {
+		if old.Review != "accepted" {
 			continue
 		}
 		class, ok := classes[old.Kind]
@@ -85,112 +127,111 @@ func (s *brainService) importDistilledMemory() ([]brain.MemoryItem, error) {
 	}
 	return out, nil
 }
-func (s *brainService) Remember(req brain.RememberRequest) (brain.MemoryItem, error) {
-	store, err := s.memoryStore()
-	if err != nil {
-		return brain.MemoryItem{}, err
-	}
-	item, err := store.Remember(req)
-	s.afterCoreWrite(item, err)
-	return item, err
-}
-func (s *brainService) UpdateMemory(req brain.UpdateMemoryRequest) (brain.MemoryItem, error) {
-	store, err := s.memoryStore()
-	if err != nil {
-		return brain.MemoryItem{}, err
-	}
-	item, err := store.Update(req)
-	s.afterCoreWrite(item, err)
-	return item, err
-}
 
-// A core note changed through Loom (UI or agent): mirror it now, off the path.
-func (s *brainService) afterCoreWrite(item brain.MemoryItem, err error) {
-	if err == nil && (slices.Contains(item.Tags, brain.ProfileTag) || slices.Contains(item.Tags, brain.ProjectNotesTag)) {
-		coreFilesJobs.Go(func() { _ = s.syncCoreFiles() })
-	}
-}
-func (s *brainService) ForgetMemory(req brain.ForgetMemoryRequest) (brain.MemoryItem, error) {
+func (s *brainService) MemoryIndex(req brain.MemoryIndexRequest) (brain.MemoryIndexes, error) {
 	store, err := s.memoryStore()
 	if err != nil {
-		return brain.MemoryItem{}, err
+		return brain.MemoryIndexes{}, err
 	}
-	return store.Forget(req.ID)
+	out := brain.MemoryIndexes{}
+	out.Global, err = store.List("global")
+	if err == nil && req.ProjectID != "" {
+		var project brain.MemoryFiles
+		project, err = store.List("project:" + req.ProjectID)
+		out.Project = &project
+	}
+	return out, err
 }
-func (s *brainService) ListMemory(filter brain.MemoryFilter) (brain.MemoryList, error) {
+func (s *brainService) MemoryRead(req brain.MemoryRead) (brain.MemoryFile, error) {
 	store, err := s.memoryStore()
 	if err != nil {
-		return brain.MemoryList{}, err
+		return brain.MemoryFile{}, err
 	}
-	return store.List(filter)
+	return store.Read(req)
 }
-func (s *brainService) TouchMemory(ids []string) error {
+func (s *brainService) MemoryWrite(req brain.MemoryWrite) (brain.MemoryFile, error) {
+	store, err := s.memoryStore()
+	if err != nil {
+		return brain.MemoryFile{}, err
+	}
+	item, err := store.Write(req, nil)
+	if err == nil {
+		s.refreshMemoryIndex()
+	}
+	return item, err
+}
+func (s *brainService) MemoryDelete(req brain.MemoryRead) error {
 	store, err := s.memoryStore()
 	if err != nil {
 		return err
 	}
-	return store.Touch(ids)
+	if err = store.Delete(req); err == nil {
+		s.refreshMemoryIndex()
+	}
+	return err
 }
-func memoryQueryValues(r *http.Request, keys ...string) []string {
-	out := []string{}
-	for _, key := range keys {
-		for _, value := range r.URL.Query()[key] {
-			for _, part := range strings.Split(value, ",") {
-				if part = strings.TrimSpace(part); part != "" {
-					out = append(out, part)
-				}
+func (s *brainService) refreshMemoryIndex() {
+	s.writeRefresh.Add(1)
+	go func() {
+		defer s.writeRefresh.Done()
+		if e, err := s.get(); err == nil {
+			_ = e.Refresh(context.Background())
+		}
+	}()
+}
+func (s *brainService) memoryHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		store, err := s.memoryStore()
+		if err != nil {
+			brainResponse(w, nil, err)
+			return
+		}
+		scope := r.URL.Query().Get("scope")
+		if scope == "" {
+			scope = "global"
+		}
+		out, err := store.List(scope)
+		brainResponse(w, out, err)
+		return
+	}
+	if !workspaceMethod(w, r, "POST") {
+		return
+	}
+	var req brain.MemoryWrite
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	item, err := s.MemoryWrite(req)
+	brainResponse(w, item, err)
+}
+func (s *brainService) memoryDeleteHTTP(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, "POST") {
+		return
+	}
+	var req brain.MemoryRead
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	brainResponse(w, map[string]bool{"ok": true}, s.MemoryDelete(req))
+}
+
+// Transcript writes are serialized to preserve event order. Their snapshots
+// are cloned before enqueueing, away from session locks and model execution.
+var transcriptJobs sync.WaitGroup
+
+func (s *brainService) brainIndexExclusions() []string {
+	out := s.skillsIndexExclusions()
+	sources, err := s.storage.LoadSources()
+	if err != nil {
+		return out
+	}
+	for _, source := range sources {
+		if source.Primary {
+			store := brain.NewMarkdownStore(brain.MarkdownOptions{Dir: source.Path, Available: brainAvailable})
+			if paths, err := store.OwnedDirectories(); err == nil {
+				out = append(out, paths...)
 			}
 		}
 	}
 	return out
-}
-func (s *brainService) itemsHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" && r.Method != "POST" {
-		w.Header().Set("Allow", "GET, POST")
-		sendJSON(w, 405, map[string]any{"ok": false, "error": "method not allowed"})
-		return
-	}
-	if r.Method == "POST" {
-		var req brain.RememberRequest
-		if !workspaceDecode(w, r, &req) {
-			return
-		}
-		item, err := s.Remember(req)
-		brainResponse(w, brain.MemoryResult{OK: true, Item: item}, err)
-		return
-	}
-	q := r.URL.Query()
-	filter := brain.MemoryFilter{Classes: memoryQueryValues(r, "class", "classes"), Scopes: memoryQueryValues(r, "scope", "scopes"), Status: q.Get("status"), Query: q.Get("query")}
-	if q.Get("limit") != "" {
-		var err error
-		filter.Limit, err = strconv.Atoi(q.Get("limit"))
-		if err != nil {
-			brainResponse(w, nil, errors.New("invalid limit"))
-			return
-		}
-	}
-	result, err := s.ListMemory(filter)
-	brainResponse(w, result, err)
-}
-func (s *brainService) updateMemoryHTTP(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, "POST") {
-		return
-	}
-	var req brain.UpdateMemoryRequest
-	if !workspaceDecode(w, r, &req) {
-		return
-	}
-	item, err := s.UpdateMemory(req)
-	brainResponse(w, brain.MemoryResult{OK: true, Item: item}, err)
-}
-func (s *brainService) forgetMemoryHTTP(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, "POST") {
-		return
-	}
-	var req brain.ForgetMemoryRequest
-	if !workspaceDecode(w, r, &req) {
-		return
-	}
-	item, err := s.ForgetMemory(req)
-	brainResponse(w, brain.MemoryResult{OK: true, Item: item}, err)
 }
