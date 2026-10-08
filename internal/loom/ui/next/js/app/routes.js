@@ -14,7 +14,7 @@ import { ProjectPage } from '../features/projects/page.js';
 import { TerminalsPage } from '../features/terminals/page.js';
 import { EnvironmentPage } from '../features/environment/page.js';
 import { MachinesPage } from '../features/machines/page.js';
-import { EnginePage, StartupPage, WorkspacesPage } from '../features/machines/panes.js';
+import { EnginePage, WorkspacesPage } from '../features/machines/panes.js';
 import { GROUPS } from './sections.js';
 
 export const ROUTES = [
@@ -30,7 +30,6 @@ export const ROUTES = [
   { id: 'usage', page: UsagePage },
   { id: 'machines', page: MachinesPage },
   { id: 'engine', page: EnginePage },
-  { id: 'startup', page: StartupPage },
   { id: 'workspaces', page: WorkspacesPage },
   { id: 'project', page: ProjectPage },
   { id: 'settings', page: SettingsPage },

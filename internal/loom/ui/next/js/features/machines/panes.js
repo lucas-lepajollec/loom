@@ -6,7 +6,6 @@ import { GroupPage } from '../../app/sections.js';
 import { Engine } from '../settings/page.js';
 import { EngineRuntime } from '../local/page.js';
 import { useVllm, VllmEngine } from '../settings/vllm.js';
-import { StartupSettings } from '../settings/startup.js';
 import { WorkspaceManager } from '../workspaces/folders.js';
 
 // Une seule page moteur : d'abord ce qui tourne (état, API, slots), puis où
@@ -19,5 +18,4 @@ export function EnginePage() {
     <${Engine} />
   </${GroupPage}>`;
 }
-export const StartupPage = () => html`<${GroupPage} title=${t('startup.title')} lead=${t('startup.page.lead')}><${StartupSettings} /></${GroupPage}>`;
 export const WorkspacesPage = () => html`<${GroupPage} title=${t('workspaces.title')} lead=${t('workspaces.page.lead')}><${WorkspaceManager} /></${GroupPage}>`;
