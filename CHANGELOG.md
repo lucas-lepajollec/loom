@@ -4,6 +4,15 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Agents v2 step 3: Antigravity prefers installed `agy` stream JSON with native
+  conversation resume, effort/mode/sandbox configuration, canonical tool/file
+  targets, deduplicated step usage, verbatim failures and raw unknown events.
+  Loom's ACP bridge remains fallback when native stream support is missing.
+  Compatibility records cover CLI 1.3.1 and warn on drift. Headless permissions
+  and questions have no reply channel; denials never auto-retry with broader
+  permissions on the preferred adapter. Backend only; no paid turns or new Go
+  dependencies. See `docs/agents-compat.md` for fixtures and capability gaps.
+
 - Agents v2 step 2: Claude ACP 0.88.0 questions, multi-select/Other/Skip,
   form/URL elicitation, explicit plan approvals, terminal metadata and verbatim
   failures. OpenCode prefers one authenticated loopback HTTP/SSE server with

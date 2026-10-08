@@ -203,6 +203,12 @@ Set an **access password** in Settings → Security and data to sign in from oth
 Update Loom from **Settings → About → Updates** using official GitHub releases, verified checksums and a retained previous binary. Linux system installations support a scoped updater and UI restart after one-time administrator setup; see [Updating Loom](docs/updates.md). A source push becomes available to installed users only after a release is published.
 
 
+Antigravity's builtin harness prefers the installed `agy` structured stream,
+retaining Loom's ACP bridge for older CLIs. Native conversation IDs resume with
+`--conversation`; headless permissions/questions follow native policy and have
+no interactive reply channel. See [agent compatibility](docs/agents-compat.md).
+
+
 ## Documentation
 
 - [Engines and vLLM](docs/engines.md) · [Terminals](docs/terminals.md)

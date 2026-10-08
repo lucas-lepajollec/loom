@@ -31,7 +31,11 @@ func nativeAgentProtocol(a acpAgent) string {
 	if a.Remote || a.Custom {
 		return ""
 	}
-	if a.ID == "opencode" {
+	if a.ID == "antigravity" {
+		if len(a.Args) != 1 || a.Args[0] != "agy-acp" {
+			return ""
+		}
+	} else if a.ID == "opencode" {
 		// Launch-scoped Loom sources retain ACP.
 		if modelSinkEnabled("opencode") {
 			return ""
@@ -42,7 +46,11 @@ func nativeAgentProtocol(a acpAgent) string {
 	} else if a.Command != "npx" || (a.ID != "codex" && a.ID != "pi") {
 		return ""
 	}
-	path, err := lifecycleLookPath(a.ID)
+	binary := a.ID
+	if a.ID == "antigravity" {
+		binary = "agy"
+	}
+	path, err := lifecycleLookPath(binary)
 	if err != nil {
 		return ""
 	}
@@ -50,7 +58,7 @@ func nativeAgentProtocol(a acpAgent) string {
 	if err != nil {
 		return ""
 	}
-	key := fmt.Sprintf("%s:%d:%d", path, info.ModTime().UnixNano(), info.Size())
+	key := fmt.Sprintf("%s:%s:%d:%d", a.ID, path, info.ModTime().UnixNano(), info.Size())
 	nativeProtocolCache.Lock()
 	defer nativeProtocolCache.Unlock()
 	supported, ok := nativeProtocolCache.entries[key]
@@ -59,8 +67,18 @@ func nativeAgentProtocol(a acpAgent) string {
 		defer cancel()
 		argv, err := harnessNativeArgv([]string{path, "--help"})
 		if err == nil {
-			out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).Output()
+			cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+			var out []byte
+			var err error
+			if a.ID == "antigravity" {
+				out, err = cmd.CombinedOutput()
+			} else {
+				out, err = cmd.Output()
+			}
 			needle := "app-server"
+			if a.ID == "antigravity" {
+				needle = "--input-format"
+			}
 			if a.ID == "opencode" {
 				needle = "opencode serve"
 			}
@@ -68,11 +86,17 @@ func nativeAgentProtocol(a acpAgent) string {
 				needle = "rpc"
 			}
 			supported = err == nil && strings.Contains(string(out), needle)
+			if a.ID == "antigravity" {
+				supported = supported && strings.Contains(string(out), "stream-json") && strings.Contains(string(out), "--output-format") && strings.Contains(string(out), "--conversation")
+			}
 		}
 		nativeProtocolCache.entries[key] = supported
 	}
 	if !supported {
 		return ""
+	}
+	if a.ID == "antigravity" {
+		return "agy-stream-json"
 	}
 	if a.ID == "opencode" {
 		return "opencode-http"
@@ -97,6 +121,9 @@ func agentCompatibility(a acpAgent) *agent.CompatibilityRecord {
 	executable := a.Command
 	caps := []string{}
 	tested := ""
+	if protocol == "agy-stream-json" {
+		return antigravityCompatibility(a, "")
+	}
 	if protocol == "opencode-http" {
 		return openCodeCompatibility(a, "")
 	}
@@ -146,6 +173,9 @@ func recordAgentCompatibility(ctx context.Context, a acpAgent, protocol string, 
 	return r
 }
 func nativeAgentCaps(id string) []string {
+	if id == "antigravity" {
+		return antigravityCaps()
+	}
 	if id == "opencode" {
 		return openCodeCaps()
 	}

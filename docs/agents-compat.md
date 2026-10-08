@@ -1,7 +1,8 @@
 # Agent protocol compatibility
 
 Loom's local builtin Codex runtime prefers the installed `codex app-server`;
-local builtin Pi prefers `pi --mode rpc`. A read-only CLI help probe selects
+local builtin Pi prefers `pi --mode rpc`; local builtin Antigravity prefers
+`agy --input-format stream-json --output-format stream-json`. A read-only CLI help probe selects
 native transport when the protocol exists. A missing protocol selects the
 existing pinned ACP launcher. Authentication, startup, resume and RPC failures
 never silently retry a prompt through a different runtime. Remote/custom
@@ -143,7 +144,8 @@ ACP records its handshake agent version rather than the version of `npx`.
  "tested_version":"codex-cli 0.159.2","capabilities":["chat","stream","cancel","resume","approvals","user-input","elicitation"]}
 ```
 
-Loom's `native_session_id` is Codex's thread ID or Pi's native session ID.
+Loom's `native_session_id` is Codex's thread ID, Pi's native session ID, or
+Antigravity's conversation ID.
 Pi also saves `native_session_file`, and resumes that file through
 `switch_session`; an imported ID is resolved within Pi's native session store.
 Pi supplies no native turn ID, so its canonical `turn_id` is Loom's request ID;
@@ -250,7 +252,7 @@ checks completed and the sandbox failures encountered during this change.
 | OpenCode fallback | Native `opencode acp` | 1.18.33 schema/source and synthetic ACP v1 turn | Existing ACP tools, permissions, configuration, replay; launch-scoped Loom sources | No paid/live ACP turn; questions depend on what the upstream ACP bridge exposes |
 | Hermes | Native `hermes acp` | No release accepted in this step | Existing shared ACP surface when supplied by the handshake | Versions unknown until handshake; no new release acceptance claimed |
 | OpenClaw | Native `openclaw acp` | No release accepted in this step | Existing shared ACP surface when supplied by the handshake | Versions unknown until handshake; no new release acceptance claimed |
-| Antigravity | Loom `agy-acp` bridge (adapter pin = Loom version) | No additional native release accepted in this step | Existing native CLI text/tools/plans/usage/modes/resume | No interactive permission RPC, provider keys or Loom MCP; version remains handshake-observed |
+| Antigravity | Native `agy` NDJSON; Loom `agy-acp` fallback | CLI 1.3.1 help/version/binary inspection; synthetic process fixtures | Text, tools/commands/reported file targets, per-step spend, native conversation IDs, effort/modes/sandbox, errors, outcomes, raw rows | No headless permission/question replies; no accepted reasoning/plan/context-occupancy schema; no history-list/read API |
 
 The local builtin OpenCode selects HTTP when its read-only help advertises
 `serve`. Loom starts one owned server lazily, with `--hostname 127.0.0.1`,
@@ -319,3 +321,114 @@ live-versus-fixture boundary. No paid turns were run.
 Sources: [Claude 0.88 changelog](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.88.0/CHANGELOG.md),
 [Claude elicitation source](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.88.0/src/elicitation.ts),
 [OpenCode server](https://opencode.ai/docs/server/),
+
+## Agents v2 step 3: Antigravity
+
+The builtin selects `agy-stream-json` when read-only help advertises input and
+output stream JSON plus explicit conversation resume. Otherwise it retains
+`loom agy-acp`; older structured-output CLIs without NDJSON input use the
+bridge's one-shot `--print` invocation. Remote/custom ACP launchers remain explicit. Selection happens
+before any transcript is sent. Startup, account, busy/lock, resume and process
+failures never retry a turn through the bridge. Antigravity remains separate
+from Gemini CLI, with its native account/catalog and no Loom provider keys.
+
+### Structured-path investigation
+
+| Option | Evidence and decision |
+| --- | --- |
+| Native `agy` print stream | Installed 1.3.1 help/changelog/binary types (`steps.StreamEvent`, `steps.StepUpdatePayload`, `steps.ToolInfo`, `steps.JSONUsage`); [Google headless contract](https://antigravity.google/docs/cli/headless/). Selected: a documented protocol on the installed executable, without an additional runtime or private DB decoding. |
+| Google ACP runtime | The [ACP registry entry](https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json) distributes proprietary Google `agy_acp_server.par`/`.exe` 1.2.1 separately (Linux argv includes `--uid=`). It is not an `agy --acp` mode advertised by this CLI. Not installed, downloaded, authenticated or accepted here. |
+| Loom bridge | Existing `loom agy-acp` translates the CLI into ACP and remains the compatibility fallback. Its synthetic approval/retry and file display behavior is a legacy bridge feature, not native stream permission RPC or a native reported diff. |
+
+The supplied Poracode study and Apache-2.0 Antigravity implementation were read
+as references, without wholesale copying. Its registry ACP integration normalizes
+model/effort IDs, suppresses output after interruption, and parses a stderr
+reply boundary while background tasks keep `session/prompt` open. These runtime
+quirks require separate exact-server acceptance before replacing the installed
+CLI lane; the older study recommendation predates this CLI investigation.
+
+### Accepted mapping and gaps
+
+Each turn writes one `user`/`message.content` NDJSON frame and closes stdin.
+`init`, `step_update`, and `result` retain bounded raw provider JSON. Step indices
+identify items within Loom's turn request ID, never replace the conversation ID.
+Text deltas reconcile with final-only/corrected responses. Tool errors and final
+errors remain verbatim; stderr diagnostics use the existing bounded credential
+redaction. Only owned child processes are stopped. Completion follows stdout
+drain and exit verification, so a success result followed by a nonzero exit fails.
+
+Command items retain command/output; file items retain native target/output.
+There is no filesystem diff reconstruction. Unknown messages, checkpoint,
+subagent metadata and future reasoning/plan/context variants retain raw rows.
+The accepted stream contract exposes no separate reasoning delta, structured
+plan or context occupancy. `--mode plan` remains available; its reported answer
+is text. These missing capabilities are not advertised or simulated.
+
+Per-step usage snapshots are deduplicated by step index and summed once at
+settlement as `usage.spent` with scope `turn`. Missing/invalid token fields stay
+unknown. The final raw result retains cumulative session usage/duration; those
+counters never become current-turn spend or context occupancy. Spent usage rows
+also no longer project a legacy `context.used` value in the shared mapper.
+
+Headless input rejects `control_request`/`control_response`; it has no permission
+or question reply channel. Native policy denials remain failed tool items and
+raw denied-action metadata and a visible denial warning. Native `DONE` is step
+completion; an uncorrelated denial list never becomes an invented per-command
+execution result. Loom sends no invented replies, approval cards or
+automatic continuation prompts. A visible warning explains this gap. Native
+permission settings remain active. Only an explicit full permission/mode
+selection adds `--dangerously-skip-permissions`; plan mode suppresses the full
+permission setting. Edits maps to `--mode accept-edits`. Selected
+`config_options.sandbox:true` passes `--sandbox`, independently of mode; this is
+the CLI terminal sandbox, not a new Loom filesystem-confinement guarantee.
+
+### Native continuity, catalog and compatibility
+
+`native_session_id` is the exact `conversation_id` received from init, steps or
+result. Compatible subsequent turns launch with `--conversation ID` and just the
+new prompt; native CLI/IDE turns remain in that conversation. Loom never uses
+`--continue`. A mismatched returned ID is a resume failure. A changed route or
+prepared context uses the existing explicit portable text handoff. Native errors
+report busy/locked conversations without starting a new session or killing a
+window; simultaneous IDE/CLI behavior still needs real-platform acceptance.
+
+Models use the existing read-only `agy models` parser. Effort configuration uses
+the installed help's `low`, `medium`, `high`, `xhigh`, `max` values and passes
+`--effort`; these are CLI choices, not a promise that every model accepts all
+values. Unsupported selection fails natively. No accepted CLI session-list or
+history-read API exists here; history actions fail clearly rather than invoking
+Codex or privately decoding native databases. No usable Antigravity discovery
+API existed in the bridge. Native ID resume remains available, and other agents'
+discovery/import paths are unchanged.
+
+Compatibility records include `protocol:agy-stream-json`, `adapter_package:agy`,
+`tested_version:1.3.1`, `tested_versions:[1.3.1]`, observed `version`/
+`agent_version` from a read-only version check, and the actual capabilities.
+Unknown versions remain empty. A differing observed version emits a visible,
+non-blocking drift warning; it never substitutes another runtime.
+
+Backend only: existing configuration shapes add discovered `reasoning_effort`
+(select) and `sandbox` (boolean) options, and the existing mode list is populated.
+No new top-level UI fields, endpoint or UI files. Native `payload.tool_info` and
+file `payload.path` are provider-shaped metadata within the existing event field.
+Explicit Loom MCP selections fail visibly; native CLI MCP remains CLI-owned.
+
+### Verification boundary
+
+`testdata/agents/antigravity/*.jsonl` is synthetic, derived from Google docs and
+installed type/help inspection, not recordings of paid outputs. Fake owned
+processes exercise normal/deduplicated usage, final-only/reconciled text,
+command/file/error items, unavailable permission/question interaction, busy
+errors, interrupt, unknown rows, missing results and nonzero exits. Additional
+checks cover cancellation, malformed JSON, stderr redaction, native ID mismatch,
+unknown counters, launch policy, read-only probes, fallback selection, native
+resume versus text handoff, and the canonical display projection.
+
+Live checks: `agy --help`, `agy help models`, `agy --version` (1.3.1),
+`agy changelog`, binary/type inspection. The read-only `agy models` attempt
+was blocked by `listen tcp 127.0.0.1:0: socket: operation not permitted` and
+read-only native log/crash paths. No generation, login, permission mutation,
+quota reset, paid turn or ACP server installation was performed.
+
+See [step 3 verification](agents-v2-step3-verification.md) for commands,
+sandbox failure names and the live-versus-fixture acceptance boundary.

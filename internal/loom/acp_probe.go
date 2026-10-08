@@ -41,6 +41,9 @@ func loadACPProbe(id string) (acpProbe, bool) {
 }
 
 func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
+	if nativeAgentProtocol(agent) == "agy-stream-json" {
+		return probeAntigravity(ctx, agent)
+	}
 	if nativeAgentProtocol(agent) == "opencode-http" {
 		return probeOpenCode(ctx, agent)
 	}
