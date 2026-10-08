@@ -335,8 +335,26 @@ func handoffSection(heading string, lines []string, budget int) string {
 	return "## " + heading + "\n" + handoffClip(strings.TrimSpace(text), budget) + "\n"
 }
 func renderHandoff(s handoffState) string {
-	goal := []string{s.Title, s.First}
-	goal = append(goal, s.Requests...)
+	// The title is often the first message cut short: keep each line once.
+	goal := []string{}
+	for _, line := range append([]string{s.Title, s.First}, s.Requests...) {
+		key := strings.TrimRight(strings.TrimSpace(line), "…. ")
+		dup := key == ""
+		for i, kept := range goal {
+			k := strings.TrimRight(strings.TrimSpace(kept), "…. ")
+			if strings.HasPrefix(k, key) {
+				dup = true
+				break
+			}
+			if strings.HasPrefix(key, k) {
+				goal[i], dup = line, true
+				break
+			}
+		}
+		if !dup {
+			goal = append(goal, line)
+		}
+	}
 	plan := []string{}
 	for _, p := range s.Plan {
 		plan = append(plan, "["+p.Status+"] "+p.Content)

@@ -205,6 +205,25 @@ function Continuity() {
   </div>`;
 }
 
+// Passations : écrites par Loom à chaque échange (et états de projet). Lues
+// par les agents, pas à éditer : on les montre à part, en clair.
+const AUTO_TAGS = ['handoff', 'discussion-state', 'project-state', 'session-summary'];
+const isAuto = i => (i.tags || []).some(tag => AUTO_TAGS.includes(tag));
+const readable = text => String(text || '').split('\n').filter(l => !/^Quoted discussion data/.test(l)).map(l => l.replace(/^> ?/, '')).join('\n').trim();
+function Handoffs({ items, projects }) {
+  if (!items.length) return null;
+  const title = it => {
+    const p = it.scope.startsWith('project:') && projects.find(x => 'project:' + x.id === it.scope);
+    if (p) return t('memory.handoff.project', { name: p.name });
+    const goal = readable(it.text).split('\n').find(l => l && !l.startsWith('#'));
+    return goal ? goal.slice(0, 90) : t('memory.handoff.discussion');
+  };
+  return html`<details class="mi-hand"><summary><b>${t('memory.handoff.title')}</b> <span class="count">${items.length}</span><${Tip} text=${t('memory.handoff.tip')} /></summary>
+    <div class="card bs-list">${items.map(it => html`<details class="mi-hand-it" key=${it.id}><summary><span class="grow trunc">${title(it)}</span><span class="mi-meta"><span>${ago(it.updated_at || it.created_at)}</span></span></summary>
+      <pre class="mi-hand-text">${readable(it.text)}</pre></details>`)}</div>
+  </details>`;
+}
+
 export function MemoryItems() {
   const projects = useStore(app, a => (a.workspace && a.workspace.projects) || []);
   const [cls_, setClass] = useState('all');
@@ -225,7 +244,8 @@ export function MemoryItems() {
     if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err');
     load();
   };
-  const items = ((data && data.items) || []).filter(i => !isProfile(i) && !isNotes(i));
+  const all = ((data && data.items) || []).filter(i => !isProfile(i) && !isNotes(i));
+  const auto = all.filter(isAuto), items = all.filter(i => !isAuto(i));
   const groups = MEMORY_CLASSES.map(c => [c, items.filter(i => i.class === c)]).filter(([, list]) => list.length);
   const prov = it => {
     const p = it.provenance || {};
@@ -253,6 +273,7 @@ export function MemoryItems() {
             ${it.status !== 'expired' && it.status !== 'superseded' && html`<div class="mi-acts"><button class="icon-btn" aria-label=${t('memory.edit_short')} title=${t('memory.edit_short')} onClick=${() => setForm(it)}><${Icon} n="edit" /></button>
               <button class="icon-btn" aria-label=${t('memory.forget')} title=${t('memory.forget')} onClick=${() => forget(it)}><${Icon} n="trash" /></button></div>`}
           </div>`)}</div></section>`)}
+    <${Handoffs} items=${auto} projects=${projects} />
     ${data && data.malformed > 0 && html`<p class="note">${t('memory.malformed', { n: data.malformed })}</p>`}
     ${form && html`<${ItemForm} item=${form.id ? form : null} projects=${projects} onClose=${() => setForm(null)} onSaved=${() => { setForm(null); load(); }} />`}
   </div>`;

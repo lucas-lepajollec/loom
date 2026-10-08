@@ -17,6 +17,18 @@ import { openPalette } from './palette.js';
 const COLORS = ['#7c93e8', '#d49a4a', '#5bb58a', '#c07ad8', '#d9776d', '#63b3c9'];
 const projColor = id => COLORS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
 
+// Glisser-déposer : une discussion se dépose sur un projet, ou sur Récents
+// pour la sortir de son projet.
+let dragged = null;
+function dropZone(projectId, setOver) {
+  const accept = e => dragged && (dragged.project_id || '') !== projectId;
+  return {
+    onDragOver: e => { if (accept(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(true); } },
+    onDragLeave: () => setOver(false),
+    onDrop: e => { setOver(false); if (!accept(e)) return; e.preventDefault(); const c = dragged; dragged = null; moveTo(c, projectId); },
+  };
+}
+
 // Déplacer une discussion : archive native ou discussion commune (on garde son titre et ses instructions).
 async function moveTo(c, projectId) {
   let r;
@@ -24,7 +36,12 @@ async function moveTo(c, projectId) {
   else {
     const cur = await get('/api/runtime/sessions?id=' + encodeURIComponent(c.id));
     if (!cur.ok) return toast(cur.error || t("app.shell.discussion_introuvable"), 'err');
-    r = await post('/api/runtime/sessions/configure', { id: c.id, title: cur.session.title || '', project_id: projectId, instructions: cur.session.instructions || '', context_revision: (cur.context && cur.context.revision) || '' });
+    // A provider or agent outside this machine receives the project context
+    // from the next message on: ask once, then send the consent.
+    const external = cur.session.runtime_id !== 'llama.cpp';
+    const project = (app.get().nav.projects || []).find(p => p.id === projectId);
+    if (external && !await confirm(t('app.shell.move_share_title'), t(projectId ? 'app.shell.move_share_text' : 'app.shell.move_unshare_text', { project: project ? project.name : '' }), { ok: t('app.shell.move_ok') })) return;
+    r = await post('/api/runtime/sessions/configure', { id: c.id, title: cur.session.title || '', project_id: projectId, instructions: cur.session.instructions || '', context_revision: (cur.context && cur.context.revision) || '', consent: external });
   }
   if (r.ok === false) toast(r.error || t("app.shell.deplacement_impossible"), 'err'); refreshNav();
 }
@@ -55,7 +72,8 @@ function ChatLink({ c, active }) {
       if (!r.ok) toast(r.error || t("app.shell.suppression_impossible"), 'err'); refreshNav();
     } },
   ];
-  return html`<div class="chat-link" aria-current=${active ? 'page' : undefined} role="button" tabindex="0"
+  return html`<div class="chat-link" aria-current=${active ? 'page' : undefined} role="button" tabindex="0" draggable="true"
+      onDragStart=${e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-loom-chat', c.id); dragged = c; }} onDragEnd=${() => { dragged = null; }}
       onClick=${() => { open(c.id); go('chat'); }} onKeyDown=${e => e.key === 'Enter' && (open(c.id), go('chat'))}>
     ${running && html`<i class="run"></i>`}<span>${c.title || t("app.shell.nouvelle_discussion")}</span>
     <button class="icon-btn more" aria-label="${t("app.shell.actions")}" onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
@@ -79,6 +97,7 @@ export function Sidebar() {
   const current = useStore(chat, s => s.sessionId);
   const activeId = current || nav.active;
   const [openProj, setOpenProj] = useState(() => new Set(JSON.parse(localStorage.getItem('loom.next.proj') || '[]')));
+  const [over, setOver] = useState(null);
   const toggleProj = id => { const n = new Set(openProj); n.has(id) ? n.delete(id) : n.add(id); setOpenProj(n); localStorage.setItem('loom.next.proj', JSON.stringify([...n])); };
   const newProject = async () => {
     const name = await prompt(t("app.shell.nouveau_projet"), { placeholder: t("app.shell.nom_du_projet"), ok: t("app.shell.creer") });
@@ -103,7 +122,7 @@ export function Sidebar() {
     <nav class="nav">${NAV_ITEMS.map(r => html`<a href=${r.href} aria-current=${groupOf(route.section)?.id === r.id ? 'page' : undefined}><${Icon} n=${r.nav.icon} />${r.nav.label}</a>`)}</nav>
     <div class="side-sec">
       <div class="side-sec-h"><span>${t("app.shell.projets")}</span><button class="icon-btn" style="width:24px;height:24px" aria-label="${t("app.shell.nouveau_projet")}" onClick=${newProject}><${Icon} n="plus" /></button></div>
-      <div class="side-list">${nav.projects.map(p => html`<div class="proj">
+      <div class="side-list">${nav.projects.map(p => html`<div class=${cls('proj', over === p.id && 'drop-on')} ...${dropZone(p.id, on => setOver(on ? p.id : null))}>
         <button class="chat-link" onClick=${() => toggleProj(p.id)} aria-expanded=${String(openProj.has(p.id))}>
           <i class="proj-dot" style=${`background:${projColor(p.id)}`}></i><span>${p.name}</span>
           <span class="icon-btn more" role="button" tabindex="0" aria-label="${t("app.shell.reglages_du_projet")}" onClick=${e => { e.stopPropagation(); go('project', p.id); }}><${Icon} n="gear" /></span>
@@ -114,7 +133,7 @@ export function Sidebar() {
         </div>`}</div>`)}
       </div>
     </div>
-    <div class="side-sec grow">
+    <div class=${cls('side-sec grow', over === '' && 'drop-on')} ...${dropZone('', on => setOver(on ? '' : null))}>
       <div class="side-sec-h"><span>${t("app.shell.recents")}</span></div>
       <div class="side-list">${loose.map(c => html`<${ChatLink} key=${c.id} c=${c} active=${route.section === 'chat' && c.id === activeId} />`)}</div>
     </div>
