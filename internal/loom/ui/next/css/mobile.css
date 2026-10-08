@@ -114,6 +114,9 @@
   .brain-search>.search{flex:1 1 100%;min-width:0}
   .brain-connectors,.brain-permissions{grid-template-columns:minmax(0,1fr)}
   .mi-bar{flex-wrap:wrap}
+  .sk-used{display:none}
+  .sk-home .btn{order:3;flex:1 1 100%}
+  .mcp-url code{word-break:break-all}
   .mi-sugg-h{flex-wrap:wrap}
   .mi-sugg .mi-item{flex-wrap:wrap}
   .mi-sugg .mi-acts{margin:0;width:100%;justify-content:flex-end}

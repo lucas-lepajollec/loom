@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
-	"github.com/lucas-lepajollec/loom/internal/loom/web"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -29,6 +28,7 @@ type brainService struct {
 	itemsEncrypted  bool
 	distillMu       sync.Mutex
 	consolidationMu sync.Mutex
+	continuity      brainContinuity
 	candidateWrites sync.WaitGroup
 	writeRefresh    sync.WaitGroup
 }
@@ -43,7 +43,7 @@ func (s *brainService) get() (*brain.Engine, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.engine == nil {
-		e, err := brain.New(brain.Options{Storage: s.storage, Conversations: brainConversations, Memory: brainMemory, Distilled: s.distilledDocuments, Available: brainAvailable})
+		e, err := brain.New(brain.Options{Storage: s.storage, ExcludedDirectories: s.skillsIndexExclusions, Conversations: brainConversations, Memory: brainMemory, Distilled: s.distilledDocuments, Available: brainAvailable})
 		if err != nil {
 			return nil, err
 		}
@@ -52,6 +52,9 @@ func (s *brainService) get() (*brain.Engine, error) {
 	return s.engine, nil
 }
 func (s *brainService) run(ctx context.Context) {
+	continuityDone := make(chan struct{})
+	go func() { defer close(continuityDone); s.continuityLoop(ctx) }()
+	defer func() { <-continuityDone }()
 	defer func() {
 		s.mu.Lock()
 		m := s.semantic
@@ -64,6 +67,7 @@ func (s *brainService) run(ctx context.Context) {
 		if e, err := s.get(); err == nil {
 			_ = e.Refresh(ctx)
 			s.refreshSemanticIfSelected()
+			syncPortableMCP()
 		}
 	}
 	refresh()
@@ -298,6 +302,10 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 			brainResponse(w, nil, err)
 			return
 		}
+		if skillsHomeConfig().Mode == "brain" {
+			syncSkillSinksAsync()
+		}
+		syncPortableMCP()
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources(), "refreshing": e.Refreshing(), "refresh_seconds": 180})
 }
@@ -372,7 +380,7 @@ func theBrain() *brainService {
 
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	s := theBrain()
-	for route, handler := range map[string]http.HandlerFunc{"items": s.itemsHTTP, "items/update": s.updateMemoryHTTP, "items/forget": s.forgetMemoryHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "consolidate": s.consolidateHTTP, "consolidation": s.consolidationHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
+	for route, handler := range map[string]http.HandlerFunc{"items": s.itemsHTTP, "items/update": s.updateMemoryHTTP, "items/forget": s.forgetMemoryHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "consolidate": s.consolidateHTTP, "consolidation": s.consolidationHTTP, "continuity": s.continuityHTTP, "continuity/run": s.continuityRunHTTP, "continuity/status": s.continuityStatusHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
 		protected := requireWebAuth(handler)
 		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
@@ -380,14 +388,8 @@ func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 		})
 	}
 	server := brain.MCPServer(s)
-	transport := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
-	protected := web.ProtectOrigin(transport)
-	authed := requireWebAuth(protected.ServeHTTP)
-	mux.HandleFunc("/mcp/brain", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
-		authed(w, r)
-	})
+	registerMCPTransport(mux, "/mcp/brain", func(*http.Request) *mcp.Server { return server })
+	registerMCPTransport(mux, "/mcp/loom", func(*http.Request) *mcp.Server { return gatewayServer(s) })
 	if ctx != nil {
 		go s.run(ctx)
 	}

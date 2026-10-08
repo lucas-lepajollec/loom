@@ -182,6 +182,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/capabilities/save", handleCapabilitySave)
 	api("/api/capabilities/delete", handleCapabilityDelete)
 	api("/api/skills/targets", handleSkillSinks)
+	api("/api/skills/home", handleSkillsHome)
 	api("/api/skills/sources", handleSkillSources) // distribution des skills aux harnesses
 	api("/api/harness/custom", handleCustomACP)
 	api("/api/harness/custom/delete", handleCustomACPDelete)
@@ -206,6 +207,10 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/agent/compact", handleCompactToggle)
 	api("/api/apikey", handleAPIKey)
 	api("/api/internet", handleInternet)
+	api("/api/mcp/gateway", handleMCPGateway)
+	api("/api/mcp/gateway/token", handleMCPGatewayToken)
+	api("/api/mcp/portable", handleMCPPortable)
+	api("/api/mcp/portable/import", handleMCPPortableImport)
 	api("/api/mcp/file", handleMCPFile)
 	api("/api/mcp/sources", handleMCPSources)
 	api("/api/mcp/sources/adopt", handleMCPSourceAdopt)

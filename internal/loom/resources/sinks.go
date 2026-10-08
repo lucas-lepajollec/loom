@@ -9,13 +9,14 @@ import (
 )
 
 type SkillSinkTarget struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Harnesses []string `json:"harnesses"`
-	Dir       string   `json:"dir"`
-	Enabled   bool     `json:"enabled"`
-	Written   []string `json:"written"`
-	Error     string   `json:"error,omitempty"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Harnesses []string          `json:"harnesses"`
+	Dir       string            `json:"dir"`
+	Enabled   bool              `json:"enabled"`
+	Written   []string          `json:"written"`
+	Links     map[string]string `json:"links,omitempty"`
+	Error     string            `json:"error,omitempty"`
 }
 
 func HasName(list []string, s string) bool {
@@ -106,12 +107,24 @@ func (lib Library) SyncSkillSinks(list []SkillSinkTarget, skills []Capability, b
 		}
 		owned := func(name string) bool {
 			p := filepath.Join(t.Dir, name)
-			return strings.HasPrefix(name, "loom-") || lib.IsLoomSkillLink(p) || IsLinkInto(p, skills)
+			if expected := t.Links[name]; expected != "" {
+				if _, err := os.Readlink(p); err == nil {
+					return SkillSinkCurrent(p, expected)
+				}
+				_, err := os.Stat(filepath.Join(p, ".loom-copy"))
+				return err == nil
+			}
+			if _, err := os.Readlink(p); err == nil {
+				return lib.IsLoomSkillLink(p) || IsLinkInto(p, skills)
+			}
+			return strings.HasPrefix(name, "loom-") || lib.IsLoomSkillLink(p)
 		}
 		kept := []string{}
+		links := map[string]string{}
 		for _, name := range t.Written {
 			if c, still := want[name]; still && SkillSinkCurrent(filepath.Join(t.Dir, name), c.Dir) {
 				kept = append(kept, name)
+				links[name] = c.Dir
 				continue
 			}
 			if !owned(name) {
@@ -120,6 +133,7 @@ func (lib Library) SyncSkillSinks(list []SkillSinkTarget, skills []Capability, b
 			if err := os.RemoveAll(filepath.Join(t.Dir, name)); err != nil {
 				t.Error = err.Error()
 				kept = append(kept, name)
+				links[name] = t.Links[name]
 			}
 		}
 		names := make([]string, 0, len(want))
@@ -145,8 +159,9 @@ func (lib Library) SyncSkillSinks(list []SkillSinkTarget, skills []Capability, b
 				continue
 			}
 			kept = append(kept, name)
+			links[name] = want[name].Dir
 		}
-		t.Written = kept
+		t.Written, t.Links = kept, links
 	}
 	return list
 }

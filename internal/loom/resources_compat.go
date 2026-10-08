@@ -3,6 +3,7 @@ package loom
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
@@ -78,7 +79,13 @@ func writeLoomSkill(c Capability, dir string) (string, error) {
 }
 
 func resourceLibrary() resources.Library {
-	return resources.Library{Root: loomSkillsDir(), NewID: newSessionID}
+	links := map[string]string{}
+	for _, target := range loadSkillSinks() {
+		for name, source := range target.Links {
+			links[filepath.Join(target.Dir, name)] = source
+		}
+	}
+	return resources.Library{Root: loomSkillsDir(), OpenRoot: openOwnedSkillsRoot, ManagedLinks: links, NewID: newSessionID}
 }
 
 func skillBound(b map[string]map[string]bool, skillID, target string) bool {

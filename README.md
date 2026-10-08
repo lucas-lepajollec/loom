@@ -54,7 +54,13 @@ Projects link folders on this machine or a connected machine, with shared instru
 
 Brain v2 memory items retain scoped knowledge and superseded history in plain Markdown inside a writable primary vault, or Loom’s encrypted fallback store. HTTP and MCP operations support remembering, updating, forgetting and listing items. Cheap FR/EN heuristics propose candidates after accepted user messages; explicit discussion consolidation reuses the selected model. Candidates stay out of context until reviewed, and automatic collection can be disabled through `/api/brain/consolidation`. Discussions select relevant scoped memory under a 1500-token default budget, with ordered source/reason/token metadata in context previews; see the [memory format](docs/brain.md#memory-items-loom) and [context engine](docs/brain.md#context-engine).
 
+Automatic Brain continuity records idle discussion summaries and current project
+working state through the existing memory store. Local chat is the default;
+external destinations require consent. See [Brain continuity settings and API](docs/brain.md#automatic-cognitive-continuity).
+
 Select Brain sources for a project or expose its authenticated MCP tools to harnesses at **`/mcp/brain`**. Loom must remain running; the browser can be closed. Personal sources require explicit selection and opt-in. See [Brain](docs/brain.md) and [MCP configuration](docs/mcp-files.md).
+
+External Claude Code, Codex, OpenCode and Gemini CLI sessions can use one `loom` MCP entry at **`/mcp/loom`** for Brain, memory and all enabled Loom MCP servers. Explicit registration and token rotation use `/api/mcp/gateway` and `/api/mcp/gateway/token`; the dedicated gateway token cannot access control APIs. Secret-free MCP definitions travel with the primary Brain in `.loom/mcp.json` and import disabled. See [gateway and portable MCP APIs](docs/brain.md#one-loom-mcp-gateway-per-harness).
 
 <img src="docs/screenshots/brain.png" alt="Brain search, semantic indexing and distilled memory" width="1000" />
 
@@ -131,7 +137,7 @@ source edits; no commit or release is required. See [phone testing](CONTRIBUTING
 
 **Terminals › Application previews** opens an HTTP development server on Loom or a saved SSH machine, including assets and WebSocket/HMR, through a separate authenticated browser origin. VM clients must be able to reach the preview listener; HTTPS setups need a separate preview origin. See [development previews](docs/development-previews.md).
 
-**Brain** brings sources/context, memory, skills and MCP together. Link multiple second brains from folders, Git checkouts, Obsidian vaults or already mounted WebDAV directories. Sources remain canonical and are read-only; Brain indexes selected text with provenance. Include/exclude rules and explicit personal-source opt-in control retrieval. Direct remote synchronization is not implemented. See [Brain](docs/brain.md).
+**Brain** brings sources/context, memory, skills and MCP together. Link multiple second brains from folders, Git checkouts, Obsidian vaults or already mounted WebDAV directories. Sources remain canonical and are read-only; Brain indexes selected text with provenance. Include/exclude rules and explicit personal-source opt-in control retrieval. Direct remote synchronization is not implemented. Skills can live in the primary second brain and reach harnesses through managed links or read-only Brain MCP tools. See [Brain](docs/brain.md).
 
 ## Configuration
 

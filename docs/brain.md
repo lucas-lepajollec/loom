@@ -18,8 +18,9 @@ refresh. No harness settings are changed automatically.
 The **Brain** page has three direct sections: second brains, Skills and MCP
 servers. The first connects canonical knowledge sources and exposes search and
 indexing status. Skills and MCP remain execution capabilities rather than
-knowledge stores, but live beside the sources so a skills directory can be
-linked from a second brain. Loom's conversation indexing, reviewed memory,
+knowledge stores. The owned skills home can live in the primary second brain
+so its folders sync with that vault; additional skills folders remain read-only
+linked sources. Loom's conversation indexing, reviewed memory,
 retrieval and semantic layers operate in the background as cognitive
 continuity; users do not have to wire those layers into every project.
 
@@ -157,16 +158,81 @@ empty text, empty arrays and zero tokens. This is an estimate rather than a
 model tokenizer guarantee. Context is untrusted source text; the caller owns
 its injection policy and consent to share it with an external executor.
 
+## Skills home
+
+Skills default to `LOOM_HOME/skills`. The authenticated, no-store endpoint
+`GET /api/skills/home` returns exactly:
+
+```json
+{"mode":"loom","dir":"/path/to/loom/skills","relative":"skills","brain_source":"vault","fallback":false,"reason":"","count":2,"detected":[{"relative":"skills","count":2}]}
+```
+
+`mode` is the saved `loom` or `brain` choice; `dir` is the active absolute
+folder. `relative` is the configured brain-relative folder (default `skills`).
+`brain_source` is the primary source ID, or `""` when unavailable. `count`
+counts immediate skill folders containing a regular `SKILL.md`. `detected`
+lists candidate folders inside the primary, sorted by relative path, from
+root (`.`) through depth three, skipping `.git`, `node_modules`, `.loom` and
+`.obsidian`; directory symlinks are not traversed. Empty lists are `[]`.
+
+`POST /api/skills/home` accepts `{"mode":"brain","relative":"skills"}`
+(or omit `relative` for the default) and `{"mode":"loom"}`. Brain mode
+requires an available writable primary. Absolute paths, `..` components,
+escaping symlinks, the brain root and `.loom` are rejected. Operations use
+`os.Root`, including folder creation and file copies. Overlapping old/new
+homes are rejected; selecting the same home is a no-op.
+
+Switching to Brain creates the target if needed and copies whole skill folders
+from the previous owned home only where the name does not already exist.
+It never overwrites or deletes the old home. Success returns the GET object
+plus `"copied":["review"]` and `"conflicts":["existing-name"]`; both are
+arrays of folder names. Switching back to Loom copies nothing and returns
+empty arrays. Copies preserve regular-file modes, reject symlinks and known
+credential filenames, and skip repository metadata and private harness/account
+directories. Keep secrets out of skill instructions and assets.
+
+If the saved Brain home becomes unavailable (no primary, locked vault,
+missing/unreadable source or skills folder), `dir` falls back to
+`LOOM_HOME/skills`, `fallback` is `true`, and `reason` explains why. The saved
+Brain choice is retained and becomes active again when available. Errors use
+`{"ok":false,"error":"message"}` (400 for invalid paths/settings or failed
+copies; 423 for a locked vault). Unsupported methods return 405 with
+`{"error":"method not allowed"}` and `Allow: GET, POST`. Authentication and
+JSON body/content-type rules match the other browser/control endpoints.
+
+Switches resync opted-in native harness sinks asynchronously. Their manifests
+retain the exact link targets so old managed links can be replaced without
+touching user replacements. Harnesses read the canonical folders through links
+(the existing marked-copy fallback still applies on Windows). The active
+skills folder is excluded from note indexing, including cached entries;
+other notes and linked skills remain unchanged.
+
 ## MCP for harnesses
 
 The same engine is available at `http://127.0.0.1:2510/mcp/brain` using
 Streamable HTTP and the Go MCP SDK. It exposes the read-only `brain_search`,
-`brain_pack` and `brain_read` tools plus `brain_write` and `brain_edit` for
+`brain_pack`, `brain_read`, `list_skills` and `read_skill` tools, plus
+`brain_write` and `brain_edit` for
 write-authorized second brains. Omitting `source` targets the proactive primary;
 another source ID is intended only for an explicit user-requested update. Arguments and structured results
 match their HTTP equivalents; MCP `heading` and `sources` are JSON arrays.
-Tool errors use MCP's error results. The control key, when set, must be passed
+Tool errors use MCP's error results.
+
+`list_skills {}` returns `[{"name":"review","title":"Review","description":"Find bugs"}]`
+for the owned library and linked skills available to Loom's harness distribution.
+Names are folder names; collisions are qualified as `<source-id>:<folder>`.
+`read_skill {"name":"review"}` returns `{"text":"complete SKILL.md text","files":["SKILL.md","scripts/check.sh"]}`.
+File paths are relative to that skill, sorted, limited to 200 regular files;
+symlinks are skipped, and `SKILL.md` is limited to 1 MiB. Both tools are read-only
+and check vault availability on every invocation. They expose instructions,
+not permissions, and let harnesses without native skills folders read the same
+library. These tools never change sources, bindings or native configuration.
+The control key, when set, must be passed
 as a Bearer header on every HTTP request. This endpoint does not manage source
+
+Tool errors use MCP's error results. A control key or dedicated gateway token
+can be passed as a Bearer header on every HTTP request; browser sessions keep
+their normal authentication. This endpoint does not manage source
 definitions or trigger model generation. It keeps DNS-rebinding and
 cross-origin protection, bounds request bodies and does not retain MCP sessions.
 
@@ -202,6 +268,99 @@ Example personal tool call:
 ```json
 {"query":"travel preferences","budget_tokens":800,"sources":["personal-notes"],"personal":true}
 ```
+
+## One Loom MCP gateway per harness
+
+`/mcp/loom` is a stateless Streamable HTTP gateway. It shares the existing
+Brain and memory tool registration with `/mcp/brain`, including `remember`,
+`update_memory`, `forget_memory` and `list_memory`. It also proxies every enabled
+Loom MCP server through the same client pool used by Loom chat. Hidden tools
+(`disabledTools`) remain hidden. Arguments and MCP results, including content,
+structured content and `isError`, pass through without flattening or truncation;
+proxied calls have a 60-second timeout. Discovery skips unavailable upstreams
+and logs their names without upstream error text or credentials.
+
+Upstream tool names use `<server>__<tool>`, sanitized to ASCII letters, digits,
+underscores and hyphens, with a 64-character maximum. Lossy sanitization and
+truncation append a deterministic identity suffix so an unavailable upstream
+cannot redirect a cached name to another server. Remaining collisions receive
+a deterministic suffix in sorted server/tool order. `loom_gateway_status` is
+read-only and returns `{upstreams:[{name,enabled,connected,tools,error?}]}`;
+`tools` counts visible tools and unavailable upstreams report
+`error:"upstream unavailable"`. Disabled upstreams are listed without connecting.
+Both MCP endpoints retain origin protection, the 128 KiB request-body limit,
+no-store responses and normal Brain/vault availability checks.
+
+Registration is explicit, through authenticated control APIs. The gateway token
+is separate from the control key, stored only as a hash in Loom's store, and
+accepted only at `/mcp/loom` and `/mcp/brain`. Registration generates a token if
+none exists. Plaintext appears only in the private harness configurations,
+process memory and the authenticated token-rotation response. Existing owned
+configurations let Loom recover the token after restart. If a token exists but
+no owned configuration retains it after restart, rotate it before registering.
+The token is never written to the Brain folder or Markdown.
+
+| Method / path | Input | Success output |
+| --- | --- | --- |
+| `GET /api/mcp/gateway` | — | `{url,token_set,harnesses:[{id,name,supported,registered,file}]}` |
+| `POST /api/mcp/gateway` | `{harness,enabled}` | Same gateway object after registration/removal. |
+| `POST /api/mcp/gateway/token` | `{rotate:true}` | `{ok:true,url,token,token_set:true}`; return the new plaintext token once and rewrite every registered entry. |
+| `GET /api/mcp/portable` | — | `{servers:[{name,config}]}`; only entries present in the primary Brain sidecar and absent locally, with secret markers. |
+| `POST /api/mcp/portable/import` | `{names:["server-name"]}` | `{ok:true,imported:["server-name"]}`; import all selected entries disabled with empty secret values. |
+
+These control routes require the existing browser/control-key authentication;
+the gateway token grants no control API access. POST uses the normal strict
+JSON decoder and 128 KiB limit. Invalid requests, foreign/edited entries and
+missing primary Brains return 400 with `{ok:false,error}`; locked vaults return
+423. Authentication and method errors retain the normal control API shapes.
+Gateway responses never contain a token except for token rotation.
+
+Harness IDs and the sole owned entry are:
+
+| Harness ID | User file | Entry |
+| --- | --- | --- |
+| `claude-code` | `~/.claude.json` | `mcpServers.loom = {"type":"http","url":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
+| `codex` | `~/.codex/config.toml` | `[mcp_servers.loom]` with `url` and `http_headers = { "Authorization" = "Bearer TOKEN" }` |
+| `opencode` | `~/.config/opencode/opencode.json` | `mcp.loom = {"type":"remote","url":URL,"headers":{"Authorization":"Bearer TOKEN"},"enabled":true}` |
+| `gemini` | `~/.gemini/settings.json` | `mcpServers.loom = {"httpUrl":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
+
+Codex's static HTTP header key is documented in the
+[configuration reference](https://developers.openai.com/codex/config-reference/).
+No environment export is needed. Its owned block is delimited by
+`# loom-gateway begin` / `# loom-gateway end`; all other TOML text is preserved.
+JSON editing preserves unrelated keys and entries, including large settings
+files, but may normalize whitespace. Existing files get a private
+`<file>.loom-backup` before their first change, only when that backup is absent.
+Writes use an atomic replacement confined to the user's home. Loom refuses to
+replace an existing `loom` entry it did not create, or one edited outside Loom.
+Remove an edited entry manually and unregister it before rotating. Rotation
+prepares every change first and rolls applied files back if a write fails.
+
+`url` uses the running Loom listener's host and port, substituting `127.0.0.1`
+for all-interface binds. Loom must remain running; restart the external harness
+to load configuration changes. Loom restarts a retained ACP adapter on its next
+turn when the owned gateway entry changes. A loopback URL targets the same machine as the
+harness. No native sign-in, global permissions or other MCP entries are changed.
+A registered ACP harness receives no individual MCP servers when it inherits
+all globally enabled selections: the harness reads its native `loom` entry.
+An explicit project/session selection, including an empty selection, keeps the
+existing per-session ACP behavior; explicit harness bindings also remain
+per-session. The native gateway entry stays available in that harness.
+
+The portable sidecar is `<primary>/.loom/mcp.json`, with the existing
+`{"mcpServers":{"name":CONFIG}}` definition format. `CONFIG` contains `enabled`
+and optional `type`, `command`, `args`, `env`, `url`, `headers` and
+`disabledTools`, as in Loom's local MCP file. Every env/header **value** is
+replaced by `"${secret}"`; keys remain available to identify missing credentials.
+Keep credentials in env/headers rather than commands, arguments or URLs.
+Definitions are exported on changes, primary-source updates and Brain refresh;
+a fresh installation retains sidecar entries missing locally so they can be
+imported. Explicit local deletion removes that definition's previous export.
+The 4 MiB sidecar is read and atomically written through `os.Root` confinement.
+Malformed/unavailable sidecars are logged without credential contents and do not
+prevent saving local definitions. Imports never overwrite local entries, never
+enable a server and never connect to it; fill the empty env/header values and
+explicitly enable it afterward.
 
 ## Index limits and V1 scope
 
@@ -536,19 +695,21 @@ Discussion preparation selects a deterministic memory pack without a model
 call. Scope filtering precedes scoring: only `global`, the discussion's
 `project:<id>` (when attached), and `agent:<runtime id>` are eligible. Only
 `active` and `uncertain` items participate; uncertain items rank after active
-items within their class. Machine and task items are excluded because this
-slice has no corresponding discussion binding. Working memory requires the
-matching project scope; global and agent working items are not injected.
+items within their class. Machine items are excluded. An unbound discussion
+can additionally select its own `task:<discussion_id>` working item tagged
+`discussion-state`. Other working memory requires the matching project scope;
+global and agent working items are not injected. The current continuity state
+is pinned first, before the usual class order.
 
 Selection visits classes in this order, under explicit token ceilings:
 
 | Class | Default ceiling | Selection |
 | --- | ---: | --- |
 | Reflex | 300 | Always eligible, highest importance first |
-| Working | 300 | Matching project state, highest importance first |
+| Working | 300 | Pinned continuity state, then matching project items by importance |
 | Procedural | 300 | Relevant methods |
 | Semantic | 500 | Relevant facts and preferences |
-| Episodic | 300 | Relevant events, newest creation date first |
+| Episodic | 300 | Two newest project session summaries, then relevant events |
 | Session | 0 | Disabled by default |
 
 The shared total ceiling is **1500 estimated tokens**, even though the class
@@ -556,11 +717,13 @@ ceilings sum to 1700. Unused class space does not raise another class's ceiling.
 `brain.MemoryBudgets` and `brain.DefaultMemoryBudgets()` expose these defaults
 for later configuration. Estimates use the existing one-token-per-four-Unicode-
 characters heuristic. Rendered class/scope labels and the memory header count
-against the ceilings. Whole items that do not fit are skipped; text is never
-truncated, and a later smaller item can still fit.
+against the ceilings. Pinned continuity state is truncated with an ellipsis
+when necessary. Other items that do not fit are skipped, and a later smaller
+item can still fit. Persisted memory text is never truncated.
 
-Procedural, semantic and episodic items need lexical overlap between the latest
-user text and their text or tags. Both passage and memory queries keep the last
+Procedural, semantic and other episodic items need lexical overlap between the
+latest user text and their text or tags; the two newest project session summaries
+are eligible without overlap. Both passage and memory queries keep the last
 2000 bytes of the trimmed user text. Matching uses Brain's existing English/
 French stop words, case and accent folding. Procedural and semantic ranking
 combines query-term overlap with importance, confidence and a small recency
@@ -676,3 +839,72 @@ Each connected second brain has one role:
 
 The role is stored on the source (`primary`, `secondary`) in `sources.json`;
 existing sources keep their behaviour (Context) until changed.
+
+## Automatic cognitive continuity
+
+Continuity is enabled by default with a ten-minute idle threshold. While the
+Brain service runs, a cancellable scan runs at startup and once a minute, with
+one summary operation at a time. It reads native display transcripts and
+workspace discussion text, deduplicating native archives bound to discussions.
+A discussion needs at least one new user message since its saved summary
+checkpoint. Idle time follows the last turn's timing (native journal timestamps,
+workspace turn timing, or saved time for older records). No summary starts while
+any discussion turn is generating or being prepared. Results are discarded if
+the discussion changes or generation starts during the model request.
+
+Settings live in `LOOM_HOME/brain/continuity.json`, independently of candidate
+collection. The empty provider uses the selected Loom chat engine and its
+request model; a nonempty model overrides that default. A provider ID resolves
+an existing connected Loom provider, its endpoint and credential, with the
+provider's default model when model is empty. Credentials are never copied to
+Brain settings or memory files. A cloud provider or non-loopback linked engine
+requires stored `consent:true`; otherwise no text is sent and status records the
+skip reason. Disabling continuity prevents both automatic and explicit runs.
+
+Each call receives only the last 24 KiB of new user/assistant text, the previous
+session summary and the current project/discussion state. These are marked as
+untrusted data. Strict JSON validation allows one retry. Output is bounded to
+8 KiB per summary/rendered state/fact and 32 entries per state array or facts
+array. Values use the discussion's language. The two-minute operation timeout
+and Brain lifecycle cancellation bound background requests.
+
+A successful run writes active memory through the existing store: one episodic
+`session-summary` per discussion in `project:<id>` or `global`, and one working
+`project-state` per project. Unbound discussions instead get their own working
+`discussion-state` in `task:<discussion_id>`. Changed text supersedes the previous
+item, retaining history. Durable semantic/procedural/reflex facts become review
+candidates through the existing dedupe and pending limits. Message-count
+checkpoints live in Loom's `brain_continuity` store bucket and participate in
+vault encryption. They advance only after successful memory writes.
+
+Context selection pins the applicable working state first, counting labels and
+header against the working and total budgets; oversized state is truncated with
+an ellipsis. A project's two newest session summaries are preferred within its
+episodic budget even without lexical overlap. Other memory keeps the existing
+scope, relevance, supersession and dedupe rules. Selection remains deterministic
+and does not alter persisted memory text.
+
+All endpoints use normal Brain authentication, strict request decoding, vault
+access checks and `Cache-Control: no-store`:
+
+| Method / path | Input | Output |
+| --- | --- | --- |
+| `GET /api/brain/continuity` | — | `{"enabled":true,"idle_minutes":10,"provider_id":"","model":"","consent":false}` (current settings) |
+| `POST /api/brain/continuity` | All five settings fields above; idle minutes 1–1440 | Same saved settings object |
+| `POST /api/brain/continuity/run` | `{"discussion_id":"…"}` | `{"discussion_id":"…","at":0,"summary_id":"…","state_id":"…","skipped_reason":""}` |
+| `GET /api/brain/continuity/status` | — | `{"running":false,"last_run":0,"last_error":"","recent":[{"discussion_id":"…","at":0,"summary_id":"…","state_id":"…","skipped_reason":""}]}` |
+
+Run-now is synchronous and bypasses idle time, but still requires a new user turn,
+enablement, no generation and destination consent. Skips return 200 with empty
+item IDs and a reason; failures use the normal `{ok:false,error}` response.
+Concurrent runs are rejected. Status retains the newest 20 observations in memory,
+newest first; timestamps are Unix milliseconds (zero before any run). Settings
+and summary checkpoints survive restart; the recent status list does not.
+
+The model response schema is exactly:
+
+```json
+{"summary":"…","state":{"objective":"…","done":["…"],"next":["…"],"open":["…"]},"facts":[{"class":"semantic","text":"…"}]}
+```
+
+Fact class accepts `semantic`, `procedural` or `reflex`; arrays may be empty.
