@@ -227,6 +227,7 @@ export default {
   "memory.add_note": "Un fait, une préférence, une procédure…",
   "memory.core.profile": "Toujours envoyé à tes agents",
   "memory.core.notes": "Toujours envoyé dans ce projet",
+  "machines.node.terminals_ssh": "Les terminaux passent encore par SSH : connecte aussi cette machine en SSH pour en ouvrir. Ses agents, son moteur et ses dossiers passent par le code d'appairage.",
   "memory.tab": "Mémoire",
   "memory.all": "Toutes",
   "memory.class": "Classe",
