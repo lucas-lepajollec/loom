@@ -89,14 +89,14 @@ function Portable({ onImported }) {
   return html`<div class="card bs-none mcp-portable"><span class="mono-tile"><${Icon} n="brain" /></span><div class="grow"><b>${t('mcp.portable.title', { n: names.length })}</b><p>${names.join(', ')} · ${t('mcp.portable.note')}</p></div><button class="btn sm primary" onClick=${run}>${t('mcp.portable.import')}</button></div>`;
 }
 
-function ServerRow({ s, onToggle, onTest, onEdit, onDelete }) {
+function ServerCard({ s: sv, onToggle, onTest, onEdit, onDelete }) {
   const [anchor, setAnchor] = useState(null);
-  return html`<div class="bs-row">
-    <i class=${'dot ' + (!s.enabled ? '' : s.connected ? 'green' : s.error ? 'red' : 'amber')}></i>
-    <div class="grow"><div class="bs-name">${s.name}<span class="tag">${s.transport === 'http' ? 'HTTP' : t('mcp.local')}</span></div>
-      <div class="bs-sub">${s.error ? html`<span class="bs-state err">${s.error}</span>` : s.enabled ? html`<span>${t('mcp.tools', { n: (s.tools || []).length })}${(s.disabled || []).length ? ' · ' + s.disabled.length + t("resources.page.masques") : ''}</span>` : html`<span>${t("resources.page.desactive")}</span>`}</div></div>
-    <${Switch} checked=${s.enabled} label=${t("resources.page.activer") + s.name} onChange=${onToggle} />
-    <button class="icon-btn" aria-label=${t("resources.page.actions")} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
+  return html`<div class="mcard mcp-card">
+    <div class="mcard-h"><span class="mx-ico"><${Icon} n="plug" /></span>
+      <span class="grow"><b>${sv.name}</b><small>${sv.transport === 'http' ? 'HTTP' : t('mcp.local')}${sv.enabled && !sv.error ? ' · ' + t('mcp.tools', { n: (sv.tools || []).length }) : ''}</small></span>
+      <${Switch} checked=${sv.enabled} label=${t("resources.page.activer") + sv.name} onChange=${onToggle} />
+      <button class="icon-btn" aria-label=${t("resources.page.actions")} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button></div>
+    <div class="ws-card-f">${sv.error ? html`<span class="bs-state err" title=${sv.error}><i class="dot red"></i>${t('mcp.card.error')}</span>` : sv.enabled ? html`<span class="bs-state"><i class=${'dot ' + (sv.connected ? 'green' : 'amber')}></i>${sv.connected ? t('mcp.card.connected') : t('mcp.card.idle')}</span>${(sv.disabled || []).length ? html`<span class="muted">${sv.disabled.length}${t("resources.page.masques")}</span>` : ''}` : html`<span class="muted">${t("resources.page.desactive")}</span>`}</div>
     ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[{ label: t("resources.page.tester"), icon: 'play', run: onTest }, { label: t("resources.page.modifier"), icon: 'edit', run: onEdit }, '-', { label: t("resources.page.retirer"), icon: 'trash', danger: true, run: onDelete }]} />`}
   </div>`;
 }
@@ -110,15 +110,15 @@ export function Mcp() {
   const del = async s => { if (!await confirm(t("resources.page.retirer_le_serveur"), '« ' + s.name + t("resources.page.et_ses_outils_seront_retires"), { ok: t("resources.page.retirer"), danger: true })) return; await post('/api/mcp/delete', { name: s.name }); load(); };
   const test = async s => { const r = await post('/api/mcp/test', { name: s.name }); toast(r.ok ? (s.name + t("resources.page.repond") + ((r.tools || []).length || (r.server && r.server.tools || []).length || 0) + t("resources.page.outils")) : (r.error || t("resources.page.echec")), r.ok ? '' : 'err'); load(); };
   return html`<div class="bs">
-    <${Gateway} />
-    <section class="sec"><div class="sec-h"><h2>${t('mcp.servers')}${list && list.length > 0 && html` <span class="count">${list.length}</span>`}<${Tip} text=${t('mcp.servers_tip')} /></h2><span class="grow"></span>
-        <button class="btn sm primary" onClick=${() => setDlg({})}><${Icon} n="plus" />${t("resources.page.ajouter_un_serveur")}</button></div>
-      <${Portable} onImported=${load} />
-      ${list === null ? html`<div class="skeleton" style="height:120px"></div>` : list.length ? html`<div class="card bs-list">${list.map(s => html`<${ServerRow} key=${s.name} s=${s} onToggle=${v => toggle(s, v)} onTest=${() => test(s)} onEdit=${() => setDlg({ server: s })} onDelete=${() => del(s)} />`)}</div>`
-        : html`<div class="card"><${Empty} icon="plug" title="${t("resources.page.aucun_serveur_mcp")}" text=${t('mcp.empty')}><button class="btn primary" onClick=${() => setDlg({})}>${t("resources.page.ajouter_un_serveur")}</button></${Empty}></div>`}
-    </section>
-    <${McpSources} onAdopted=${load} />
     <${McpFile} />
+    <section class="sec"><div class="sec-h"><h2>${t('mcp.servers')}${list && list.length > 0 && html` <span class="count">${list.length}</span>`}<${Tip} text=${t('mcp.servers_tip')} /></h2></div>
+      <${Portable} onImported=${load} />
+      ${list === null ? html`<div class="skeleton" style="height:120px"></div>` : html`<div class="mcards">
+        ${list.map(s => html`<${ServerCard} key=${s.name} s=${s} onToggle=${v => toggle(s, v)} onTest=${() => test(s)} onEdit=${() => setDlg({ server: s })} onDelete=${() => del(s)} />`)}
+        <button type="button" class="mcard add" onClick=${() => setDlg({})}><${Icon} n="plus" /><span>${t("resources.page.ajouter_un_serveur")}</span><small>${t('mcp.card.add_note')}</small></button></div>`}
+    </section>
+    <${Gateway} />
+    <${McpSources} onAdopted=${load} />
     ${dlg && html`<${McpEditor} server=${dlg.server} onClose=${() => setDlg(null)} onSaved=${setList} />`}
   </div>`;
 }
@@ -128,7 +128,8 @@ function McpFile() {
   const [f, setF] = useState(null);
   useEffect(() => { get('/api/mcp/file').then(setF).catch(() => setF(null)); }, []);
   if (!f || !f.path) return null;
-  return html`<p class=${cls('note mcp-file-note', f.error && 'err')}>${t("resources.page.serveurs_enregistres_dans")} <code class="mono">${home(f.path)}</code>${t("resources.page.au_format_standard_claude_cursor_modifiable_avec_ton_editeur_relu")}${f.error && html` <b>${t("resources.page.fichier_invalide_la_derniere_version_correcte_reste_utilisee")}</b>`}</p>`;
+  return html`<div class="card loc-strip"><span class="mono-tile"><${Icon} n="box" /></span>
+    <div class="grow"><div class="bs-name">${t('mcp.loc.title')}</div><div class="bs-sub"><span class="mono trunc" title=${f.path}>${home(f.path)}</span><span>${t('mcp.loc.note')}</span>${f.error && html`<span class="bs-state err" title=${f.error}>${t("resources.page.fichier_invalide_la_derniere_version_correcte_reste_utilisee")}</span>`}</div></div></div>`;
 }
 
 // Reprendre depuis tes agents : Loom lit (sans les modifier) les configurations

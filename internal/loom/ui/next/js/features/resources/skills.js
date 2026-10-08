@@ -65,7 +65,7 @@ function HomeDialog({ h, onClose }) {
 function SkillsHome({ h, onChanged }) {
   const [dlg, setDlg] = useState(false);
   const inBrain = h.mode === 'brain' && !h.fallback;
-  return html`<div class="card bs-primary sk-home">
+  return html`<div class="card loc-strip">
       <span class="mono-tile"><${Icon} n=${inBrain ? 'brain' : 'box'} /></span>
       <div class="grow"><div class="bs-name">${inBrain ? t('skills.home.in_brain', { name: h.brain_label || h.brain_source }) : t('skills.home.in_loom')}</div>
         <div class="bs-sub"><span class="mono trunc" title=${h.dir}>${inBrain ? h.relative + '/' : home(h.dir)}</span><span>${t('skills.count', { n: h.count || 0 })}</span>${h.fallback && h.reason && html`<span class="bs-state err">${h.reason}</span>`}</div></div>
@@ -92,15 +92,15 @@ function Distribution({ count }) {
       <${Switch} checked=${localT.enabled} label=${t("resources.page.distribuer_a") + localT.name} onChange=${on => toggle(localT, on)} /></div>`)}</div></section>`;
 }
 
-function SkillRow({ s, used, onOpen, onDelete }) {
+function SkillCard({ s: sk, used, onOpen, onDelete }) {
   const [anchor, setAnchor] = useState(null);
-  return html`<div class="bs-row sk-row">
-    <span class="mono-tile"><${Icon} n=${s.read_only ? 'link' : 'sparkle'} /></span>
-    <button class="grow sk-main" onClick=${onOpen}><div class="bs-name">${s.name}${s.read_only && html`<span class="tag" title=${home(s.dir)}>${s.source_label}</span>`}</div>
-      <div class="sk-desc">${s.description || t("resources.page.instructions_reutilisables")}</div></button>
-    <span class="sk-used">${used ? t('skills.used', { n: used }) : ''}</span>
-    <button class="icon-btn" aria-label=${t('brain.src.actions')} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
-    ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[{ icon: s.read_only ? 'eye' : 'edit', label: s.read_only ? t("resources.page.voir") : t("harnesses.machines.modifier"), run: onOpen }, ...(s.read_only ? [] : ['-', { icon: 'trash', label: t("resources.page.supprimer"), danger: true, run: onDelete }])]} />`}
+  return html`<div class="mcard sk-card">
+    <div class="mcard-h"><span class="mx-ico"><${Icon} n=${sk.read_only ? 'link' : 'sparkle'} /></span>
+      <button class="grow sk-main" onClick=${onOpen}><b>${sk.name}</b><small>${sk.read_only ? sk.source_label : t('skills.card.library')}</small></button>
+      <button class="icon-btn" aria-label=${t('brain.src.actions')} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button></div>
+    <p class="mcard-d">${sk.description || t("resources.page.instructions_reutilisables")}</p>
+    <div class="ws-card-f"><span class="muted">${used ? t('skills.used', { n: used }) : t('resources.page.aucun_projet')}</span></div>
+    ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[{ icon: sk.read_only ? 'eye' : 'edit', label: sk.read_only ? t("resources.page.voir") : t("harnesses.machines.modifier"), run: onOpen }, ...(sk.read_only ? [] : ['-', { icon: 'trash', label: t("resources.page.supprimer"), danger: true, run: onDelete }])]} />`}
   </div>`;
 }
 
@@ -151,13 +151,11 @@ export function Skills() {
   const needle = q.trim().toLowerCase();
   const shown = needle ? skills.filter(s => (s.name + ' ' + (s.description || '')).toLowerCase().includes(needle)) : skills;
   return html`<div class="bs">
-    <section class="sec"><div class="sec-h"><h2>${t('skills.home.section')}<${Tip} text=${t('skills.home.tip')} /></h2></div>
-      ${h ? html`<${SkillsHome} h=${h} onChanged=${() => { loadHome(); refreshWorkspace(); }} />` : html`<div class="skeleton" style="height:70px"></div>`}</section>
-    <section class="sec"><div class="sec-h"><h2>${t('skills.list')}${skills.length > 0 && html` <span class="count">${skills.length}</span>`}</h2><span class="grow"></span>
-        <button class="btn sm primary" onClick=${() => setDlg({})}><${Icon} n="plus" />${t("resources.page.nouvelle_skill")}</button></div>
-      ${skills.length > 6 && html`<label class="search sk-q"><${Icon} n="search" /><input placeholder=${t('skills.search')} value=${q} onInput=${e => setQ(e.target.value)} /></label>`}
-      ${skills.length ? html`<div class="card bs-list">${shown.map(s => html`<${SkillRow} key=${s.id} s=${s} used=${projects.filter(p => (p.capability_ids || []).includes(s.id)).length} onOpen=${() => setDlg({ skill: s })} onDelete=${() => del(s)} />`)}</div>`
-        : html`<div class="card"><${Empty} icon="sparkle" title="${t("resources.page.aucun_skill")}" text="${t("resources.page.une_methode_de_revue_un_style_d_ecriture_une_convention_de_code_e")}"><button class="btn primary" onClick=${() => setDlg({})}>${t("resources.page.creer_un_skill")}</button></${Empty}></div>`}
+    ${h ? html`<${SkillsHome} h=${h} onChanged=${() => { loadHome(); refreshWorkspace(); }} />` : html`<div class="skeleton" style="height:56px"></div>`}
+    <section class="sec"><div class="sec-h"><h2>${t('skills.list')}${skills.length > 0 && html` <span class="count">${skills.length}</span>`}<${Tip} text=${t('skills.home.tip')} /></h2><span class="grow"></span>
+        ${skills.length > 6 && html`<label class="search sk-q"><${Icon} n="search" /><input placeholder=${t('skills.search')} value=${q} onInput=${e => setQ(e.target.value)} /></label>`}</div>
+      <div class="mcards">${shown.map(s => html`<${SkillCard} key=${s.id} s=${s} used=${projects.filter(p => (p.capability_ids || []).includes(s.id)).length} onOpen=${() => setDlg({ skill: s })} onDelete=${() => del(s)} />`)}
+        <button type="button" class="mcard add" onClick=${() => setDlg({})}><${Icon} n="plus" /><span>${t("resources.page.nouvelle_skill")}</span><small>${t('skills.card.add_note')}</small></button></div>
     </section>
     <${Distribution} count=${skills.length} />
     <${LinkedFolders} onChange=${loadHome} />
