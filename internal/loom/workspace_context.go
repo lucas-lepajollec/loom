@@ -181,7 +181,13 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 	}
 	p.CapabilityIDs = ids
 	p.CreatedAt = old.CreatedAt
-	return p, putStoreJSON(bkProjects, p.ID, p)
+	if err := putStoreJSON(bkProjects, p.ID, p); err != nil {
+		return p, err
+	}
+	if err := theBrain().syncBrainAgents(); err != nil {
+		return p, fmt.Errorf("project saved; agent links: %w", err)
+	}
+	return p, nil
 }
 
 // projectContext is evaluated once for the turn. Neither directory contents nor

@@ -1002,3 +1002,40 @@ The model response schema is exactly:
 
 Fact class accepts `semantic`, `procedural` or `reflex`; arrays may be empty.
 Summary, rendered state and each fact fit 8 KiB, with up to 32 entries per array.
+
+## Agents linked to the brain
+
+Explicit local opt-in links agents to the writable primary brain's Markdown
+memory: `Memory/MEMORY.md` plus topic files globally, and
+`Projects/<slug>/memory/MEMORY.md` plus topic files per project. Native sessions
+can use these files outside Loom, without its server running.
+
+[Claude Code](https://code.claude.com/docs/en/memory) uses `autoMemoryDirectory`
+in `~/.claude/settings.json` and local projects' `.claude/settings.local.json`;
+Loom adds local ignore rules and never edits repository `settings.json` or
+`AGENTS.md`. [Codex](https://developers.openai.com/codex/guides/agents-md)
+(`$CODEX_HOME/AGENTS.md`, default `~/.codex/AGENTS.md`),
+[OpenCode](https://opencode.ai/docs/rules/) (`~/.config/opencode/AGENTS.md`),
+[Gemini CLI](https://geminicli.com/docs/cli/tutorials/memory-management/)
+(`~/.gemini/GEMINI.md`) and Pi (only with installed documentation identifying
+its global instructions file) receive one short marked block. It explains
+session-start reads, Claude-format frontmatter, Why/How guidance, index updates
+and avoiding secrets/duplicates. `.loom/brain.json` preserves other metadata
+and records `agent_projects:{"project-id":{slug,directory,memory}}`, with stable
+project-ID slugs and brain-relative memory paths.
+
+`GET /api/brain/agents` and successful POSTs return
+`{memory_dir,agents:[{id,name,supported,linked,file,note}]}`.
+POST takes `{"id":"codex","enabled":true}` (or `false`); the toggle is consent.
+Local IDs are `claude-code`, `codex`, `opencode`, `gemini`, `pi`. `file` is the
+global native config/instructions path; `memory_dir` is the absolute global
+folder, or `""` without an available primary. Remote/paired installation runtime
+IDs report `supported:false,note:"local only for now"`. Existing Brain auth,
+strict JSON, no-store and `{ok:false,error}` error rules apply.
+
+One-time `.loom-backup` files and ownership checks preserve user text/keys.
+Unlink restores previous Claude settings and retains memory/backups; edited
+entries or foreign markers are refused. Source/project changes re-point links
+immediately, with reconciliation every three minutes. Removing the primary
+clears owned entries but retains opt-in. Conflicts return an error after the
+source/project change is saved. Native trust and access rules still apply.
