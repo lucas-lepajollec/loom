@@ -17,6 +17,9 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   harnesses avoid duplicating globally inherited MCP servers. The primary Brain
   carries secret-free `.loom/mcp.json` definitions for explicit disabled import.
 
+- Automatic Brain continuity: idle discussion summaries and project/discussion
+  working state, consent-aware local or connected-provider chat, run-now/settings/
+  status APIs, reviewed fact candidates, and deterministic budgeted state pinning.
 - Brain v2 cheap consolidation: background FR/EN heuristics propose reviewed
   memory candidates without model calls, with dedupe, pending caps and an
   automatic-collection toggle; opt-in discussion consolidation reuses

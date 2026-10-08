@@ -695,19 +695,21 @@ Discussion preparation selects a deterministic memory pack without a model
 call. Scope filtering precedes scoring: only `global`, the discussion's
 `project:<id>` (when attached), and `agent:<runtime id>` are eligible. Only
 `active` and `uncertain` items participate; uncertain items rank after active
-items within their class. Machine and task items are excluded because this
-slice has no corresponding discussion binding. Working memory requires the
-matching project scope; global and agent working items are not injected.
+items within their class. Machine items are excluded. An unbound discussion
+can additionally select its own `task:<discussion_id>` working item tagged
+`discussion-state`. Other working memory requires the matching project scope;
+global and agent working items are not injected. The current continuity state
+is pinned first, before the usual class order.
 
 Selection visits classes in this order, under explicit token ceilings:
 
 | Class | Default ceiling | Selection |
 | --- | ---: | --- |
 | Reflex | 300 | Always eligible, highest importance first |
-| Working | 300 | Matching project state, highest importance first |
+| Working | 300 | Pinned continuity state, then matching project items by importance |
 | Procedural | 300 | Relevant methods |
 | Semantic | 500 | Relevant facts and preferences |
-| Episodic | 300 | Relevant events, newest creation date first |
+| Episodic | 300 | Two newest project session summaries, then relevant events |
 | Session | 0 | Disabled by default |
 
 The shared total ceiling is **1500 estimated tokens**, even though the class
@@ -715,11 +717,13 @@ ceilings sum to 1700. Unused class space does not raise another class's ceiling.
 `brain.MemoryBudgets` and `brain.DefaultMemoryBudgets()` expose these defaults
 for later configuration. Estimates use the existing one-token-per-four-Unicode-
 characters heuristic. Rendered class/scope labels and the memory header count
-against the ceilings. Whole items that do not fit are skipped; text is never
-truncated, and a later smaller item can still fit.
+against the ceilings. Pinned continuity state is truncated with an ellipsis
+when necessary. Other items that do not fit are skipped, and a later smaller
+item can still fit. Persisted memory text is never truncated.
 
-Procedural, semantic and episodic items need lexical overlap between the latest
-user text and their text or tags. Both passage and memory queries keep the last
+Procedural, semantic and other episodic items need lexical overlap between the
+latest user text and their text or tags; the two newest project session summaries
+are eligible without overlap. Both passage and memory queries keep the last
 2000 bytes of the trimmed user text. Matching uses Brain's existing English/
 French stop words, case and accent folding. Procedural and semantic ranking
 combines query-term overlap with importance, confidence and a small recency
@@ -835,3 +839,72 @@ Each connected second brain has one role:
 
 The role is stored on the source (`primary`, `secondary`) in `sources.json`;
 existing sources keep their behaviour (Context) until changed.
+
+## Automatic cognitive continuity
+
+Continuity is enabled by default with a ten-minute idle threshold. While the
+Brain service runs, a cancellable scan runs at startup and once a minute, with
+one summary operation at a time. It reads native display transcripts and
+workspace discussion text, deduplicating native archives bound to discussions.
+A discussion needs at least one new user message since its saved summary
+checkpoint. Idle time follows the last turn's timing (native journal timestamps,
+workspace turn timing, or saved time for older records). No summary starts while
+any discussion turn is generating or being prepared. Results are discarded if
+the discussion changes or generation starts during the model request.
+
+Settings live in `LOOM_HOME/brain/continuity.json`, independently of candidate
+collection. The empty provider uses the selected Loom chat engine and its
+request model; a nonempty model overrides that default. A provider ID resolves
+an existing connected Loom provider, its endpoint and credential, with the
+provider's default model when model is empty. Credentials are never copied to
+Brain settings or memory files. A cloud provider or non-loopback linked engine
+requires stored `consent:true`; otherwise no text is sent and status records the
+skip reason. Disabling continuity prevents both automatic and explicit runs.
+
+Each call receives only the last 24 KiB of new user/assistant text, the previous
+session summary and the current project/discussion state. These are marked as
+untrusted data. Strict JSON validation allows one retry. Output is bounded to
+8 KiB per summary/rendered state/fact and 32 entries per state array or facts
+array. Values use the discussion's language. The two-minute operation timeout
+and Brain lifecycle cancellation bound background requests.
+
+A successful run writes active memory through the existing store: one episodic
+`session-summary` per discussion in `project:<id>` or `global`, and one working
+`project-state` per project. Unbound discussions instead get their own working
+`discussion-state` in `task:<discussion_id>`. Changed text supersedes the previous
+item, retaining history. Durable semantic/procedural/reflex facts become review
+candidates through the existing dedupe and pending limits. Message-count
+checkpoints live in Loom's `brain_continuity` store bucket and participate in
+vault encryption. They advance only after successful memory writes.
+
+Context selection pins the applicable working state first, counting labels and
+header against the working and total budgets; oversized state is truncated with
+an ellipsis. A project's two newest session summaries are preferred within its
+episodic budget even without lexical overlap. Other memory keeps the existing
+scope, relevance, supersession and dedupe rules. Selection remains deterministic
+and does not alter persisted memory text.
+
+All endpoints use normal Brain authentication, strict request decoding, vault
+access checks and `Cache-Control: no-store`:
+
+| Method / path | Input | Output |
+| --- | --- | --- |
+| `GET /api/brain/continuity` | — | `{"enabled":true,"idle_minutes":10,"provider_id":"","model":"","consent":false}` (current settings) |
+| `POST /api/brain/continuity` | All five settings fields above; idle minutes 1–1440 | Same saved settings object |
+| `POST /api/brain/continuity/run` | `{"discussion_id":"…"}` | `{"discussion_id":"…","at":0,"summary_id":"…","state_id":"…","skipped_reason":""}` |
+| `GET /api/brain/continuity/status` | — | `{"running":false,"last_run":0,"last_error":"","recent":[{"discussion_id":"…","at":0,"summary_id":"…","state_id":"…","skipped_reason":""}]}` |
+
+Run-now is synchronous and bypasses idle time, but still requires a new user turn,
+enablement, no generation and destination consent. Skips return 200 with empty
+item IDs and a reason; failures use the normal `{ok:false,error}` response.
+Concurrent runs are rejected. Status retains the newest 20 observations in memory,
+newest first; timestamps are Unix milliseconds (zero before any run). Settings
+and summary checkpoints survive restart; the recent status list does not.
+
+The model response schema is exactly:
+
+```json
+{"summary":"…","state":{"objective":"…","done":["…"],"next":["…"],"open":["…"]},"facts":[{"class":"semantic","text":"…"}]}
+```
+
+Fact class accepts `semantic`, `procedural` or `reflex`; arrays may be empty.

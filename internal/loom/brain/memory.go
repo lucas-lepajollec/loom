@@ -155,3 +155,12 @@ func cloneMemory(item MemoryItem) MemoryItem {
 	}
 	return item
 }
+
+func sameContinuityIdentity(a, b MemoryItem) bool {
+	for _, tag := range []string{"session-summary", "project-state", "discussion-state"} {
+		if contains(a.Tags, tag) || contains(b.Tags, tag) {
+			return contains(a.Tags, tag) && contains(b.Tags, tag) && (tag == "project-state" || a.Provenance.DiscussionID == b.Provenance.DiscussionID)
+		}
+	}
+	return true
+}

@@ -206,3 +206,53 @@ func TestMemoryContextTotalCapAcrossClasses(t *testing.T) {
 		t.Fatal("class usage does not sum to pack cost")
 	}
 }
+
+func TestMemoryContextContinuityPinningAndBudget(t *testing.T) {
+	state := contextMemoryFixture(t, "working", "project:p", strings.Repeat("État actuel ", 500))
+	state.ID, state.Tags, state.Importance = "state", []string{"project-state"}, .1
+	reflex := contextMemoryFixture(t, "reflex", "global", "Keep the user in control.")
+	work := contextMemoryFixture(t, "working", "project:p", "Higher importance unrelated task")
+	work.Importance = 1
+	items := []MemoryItem{reflex, work, state}
+	for i, id := range []string{"older", "recent", "newest"} {
+		item := contextMemoryFixture(t, "episodic", "project:p", "Summary from "+id)
+		item.ID, item.Tags, item.UpdatedAt = id, []string{"session-summary"}, int64(i+1)
+		items = append(items, item)
+	}
+	other := contextMemoryFixture(t, "episodic", "project:p", "quartz unrelated event")
+	other.ID, other.CreatedAt = "other", 999
+	items = append(items, other)
+	budgets := DefaultMemoryBudgets()
+	budgets.Working = 80
+	pack := SelectMemory(items, "p", "", "quartz", state.Text, budgets)
+	if len(pack.Items) < 4 || pack.Items[0].Item.ID != "state" || !strings.HasSuffix(pack.Items[0].Section, "…") || pack.Used["working"] > 80 || Tokens(pack.Text) > budgets.Total {
+		t.Fatalf("pin and truncation: %+v", pack)
+	}
+	episodic := []string{}
+	for _, entry := range pack.Items {
+		if entry.Item.Class == "episodic" {
+			episodic = append(episodic, entry.Item.ID)
+		}
+	}
+	if !reflect.DeepEqual(episodic, []string{"newest", "recent", "other"}) {
+		t.Fatal(episodic)
+	}
+	for i, j := 0, len(items)-1; i < j; i, j = i+1, j-1 {
+		items[i], items[j] = items[j], items[i]
+	}
+	if again := SelectMemory(items, "p", "", "quartz", state.Text, budgets); !reflect.DeepEqual(again, pack) {
+		t.Fatal("nondeterministic")
+	}
+	budgets.Total = 50
+	if tiny := SelectMemory(items, "p", "", "quartz", "", budgets); len(tiny.Items) != 1 || tiny.Items[0].Item.ID != "state" || Tokens(tiny.Text) > 50 {
+		t.Fatal("total budget", tiny)
+	}
+	state.Scope, state.Tags = "task:discussion", []string{"discussion-state"}
+	pack = SelectMemory([]MemoryItem{state}, "", "", "unrelated", "", DefaultMemoryBudgets(), "discussion")
+	if len(pack.Items) != 1 || !strings.HasSuffix(pack.Text, "…") {
+		t.Fatal("discussion state", pack)
+	}
+	if other := SelectMemory([]MemoryItem{state}, "", "", "unrelated", "", DefaultMemoryBudgets(), "other"); len(other.Items) != 0 {
+		t.Fatal("scope leak", other)
+	}
+}

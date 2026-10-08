@@ -48,27 +48,42 @@ func ContextQuery(query string) string {
 
 // SelectMemory is a read-only, deterministic lexical baseline. It filters
 // scope before relevance, and never ranks on last_used_at or the wall clock.
-// Working memory requires a project binding; discussions have no task binding yet.
-func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages string, budgets MemoryBudgets) MemoryPack {
+// Continuity state is pinned to its project or discussion binding.
+func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages string, budgets MemoryBudgets, discussionIDs ...string) MemoryPack {
+	discussionID := ""
+	if len(discussionIDs) > 0 {
+		discussionID = discussionIDs[0]
+	}
+	stateScope, stateTag := "project:"+projectID, "project-state"
+	if projectID == "" {
+		stateScope, stateTag = "task:"+discussionID, "discussion-state"
+	}
+	isState := func(item MemoryItem) bool {
+		return item.Class == "working" && item.Scope == stateScope && contains(item.Tags, stateTag) && (projectID != "" || discussionID != "")
+	}
+	isSummary := func(item MemoryItem) bool {
+		return projectID != "" && item.Class == "episodic" && item.Scope == "project:"+projectID && contains(item.Tags, "session-summary")
+	}
 	out := MemoryPack{Items: []SelectedMemory{}, Used: map[string]int{}}
 	limits := budgets.Classes()
 	querySet := queryTerms(ContextQuery(query))
 	type candidate struct {
-		item  MemoryItem
-		score float64
+		item    MemoryItem
+		score   float64
+		overlap int
 	}
 	candidates := []candidate{}
 	newest := int64(0)
 	ancestors := map[string][]string{}
 	for _, item := range items {
-		if item.Scope != "global" && (projectID == "" || item.Scope != "project:"+projectID) && (runtimeID == "" || item.Scope != "agent:"+runtimeID) {
+		if item.Scope != "global" && (projectID == "" || item.Scope != "project:"+projectID) && (runtimeID == "" || item.Scope != "agent:"+runtimeID) && !isState(item) {
 			continue
 		}
 		ancestors[item.ID] = item.Supersedes
 		if item.Status != "active" && item.Status != "uncertain" {
 			continue
 		}
-		if limits[item.Class] <= 0 || item.Class == "working" && (projectID == "" || item.Scope != "project:"+projectID) {
+		if limits[item.Class] <= 0 || item.Class == "working" && !isState(item) && (projectID == "" || item.Scope != "project:"+projectID) {
 			continue
 		}
 		overlap := 0
@@ -81,14 +96,14 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 				overlap++
 			}
 		}
-		if overlap == 0 && item.Class != "reflex" && item.Class != "working" {
+		if overlap == 0 && item.Class != "reflex" && item.Class != "working" && !isSummary(item) {
 			continue
 		}
 		relevance := 0.0
 		if len(querySet) > 0 {
 			relevance = float64(overlap) / float64(len(querySet))
 		}
-		candidates = append(candidates, candidate{item, relevance*2 + item.Importance*.5 + item.Confidence*.3})
+		candidates = append(candidates, candidate{item, relevance*2 + item.Importance*.5 + item.Confidence*.3, overlap})
 		newest = max(newest, max(item.CreatedAt, item.UpdatedAt))
 	}
 	// Prefer a relevant successor over its retained predecessor, including across
@@ -107,6 +122,31 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 		superseded[id] = true
 		pending = append(pending, ancestors[id]...)
 	}
+	recent := []MemoryItem{}
+	pinnedID := ""
+	var pinnedAt int64
+	for _, c := range candidates {
+		if superseded[c.item.ID] {
+			continue
+		}
+		if isState(c.item) && (pinnedID == "" || c.item.UpdatedAt > pinnedAt || c.item.UpdatedAt == pinnedAt && c.item.ID < pinnedID) {
+			pinnedID, pinnedAt = c.item.ID, c.item.UpdatedAt
+		}
+		if isSummary(c.item) {
+			recent = append(recent, c.item)
+		}
+	}
+	sort.Slice(recent, func(i, j int) bool {
+		a, b := recent[i], recent[j]
+		if a.UpdatedAt != b.UpdatedAt {
+			return a.UpdatedAt > b.UpdatedAt
+		}
+		return a.ID < b.ID
+	})
+	preferred := map[string]int{}
+	for i, item := range recent[:min(2, len(recent))] {
+		preferred[item.ID] = i + 1
+	}
 	order := map[string]int{"reflex": 0, "working": 1, "procedural": 2, "semantic": 3, "episodic": 4, "session": 5}
 	for i := range candidates {
 		age := max(int64(0), newest-max(candidates[i].item.CreatedAt, candidates[i].item.UpdatedAt))
@@ -114,8 +154,20 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		a, b := candidates[i], candidates[j]
+		if (a.item.ID == pinnedID) != (b.item.ID == pinnedID) {
+			return a.item.ID == pinnedID
+		}
 		if order[a.item.Class] != order[b.item.Class] {
 			return order[a.item.Class] < order[b.item.Class]
+		}
+		if a.item.Class == "episodic" && (preferred[a.item.ID] != 0 || preferred[b.item.ID] != 0) {
+			if preferred[a.item.ID] == 0 {
+				return false
+			}
+			if preferred[b.item.ID] == 0 {
+				return true
+			}
+			return preferred[a.item.ID] < preferred[b.item.ID]
 		}
 		if a.item.Status != b.item.Status {
 			return a.item.Status == "active"
@@ -140,7 +192,7 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 	seen := []string{normalizedMemoryText(passages)}
 	for _, c := range candidates {
 		item := c.item
-		if superseded[item.ID] {
+		if superseded[item.ID] || isSummary(item) && preferred[item.ID] == 0 && c.overlap == 0 || isState(item) && item.ID != pinnedID {
 			continue
 		}
 		normalized := normalizedMemoryText(item.Text)
@@ -151,12 +203,30 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 				break
 			}
 		}
-		if duplicate {
+		if duplicate && item.ID != pinnedID {
 			continue
 		}
 		section := "\n- [" + item.Class + " / " + item.Scope + "] " + strings.Join(strings.Fields(item.Text), " ")
 		if out.Text == "" {
 			section = "Loom memory (why: class/scope):" + section
+		}
+		if item.ID == pinnedID && (Tokens(out.Text+section)-Tokens(out.Text) > limits[item.Class]-out.Used[item.Class] || Tokens(out.Text+section) > max(0, budgets.Total)) {
+			prefix := "\n- [" + item.Class + " / " + item.Scope + "] "
+			if out.Text == "" {
+				prefix = "Loom memory (why: class/scope):" + prefix
+			}
+			runes := []rune(strings.Join(strings.Fields(item.Text), " "))
+			lo, hi := 0, len(runes)
+			for lo < hi {
+				mid := (lo + hi + 1) / 2
+				cut := prefix + string(runes[:mid]) + "…"
+				if Tokens(out.Text+cut)-Tokens(out.Text) <= limits[item.Class]-out.Used[item.Class] && Tokens(out.Text+cut) <= max(0, budgets.Total) {
+					lo = mid
+				} else {
+					hi = mid - 1
+				}
+			}
+			section = prefix + string(runes[:lo]) + "…"
 		}
 		cost := Tokens(out.Text+section) - Tokens(out.Text)
 		if out.Used[item.Class]+cost > limits[item.Class] || Tokens(out.Text+section) > max(0, budgets.Total) {
@@ -168,9 +238,15 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 		}
 		if item.Class == "working" {
 			reason = "current project working memory"
+			if item.ID == pinnedID {
+				reason = "pinned continuity state"
+			}
 		}
 		if item.Class == "episodic" {
 			reason = "matches your message; most recent first"
+			if preferred[item.ID] != 0 {
+				reason = "recent project session summary"
+			}
 		}
 		if item.Status == "uncertain" {
 			reason += "; uncertain, ranked lower"
