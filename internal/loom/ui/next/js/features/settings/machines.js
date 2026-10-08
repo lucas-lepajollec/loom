@@ -71,11 +71,34 @@ function Discovered({ onPair }) {
 // SSH machines show user@host; machines paired by code only have their node.
 const where = m => (m.user ? m.user + '@' + m.host + (m.port && m.port !== 22 ? ':' + m.port : '') : m.host + ' · ' + t('machines.node_label')) + (m.os ? ' · ' + m.os : '');
 
+// Jauges d'une machine : processeur, mémoire, carte graphique, disque.
+const pct = (u, t) => t ? Math.min(100, Math.round(u * 100 / t)) : 0;
+const gb = n => (n / 1073741824).toFixed(n >= 107374182400 ? 0 : 1);
+function Meters({ m }) {
+  if (!m) return html`<div class="mmeters muted">…</div>`;
+  if (m.error || m.supported === false) return html`<div class="mmeters"><span class="muted mmeter-none" title=${m.error || ''}>${t('machines.metrics.none')}</span></div>`;
+  const gpu = (m.gpus || [])[0];
+  const row = (label, value, sub, title) => html`<div class="mmeter" title=${title || ''}><span>${label}</span><i class="mmeter-bar"><b style=${`width:${value}%`} class=${value >= 90 ? 'hot' : value >= 70 ? 'warm' : ''}></b></i><em>${sub}</em></div>`;
+  return html`<div class="mmeters">
+    ${row(t('machines.metrics.cpu'), Math.round(m.cpu || 0), Math.round(m.cpu || 0) + ' %', m.cores ? t('machines.metrics.cores', { n: m.cores }) : '')}
+    ${row(t('machines.metrics.ram'), pct(m.ram_used, m.ram_total), gb(m.ram_used) + ' / ' + gb(m.ram_total) + ' ' + t('common.units.gb'))}
+    ${gpu && row(t('machines.metrics.gpu'), pct(gpu.vram_used, gpu.vram_total), gb(gpu.vram_used) + ' / ' + gb(gpu.vram_total) + ' ' + t('common.units.gb'), gpu.name + ' · ' + Math.round(gpu.util || 0) + ' %')}
+    ${m.disk && m.disk.total ? row(t('machines.metrics.disk'), pct(m.disk.used, m.disk.total), gb(m.disk.used) + ' / ' + gb(m.disk.total) + ' ' + t('common.units.gb'), m.disk.path) : ''}
+  </div>`;
+}
+
 export function MachinesSettings({ route }) {
   const [data, setData] = useState(null);
   const [local, setLocal] = useState(null);
   const [dlg, setDlg] = useState(null);
   const [pair, setPair] = useState(null);
+  const [metrics, setMetrics] = useState({});
+  useEffect(() => {
+    let alive = true;
+    const tick = () => get('/api/machines/metrics', { timeout: 9000 }).then(r => { if (alive && r && r.metrics) setMetrics(r.metrics); }).catch(() => {});
+    tick(); const id = setInterval(tick, 10000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
   const load = () => Promise.all([
     get('/api/machines').then(r => setData(r.ok ? r : { machines: [], offers: {} })).catch(() => setData({ machines: [], offers: {} })),
     get('/api/machines/local').then(setLocal).catch(() => setLocal(null)),
@@ -101,6 +124,7 @@ export function MachinesSettings({ route }) {
     const terms = terminals.filter(x => x.target === id).length;
     return html`<a class="mcard" key=${id} href=${'#/machines/' + encodeURIComponent(id)}>
       <div class="mcard-h"><span class="mx-ico"><${Icon} n=${icon} /></span><span class="grow"><b>${name}</b><small class="mono">${sub}</small></span><${Icon} n="right" /></div>
+      <${Meters} m=${metrics[id]} />
       <div class="mcard-s">
         <div><span>${t('app.groups.agents')}</span><b>${mine.length ? t('machines.card.agents', { used, managed }) : '—'}</b></div>
         <div><span>${t('engine.page.title')}</span><b>${id === engineAt ? t('machines.card.engine_here') : '—'}</b></div>
