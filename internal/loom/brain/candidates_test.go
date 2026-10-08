@@ -166,3 +166,32 @@ func TestCandidatePendingCapConcurrent(t *testing.T) {
 		t.Fatalf("freed slot: %+v %v", added, err)
 	}
 }
+
+func TestExplicitMemoryRequestsAreKeptDirectly(t *testing.T) {
+	cases := []struct{ text, class string }{
+		{"Sache que je suis un esprit logique : pour mes futures demandes, réponds de façon structurée.", "reflex"},
+		{"Je voudrais que tu saches que j'habite à Lyon.", "semantic"},
+		{"À l'avenir, utilise des tableaux pour comparer.", "reflex"},
+	}
+	for _, c := range cases {
+		items := CandidatesFromMessage(c.text)
+		if len(items) != 1 || items[0].Class != c.class || !items[0].Explicit {
+			t.Fatalf("%q: %+v", c.text, items)
+		}
+	}
+	if items := CandidatesFromMessage("Je préfère les réponses courtes."); len(items) != 1 || items[0].Explicit {
+		t.Fatalf("preferences stay reviewed suggestions: %+v", items)
+	}
+	s := NewMemoryStore(MemoryStoreOptions{Dir: t.TempDir(), Base: ".loom", Available: func() error { return nil }})
+	saved, err := s.AddCandidates([]CandidateDraft{
+		{Class: "reflex", Text: "Pour mes futures demandes, réponds de façon structurée.", Explicit: true},
+		{Class: "semantic", Text: "Retiens que ce projet publie avec un tag annoté.", Explicit: true},
+		{Class: "semantic", Text: "Je préfère les réponses courtes."},
+	}, "project:p", MemoryProvenance{Kind: "discussion"})
+	if err != nil || len(saved) != 3 {
+		t.Fatal(saved, err)
+	}
+	if saved[0].Status != "active" || saved[0].Scope != "global" || saved[1].Scope != "project:p" || saved[1].Status != "active" || saved[2].Status != "candidate" {
+		t.Fatalf("%+v", saved)
+	}
+}

@@ -381,15 +381,29 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		URL    string `json:"url"`
-		Key    string `json:"key"`
-		Unlink bool   `json:"unlink"`
-		Direct bool   `json:"direct"` // link an inference server by address
-		Probe  bool   `json:"probe"`  // only identify it
-		Model  string `json:"model"`
+		URL     string `json:"url"`
+		Key     string `json:"key"`
+		Unlink  bool   `json:"unlink"`
+		Direct  bool   `json:"direct"` // link an inference server by address
+		Probe   bool   `json:"probe"`  // only identify it
+		Model   string `json:"model"`
+		Machine string `json:"machine"` // a paired machine: reuse its saved credential
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
+	}
+	if req.Machine != "" {
+		var saved *engineNode
+		for _, m := range loadRemoteMachines() {
+			if m.ID == req.Machine {
+				saved = savedMachineNode(m)
+			}
+		}
+		if saved == nil || saved.WebKey == "" {
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "this machine is not paired; pair it with a code first"})
+			return
+		}
+		req.URL, req.Key = saved.URL, saved.WebKey
 	}
 	if req.Direct {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)

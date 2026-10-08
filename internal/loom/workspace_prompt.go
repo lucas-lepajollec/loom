@@ -281,6 +281,11 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 		return s, err
 	}
 	m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(s), "context": turnContext(s, nextContext)})
+	// Moving a discussion carries its handoff into the new project's state (and
+	// out of the old one) now, not at its next exchange.
+	if original.ProjectID != projectID {
+		moveHandoffProject(id, projectID)
+	}
 	return s, nil
 }
 
@@ -361,6 +366,11 @@ func memoryProtocol(s RuntimeSession) string {
 		return ""
 	}
 	if _, acp := registered.(*acpAdapter); !acp {
+		return ""
+	}
+	// Pi has no MCP: asking it to use memory tools sends it grepping files.
+	// It still receives the pinned core notes and project state.
+	if s.RuntimeID == "pi" || strings.HasSuffix(s.RuntimeID, "-pi") {
 		return ""
 	}
 	project := "this discussion has no project, so skip project notes"

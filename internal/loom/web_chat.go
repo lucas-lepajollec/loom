@@ -216,6 +216,7 @@ func handleChatHistoryMove(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+	moveHandoffProject(body.ID, strings.TrimSpace(body.ProjectID))
 	sendJSON(w, 200, map[string]any{"ok": true})
 }
 

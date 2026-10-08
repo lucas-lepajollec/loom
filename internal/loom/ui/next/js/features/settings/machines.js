@@ -172,19 +172,20 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
 // Moteur : sur cette machine, ou le Loom d'une machine distante lié comme moteur.
 function EngineSection({ m }) {
   const node = useStore(app, a => a.engineNode);
-  const [form, setForm] = useState(null);
   const [direct, setDirect] = useState(false);
   const [pairing, setPairing] = useState(false);
   const [busy, setBusy] = useState(false);
   const isLocal = !m;
   const sameHost = n => { try { return n && m && n.hostname === m.host || new URL(n.url).hostname === m.host; } catch (_) { return false; } };
   const owns = isLocal ? !node : sameHost(node);
-  const link = async () => {
+  const paired = m && !m.user;
+  // A paired machine's credential is already known: no key to copy.
+  const useEngine = async () => {
     setBusy(true);
-    const r = await post('/api/engine/node', { url: form.url, key: form.key });
+    const r = await post('/api/engine/node', { machine: m.id }, { timeout: 30000 }).catch(e => ({ ok: false, error: e.message }));
     setBusy(false);
     if (!r.ok) return toast(r.error || t("settings.machines.liaison_impossible"), 'err');
-    setForm(null); toast(t("settings.machines.moteur_de") + r.hostname + t("settings.machines.utilise")); await refreshEngineNode(); refreshStatus(); refreshLibrary();
+    toast(t("settings.machines.moteur_de") + r.hostname + t("settings.machines.utilise")); await refreshEngineNode(); refreshStatus(); refreshLibrary();
   };
   const unlink = async () => { await post('/api/engine/node', { unlink: true }); await refreshEngineNode(); refreshStatus(); refreshLibrary(); };
   return html`<${Group} title="${t("settings.machines.moteur")}">
@@ -193,16 +194,10 @@ function EngineSection({ m }) {
           : html`<span class="state">${t("settings.machines.celui_de")} ${node.hostname}</span><button class="btn sm ghost" onClick=${unlink}>${t("settings.machines.utiliser_celui_de_cette_machine")}</button>`}</${Line}>`
       : owns ? html`<${Line} label="${t("settings.machines.moteur_de_loom")}"><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? t("settings.machines.serveur") + node.kind + t("settings.machines.utilise_par_loom") : t("settings.machines.moteur_utilise_par_loom")}</span><a class="btn sm ghost" href="#/engine">${t("settings.machines.reglages_du_moteur")}</a><button class="btn sm ghost" onClick=${unlink}>${t("settings.machines.ne_plus_l_utiliser")}</button></${Line}>`
       : html`<${Line} label="${t("settings.machines.moteur_de_loom")}" tip="${t("settings.machines.si_cette_machine_a_une_carte_graphique_et_loom_installe_loom_peut")}">
-          ${!form && !direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.machines.lier_son_serveur_llama_cpp_vllm")}</button><button class="btn sm ghost" onClick=${() => setPairing(true)}>${t("settings.machines.utiliser_le_loom_de_cette_machine")}</button>`}</${Line}>
+          ${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.machines.lier_son_serveur_llama_cpp_vllm")}</button>${paired ? html`<button class="btn sm ghost" disabled=${busy} onClick=${useEngine}>${t('machines.node.use_engine')}</button>` : html`<button class="btn sm ghost" onClick=${() => setPairing(true)}>${t("settings.machines.utiliser_le_loom_de_cette_machine")}</button>`}`}</${Line}>
         ${pairing && html`<${PairDialog} start=${{ address: m.host + ':2511', name: m.name }} onClose=${() => setPairing(false)} />`}
-        ${!form && !direct && html`<p class="note">${t('machines.pair.token_fallback')} <button class="linkish" onClick=${() => setForm({ url: 'http://' + m.host + ':2511', key: '' })}>${t('machines.pair.token_link')}</button></p>`}
         ${direct && html`<${DirectEngineForm} start=${'http://' + m.host + ':8080'} onDone=${() => setDirect(false)} />`}
-        ${form && html`<div class="eng-link">
-          <p class="note">${t("settings.machines.sur_2")} ${m.name} ${t("settings.machines.loom_reglages_acces_reseau_active_interface_sur_le_reseau_et_api")}</p>
-          <label class="field"><span>${t("settings.machines.adresse_du_loom_de")} ${m.name}</span><input class="input mono" value=${form.url} onInput=${e => setForm({ ...form, url: e.target.value })} /></label>
-          <label class="field"><span>${t("settings.machines.sa_cle_de_pilotage")}</span><input class="input mono" type="password" placeholder="" value=${form.key} onInput=${e => setForm({ ...form, key: e.target.value })} /></label>
-          <div class="form-foot"><span class="grow"></span><button class="btn ghost" onClick=${() => setForm(null)}>${t("settings.machines.annuler")}</button><button class="btn primary" disabled=${busy || !form.url || !form.key} onClick=${link}>${busy ? t("settings.machines.verification") : t("settings.machines.utiliser_ce_moteur")}</button></div>
-        </div>`}`}
+`}
   </${Group}>
   ${owns && !(node && node.direct) && html`<${ModelDirs} />`}
   ${m && html`<${MachineNodeMaintenance} key=${m.id} m=${m} />`}`;
@@ -210,24 +205,16 @@ function EngineSection({ m }) {
 
 function MachineNodeMaintenance({ m }) {
   const base = '/api/machines/' + encodeURIComponent(m.id) + '/node';
-  const [info, setInfo] = useState(null), [form, setForm] = useState(null), [busy, setBusy] = useState(false);
-  useEffect(() => { let alive = true; get(base).then(r => { if (alive && r.ok) setInfo(r); }).catch(() => {}); return () => { alive = false; }; }, [m.id]);
-  const save = async () => {
-    setBusy(true);
-    try { const r = await post(base, form); if (!r.ok) return toast(r.error, 'err'); setForm(null); setInfo(r); }
-    catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
-  };
+  const [info, setInfo] = useState(null), [pairing, setPairing] = useState(false);
+  const load = () => get(base).then(r => { if (r.ok) setInfo(r); }).catch(() => {});
+  useEffect(() => { load(); }, [m.id]);
   return html`<${Group} title=${t('node.maintenance')}>
     <p class="set-note">${t('node.maintenance_note')}</p>
     <${Line} label=${t('node.address')}>
-      ${info?.linked && html`<span class="mono">${info.url}</span>`}
-      <button class="btn sm" onClick=${() => setForm({ url: info?.url || 'http://' + m.host + ':2511', key: '' })}>${t('node.maintenance_link')}</button>
+      ${info?.linked ? html`<span class="mono">${info.url}</span>` : html`<span class="muted">${t('machines.node.not_paired')}</span>`}
+      <button class="btn sm ghost" onClick=${() => setPairing(true)}>${info?.linked ? t('machines.node.repair') : t('machines.pair.ok')}</button>
     </${Line}>
-    ${form && html`<div class="eng-link">
-      <label class="field"><span>${t('node.address')}</span><input class="input mono" value=${form.url} onInput=${e => setForm({ ...form, url: e.target.value })} /></label>
-      <label class="field"><span>${t('settings.machines.sa_cle_de_pilotage')}</span><input class="input mono" type="password" autocomplete="off" value=${form.key} onInput=${e => setForm({ ...form, key: e.target.value })} /></label>
-      <div class="form-foot"><button class="btn ghost" onClick=${() => setForm(null)}>${t('settings.machines.annuler')}</button><button class="btn primary" disabled=${busy || !form.url || !form.key} onClick=${save}>${t('node.maintenance_save')}</button></div>
-    </div>`}
+    ${pairing && html`<${PairDialog} start=${{ address: (info?.url || m.host + ':2511').replace(/^https?:\/\//, ''), name: m.name }} onClose=${ok => { setPairing(false); if (ok) load(); }} />`}
   </${Group}>${info?.linked && html`<${LoomUpdates} key=${info.url} node=${true} endpoint=${base + '/update'} />`}`;
 }
 
