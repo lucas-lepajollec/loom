@@ -45,6 +45,7 @@ func New(opts Options) (*Engine, error) {
 		if len(sources) > MaxSources {
 			return nil, errors.New("too many Brain sources")
 		}
+		excluded := e.excludedPaths(sources)
 		seen := map[string]bool{}
 		scopes := map[string]string{}
 		for _, s := range sources {
@@ -69,7 +70,7 @@ func New(opts Options) (*Engine, error) {
 			bytes, chunks := 0, 0
 			fileCounts := map[string]int{}
 			for _, f := range snapshot.Files {
-				if !seen[f.Source] || snapshot.Scopes[f.Source] != scopes[f.Source] || !safeRelative(f.Path) || f.Size > MaxFileBytes {
+				if excluded(f.Source, f.Path) || !seen[f.Source] || snapshot.Scopes[f.Source] != scopes[f.Source] || !safeRelative(f.Path) || f.Size > MaxFileBytes {
 					continue
 				}
 				fileCounts[f.Source]++
@@ -396,9 +397,8 @@ func globRegex(g string) (*regexp.Regexp, error) {
 	return regexp.Compile(b.String())
 }
 func eligible(s Source, rel string, excludes []*regexp.Regexp) bool {
-	// Credential files never become context just because they live under docs/.
 	name := strings.ToLower(path.Base(rel))
-	if name == ".env" || strings.HasPrefix(name, ".env.") || name == "credentials" || name == "credentials.json" || name == "auth.json" || name == "id_rsa" || name == "id_ed25519" || strings.HasSuffix(name, ".pem") || strings.HasSuffix(name, ".key") {
+	if IsCredentialFile(name) {
 		return false
 	}
 	for _, re := range excludes {
@@ -440,6 +440,7 @@ func (e *Engine) Refresh(ctx context.Context) error {
 	sources := append([]Source{}, e.sources...)
 	old := e.files
 	e.mu.RUnlock()
+	excluded := e.excludedPaths(sources)
 	// old is immutable until publication under refreshMu.
 	next := map[string]File{}
 	bytes, chunks := 0, 0
@@ -511,6 +512,9 @@ func (e *Engine) Refresh(ctx context.Context) error {
 							return fs.SkipDir
 						}
 						return nil
+					}
+					if excluded(s.ID, rel) {
+						return fs.SkipDir
 					}
 					if d.IsDir() {
 						if rel != "." && skipDir(d.Name()) {
@@ -712,3 +716,34 @@ func (e *Engine) buildIndexLocked() {
 }
 
 func (e *Engine) Refreshing() bool { return e.refreshing.Load() }
+
+func (e *Engine) excludedPaths(sources []Source) func(string, string) bool {
+	paths := map[string][]string{}
+	if e.opts.ExcludedDirectories != nil {
+		for _, dir := range e.opts.ExcludedDirectories() {
+			for _, source := range sources {
+				base := source.Path
+				if resolved, err := filepath.EvalSymlinks(base); err == nil {
+					base = resolved
+				}
+				rel, err := filepath.Rel(base, dir)
+				if err == nil && (rel == "." || filepath.IsLocal(rel)) {
+					paths[source.ID] = append(paths[source.ID], filepath.ToSlash(rel))
+				}
+			}
+		}
+	}
+	return func(source, rel string) bool {
+		for _, prefix := range paths[source] {
+			if prefix == "." || rel == prefix || strings.HasPrefix(rel, prefix+"/") {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func IsCredentialFile(name string) bool {
+	name = strings.ToLower(name)
+	return name == ".env" || strings.HasPrefix(name, ".env.") || name == "credentials" || name == "credentials.json" || name == "auth.json" || name == "id_rsa" || name == "id_ed25519" || strings.HasSuffix(name, ".pem") || strings.HasSuffix(name, ".key")
+}

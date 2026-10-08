@@ -18,8 +18,9 @@ refresh. No harness settings are changed automatically.
 The **Brain** page has three direct sections: second brains, Skills and MCP
 servers. The first connects canonical knowledge sources and exposes search and
 indexing status. Skills and MCP remain execution capabilities rather than
-knowledge stores, but live beside the sources so a skills directory can be
-linked from a second brain. Loom's conversation indexing, reviewed memory,
+knowledge stores. The owned skills home can live in the primary second brain
+so its folders sync with that vault; additional skills folders remain read-only
+linked sources. Loom's conversation indexing, reviewed memory,
 retrieval and semantic layers operate in the background as cognitive
 continuity; users do not have to wire those layers into every project.
 
@@ -157,15 +158,76 @@ empty text, empty arrays and zero tokens. This is an estimate rather than a
 model tokenizer guarantee. Context is untrusted source text; the caller owns
 its injection policy and consent to share it with an external executor.
 
+## Skills home
+
+Skills default to `LOOM_HOME/skills`. The authenticated, no-store endpoint
+`GET /api/skills/home` returns exactly:
+
+```json
+{"mode":"loom","dir":"/path/to/loom/skills","relative":"skills","brain_source":"vault","fallback":false,"reason":"","count":2,"detected":[{"relative":"skills","count":2}]}
+```
+
+`mode` is the saved `loom` or `brain` choice; `dir` is the active absolute
+folder. `relative` is the configured brain-relative folder (default `skills`).
+`brain_source` is the primary source ID, or `""` when unavailable. `count`
+counts immediate skill folders containing a regular `SKILL.md`. `detected`
+lists candidate folders inside the primary, sorted by relative path, from
+root (`.`) through depth three, skipping `.git`, `node_modules`, `.loom` and
+`.obsidian`; directory symlinks are not traversed. Empty lists are `[]`.
+
+`POST /api/skills/home` accepts `{"mode":"brain","relative":"skills"}`
+(or omit `relative` for the default) and `{"mode":"loom"}`. Brain mode
+requires an available writable primary. Absolute paths, `..` components,
+escaping symlinks, the brain root and `.loom` are rejected. Operations use
+`os.Root`, including folder creation and file copies. Overlapping old/new
+homes are rejected; selecting the same home is a no-op.
+
+Switching to Brain creates the target if needed and copies whole skill folders
+from the previous owned home only where the name does not already exist.
+It never overwrites or deletes the old home. Success returns the GET object
+plus `"copied":["review"]` and `"conflicts":["existing-name"]`; both are
+arrays of folder names. Switching back to Loom copies nothing and returns
+empty arrays. Copies preserve regular-file modes, reject symlinks and known
+credential filenames, and skip repository metadata and private harness/account
+directories. Keep secrets out of skill instructions and assets.
+
+If the saved Brain home becomes unavailable (no primary, locked vault,
+missing/unreadable source or skills folder), `dir` falls back to
+`LOOM_HOME/skills`, `fallback` is `true`, and `reason` explains why. The saved
+Brain choice is retained and becomes active again when available. Errors use
+`{"ok":false,"error":"message"}` (400 for invalid paths/settings or failed
+copies; 423 for a locked vault). Unsupported methods return 405 with
+`{"error":"method not allowed"}` and `Allow: GET, POST`. Authentication and
+JSON body/content-type rules match the other browser/control endpoints.
+
+Switches resync opted-in native harness sinks asynchronously. Their manifests
+retain the exact link targets so old managed links can be replaced without
+touching user replacements. Harnesses read the canonical folders through links
+(the existing marked-copy fallback still applies on Windows). The active
+skills folder is excluded from note indexing, including cached entries;
+other notes and linked skills remain unchanged.
+
 ## MCP for harnesses
 
 The same engine is available at `http://127.0.0.1:2510/mcp/brain` using
 Streamable HTTP and the Go MCP SDK. It exposes the read-only `brain_search`,
-`brain_pack` and `brain_read` tools plus `brain_write` and `brain_edit` for
+`brain_pack`, `brain_read`, `list_skills` and `read_skill` tools, plus
+`brain_write` and `brain_edit` for
 write-authorized second brains. Omitting `source` targets the proactive primary;
 another source ID is intended only for an explicit user-requested update. Arguments and structured results
 match their HTTP equivalents; MCP `heading` and `sources` are JSON arrays.
-Tool errors use MCP's error results. The control key, when set, must be passed
+Tool errors use MCP's error results.
+
+`list_skills {}` returns `[{"name":"review","title":"Review","description":"Find bugs"}]`
+for the owned library and linked skills available to Loom's harness distribution.
+Names are folder names; collisions are qualified as `<source-id>:<folder>`.
+`read_skill {"name":"review"}` returns `{"text":"complete SKILL.md text","files":["SKILL.md","scripts/check.sh"]}`.
+File paths are relative to that skill, sorted, limited to 200 regular files;
+symlinks are skipped, and `SKILL.md` is limited to 1 MiB. Both tools are read-only
+and check vault availability on every invocation. They expose instructions,
+not permissions, and let harnesses without native skills folders read the same
+library. These tools never change sources, bindings or native configuration.
+The control key, when set, must be passed
 as a Bearer header on every HTTP request. This endpoint does not manage source
 definitions or trigger model generation. It keeps DNS-rebinding and
 cross-origin protection, bounds request bodies and does not retain MCP sessions.

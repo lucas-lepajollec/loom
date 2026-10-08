@@ -182,6 +182,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/capabilities/save", handleCapabilitySave)
 	api("/api/capabilities/delete", handleCapabilityDelete)
 	api("/api/skills/targets", handleSkillSinks)
+	api("/api/skills/home", handleSkillsHome)
 	api("/api/skills/sources", handleSkillSources) // distribution des skills aux harnesses
 	api("/api/harness/custom", handleCustomACP)
 	api("/api/harness/custom/delete", handleCustomACPDelete)
