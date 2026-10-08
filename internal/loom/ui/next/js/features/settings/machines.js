@@ -68,6 +68,9 @@ function Discovered({ onPair }) {
   </section>`;
 }
 
+// SSH machines show user@host; machines paired by code only have their node.
+const where = m => (m.user ? m.user + '@' + m.host + (m.port && m.port !== 22 ? ':' + m.port : '') : m.host + ' · ' + t('machines.node_label')) + (m.os ? ' · ' + m.os : '');
+
 export function MachinesSettings({ route }) {
   const [data, setData] = useState(null);
   const [local, setLocal] = useState(null);
@@ -109,7 +112,7 @@ export function MachinesSettings({ route }) {
   return html`
     <div class="mcards">
       ${card('local', (local && local.hostname) || t("settings.machines.cette_machine_2"), t("settings.machines.cette_machine") + (local ? ' · ' + local.os : ''), 'chip')}
-      ${data.machines.map(m => card(m.id, m.name, m.user + '@' + m.host + (m.port !== 22 ? ':' + m.port : '') + (m.os ? ' · ' + m.os : ''), 'server'))}
+      ${data.machines.map(m => card(m.id, m.name, where(m), 'server'))}
       <button type="button" class="mcard add" onClick=${() => setPair({})}><${Icon} n="key" /><span>${t('machines.pair.card')}</span><small>${t('machines.pair.card_note')}</small></button>
       <button type="button" class="mcard add" onClick=${() => setDlg({})}><${Icon} n="plus" /><span>${t("settings.machines.connecter_une_machine")}</span><small>${t('machines.ssh.card_note')}</small></button>
     </div>
@@ -132,7 +135,7 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
   return html`
     <div class="mc-head anim-rise"><a class="btn sm ghost" href="#/machines"><${Icon} n="left" />${t("settings.machines.machines")}</a>
       <div class="mc-title"><span class="mx-ico"><${Icon} n=${isLocal ? 'chip' : 'server'} /></span><div><h2>${name}</h2>
-        <p class="mono">${isLocal ? (local ? local.user + ' · ' + home(local.home) + ' · ' + local.os : '') : m.user + '@' + m.host + (m.port !== 22 ? ':' + m.port : '') + (m.os ? ' · ' + m.os : '') + (m.home ? ' · ' + m.home : '')}</p></div>
+        <p class="mono">${isLocal ? (local ? local.user + ' · ' + home(local.home) + ' · ' + local.os : '') : where(m) + (m.home ? ' · ' + m.home : '')}</p></div>
         <span class="grow"></span>
         <button class="btn sm" onClick=${() => openTerminalWith({ target, dir: isLocal ? '' : m.home || '', title: name })}><${Icon} n="prompt" />${t("settings.machines.terminal")}</button>
         ${!isLocal && html`<button class="btn sm ghost" onClick=${onEdit}>${t("settings.machines.modifier")}</button><button class="icon-btn" aria-label=${t("settings.machines.retirer") + m.name} onClick=${remove}><${Icon} n="trash" /></button>`}</div></div>

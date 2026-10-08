@@ -232,6 +232,7 @@ export default {
   "machines.pair.already_title": "Already paired",
   "machines.pair.already_text": "Attach it to this Loom instead? The other one loses access to its engine.",
   "machines.pair.already_ok": "Attach here",
+  "machines.node_label": "Loom node (paired)",
   "memory.tab": "Memory",
   "memory.all": "All",
   "memory.class": "Class",
