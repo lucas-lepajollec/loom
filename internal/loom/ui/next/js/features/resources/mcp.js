@@ -101,7 +101,7 @@ function ServerCard({ s: sv, onToggle, onTest, onEdit, onDelete }) {
   </div>`;
 }
 
-export function Mcp() {
+export function Mcp({ q = '' }) {
   const [list, setList] = useState(null);
   const [dlg, setDlg] = useState(null);
   const load = async () => { const r = await get('/api/mcp'); setList(r.servers || []); };
@@ -114,7 +114,7 @@ export function Mcp() {
     <section class="sec"><div class="sec-h"><h2>${t('mcp.servers')}${list && list.length > 0 && html` <span class="count">${list.length}</span>`}<${Tip} text=${t('mcp.servers_tip')} /></h2></div>
       <${Portable} onImported=${load} />
       ${list === null ? html`<div class="skeleton" style="height:120px"></div>` : html`<div class="mcards">
-        ${list.map(s => html`<${ServerCard} key=${s.name} s=${s} onToggle=${v => toggle(s, v)} onTest=${() => test(s)} onEdit=${() => setDlg({ server: s })} onDelete=${() => del(s)} />`)}
+        ${list.filter(s => !q.trim() || s.name.toLowerCase().includes(q.trim().toLowerCase())).map(s => html`<${ServerCard} key=${s.name} s=${s} onToggle=${v => toggle(s, v)} onTest=${() => test(s)} onEdit=${() => setDlg({ server: s })} onDelete=${() => del(s)} />`)}
         <button type="button" class="mcard add" onClick=${() => setDlg({})}><${Icon} n="plus" /><span>${t("resources.page.ajouter_un_serveur")}</span><small>${t('mcp.card.add_note')}</small></button></div>`}
     </section>
     <${Gateway} />

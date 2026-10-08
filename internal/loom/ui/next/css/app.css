@@ -405,7 +405,7 @@ html,body{letter-spacing:-.011em;font-size:13.5px}
 .engine-card:hover{background:var(--hover);border-color:var(--line)}
 /* toutes les pages ont la largeur de Local */
 .page-in,.page-in.wide{max-width:1180px}
-.view.page{overflow-y:auto}
+.view.page{overflow-y:auto;scrollbar-gutter:stable}
 /* cases à cocher et boutons radio : même dessin partout */
 input[type="checkbox"],input[type="radio"]{appearance:none;-webkit-appearance:none;flex:none;width:16px;height:16px;margin:0;display:inline-grid;place-items:center;border:1px solid var(--line-strong);background:var(--bg-2);border-radius:4px;cursor:pointer;transition:background-color var(--fast),border-color var(--fast)}
 input[type="radio"]{border-radius:50%}
