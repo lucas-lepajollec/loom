@@ -112,6 +112,10 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 		r := &agent.AgentRequest{ID: id, Kind: "approval", Method: "session/request_permission", ItemID: firstNonEmptyString(tool["id"]), ApprovalKind: "tool"}
 		if planApproval {
 			r.ApprovalKind = "plan"
+			// ExitPlanMode carries the proposed plan; show it on the card.
+			if input, ok := rawTool["rawInput"].(map[string]any); ok {
+				r.Message, _ = input["plan"].(string)
+			}
 		}
 		if kind == "execute" {
 			r.ApprovalKind = "command"
