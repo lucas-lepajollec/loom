@@ -170,7 +170,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		if agent.Remote {
 			processDir, _ = os.UserHomeDir()
 		}
-		c, err := startACPClient(agent.Command, agent.Args, processDir, env...)
+		c, err := startACPClient(agent.Command, acpSessionArgs(agent, s.Workdir), processDir, env...)
 		if err != nil {
 			return nil, err
 		}

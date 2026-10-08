@@ -50,6 +50,7 @@ func cmdNode(args []string) error {
 	listen := flags.String("listen", defaultNodeListen, "control and inference listener")
 	bin := flags.String("bin", "", "existing llama-server binary (init only)")
 	check := flags.Bool("check", false, "check node update without installing")
+	noHarness := flags.Bool("no-harness", false, "disable node harness module (init only)")
 	models := flags.String("models", "", "existing model directory (init only)")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -62,6 +63,9 @@ func cmdNode(args []string) error {
 	}
 	if action != "update" && *check {
 		return errors.New("--check applies only to node update")
+	}
+	if action != "init" && *noHarness {
+		return errors.New("--no-harness applies only to node init")
 	}
 	if action != "init" && (*bin != "" || *models != "") {
 		return errors.New("--bin and --models apply only to node init")
@@ -86,8 +90,11 @@ func cmdNode(args []string) error {
 	}
 	_ = os.Setenv("LOOM_SERVICE", "loom-node-engine")
 	_ = os.Setenv("LOOM_UI_SERVICE", "loom-node")
-	explicitListen := false
+	explicitListen, explicitHarness := false, false
 	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "no-harness" {
+			explicitHarness = true
+		}
 		if f.Name == "listen" {
 			explicitListen = true
 		}
@@ -99,7 +106,13 @@ func cmdNode(args []string) error {
 	}
 	switch action {
 	case "init":
-		return initEngineWorker(*bin, *models)
+		if err := initEngineWorker(*bin, *models); err != nil {
+			return err
+		}
+		if explicitHarness {
+			return putBool(bkState, nodeHarnessDisabledKey, *noHarness)
+		}
+		return nil
 	case "install":
 		return installEngineWorker(abs, *listen)
 	case "pair":
@@ -248,6 +261,9 @@ func nodeAuth(hash string, next http.HandlerFunc) http.HandlerFunc {
 }
 
 func newEngineWorkerMux(token string) *http.ServeMux {
+	return newEngineWorkerMuxHarness(token, newNodeHarnessServer(8))
+}
+func newEngineWorkerMuxHarness(token string, harness *nodeHarnessServer) *http.ServeMux {
 	mux := http.NewServeMux()
 	hash := ""
 	if token != "" {
@@ -267,6 +283,10 @@ func newEngineWorkerMux(token string) *http.ServeMux {
 	registerEngineControlRoutes(func(path string, h http.HandlerFunc) {
 		api(path, workerEngineRoute(path, h))
 	})
+	api("/api/node/harness/inventory", harness.inventory)
+	api("/api/node/harness/acp", harness.acp)
+	api("/api/node/folders", handleNodeFolders)
+	api("/api/node/workspace", handleNodeWorkspace)
 	api("/api/ping", handlePing)
 	api("/api/update", handleUpdateCheck)
 	api("/api/update/apply", handleUpdateApply)
@@ -415,9 +435,12 @@ func serveEngineWorker(addr string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go startConfiguredEngine(ctx)
-	srv := &http.Server{Handler: newEngineWorkerMux(token), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	harness := newNodeHarnessServer(8)
+	defer harness.stop()
+	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: newEngineWorkerMuxHarness(token, harness), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	go func() {
 		<-ctx.Done()
+		harness.stop()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
@@ -431,7 +454,7 @@ func serveEngineWorker(addr string) error {
 		_ = serviceAction("stop")
 		vllm.stop()
 	}()
-	fmt.Printf("[loom node] %s (engine API only)\n", addr)
+	fmt.Printf("[loom node] %s (modules: %s)\n", addr, strings.Join(nodeModules(), ", "))
 	err = srv.Serve(ln)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil

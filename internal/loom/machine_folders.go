@@ -66,6 +66,27 @@ func cleanMachineFolders(target string, folders []string) ([]string, error) {
 // GET ?machine=: folders. POST {machine, folders}: replace them.
 func handleMachineFolders(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
+		if r.URL.Query().Has("path") && r.URL.Query().Get("machine") != "local" && r.URL.Query().Get("machine") != "" {
+			if !usageVaultAccess(w) {
+				return
+			}
+			m, err := workspaceMachine(r.URL.Query().Get("machine"))
+			if err != nil {
+				sendJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+			if !usesNodeHarness(m) {
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "directory browsing requires a node harness module"})
+				return
+			}
+			result, err := nodeFolders(r.Context(), m, r.URL.Query().Get("path"))
+			if err != nil {
+				sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+			sendJSON(w, 200, result)
+			return
+		}
 		sendJSON(w, 200, map[string]any{"ok": true, "folders": machineFolders(r.URL.Query().Get("machine"))})
 		return
 	}

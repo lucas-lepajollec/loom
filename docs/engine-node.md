@@ -1,10 +1,12 @@
 # Engine node (Linux)
 
 Use **one main Loom** for discussions, Brain, projects, providers and harnesses.
-On a GPU machine, `loom node` serves only engine management and inference. It
+On a paired machine, `loom node` serves engine management, inference and an
+optional harness transport. It
 is a mode of the same release binary, sharing existing engine handlers and
 native argument construction. It does not start the interface, Brain, MCP
-servers, provider keyring reads, harness probes or harness update jobs.
+servers, provider keyring reads or harness update jobs. Harness inventory is probed only
+when requested; an agent starts only for an explicit Loom ACP launch.
 
 The binary still contains the main application's code and embedded assets;
 this first implementation reduces running services and state, not binary size.
@@ -136,7 +138,7 @@ server**, consumes the code and records the main's ID, name and `paired_at`
 (Unix milliseconds) on the node:
 
 ```json
-{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine"],"handshake":1}}
+{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine","harness"],"handshake":1}}
 ```
 
 **Plain LAN HTTP exposes both credentials once in this exchange response to
@@ -187,23 +189,101 @@ address explicitly when using TLS.
 The existing **Connect its Loom node** address + token flow remains available.
 The token is in `node.token` under the node's data root; retrieve it privately
 on that machine, never put it in a URL, public configuration or shared log.
-SSH registration and node linking are independent: SSH offers harnesses and
-terminals; the node currently offers only engines.
+SSH registration and node linking are independent: both can offer harnesses;
+terminals currently require SSH.
 
 All other management routes, including ping/info, require
 `Authorization: Bearer <machine token>`. Browser cookies and human passwords
 are not accepted by a node. `node.token` must be a regular private file (0600).
 The management token and inference key are distinct random 256-bit credentials.
 Authenticated `GET /api/node/info` retains its existing fields and adds `id`,
-`name`, `handshake:1` and `modules:["engine"]`. Unknown handshake majors are
+`name`, `handshake:1` and `modules:["engine","harness"]` by default. Unknown handshake majors are
 refused with an update message. Missing handshake fields remain accepted only
-for legacy token links. Future `harness`/`observe` modules are not advertised.
+for legacy token links. A disabled harness module is omitted; `observe` is not advertised.
 Direct API clients need the inference key for `/v1`, not the management token.
 
 The main Loom strips browser cookies/origin headers and substitutes the machine
-credential when forwarding engine actions. Conversations and harness launches
-stay on the main Loom. The node strips client credentials/cookies before
+credential when forwarding engine actions. Conversations stay on the main Loom; a selected node harness executes on the
+paired machine through the authenticated ACP transport below. The node strips client credentials/cookies before
 forwarding inference to its local native engine and uses that engine's key.
+
+## Run agents on a paired machine
+
+Pair by code as above; SSH is not required for harnesses. Nodes advertise
+`modules:["engine","harness"]` with `handshake:1` by default, including existing
+nodes after updating. To keep an engine-only node, initialize with:
+
+```sh
+loom node init --no-harness
+# Restore the harness module explicitly, using the same node home:
+loom node init --no-harness=false
+```
+
+The persisted node state flag is `node_harness_disabled` (true disables it).
+Repeating init without either flag preserves the choice. Refresh/re-pair the
+main's saved link after changing advertised modules. Disabling the module also
+rejects subsequent inventory, ACP and folder/workspace requests with HTTP 409
+and `{"ok":false,"error":"node harness module is disabled"}`.
+
+Install and sign in to the native tools on the node as its OS user. The module
+uses the same probe, tool directories on PATH, prerequisites and pinned ACP
+launchers as SSH machines: Codex, Claude Code, Pi, OpenCode, OpenClaw and Hermes.
+This does not add support for harnesses absent from `remoteHarnessDefs`.
+It does not install tools, perform native sign-in or change native permissions.
+
+Pairing tries to read inventory; a failed probe does not undo a successful pair.
+To refresh it, use the existing main API `POST /api/machines` with
+`{"machine":{"id":"node-machine-id"},"check_only":true}`; omit `check_only`
+and supply `harnesses` to save the refreshed inventory and chosen connections.
+`GET /api/agents/installations` includes the node's detected agents with the
+existing machine/family/runtime IDs. Remote installations remain unmanaged and
+disabled until selected. `POST /api/agents/installations` with
+`{"machine":"node-machine-id","harness":"hermes","enabled":true}` enables
+one. Discussion configuration still requires explicit confirmation before
+sharing transcript/context with the external executor. Backend APIs are ready;
+new node-specific UI controls are separate work.
+
+The node accepts only its machine token in `Authorization: Bearer …` on these
+routes; inference credentials, browser cookies and URL credentials do not grant
+access. Redirects are refused by the main. Use the same trusted LAN/VPN or HTTPS
+boundary as for engine control; this module does not configure TLS.
+
+| Node route | Response / behavior |
+| --- | --- |
+| `GET /api/node/harness/inventory` | `{"ok":true,"os":"Linux","home":"/home/agent","hostname":"worker","tools":[{"id":"hermes","path":"/home/agent/.local/bin/hermes","version":"…"}]}`; versions are optional. |
+| `GET /api/node/harness/acp?harness=hermes&cwd=/absolute/folder` | WebSocket upgrade; binary frames carry unmodified stdin/stdout bytes, including partial or multiple newline-delimited JSON messages. Token is only in the handshake header. |
+| `GET /api/node/folders?path=/absolute/folder` | `{"ok":true,"path":"/absolute/folder","parent":"/absolute","folders":["/absolute/folder/subdir"]}`; directory paths only, sorted by name. An empty path selects the node user's home. |
+| `POST /api/node/workspace` with `{"path":"/absolute/folder"}` | Explicitly creates a workspace directory (including parents); returns `{"ok":true,"path":"/absolute/folder"}`. |
+
+ACP accepts only a known harness ID and an absolute existing directory; empty
+cwd selects the node user's home. The default limit is eight concurrent agent
+processes, including probes; contention returns HTTP 429 with
+`{"ok":false,"error":"node agent process limit reached"}`. Closing either
+transport direction kills/reaps the owned process group and releases its slot.
+Node shutdown also kills its owned agent groups. Stderr is drained continuously,
+with only the first 32 KiB per agent written to the node log.
+
+The hidden main-side command is `loom node-bridge <machine-id> <harness> <cwd>`.
+It reads the saved maintenance URL/token from local secret state and bridges its
+stdio to the WebSocket; no token appears in arguments or URLs. `nodeAgent`
+records `@loom-workdir` as its last argument. `runACP` replaces that placeholder
+with the session's remote `Workdir` before launching the child; probes replace
+it with `RemoteHome`. The local child still starts in the main user's home.
+The ACP client and protocol implementation are unchanged.
+
+For encrypted state, the main's vault unlock key remains in its process. The
+launch wrapper reads only the selected machine access and writes a private,
+encrypted, temporary launch record using a fresh independent key. The bridge
+receives the record path/key through its environment, consumes/removes the
+record, and clears those environment variables. The parent also removes the
+record on failure/close. No vault key, inference key or provider key is passed
+to the node or its agents. A manually invoked bridge cannot read locked state.
+
+Main-side `GET /api/machines/folders?machine=ID&path=/absolute/folder` proxies the
+node picker response above. Without `path`, the existing `{"ok":true,"folders":
+[…]}` favourite-folder response remains unchanged. Workspace validation and
+explicit creation also use the node, without SSH. Terminals on a machine without
+SSH return `terminals need SSH for now`.
 
 ## Optional user service
 
@@ -293,8 +373,9 @@ application and unload; a model change cannot silently fall back to the main
 Loom port or expose the native front. Change the node listener in its
 service configuration, not through the native engine's network toggle.
 
-No UI/auth-session, discussion, Brain/MCP, cloud/provider, harness, project,
-terminal or environment routes are registered.
+No UI/auth-session, discussion, Brain/MCP, cloud/provider, harness lifecycle,
+project, terminal or environment routes are registered. The optional harness
+module exposes only inventory, ACP transport and directory/workspace control.
 Unknown paths return 404. Native Windows/macOS node mode is explicitly
 unsupported in this initial Linux implementation; direct inference-server links
 remain available there. Migration from a previous full Loom is manual and
@@ -344,7 +425,7 @@ Linked engine nodes also expose `/api/startup` with their existing machine token
 main Loom proxies it through `/api/machines/{id}/node/startup`. A node policy
 selects `off`, `llama.cpp` or `vllm` (a cached Hub model ID is required for vLLM).
 It is applied on the next node start using existing supervision and saved native
-parameters. No UI, Brain, discussion or harness is started by the node. vLLM
+parameters. No UI, Brain, discussion or harness is started automatically by the node. vLLM
 startup runs with Hub/Transformers offline flags, without automatic dependency
 installation or inference. Main Loom permits `off`/`vllm`; llama.cpp starts via
 its installed engine service. Simultaneous saved llama.cpp service and vLLM

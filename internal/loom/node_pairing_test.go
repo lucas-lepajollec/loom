@@ -88,7 +88,7 @@ func TestNodePairExchangeSingleUseAndInfo(t *testing.T) {
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &exchange) != nil {
 		t.Fatalf("exchange: %d %s", w.Code, w.Body.String())
 	}
-	if exchange.MachineToken != token || exchange.InferenceKey != readAPIKey() || exchange.Node.Handshake != 1 || !hasEngineModule(exchange.Node.Modules) {
+	if exchange.MachineToken != token || exchange.InferenceKey != readAPIKey() || exchange.Node.Handshake != 1 || !hasEngineModule(exchange.Node.Modules) || !hasNodeModule(exchange.Node.Modules, "harness") {
 		t.Fatal("wrong exchange")
 	}
 	if w.Header().Get("Cache-Control") != "no-store" {
@@ -118,7 +118,7 @@ func TestNodePairExchangeSingleUseAndInfo(t *testing.T) {
 		Modules   []string `json:"modules"`
 		Handshake int      `json:"handshake"`
 	}
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &info) != nil || info.ID != exchange.Node.ID || info.Handshake != 1 || !hasEngineModule(info.Modules) {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &info) != nil || info.ID != exchange.Node.ID || info.Handshake != 1 || !hasEngineModule(info.Modules) || !hasNodeModule(info.Modules, "harness") {
 		t.Fatal("info handshake/identity missing")
 	}
 }

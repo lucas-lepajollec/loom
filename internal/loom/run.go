@@ -30,6 +30,11 @@ func Main() {
 		return
 	}
 
+	if len(os.Args) > 1 && os.Args[1] == "node-bridge" {
+		mustExit(cmdNodeBridge(os.Args[2:]))
+		return
+	}
+
 	// Rattache la console du terminal parent si on est lancé depuis un shell
 	// (Windows : binaire GUI). Retourne false au double-clic (aucune console) →
 	// on bascule alors sur l'expérience « application ». Hors Windows : toujours

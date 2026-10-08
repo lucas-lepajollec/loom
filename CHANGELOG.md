@@ -6,6 +6,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Optional node harness module (on by default; `loom node init --no-harness`
+  disables it), with authenticated inventory, binary ACP WebSocket transport,
+  directory browsing and workspace creation. Paired machines can run the same
+  harness launchers as SSH machines through the hidden `node-bridge` command,
+  retaining per-machine management/enabling and discussion consent. Agent
+  processes have an eight-process limit and owned-group cleanup; terminals
+  still require SSH. Backend only.
+
 - Engine service admission with FIFO model swaps that drain existing streams,
   resident-model batches, background priorities/grace, configurable idle VRAM
   unload and cross-process native generation protection. Native chat and Bench
@@ -19,7 +27,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   pair`, first-start log, `POST /api/node/pair`, `POST /api/machines/pair`), with
   hashed storage, attempt/IP limits and explicit re-pairing. Reuses protected
   machine maintenance credentials without switching the active engine.
-- Versioned node handshake (`handshake:1`, `modules:["engine"]`) and read-only
+- Versioned node handshake (`handshake:1`, advertised `modules`) and read-only
   IPv4 LAN discovery (`GET /api/machines/discover`, UDP 2512), excluding linked
   nodes. Backend only; legacy address/token linking remains available.
 

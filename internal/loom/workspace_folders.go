@@ -1,7 +1,9 @@
 package loom
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -104,6 +106,24 @@ func prepareWorkspace(ctx context.Context, w resources.Workspace, create bool) (
 	dir, err := remoteWorkdir(w.Path)
 	if err != nil {
 		return "", err
+	}
+	if usesNodeHarness(m) {
+		if create {
+			body, _ := json.Marshal(map[string]string{"path": dir})
+			var result struct {
+				Path string `json:"path"`
+			}
+			if err := nodeMachineJSON(ctx, m, http.MethodPost, "/api/node/workspace", bytes.NewReader(body), &result); err != nil {
+				return "", err
+			}
+			return result.Path, nil
+		}
+		result, err := nodeFolders(ctx, m, dir)
+		if err != nil {
+			return "", err
+		}
+		canonical, _ := result["path"].(string)
+		return canonical, nil
 	}
 	key, _, err := loomSSHKey()
 	if err != nil {
