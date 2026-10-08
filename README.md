@@ -56,6 +56,8 @@ Brain v2 memory items retain scoped knowledge and superseded history in plain Ma
 
 Select Brain sources for a project or expose its authenticated MCP tools to harnesses at **`/mcp/brain`**. Loom must remain running; the browser can be closed. Personal sources require explicit selection and opt-in. See [Brain](docs/brain.md) and [MCP configuration](docs/mcp-files.md).
 
+External Claude Code, Codex, OpenCode and Gemini CLI sessions can use one `loom` MCP entry at **`/mcp/loom`** for Brain, memory and all enabled Loom MCP servers. Explicit registration and token rotation use `/api/mcp/gateway` and `/api/mcp/gateway/token`; the dedicated gateway token cannot access control APIs. Secret-free MCP definitions travel with the primary Brain in `.loom/mcp.json` and import disabled. See [gateway and portable MCP APIs](docs/brain.md#one-loom-mcp-gateway-per-harness).
+
 <img src="docs/screenshots/brain.png" alt="Brain search, semantic indexing and distilled memory" width="1000" />
 
 ## Terminals and environment

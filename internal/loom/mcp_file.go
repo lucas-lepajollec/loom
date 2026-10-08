@@ -84,6 +84,7 @@ func loadMCPConfigLocked() (map[string]MCPServerConfig, error) {
 							mcpInvalidate(name)
 						}
 					}
+					exportPortableMCP(servers, mcpFileCache.servers)
 					mcpFileCache.top, mcpFileCache.entries, mcpFileCache.servers = top, entries, servers
 					mcpFileCache.info = info
 				}
@@ -130,6 +131,7 @@ func saveMCPConfigLocked(servers map[string]MCPServerConfig) error {
 	// Keep the successfully written configuration as the latest good snapshot,
 	// even if an editor immediately replaces it with invalid JSON.
 	top, entries, saved, _ := parseMCPFile(data)
+	exportPortableMCP(saved, mcpFileCache.servers)
 	mcpFileCache.top, mcpFileCache.entries, mcpFileCache.servers = top, entries, saved
 	mcpFileCache.info, _ = os.Stat(path)
 	mcpFileCache.err = nil

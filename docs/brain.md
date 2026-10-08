@@ -229,6 +229,10 @@ not permissions, and let harnesses without native skills folders read the same
 library. These tools never change sources, bindings or native configuration.
 The control key, when set, must be passed
 as a Bearer header on every HTTP request. This endpoint does not manage source
+
+Tool errors use MCP's error results. A control key or dedicated gateway token
+can be passed as a Bearer header on every HTTP request; browser sessions keep
+their normal authentication. This endpoint does not manage source
 definitions or trigger model generation. It keeps DNS-rebinding and
 cross-origin protection, bounds request bodies and does not retain MCP sessions.
 
@@ -264,6 +268,99 @@ Example personal tool call:
 ```json
 {"query":"travel preferences","budget_tokens":800,"sources":["personal-notes"],"personal":true}
 ```
+
+## One Loom MCP gateway per harness
+
+`/mcp/loom` is a stateless Streamable HTTP gateway. It shares the existing
+Brain and memory tool registration with `/mcp/brain`, including `remember`,
+`update_memory`, `forget_memory` and `list_memory`. It also proxies every enabled
+Loom MCP server through the same client pool used by Loom chat. Hidden tools
+(`disabledTools`) remain hidden. Arguments and MCP results, including content,
+structured content and `isError`, pass through without flattening or truncation;
+proxied calls have a 60-second timeout. Discovery skips unavailable upstreams
+and logs their names without upstream error text or credentials.
+
+Upstream tool names use `<server>__<tool>`, sanitized to ASCII letters, digits,
+underscores and hyphens, with a 64-character maximum. Lossy sanitization and
+truncation append a deterministic identity suffix so an unavailable upstream
+cannot redirect a cached name to another server. Remaining collisions receive
+a deterministic suffix in sorted server/tool order. `loom_gateway_status` is
+read-only and returns `{upstreams:[{name,enabled,connected,tools,error?}]}`;
+`tools` counts visible tools and unavailable upstreams report
+`error:"upstream unavailable"`. Disabled upstreams are listed without connecting.
+Both MCP endpoints retain origin protection, the 128 KiB request-body limit,
+no-store responses and normal Brain/vault availability checks.
+
+Registration is explicit, through authenticated control APIs. The gateway token
+is separate from the control key, stored only as a hash in Loom's store, and
+accepted only at `/mcp/loom` and `/mcp/brain`. Registration generates a token if
+none exists. Plaintext appears only in the private harness configurations,
+process memory and the authenticated token-rotation response. Existing owned
+configurations let Loom recover the token after restart. If a token exists but
+no owned configuration retains it after restart, rotate it before registering.
+The token is never written to the Brain folder or Markdown.
+
+| Method / path | Input | Success output |
+| --- | --- | --- |
+| `GET /api/mcp/gateway` | — | `{url,token_set,harnesses:[{id,name,supported,registered,file}]}` |
+| `POST /api/mcp/gateway` | `{harness,enabled}` | Same gateway object after registration/removal. |
+| `POST /api/mcp/gateway/token` | `{rotate:true}` | `{ok:true,url,token,token_set:true}`; return the new plaintext token once and rewrite every registered entry. |
+| `GET /api/mcp/portable` | — | `{servers:[{name,config}]}`; only entries present in the primary Brain sidecar and absent locally, with secret markers. |
+| `POST /api/mcp/portable/import` | `{names:["server-name"]}` | `{ok:true,imported:["server-name"]}`; import all selected entries disabled with empty secret values. |
+
+These control routes require the existing browser/control-key authentication;
+the gateway token grants no control API access. POST uses the normal strict
+JSON decoder and 128 KiB limit. Invalid requests, foreign/edited entries and
+missing primary Brains return 400 with `{ok:false,error}`; locked vaults return
+423. Authentication and method errors retain the normal control API shapes.
+Gateway responses never contain a token except for token rotation.
+
+Harness IDs and the sole owned entry are:
+
+| Harness ID | User file | Entry |
+| --- | --- | --- |
+| `claude-code` | `~/.claude.json` | `mcpServers.loom = {"type":"http","url":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
+| `codex` | `~/.codex/config.toml` | `[mcp_servers.loom]` with `url` and `http_headers = { "Authorization" = "Bearer TOKEN" }` |
+| `opencode` | `~/.config/opencode/opencode.json` | `mcp.loom = {"type":"remote","url":URL,"headers":{"Authorization":"Bearer TOKEN"},"enabled":true}` |
+| `gemini` | `~/.gemini/settings.json` | `mcpServers.loom = {"httpUrl":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
+
+Codex's static HTTP header key is documented in the
+[configuration reference](https://developers.openai.com/codex/config-reference/).
+No environment export is needed. Its owned block is delimited by
+`# loom-gateway begin` / `# loom-gateway end`; all other TOML text is preserved.
+JSON editing preserves unrelated keys and entries, including large settings
+files, but may normalize whitespace. Existing files get a private
+`<file>.loom-backup` before their first change, only when that backup is absent.
+Writes use an atomic replacement confined to the user's home. Loom refuses to
+replace an existing `loom` entry it did not create, or one edited outside Loom.
+Remove an edited entry manually and unregister it before rotating. Rotation
+prepares every change first and rolls applied files back if a write fails.
+
+`url` uses the running Loom listener's host and port, substituting `127.0.0.1`
+for all-interface binds. Loom must remain running; restart the external harness
+to load configuration changes. Loom restarts a retained ACP adapter on its next
+turn when the owned gateway entry changes. A loopback URL targets the same machine as the
+harness. No native sign-in, global permissions or other MCP entries are changed.
+A registered ACP harness receives no individual MCP servers when it inherits
+all globally enabled selections: the harness reads its native `loom` entry.
+An explicit project/session selection, including an empty selection, keeps the
+existing per-session ACP behavior; explicit harness bindings also remain
+per-session. The native gateway entry stays available in that harness.
+
+The portable sidecar is `<primary>/.loom/mcp.json`, with the existing
+`{"mcpServers":{"name":CONFIG}}` definition format. `CONFIG` contains `enabled`
+and optional `type`, `command`, `args`, `env`, `url`, `headers` and
+`disabledTools`, as in Loom's local MCP file. Every env/header **value** is
+replaced by `"${secret}"`; keys remain available to identify missing credentials.
+Keep credentials in env/headers rather than commands, arguments or URLs.
+Definitions are exported on changes, primary-source updates and Brain refresh;
+a fresh installation retains sidecar entries missing locally so they can be
+imported. Explicit local deletion removes that definition's previous export.
+The 4 MiB sidecar is read and atomically written through `os.Root` confinement.
+Malformed/unavailable sidecars are logged without credential contents and do not
+prevent saving local definitions. Imports never overwrite local entries, never
+enable a server and never connect to it; fill the empty env/header values and
+explicitly enable it afterward.
 
 ## Index limits and V1 scope
 

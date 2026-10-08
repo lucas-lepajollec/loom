@@ -105,3 +105,33 @@ func TestMCPPoolDiscoveryCallAndSingleReconnect(t *testing.T) {
 		t.Fatalf("status: %+v %v", status, err)
 	}
 }
+
+func TestMCPPoolInvalidationDuringDiscovery(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	mgr := NewMCPManager(nil, func(ctx context.Context, _ string, _ resources.MCPServerConfig) (*mcpsdk.ClientSession, error) {
+		close(started)
+		<-release
+		server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "fixture"}, nil)
+		st, ct := mcpsdk.NewInMemoryTransports()
+		ss, err := server.Connect(ctx, st, nil)
+		if err != nil {
+			return nil, err
+		}
+		t.Cleanup(func() { _ = ss.Close() })
+		return mcpsdk.NewClient(&mcpsdk.Implementation{Name: "fixture-client"}, nil).Connect(ctx, ct, nil)
+	})
+	t.Cleanup(mgr.CloseAll)
+	done := make(chan *MCPSession, 1)
+	go func() { done <- mgr.Ensure("changing", resources.MCPServerConfig{Command: "fixture", Enabled: true}) }()
+	<-started
+	// Observation, cancellation and config invalidation can overlap discovery.
+	_ = mgr.PromptLine()
+	mgr.Invalidate("changing")
+	mgr.CloseAll()
+	close(release)
+	s := <-done
+	<-s.Ready()
+	if s.sess != nil {
+		t.Fatal("invalidated connection republished")
+	}
+}

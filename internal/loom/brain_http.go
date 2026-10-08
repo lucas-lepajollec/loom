@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
-	"github.com/lucas-lepajollec/loom/internal/loom/web"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -64,6 +63,7 @@ func (s *brainService) run(ctx context.Context) {
 		if e, err := s.get(); err == nil {
 			_ = e.Refresh(ctx)
 			s.refreshSemanticIfSelected()
+			syncPortableMCP()
 		}
 	}
 	refresh()
@@ -301,6 +301,7 @@ func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
 		if skillsHomeConfig().Mode == "brain" {
 			syncSkillSinksAsync()
 		}
+		syncPortableMCP()
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources(), "refreshing": e.Refreshing(), "refresh_seconds": 180})
 }
@@ -383,14 +384,8 @@ func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 		})
 	}
 	server := brain.MCPServer(s)
-	transport := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
-	protected := web.ProtectOrigin(transport)
-	authed := requireWebAuth(protected.ServeHTTP)
-	mux.HandleFunc("/mcp/brain", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
-		authed(w, r)
-	})
+	registerMCPTransport(mux, "/mcp/brain", func(*http.Request) *mcp.Server { return server })
+	registerMCPTransport(mux, "/mcp/loom", func(*http.Request) *mcp.Server { return gatewayServer(s) })
 	if ctx != nil {
 		go s.run(ctx)
 	}

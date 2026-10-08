@@ -71,6 +71,11 @@ type SearchResult struct {
 
 func MCPServer(reader Reader) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "loom-brain", Version: "1.0.0"}, nil)
+	RegisterMCPTools(s, reader)
+	return s
+}
+
+func RegisterMCPTools(s *mcp.Server, reader Reader) {
 	closed := false
 	open := true
 	searchAnnotations := &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: &open}
@@ -139,5 +144,4 @@ func MCPServer(reader Reader) *mcp.Server {
 			return nil, result, err
 		})
 	}
-	return s
 }
