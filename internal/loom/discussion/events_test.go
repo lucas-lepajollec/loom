@@ -38,7 +38,7 @@ func TestNativeDiscussionEventMapping(t *testing.T) {
 		}
 	}
 	control := map[string]any{"reset": true, "replay": true, "ctx_used": 40, "compacted": true}
-	if got := NativeDiscussionEvents(control); len(got) != 1 || !reflect.DeepEqual(map[string]any(got[0]), control) {
+	if got := NativeDiscussionEvents(control); len(got) != 2 || got[0]["type"] != "compacted" || !reflect.DeepEqual(map[string]any(got[1]), control) {
 		t.Fatalf("control: %v", got)
 	}
 }

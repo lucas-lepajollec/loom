@@ -17,6 +17,7 @@ import (
 
 // Each mux owns its Brain service; no new application global is introduced.
 type brainService struct {
+	handoffMu       sync.Mutex
 	mu              sync.Mutex
 	storage         brainStorage
 	engine          *brain.Engine

@@ -76,6 +76,69 @@ unload through its API. Older engines or explicit single mode retain the legacy
 process-replacement path. vLLM and linked servers have separate lifecycle and
 capability boundaries; see [engines](engines.md).
 
+## Context limits and compaction
+
+Every client session includes `context:{used,size,source}`. `source:"agent"`
+uses the ACP agent's latest `usage_update`; `source:"estimate"` counts the
+prepared prompt with `brain.Tokens`, including shared context and message
+framing. The engine's configured context or an explicitly retrieved provider
+catalog supplies `size`; `0` means unknown and never triggers a limit warning.
+These are context observations, separate from billed turn usage. Catalog
+probes retain positive `context_window`, `context_length`, or
+`top_provider.context_length` values by exact model ID. Provider records and
+`POST /api/providers/models` expose `context_windows:{"model-id":tokens}`;
+probes with a saved provider ID persist them without sending a discussion.
+
+`COMPACT` is on by default. Loom-held Local/Cloud prompts compact before
+inference when the pending send reaches 75% of a known context window. Harnesses
+retain their native automatic compaction. `COMPACT=off` disables Loom automatic
+compaction. Client sessions include `context_warning:true` at 85% or more when
+automatic compaction is off, or when the agent has no advertised `compact`
+command. The flag is omitted otherwise. Reading context never generates a
+summary or loads an engine.
+
+`POST /api/runtime/sessions/compact` accepts `{"id":"discussion-id"}`. Local
+and Cloud discussions use their selected model endpoint and credential for one
+bounded summary request. The shared head/torso/tail algorithm preserves the
+initial objective and recent messages, replaces the middle with a
+`[CONTEXT COMPACTED]` summary, and requires at least 20% estimated reduction.
+Only model-facing messages change: `messages`, turn provenance and display/tool
+journals remain available for replay. `portable_messages` is an internal
+persisted prompt history and is omitted from client payloads. Compaction records
+are retained as `compactions:[{at,runtime_id,provider_id?,model,before,after}]`;
+`at` is Unix milliseconds and token counts are estimates. The summary is appended
+to the discussion handoff's Recap in the existing Brain memory store.
+
+A successful Loom compaction returns HTTP 200 with
+`{ok:true,compacted:true,session}` and publishes `{type:"compacted"}` over the
+discussion event stream; an unchanged short history returns `compacted:false`.
+An ACP agent advertising a command named exactly `compact` receives an ordinary
+prompt turn containing exactly `/compact`; HTTP 202 returns
+`{ok:true,compacted:false,session}`, and the agent owns its outcome. Without that
+command, HTTP 409 returns
+`{ok:false,error:"this agent does not offer compaction",unsupported:true}`.
+Other compact errors use HTTP 409 with `{ok:false,error,unsupported:false}`.
+Model request errors preserve the previous portable history. A generating turn
+or an in-progress configuration refuses compaction and continuation.
+
+`POST /api/runtime/sessions/continue` accepts `{"id":"discussion-id"}` or
+`{"id":"discussion-id","project_name":"New project"}`. It returns HTTP 200
+`{ok:true,session}`. The new discussion retains runtime, provider, exact model,
+workdir, instructions and project; its title is the original title plus ` ›`.
+A nonempty `project_name` first creates a project and attaches the original
+discussion to it, then creates the successor there. Errors return HTTP 409
+`{ok:false,error}`. Creation sends no model request and copies no native session,
+approval, usage or tool state.
+
+The successor stores `continued_from:"original-discussion-id"`. Its context
+engine pins the predecessor's `discussion-state` alongside the project's
+`project-state`, sharing the existing bounded working-memory allowance.
+Deterministic handoffs are updated at completed turns from visible goals,
+recaps, plans and reported files/commands, without hidden reasoning or a model
+call. They use the existing Brain store; optional model-generated continuity
+remains an independent refinement. These APIs provide backend actions and
+warning state; this slice adds no interface controls.
+
 ## Cloud destinations and credentials
 
 The common cloud adapter implements Chat Completions and bounded SSE streaming.
@@ -215,7 +278,7 @@ requests. Important existing routes include:
 
 - `GET /api/workspace`, `/api/providers`, `/api/runtime/sessions`.
 - `POST /api/providers/save`, `/api/providers/disconnect`, `/api/providers/models`.
-- `POST /api/runtime/sessions/create|select|import|send|stop|delete|configure`.
+- `POST /api/runtime/sessions/create|select|import|send|stop|delete|configure|compact|continue`.
 - `POST /api/runtime/sessions/local` binds/restores the rich native discussion;
   it does not load a model or generate a reply.
 - `GET/POST /api/runtime/sessions/preview` prepares portable text.

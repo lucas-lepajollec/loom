@@ -60,12 +60,19 @@ const ProjectNotesTag = "project-notes"
 const ProfileLimit, ProjectNotesLimit = 1400, 2200
 
 func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages string, budgets MemoryBudgets, discussionIDs ...string) MemoryPack {
-	discussionID := ""
-	if len(discussionIDs) > 0 {
-		discussionID = discussionIDs[0]
-	}
 	isState := func(item MemoryItem) bool {
-		return item.Class == "working" && (projectID != "" && item.Scope == "project:"+projectID && contains(item.Tags, "project-state") || discussionID != "" && item.Scope == "task:"+discussionID && contains(item.Tags, "discussion-state"))
+		if item.Class != "working" {
+			return false
+		}
+		if projectID != "" && item.Scope == "project:"+projectID && contains(item.Tags, "project-state") {
+			return true
+		}
+		for _, id := range discussionIDs {
+			if id != "" && item.Scope == "task:"+id && contains(item.Tags, "discussion-state") {
+				return true
+			}
+		}
+		return false
 	}
 	// The user's profile (who they are, how they work) is core memory: global,
 	// always included first, truncated rather than dropped.

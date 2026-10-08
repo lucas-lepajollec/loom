@@ -14,6 +14,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   `GET /api/brain/continuity/handoff?discussion_id=` and the read-only Brain MCP
   tool `get_handoff` (discussion or project).
 
+- Context-limit state and warnings for every workspace discussion; compaction
+  with the discussion's selected Local/Cloud model or an advertised ACP
+  `/compact` command, automatic Loom compaction at 75% when enabled, preserved
+  display journals and compaction provenance.
+- Continue-discussion API for the same project or a newly created project,
+  with deterministic Brain handoffs, compaction recaps and bounded predecessor
+  and project-state pinning.
+
 - Brain › Memory › You: a global user profile always included first in context (core memory), editable and updatable by agents.
 - MCP tab: "Take from your agents" replaces linked MCP files; the gateway's own `loom` entry is never offered.
 - Brain page: Skills tab shows where the library lives (a primary-brain folder or Loom) and moves it; MCP tab leads with the agent gateway, servers and brain imports; Memory tab gains the automatic continuity card.

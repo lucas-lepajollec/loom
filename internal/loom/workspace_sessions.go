@@ -19,6 +19,7 @@ type runtimeRun struct {
 	acpBytes    int
 	acpError    string
 	handoff     handoffTurn
+	providerKey string
 	recap       strings.Builder
 	hasText     bool
 }
@@ -102,6 +103,7 @@ func (m *runtimeSessions) saveProvider(p CloudProvider, key string) (CloudProvid
 		if !getStoreJSON(bkProviders, p.ID, &old) {
 			return p, errors.New("provider not found")
 		}
+		p.ContextWindows = old.ContextWindows
 		if old.Endpoint != p.Endpoint {
 			return p, errors.New("create a new connection to change the destination")
 		}
@@ -200,10 +202,11 @@ func (m *runtimeSessions) list() []RuntimeSession {
 	out := []RuntimeSession{}
 	for id := range allKV(bkRuntimeSessions) {
 		if s, ok := m.getLocked(id); ok {
+			s = clientSession(s)
 			s.MessageCount = len(s.Messages)
 			s.Messages = nil
 			// Lists poll every 30 s: turn metadata only, never turn events.
-			out = append(out, clientSession(s))
+			out = append(out, s)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt > out[j].UpdatedAt })
@@ -321,6 +324,9 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 		s.Title = discussionTitle(text)
 	}
 	s.Messages = append(messages, Message{Role: "assistant", Content: ""})
+	if s.PortableMessages != nil {
+		s.PortableMessages = append(s.PortableMessages, Message{Role: "user", Content: text})
+	}
 	s.Turns = append(s.Turns, discussionTurnRecord(s, prepared, len(s.Messages)-1))
 	s.Turns[len(s.Turns)-1].ReasoningEffort = s.ReasoningEffort
 	s.Turns[len(s.Turns)-1].StartedAt = time.Now().UnixMilli()
@@ -338,7 +344,7 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 		cancel()
 		ctx, cancel = context.WithCancel(context.Background())
 	}
-	run := &runtimeRun{session: s, cancel: cancel}
+	run := &runtimeRun{session: s, cancel: cancel, providerKey: key}
 	m.runs[id] = run
 	m.publishLocked(id, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true, "provenance": s.Turns[len(s.Turns)-1], "session": cloneRuntimeSession(s), "context": turnContext(s, prepared.Context)})
 	collectDiscussionCandidates(s, len(messages)-1, text)
@@ -389,110 +395,150 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	if ctx.Err() == nil {
 		touchContextMemory(preparedContext)
 	}
-	_, err := adapter.Run(ctx, RuntimeTurn{Messages: messages, Temperature: 0.7, Caps: caps}, func(event StreamEvent) bool {
+	var err error
+	if loomTranscript(run.session) && compactEnabled() {
 		m.mu.Lock()
-		defer m.mu.Unlock()
-		if m.runs[run.session.ID] != run {
-			return false
+		snapshot := cloneRuntimeSession(run.session)
+		m.mu.Unlock()
+		window := discussionWindow(snapshot)
+		used := promptTokens(withProjectContext(portableMessages(snapshot), preparedContext.System))
+		if window > 0 && float64(used) >= float64(window)*compactTriggerFrac {
+			next, summary, changed, compactErr := m.compactSnapshot(ctx, snapshot, run.providerKey)
+			err = compactErr
+			if err == nil && changed {
+				err = saveDiscussionHandoff(next, summary)
+				if err == nil {
+					prepared := prepareDiscussion(next, "")
+					messages, preparedContext = prepared.Messages, prepared.Context
+					m.mu.Lock()
+					run.session = next
+					turn := &run.session.Turns[len(run.session.Turns)-1]
+					turn.ContextRevision, turn.ContextBytes, turn.InputBytes = prepared.Context.Revision, len(prepared.Context.System), prepared.TextBytes
+					err = putStoreJSON(bkRuntimeSessions, next.ID, next)
+					if err == nil {
+						m.publishLocked(next.ID, DiscussionEvent{"type": "compacted", "session": next})
+					}
+					m.mu.Unlock()
+				}
+			}
 		}
-		if ctx.Err() != nil && event.ACPEvent != nil && event.ACPEvent["type"] != "approval_resolved" {
-			return false
-		}
-		if ctx.Err() != nil && event.ACPEvent == nil && event.ACPState == nil {
-			return false
-		}
-		if event.ACPState != nil {
-			run.session.ACPState = cloneACPState(*event.ACPState)
-			turn := &run.session.Turns[len(run.session.Turns)-1]
-			turn.NativeSessionID = run.session.NativeSessionID
-			for _, option := range run.session.AvailableConfigOptions {
-				if option["category"] == "model" {
-					if model, ok := option["currentValue"].(string); ok && len(model) <= 200 {
-						turn.Model = model
+	}
+	if err == nil {
+		_, err = adapter.Run(ctx, RuntimeTurn{Messages: messages, Temperature: 0.7, Caps: caps}, func(event StreamEvent) bool {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			if m.runs[run.session.ID] != run {
+				return false
+			}
+			if ctx.Err() != nil && event.ACPEvent != nil && event.ACPEvent["type"] != "approval_resolved" {
+				return false
+			}
+			if ctx.Err() != nil && event.ACPEvent == nil && event.ACPState == nil {
+				return false
+			}
+			if event.ACPState != nil {
+				run.session.ACPState = cloneACPState(*event.ACPState)
+				turn := &run.session.Turns[len(run.session.Turns)-1]
+				turn.NativeSessionID = run.session.NativeSessionID
+				for _, option := range run.session.AvailableConfigOptions {
+					if option["category"] == "model" {
+						if model, ok := option["currentValue"].(string); ok && len(model) <= 200 {
+							turn.Model = model
+						}
 					}
 				}
 			}
-		}
-		if event.ACPEvent != nil {
-			e := event.ACPEvent
-			encoded, _ := json.Marshal(e)
-			run.acpBytes += len(encoded)
-			if (run.acpBytes > 64<<20 || len(run.session.Turns[len(run.session.Turns)-1].ACPEvents) >= 16384) && e["type"] != "approval_resolved" {
-				run.acpError = "ACP journal too large; turn stopped, received events preserved."
-				run.cancel()
-				return false
-			}
-			turn := &run.session.Turns[len(run.session.Turns)-1]
-			turn.ACPEvents = append(turn.ACPEvents, e)
-			if e["type"] == "text_delta" {
-				event.Content, _ = e["text"].(string)
-			}
-		}
-		if event.ToolUsed != nil {
-			if !event.ToolUsed.Done {
-				run.recap.Reset()
-			}
-			workdir := run.session.Workdir
-			if workdir == "" {
-				workdir = agentWorkspace()
-			}
-			run.handoff.nativeTool(event.ToolUsed, workdir)
-		}
-		if event.Content != "" {
-			run.recap.WriteString(event.Content)
-			run.hasText = true
-		}
-		if event.Content != "" {
-			i := len(run.session.Messages) - 1
-			previous, _ := run.session.Messages[i].Content.(string)
-			run.session.Messages[i].Content = previous + event.Content
-		}
-		if event.Usage != nil {
-			u := *event.Usage
-			run.session.Usage = &u
-			run.session.Turns[len(run.session.Turns)-1].Usage = &u
-		}
-		turn := &run.session.Turns[len(run.session.Turns)-1]
-		// Codex emits a readable summary, not a reconstructed hidden trace. Keep
-		// it in display metadata only; never inject it into the portable prompt.
-		if run.session.RuntimeID == "codex" && event.Reasoning != "" && len(turn.ReasoningSummary)+len(event.Reasoning) <= 32<<10 {
-			turn.ReasoningSummary += event.Reasoning
-		}
-		if event.Stats != nil {
-			stats := *event.Stats
-			turn.Stats = &stats
-		}
-		if event.DurationSeconds > 0 {
-			turn.DurationSeconds = event.DurationSeconds
-		}
-		if event.NativeSessionID != "" && len(event.NativeSessionID) <= 200 {
-			turn.NativeSessionID = event.NativeSessionID
-		}
-		if event.HarnessEvent != nil {
-			updated := false
-			for i := range turn.Events {
-				if turn.Events[i].Index == event.HarnessEvent.Index {
-					turn.Events[i] = *event.HarnessEvent
-					updated = true
-					break
+			if event.ACPEvent != nil {
+				e := event.ACPEvent
+				if e["type"] == "usage" {
+					run.session.ACPUsage = acpCloneMap(e)
+				}
+				if e["type"] == "commands" {
+					b, _ := json.Marshal(e["commands"])
+					_ = json.Unmarshal(b, &run.session.Commands)
+				}
+				encoded, _ := json.Marshal(e)
+				run.acpBytes += len(encoded)
+				if (run.acpBytes > 64<<20 || len(run.session.Turns[len(run.session.Turns)-1].ACPEvents) >= 16384) && e["type"] != "approval_resolved" {
+					run.acpError = "ACP journal too large; turn stopped, received events preserved."
+					run.cancel()
+					return false
+				}
+				turn := &run.session.Turns[len(run.session.Turns)-1]
+				turn.ACPEvents = append(turn.ACPEvents, e)
+				if e["type"] == "text_delta" {
+					event.Content, _ = e["text"].(string)
 				}
 			}
-			if !updated && len(turn.Events) < 128 {
-				turn.Events = append(turn.Events, *event.HarnessEvent)
+			if event.ToolUsed != nil {
+				if !event.ToolUsed.Done {
+					run.recap.Reset()
+				}
+				workdir := run.session.Workdir
+				if workdir == "" {
+					workdir = agentWorkspace()
+				}
+				run.handoff.nativeTool(event.ToolUsed, workdir)
 			}
-		}
-		if event.ACPEvent != nil || event.ACPState != nil {
-			if err := putStoreJSON(bkRuntimeSessions, run.session.ID, run.session); err != nil {
-				run.cancel()
-				return false
+			if event.Content != "" {
+				run.recap.WriteString(event.Content)
+				run.hasText = true
 			}
-		}
-		m.publishLocked(run.session.ID, liveRuntimeDiscussionEvents(event, *turn)...)
-		return true
-	})
+			if event.Content != "" {
+				i := len(run.session.Messages) - 1
+				previous, _ := run.session.Messages[i].Content.(string)
+				run.session.Messages[i].Content = previous + event.Content
+			}
+			if event.Usage != nil {
+				u := *event.Usage
+				run.session.Usage = &u
+				run.session.Turns[len(run.session.Turns)-1].Usage = &u
+			}
+			turn := &run.session.Turns[len(run.session.Turns)-1]
+			// Codex emits a readable summary, not a reconstructed hidden trace. Keep
+			// it in display metadata only; never inject it into the portable prompt.
+			if run.session.RuntimeID == "codex" && event.Reasoning != "" && len(turn.ReasoningSummary)+len(event.Reasoning) <= 32<<10 {
+				turn.ReasoningSummary += event.Reasoning
+			}
+			if event.Stats != nil {
+				stats := *event.Stats
+				turn.Stats = &stats
+			}
+			if event.DurationSeconds > 0 {
+				turn.DurationSeconds = event.DurationSeconds
+			}
+			if event.NativeSessionID != "" && len(event.NativeSessionID) <= 200 {
+				turn.NativeSessionID = event.NativeSessionID
+			}
+			if event.HarnessEvent != nil {
+				updated := false
+				for i := range turn.Events {
+					if turn.Events[i].Index == event.HarnessEvent.Index {
+						turn.Events[i] = *event.HarnessEvent
+						updated = true
+						break
+					}
+				}
+				if !updated && len(turn.Events) < 128 {
+					turn.Events = append(turn.Events, *event.HarnessEvent)
+				}
+			}
+			if event.ACPEvent != nil || event.ACPState != nil {
+				if err := putStoreJSON(bkRuntimeSessions, run.session.ID, run.session); err != nil {
+					run.cancel()
+					return false
+				}
+			}
+			m.publishLocked(run.session.ID, liveRuntimeDiscussionEvents(event, *turn)...)
+			return true
+		})
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := &run.session
+	if s.PortableMessages != nil {
+		s.PortableMessages = append(s.PortableMessages, s.Messages[len(s.Messages)-1])
+	}
 	if run.acpError != "" {
 		err = errors.New(run.acpError)
 	}
@@ -518,6 +564,21 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 		s.Error = "Response not saved: unlock storage and try again."
 		m.finishDiscussionLocked(*s)
 		return
+	}
+	if s.Status == "complete" && !loomTranscript(*s) {
+		m.acpMu.Lock()
+		binding := m.acp[s.ID]
+		m.acpMu.Unlock()
+		if binding != nil {
+			prepared := prepareDiscussion(*s, "")
+			binding.mu.Lock()
+			if binding.state.NativeContext != "" {
+				binding.state.NativeContext = acpContextHash(prepared.Messages)
+				s.NativeContext = binding.state.NativeContext
+			}
+			binding.mu.Unlock()
+			_ = putStoreJSON(bkRuntimeSessions, s.ID, *s)
+		}
 	}
 	m.finishDiscussionLocked(*s)
 	delete(m.runs, s.ID)

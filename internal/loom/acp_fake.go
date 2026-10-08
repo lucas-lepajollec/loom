@@ -156,8 +156,14 @@ func runFakeACPWithModes(in io.Reader, out io.Writer, load bool, fixtureModes ma
 					reply(f.ID, map[string]any{"stopReason": "cancelled"})
 					return
 				}
+				if strings.Contains(string(prompt), `"text":"/compact"`) {
+					update(sid, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "Context compacted"}})
+					update(sid, map[string]any{"sessionUpdate": "usage_update", "used": 8, "size": 4096})
+					reply(f.ID, map[string]any{"stopReason": "end_turn"})
+					return
+				}
 				path := filepath.Join(cwd, "loom-fake-acp.txt")
-				update(sid, map[string]any{"sessionUpdate": "available_commands_update", "availableCommands": []any{map[string]any{"name": "review", "description": "Review changes"}}})
+				update(sid, map[string]any{"sessionUpdate": "available_commands_update", "availableCommands": []any{map[string]any{"name": "review", "description": "Review changes"}, map[string]any{"name": "compact", "description": "Compact context"}}})
 				update(sid, map[string]any{"sessionUpdate": "current_mode_update", "currentModeId": "default"})
 				update(sid, map[string]any{"sessionUpdate": "config_option_update", "configOptions": config("short")})
 				update(sid, map[string]any{"sessionUpdate": "agent_thought_chunk", "content": map[string]any{"type": "text", "text": "Reported thought"}})

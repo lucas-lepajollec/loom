@@ -58,6 +58,9 @@ func NativeDiscussionEvents(d map[string]any) []DiscussionEvent {
 	if v, ok := d["error"]; ok {
 		add("error", DiscussionEvent{"error": v})
 	}
+	if d["compacted"] == true {
+		add("compacted", DiscussionEvent{})
+	}
 	if d["turn_done"] == true {
 		add("turn_done", DiscussionEvent{"provenance": d["runtime_turn"], "elapsed_ms": d["elapsed_ms"], "metrics": DiscussionEvent{"elapsed_ms": d["elapsed_ms"]}})
 	}

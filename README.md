@@ -48,6 +48,13 @@ Projects link folders on this machine or a connected machine, with shared instru
 
 <img src="docs/screenshots/harnesses.png" alt="Coding harnesses, model sources and machine connections" width="1000" />
 
+Workspace discussions expose estimated or agent-reported context usage through
+the backend API. Compaction keeps the display history and uses the discussion's
+chosen model or an advertised agent command. A continuation can start in the
+same project or create one, carrying the discussion handoff. See
+[context limits and compaction](docs/workspace-architecture.md#context-limits-and-compaction)
+for API shapes and the automatic `COMPACT` setting.
+
 ## Brain and shared context
 
 **Brain** searches local sources with BM25 and builds cited context within a token budget. Optional semantic search uses a local CPU embedding model or a connected provider with explicit consent. Distillation extracts decisions, facts, todos and preferences on request, with links back to source messages and individual deletion.

@@ -125,6 +125,9 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 	if discussionID != "" {
 		scopes = append(scopes, "task:"+s.ID)
 	}
+	if s.ContinuedFrom != "" {
+		scopes = append(scopes, "task:"+s.ContinuedFrom)
+	}
 	if s.ProjectID != "" {
 		scopes = append(scopes, "project:"+s.ProjectID)
 	}
@@ -136,7 +139,7 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 			c.Problem = "Loom memory is unavailable: " + err.Error()
 		}
 	} else {
-		pack := brain.SelectMemory(list.Items, s.ProjectID, s.RuntimeID, query, passageText, budgets, discussionID)
+		pack := brain.SelectMemory(list.Items, s.ProjectID, s.RuntimeID, query, passageText, budgets, discussionID, s.ContinuedFrom)
 		c.Budget.Memory.Used = brain.Tokens(pack.Text)
 		for class, used := range pack.Used {
 			limit := c.Budget.Memory.Classes[class]
@@ -289,6 +292,8 @@ func (m *runtimeSessions) rewindLast(id string) (RuntimeSession, string, error) 
 	s = cloneRuntimeSession(s)
 	text, _ := s.Messages[last].Content.(string)
 	s.Messages = s.Messages[:last]
+	s.PortableMessages = nil
+	s.Compactions = nil
 	kept := []RuntimeTurnRecord{}
 	for _, turn := range s.Turns {
 		if turn.MessageIndex < last {
