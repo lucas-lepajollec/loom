@@ -226,10 +226,20 @@ func TestNativeMemoryPreparationReadOnlyGenerationTouches(t *testing.T) {
 		if contextLastUsed(t, item.ID) == 0 {
 			t.Error("native send did not touch")
 		}
-		emit(StreamEvent{Content: "Answer"})
+		emit(StreamEvent{Content: "I will write the file."})
+		emit(StreamEvent{ToolUsed: &ToolUsedEvent{Name: "write", Label: "native.go"}})
+		emit(StreamEvent{ToolUsed: &ToolUsedEvent{Name: "write", Label: "native.go", Result: "ok", Done: true}})
+		emit(StreamEvent{ToolUsed: &ToolUsedEvent{Name: "bash", Label: "go test"}})
+		emit(StreamEvent{ToolUsed: &ToolUsedEvent{Name: "bash", Label: "go test", Result: "exit: 1", Done: true}})
+		emit(StreamEvent{Content: "Answer. Proceed?"})
 	}}
 	isolateRuntimeRegistry(t, adapter)
-	c.generate(context.Background(), Caps{}, .7, c.epoch)
+	c.generate(context.Background(), Caps{}, .7, c.epoch, handoffTurn{Completed: true})
+	theBrain().waitHandoffs()
+	var handoff handoffState
+	if err := handoffLoad("discussion:common-native", &handoff); err != nil || handoff.Recap != "Answer. Proceed?" || handoff.Commands != 1 || len(handoff.Files) != 1 || len(handoff.Errors) != 1 {
+		t.Fatal("native handoff", handoff, err)
+	}
 	if calls != 1 || contextLastUsed(t, excluded.ID) != 0 {
 		t.Fatalf("native send calls/scope: %d", calls)
 	}

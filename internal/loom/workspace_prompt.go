@@ -111,7 +111,18 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 		c.Budget.Memory.Classes[class] = discussion.TokenBudget{Available: limit}
 	}
 	scopes := []string{"global"}
-	if s.ProjectID == "" && s.ID != "" {
+	discussionID := ""
+	turns := len(s.Turns)
+	if turns == 0 {
+		var state handoffState
+		if handoffLoad("discussion:"+s.ID, &state) == nil {
+			turns = state.Turns
+		}
+	}
+	if turns >= handoffContextTurns {
+		discussionID = s.ID
+	}
+	if discussionID != "" {
 		scopes = append(scopes, "task:"+s.ID)
 	}
 	if s.ProjectID != "" {
@@ -125,7 +136,7 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 			c.Problem = "Loom memory is unavailable: " + err.Error()
 		}
 	} else {
-		pack := brain.SelectMemory(list.Items, s.ProjectID, s.RuntimeID, query, passageText, budgets, s.ID)
+		pack := brain.SelectMemory(list.Items, s.ProjectID, s.RuntimeID, query, passageText, budgets, discussionID)
 		c.Budget.Memory.Used = brain.Tokens(pack.Text)
 		for class, used := range pack.Used {
 			limit := c.Budget.Memory.Classes[class]

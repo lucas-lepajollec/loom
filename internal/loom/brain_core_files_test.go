@@ -11,6 +11,7 @@ import (
 
 func TestCoreFilesMirrorBothWays(t *testing.T) {
 	testHome(t)
+	t.Cleanup(coreFilesJobs.Wait)
 	s := theBrain()
 	vault := primaryMemoryVault(t, s)
 	profile, err := s.Remember(brain.RememberRequest{Class: "semantic", Scope: "global", Tags: []string{brain.ProfileTag}, Text: "Lucas, answers in French.", Provenance: brain.MemoryProvenance{Kind: "user"}})

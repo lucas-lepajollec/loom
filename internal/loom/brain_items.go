@@ -107,7 +107,7 @@ func (s *brainService) UpdateMemory(req brain.UpdateMemoryRequest) (brain.Memory
 // A core note changed through Loom (UI or agent): mirror it now, off the path.
 func (s *brainService) afterCoreWrite(item brain.MemoryItem, err error) {
 	if err == nil && (slices.Contains(item.Tags, brain.ProfileTag) || slices.Contains(item.Tags, brain.ProjectNotesTag)) {
-		go s.syncCoreFiles()
+		coreFilesJobs.Go(func() { _ = s.syncCoreFiles() })
 	}
 }
 func (s *brainService) ForgetMemory(req brain.ForgetMemoryRequest) (brain.MemoryItem, error) {

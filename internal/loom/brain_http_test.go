@@ -162,7 +162,7 @@ func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
 	}
 	defer session.Close()
 	tools, err := session.ListTools(ctx, nil)
-	if err != nil || len(tools.Tools) != 11 {
+	if err != nil || len(tools.Tools) != 13 {
 		t.Fatalf("streamable tools: %v %v", tools, err)
 	}
 	tool, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "brain_pack", Arguments: brain.PackRequest{Query: "unicorn", Sources: []string{"project"}}})

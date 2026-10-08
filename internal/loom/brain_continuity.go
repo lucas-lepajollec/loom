@@ -524,14 +524,40 @@ func (s *brainService) summarizeContinuity(ctx context.Context, endpoint, key, m
 	if !unchanged {
 		return "", "", nil
 	}
+	s.handoffs.stateMu.Lock()
+	defer s.handoffs.stateMu.Unlock()
+	list, err = store.List(brain.MemoryFilter{})
+	if err != nil {
+		return "", "", err
+	}
+	state = continuityMemory(list.Items, "working", stateScope, stateTag, "")
+	if d.ProjectID == "" && hasName(state.Tags, "handoff") {
+		stateTag = "discussion-refinement"
+		state = continuityMemory(list.Items, "working", stateScope, stateTag, "")
+	}
+	var projectState handoffProject
+	stateText := result.State.Markdown()
+	if d.ProjectID != "" {
+		if err = handoffLoad("project:"+d.ProjectID, &projectState); err != nil {
+			return "", "", err
+		}
+		projectState.Refined, projectState.RefinedAt = stateText, time.Now().UnixMilli()
+		stateText = renderHandoffProject(projectState)
+	}
 	p := brain.MemoryProvenance{Kind: "discussion", DiscussionID: d.ID, Agent: d.RuntimeID}
 	summary, err := continuitySave(store, previous, "episodic", scope, "session-summary", result.Summary, p)
 	if err != nil {
 		return "", "", err
 	}
-	savedState, err := continuitySave(store, state, "working", stateScope, stateTag, result.State.Markdown(), p)
+	savedState, err := continuitySave(store, state, "working", stateScope, stateTag, stateText, p)
 	if err != nil {
 		return "", "", err
+	}
+	if d.ProjectID != "" {
+		projectState.ItemID = savedState.ID
+		if err = putStoreJSON(bkBrainHandoff, "project:"+d.ProjectID, projectState); err != nil {
+			return "", "", err
+		}
 	}
 	drafts := []brain.CandidateDraft{}
 	for _, fact := range result.Facts {

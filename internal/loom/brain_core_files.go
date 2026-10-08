@@ -31,6 +31,9 @@ type coreFilesState struct {
 
 var coreFilesMu sync.Mutex
 
+// Background mirrors register here so data-directory owners can wait for them.
+var coreFilesJobs sync.WaitGroup
+
 const coreFilesStateKey = "core_files_state"
 
 var coreFileName = regexp.MustCompile(`[^\p{L}\p{N} ._-]+`)

@@ -6,6 +6,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Always-on, zero-model-cost discussion handoffs at workspace and native turn
+  ends, asynchronous coalescing, incremental encrypted records, in-place Brain
+  working items and three-discussion project state. Project state is pinned on
+  the first turn; own handoffs are included from 20 turns. Existing continuity
+  settings control optional model refinement. Read handoffs through
+  `GET /api/brain/continuity/handoff?discussion_id=` and the read-only Brain MCP
+  tool `get_handoff` (discussion or project).
+
 - Brain › Memory › You: a global user profile always included first in context (core memory), editable and updatable by agents.
 - MCP tab: "Take from your agents" replaces linked MCP files; the gateway's own `loom` entry is never offered.
 - Brain page: Skills tab shows where the library lives (a primary-brain folder or Loom) and moves it; MCP tab leads with the agent gateway, servers and brain imports; Memory tab gains the automatic continuity card.
