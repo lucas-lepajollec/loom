@@ -1,0 +1,9 @@
+{
+  "codex": ["codex-cli 0.159.2"],
+  "pi": ["0.84.3"],
+  "opencode": ["1.18.33"],
+  "claude-acp": ["0.88.0"],
+  "hermes": [],
+  "openclaw": [],
+  "deepseek-tui": []
+}

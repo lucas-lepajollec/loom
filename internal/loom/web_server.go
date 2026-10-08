@@ -41,6 +41,7 @@ func cmdWeb(args []string) error {
 	webBound.host, webBound.port = host, port
 	// Only once the port is ours: these write to Loom's data.
 	registerCustomACPAgents()
+	registerCatalogAgents()
 	migrateHarnessConnections()
 	go syncModelSinks()
 	loadRememberedProviderKeys()
@@ -49,6 +50,7 @@ func cmdWeb(args []string) error {
 	go vllmAutoLoop()
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	defer stopLifecycle()
+	go officialAgentsCatalog.refresh(lifecycleCtx, time.Now())
 	go startConfiguredEngine(lifecycleCtx)
 	go harnessLifecycle.autoLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
@@ -189,6 +191,9 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/skills/targets", handleSkillSinks)
 	api("/api/skills/home", handleSkillsHome)
 	api("/api/skills/sources", handleSkillSources) // distribution des skills aux harnesses
+	api("/api/agents/catalog", handleAgentsCatalog)
+	api("/api/agents/catalog/add", handleAgentsCatalogAdd)
+	api("/api/agents/catalog/remove", handleAgentsCatalogRemove)
 	api("/api/harness/custom", handleCustomACP)
 	api("/api/harness/custom/delete", handleCustomACPDelete)
 	api("/api/machines", handleRemoteMachines)

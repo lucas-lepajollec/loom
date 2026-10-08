@@ -1,0 +1,2 @@
+{"frame":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"fixture-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Hello from deepseek-tui."}}}},"events":["content.delta"],"text":"Hello from deepseek-tui."}
+{"frame":{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}},"events":["turn.completed"]}

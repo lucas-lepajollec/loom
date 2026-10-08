@@ -15,7 +15,7 @@ opencode generate > internal/loom/runtime/opencodehttp/schema/openapi.json
 ```
 
 Review the events, session/prompt/abort, provider, permission and question
-schemas; update VERSION, TestedVersion and fixtures together. The legacy
+schemas; update VERSION, `harness/tested_versions.json` and fixtures together. The legacy
 permission.updated alias is accepted; this release emits permission.asked.
 Version 2 permission/question events remain visible raw diagnostics and fail
 explicitly until their distinct reply contracts are supported.

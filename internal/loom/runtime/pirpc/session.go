@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,7 +16,7 @@ import (
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/agentstdio"
 )
 
-const TestedVersion = "0.84.3"
+var TestedVersion = harness.LatestTestedVersion("pi")
 
 type State struct {
 	SessionID   string          `json:"sessionId"`

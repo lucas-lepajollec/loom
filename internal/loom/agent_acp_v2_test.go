@@ -176,7 +176,7 @@ func TestACPCompatibilityPinsAndWarnings(t *testing.T) {
 				t.Fatal(r)
 			}
 			r = acpCompatibility(a, nil, nil)
-			if r.AgentVersion != "" || r.Warning != "" {
+			if r.AgentVersion != "" || (id != "hermes" && id != "openclaw" && r.Warning != "") {
 				t.Fatal(r)
 			}
 		})

@@ -4,6 +4,17 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Agents v2 step 4 (backend): official ACP catalogue with an embedded offline
+  snapshot, daily background ETag refresh and `/api/agents/catalog` add/remove
+  endpoints; pinned npx/uvx launches and PATH-only binary registration. Reserved
+  native agents and Gemini cannot create duplicate catalogue runtimes.
+- Curated DeepSeek TUI joins Hermes and OpenClaw on the shared ACP path, with
+  explicit unverified compatibility warnings and synthetic turn/permission/form
+  fixtures. Accepted agent versions now come from one embedded JSON file.
+- Weekly/manual agents watch and `make agents-watch` check native schemas,
+  no-account handshakes/model lists and fixtures, refresh the ACP snapshot, and
+  publish reviewed version PRs or attention issues without provider secrets.
+
 - Agents v2 step 2: Claude ACP 0.88.0 questions, multi-select/Other/Skip,
   form/URL elicitation, explicit plan approvals, terminal metadata and verbatim
   failures. OpenCode prefers one authenticated loopback HTTP/SSE server with

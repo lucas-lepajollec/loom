@@ -1,0 +1,48 @@
+name: Agents compatibility watch
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: agents-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Check releases and publish review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: make agents-watch AGENTS_WATCH_ARGS='--install --publish --out .project-local/agents-watch'
+      - name: Attach report to job summary
+        if: always()
+        run: |
+          if [ -f .project-local/agents-watch/report.md ]; then
+            cat .project-local/agents-watch/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload report and candidate schemas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agents-watch-report
+          path: .project-local/agents-watch/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 30

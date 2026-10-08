@@ -319,3 +319,169 @@ live-versus-fixture boundary. No paid turns were run.
 Sources: [Claude 0.88 changelog](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.88.0/CHANGELOG.md),
 [Claude elicitation source](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.88.0/src/elicitation.ts),
 [OpenCode server](https://opencode.ai/docs/server/),
+
+## Agents v2 step 4: official ACP catalogue
+
+The backend embeds the [official ACP registry](https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json)
+in `internal/loom/harness/acp_registry_snapshot.json`. Its initial snapshot has
+41 agents. Startup and catalogue reads request a background refresh, with a
+10-second deadline and at most one attempt per 24 hours, including failed
+attempts. Loom state retains the last good document, ETag and attempt time;
+conditional GET accepts 304 without replacing the document. Offline startup
+uses the saved document or the embedded snapshot. Startup never waits on CDN
+I/O. Unknown fields and malformed individual entries are ignored; an invalid
+binary archive URL rejects the update. All binary archives must use HTTPS.
+The registry is distribution metadata, not a claim of live Loom verification.
+
+Authenticated API shapes for the Agents page (no UI changes in this step):
+
+```json
+[
+  {
+    "id": "qwen-code",
+    "name": "Qwen Code",
+    "version": "0.25.0",
+    "description": "Registry description",
+    "repository": "https://github.com/QwenLM/qwen-code",
+    "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/qwen-code.svg",
+    "distribution": {
+      "kind": "npx",
+      "command": "npx",
+      "args": ["-y", "@qwen-code/qwen-code@0.25.0", "--acp", "--experimental-skills"],
+      "package": "@qwen-code/qwen-code"
+    },
+    "installed": true,
+    "added": false,
+    "builtin": false
+  }
+]
+```
+
+- `GET /api/agents/catalog` returns the array directly. `icon` and
+  `installed_version` are optional. `installed` means the required executable
+  is on PATH: the native binary, or `npx`/`uvx` for an on-demand package launch.
+  It does not assert that an npm/uv package has already been downloaded or that
+  an account is signed in. `installed_version` is a last observed compatibility
+  version, not a guess from the registry or PATH. `added` means a saved Loom
+  runtime exists independently of installation/sign-in.
+- `distribution.kind` is `npx`, `uvx`, `binary`, or `unsupported` for a platform
+  without a supported distribution. `command` is the executable; `args` is the
+  full argv excluding that executable and is always an array. `package` is the
+  unversioned package name (or binary name). Loom prefers npx, then uvx, then
+  the current platform's binary. Distribution environment/installer extensions
+  are not imported in this step; launch arguments are taken from the registry.
+- `codex-acp`, `claude-acp`, `pi-acp`, `opencode`, and `antigravity-acp` are
+  visible as `builtin:true` and excluded from adding another runtime. The same
+  rule applies if curated builtin IDs appear in a later registry. Gemini is
+  also reserved (`builtin:true`) by Loom policy: it has no Loom builtin runtime;
+  Antigravity is the Google harness. The UI must not offer Add on these rows.
+- `POST /api/agents/catalog/add` with `{"id":"qwen-code"}` returns
+  `{"ok":true,"agent":{"id":"registry-qwen-code","name":"Qwen Code","command":"npx","args":["-y","@qwen-code/qwen-code@0.25.0","--acp","--experimental-skills"],"custom":true,"registry_id":"qwen-code","registry_version":"0.25.0","registry_package":"@qwen-code/qwen-code","registry_kind":"npx"}}`
+  (ordinary ACP metadata such as `docs`, `logo`, `detect` is also present).
+  These runtimes use the existing ACP adapter, session configuration, consent
+  and request-resolution endpoints. Adding does not launch a process, sign in,
+  probe an account or share a transcript. Repeated Add returns the saved launch
+  unchanged: refreshing the registry never silently upgrades an added agent.
+- npx launches `npx -y <package>@<registry-version> <args>`; uvx launches
+  `uvx <package>==<registry-version> <args>`. Existing package pins are replaced,
+  including scoped npm names and uv entries using either `@` or `==`.
+  Binary entries launch the command basename on PATH with the selected
+  platform's argv. Loom does not download archives. Missing binaries return
+  HTTP 400, `{"ok":false,"error":"binary must already be installed on PATH","install_hint":"upstream repository or website/archive URL"}`.
+  Unsupported/reserved entries also return 400; unknown IDs return 404.
+- `POST /api/agents/catalog/remove` with the registry ID returns
+  `{"ok":true}` and removes the saved configuration/runtime registration;
+  a missing saved entry returns 404. It does not uninstall anything. Remove
+  and Add again explicitly select the current registry version.
+
+Catalogue compatibility records include `adapter_package`, `adapter_version`,
+`tested_version`, `tested_versions`, and `tested_version_source:"registry"`.
+The pinned registry version is the distribution baseline; `agent_version`
+and `version` remain the actual handshake value. A different handshake version
+produces a non-blocking warning. `registry` provenance must not be presented as
+an accepted live Loom test. `tested_version_source:"loom"` uses the accepted
+versions described below.
+
+## Curated ACP agents
+
+| Runtime ID | Launch | Availability | Live accepted versions |
+| --- | --- | --- | --- |
+| `hermes` | `hermes acp` | `hermes` on PATH | None |
+| `openclaw` | `openclaw acp` | `openclaw` on PATH | None |
+| `deepseek-tui` | `deepseek-tui serve --acp` | `deepseek-tui` on PATH | None |
+
+All three use the shared ACP initialization, permissions and form/URL
+elicitation path. Questions supplied as elicitation schemas remain forms;
+Loom does not invent a native question protocol for these agents. The accepted
+version lists are empty, and their compatibility warning is exactly
+`not yet verified with Loom`, including before any handshake. DeepSeek's launch
+is **documented-but-unverified**: the study's CDesktop executor launches
+`deepseek-tui serve --acp`, but no DeepSeek upstream repository clone/README was
+available for this implementation. No successful live launch is claimed.
+
+Synthetic shared ACP fixtures in `testdata/agents/{hermes,openclaw,deepseek-tui}`
+cover a normal turn, permission reply and form elicitation. Complete subprocess
+turn tests exercise the bidirectional reader and canonical request resolution.
+These fixtures establish Loom's shared path, not an upstream version's behavior.
+
+## Weekly compatibility watch and accepting versions
+
+`internal/loom/harness/tested_versions.json` is the **single source of truth**
+for accepted versions. It is embedded by the dependency-free `harness` package
+and consumed by native and ACP compatibility records, including refreshed
+observations saved before an upgrade. `tested_version` is the newest accepted
+entry, and every entry remains accepted for drift comparisons. The native
+schema `VERSION` files record snapshot provenance, not another accepted list.
+The existing Claude launcher pin stays explicit; accepting an adapter release
+in the watch does not silently change that launch pin.
+
+`.github/workflows/agents-watch.yml` runs every Monday at 06:17 UTC and through
+`workflow_dispatch` on Ubuntu. It uses the automatic `GITHUB_TOKEN` with
+contents, PR and issue permissions; no account or provider secrets are needed.
+The repository must allow GitHub Actions to create pull requests. The Go script
+in `tools/agents-watch/` is runnable locally:
+
+```sh
+make agents-watch                         # check installed CLIs; write report only
+make agents-watch AGENTS_WATCH_ARGS=--install  # latest npm releases, temporary prefix
+make agents-watch AGENTS_WATCH_ARGS='--install --publish' # explicit GitHub review writes
+```
+
+Local reports default to ignored `.project-local/agents-watch/`. `--install`
+uses temporary npm prefixes for `@openai/codex`, `opencode-ai`,
+`@agentclientprotocol/claude-agent-acp`, and the current official
+[`@earendil-works/pi-coding-agent`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/package.json).
+Probes use empty native profiles and an environment without provider/publishing
+credentials. They initialize Codex/Claude or read Pi state, list models where
+possible, and check the owned OpenCode loopback server. Authentication-required
+steps are explicit skips. No prompts or paid turns run.
+
+The script regenerates the Codex schemas consumed by Loom using
+`codex app-server generate-json-schema --out …` and the OpenCode OpenAPI using
+`opencode generate`. It compares parsed JSON with committed snapshots, ignoring
+formatting/key ordering while retaining every field/union. Changed schemas
+produce candidate JSON, a unified diff and a bounded changed-path summary.
+It runs `go test ./internal/loom/runtime/... -run Fixture` and the application
+ACP fixtures, refreshes/validates the registry, and writes a Markdown report
+uploaded as a workflow artifact and included in the job summary.
+
+With `--publish`, a completely passing check opens/updates
+`agents-watch/<UTC-date>` from the checked HEAD in a temporary worktree. Only
+`tested_versions.json` and the refreshed registry snapshot are included. Local
+publishing requires a clean checkout; the script does not commit local work.
+A schema change, installation/probe failure or failed fixture check opens or
+updates one exact-title issue per affected candidate:
+`Agents watch: <agent> <version> needs attention`. Registry-only failures use a
+registry attention issue. No versions are accepted automatically when a check
+fails. Automation returns a failing status after publishing attention issues.
+
+To accept a new version, review the watch report and skips, inspect schema diffs
+and adapt mappings/fixtures when needed, then rerun the checks. Merge the review
+PR or append the verified version to the agent's array in `tested_versions.json`
+in a reviewed change. For a changed native contract, refresh its schema and
+`VERSION` provenance and regenerate Codex projections with
+`tools/generate-codex-types.py` as appropriate. Curated agents remain unverified
+until a trusted live check justifies a first entry; fixtures alone do not do so.
+
+See [step 4 verification](agents-v2-step4-verification.md) for completed checks
+and the sandbox limits of the local watch run.

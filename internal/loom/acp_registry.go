@@ -13,13 +13,17 @@ import (
 var acpAgentsJSON []byte
 
 type acpAgent struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Logo    string   `json:"logo"`
-	Command string   `json:"command"`
-	Args    []string `json:"args"`
-	Detect  []string `json:"detect"`
-	Docs    string   `json:"docs"`
+	RegistryID      string   `json:"registry_id,omitempty"`
+	RegistryVersion string   `json:"registry_version,omitempty"`
+	RegistryPackage string   `json:"registry_package,omitempty"`
+	RegistryKind    string   `json:"registry_kind,omitempty"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Logo            string   `json:"logo"`
+	Command         string   `json:"command"`
+	Args            []string `json:"args"`
+	Detect          []string `json:"detect"`
+	Docs            string   `json:"docs"`
 	// Remote: the agent runs on another machine (e.g. through ssh); its folder
 	// is not on this disk. Custom: defined by the user in Harnesses.
 	Remote bool `json:"remote,omitempty"`
@@ -105,7 +109,7 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		caps = []string{"chat", "stream", "cancel", "tools", "plan", "usage", "workdir", "resume", "quota"}
 		cli, hint = "agy", "agy"
 	}
-	if a.agent.ID == "claude-code" {
+	if a.agent.ID != "antigravity" {
 		caps = append(caps, "user-input", "elicitation")
 	}
 	caps = append(caps, "connect")
