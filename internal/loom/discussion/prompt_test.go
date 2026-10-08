@@ -1,6 +1,7 @@
 package discussion
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -65,5 +66,22 @@ func TestTitleIgnoresPastedAttachments(t *testing.T) {
 	only := "--- Loom text attachments ---\npasted-text-1.txt (3 UTF-16 units)\nabc\n--- End Loom text attachments ---"
 	if got := TitleFromText(only); got != "pasted-text-1.txt" {
 		t.Fatalf("%q", got)
+	}
+}
+
+func TestContextExtrasCopyTextAndMultimodalOutgoingOnly(t *testing.T) {
+	for _, content := range []any{"original", []map[string]any{{"type": "text", "text": "original"}, {"type": "image_url", "image_url": map[string]any{"url": "fixture"}}}, []any{map[string]any{"type": "text", "text": "original"}}} {
+		messages := []Message{{Role: "user", Content: content}, {Role: "assistant", Content: "answer"}}
+		outgoing := WithContextExtras(messages, "retrieved")
+		if reflect.DeepEqual(outgoing, messages) {
+			t.Fatal("extras were not added")
+		}
+		restored := WithoutContextExtras(outgoing, "retrieved")
+		if !reflect.DeepEqual(restored, messages) {
+			t.Fatal("compaction retained extras", restored)
+		}
+		if !reflect.DeepEqual(messages[0].Content, content) {
+			t.Fatal("original content mutated")
+		}
 	}
 }

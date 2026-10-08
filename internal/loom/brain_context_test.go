@@ -35,13 +35,13 @@ func TestProjectBrainContextReachesTheDiscussion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := RuntimeSession{ID: "s", ProjectID: p.ID, Messages: []Message{{Role: "user", Content: "Comment s'appelle la VM de dev sur Proxmox ?"}}}
-	c := discussionContext(s)
-	if !strings.Contains(c.System, "forge-dev") || len(c.BrainCitations) == 0 || !strings.Contains(c.BrainCitations[0], "infra.md") {
+	s := RuntimeSession{ID: "s", RuntimeID: "llama.cpp", ProjectID: p.ID, Messages: []Message{{Role: "user", Content: "Comment s'appelle la VM de dev sur Proxmox ?"}}}
+	c := discussionContextFor(s, lastUserText(s.Messages))
+	if !strings.Contains(c.Extras, "forge-dev") || len(c.BrainCitations) == 0 || !strings.Contains(c.BrainCitations[0], "infra.md") {
 		t.Fatalf("contexte: %q %v", c.System, c.BrainCitations)
 	}
 	inherited, _ := saveProjectContext(ChatProject{ID: p.ID, Name: "Infra", BrainBudget: 0})
-	if c := discussionContext(RuntimeSession{ID: "s", ProjectID: inherited.ID, Messages: s.Messages}); !strings.Contains(c.System, "forge-dev") {
+	if c := discussionContextFor(RuntimeSession{ID: "s", RuntimeID: "llama.cpp", ProjectID: inherited.ID, Messages: s.Messages}, lastUserText(s.Messages)); !strings.Contains(c.Extras, "forge-dev") {
 		t.Fatal("a project no longer inherited its connected second brains")
 	}
 }
@@ -68,8 +68,8 @@ func TestSecondaryBrainIsConsultedOnlyOnDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := discussionContext(RuntimeSession{ID: "s", ProjectID: p.ID, Messages: []Message{{Role: "user", Content: "Comment s'appelle la VM de dev ?"}}})
-	if strings.Contains(c.System, "forge-dev") || len(c.BrainCitations) > 0 {
+	c := discussionContext(RuntimeSession{ID: "s", RuntimeID: "llama.cpp", ProjectID: p.ID, Messages: []Message{{Role: "user", Content: "Comment s'appelle la VM de dev ?"}}})
+	if strings.Contains(c.Extras, "forge-dev") || len(c.BrainCitations) > 0 {
 		t.Fatalf("a secondary brain was injected: %q", c.System)
 	}
 	if !strings.Contains(c.System, "Archives (source id archive, read-only)") {

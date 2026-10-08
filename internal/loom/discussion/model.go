@@ -95,6 +95,8 @@ type CompactionRecord struct {
 // RuntimeSession is a Loom-owned conversation. Its portable transcript outlives
 // any execution route. A route change never replaces or forks this history.
 type RuntimeSession[Usage, Stats any] struct {
+	FrozenSnapshot
+	ContextExtras    string             `json:"context_extras,omitempty"`
 	Context          *ContextState      `json:"context,omitempty"`
 	ContextWarning   bool               `json:"context_warning,omitempty"`
 	ContinuedFrom    string             `json:"continued_from,omitempty"`
@@ -130,6 +132,9 @@ type RuntimeSession[Usage, Stats any] struct {
 }
 
 type RuntimeTurnRecord[Usage, Stats any] struct {
+	ContextItems     []ContextItem     `json:"context_items,omitempty"`
+	ContextBudget    *ContextBudget    `json:"context_budget,omitempty"`
+	FrozenRevision   string            `json:"frozen_revision,omitempty"`
 	ACPEvents        []DiscussionEvent `json:"acp_events,omitempty"`
 	MessageIndex     int               `json:"message_index"`
 	RuntimeID        string            `json:"runtime_id"`
@@ -151,6 +156,7 @@ type RuntimeTurnRecord[Usage, Stats any] struct {
 }
 
 func CloneRuntimeSession[Usage, Stats any](s RuntimeSession[Usage, Stats]) RuntimeSession[Usage, Stats] {
+	s.FrozenSnapshot = CloneFrozenSnapshot(s.FrozenSnapshot)
 	s.ACPState = CloneACPState(s.ACPState)
 	if s.ImportSource != nil {
 		source := *s.ImportSource
@@ -178,6 +184,9 @@ func CloneRuntimeSession[Usage, Stats any](s RuntimeSession[Usage, Stats]) Runti
 }
 
 func CloneRuntimeTurn[Usage, Stats any](turn RuntimeTurnRecord[Usage, Stats]) RuntimeTurnRecord[Usage, Stats] {
+	snapshot := CloneFrozenSnapshot(FrozenSnapshot{FrozenItems: turn.ContextItems, FrozenBudget: turn.ContextBudget})
+	turn.ContextItems, turn.ContextBudget = snapshot.FrozenItems, snapshot.FrozenBudget
+
 	if turn.ACPEvents != nil {
 		b, _ := json.Marshal(turn.ACPEvents)
 		turn.ACPEvents = nil
@@ -195,4 +204,26 @@ func CloneRuntimeTurn[Usage, Stats any](turn RuntimeTurnRecord[Usage, Stats]) Ru
 		turn.Usage = &v
 	}
 	return turn
+}
+
+// FrozenSnapshot travels with the discussion, including native archives. Its
+// metadata describes the captured text even when the source memory is updated.
+type FrozenSnapshot struct {
+	FrozenContext           string         `json:"frozen_context,omitempty"`
+	FrozenRevision          string         `json:"frozen_revision,omitempty"`
+	FrozenItems             []ContextItem  `json:"frozen_items,omitempty"`
+	FrozenBudget            *ContextBudget `json:"frozen_budget,omitempty"`
+	FrozenPortableCount     int            `json:"frozen_portable_count,omitempty"`
+	FrozenPortableHash      string         `json:"frozen_portable_hash,omitempty"`
+	FrozenPortableRevision  string         `json:"frozen_portable_revision,omitempty"`
+	FrozenGlobalPreferences string         `json:"frozen_global_preferences,omitempty"`
+	FrozenMinimum           string         `json:"frozen_minimum,omitempty"`
+	FrozenReferenceIDs      []string       `json:"frozen_reference_ids,omitempty"`
+}
+
+func CloneFrozenSnapshot(s FrozenSnapshot) FrozenSnapshot {
+	b, _ := json.Marshal(s)
+	var out FrozenSnapshot
+	_ = json.Unmarshal(b, &out)
+	return out
 }

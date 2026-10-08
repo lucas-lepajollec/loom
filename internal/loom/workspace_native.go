@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
 // Portable text is a projection of the display journal, not a replacement for
@@ -224,6 +226,8 @@ func (m *runtimeSessions) activateLocal(id string, c *Conversation) (RuntimeSess
 	c.ID, c.ActiveTitle, c.ActiveProject, c.ActiveFav = a.ID, a.Title, a.ProjectID, a.Fav
 	c.Messages, c.Log = append([]Message(nil), a.Messages...), append([]LogEvent(nil), a.Log...)
 	c.Seq, c.CtxUsed, c.CompactCount = a.Seq, a.CtxUsed, a.CompactCount
+	c.FrozenSnapshot = discussion.CloneFrozenSnapshot(s.FrozenSnapshot)
+	c.ContextExtras = s.ContextExtras
 	c.epoch++
 	c.pendingReplay = true
 	c.cond.Broadcast()
@@ -246,8 +250,11 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 		if !ok || s.NativeArchive != a.ID || s.RuntimeID != "llama.cpp" || m.runs[id] != nil {
 			continue
 		}
+		before := s.PortableMessages
 		s.Messages = archivePortableText(a)
 		s.PortableMessages = portableText(a.Messages)
+		s.FrozenSnapshot = discussion.CloneFrozenSnapshot(a.FrozenSnapshot)
+		s.ContextExtras = a.ContextExtras
 		seen := map[int]bool{}
 		for _, turn := range s.Turns {
 			seen[turn.MessageIndex] = true
@@ -259,7 +266,6 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 		}
 		s.Title, s.ProjectID = a.Title, a.ProjectID
 		s.Model, s.Status, s.UpdatedAt = ReadConfig()["MODEL"], "idle", time.Now().UnixMilli()
-		_ = putStoreJSON(bkRuntimeSessions, id, s)
 		summary := ""
 		if a.CompactCount > len(s.Compactions) {
 			for _, msg := range a.Messages {
@@ -268,6 +274,8 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 				}
 			}
 		}
+		recordNativeCompactions(&s, a.CompactCount, before, s.PortableMessages)
+		_ = putStoreJSON(bkRuntimeSessions, id, s)
 		if summary != "" {
 			_ = saveDiscussionHandoff(s, summary)
 		}
@@ -275,7 +283,11 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 }
 
 func nativeDiscussionContext(archiveID, projectID string) string {
-	for _, s := range workspaceSessions.list() {
+	for id := range allKV(bkRuntimeSessions) {
+		s, ok := workspaceSessions.get(id)
+		if !ok {
+			continue
+		}
 		if s.NativeArchive == archiveID && s.RuntimeID == "llama.cpp" {
 			return discussionContext(s).System
 		}
@@ -300,14 +312,73 @@ func nativePreparedDiscussionContext(archiveID, projectID, query string) (Discus
 }
 
 func nativeContextSession(archiveID, projectID string) RuntimeSession {
-	session := RuntimeSession{ID: archiveID, RuntimeID: "llama.cpp", ProjectID: projectID}
-	for _, s := range workspaceSessions.list() {
-		if s.NativeArchive == archiveID && s.RuntimeID == "llama.cpp" {
+	session := RuntimeSession{ID: archiveID, RuntimeID: "llama.cpp", ProjectID: projectID, Model: ReadConfig()["MODEL"]}
+	for id := range allKV(bkRuntimeSessions) {
+		s, ok := workspaceSessions.get(id)
+		if ok && s.NativeArchive == archiveID && s.RuntimeID == "llama.cpp" {
 			session = s
 			break
 		}
 	}
+	if session.NativeArchive == "" {
+		if a, ok := loadArchive(archiveID); ok {
+			session.FrozenSnapshot = discussion.CloneFrozenSnapshot(a.FrozenSnapshot)
+			session.PortableMessages = portableText(a.Messages)
+			session.Compactions = make([]discussion.CompactionRecord, a.CompactCount)
+		}
+		conv.mu.Lock()
+		if conv.ID == archiveID {
+			session.FrozenSnapshot = discussion.CloneFrozenSnapshot(conv.FrozenSnapshot)
+			session.PortableMessages = portableText(conv.Messages)
+			session.Compactions = make([]discussion.CompactionRecord, conv.CompactCount)
+		}
+		conv.mu.Unlock()
+	}
 	return session
+}
+
+// Only generation captures the previewed snapshot. Reads never freeze a thread.
+func (c *Conversation) captureDiscussionContext(epoch int, session RuntimeSession, query string) (DiscussionContext, error) {
+	c.mu.Lock()
+	if c.epoch != epoch {
+		c.mu.Unlock()
+		return DiscussionContext{}, errors.New("discussion changed")
+	}
+	if session.NativeArchive == "" {
+		session.FrozenSnapshot = discussion.CloneFrozenSnapshot(c.FrozenSnapshot)
+	}
+	session.PortableMessages = portableText(c.Messages)
+	session.Compactions = make([]discussion.CompactionRecord, c.CompactCount)
+	c.mu.Unlock()
+	prepared := discussionContextFor(session, query)
+	if prepared.Problem != "" {
+		return prepared, errors.New(prepared.Problem)
+	}
+	c.mu.Lock()
+	if c.epoch != epoch {
+		c.mu.Unlock()
+		return prepared, errors.New("discussion changed")
+	}
+	c.FrozenSnapshot = discussion.CloneFrozenSnapshot(prepared.Snapshot)
+	c.ContextExtras = prepared.Extras
+	c.mu.Unlock()
+	if session.NativeArchive != "" {
+		workspaceSessions.mu.Lock()
+		current, ok := workspaceSessions.getLocked(session.ID)
+		if ok {
+			current.FrozenSnapshot = discussion.CloneFrozenSnapshot(prepared.Snapshot)
+			current.ContextExtras = prepared.Extras
+			recordNativeCompactions(&current, len(session.Compactions), current.PortableMessages, session.PortableMessages)
+			current.PortableMessages = session.PortableMessages
+			if err := putStoreJSON(bkRuntimeSessions, current.ID, current); err != nil {
+				workspaceSessions.mu.Unlock()
+				return prepared, err
+			}
+		}
+		workspaceSessions.mu.Unlock()
+	}
+	c.persist()
+	return prepared, nil
 }
 
 func handleRuntimeSessionLocal(w http.ResponseWriter, r *http.Request) {
@@ -326,4 +397,11 @@ func handleRuntimeSessionLocal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s), "context": discussionContext(s)})
+}
+
+func recordNativeCompactions(s *RuntimeSession, count int, before, after []Message) {
+	for len(s.Compactions) < count {
+		s.Compactions = append(s.Compactions, discussion.CompactionRecord{At: time.Now().UnixMilli(), RuntimeID: s.RuntimeID, ProviderID: s.ProviderID, Model: s.Model, Before: promptTokens(before), After: promptTokens(after)})
+		before = after
+	}
 }

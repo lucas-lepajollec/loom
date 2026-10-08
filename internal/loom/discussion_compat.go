@@ -30,7 +30,11 @@ func cloneRuntimeSession(s RuntimeSession) RuntimeSession { return discussion.Cl
 func prepareDiscussion(s RuntimeSession, draft string) DiscussionPreview {
 	query := strings.TrimSpace(draft)
 	if query == "" {
-		query = lastUserText(s.Messages)
+		if s.Status == "running" {
+			query = lastUserText(portableMessages(s))
+		} else {
+			return discussion.PrepareDiscussion(s, draft, discussionContext(s))
+		}
 	}
 	return discussion.PrepareDiscussion(s, draft, discussionContextFor(s, query))
 }

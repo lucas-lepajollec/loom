@@ -19,23 +19,27 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
 // convArchive = une conversation archivée. Contient de quoi la restaurer à
 // l'identique (Messages = vue modèle, Log = vue UI rejouable) + des métadonnées
 // d'affichage pour la liste de l'historique.
 type convArchive struct {
-	ID           string     `json:"id"`
-	Title        string     `json:"title"`
-	Fav          bool       `json:"fav,omitempty"` // épinglée en favori (remonte en tête)
-	SavedAt      int64      `json:"saved_at"`      // ms
-	Turns        int        `json:"turns"`
-	Messages     []Message  `json:"messages"`
-	Log          []LogEvent `json:"log"`
-	Seq          int        `json:"seq"`
-	CtxUsed      int        `json:"ctx_used"`
-	CompactCount int        `json:"compact_count,omitempty"` // nb de compactages (issue #47)
-	ProjectID    string     `json:"project_id,omitempty"`
+	discussion.FrozenSnapshot
+	ContextExtras string     `json:"context_extras,omitempty"`
+	ID            string     `json:"id"`
+	Title         string     `json:"title"`
+	Fav           bool       `json:"fav,omitempty"` // épinglée en favori (remonte en tête)
+	SavedAt       int64      `json:"saved_at"`      // ms
+	Turns         int        `json:"turns"`
+	Messages      []Message  `json:"messages"`
+	Log           []LogEvent `json:"log"`
+	Seq           int        `json:"seq"`
+	CtxUsed       int        `json:"ctx_used"`
+	CompactCount  int        `json:"compact_count,omitempty"` // nb de compactages (issue #47)
+	ProjectID     string     `json:"project_id,omitempty"`
 }
 
 // convArchiveMeta = la partie légère (sans Messages/Log) pour lister sans charger
@@ -200,14 +204,17 @@ func (c *Conversation) snapshotForSession() *convArchive {
 	if len(c.Log) == 0 && len(c.Messages) == 0 {
 		return nil
 	}
+	c.FrozenSnapshot = discussion.TrackFrozenPortable(c.FrozenSnapshot, portableText(c.Messages))
 	a := &convArchive{
-		ID:           c.ID, // id STABLE de la session (pas un nouvel id à chaque fois)
-		SavedAt:      time.Now().UnixMilli(),
-		Messages:     append([]Message(nil), c.Messages...),
-		Log:          append([]LogEvent(nil), c.Log...),
-		Seq:          c.Seq,
-		CtxUsed:      c.CtxUsed,
-		CompactCount: c.CompactCount,
+		FrozenSnapshot: discussion.CloneFrozenSnapshot(c.FrozenSnapshot),
+		ContextExtras:  c.ContextExtras,
+		ID:             c.ID, // id STABLE de la session (pas un nouvel id à chaque fois)
+		SavedAt:        time.Now().UnixMilli(),
+		Messages:       append([]Message(nil), c.Messages...),
+		Log:            append([]LogEvent(nil), c.Log...),
+		Seq:            c.Seq,
+		CtxUsed:        c.CtxUsed,
+		CompactCount:   c.CompactCount,
 	}
 	a.Turns = countUserTurns(c.Log)
 	// Nom personnalisé si défini, sinon titre dérivé du premier message.
@@ -258,6 +265,8 @@ func (c *Conversation) OpenSession(id string) error {
 	c.Seq = a.Seq
 	c.CtxUsed = a.CtxUsed
 	c.CompactCount = a.CompactCount
+	c.FrozenSnapshot = discussion.CloneFrozenSnapshot(a.FrozenSnapshot)
+	c.ContextExtras = a.ContextExtras
 	c.ActiveTitle = a.Title
 	c.ActiveFav = a.Fav
 	c.ActiveProject = a.ProjectID

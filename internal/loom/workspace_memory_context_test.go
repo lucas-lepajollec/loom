@@ -78,7 +78,7 @@ func TestDiscussionContextItemsCoverSystemInOrder(t *testing.T) {
 	}
 	memory := rememberContextItem(t, "reflex", "global", "memory-marker")
 	s := RuntimeSession{ID: "metadata", RuntimeID: "llama.cpp", ProjectID: p.ID, Instructions: "discussion-marker"}
-	c := discussionContextFor(s, "amber")
+	c := assembleDiscussionContext(s, "amber")
 	if c.Problem != "" {
 		t.Fatal(c.Problem)
 	}
@@ -124,7 +124,7 @@ func TestDiscussionContextItemsCoverSystemInOrder(t *testing.T) {
 	if !strings.Contains(c.System, pack.Text) || len(c.BrainCitations) != len(pack.Citations) {
 		t.Fatal("passage text/citations changed during metadata assembly")
 	}
-	if again := discussionContextFor(s, "amber"); again.System != c.System || again.Revision != c.Revision {
+	if again := assembleDiscussionContext(s, "amber"); again.System != c.System || again.Revision != c.Revision {
 		t.Fatal("unchanged preview changed revision")
 	}
 	c.Items[0].Reason = "different explanation"
@@ -133,7 +133,7 @@ func TestDiscussionContextItemsCoverSystemInOrder(t *testing.T) {
 		t.Fatal("metadata changed revision without a text change")
 	}
 	s.Instructions += " changed"
-	if discussionContextFor(s, "amber").Revision == c.Revision {
+	if assembleDiscussionContext(s, "amber").Revision == c.Revision {
 		t.Fatal("system text change did not change revision")
 	}
 	if contextLastUsed(t, memory.ID) != 0 {

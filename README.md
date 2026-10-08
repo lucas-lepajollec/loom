@@ -57,6 +57,12 @@ for API shapes and the automatic `COMPACT` setting.
 
 ## Brain and shared context
 
+Discussions freeze their system context at the first accepted turn and reuse it
+until static configuration changes or compaction. Local/Cloud retrieval is added
+only to the outgoing message; ACP agents use Loom MCP memory tools.
+`POST /api/runtime/sessions/refresh-context {"id":"discussion-id"}` invalidates
+the snapshot for the next turn. See the [frozen snapshot contract](docs/brain.md#frozen-discussion-snapshot).
+
 **Brain** searches local sources with BM25 and builds cited context within a token budget. Optional semantic search uses a local CPU embedding model or a connected provider with explicit consent. Distillation extracts decisions, facts, todos and preferences on request, with links back to source messages and individual deletion.
 
 Brain v2 memory items retain scoped knowledge and superseded history in plain Markdown inside a writable primary vault, or Loom’s encrypted fallback store. HTTP and MCP operations support remembering, updating, forgetting and listing items. Cheap FR/EN heuristics propose candidates after accepted user messages; explicit discussion consolidation reuses the selected model. Candidates stay out of context until reviewed, and automatic collection can be disabled through `/api/brain/consolidation`. Discussions select relevant scoped memory under a 1500-token default budget, with ordered source/reason/token metadata in context previews; see the [memory format](docs/brain.md#memory-items-loom) and [context engine](docs/brain.md#context-engine).

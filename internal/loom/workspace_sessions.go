@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
 type runtimeRun struct {
@@ -319,6 +321,8 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 			}
 		}
 	}
+	s.FrozenSnapshot = discussion.CloneFrozenSnapshot(prepared.Context.Snapshot)
+	s.ContextExtras = prepared.Context.Extras
 	messages := append(append([]Message{}, s.Messages...), Message{Role: "user", Content: text})
 	if len(s.Messages) == 0 && !s.CustomTitle {
 		s.Title = discussionTitle(text)
@@ -327,7 +331,9 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 	if s.PortableMessages != nil {
 		s.PortableMessages = append(s.PortableMessages, Message{Role: "user", Content: text})
 	}
+	s.FrozenSnapshot = discussion.TrackFrozenPortable(s.FrozenSnapshot, s.PortableMessages)
 	s.Turns = append(s.Turns, discussionTurnRecord(s, prepared, len(s.Messages)-1))
+	recordTurnContext(&s.Turns[len(s.Turns)-1], prepared.Context)
 	s.Turns[len(s.Turns)-1].ReasoningEffort = s.ReasoningEffort
 	s.Turns[len(s.Turns)-1].StartedAt = time.Now().UnixMilli()
 	s.Status = "running"
@@ -392,16 +398,13 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	if adapter.Descriptor().Kind == "cloud" {
 		caps.Internet = getBool(bkState, "internet")
 	}
-	if ctx.Err() == nil {
-		touchContextMemory(preparedContext)
-	}
 	var err error
 	if loomTranscript(run.session) && compactEnabled() {
 		m.mu.Lock()
 		snapshot := cloneRuntimeSession(run.session)
 		m.mu.Unlock()
 		window := discussionWindow(snapshot)
-		used := promptTokens(withProjectContext(portableMessages(snapshot), preparedContext.System))
+		used := promptTokens(messages)
 		if window > 0 && float64(used) >= float64(window)*compactTriggerFrac {
 			next, summary, changed, compactErr := m.compactSnapshot(ctx, snapshot, run.providerKey)
 			err = compactErr
@@ -410,9 +413,12 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 				if err == nil {
 					prepared := prepareDiscussion(next, "")
 					messages, preparedContext = prepared.Messages, prepared.Context
+					next.FrozenSnapshot = discussion.CloneFrozenSnapshot(prepared.Context.Snapshot)
+					next.ContextExtras = prepared.Context.Extras
 					m.mu.Lock()
 					run.session = next
 					turn := &run.session.Turns[len(run.session.Turns)-1]
+					recordTurnContext(turn, prepared.Context)
 					turn.ContextRevision, turn.ContextBytes, turn.InputBytes = prepared.Context.Revision, len(prepared.Context.System), prepared.TextBytes
 					err = putStoreJSON(bkRuntimeSessions, next.ID, next)
 					if err == nil {
@@ -424,6 +430,9 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 		}
 	}
 	if err == nil {
+		if ctx.Err() == nil {
+			touchContextMemory(preparedContext)
+		}
 		_, err = adapter.Run(ctx, RuntimeTurn{Messages: messages, Temperature: 0.7, Caps: caps}, func(event StreamEvent) bool {
 			m.mu.Lock()
 			defer m.mu.Unlock()
@@ -539,6 +548,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	if s.PortableMessages != nil {
 		s.PortableMessages = append(s.PortableMessages, s.Messages[len(s.Messages)-1])
 	}
+	s.FrozenSnapshot = discussion.TrackFrozenPortable(s.FrozenSnapshot, s.PortableMessages)
 	if run.acpError != "" {
 		err = errors.New(run.acpError)
 	}
@@ -564,21 +574,6 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 		s.Error = "Response not saved: unlock storage and try again."
 		m.finishDiscussionLocked(*s)
 		return
-	}
-	if s.Status == "complete" && !loomTranscript(*s) {
-		m.acpMu.Lock()
-		binding := m.acp[s.ID]
-		m.acpMu.Unlock()
-		if binding != nil {
-			prepared := prepareDiscussion(*s, "")
-			binding.mu.Lock()
-			if binding.state.NativeContext != "" {
-				binding.state.NativeContext = acpContextHash(prepared.Messages)
-				s.NativeContext = binding.state.NativeContext
-			}
-			binding.mu.Unlock()
-			_ = putStoreJSON(bkRuntimeSessions, s.ID, *s)
-		}
 	}
 	m.finishDiscussionLocked(*s)
 	delete(m.runs, s.ID)

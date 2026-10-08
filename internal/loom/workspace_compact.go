@@ -77,7 +77,7 @@ func discussionLimit(s RuntimeSession) discussion.ContextState {
 			if sp := effectiveSysPrompt(); sp != "" {
 				native = append([]Message{{Role: "system", Content: sp}}, native...)
 			}
-			messages = InjectSkills(withProjectContext(native, c.System), Caps{})
+			messages = InjectSkills(discussion.WithContextExtras(withProjectContext(native, c.System), c.Extras), Caps{})
 		}
 	}
 	return discussion.ContextState{Used: promptTokens(messages), Size: discussionWindow(s), Source: "estimate"}

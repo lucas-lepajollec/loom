@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
 // État de conversation CÔTÉ SERVEUR — une seule conversation partagée par tous
@@ -45,8 +47,10 @@ type LogEvent struct {
 // abonnés (aucun canal par abonné : les abonnés lisent Log au-delà de leur
 // dernier Seq puis attendent cond — replay et direct sont le même chemin).
 type Conversation struct {
-	mu   sync.Mutex
-	cond *sync.Cond
+	discussion.FrozenSnapshot
+	ContextExtras string `json:"context_extras,omitempty"`
+	mu            sync.Mutex
+	cond          *sync.Cond
 
 	// ID stable de la SESSION en cours. La conversation active est une session
 	// comme les autres (reflétée dans le bucket des sessions via upsertSession) :
@@ -431,6 +435,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	turnStart := time.Now()
 	turnModel := engineCurrentModel()
 	var recap strings.Builder
+	var sentContext DiscussionContext
 	defer func() {
 		c.mu.Lock()
 		stale := c.epoch != epoch
@@ -447,7 +452,11 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 		if stale {
 			return // Reset pendant le tour : Reset a déjà persisté l'état vide
 		}
-		c.appendDelta(epoch, map[string]any{"turn_done": true, "elapsed_ms": time.Since(turnStart).Milliseconds(), "runtime_turn": RuntimeTurnRecord{RuntimeID: "llama.cpp", ProviderName: "llama.cpp", Model: turnModel}})
+		turn := RuntimeTurnRecord{RuntimeID: "llama.cpp", ProviderName: "llama.cpp", Model: turnModel}
+		if sentContext.Snapshot.FrozenRevision != "" {
+			recordTurnContext(&turn, sentContext)
+		}
+		c.appendDelta(epoch, map[string]any{"turn_done": true, "elapsed_ms": time.Since(turnStart).Milliseconds(), "runtime_turn": turn})
 		c.mu.Lock()
 		c.compactLogLocked() // le tour est fini : coalesce ses tokens pour garder le journal petit
 		c.mu.Unlock()
@@ -490,11 +499,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	if session.Title != "" {
 		handoff.Title = handoffClean(session.Title, 100)
 	}
-	preparedContext := discussionContextFor(session, lastUserText(msgs))
-	var contextErr error
-	if preparedContext.Problem != "" {
-		contextErr = fmt.Errorf("%s", preparedContext.Problem)
-	}
+	preparedContext, contextErr := c.captureDiscussionContext(epoch, session, lastUserText(msgs))
 	if contextErr != nil {
 		handoff.Completed = false
 		handoff.Errors = handoffAppendUnique(handoff.Errors, handoffClean(contextErr.Error(), 160), 3)
@@ -509,6 +514,11 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	if compactWouldTrigger(msgs, ctxUsed) {
 		if out, changed := c.compactAndPublish(ctx, epoch, "turn-start", msgs, ctxUsed, caps); changed {
 			msgs = out
+			preparedContext, contextErr = c.captureDiscussionContext(epoch, nativeContextSession(archiveID, projectID), lastUserText(msgs))
+			if contextErr != nil {
+				c.appendDelta(epoch, map[string]any{"error": contextErr.Error()})
+				return
+			}
 		}
 	}
 
@@ -524,10 +534,11 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	// Non-nil = elle remplace l'historique (elle contient déjà le tour en cours).
 	var newBase []Message
 	var content strings.Builder
-	final = withProjectContext(final, preparedContext.System)
+	final = discussion.WithContextExtras(withProjectContext(final, preparedContext.System), preparedContext.Extras)
 	if ctx.Err() != nil {
 		return
 	}
+	sentContext = preparedContext
 	touchContextMemory(preparedContext)
 	extra, runErr := localChatRuntime().Run(ctx, RuntimeTurn{Messages: InjectSkills(final, caps), Temperature: temperature, Caps: caps}, func(ev StreamEvent) bool {
 		switch {
@@ -578,7 +589,12 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 			for len(base) > 0 && base[0].Role == "system" {
 				base = base[1:]
 			}
-			newBase = append([]Message(nil), base...)
+			newBase = discussion.WithoutContextExtras(base, preparedContext.Extras)
+			c.mu.Lock()
+			if c.epoch == epoch {
+				c.CompactCount++
+			}
+			c.mu.Unlock()
 		case ev.Compacting != nil:
 			// Compaction déclenchée pendant la boucle d'outils : même bannière que la
 			// compaction de début de tour.
@@ -716,6 +732,8 @@ func (c *Conversation) Reset() {
 	c.Log = nil
 	c.Seq = 0
 	c.CtxUsed = 0
+	c.FrozenSnapshot = discussion.FrozenSnapshot{}
+	c.ContextExtras = ""
 	c.CompactCount = 0    // session vierge : compteur de compactage remis à zéro
 	c.ID = newSessionID() // session vierge = nouvel id stable
 	c.ActiveTitle = ""
