@@ -130,6 +130,10 @@ func withDisplayName(content, name string) string { return llamacpp.WithDisplayN
 func flagToConfigKey(id string) (string, bool) { return llamacpp.FlagConfigKey(id) }
 
 func buildLlamaServerArgsForConfig(cfg map[string]string) ([]string, error) {
+	return buildLlamaServerArgsWithRuntime(cfg, oaiRuntimeGet, appendOAIRuntimeArgs, true)
+}
+
+func buildLlamaServerArgsWithRuntime(cfg map[string]string, runtimeGet func(string) string, appendArgs func([]string) []string, prepareEnvironment bool) ([]string, error) {
 	bin := cfg["BIN"]
 	if bin == "" {
 		return nil, fmt.Errorf("BIN not set — run “loom edit”")
@@ -170,19 +174,21 @@ func buildLlamaServerArgsForConfig(cfg map[string]string) ([]string, error) {
 	// Make sure llama-server can find its bundled shared libraries (the .so/.dll
 	// neighbours of the binary). This is platform-specific: LD_LIBRARY_PATH on
 	// Linux, PATH on Windows — handled inside execServer.
-	setLibraryPath(filepath.Dir(bin))
+	if prepareEnvironment {
+		setLibraryPath(filepath.Dir(bin))
+	}
 
 	// Sélection GPU (loom gpu) : on filtre les devices visibles par llama-server.
 	// CUDA_DEVICE_ORDER=PCI_BUS_ID garantit que les index correspondent à ceux
 	// affichés par nvidia-smi (sinon CUDA réordonne par "device le plus rapide").
-	if v := cfg["CUDA_VISIBLE_DEVICES"]; v != "" {
+	if v := cfg["CUDA_VISIBLE_DEVICES"]; prepareEnvironment && v != "" {
 		_ = os.Setenv("CUDA_VISIBLE_DEVICES", v)
 		_ = os.Setenv("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
 	}
 
 	return llamacpp.BuildServerArgs(cfg, llamacpp.ArgumentInputs{
 		BinaryPath: bin, ModelPath: model, BackendPort: llamaBackendPort(),
-		RuntimeGet: oaiRuntimeGet, ContextArg: serveCtxArg,
+		RuntimeGet: runtimeGet, ContextArg: serveCtxArg,
 		ResolveModelPath: resolveServeModelPath,
 		HasFlag:          func(id string) bool { return llamaHasFlag(bin, id) },
 		BooleanFlag:      func(id string) bool { return llamaBooleanFlag(bin, id) },
@@ -192,7 +198,7 @@ func buildLlamaServerArgsForConfig(cfg map[string]string) ([]string, error) {
 			}
 			return readAPIKey(), nil
 		},
-		AppendRuntimeArgs: appendOAIRuntimeArgs, Warnings: os.Stderr,
+		AppendRuntimeArgs: appendArgs, Warnings: os.Stderr,
 	})
 }
 

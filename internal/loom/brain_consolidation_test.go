@@ -302,3 +302,26 @@ func TestNativeCandidateDiscussionAndPortableIndex(t *testing.T) {
 		t.Fatal("candidate searchable through vault index")
 	}
 }
+
+func TestBrainConsolidationEngineBusyRecordsSkip(t *testing.T) {
+	s := continuityFixture(t)
+	continuitySession(t, "busy", "", time.Now().Add(-time.Hour))
+	calls := 0
+	brainFakeModelClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("X-Loom-Priority") != "background" {
+			t.Error("missing priority")
+		}
+		w.WriteHeader(503)
+		io.WriteString(w, `{"error":{"code":"model_busy"}}`)
+	})
+	for _, handler := range []http.HandlerFunc{s.consolidateHTTP, s.distillHTTP} {
+		w := consolidationRequest(t, handler, "POST", "/api/brain/consolidate", `{"discussion_id":"busy","consent":false}`)
+		if w.Code != 200 || !strings.Contains(w.Body.String(), `"skipped_reason":"engine model_busy"`) {
+			t.Fatalf("skip %d %s", w.Code, w.Body)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("busy retried %d times", calls)
+	}
+}

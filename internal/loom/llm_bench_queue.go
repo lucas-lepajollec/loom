@@ -412,16 +412,6 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 			benchJobMu.Unlock()
 			continue
 		}
-		if j.Rows[i].Kind == "local" && j.engine == nil {
-			if err := benchLoadAndWaitContext(ctx, j.Rows[i].Model, j.Rows[i].Preset); err != nil {
-				benchJobMu.Lock()
-				j.Rows[i].Status = "err"
-				j.Rows[i].Error = err.Error()
-				saveBenchJob(j)
-				benchJobMu.Unlock()
-				continue
-			}
-		}
 		if benchStop.Load() {
 			benchJobMu.Lock()
 			j.Rows[i].Status = "skip"
@@ -446,7 +436,24 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 		} else if j.engine != nil && j.engine.Direct {
 			res, preview, err = runDirectBenchTest(ctx, t, j.Rows[i], *j.engine)
 		} else {
-			res, preview, err = runBenchTestContext(ctx, t)
+			// La sélection voyage dans la requête : aucun préchargement ne peut
+			// couper un stream externe avant de rejoindre la file du front.
+			model := j.Rows[i].Model
+			if j.Rows[i].Preset != "" {
+				model = j.Rows[i].Preset
+			}
+			prompt, n := benchPrompt(t)
+			res, preview, err = runCompletionBenchModelContext(ctx, prompt, n, nil, model)
+			if err == nil && (t.Kind == "perf" || t.ID == benchTestPerf) {
+				weights := j.Rows[i].Model
+				if e, ok := resolveOAIModel(model); ok {
+					weights = e.Model
+				}
+				saveLastBenchForModel(res, weights)
+				if j.Rows[i].Preset != "" {
+					saveBenchForPreset(res, j.Rows[i].Preset, weights)
+				}
+			}
 		}
 		benchJobMu.Lock()
 		if ctx.Err() != nil {

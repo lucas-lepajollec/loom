@@ -40,6 +40,8 @@ type Router struct {
 	SetLastError func(string)
 	// Nil retains the default HTTP transport; tests can supply a fake router.
 	Transport http.RoundTripper
+	// Les sections encore résidentes doivent survivre au nettoyage de l'INI.
+	ProtectedEntries []string
 }
 
 const (
@@ -88,6 +90,9 @@ func (r *Router) RememberEntry(e RouterEntry) ([]RouterEntry, error) {
 		e.Name:                                true,
 		r.State.GetString(RouterStateActive):  true,
 		r.State.GetString(RouterStateCurrent): true,
+	}
+	for _, name := range r.ProtectedEntries {
+		keep[name] = true
 	}
 	e.Used = time.Now().UnixNano()
 	next := []RouterEntry{e}

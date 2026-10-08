@@ -8,7 +8,9 @@ that seems to conflict with them should be discussed before it is implemented.
 1. **Engines own inference.** For llama.cpp, model loading, slots, batching, KV cache,
    sampling and GPU offload stay in `llama-server`. Loom resolves the user's
    intent into native arguments and observes the result; it never adds its own
-   request queue, scheduler or token path.
+   slot scheduler or token path. The accepted engine-service policy (§3b of
+   `DIRECTION.md`) admits model swaps only after in-flight responses drain;
+   that residency queue does not schedule inference within a loaded model.
 2. **Engine and model are separate states.** With a router-capable engine, Loom
    starts `llama-server` once and loads models through its API
    (`backend_router.go`). A model change never restarts the engine.

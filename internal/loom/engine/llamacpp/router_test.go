@@ -183,3 +183,26 @@ func TestRouterServerArgsCredentialPolicy(t *testing.T) {
 		t.Fatal("key emitted after preparation failure")
 	}
 }
+
+func TestRouterRememberPreservesResidentSections(t *testing.T) {
+	state := memoryRouterState{}
+	r := &Router{State: state, ProtectedEntries: []string{"resident"}}
+	entries := []RouterEntry{{Name: "resident", Used: 1}}
+	for i := 0; i < RouterMaxEntries+2; i++ {
+		entries = append(entries, RouterEntry{Name: "old-" + strconv.Itoa(i), Used: int64(i + 2)})
+	}
+	if err := state.PutJSON(RouterStateEntries, entries); err != nil {
+		t.Fatal(err)
+	}
+	result, err := r.RememberEntry(RouterEntry{Name: "new"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, entry := range result {
+		found = found || entry.Name == "resident"
+	}
+	if !found {
+		t.Fatal("INI trim removed an in-flight model")
+	}
+}

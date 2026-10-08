@@ -672,6 +672,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 		}
 		req.Header.Set("Content-Type", "application/json")
 		authHeader(req)
+		loomInferenceHeaders(req, "interactive")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			err = friendlyLLMError(err)

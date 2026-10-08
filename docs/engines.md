@@ -147,3 +147,109 @@ the estimate is advisory and does not apply tensor parallelism automatically.
 Engine installations stay in user-owned Loom directories; vLLM uses a private Python environment, never global pip. A read-only linked llama.cpp source/build or managed engine directory is rejected before fetching/building. Repair ownership with an administrator or install in a new user-owned location; do not run the interface as root. Missing system build dependencies may require administrator installation. In a noninteractive service, package-manager sudo uses `-n` and fails instead of waiting for a password.
 
 For a GPU machine without a second full control plane, use [Loom node](engine-node.md). Direct servers and legacy full-Loom engine links remain compatible.
+
+## Engine as a service
+
+Loom's llama.cpp front accepts external OpenAI-compatible clients and Loom's
+native chat, Brain and Bench requests through the same inference endpoint.
+A request keeps its native model section for its entire response, including
+streaming. Model selection and temporary API parameters are resolved per request;
+router requests do not replace the discussion's saved model selection.
+llama-server continues to own slots, batching, sampling and token generation.
+
+When loading would evict a resident model, Loom waits for its in-flight requests
+to finish. Swap targets are FIFO: new requests for the old model wait behind a
+queued swap, while later requests for the next target join that target's batch.
+With `MODELS_MAX > 1`, loads into free capacity need no drain; possible evictions
+wait for all resident requests to finish because the native router chooses its
+victim. `MODELS_MAX=0` retains the native unlimited setting. A queued request waits
+at most `ENGINE_SWAP_WAIT` seconds (default **300**), then receives HTTP **503**
+with `{"error":{"code":"model_busy",...}}` and `Retry-After: 1`. Cancelling a
+waiting request removes it from the queue. Running streams are never stopped to
+make room for a queued request.
+
+Clients can send `X-Loom-Priority: interactive` or `background`; the default is
+interactive. A named key configured as background cannot promote itself through
+the header. Brain continuity, consolidation/distillation and semantic requests
+use background priority. Existing CLI, one-shot and queue Bench entry points are
+explicit user launches and use interactive priority; Bench sends each row's model
+in its inference request rather than preloading it outside the drain policy.
+Background requests use an already resident model, or load only when nothing is
+resident and there has been no interactive use for `ENGINE_INTERACTIVE_GRACE`
+minutes (default **15**). Otherwise they immediately receive `503 model_busy`.
+Continuity records `skipped_reason: "engine model_busy"`; consolidation and
+distillation return that skip reason without retrying a busy engine as an error.
+
+`ENGINE_IDLE_UNLOAD` defaults to **30 minutes**; **0** disables it. After that
+interval with no inference activity, no in-flight request and no pending swap,
+Loom releases VRAM. Router mode unloads all resident sections through the native
+API. Historical single-model mode stops only Loom's owned llama-server child,
+keeping the front and saved selection alive. The next inference loads on demand,
+including native chat and Bench after an idle unload. Native generation leases
+also protect pauses between tool calls across the web/serve processes; leases
+expire after a crashed caller. The idle check runs every 15 seconds. Observations,
+model listings and key management do not renew inference activity.
+
+The control-plane endpoints below require the same browser session/control key
+as other engine routes, return `Cache-Control: no-store`, and forward to a linked
+Loom engine. A direct inference-server link has no Loom service-management API.
+The inference process owns live queue/count observations even when the web or node
+control plane runs in a separate process.
+
+| Endpoint | Request / response |
+| --- | --- |
+| `GET /api/engine/service` | `{idle_unload_minutes,swap_wait_seconds,interactive_grace_minutes,models_max,resident:[{model,in_flight,since,last_used}],queue:[{model,waiting,since}],last_activity,idle_unload_at}` |
+| `POST /api/engine/service` | Partial `{idle_unload_minutes?,swap_wait_seconds?,interactive_grace_minutes?,models_max?}`; returns the service snapshot. |
+| `GET /api/engine/keys` | `{keys:[{id,name,created_at,last_used_at,allowed_models,max_concurrency,requests_per_minute,priority,usage:{requests,prompt_tokens,completion_tokens,last_error}}],endpoint}` |
+| `POST /api/engine/keys` | `{name,allowed_models?,max_concurrency?,requests_per_minute?,priority?}` → `{key:{…},secret:"sk-loom-…"}` |
+| `POST /api/engine/keys/update` | `{id,…changed fields}` → `{key:{…}}` |
+| `POST /api/engine/keys/delete` | `{id}` → `{ok:true}` |
+| `POST /api/engine/keys/rotate` | `{id}` → `{secret:"sk-loom-…"}` |
+
+Service settings accept integer idle/grace intervals from **0 to 10080 minutes**,
+swap waits from **1 to 3600 seconds**, and model limits from **0 to 64**. Validation
+is complete before saving any field. Settings persist across preset changes.
+`models_max` writes `MODELS_MAX`. When an owned router is running, changing this
+launch parameter queues a control barrier, drains inference and restarts only
+that child with the new capacity, then restores resident sections through the
+native API (the new limit may evict older sections). Model switches themselves
+never restart a router. If no engine is running, the setting applies on its next
+start. While the change is pending, admission uses the smaller finite limit of
+the configured value and running capacity. A timed-out control barrier leaves the
+saved setting for a later start; an already started reconfiguration may finish
+after its caller's timeout. The snapshot reports the configured limit. Resident `model` values are native
+router section IDs; timestamps are RFC 3339 UTC strings. `since` is the oldest
+in-flight request's start (zero time when none); `idle_unload_at` is null when
+unloading is disabled or no model is resident. The initial activity time is the
+service's startup baseline; later observations report inference start/end times.
+The projected idle deadline is deferred while inference/native generation runs.
+
+Named client secrets are random, shown once on creation/rotation and stored only
+as SHA-256 hashes using the control-key hash helper. Names are required (up to
+128 bytes). `allowed_models: []` permits all models; otherwise inference outside
+the permitted selection receives **403 `model_not_allowed`**, including attempts
+through the current-model alias. `max_concurrency: 0` and
+`requests_per_minute: 0` mean unlimited; finite limits count queued and active
+inference requests and use a rolling one-minute window. Exceeding a limit returns
+**429** with `Retry-After`. Limits are local to the running inference process and
+reset on restart; usage counters persist. Revocation/rotation affects subsequent
+requests and leaves already admitted streams intact. Deleting the last named
+key does not reopen a previously keyless loopback front; create another key or
+configure the legacy secret through the control plane.
+
+The legacy inference secret remains identity **`default`**, with editable limits
+and usage. Rotating it updates the legacy secret; removing it still follows the
+existing protection against keyless LAN exposure. Loom's local internal calls
+use identity **`loom`**, outside the named-key list and its quotas, authenticated
+with a private installation capability shared by the web/serve processes. That
+capability is never forwarded to an external provider or linked engine. Linked
+engines receive their explicitly configured inference credential and priority.
+
+`usage.requests` counts admitted inference attempts, including engine-busy and
+backend failures. Token counters add only values reported in a non-stream JSON
+`usage` object, an SSE usage chunk (request `stream_options.include_usage`), or
+llama.cpp `timings` when no usage is reported. Usage takes precedence over timings;
+unreported tokens are not estimated. `last_error` is a bounded error code from
+the latest completed request, cleared by success. Key lists never return hashes
+or secrets. `endpoint` is the OpenAI base URL clients should use, including `/v1`
+(and the node's public origin for a Loom node).

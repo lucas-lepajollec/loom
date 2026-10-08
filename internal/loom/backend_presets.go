@@ -257,6 +257,7 @@ func safePresetPath(name string) (string, error) {
 var preservedKeys = []string{
 	"BIN", "MEM_MODE", "CRAWL4AI_URL", "WEB_ENGINE", "CUDA_VISIBLE_DEVICES", "HOST",
 	"MEM_ENCRYPTED", "BACKUP_AUTO", "COMPACT", "MACHINES", "NP", webHostKey,
+	"MODELS_MAX", "ENGINE_IDLE_UNLOAD", "ENGINE_SWAP_WAIT", "ENGINE_INTERACTIVE_GRACE",
 }
 
 // softPreservedKeys : préservées SEULEMENT si le preset d'arrivée ne les définit

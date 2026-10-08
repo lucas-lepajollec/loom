@@ -2,8 +2,9 @@ package loom
 
 import (
 	"bytes"
-	"crypto/subtle"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -303,21 +305,6 @@ func oaiBearer(r *http.Request) string {
 	return strings.TrimSpace(token)
 }
 
-func oaiKeyOK(r *http.Request) bool {
-	key := readAPIKey()
-	if key == "" {
-		key = strings.TrimSpace(ReadConfig()["API_KEY"])
-	}
-	if key == "" {
-		return !lanExposed()
-	}
-	got := oaiBearer(r)
-	if len(got) != len(key) {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(got), []byte(key)) == 1
-}
-
 func rewriteOAIModel(body []byte, id string) []byte {
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -353,6 +340,12 @@ func oaiNeedsEnsure(path, method string) bool {
 	return strings.HasSuffix(path, "/chat/completions") || strings.HasSuffix(path, "/completions")
 }
 
+type oaiCallState struct {
+	tap       *engineUsageTap
+	lastError string
+}
+type oaiCallContextKey struct{}
+
 func newOAIRouter(injectKey string) http.Handler {
 	lp := httputil.NewSingleHostReverseProxy(llamaBackendURL())
 	lp.FlushInterval = -1
@@ -362,25 +355,55 @@ func newOAIRouter(injectKey string) http.Handler {
 		req.Host = llamaBackendURL().Host
 		req.URL.Host = llamaBackendURL().Host
 		req.URL.Scheme = "http"
-		if injectKey != "" && req.Header.Get("Authorization") == "" {
-			req.Header.Set("Authorization", "Bearer "+injectKey)
+		key := backendInferenceKey(injectKey)
+		if key != "" {
+			req.Header.Set("Authorization", "Bearer "+key)
+		} else {
+			req.Header.Del("Authorization")
 		}
+		req.Header.Del("X-Loom-Priority")
+	}
+	lp.ModifyResponse = func(resp *http.Response) error {
+		if state, ok := resp.Request.Context().Value(oaiCallContextKey{}).(*oaiCallState); ok {
+			state.tap = &engineUsageTap{body: resp.Body, stream: strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream")}
+			if resp.StatusCode >= 400 {
+				state.tap.lastError = fmt.Sprintf("engine_http_%d", resp.StatusCode)
+			}
+			resp.Body = state.tap
+		}
+		return nil
 	}
 	lp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, e error) {
+		if state, ok := r.Context().Value(oaiCallContextKey{}).(*oaiCallState); ok {
+			state.lastError = "engine_unreachable"
+		}
 		oaiError(w, http.StatusBadGateway, "api_error", "llama-server unreachable: "+e.Error(), "", "server_error")
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
+		if p == "/loom/engine/service" || p == "/loom/engine/keys" || p == "/loom/engine/keys/update" || p == "/loom/engine/keys/rotate" || p == "/loom/engine/keys/delete" {
+			if key, ok := oaiKeyOK(r); ok && key.ID == "loom" {
+				if p == "/loom/engine/service" {
+					handleEngineService(w, r)
+				} else {
+					handleEngineKeys(w, r)
+				}
+			} else {
+				oaiError(w, 401, "invalid_request_error", "Internal credential required", "", "invalid_api_key")
+			}
+			return
+		}
 		if p != "/health" && p != "/props" && p != "/metrics" && !strings.HasPrefix(p, "/slots") && !strings.HasPrefix(p, "/v1") && p != "/completion" {
 			http.Error(w, "not found (endpoint OpenAI: /v1/*)", http.StatusNotFound)
 			return
 		}
-		router := routerModeCached()
+		router := serviceRouterMode()
 		if router && (p == "/health" || p == "/v1/health") {
 			routerHealth(w)
 			return
 		}
-		if !oaiKeyOK(r) {
+		key, authorized := oaiKeyOK(r)
+		if !authorized {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="loom"`)
 			oaiError(w, http.StatusUnauthorized, "invalid_request_error", "Invalid API key", "", "invalid_api_key")
 			return
@@ -414,42 +437,55 @@ func newOAIRouter(injectKey string) http.Handler {
 				body = adapted
 			}
 			want := peekOAIModel(body)
-			if want != "" && !oaiAlreadyLoaded(want) {
-				llamaOwner.SwitchLock().Lock()
-				switchErr := ensureOAIModel(want)
-				llamaOwner.SwitchLock().Unlock()
-				if switchErr != nil {
-					err = switchErr
-					if strings.Contains(err.Error(), "unknown") {
-						oaiError(w, http.StatusNotFound, "invalid_request_error", "The model `"+want+"` does not exist", "model", "model_not_found")
-						return
-					}
-					oaiError(w, http.StatusServiceUnavailable, "api_error", err.Error(), "model", "model_unavailable")
-					return
+			priority := enginePriority(r, key)
+			target, resolved, load, resolveErr := serviceModelRequest(want, split.Run, split.Extra, router, priority)
+			if resolveErr != nil {
+				code, name := http.StatusServiceUnavailable, "model_unavailable"
+				if strings.Contains(resolveErr.Error(), "unknown") {
+					code, name = http.StatusNotFound, "model_not_found"
 				}
-				loaded := filepath.Base(strings.TrimSpace(ReadConfig()["MODEL"]))
-				if loaded != "" && !router {
-					body = rewriteOAIModel(body, loaded)
-				}
+				oaiError(w, code, "invalid_request_error", resolveErr.Error(), "model", name)
+				return
 			}
-			if aerr == nil && (len(split.Run) > 0 || len(split.Extra) > 0) {
-				llamaOwner.SwitchLock().Lock()
-				ovErr := oaiRuntimeApply(split.Run, split.Extra)
-				llamaOwner.SwitchLock().Unlock()
-				if ovErr != nil {
-					oaiError(w, http.StatusServiceUnavailable, "api_error", ovErr.Error(), "", "model_unavailable")
-					return
-				}
+			if !engineAllowed(key, want, resolved) {
+				oaiError(w, 403, "invalid_request_error", "Model not allowed for this key", "model", "model_not_allowed")
+				return
 			}
+			finish, limitErr := beginEngineKey(key)
+			if limitErr != nil {
+				var limit *engineKeyLimit
+				if errors.As(limitErr, &limit) {
+					w.Header().Set("Retry-After", strconv.Itoa(limit.retry))
+					oaiError(w, 429, "rate_limit_error", limit.code, "", limit.code)
+				} else {
+					oaiError(w, 503, "api_error", "Key unavailable", "", "key_unavailable")
+				}
+				return
+			}
+			state := &oaiCallState{}
+			defer func() {
+				if state.tap != nil {
+					finish(state.tap.prompt, state.tap.completion, state.tap.lastError)
+				} else {
+					finish(0, 0, state.lastError)
+				}
+			}()
+			release, acquireErr := currentEngineService().acquire(r.Context(), target, priority, load)
+			if acquireErr != nil {
+				state.lastError = "model_unavailable"
+				if errors.Is(acquireErr, errEngineBusy) {
+					state.lastError = "model_busy"
+					w.Header().Set("Retry-After", "1")
+				}
+				oaiError(w, 503, "api_error", acquireErr.Error(), "model", state.lastError)
+				return
+			}
+			defer release()
+			r = r.WithContext(context.WithValue(r.Context(), oaiCallContextKey{}, state))
 			if router {
-				// Le router choisit l'instance par le champ model : on y met la
-				// section Loom qui sert maintenant (modèle choisi ou variante API).
-				cur := routerCurrentName()
-				if cur == "" {
-					oaiError(w, http.StatusServiceUnavailable, "api_error", "no model loaded", "model", "model_unavailable")
-					return
-				}
-				body = rewriteOAIModel(body, cur)
+				body = rewriteOAIModel(body, target)
+			} else {
+				body = rewriteOAIModel(body, filepath.Base(resolved))
 			}
 			r.Body = io.NopCloser(bytes.NewReader(body))
 			r.ContentLength = int64(len(body))
@@ -500,6 +536,10 @@ func serveOAIFront(errc chan<- error) {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "[loom serve] /v1 on %s  → llama-server 127.0.0.1:%d\n", addr, llamaBackendPort())
+	stopIdle := make(chan struct{})
+	currentEngineService()
+	defer close(stopIdle)
+	go runEngineIdleTimer(stopIdle)
 	srv := &http.Server{
 		Handler:           oaiPublicHandler(),
 		ReadHeaderTimeout: 10 * time.Second,

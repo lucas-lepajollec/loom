@@ -172,6 +172,10 @@ func (s *brainService) consolidateHTTP(w http.ResponseWriter, r *http.Request) {
 		session.ProjectID, session.RuntimeID = archive.ProjectID, "llama.cpp"
 	}
 	result, err := brainDistillWithChat(ctx, base, engineAPIKey(), engineRequestModel(), discussions[0])
+	if errors.Is(err, errEngineBusy) {
+		brainResponse(w, map[string]any{"ok": true, "items": []brain.MemoryItem{}, "skipped_reason": "engine model_busy"}, nil)
+		return
+	}
 	if err != nil {
 		brainResponse(w, nil, err)
 		return

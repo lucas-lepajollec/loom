@@ -16,6 +16,7 @@ import (
 
 // Loom prepares the command and keeps application cleanup outside the engine.
 func ownedLlamaLaunch(bin string, args []string) llamacpp.Launch {
+	noteEngineLaunch(args)
 	cmd := exec.Command(bin, args[1:]...)
 	cmd.Args[0] = bin
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr

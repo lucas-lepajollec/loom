@@ -233,6 +233,7 @@ export default {
   "machines.pair.already_text": "La rattacher à ce Loom à la place ? L'autre perdra l'accès à son moteur.",
   "machines.pair.already_ok": "Rattacher ici",
   "machines.node_label": "nœud Loom (appairé)",
+  "engine.keys.default_name": "Clé principale",
   "memory.tab": "Mémoire",
   "memory.all": "Toutes",
   "memory.class": "Classe",
