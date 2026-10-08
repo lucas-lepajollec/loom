@@ -24,6 +24,7 @@ type brainContinuityConfig struct {
 	ProviderID  string `json:"provider_id"`
 	Model       string `json:"model"`
 	Consent     bool   `json:"consent"`
+	LoadedOnly  bool   `json:"loaded_only"`
 }
 type brainContinuitySettings struct {
 	Enabled     *bool   `json:"enabled"`
@@ -31,13 +32,15 @@ type brainContinuitySettings struct {
 	ProviderID  *string `json:"provider_id"`
 	Model       *string `json:"model"`
 	Consent     *bool   `json:"consent"`
+	LoadedOnly  *bool   `json:"loaded_only"`
 }
 
 func (r brainContinuitySettings) config() (brainContinuityConfig, error) {
 	if r.Enabled == nil || r.IdleMinutes == nil || r.ProviderID == nil || r.Model == nil || r.Consent == nil {
 		return brainContinuityConfig{}, errors.New("all continuity settings are required")
 	}
-	cfg := brainContinuityConfig{*r.Enabled, *r.IdleMinutes, *r.ProviderID, *r.Model, *r.Consent}
+	// Never load a model just to summarise unless the user asked for it.
+	cfg := brainContinuityConfig{*r.Enabled, *r.IdleMinutes, *r.ProviderID, *r.Model, *r.Consent, r.LoadedOnly == nil || *r.LoadedOnly}
 	return cfg, validateContinuityConfig(cfg)
 }
 
@@ -69,7 +72,8 @@ type brainContinuityDiscussion struct {
 }
 
 func (s *brainService) continuityConfigLocked() (brainContinuityConfig, error) {
-	cfg := brainContinuityConfig{Enabled: true, IdleMinutes: 10}
+	// Off by default: summaries cost model time (local) or money (provider).
+	cfg := brainContinuityConfig{IdleMinutes: 10, LoadedOnly: true}
 	if err := brainAvailable(); err != nil {
 		return cfg, err
 	}
@@ -152,8 +156,37 @@ func (s *brainService) continuityRunHTTP(w http.ResponseWriter, r *http.Request)
 	}
 	brainResponse(w, entries[0], nil)
 }
+
+var continuityMinChars = 1500
+
+// continuityLoadedModel names the model the local engine has in memory, or ""
+// when none is loaded (or the engine is not local), so nothing gets loaded.
+var continuityLoadedModel = func() string {
+	if !serviceIsActive() {
+		return ""
+	}
+	models, err := routerModelsWithTimeout(false, 3*time.Second)
+	if err != nil {
+		return ""
+	}
+	for _, m := range models {
+		if m.Status == "loaded" {
+			return m.ID
+		}
+	}
+	return ""
+}
+
 func continuityDestination(cfg brainContinuityConfig) (endpoint, key, model string, err error) {
 	model = cfg.Model
+	if cfg.ProviderID == "" && cfg.LoadedOnly {
+		loaded := continuityLoadedModel()
+		if loaded == "" {
+			err = errors.New("local engine has no model loaded")
+			return
+		}
+		model = loaded
+	}
 	if cfg.ProviderID == "" {
 		var base string
 		base, err = brainDistillDestination(cfg.Consent)
@@ -326,12 +359,16 @@ func (s *brainService) runContinuity(ctx context.Context, id string, now time.Ti
 			return entries, errors.New("invalid continuity checkpoint")
 		}
 		start := min(checkpoint.MessageCount, len(d.Messages))
-		fresh := false
+		turns, chars := 0, 0
 		for _, m := range d.Messages[start:] {
-			if text, ok := m.Content.(string); ok && m.Role == "user" && strings.TrimSpace(text) != "" {
-				fresh = true
+			if text, ok := m.Content.(string); ok && strings.TrimSpace(text) != "" && (m.Role == "user" || m.Role == "assistant") {
+				chars += len(text)
+				if m.Role == "user" {
+					turns++
+				}
 			}
 		}
+		fresh := turns > 0
 		reason := ""
 		switch {
 		case !cfg.Enabled:
@@ -341,6 +378,9 @@ func (s *brainService) runContinuity(ctx context.Context, id string, now time.Ti
 		case !fresh:
 			reason = "no new user turn"
 		case id == "" && (d.At <= 0 || now.Sub(time.UnixMilli(d.At)) < time.Duration(cfg.IdleMinutes)*time.Minute):
+			continue
+		// A single short exchange is not worth a model call; it waits for more.
+		case id == "" && turns < 2 && chars < continuityMinChars:
 			continue
 		}
 		if id == "" && reason != "" {

@@ -220,6 +220,14 @@ releases.
   consolidation; candidate review kept.
 - Context engine with per-model budgets and the "why is this in context" view.
 - One-time import for non-adoptable formats with a zero-loss report.
+- Delivered on 2026-10-08: user profile ("You", always in context), automatic
+  continuity (off by default, uses only an already-loaded local model unless a
+  consented provider is chosen), skills in the primary brain, MCP gateway.
+- **Automatic compaction** (accepted 2026-10-08): an opt-in setting. When it is
+  off and a discussion approaches its context limit, the discussion shows a
+  warning with a link to the compaction setting and two ways out: continue in a
+  new discussion of the same project (continuity carries the state), or create
+  a project, attach this discussion and start a new one there.
 - **Exit:** export → fresh Loom → identical canonical Brain; context packs stay
   within budget with no quality loss in dogfooding.
 
@@ -230,6 +238,17 @@ releases.
   per external session; import from the machine page.
 - **Exit:** GPU machine = engine node, server = Loom + agents, all managed from
   Machines without SSH copy-paste.
+
+### 3b. Engine as a service (accepted 2026-10-08)
+- Clean API use of the local engine by other tools and by Loom's own features
+  (continuity, consolidation, bench), with per-key limits and usage.
+- Per-request model switching: when several models do not fit in VRAM, swap on
+  request (queue, one resident model) instead of trying to load them together;
+  `MODELS_MAX`, priorities and per-feature model choice configurable.
+- Idle unload: a configurable delay after which the engine frees VRAM (today a
+  model stays loaded until another one replaces it or the engine stops).
+- **Exit:** a background feature never evicts the model a user is chatting
+  with without a declared policy; VRAM is released when idle.
 
 ### 4. Tasks, interactions, events, policy, maintenance
 - Durable tasks with checkpoints; InteractionRequest for questions, approvals

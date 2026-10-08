@@ -114,6 +114,39 @@ function Suggestions({ projects, onChanged }) {
   </section>`;
 }
 
+// Toi : la fiche globale de l'utilisateur, toujours dans le contexte (mémoire
+// cœur). Une seule, modifiable ici ou par les agents (update_memory).
+const PROFILE = 'user-profile';
+const isProfile = i => (i.tags || []).includes(PROFILE) && i.scope === 'global' && i.class === 'semantic' && i.status === 'active';
+function Profile({ onSaved }) {
+  const [item, setItem] = useState(undefined);
+  const load = () => get('/api/brain/items?class=semantic&limit=500').then(r => setItem((r.items || []).find(isProfile) || null)).catch(() => setItem(null));
+  useEffect(() => { load(); }, []);
+  const [edit, setEdit] = useState(false);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const start = () => { setText(item ? item.text : ''); setEdit(true); };
+  const save = async () => {
+    setBusy(true);
+    const r = item ? await post('/api/brain/items/update', { id: item.id, patch: { text } })
+      : await post('/api/brain/items', { class: 'semantic', scope: 'global', text, importance: 1, tags: [PROFILE], provenance: { kind: 'user' } });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err');
+    setEdit(false); load(); onSaved();
+  };
+  if (item === undefined) return null;
+  return html`<div class="card mi-cont mi-me">
+    <div class="mi-cont-h"><span class="mono-tile"><${Icon} n="heart" /></span>
+      <div class="grow"><b>${t('memory.me.title')}</b><${Tip} text=${t('memory.me.tip')} />
+        ${item ? html`<div class="mi-me-text">${item.text}</div>` : html`<div class="mi-meta"><span>${t('memory.me.empty')}</span></div>`}</div>
+      <button class=${cls('btn sm', item ? 'ghost' : 'primary')} onClick=${start}>${item ? t('memory.edit_short') : t('memory.me.write')}</button></div>
+    ${edit && html`<${Modal} title=${t('memory.me.title')} sub=${t('memory.me.sub')} onClose=${busy ? undefined : () => setEdit(false)}
+        foot=${html`<button class="btn ghost" disabled=${busy} onClick=${() => setEdit(false)}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !text.trim()} onClick=${save}>${t('ui.dialog.enregistrer')}</button>`}>
+      <textarea class="textarea" rows="10" maxlength="8000" value=${text} placeholder=${t('memory.me.placeholder')} onInput=${e => setText(e.target.value)}></textarea>
+    </${Modal}>`}
+  </div>`;
+}
+
 // Continuité : quand une discussion se met en pause, un petit modèle écrit où
 // on en est (résumé daté + état du projet) ; la discussion suivante repart de là.
 function Continuity() {
@@ -139,12 +172,13 @@ function Continuity() {
   const where = c.provider_id ? ((providers.find(p => p.id === c.provider_id) || {}).name || c.provider_id) + (c.model ? ' · ' + c.model : '') : t('memory.cont.local');
   return html`<div class="card mi-cont">
     <div class="mi-cont-h"><span class="mono-tile"><${Icon} n="history" /></span>
-      <div class="grow"><b>${t('memory.cont.title')}</b><div class="mi-meta"><span>${c.enabled ? t('memory.cont.on', { where }) : t('memory.cont.off')}</span>${last && html`<span>${t('memory.cont.last', { when: last })}</span>`}${st && st.last_error && html`<span class="bs-state err" title=${st.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>
+      <div class="grow"><b>${t('memory.cont.title')}</b><div class="mi-meta"><span>${c.enabled ? t(c.provider_id || !c.loaded_only ? 'memory.cont.on' : 'memory.cont.on_loaded', { where }) : t('memory.cont.off')}</span>${last && html`<span>${t('memory.cont.last', { when: last })}</span>`}${st && st.last_error && html`<span class="bs-state err" title=${st.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>
       <button class="icon-btn" aria-label=${t('memory.cont.settings')} title=${t('memory.cont.settings')} onClick=${() => setOpen(!open)}><${Icon} n="sliders" /></button>
       <${Switch} label=${t('memory.cont.title')} checked=${!!c.enabled} onChange=${enabled => save({ enabled })} /></div>
     ${open && html`<div class="mi-cont-b">
       <label class="field"><span>${t('memory.cont.model')}</span><${ListPick} label=${t('memory.cont.model')} value=${c.provider_id || ''} onChange=${provider_id => save({ provider_id, model: provider_id ? c.model : '' })} options=${[{ value: '', label: t('memory.cont.local') }, ...providers.map(p => ({ value: p.id, label: p.name, group: t('memory.cont.cloud') }))]} /></label>
       ${c.provider_id && html`<label class="field"><span>${t('memory.cont.model_name')}</span><input class="input mono" value=${c.model || ''} placeholder="gpt-5-mini" onChange=${e => save({ model: e.target.value.trim() })} /></label>`}
+      ${!c.provider_id && html`<label class="check mi-cont-wide"><input type="checkbox" checked=${c.loaded_only !== false} onChange=${e => save({ loaded_only: e.target.checked })} /><span>${t('memory.cont.loaded_only')}</span><${Tip} text=${t('memory.cont.loaded_only_tip')} /></label>`}
       <label class="field"><span>${t('memory.cont.idle')}</span><${ListPick} label=${t('memory.cont.idle')} value=${String(c.idle_minutes || 10)} onChange=${v => save({ idle_minutes: +v })} options=${[5, 10, 20, 30, 60].map(n => ({ value: String(n), label: t('memory.cont.minutes', { n }) }))} /></label>
     </div>`}
   </div>`;
@@ -170,7 +204,7 @@ export function MemoryItems() {
     if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err');
     load();
   };
-  const items = (data && data.items) || [];
+  const items = ((data && data.items) || []).filter(i => !isProfile(i));
   const groups = MEMORY_CLASSES.map(c => [c, items.filter(i => i.class === c)]).filter(([, list]) => list.length);
   const prov = it => {
     const p = it.provenance || {};
@@ -183,6 +217,7 @@ export function MemoryItems() {
       <div class="mi-pick"><${ListPick} label=${t('memory.status')} value=${status} onChange=${setStatus} options=${STATUSES.map(s => ({ value: s, label: STATUS()[s] }))} /></div>
       <button class="btn primary mi-add" onClick=${() => setForm({})}><${Icon} n="plus" />${t('memory.add')}</button>
     </div>
+    <${Profile} onSaved=${load} />
     <${Continuity} />
     <${Suggestions} projects=${projects} onChanged=${load} />
     ${data && !data.error && html`<p class="mi-count">${t('memory.count', { n: items.length })}<${Tip} text=${t('memory.intro')} /></p>`}

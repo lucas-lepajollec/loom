@@ -17,14 +17,30 @@ import (
 const continuityJSON = `{"summary":"Implemented local backups.","state":{"objective":"Reliable backups","done":["Local backup"],"next":["Test restore"],"open":[]},"facts":[{"class":"procedural","text":"Run restore checks before release."}]}`
 
 func continuityFixture(t *testing.T) *brainService {
+	return continuityEnabled(t, continuityBase(t))
+}
+func continuityBase(t *testing.T) *brainService {
 	t.Helper()
 	testHome(t)
 	oldSessions, oldConv := workspaceSessions, conv
 	workspaceSessions = newRuntimeSessions()
 	conv = &Conversation{ID: "empty"}
 	conv.cond = sync.NewCond(&conv.mu)
-	t.Cleanup(func() { workspaceSessions, conv = oldSessions, oldConv })
+	// Fixtures are short and run without a local engine: stub both economies.
+	oldLoaded, oldMin := continuityLoadedModel, continuityMinChars
+	continuityLoadedModel, continuityMinChars = func() string { return engineRequestModel() }, 0
+	t.Cleanup(func() {
+		workspaceSessions, conv = oldSessions, oldConv
+		continuityLoadedModel, continuityMinChars = oldLoaded, oldMin
+	})
 	return newBrainService(LoomHome())
+}
+func continuityEnabled(t *testing.T, s *brainService) *brainService {
+	t.Helper()
+	if err := s.storage.write("continuity.json", []byte(`{"enabled":true,"idle_minutes":10,"provider_id":"","model":"","consent":false}`)); err != nil {
+		t.Fatal(err)
+	}
+	return s
 }
 func continuitySession(t *testing.T, id, project string, at time.Time) RuntimeSession {
 	t.Helper()
@@ -259,9 +275,9 @@ func TestBrainContinuityNativeBindingProjectStateAndIdentity(t *testing.T) {
 	}
 }
 func TestBrainContinuitySettingsParsingTailAndAuth(t *testing.T) {
-	s := continuityFixture(t)
+	s := continuityBase(t)
 	w := consolidationRequest(t, s.continuityHTTP, "GET", "/api/brain/continuity", "")
-	if strings.TrimSpace(w.Body.String()) != `{"enabled":true,"idle_minutes":10,"provider_id":"","model":"","consent":false}` {
+	if strings.TrimSpace(w.Body.String()) != `{"enabled":false,"idle_minutes":10,"provider_id":"","model":"","consent":false,"loaded_only":true}` {
 		t.Fatal(w.Body)
 	}
 	for _, body := range []string{`{}`, `{"enabled":null}`, `{"enabled":true,"idle_minutes":0,"provider_id":"","model":"","consent":false}`, `{"enabled":true,"idle_minutes":10,"provider_id":"","model":"","consent":false,"extra":1}`} {
@@ -303,7 +319,7 @@ func TestBrainContinuityDisabledInvalidOutputAndProjectMove(t *testing.T) {
 	}
 	restarted := newBrainService(LoomHome())
 	w = consolidationRequest(t, restarted.continuityHTTP, "GET", "/api/brain/continuity", "")
-	if strings.TrimSpace(w.Body.String()) != disabled {
+	if strings.TrimSpace(w.Body.String()) != strings.TrimSuffix(disabled, "}")+`,"loaded_only":true}` {
 		t.Fatal("settings not persisted", w.Body)
 	}
 	entries, err := s.runContinuity(context.Background(), "", time.Now())
@@ -376,5 +392,32 @@ func TestBrainContinuityLockedVaultAndBadCheckpoint(t *testing.T) {
 	}
 	if _, err := s.runContinuity(context.Background(), d.ID, time.Now()); err == nil {
 		t.Fatal("negative checkpoint accepted")
+	}
+}
+func TestBrainContinuityEconomies(t *testing.T) {
+	s := continuityFixture(t)
+	continuitySession(t, "short", "p", time.Now().Add(-time.Hour))
+	calls := 0
+	brainFakeModelClient(t, func(w http.ResponseWriter, r *http.Request) { calls++; continuityReply(w, continuityJSON) })
+	continuityMinChars = 1500
+	if entries, err := s.runContinuity(context.Background(), "", time.Now()); err != nil || len(entries) != 0 || calls != 0 {
+		t.Fatalf("one short exchange summarised: %+v %v", entries, err)
+	}
+	continuityMinChars = 0
+	continuityLoadedModel = func() string { return "" }
+	entries, err := s.runContinuity(context.Background(), "", time.Now())
+	if err != nil || len(entries) != 1 || entries[0].SkippedReason != "local engine has no model loaded" || calls != 0 {
+		t.Fatalf("model loaded for a summary: %+v %v", entries, err)
+	}
+	continuityLoadedModel = func() string { return "already-loaded" }
+	var model string
+	brainFakeModelClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body struct{ Model string }
+		json.NewDecoder(r.Body).Decode(&body)
+		model = body.Model
+		continuityReply(w, continuityJSON)
+	})
+	if _, err := s.runContinuity(context.Background(), "", time.Now()); err != nil || model != "already-loaded" {
+		t.Fatalf("summary should use the loaded model, got %q %v", model, err)
 	}
 }

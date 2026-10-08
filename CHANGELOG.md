@@ -6,6 +6,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Brain › Memory › You: a global user profile always included first in context (core memory), editable and updatable by agents.
+- MCP tab: "Take from your agents" replaces linked MCP files; the gateway's own `loom` entry is never offered.
 - Brain page: Skills tab shows where the library lives (a primary-brain folder or Loom) and moves it; MCP tab leads with the agent gateway, servers and brain imports; Memory tab gains the automatic continuity card.
 - Skills home in the primary second brain: backend detection and switching,
   non-overwriting migration with retained backups, safe harness link re-sync,
@@ -114,6 +116,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Changed
 
+- Automatic continuity is off by default and frugal: it uses only an already-loaded local model (never loads one) and waits for two new user messages or 1,500 characters.
 - Development builds are published only after CI passed on main.
 
 - Navigation grouped by domain: **Models** (Local, Cloud), **Agents**,

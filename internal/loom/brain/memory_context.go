@@ -49,6 +49,9 @@ func ContextQuery(query string) string {
 // SelectMemory is a read-only, deterministic lexical baseline. It filters
 // scope before relevance, and never ranks on last_used_at or the wall clock.
 // Continuity state is pinned to its project or discussion binding.
+// ProfileTag marks the single global item describing the user.
+const ProfileTag = "user-profile"
+
 func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages string, budgets MemoryBudgets, discussionIDs ...string) MemoryPack {
 	discussionID := ""
 	if len(discussionIDs) > 0 {
@@ -60,6 +63,11 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 	}
 	isState := func(item MemoryItem) bool {
 		return item.Class == "working" && item.Scope == stateScope && contains(item.Tags, stateTag) && (projectID != "" || discussionID != "")
+	}
+	// The user's profile (who they are, how they work) is core memory: global,
+	// always included first, truncated rather than dropped.
+	isProfile := func(item MemoryItem) bool {
+		return item.Class == "semantic" && item.Scope == "global" && contains(item.Tags, ProfileTag)
 	}
 	isSummary := func(item MemoryItem) bool {
 		return projectID != "" && item.Class == "episodic" && item.Scope == "project:"+projectID && contains(item.Tags, "session-summary")
@@ -96,7 +104,7 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 				overlap++
 			}
 		}
-		if overlap == 0 && item.Class != "reflex" && item.Class != "working" && !isSummary(item) {
+		if overlap == 0 && item.Class != "reflex" && item.Class != "working" && !isSummary(item) && !isProfile(item) {
 			continue
 		}
 		relevance := 0.0
@@ -123,14 +131,17 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 		pending = append(pending, ancestors[id]...)
 	}
 	recent := []MemoryItem{}
-	pinnedID := ""
-	var pinnedAt int64
+	pinnedID, profileID := "", ""
+	var pinnedAt, profileAt int64
 	for _, c := range candidates {
 		if superseded[c.item.ID] {
 			continue
 		}
 		if isState(c.item) && (pinnedID == "" || c.item.UpdatedAt > pinnedAt || c.item.UpdatedAt == pinnedAt && c.item.ID < pinnedID) {
 			pinnedID, pinnedAt = c.item.ID, c.item.UpdatedAt
+		}
+		if isProfile(c.item) && (profileID == "" || c.item.UpdatedAt > profileAt || c.item.UpdatedAt == profileAt && c.item.ID < profileID) {
+			profileID, profileAt = c.item.ID, c.item.UpdatedAt
 		}
 		if isSummary(c.item) {
 			recent = append(recent, c.item)
@@ -154,6 +165,9 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		a, b := candidates[i], candidates[j]
+		if (a.item.ID == profileID) != (b.item.ID == profileID) {
+			return a.item.ID == profileID
+		}
 		if (a.item.ID == pinnedID) != (b.item.ID == pinnedID) {
 			return a.item.ID == pinnedID
 		}
@@ -192,7 +206,7 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 	seen := []string{normalizedMemoryText(passages)}
 	for _, c := range candidates {
 		item := c.item
-		if superseded[item.ID] || isSummary(item) && preferred[item.ID] == 0 && c.overlap == 0 || isState(item) && item.ID != pinnedID {
+		if superseded[item.ID] || isSummary(item) && preferred[item.ID] == 0 && c.overlap == 0 || isState(item) && item.ID != pinnedID || isProfile(item) && item.ID != profileID {
 			continue
 		}
 		normalized := normalizedMemoryText(item.Text)
@@ -203,14 +217,15 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 				break
 			}
 		}
-		if duplicate && item.ID != pinnedID {
+		pinned := item.ID == pinnedID || item.ID == profileID
+		if duplicate && !pinned {
 			continue
 		}
 		section := "\n- [" + item.Class + " / " + item.Scope + "] " + strings.Join(strings.Fields(item.Text), " ")
 		if out.Text == "" {
 			section = "Loom memory (why: class/scope):" + section
 		}
-		if item.ID == pinnedID && (Tokens(out.Text+section)-Tokens(out.Text) > limits[item.Class]-out.Used[item.Class] || Tokens(out.Text+section) > max(0, budgets.Total)) {
+		if pinned && (Tokens(out.Text+section)-Tokens(out.Text) > limits[item.Class]-out.Used[item.Class] || Tokens(out.Text+section) > max(0, budgets.Total)) {
 			prefix := "\n- [" + item.Class + " / " + item.Scope + "] "
 			if out.Text == "" {
 				prefix = "Loom memory (why: class/scope):" + prefix
@@ -247,6 +262,9 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 			if preferred[item.ID] != 0 {
 				reason = "recent project session summary"
 			}
+		}
+		if item.ID == profileID {
+			reason = "your profile (always included)"
 		}
 		if item.Status == "uncertain" {
 			reason += "; uncertain, ranked lower"
