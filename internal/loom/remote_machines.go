@@ -226,6 +226,9 @@ func parseRemoteProbe(out string) (RemoteMachine, error) {
 
 // checkRemoteMachine connects with Loom's key and runs the description script.
 func checkRemoteMachine(ctx context.Context, m RemoteMachine) (RemoteMachine, error) {
+	if usesNodeHarness(m) {
+		return refreshNodeMachine(ctx, m)
+	}
 	key, _, err := loomSSHKey()
 	if err != nil {
 		return m, err
@@ -287,11 +290,17 @@ func remoteOffers(m RemoteMachine) []map[string]any {
 				ok = false
 			}
 		}
+		if m.NodeID != "" && m.User == "" && !hasNodeModule(m.Modules, "harness") {
+			ok = false
+		}
 		version := have[d.Needs[0]].Version
 		_, installed := have[d.Needs[0]]
 		missing := ""
 		if installed && !ok {
 			missing = "Node.js (npx) required on the machine for the ACP adapter"
+		}
+		if m.NodeID != "" && m.User == "" && !hasNodeModule(m.Modules, "harness") {
+			missing = nodeHarnessDisabled
 		}
 		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "logo": d.Logo, "installed": installed, "ready": ok, "version": version, "missing": missing})
 	}
@@ -302,6 +311,9 @@ func remoteOffers(m RemoteMachine) []map[string]any {
 // command runs through `sh -lc` with the folders where the tools were found
 // added to PATH, so npx and node resolve like in the user's terminal.
 func remoteAgent(m RemoteMachine, harness string, key string) (acpAgent, error) {
+	if usesNodeHarness(m) {
+		return nodeAgent(m, harness)
+	}
 	for _, d := range remoteHarnessDefs {
 		if d.ID != harness {
 			continue
@@ -310,14 +322,7 @@ func remoteAgent(m RemoteMachine, harness string, key string) (acpAgent, error) 
 		if launch == nil {
 			return acpAgent{}, errors.New("unknown launcher")
 		}
-		dirs := []string{}
-		seen := map[string]bool{}
-		for _, t := range m.Tools {
-			if dir := filepath.Dir(t.Path); t.Path != "" && !seen[dir] {
-				seen[dir] = true
-				dirs = append(dirs, dir)
-			}
-		}
+		dirs := remoteToolDirs(m)
 		parts := []string{}
 		for _, p := range launch {
 			parts = append(parts, shellQuote(p))
@@ -352,17 +357,22 @@ func machineName(id string) string {
 // POST {machine, harnesses}: check, save the machine and (re)register its harnesses.
 func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
+		list := loadRemoteMachines()
 		_, pub, err := loomSSHKey()
-		if err != nil {
+		// Paired nodes remain usable on a main without SSH tooling.
+		if err != nil && len(list) == 0 {
 			sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
-		list := loadRemoteMachines()
+		setup := ""
+		if pub != "" {
+			setup = remoteSetupBlock(pub)
+		}
 		offers := map[string]any{}
 		for _, m := range list {
 			offers[m.ID] = remoteOffers(m)
 		}
-		sendJSON(w, 200, map[string]any{"ok": true, "machines": list, "offers": offers, "key": pub, "setup": remoteSetupBlock(pub), "script": remoteProbeScript})
+		sendJSON(w, 200, map[string]any{"ok": true, "machines": list, "offers": offers, "key": pub, "setup": setup, "script": remoteProbeScript})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -376,7 +386,28 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	m, err := validRemoteMachine(req.Machine)
+	m := req.Machine
+	// Transport identity and module claims come from saved state, not the browser.
+	for _, saved := range loadRemoteMachines() {
+		if saved.ID == m.ID {
+			if usesNodeHarness(saved) {
+				if m.Name != "" {
+					saved.Name = m.Name
+				}
+				if m.Folders != nil {
+					saved.Folders = m.Folders
+				}
+				m = saved
+			} else {
+				m.NodeID, m.Modules, m.Handshake = saved.NodeID, saved.Modules, saved.Handshake
+			}
+			break
+		}
+	}
+	var err error
+	if !usesNodeHarness(m) {
+		m, err = validRemoteMachine(m)
+	}
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -390,7 +421,10 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, map[string]any{"ok": true, "machine": m, "offers": remoteOffers(m)})
 		return
 	}
-	key, _, _ := loomSSHKey()
+	key := ""
+	if !usesNodeHarness(m) {
+		key, _, _ = loomSSHKey()
+	}
 	agents := []acpAgent{}
 	for _, h := range req.Harnesses {
 		a, err := remoteAgent(m, h, key)

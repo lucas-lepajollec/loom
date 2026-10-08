@@ -137,7 +137,7 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
       <div class="mc-title"><span class="mx-ico"><${Icon} n=${isLocal ? 'chip' : 'server'} /></span><div><h2>${name}</h2>
         <p class="mono">${isLocal ? (local ? local.user + ' · ' + home(local.home) + ' · ' + local.os : '') : where(m) + (m.home ? ' · ' + m.home : '')}</p></div>
         <span class="grow"></span>
-        <button class="btn sm" onClick=${() => openTerminalWith({ target, dir: isLocal ? '' : m.home || '', title: name })}><${Icon} n="prompt" />${t("settings.machines.terminal")}</button>
+        ${(isLocal || m.user) && html`<button class="btn sm" onClick=${() => openTerminalWith({ target, dir: isLocal ? '' : m.home || '', title: name })}><${Icon} n="prompt" />${t("settings.machines.terminal")}</button>`}
         ${!isLocal && html`<button class="btn sm ghost" onClick=${onEdit}>${t("settings.machines.modifier")}</button><button class="icon-btn" aria-label=${t("settings.machines.retirer") + m.name} onClick=${remove}><${Icon} n="trash" /></button>`}</div></div>
     <${HarnessesSection} m=${m} onChange=${onChange} />
     <${EngineSection} m=${m} />
@@ -269,10 +269,12 @@ function FoldersSection({ target, m }) {
 
 function TerminalsSection({ target, name, m }) {
   const [list, setList] = useState(null);
+  const paired = m && !m.user;
   useEffect(() => { get('/api/terminals').then(r => setList((r.terminals || []).filter(localT => localT.target === target))).catch(() => setList([])); }, [target]);
   return html`<${Group} title="${t("settings.machines.terminaux")}">
     ${list && list.length ? list.map(localT => html`<a class="set-line link-line" key=${localT.id} href=${'#/terminals/' + localT.id}><div class="set-l"><i class=${'dot ' + (localT.running ? 'green' : '')}></i><span>${localT.title}</span><span class="muted mono">${home(localT.dir)}</span></div><div class="set-c"><${Icon} n="right" /></div></a>`)
       : html`<div class="set-note">${t("settings.machines.aucun_terminal_ouvert")} ${m ? t("settings.machines.sur") + name : t("settings.machines.sur_cette_machine")}.</div>`}
-    <div class="set-actions"><button class="btn ghost" onClick=${() => openTerminalWith({ target, dir: m ? m.home || '' : '', title: name })}><${Icon} n="prompt" />${t("settings.machines.nouveau_terminal")}</button></div>
+    ${paired ? html`<div class="set-note">${t('machines.node.terminals_ssh')}</div>`
+      : html`<div class="set-actions"><button class="btn ghost" onClick=${() => openTerminalWith({ target, dir: m ? m.home || '' : '', title: name })}><${Icon} n="prompt" />${t("settings.machines.nouveau_terminal")}</button></div>`}
   </${Group}>`;
 }

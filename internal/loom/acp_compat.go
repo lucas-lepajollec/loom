@@ -27,6 +27,7 @@ type acpClient struct {
 	done    <-chan struct{}
 	handler func(*acpFrame) (any, error)
 	notify  func(acpFrame)
+	cleanup func()
 }
 
 func startACPClient(command string, args []string, cwd string, env ...string) (*acpClient, error) {
@@ -34,23 +35,34 @@ func startACPClient(command string, args []string, cwd string, env ...string) (*
 	if err != nil {
 		return nil, errors.New("could not find the ACP launcher")
 	}
+	bridgeEnv, cleanup, err := nodeBridgeLaunchEnv(args)
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
 	cmd.Dir = cwd
 	if len(env) > 0 {
 		cmd.Env = append(cmd.Env, env...)
 	}
+	cmd.Env = append(cmd.Env, bridgeEnv...)
 	c, err := acp.NewClient(cmd)
 	if err != nil {
+		cleanup()
 		return nil, err
 	}
-	return &acpClient{Client: c, done: c.Done(), notify: c.Notify, handler: c.Handler}, nil
+	return &acpClient{Client: c, done: c.Done(), notify: c.Notify, handler: c.Handler, cleanup: cleanup}, nil
 }
 func (c *acpClient) start() error {
 	c.Client.Handler, c.Client.Notify = c.handler, c.notify
 	return c.Client.Start()
 }
-func (c *acpClient) close() { c.Client.Close() }
+func (c *acpClient) close() {
+	c.Client.Close()
+	if c.cleanup != nil {
+		c.cleanup()
+	}
+}
 func (c *acpClient) call(ctx context.Context, method string, params, result any) error {
 	return c.Client.Call(ctx, method, params, result)
 }

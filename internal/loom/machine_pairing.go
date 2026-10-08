@@ -200,6 +200,19 @@ func handleMachinesPair(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": "machine maintenance link could not be saved; run loom node pair to retry"})
 		return
 	}
+	if hasNodeModule(m.Modules, "harness") {
+		if checked, checkErr := refreshNodeMachine(r.Context(), m); checkErr == nil {
+			machines := loadRemoteMachines()
+			for i := range machines {
+				if machines[i].ID == m.ID {
+					machines[i] = checked
+				}
+			}
+			if putStoreJSON(bkState, remoteMachinesState, machines) == nil {
+				m = checked
+			}
+		}
+	}
 	sendJSON(w, 200, map[string]any{"ok": true, "machine": m})
 }
 

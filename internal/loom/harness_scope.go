@@ -184,9 +184,13 @@ func setRemoteHarness(machine, harness string, enabled bool) error {
 		}
 	}
 	if enabled {
-		key, _, err := loomSSHKey()
-		if err != nil {
-			return err
+		key := ""
+		if !usesNodeHarness(m) {
+			var err error
+			key, _, err = loomSSHKey()
+			if err != nil {
+				return err
+			}
 		}
 		a, err := remoteAgent(m, harness, key)
 		if err != nil {

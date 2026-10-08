@@ -98,7 +98,7 @@ func loomMachineID() (string, error) {
 func describeNode() (nodeDescriptor, error) {
 	id, err := loomMachineID()
 	name, _ := os.Hostname()
-	return nodeDescriptor{ID: id, Name: name, Version: Version, Role: "engine-node", Modules: []string{"engine"}, Handshake: nodeHandshake}, err
+	return nodeDescriptor{ID: id, Name: name, Version: Version, Role: "engine-node", Modules: nodeModules(), Handshake: nodeHandshake}, err
 }
 
 func checkNodeHandshake(major int) error {

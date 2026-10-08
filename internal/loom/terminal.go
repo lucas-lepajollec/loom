@@ -122,6 +122,9 @@ func terminalCommand(target, dir, command string) ([]string, string, error) {
 	if !found {
 		return nil, "", errors.New("unknown machine")
 	}
+	if m.User == "" {
+		return nil, "", errors.New("terminals need SSH for now")
+	}
 	if dir == "" {
 		dir = m.Home
 	}
