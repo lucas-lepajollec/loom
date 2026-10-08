@@ -67,6 +67,12 @@ func Notification(f agentstdio.Frame) []runtime.AgentEvent {
 		e.ItemType = ItemType(item.Type)
 		e.Status = item.Status
 		e.Payload = runtime.BoundedJSON(p.Item)
+		// Activity metadata is informational, not a tool execution. Keep the
+		// native model/effort (when present) in a generic display row.
+		if item.Type == "subAgentActivity" {
+			e.Type = "raw"
+			break
+		}
 		e.Type = "item.started"
 		if f.Method == "item/completed" {
 			e.Type = "item.completed"

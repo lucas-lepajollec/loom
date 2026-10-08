@@ -1,0 +1,2 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"agent_settled","aborted":true},"events":["turn.completed"]}

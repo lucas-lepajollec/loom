@@ -9,11 +9,59 @@ never silently retry a prompt through a different runtime. Remote/custom
 launchers retain ACP. Native accounts and global permissions remain owned by
 the CLI. No Go dependencies were added.
 
-The tested contracts are **codex-cli 0.159.2** and **Pi 0.84.3**. Codex's selected
+The accepted contracts include **codex-cli 0.159.2 and 0.162.0** and
+**Pi 0.84.3 and 1.1.0**. Codex's selected
 schema snapshot and generated Go message projections live in
 `internal/loom/runtime/codexapp/`. Complex unions remain `json.RawMessage` so a
 new variant survives translation. The official [app-server contract](https://developers.openai.com/codex/app-server)
 and the installed Pi package's `docs/rpc.md` define the wire protocols.
+
+### October 2026 acceptance
+
+The October 8 watch verified Codex 0.162.0 initialization and eight catalog
+models, OpenCode 1.18.35 health/catalog with unchanged OpenAPI, Claude ACP
+0.88.0 initialization/catalog, and Pi 1.1.0 state/catalog (no configured models).
+These are read-only probes plus synthetic fixtures, not live paid-turn tests.
+Older accepted releases remain in `tested_versions.json`; the Claude launch pin
+is unchanged. The refreshed ACP registry artifact is byte-identical to the
+already committed snapshot.
+
+Codex's 0.162.0 snapshot adds `partial_answer` alongside `commentary` and
+`final_answer`. All phases retain native payloads and normal text reconciliation;
+only `turn/completed` settles a turn. Missing phases keep legacy behavior.
+`ThreadItem.subAgentActivity` adds optional resolved model/effort metadata and
+stays an informational raw row. `ResponseItem.additional_tools` is catalog
+metadata: raw response notifications retain it without inventing execution.
+`CodexErrorInfo` now admits arbitrary strings/objects; errors and retry warnings
+keep the native message verbatim and the complete bounded error details, including
+`misalignment.reviewTarget`. An opaque review target never starts continuation.
+Optional `Turn.rootTurnId` stays in the native payload; generated `TurnStartParams`
+accepts `parentTurnId`/`rootTurnId`, but ordinary user turns send neither.
+The existing 0.159.2 exchanges and new metadata/phase/error fixtures replay together.
+
+Pi package inspection with `npm pack --ignore-scripts` could not download 1.1.0
+in this sandbox (`EAI_AGAIN` resolving the npm registry). Review instead used the
+version-tagged [changelog](https://github.com/earendil-works/pi/blob/v1.1.0/packages/coding-agent/CHANGELOG.md),
+[RPC types](https://github.com/earendil-works/pi/blob/v1.1.0/packages/coding-agent/src/modes/rpc/rpc-types.ts),
+[RPC mode](https://github.com/earendil-works/pi/blob/v1.1.0/packages/coding-agent/docs/rpc.md),
+and [event reference](https://github.com/earendil-works/pi/blob/v1.1.0/packages/coding-agent/docs/json.md).
+The `--mode rpc --no-session` launch, command correlation and `success/error`
+envelopes remain supported, as do Loom's state/model/resume/configuration/prompt/
+abort/history/stats commands and message/tool/retry/extension UI events.
+The 1.0 changes concern native UI/tools/providers; the RPC lane remains available.
+Pi 1.1.0's `agent_settled.aborted` maps to interruption even without an aborted
+message. A prompt acknowledgement with `disposition:handled` completes the
+submitted input without waiting for a run that never started; older acknowledgements
+still wait for native settlement. Tool `durationMs` stays in its payload.
+
+Acceptance checks passed: native/ACP fixture replay, runtime/harness/watch tests,
+`go vet ./...`, `make build`, `make check-ui`, documentation links, workflow YAML
+parsing and exact projection regeneration. The full
+`go test ./internal/loom/... ./tools/...` run is blocked by sandbox sockets in
+`TestHandleHubSearch` and `TestFetchReleaseChannels` (`socket: operation not permitted`).
+An initial `TestEngineKindFullVsServer` failure from unrelated temporary-directory
+contents passed with an isolated temporary directory. GitHub publication/CI
+dispatch remains a workflow integration check; no review writes ran locally.
 
 ## UI contract (backend only)
 
@@ -190,15 +238,17 @@ Refresh the tested Codex release deliberately:
 ```sh
 codex --version
 codex app-server generate-json-schema --out /tmp/loom-codex-schema
-python3 tools/generate-codex-types.py /tmp/loom-codex-schema
+python3 tools/generate-codex-types.py /tmp/loom-codex-schema --version "$(codex --version)"
 python3 tools/generate-codex-types.py
 ```
 
-Update `schema/VERSION`, the generator's version, `TestedVersion`, this document
-and fixtures together. The committed snapshot merges only used message schemas
-and their definitions; rerunning the generator from it reproduces the Go file.
-For Pi, inspect the installed package's `docs/rpc.md`, update `TestedVersion` and
-fixtures together, and check every command's `success/error` contract.
+The import requires `--version` and records it in `schema/VERSION`; append the
+accepted release to `tested_versions.json`, and update this document and fixtures
+together. `TestedVersion` derives from that accepted list. The committed snapshot
+merges only used message schemas and their definitions; rerunning the generator
+from it reproduces the Go file.
+For Pi, inspect the package changelog and `docs/rpc.md`, update its accepted list
+and fixtures together, and check every command's `success/error` contract.
 
 For live recording, use an explicitly authorized test account or a local test
 model, an isolated working folder, and a JSONL proxy that captures both pipe
@@ -550,7 +600,8 @@ in the watch does not silently change that launch pin.
 
 `.github/workflows/agents-watch.yml` runs every Monday at 06:17 UTC and through
 `workflow_dispatch` on Ubuntu. It uses the automatic `GITHUB_TOKEN` with
-contents, PR and issue permissions; no account or provider secrets are needed.
+contents, PR, issue and Actions permissions; the latter dispatches CI on the
+review branch. No account or provider secrets are needed.
 The repository must allow GitHub Actions to create pull requests. The Go script
 in `tools/agents-watch/` is runnable locally:
 
@@ -578,15 +629,30 @@ It runs `go test ./internal/loom/runtime/... -run Fixture` and the application
 ACP fixtures, refreshes/validates the registry, and writes a Markdown report
 uploaded as a workflow artifact and included in the job summary.
 
-With `--publish`, a completely passing check opens/updates
+With `--publish`, passing candidates open/update
 `agents-watch/<UTC-date>` from the checked HEAD in a temporary worktree. Only
-`tested_versions.json` and the refreshed registry snapshot are included. Local
-publishing requires a clean checkout; the script does not commit local work.
+`tested_versions.json` and a successfully refreshed registry snapshot are
+included. Local publishing requires a clean checkout; the script does not commit
+local work.
 A schema change, installation/probe failure or failed fixture check opens or
 updates one exact-title issue per affected candidate:
-`Agents watch: <agent> <version> needs attention`. Registry-only failures use a
-registry attention issue. No versions are accepted automatically when a check
-fails. Automation returns a failing status after publishing attention issues.
+`Agents watch: <agent> <version> needs attention`. A registry failure also opens
+its own attention issue, even when candidate issues exist. Failed candidates
+are excluded from the version PR; passing candidates still publish when another
+agent or the registry needs attention. A failed registry refresh keeps the old
+snapshot. Both review channels are attempted, including after a publication
+failure. Automation returns a failing status after publishing whenever attention
+is needed; publication errors also fail the job.
+
+PRs created/pushed with `GITHUB_TOKEN` do not automatically run CI without
+maintainer intervention (some GitHub configurations offer an approval banner).
+The watch explicitly dispatches `ci.yml` on its dated branch after PR creation
+or update; CI supports `workflow_dispatch` with only `contents:read` permission
+and no provider secrets. A maintainer must verify CI passed for the current PR
+head before merging. For local publishing or a failed dispatch, run
+`gh workflow run ci.yml --ref agents-watch/<UTC-date>`, or close/reopen the PR or
+push a change using maintainer credentials to trigger PR CI. See GitHub's
+[workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
 
 To accept a new version, review the watch report and skips, inspect schema diffs
 and adapt mappings/fixtures when needed, then rerun the checks. Merge the review

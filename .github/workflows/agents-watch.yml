@@ -9,6 +9,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  actions: write # Dispatch CI for GITHUB_TOKEN-created review branches.
 
 concurrency:
   group: agents-watch

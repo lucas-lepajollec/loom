@@ -4,6 +4,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Accept Codex CLI 0.162.0 alongside 0.159.2 with a refreshed app-server schema,
+  regenerated projections and metadata/partial-answer/open-error fixtures.
+  Accept OpenCode 1.18.35 and Pi 1.1.0 while retaining older versions; Pi handles
+  native aborted settlement and extension-handled prompt acknowledgements.
+  The refreshed ACP registry matches the existing embedded snapshot.
+- The agents watch publishes passing versions even when other agents or the
+  registry need attention, attempts all review writes before failing, and
+  dispatches CI on bot review branches. Maintainers verify current-head CI
+  before merging; manual dispatch is available as a fallback.
+
 - Agents v2 step 3: Antigravity prefers installed `agy` stream JSON with native
   conversation resume, effort/mode/sandbox configuration, canonical tool/file
   targets, deduplicated step usage, verbatim failures and raw unknown events.

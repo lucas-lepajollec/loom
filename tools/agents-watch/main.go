@@ -162,7 +162,7 @@ func probe(c candidate, env []string, dir string) (string, error) {
 
 func main() {
 	install := flag.Bool("install", false, "install latest candidates into a temporary npm prefix")
-	publish := flag.Bool("publish", false, "open/update review PR or attention issues with gh and GITHUB_TOKEN")
+	publish := flag.Bool("publish", false, "open/update checked-version PR and attention issues with gh and GITHUB_TOKEN")
 	outDir := flag.String("out", ".project-local/agents-watch", "report and candidate schema directory")
 	probeID := flag.String("probe", "", "internal isolated handshake probe")
 	binary := flag.String("binary", "", "internal probe executable")
@@ -311,7 +311,7 @@ func watch(install, publish bool, outDir string) error {
 	}
 	fmt.Println("Report:", reportPath)
 	if publish {
-		if err := publishReview(outDir, reportPath, registry, failed); err != nil {
+		if err := publishReview(reportPath, registry, registryErr); err != nil {
 			return err
 		}
 	}
