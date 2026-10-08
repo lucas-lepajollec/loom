@@ -2,17 +2,23 @@
 """Generate only Loom's message projections from a CLI-generated schema snapshot.
 Complex/union fields remain RawMessage: unknown variants must survive translation.
 """
-import json, pathlib, subprocess, sys
+import argparse, json, pathlib, subprocess
 root = pathlib.Path(__file__).resolve().parents[1] / 'internal/loom/runtime/codexapp'
-source = pathlib.Path(sys.argv[1]) if len(sys.argv)>1 else root/'schema'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('source', nargs='?', type=pathlib.Path, default=root/'schema')
+parser.add_argument('--version', help='native codex --version output for a refreshed snapshot')
+args = parser.parse_args()
+source = args.source
 names = '''InitializeParams InitializeResponse ThreadStartParams ThreadStartResponse ThreadResumeParams ThreadResumeResponse ThreadListParams ThreadListResponse ThreadReadParams ThreadReadResponse TurnStartParams TurnStartResponse TurnInterruptParams ModelListParams ModelListResponse TurnStartedNotification TurnCompletedNotification ItemStartedNotification ItemCompletedNotification AgentMessageDeltaNotification ReasoningSummaryTextDeltaNotification ReasoningTextDeltaNotification CommandExecutionOutputDeltaNotification FileChangeOutputDeltaNotification TurnPlanUpdatedNotification TurnDiffUpdatedNotification ThreadTokenUsageUpdatedNotification ErrorNotification CommandExecutionRequestApprovalParams CommandExecutionRequestApprovalResponse FileChangeRequestApprovalParams FileChangeRequestApprovalResponse ToolRequestUserInputParams ToolRequestUserInputResponse McpServerElicitationRequestParams McpServerElicitationRequestResponse PermissionsRequestApprovalParams PermissionsRequestApprovalResponse ServerRequestResolvedNotification'''.split()
 if source != root/'schema':
+    if not args.version:
+        parser.error('--version is required when importing CLI-generated schemas')
     defs = {}
     for name in names:
         schema=json.loads(next(source.rglob(name+'.json')).read_text())
         defs.update(schema.pop('definitions',{}));defs[name]=schema
     (root/'schema/messages.json').write_text(json.dumps({'$schema':'http://json-schema.org/draft-07/schema#','definitions':defs},indent=2)+'\n')
-    (root/'schema/VERSION').write_text('codex-cli 0.159.2\n')
+    (root/'schema/VERSION').write_text(args.version+'\n')
 schemas=json.loads((root/'schema/messages.json').read_text())['definitions']
 def go_type(s):
     if not isinstance(s,dict): return 'json.RawMessage'

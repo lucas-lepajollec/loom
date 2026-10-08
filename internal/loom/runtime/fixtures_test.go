@@ -27,6 +27,7 @@ type exchange struct {
 	Events   []string               `json:"events"`
 	Answer   *runtime.RequestAnswer `json:"answer"`
 	Response map[string]any         `json:"response"`
+	Error    string                 `json:"error,omitempty"`
 }
 
 func readFixture(path string) ([]exchange, error) {
@@ -97,7 +98,27 @@ func TestAgentFixtureProcess(t *testing.T) {
 			}
 			reply(req, data)
 		case "turn/start", "prompt":
-			reply(req, map[string]any{"turn": map[string]any{"id": "turn-1"}})
+			if method == "turn/start" {
+				params, _ := req["params"].(map[string]any)
+				for _, field := range []string{"parentTurnId", "rootTurnId"} {
+					if _, exists := params[field]; exists {
+						fmt.Fprintf(os.Stderr, "user turn sent %s", field)
+						os.Exit(7)
+					}
+				}
+			}
+			data := map[string]any{"turn": map[string]any{"id": "turn-1"}}
+			if pi {
+				data = map[string]any{}
+			}
+			for _, r := range rows {
+				if r.Command == method {
+					var frame agentstdio.Frame
+					_ = json.Unmarshal(r.Frame, &frame)
+					_ = json.Unmarshal(frame.Data, &data)
+				}
+			}
+			reply(req, data)
 			for _, r := range rows {
 				if r.Command != "" {
 					continue
@@ -234,14 +255,22 @@ func TestAgentFixtureCorpus(t *testing.T) {
 					})
 				}
 			}
-			interrupted := strings.Contains(path, "/interrupt.jsonl")
-			failed := strings.Contains(path, "/error.jsonl")
+			interrupted := strings.Contains(path, "/interrupt.jsonl") || strings.Contains(path, "/settled-aborted.jsonl")
+			failure := ""
+			if strings.Contains(path, "/error.jsonl") {
+				failure = "fixture provider failure"
+			}
+			for _, r := range rows {
+				if r.Error != "" {
+					failure = r.Error
+				}
+			}
 			if interrupted {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatalf("interrupt: %v", err)
 				}
-			} else if failed {
-				if err == nil || err.Error() != "fixture provider failure" {
+			} else if failure != "" {
+				if err == nil || err.Error() != failure {
 					t.Fatalf("failure: %v", err)
 				}
 			} else if err != nil {

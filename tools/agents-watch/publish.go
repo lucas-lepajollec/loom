@@ -38,27 +38,54 @@ func attentionIssue(title, bodyPath string) error {
 	_, err = gh("issue", "create", "--title", title, "--body-file", bodyPath)
 	return err
 }
-func publishReview(outDir, reportPath string, registry []byte, failed bool) error {
+
+type reviewPlan struct {
+	Passing        []candidate
+	Attention      []string
+	UpdateRegistry bool
+}
+
+func planReview(checks []candidate, registryErr error) reviewPlan {
+	p := reviewPlan{UpdateRegistry: registryErr == nil}
+	for _, c := range checks {
+		if len(c.Problems) == 0 {
+			p.Passing = append(p.Passing, c)
+		} else {
+			p.Attention = append(p.Attention, "Agents watch: "+c.ID+" "+c.Version+" needs attention")
+		}
+	}
+	if registryErr != nil {
+		p.Attention = append(p.Attention, "Agents watch: registry latest needs attention")
+	}
+	return p
+}
+
+// Attempt both review channels before returning any publication failures.
+// Attention is reported by watch after publishing, never a reason to skip a PR.
+func publishPlan(p reviewPlan, versions func([]candidate, bool) error, issue func(string) error) error {
+	var errs []error
+	if len(p.Passing) > 0 || p.UpdateRegistry {
+		errs = append(errs, versions(p.Passing, p.UpdateRegistry))
+	}
+	for _, title := range p.Attention {
+		errs = append(errs, issue(title))
+	}
+	return errors.Join(errs...)
+}
+
+func publishReview(reportPath string, registry []byte, registryErr error) error {
 	if os.Getenv("GITHUB_TOKEN") == "" && os.Getenv("GH_TOKEN") == "" {
 		return errors.New("--publish requires GITHUB_TOKEN or GH_TOKEN")
 	}
-	if failed {
-		opened := false
-		for _, c := range candidates {
-			if len(c.Problems) == 0 {
-				continue
-			}
-			title := "Agents watch: " + c.ID + " " + c.Version + " needs attention"
-			if err := attentionIssue(title, reportPath); err != nil {
-				return err
-			}
-			opened = true
+	return publishPlan(planReview(candidates, registryErr), func(passing []candidate, updateRegistry bool) error {
+		if !updateRegistry {
+			registry = nil
 		}
-		if !opened {
-			return attentionIssue("Agents watch: registry latest needs attention", reportPath)
-		}
-		return nil
-	}
+		return publishVersions(reportPath, registry, passing)
+	}, func(title string) error { return attentionIssue(title, reportPath) })
+}
+
+func publishVersions(reportPath string, registry []byte, passing []candidate) error {
 	// Publish from a temporary worktree. Local reports and unrelated changes
 	// cannot be included in the bot's deliberately small review commit.
 	worktree, err := os.MkdirTemp("", "loom-watch-review-")
@@ -79,7 +106,7 @@ func publishReview(outDir, reportPath string, registry []byte, failed bool) erro
 	if err := json.Unmarshal(data, &versions); err != nil {
 		return err
 	}
-	for _, c := range candidates {
+	for _, c := range passing {
 		if !versionIncluded(versions[c.ID], c.Version) {
 			versions[c.ID] = append(versions[c.ID], c.Version)
 		}
@@ -87,8 +114,10 @@ func publishReview(outDir, reportPath string, registry []byte, failed bool) erro
 	if err := writeJSON(versionsPath, versions); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(worktree, "internal/loom/harness/acp_registry_snapshot.json"), registry, 0644); err != nil {
-		return err
+	if registry != nil {
+		if err := os.WriteFile(filepath.Join(worktree, "internal/loom/harness/acp_registry_snapshot.json"), registry, 0644); err != nil {
+			return err
+		}
 	}
 	git := func(argv ...string) ([]byte, error) {
 		return run(time.Minute, nil, append([]string{"git", "-C", worktree}, argv...)...)
@@ -103,7 +132,7 @@ func publishReview(outDir, reportPath string, registry []byte, failed bool) erro
 	}
 	date := time.Now().UTC().Format("2006-01-02")
 	branch := "agents-watch/" + date
-	if _, err := git("checkout", "-b", branch); err != nil {
+	if _, err := git("checkout", "-B", branch); err != nil {
 		return err
 	}
 	if _, err := git("add", "internal/loom/harness/tested_versions.json", "internal/loom/harness/acp_registry_snapshot.json"); err != nil {
@@ -137,9 +166,17 @@ func publishReview(outDir, reportPath string, registry []byte, failed bool) erro
 	}
 	if len(prs) > 0 {
 		_, err = gh("pr", "edit", fmt.Sprint(prs[0].Number), "--body-file", reportPath)
+	} else {
+		_, err = gh("pr", "create", "--head", branch, "--title", "Agents watch: checked versions "+date, "--body-file", reportPath)
+	}
+	if err != nil {
 		return err
 	}
-	_, err = gh("pr", "create", "--head", branch, "--title", "Agents watch: checked versions "+date, "--body-file", reportPath)
+	// GITHUB_TOKEN pushes do not automatically run CI. Dispatch the read-only
+	// CI workflow on this exact review branch; no provider secrets are needed.
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		_, err = gh("workflow", "run", "ci.yml", "--ref", branch)
+	}
 	return err
 }
 func versionIncluded(versions []string, version string) bool {

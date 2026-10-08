@@ -134,8 +134,26 @@ func (s *Session) Turn(ctx context.Context, sessionPath, provider, model, effort
 			_ = s.Client.Call(stop, "abort", nil, true, nil)
 		}
 	}()
-	if err := s.Client.Call(ctx, "prompt", map[string]any{"message": prompt}, true, nil); err != nil {
+	var acknowledgement agentstdio.Frame
+	if err := s.Client.Call(ctx, "prompt", map[string]any{"message": prompt}, true, &acknowledgement); err != nil {
 		return err
+	}
+	var accepted struct {
+		Disposition string `json:"disposition"`
+	}
+	_ = json.Unmarshal(acknowledgement.Data, &accepted)
+	if accepted.Disposition == "handled" {
+		// Pi 1.1.0 distinguishes extension-handled input, which starts no
+		// run and will not emit agent_settled. Legacy acknowledgements have
+		// no disposition and still settle through the native event stream.
+		s.mu.Lock()
+		turnID := s.mapper.turnID()
+		s.mu.Unlock()
+		s.Broker.Cancel()
+		if !s.Emit(runtime.AgentEvent{Type: "turn.completed", Runtime: "pi", ThreadID: state.SessionID, TurnID: turnID, Status: "completed", Method: "prompt", Raw: runtime.BoundedJSON(acknowledgement.Raw), Payload: runtime.BoundedJSON(acknowledgement.Data)}) {
+			s.Client.Close()
+		}
+		return nil
 	}
 	select {
 	case e := <-s.completion:
@@ -303,6 +321,7 @@ func (m *Mapper) Notification(f agentstdio.Frame) []runtime.AgentEvent {
 		IsError               bool            `json:"isError"`
 		Message               json.RawMessage `json:"message"`
 		Success               bool            `json:"success"`
+		Aborted               bool            `json:"aborted"`
 		FinalError            string          `json:"finalError"`
 		Error                 string          `json:"error"`
 		AssistantMessageEvent struct {
@@ -334,6 +353,12 @@ func (m *Mapper) Notification(f agentstdio.Frame) []runtime.AgentEvent {
 		e.Type = "turn.completed"
 		e.Status = m.status
 		e.Error = m.failure
+		// Pi 1.1.0 can report cancellation without an aborted message_end.
+		// Older releases omit this field and retain message-based settlement.
+		if p.Aborted {
+			e.Status = "interrupted"
+			e.Error = ""
+		}
 	case "message_start", "message_end":
 		var msg struct {
 			Role         string          `json:"role"`

@@ -1,0 +1,5 @@
+{"frame":{"method":"turn/started","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","rootTurnId":"turn-root","status":"inProgress","items":[],"error":null}}},"events":["turn.started"]}
+{"frame":{"method":"item/completed","params":{"threadId":"fixture-thread","turnId":"turn-1","item":{"id":"legacy-sub-agent","type":"subAgentActivity","agentPath":"/fixture/child","agentThreadId":"child-thread","kind":"started"}}},"events":["raw"]}
+{"frame":{"method":"item/completed","params":{"threadId":"fixture-thread","turnId":"turn-1","item":{"id":"sub-agent","type":"subAgentActivity","agentPath":"/fixture/child","agentThreadId":"child-thread","kind":"started","model":"fixture-model","reasoningEffort":"high"}}},"events":["raw"]}
+{"frame":{"method":"rawResponseItem/completed","params":{"threadId":"fixture-thread","turnId":"turn-1","item":{"type":"additional_tools","id":null,"role":"assistant","tools":[{"type":"function","name":"fixture_tool"}]}}},"events":["raw"]}
+{"frame":{"method":"turn/completed","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","rootTurnId":"turn-root","status":"completed","items":[],"error":null}}},"events":["turn.completed"]}

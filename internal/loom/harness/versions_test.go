@@ -21,4 +21,9 @@ func TestTestedVersionsLoading(t *testing.T) {
 	if !VersionTested("codex", "0.159.2") || !VersionTested("pi", "v0.84.3") || VersionTested("pi", "999") {
 		t.Fatal("version normalization")
 	}
+	for id, newest := range map[string]string{"codex": "codex-cli 0.162.0", "pi": "1.1.0", "opencode": "1.18.35"} {
+		if LatestTestedVersion(id) != newest || !VersionTested(id, newest) {
+			t.Fatal(id, TestedVersions(id))
+		}
+	}
 }

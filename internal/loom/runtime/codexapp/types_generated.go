@@ -110,7 +110,9 @@ type TurnStartParams struct {
 	Input               json.RawMessage `json:"input,omitempty"`
 	Model               string          `json:"model,omitempty"`
 	OutputSchema        json.RawMessage `json:"outputSchema,omitempty"`
+	ParentTurnId        string          `json:"parentTurnId,omitempty"`
 	Personality         json.RawMessage `json:"personality,omitempty"`
+	RootTurnId          string          `json:"rootTurnId,omitempty"`
 	SandboxPolicy       json.RawMessage `json:"sandboxPolicy,omitempty"`
 	ServiceTier         string          `json:"serviceTier,omitempty"`
 	ServiceTierForTurn  string          `json:"serviceTierForTurn,omitempty"`

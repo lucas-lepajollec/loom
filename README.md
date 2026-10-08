@@ -18,7 +18,9 @@ Loom is a single Go binary with a web UI. Run local inference, connect cloud pro
 The backend also offers the official ACP agent catalogue with pinned add/remove
 configuration and an offline snapshot, plus curated Hermes, OpenClaw and
 DeepSeek TUI launchers. See [agent compatibility](docs/agents-compat.md) for API
-shapes, verification limits and the weekly compatibility watch.
+shapes, verification limits and the weekly compatibility watch. The watch
+publishes passing versions alongside attention issues and dispatches CI for
+its review PRs.
 
 ## Models and engines
 

@@ -30,3 +30,24 @@ func TestUnknownContextUsage(t *testing.T) {
 		t.Fatalf("unknown occupancy must stay unknown: %+v", e)
 	}
 }
+
+func TestSettledAbortKeepsLegacyOutcomes(t *testing.T) {
+	for _, tc := range []struct {
+		frame, status, failure, wantStatus, wantError string
+	}{
+		{`{"type":"agent_settled","aborted":true}`, "completed", "", "interrupted", ""},
+		{`{"type":"agent_settled","aborted":true}`, "failed", "old failure", "interrupted", ""},
+		{`{"type":"agent_settled","aborted":false}`, "failed", "native failure", "failed", "native failure"},
+		{`{"type":"agent_settled"}`, "completed", "", "completed", ""},
+		{`{"type":"agent_settled"}`, "interrupted", "", "interrupted", ""},
+	} {
+		var f agentstdio.Frame
+		_ = json.Unmarshal([]byte(tc.frame), &f)
+		f.Raw = json.RawMessage(tc.frame)
+		m := Mapper{status: tc.status, failure: tc.failure}
+		e := m.Notification(f)[0]
+		if e.Type != "turn.completed" || e.Status != tc.wantStatus || e.Error != tc.wantError {
+			t.Fatalf("settlement: %+v", e)
+		}
+	}
+}
