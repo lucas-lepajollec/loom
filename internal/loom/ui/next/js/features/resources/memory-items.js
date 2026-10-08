@@ -114,6 +114,42 @@ function Suggestions({ projects, onChanged }) {
   </section>`;
 }
 
+// Continuité : quand une discussion se met en pause, un petit modèle écrit où
+// on en est (résumé daté + état du projet) ; la discussion suivante repart de là.
+function Continuity() {
+  const ws = useStore(app, a => a.workspace);
+  const providers = ((ws && ws.providers) || []).filter(p => p.ready);
+  const [c, setC] = useState(null);
+  const [st, setSt] = useState(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    get('/api/brain/continuity').then(r => setC(r.ok === false ? null : r)).catch(() => {});
+    get('/api/brain/continuity/status').then(r => setSt(r.ok === false ? null : r)).catch(() => {});
+  }, []);
+  if (!c) return null;
+  const save = async patch => {
+    const next = { ...c, ...patch };
+    if (patch.provider_id && !c.consent && !await confirm(t('memory.cont.consent_title'), t('memory.cont.consent_text'), { ok: t('resources.dist.send') })) return;
+    if (patch.provider_id) next.consent = true;
+    setC(next);
+    const r = await post('/api/brain/continuity', next).catch(e => ({ ok: false, error: e.message }));
+    if (r.ok === false || r.error) { toast(r.error, 'err'); setC(c); }
+  };
+  const last = st && st.last_run ? ago(typeof st.last_run === 'number' ? st.last_run : Date.parse(st.last_run)) : '';
+  const where = c.provider_id ? ((providers.find(p => p.id === c.provider_id) || {}).name || c.provider_id) + (c.model ? ' · ' + c.model : '') : t('memory.cont.local');
+  return html`<div class="card mi-cont">
+    <div class="mi-cont-h"><span class="mono-tile"><${Icon} n="history" /></span>
+      <div class="grow"><b>${t('memory.cont.title')}</b><div class="mi-meta"><span>${c.enabled ? t('memory.cont.on', { where }) : t('memory.cont.off')}</span>${last && html`<span>${t('memory.cont.last', { when: last })}</span>`}${st && st.last_error && html`<span class="bs-state err" title=${st.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>
+      <button class="icon-btn" aria-label=${t('memory.cont.settings')} title=${t('memory.cont.settings')} onClick=${() => setOpen(!open)}><${Icon} n="sliders" /></button>
+      <${Switch} label=${t('memory.cont.title')} checked=${!!c.enabled} onChange=${enabled => save({ enabled })} /></div>
+    ${open && html`<div class="mi-cont-b">
+      <label class="field"><span>${t('memory.cont.model')}</span><${ListPick} label=${t('memory.cont.model')} value=${c.provider_id || ''} onChange=${provider_id => save({ provider_id, model: provider_id ? c.model : '' })} options=${[{ value: '', label: t('memory.cont.local') }, ...providers.map(p => ({ value: p.id, label: p.name, group: t('memory.cont.cloud') }))]} /></label>
+      ${c.provider_id && html`<label class="field"><span>${t('memory.cont.model_name')}</span><input class="input mono" value=${c.model || ''} placeholder="gpt-5-mini" onChange=${e => save({ model: e.target.value.trim() })} /></label>`}
+      <label class="field"><span>${t('memory.cont.idle')}</span><${ListPick} label=${t('memory.cont.idle')} value=${String(c.idle_minutes || 10)} onChange=${v => save({ idle_minutes: +v })} options=${[5, 10, 20, 30, 60].map(n => ({ value: String(n), label: t('memory.cont.minutes', { n }) }))} /></label>
+    </div>`}
+  </div>`;
+}
+
 export function MemoryItems() {
   const projects = useStore(app, a => (a.workspace && a.workspace.projects) || []);
   const [cls_, setClass] = useState('all');
@@ -147,6 +183,7 @@ export function MemoryItems() {
       <div class="mi-pick"><${ListPick} label=${t('memory.status')} value=${status} onChange=${setStatus} options=${STATUSES.map(s => ({ value: s, label: STATUS()[s] }))} /></div>
       <button class="btn primary mi-add" onClick=${() => setForm({})}><${Icon} n="plus" />${t('memory.add')}</button>
     </div>
+    <${Continuity} />
     <${Suggestions} projects=${projects} onChanged=${load} />
     ${data && !data.error && html`<p class="mi-count">${t('memory.count', { n: items.length })}<${Tip} text=${t('memory.intro')} /></p>`}
     ${data === null ? html`<div class="skeleton" style="height:180px"></div>`

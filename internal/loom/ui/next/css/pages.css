@@ -807,6 +807,13 @@
 .mi-pick{width:180px;flex:none}
 .mi-add{flex:none}
 .mi-count{display:flex;align-items:center;gap:6px;margin:-8px 0 -6px;font-size:12.5px;color:var(--text-3)}
+.mi-cont{padding:12px 14px}
+.mi-cont-h{display:flex;align-items:center;gap:12px}
+.mi-cont-h>.grow{min-width:0}
+.mi-cont-h b{font-size:13.5px}
+.mi-cont-h .mi-meta{margin-top:3px}
+.mi-cont-b{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft)}
+.mi-cont-b .field{margin:0}
 .mi-sugg{display:flex;flex-direction:column;gap:8px}
 .mi-sugg-h{display:flex;align-items:center;gap:8px;min-height:32px}
 .mi-sugg-h b{font-size:13.5px}
