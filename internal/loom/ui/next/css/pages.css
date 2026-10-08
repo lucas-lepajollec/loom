@@ -831,7 +831,7 @@
 .mi-hand-it>summary{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:13px;border-top:1px solid var(--line-soft)}
 .mi-hand-it:first-child>summary{border-top:0}
 .mi-hand-it .mi-meta{margin:0}
-.mi-hand-text{margin:0;padding:4px 16px 14px;white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.55 var(--sans);color:var(--text-2)}
+.mi-hand-text{margin:0;padding:4px 16px 14px;white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.55 var(--font);color:var(--text-2)}
 .mi-sugg{display:flex;flex-direction:column;gap:8px}
 .mi-sugg-h{display:flex;align-items:center;gap:8px;min-height:32px}
 .mi-sugg-h b{font-size:13.5px}
