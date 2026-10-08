@@ -5,7 +5,7 @@
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Seg, Empty, Tip } from '../../ui/controls.js';
+import { Empty, Tip, Switch } from '../../ui/controls.js';
 import { ListPick } from '../../ui/listpick.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
@@ -16,7 +16,7 @@ const STATUSES = ['active', 'uncertain', 'superseded', 'expired', 'all'];
 
 const CLASS = () => ({ reflex: t('memory.class.reflex'), working: t('memory.class.working'), procedural: t('memory.class.procedural'), semantic: t('memory.class.semantic'), episodic: t('memory.class.episodic'), session: t('memory.class.session') });
 const CLASS_NOTE = () => ({ reflex: t('memory.class.reflex_note'), working: t('memory.class.working_note'), procedural: t('memory.class.procedural_note'), semantic: t('memory.class.semantic_note'), episodic: t('memory.class.episodic_note'), session: t('memory.class.session_note') });
-const STATUS = () => ({ active: t('memory.status.active'), uncertain: t('memory.status.uncertain'), superseded: t('memory.status.superseded'), expired: t('memory.status.expired'), all: t('memory.status.all') });
+const STATUS = () => ({ active: t('memory.status.active'), uncertain: t('memory.status.uncertain'), superseded: t('memory.status.superseded'), expired: t('memory.status.expired'), candidate: t('memory.status.candidate'), all: t('memory.status.all') });
 const PROV = () => ({ user: t('memory.prov.user'), agent: t('memory.prov.agent'), discussion: t('memory.prov.discussion'), import: t('memory.prov.import'), distilled: t('memory.prov.distilled') });
 const SCOPE_KIND = () => ({ machine: t('memory.scope.machine'), agent: t('memory.scope.agent'), task: t('memory.scope.task'), project: t('memory.scope.project') });
 
@@ -33,7 +33,7 @@ function scopeLabel(scope, projects) {
   return (SCOPE_KIND()[kind] || kind) + ' · ' + id;
 }
 
-function ItemForm({ item, projects, onClose, onSaved }) {
+function ItemForm({ item, accept, projects, onClose, onSaved }) {
   const [v, setV] = useState(item ? { text: item.text, scope: item.scope, importance: item.importance ?? 0.5, tags: (item.tags || []).join(', '), supersede: false }
     : { class: 'semantic', scope: 'global', text: '', importance: 0.5, tags: '' });
   const [busy, setBusy] = useState(false);
@@ -42,7 +42,7 @@ function ItemForm({ item, projects, onClose, onSaved }) {
   const save = async () => {
     setBusy(true);
     const r = item
-      ? await post('/api/brain/items/update', { id: item.id, supersede: !!v.supersede, patch: { text: v.text, scope: v.scope, importance: +v.importance, tags } })
+      ? await post('/api/brain/items/update', { id: item.id, supersede: !!v.supersede, patch: { text: v.text, scope: v.scope, importance: +v.importance, tags, ...(accept ? { status: 'active' } : {}) } })
       : await post('/api/brain/items', { class: v.class, scope: v.scope, text: v.text, importance: +v.importance, tags, provenance: { kind: 'user' } });
     setBusy(false);
     if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err');
@@ -52,7 +52,7 @@ function ItemForm({ item, projects, onClose, onSaved }) {
   return html`<${Modal} title=${item ? t('memory.edit') : t('memory.add')} onClose=${busy ? undefined : onClose}
     foot=${html`<button class="btn ghost" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !v.text.trim()} onClick=${save}>${t('ui.dialog.enregistrer')}</button>`}>
     <div class="ws-form">
-      ${!item && html`<label class="field"><span>${t('memory.class')}</span><${Seg} label=${t('memory.class')} value=${v.class} onChange=${c => set({ class: c })} options=${MEMORY_CLASSES.filter(c => c !== 'session').map(c => ({ value: c, label: CLASS()[c] }))} />
+      ${!item && html`<label class="field"><span>${t('memory.class')}</span><${ListPick} label=${t('memory.class')} value=${v.class} onChange=${c => set({ class: c })} options=${MEMORY_CLASSES.filter(c => c !== 'session').map(c => ({ value: c, label: CLASS()[c] }))} />
         <small>${CLASS_NOTE()[v.class]}</small></label>`}
       <label class="field"><span>${t('memory.text')}</span><textarea class="textarea" rows="5" maxlength="8000" value=${v.text} onInput=${e => set({ text: e.target.value })}></textarea></label>
       <label class="field"><span>${t('memory.scope')}</span><${ListPick} label=${t('memory.scope')} value=${v.scope} onChange=${s => set({ scope: s })} options=${scopes} /></label>
@@ -60,6 +60,58 @@ function ItemForm({ item, projects, onClose, onSaved }) {
       <label class="field"><span>${t('memory.tags')}</span><input class="input" value=${v.tags} placeholder=${t('memory.tags_hint')} onInput=${e => set({ tags: e.target.value })} /></label>
       ${item && html`<label class="check"><input type="checkbox" checked=${v.supersede} onChange=${e => set({ supersede: e.target.checked })} /><span>${t('memory.supersede')}</span><${Tip} text=${t('memory.supersede_tip')} /></label>`}
     </div></${Modal}>`;
+}
+
+// Suggestions : ce que Loom repère dans tes messages (« retiens… »,
+// « toujours… ») ou tire d'une discussion analysée. Rien n'entre dans le
+// contexte avant d'être gardé.
+function Consolidate({ onClose }) {
+  const convs = useStore(app, x => (x.nav && x.nav.conversations) || []);
+  const [id, setId] = useState(convs[0] ? convs[0].id : '');
+  const [busy, setBusy] = useState(false);
+  const run = async consent => {
+    setBusy(true);
+    const r = await post('/api/brain/consolidate', consent ? { discussion_id: id, consent: true } : { discussion_id: id }, { timeout: 610000 }).catch(e => ({ ok: false, error: e.message }));
+    setBusy(false);
+    if (r.error && /consent required/i.test(r.error) && !consent) {
+      if (await confirm(t('resources.dist.remote_title'), t('resources.dist.remote_text'), { ok: t('resources.dist.send') })) return run(true);
+      return;
+    }
+    if (r.ok === false || r.error) return toast(r.error || t('resources.dist.failed'), 'err');
+    toast(t('memory.cand.found', { n: (r.items || []).length }));
+    onClose(true);
+  };
+  return html`<${Modal} title=${t('memory.cand.analyze')} sub=${t('memory.cand.analyze_sub')} onClose=${busy ? undefined : () => onClose()}
+      foot=${html`<button class="btn ghost" disabled=${busy} onClick=${() => onClose()}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !id} onClick=${() => run(false)}>${busy ? html`<span class="spinner"></span>${t('resources.dist.running')}` : t('memory.cand.run')}</button>`}>
+    <label class="field"><span>${t('resources.dist.discussion')}</span><${ListPick} label=${t('resources.dist.discussion')} value=${id} onChange=${setId} options=${convs.map(c => ({ value: c.id, label: c.title || t('app.palette.nouvelle_discussion') }))} /></label>
+    <p class="note">${t('resources.dist.engine_note')}</p>
+  </${Modal}>`;
+}
+
+function Suggestions({ projects, onChanged }) {
+  const [items, setItems] = useState(null);
+  const [auto, setAuto] = useState(null);
+  const [dlg, setDlg] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const load = () => get('/api/brain/items?status=candidate&limit=100').then(r => setItems(r.items || [])).catch(() => setItems([]));
+  useEffect(() => { load(); get('/api/brain/consolidation').then(r => setAuto(r.ok === false ? null : !!r.auto_candidates)).catch(() => {}); }, []);
+  const toggle = async on => { setAuto(on); const r = await post('/api/brain/consolidation', { auto_candidates: on }).catch(e => ({ ok: false, error: e.message })); if (r.ok === false) { setAuto(!on); toast(r.error, 'err'); } };
+  const keep = async it => { const r = await post('/api/brain/items/update', { id: it.id, patch: { status: 'active' } }); if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err'); load(); onChanged(); };
+  const drop = async it => { const r = await post('/api/brain/items/forget', { id: it.id }); if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err'); load(); };
+  if (items === null) return null;
+  return html`<section class="mi-sugg">
+    <div class="mi-sugg-h"><b>${t('memory.cand.title')}</b>${items.length > 0 && html`<span class="count">${items.length}</span>`}<${Tip} text=${t('memory.cand.tip')} /><span class="grow"></span>
+      ${auto !== null && html`<label class="mi-auto"><span>${t('memory.cand.auto')}</span><${Switch} label=${t('memory.cand.auto')} checked=${auto} onChange=${toggle} /></label>`}
+      <button class="btn sm ghost" onClick=${() => setDlg(true)}><${Icon} n="sparkle" />${t('memory.cand.analyze')}</button></div>
+    ${items.length ? html`<div class="card">${items.map(it => html`<div class="mi-item" key=${it.id}>
+        <div class="grow"><div class="mi-text">${it.text}</div><div class="mi-meta"><span class="tag">${CLASS()[it.class] || it.class}</span><span>${scopeLabel(it.scope, projects)}</span><span>${PROV()[(it.provenance || {}).kind] || ''}</span></div></div>
+        <div class="mi-acts"><button class="btn sm" onClick=${() => keep(it)}><${Icon} n="check" />${t('memory.cand.keep')}</button>
+          <button class="icon-btn" aria-label=${t('memory.edit_short')} title=${t('memory.edit_short')} onClick=${() => setEdit(it)}><${Icon} n="edit" /></button>
+          <button class="icon-btn" aria-label=${t('memory.cand.drop')} title=${t('memory.cand.drop')} onClick=${() => drop(it)}><${Icon} n="close" /></button></div>
+      </div>`)}</div>` : html`<p class="note">${t(auto === false ? 'memory.cand.empty_off' : 'memory.cand.empty')}</p>`}
+    ${dlg && html`<${Consolidate} onClose=${ok => { setDlg(false); if (ok) load(); }} />`}
+    ${edit && html`<${ItemForm} item=${edit} accept projects=${projects} onClose=${() => setEdit(null)} onSaved=${() => { setEdit(null); load(); onChanged(); }} />`}
+  </section>`;
 }
 
 export function MemoryItems() {
@@ -90,13 +142,13 @@ export function MemoryItems() {
   };
   return html`<div class="mi">
     <div class="mi-bar">
-      <${Seg} size="sm" label=${t('memory.class')} value=${cls_} onChange=${setClass} options=${[{ value: 'all', label: t('memory.all') }, ...MEMORY_CLASSES.map(c => ({ value: c, label: CLASS()[c] }))]} />
-      <span class="grow"></span>
-      <div class="mi-status"><${ListPick} label=${t('memory.status')} value=${status} onChange=${setStatus} options=${STATUSES.map(s => ({ value: s, label: STATUS()[s] }))} /></div>
-      <label class="search"><${Icon} n="search" /><input placeholder=${t('memory.search')} value=${q} onInput=${e => setQ(e.target.value)} /></label>
-      <button class="btn primary" onClick=${() => setForm({})}><${Icon} n="plus" />${t('memory.add')}</button>
+      <label class="search mi-q"><${Icon} n="search" /><input placeholder=${t('memory.search')} value=${q} onInput=${e => setQ(e.target.value)} /></label>
+      <div class="mi-pick"><${ListPick} label=${t('memory.class')} value=${cls_} onChange=${setClass} options=${[{ value: 'all', label: t('memory.all_classes') }, ...MEMORY_CLASSES.map(c => ({ value: c, label: CLASS()[c] }))]} /></div>
+      <div class="mi-pick"><${ListPick} label=${t('memory.status')} value=${status} onChange=${setStatus} options=${STATUSES.map(s => ({ value: s, label: STATUS()[s] }))} /></div>
+      <button class="btn primary mi-add" onClick=${() => setForm({})}><${Icon} n="plus" />${t('memory.add')}</button>
     </div>
-    <p class="note mi-note">${t('memory.intro')}</p>
+    <${Suggestions} projects=${projects} onChanged=${load} />
+    ${data && !data.error && html`<p class="mi-count">${t('memory.count', { n: items.length })}<${Tip} text=${t('memory.intro')} /></p>`}
     ${data === null ? html`<div class="skeleton" style="height:180px"></div>`
       : data.error ? html`<div class="card pad"><p class="note err">${data.error}</p></div>`
       : !groups.length ? html`<div class="card"><${Empty} icon="brain" title=${t('memory.empty')} text=${t('memory.empty_note')}><button class="btn" onClick=${() => setForm({})}>${t('memory.add')}</button></${Empty}></div>`
@@ -105,8 +157,8 @@ export function MemoryItems() {
             <div class="grow"><div class="mi-text">${it.text}</div>
               <div class="mi-meta"><span>${scopeLabel(it.scope, projects)}</span><span>${prov(it)}</span><span>${ago(it.updated_at || it.created_at)}</span>
                 ${it.status !== 'active' && html`<span class="tag">${STATUS()[it.status]}</span>`}${(it.tags || []).map(tag => html`<span class="tag" key=${tag}>${tag}</span>`)}</div></div>
-            ${it.status !== 'expired' && it.status !== 'superseded' && html`<button class="btn sm ghost" onClick=${() => setForm(it)}>${t('memory.edit_short')}</button>
-              <button class="icon-btn" aria-label=${t('memory.forget')} title=${t('memory.forget')} onClick=${() => forget(it)}><${Icon} n="trash" /></button>`}
+            ${it.status !== 'expired' && it.status !== 'superseded' && html`<div class="mi-acts"><button class="icon-btn" aria-label=${t('memory.edit_short')} title=${t('memory.edit_short')} onClick=${() => setForm(it)}><${Icon} n="edit" /></button>
+              <button class="icon-btn" aria-label=${t('memory.forget')} title=${t('memory.forget')} onClick=${() => forget(it)}><${Icon} n="trash" /></button></div>`}
           </div>`)}</div></section>`)}
     ${data && data.malformed > 0 && html`<p class="note">${t('memory.malformed', { n: data.malformed })}</p>`}
     ${form && html`<${ItemForm} item=${form.id ? form : null} projects=${projects} onClose=${() => setForm(null)} onSaved=${() => { setForm(null); load(); }} />`}

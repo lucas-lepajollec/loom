@@ -211,7 +211,7 @@ test('usage classifies English absence messages and Brain detects server consent
   assert.equal(quiet('reading interrupted'), false);
   assert.equal(quiet('unrecognized Codex quota format'), false);
   assert.equal(quiet(''), false);
-  const brain = fs.readFileSync(new URL('../next/js/features/resources/brain.js', import.meta.url), 'utf8');
+  const brain = fs.readFileSync(new URL('../next/js/features/resources/memory-items.js', import.meta.url), 'utf8');
   const consent = vm.runInNewContext(brain.match(/(\/[^\n]+\/i)\.test\(r\.error\)/)[1]);
   const server = fs.readFileSync(new URL('../../brain_distill.go', import.meta.url), 'utf8');
   const error = server.match(/errors.New\("(consent required[^"\n]+)"\)/)[1];
