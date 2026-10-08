@@ -136,11 +136,10 @@ function LinkedFolders({ onChange }) {
   </section>`;
 }
 
-export function Skills() {
+export function Skills({ q = '' }) {
   const ws = useStore(app, s => s.workspace);
   const [dlg, setDlg] = useState(null);
   const [h, setH] = useState(null);
-  const [q, setQ] = useState('');
   const loadHome = () => Promise.all([get('/api/skills/home'), get('/api/brain/sources').catch(() => ({}))]).then(([r, b]) => {
     const src = ((b && b.sources) || []).find(s => s.id === r.brain_source);
     setH(r.ok === false ? null : { ...r, brain_label: src ? src.label : r.brain_source });
@@ -153,7 +152,7 @@ export function Skills() {
   return html`<div class="bs">
     ${h ? html`<${SkillsHome} h=${h} onChanged=${() => { loadHome(); refreshWorkspace(); }} />` : html`<div class="skeleton" style="height:56px"></div>`}
     <section class="sec"><div class="sec-h"><h2>${t('skills.list')}${skills.length > 0 && html` <span class="count">${skills.length}</span>`}<${Tip} text=${t('skills.home.tip')} /></h2><span class="grow"></span>
-        ${skills.length > 6 && html`<label class="search sk-q"><${Icon} n="search" /><input placeholder=${t('skills.search')} value=${q} onInput=${e => setQ(e.target.value)} /></label>`}</div>
+</div>
       <div class="mcards">${shown.map(s => html`<${SkillCard} key=${s.id} s=${s} used=${projects.filter(p => (p.capability_ids || []).includes(s.id)).length} onOpen=${() => setDlg({ skill: s })} onDelete=${() => del(s)} />`)}
         <button type="button" class="mcard add" onClick=${() => setDlg({})}><${Icon} n="plus" /><span>${t("resources.page.nouvelle_skill")}</span><small>${t('skills.card.add_note')}</small></button></div>
     </section>

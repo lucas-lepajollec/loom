@@ -12,7 +12,7 @@ import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
 import { useVisibleRefresh } from '../usage/refresh.js';
 
-export const brainTabs = () => [{ value: 'sources', label: t('brain.tab.sources') }, { value: 'memory', label: t('memory.tab') }, { value: 'search', label: t('brain.tab.search') }, { value: 'skills', label: t('resources.page.skills') }, { value: 'mcp', label: t('brain.tab.mcp') }];
+export const brainTabs = () => [{ value: 'sources', label: t('brain.tab.sources') }, { value: 'memory', label: t('memory.tab') }, { value: 'skills', label: t('resources.page.skills') }, { value: 'mcp', label: t('brain.tab.mcp') }];
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
 // Sources intégrées : noms affichés en français.
 export const brainLabel = s => ({ conversations: t("resources.brain.discussions_de_loom"), memory: t("resources.brain.memoire_de_l_agent_local"), distilled: t("resources.dist.section") })[s.id] || s.label;
@@ -56,30 +56,28 @@ function AddSource({ source, preset, onClose }) {
   </${Modal}>`;
 }
 
-function Search({ sources }) {
-  const [q, setQ] = useState('');
+// Résultats de la barre de recherche du Brain (onglet Sources) : passages
+// trouvés dans les sources, sans modèle. Les coffres personnels restent exclus
+// tant qu'on ne les autorise pas.
+function SearchResults({ q, sources }) {
   const [hits, setHits] = useState(null);
-  const [selected, setSelected] = useState(new Set());
   const [personal, setPersonal] = useState(false);
-  const scope = () => { const query = new URLSearchParams(); if (selected.size) query.set('sources', [...selected].join(',')); if (personal && sources.some(s => s.kind === 'personal' && selected.has(s.id))) query.set('personal', 'true'); return query.toString(); };
-  const selectSource = id => { const next = new Set(selected); next.has(id) ? next.delete(id) : next.add(id); setSelected(next); setHits(null); };
   const [open, setOpen] = useState(null);
-  const run = async e => {
-    e && e.preventDefault();
-    if (!q.trim()) return;
-    const r = await get('/api/brain/search?limit=12&query=' + encodeURIComponent(q) + '&' + scope()).catch(() => null);
-    setHits(r && r.hits ? r.hits : []);
-  };
+  const hasPersonal = sources.some(s => s.kind === 'personal');
+  const scope = () => { const query = new URLSearchParams(); if (personal) { query.set('personal', 'true'); query.set('sources', sources.map(s => s.id).join(',')); } return query.toString(); };
+  useEffect(() => {
+    setHits(null);
+    const id = setTimeout(() => get('/api/brain/search?limit=20&query=' + encodeURIComponent(q) + '&' + scope()).then(r => setHits(r && r.hits ? r.hits : [])).catch(() => setHits([])), 250);
+    return () => clearTimeout(id);
+  }, [q, personal]);
   const read = async h => { const r = await get('/api/brain/read?chunk_id=' + encodeURIComponent(h.chunk_id) + '&' + scope()).catch(() => null); if (r && r.text) setOpen({ ...h, text: r.text }); };
   const label = id => { const s = sources.find(x => x.id === id); return s ? brainLabel(s) : id; };
-  const mark = h => { const out = []; let at = 0; const chars = [...h.snippet]; for (const r of h.highlights || []) { out.push(chars.slice(at, r.start).join('')); out.push(html`<mark>${chars.slice(r.start, r.end).join('')}</mark>`); at = r.end; } out.push(chars.slice(at).join('')); return out; };
-  return html`<section class="sec"><div class="sec-h"><h2>${t("resources.brain.chercher_dans_le_brain")}<${Tip} text=${t('second_brain.search_note')} /></h2></div>
-    <form class="brain-search" onSubmit=${run}><label class="search"><${Icon} n="search" /><input placeholder="${t("resources.brain.ex_nom_de_la_vm_de_dev_convention_de_commit")}" value=${q} onInput=${e => setQ(e.target.value)} /></label><button class="btn" type="submit">${t("resources.brain.chercher")}</button></form>
-    <div class="chips">${sources.map(s => html`<button class=${cls('chip-btn', selected.has(s.id) && 'on')} disabled=${s.kind === 'personal' && !personal} onClick=${() => selectSource(s.id)}>${s.kind === 'personal' && html`<${Icon} n="lock" />`}${brainLabel(s)}</button>`)}</div>
-    ${sources.some(s => s.kind === 'personal') && html`<label class="check"><input type="checkbox" checked=${personal} onChange=${e => { setPersonal(e.target.checked); setHits(null); if (!e.target.checked) setSelected(new Set([...selected].filter(id => sources.find(s => s.id === id)?.kind !== 'personal'))); }} /><span>${t('second_brain.personal_search')}</span></label>`}
-    ${hits && (hits.length ? html`<div class="card rows">${hits.map(h => html`<button class="row brain-hit" key=${h.chunk_id} onClick=${() => read(h)}>
-        <div class="grow"><div class="t"><span class="mono">${h.path}</span>${h.heading && h.heading.length > 0 && html`<span class="muted"> › ${h.heading.join(' › ')}</span>`}</div><div class="s">${mark(h)}</div></div>
-        <span class="tag">${label(h.source)}</span></button>`)}</div>` : html`<p class="note">${t("resources.brain.aucun_passage_trouve")}</p>`)}
+  const mark = h => { const out = []; let at = 0; const chars = [...(h.snippet || '')]; for (const r of h.highlights || []) { out.push(chars.slice(at, r.start).join('')); out.push(html`<mark>${chars.slice(r.start, r.end).join('')}</mark>`); at = r.end; } out.push(chars.slice(at).join('')); return out; };
+  return html`<section class="sec"><div class="sec-h"><h2>${t('brain.search.results', { q })}${hits && html` <span class="count">${hits.length}</span>`}<${Tip} text=${t('second_brain.search_note')} /></h2><span class="grow"></span>
+      ${hasPersonal && html`<label class="mi-auto"><span>${t('brain.search.personal')}</span><${Switch} label=${t('brain.search.personal')} checked=${personal} onChange=${setPersonal} /></label>`}</div>
+    ${hits === null ? html`<div class="skeleton" style="height:120px"></div>` : hits.length ? html`<div class="card bs-list">${hits.map(h => html`<button class="bs-row brain-hit" key=${h.chunk_id} onClick=${() => read(h)}>
+        <div class="grow"><div class="bs-name"><span class="mono trunc">${h.path}</span><span class="tag">${label(h.source)}</span></div>${h.heading && h.heading.length > 0 && html`<div class="bs-sub"><span>${h.heading.join(' › ')}</span></div>`}<div class="hit-snip">${mark(h)}</div></div></button>`)}</div>`
+      : html`<div class="card bs-none"><div class="grow"><p>${t("resources.brain.aucun_passage_trouve")}</p></div></div>`}
     ${open && html`<${Modal} wide title=${open.path} sub=${(open.heading || []).join(' › ')} onClose=${() => setOpen(null)}><pre class="brain-read">${open.text}</pre></${Modal}>`}
   </section>`;
 }
@@ -147,7 +145,7 @@ function SourceMenu({ s, busy, onEdit, onSync, onSkills, onRemove }) {
     ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${items} />`}`;
 }
 
-export function Brain() {
+export function Brain({ q }) {
   const [data, setData] = useState(null);
   const [dlg, setDlg] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -179,36 +177,29 @@ export function Brain() {
   const status = s => s.error ? html`<span class="bs-state err" title=${s.error}><i class="dot red"></i>${t('resources.brain.erreur')}</span>`
     : html`<span class="bs-state"><i class="dot green"></i>${t('brain.src.files', { n: s.files || 0 })} · ${freshness(s)}</span>`;
   const menu = s => html`<${SourceMenu} s=${s} busy=${busy} onEdit=${() => setDlg(s)} onSync=${() => sync(s)} onSkills=${() => setSkillPick(s)} onRemove=${() => remove(s)} />`;
+  if (q && q.trim()) return html`<div class="bs"><${SearchResults} q=${q.trim()} sources=${data.sources || []} /></div>`;
+  const card = s => html`<div class="mcard src-card" key=${s.id}>
+      <div class="mcard-h"><span class="mx-ico"><${Icon} n=${icon(s)} /></span><span class="grow"><b>${s.label}</b><small>${connector(s)} · ${access(s)}</small></span>${menu(s)}</div>
+      <p class="mcard-d mono" title=${s.remote || s.path}>${s.remote || home(s.path)}</p>
+      <div class="ws-card-f"><span class="tag">${t(s.secondary ? 'second_brain.role.secondary' : 'second_brain.role.context')}</span>${status(s)}</div>
+    </div>`;
   return html`<div class="bs">
     ${data.error && html`<p class="note err">${data.error}</p>`}
-    <section class="sec"><div class="sec-h"><h2>${t('second_brain.primary')}<${Tip} text=${t('second_brain.role.primary_note')} /></h2></div>
-      ${primary ? html`<div class="card bs-primary">
-          <span class="mono-tile"><${Icon} n=${icon(primary)} /></span>
-          <div class="grow"><div class="bs-name">${primary.label}</div>
-            <div class="bs-sub"><span>${connector(primary)}</span><span class="mono trunc" title=${primary.remote || primary.path}>${primary.remote || home(primary.path)}</span></div>
-            <div class="bs-sub">${status(primary)}<span>${t('brain.src.memory_here')}</span></div></div>
-          ${primary.remote && html`<button class="btn sm ghost bs-wide" disabled=${busy} onClick=${() => sync(primary)}><${Icon} n="refresh" />${t('second_brain.sync')}</button>`}
-          ${menu(primary)}</div>`
-        : html`<div class="card bs-none"><div class="grow"><b>${t('brain.src.no_primary')}</b><p>${t('brain.src.no_primary_note')}</p></div><button class="btn primary" onClick=${() => setDlg({ primary: true })}><${Icon} n="plus" />${t('brain.src.choose_primary')}</button></div>`}
+    ${primary ? html`<div class="card loc-strip">
+        <span class="mono-tile"><${Icon} n=${icon(primary)} /></span>
+        <div class="grow"><div class="bs-name">${primary.label}<span class="tag">${t('second_brain.primary')}</span><${Tip} text=${t('second_brain.role.primary_note')} /></div>
+          <div class="bs-sub"><span class="mono trunc" title=${primary.remote || primary.path}>${primary.remote || home(primary.path)}</span>${status(primary)}<span>${t('brain.src.memory_here')}</span></div></div>
+        ${primary.remote && html`<button class="btn sm ghost" disabled=${busy} onClick=${() => sync(primary)}><${Icon} n="refresh" />${t('second_brain.sync')}</button>`}
+        ${menu(primary)}</div>`
+      : html`<div class="card loc-strip"><span class="mono-tile"><${Icon} n="brain" /></span><div class="grow"><div class="bs-name">${t('brain.src.no_primary')}</div><div class="bs-sub"><span>${t('brain.src.no_primary_note')}</span></div></div><button class="btn sm primary" onClick=${() => setDlg({ primary: true })}>${t('brain.src.choose_primary')}</button></div>`}
+    <section class="sec"><div class="sec-h"><h2>${t('brain.src.others')}${others.length > 0 && html` <span class="count">${others.length}</span>`}<${Tip} text=${t('brain.src.others_tip')} /></h2><span class="grow"></span>
+        <button class="icon-btn" disabled=${busy} aria-label=${t('resources.brain.reindexer')} title=${t('resources.brain.reindexer')} onClick=${reindex}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}</button></div>
+      <div class="mcards">${others.map(card)}
+        <button type="button" class="mcard add" onClick=${() => setDlg(true)}><${Icon} n="plus" /><span>${t('brain.src.add')}</span><small>${t('brain.src.add_note')}</small></button></div>
     </section>
-    <section class="sec"><div class="sec-h"><h2>${t('brain.src.others')}<${Tip} text=${t('brain.src.others_tip')} /></h2><span class="grow"></span>
-        <button class="icon-btn" disabled=${busy} aria-label=${t('resources.brain.reindexer')} title=${t('resources.brain.reindexer')} onClick=${reindex}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}</button>
-        <button class="btn sm" onClick=${() => setDlg(true)}><${Icon} n="plus" />${t('brain.src.add')}</button></div>
-      ${others.length ? html`<div class="card bs-list">${others.map(s => html`<div class="bs-row" key=${s.id}>
-          <span class="mono-tile"><${Icon} n=${icon(s)} /></span>
-          <div class="grow"><div class="bs-name">${s.label}<span class="tag">${t(s.secondary ? 'second_brain.role.secondary' : 'second_brain.role.context')}</span></div>
-            <div class="bs-sub"><span>${connector(s)}</span><span>${access(s)}</span>${status(s)}</div></div>
-          ${menu(s)}</div>`)}</div>`
-        : html`<div class="card bs-none"><div class="grow"><p>${t('brain.src.others_empty')}</p></div></div>`}
-    </section>
+    <${Semantic} />
     ${dlg && html`<${AddSource} source=${dlg === true ? null : dlg.id ? dlg : null} preset=${dlg.primary && !dlg.id ? { primary: true } : null} onClose=${ok => { setDlg(false); if (ok) setTimeout(load, 1500); }} />`}
     ${skillPick && html`<${FolderPicker} start=${skillPick.path} onClose=${() => setSkillPick(null)} onPick=${linkSkills} />`}
   </div>`;
 }
 
-// Recherche : ce que les agents trouvent dans le Brain, et l'index par le sens.
-export function BrainSearch() {
-  const [sources, setSources] = useState(null);
-  useEffect(() => { get('/api/brain/sources').then(r => setSources(r.sources || [])).catch(() => setSources([])); }, []);
-  return html`<div class="bs">${sources ? html`<${Search} sources=${sources} />` : html`<div class="skeleton" style="height:90px"></div>`}<${Semantic} /></div>`;
-}

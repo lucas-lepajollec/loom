@@ -5,7 +5,7 @@
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Empty, Tip, Switch } from '../../ui/controls.js';
+import { Tip, Switch } from '../../ui/controls.js';
 import { ListPick } from '../../ui/listpick.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
@@ -17,6 +17,7 @@ const STATUSES = ['active', 'uncertain', 'superseded', 'expired', 'all'];
 const CLASS = () => ({ reflex: t('memory.class.reflex'), working: t('memory.class.working'), procedural: t('memory.class.procedural'), semantic: t('memory.class.semantic'), episodic: t('memory.class.episodic'), session: t('memory.class.session') });
 const CLASS_NOTE = () => ({ reflex: t('memory.class.reflex_note'), working: t('memory.class.working_note'), procedural: t('memory.class.procedural_note'), semantic: t('memory.class.semantic_note'), episodic: t('memory.class.episodic_note'), session: t('memory.class.session_note') });
 const STATUS = () => ({ active: t('memory.status.active'), uncertain: t('memory.status.uncertain'), superseded: t('memory.status.superseded'), expired: t('memory.status.expired'), candidate: t('memory.status.candidate'), all: t('memory.status.all') });
+const CLASS_ICON = { reflex: 'pulse', working: 'tool', procedural: 'sliders', semantic: 'info', episodic: 'history', session: 'chat' };
 const PROV = () => ({ user: t('memory.prov.user'), agent: t('memory.prov.agent'), discussion: t('memory.prov.discussion'), import: t('memory.prov.import'), distilled: t('memory.prov.distilled') });
 const SCOPE_KIND = () => ({ machine: t('memory.scope.machine'), agent: t('memory.scope.agent'), task: t('memory.scope.task'), project: t('memory.scope.project') });
 
@@ -99,13 +100,14 @@ function Suggestions({ projects, onChanged }) {
   const keep = async it => { const r = await post('/api/brain/items/update', { id: it.id, patch: { status: 'active' } }); if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err'); load(); onChanged(); };
   const drop = async it => { const r = await post('/api/brain/items/forget', { id: it.id }); if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err'); load(); };
   if (items === null) return null;
-  return html`<section class="mi-sugg">
-    <div class="mi-sugg-h"><b>${t('memory.cand.title')}</b>${items.length > 0 && html`<span class="count">${items.length}</span>`}<${Tip} text=${t('memory.cand.tip')} /><span class="grow"></span>
+  return html`<section class="sec">
+    <div class="sec-h"><h2>${t('memory.cand.title')}${items.length > 0 && html` <span class="count">${items.length}</span>`}<${Tip} text=${t('memory.cand.tip')} /></h2><span class="grow"></span>
       ${auto !== null && html`<label class="mi-auto"><span>${t('memory.cand.auto')}</span><${Switch} label=${t('memory.cand.auto')} checked=${auto} onChange=${toggle} /></label>`}
       <button class="btn sm ghost" onClick=${() => setDlg(true)}><${Icon} n="sparkle" />${t('memory.cand.analyze')}</button></div>
-    ${items.length ? html`<div class="card">${items.map(it => html`<div class="mi-item" key=${it.id}>
-        <div class="grow"><div class="mi-text">${it.text}</div><div class="mi-meta"><span class="tag">${CLASS()[it.class] || it.class}</span><span>${scopeLabel(it.scope, projects)}</span><span>${PROV()[(it.provenance || {}).kind] || ''}</span></div></div>
-        <div class="mi-acts"><button class="btn sm" onClick=${() => keep(it)}><${Icon} n="check" />${t('memory.cand.keep')}</button>
+    ${items.length ? html`<div class="mcards">${items.map(it => html`<div class="mcard mi-card" key=${it.id}>
+        <div class="mcard-h"><span class="mx-ico"><${Icon} n="sparkle" /></span><span class="grow"><b>${CLASS()[it.class] || it.class}</b><small>${scopeLabel(it.scope, projects)} · ${PROV()[(it.provenance || {}).kind] || ''}</small></span></div>
+        <p class="mcard-d mi-card-d">${it.text}</p>
+        <div class="ws-card-f"><button class="btn sm" onClick=${() => keep(it)}><${Icon} n="check" />${t('memory.cand.keep')}</button><span class="grow"></span>
           <button class="icon-btn" aria-label=${t('memory.edit_short')} title=${t('memory.edit_short')} onClick=${() => setEdit(it)}><${Icon} n="edit" /></button>
           <button class="icon-btn" aria-label=${t('memory.cand.drop')} title=${t('memory.cand.drop')} onClick=${() => drop(it)}><${Icon} n="close" /></button></div>
       </div>`)}</div>` : html`<p class="note">${t(auto === false ? 'memory.cand.empty_off' : 'memory.cand.empty')}</p>`}
@@ -156,53 +158,14 @@ function CoreMemory({ onSaved }) {
   const profile = items.find(isProfile);
   const rows = [{ key: 'me', icon: 'heart', title: t('memory.me.title'), tag: PROFILE, scope: 'global', item: profile, empty: t('memory.me.empty') },
     ...projects.map(p => ({ key: p.id, icon: 'folder', title: p.name, tag: NOTES, scope: 'project:' + p.id, item: items.find(i => isNotes(i) && i.scope === 'project:' + p.id), empty: t('memory.notes.empty') }))];
-  return html`<section class="mi-core">
-    <div class="mi-sugg-h"><b>${t('memory.core.title')}</b><${Tip} text=${t('memory.core.tip')} /><span class="grow"></span>
+  return html`<section class="sec">
+    <div class="sec-h"><h2>${t('memory.core.title')}<${Tip} text=${t('memory.core.tip')} /></h2><span class="grow"></span>
       ${files && html`<label class="mi-auto" title=${t('memory.core.files_tip', { folder: files.folder })}><span>${t('memory.core.files', { folder: files.folder })}</span><${Switch} label=${t('memory.core.files', { folder: files.folder })} checked=${!!files.enabled} onChange=${toggleFiles} /></label>`}</div>
-    <div class="card bs-list">${rows.map(r => html`<div class="bs-row mi-core-row" key=${r.key}>
-      <span class="mono-tile"><${Icon} n=${r.icon} /></span>
-      <div class="grow"><div class="bs-name">${r.title}${r.item && html`<span class="mi-count-chars">${[...r.item.text].length} / ${LIMITS[r.tag]}</span>`}</div>
-        ${r.item ? html`<div class="mi-me-text">${r.item.text}</div>` : html`<div class="bs-sub"><span>${r.empty}</span></div>`}</div>
-      <button class=${cls('btn sm', r.item ? 'ghost' : '')} onClick=${() => setEdit(r)}>${r.item ? t('memory.edit_short') : t('memory.me.write')}</button></div>`)}</div>
+    <div class="mcards">${rows.map(r => html`<button type="button" class=${cls('mcard mi-card', !r.item && 'empty')} key=${r.key} onClick=${() => setEdit(r)}>
+      <div class="mcard-h"><span class="mx-ico"><${Icon} n=${r.icon} /></span><span class="grow"><b>${r.title}</b><small>${r.item ? [...r.item.text].length + ' / ' + LIMITS[r.tag] : r.tag === PROFILE ? t('memory.core.profile') : t('memory.core.notes')}</small></span><${Icon} n="edit" /></div>
+      <p class="mcard-d mi-card-d">${r.item ? r.item.text : r.empty}</p></button>`)}</div>
     ${edit && html`<${CoreEditor} target=${edit} onClose=${ok => { setEdit(null); if (ok) { load(); onSaved(); } }} />`}
   </section>`;
-}
-
-// Continuité : quand une discussion se met en pause, un petit modèle écrit où
-// on en est (résumé daté + état du projet) ; la discussion suivante repart de là.
-function Continuity() {
-  const ws = useStore(app, a => a.workspace);
-  const providers = ((ws && ws.providers) || []).filter(p => p.ready);
-  const [c, setC] = useState(null);
-  const [st, setSt] = useState(null);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    get('/api/brain/continuity').then(r => setC(r.ok === false ? null : r)).catch(() => {});
-    get('/api/brain/continuity/status').then(r => setSt(r.ok === false ? null : r)).catch(() => {});
-  }, []);
-  if (!c) return null;
-  const save = async patch => {
-    const next = { ...c, ...patch };
-    if (patch.provider_id && !c.consent && !await confirm(t('memory.cont.consent_title'), t('memory.cont.consent_text'), { ok: t('resources.dist.send') })) return;
-    if (patch.provider_id) next.consent = true;
-    setC(next);
-    const r = await post('/api/brain/continuity', next).catch(e => ({ ok: false, error: e.message }));
-    if (r.ok === false || r.error) { toast(r.error, 'err'); setC(c); }
-  };
-  const last = st && st.last_run ? ago(typeof st.last_run === 'number' ? st.last_run : Date.parse(st.last_run)) : '';
-  const where = c.provider_id ? ((providers.find(p => p.id === c.provider_id) || {}).name || c.provider_id) + (c.model ? ' · ' + c.model : '') : t('memory.cont.local');
-  return html`<div class="card mi-cont">
-    <div class="mi-cont-h"><span class="mono-tile"><${Icon} n="history" /></span>
-      <div class="grow"><b>${t('memory.cont.title')}</b><div class="mi-meta"><span class="bs-state"><i class="dot green"></i>${t('memory.cont.always')}</span>${c.enabled && html`<span>${t('memory.cont.refined', { where })}</span>`}${c.enabled && last && html`<span>${t('memory.cont.last', { when: last })}</span>`}${c.enabled && st && st.last_error && html`<span class="bs-state err" title=${st.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>
-      <button class=${cls('btn sm', open ? '' : 'ghost')} onClick=${() => setOpen(!open)}><${Icon} n="sliders" />${t('memory.cont.refine')}</button></div>
-    ${open && html`<div class="mi-cont-b">
-      <label class="check mi-cont-wide"><input type="checkbox" checked=${!!c.enabled} onChange=${e => save({ enabled: e.target.checked })} /><span>${t('memory.cont.refine_on')}</span><${Tip} text=${t('memory.cont.refine_tip')} /></label>
-      <label class="field"><span>${t('memory.cont.model')}</span><${ListPick} label=${t('memory.cont.model')} value=${c.provider_id || ''} onChange=${provider_id => save({ provider_id, model: provider_id ? c.model : '' })} options=${[{ value: '', label: t('memory.cont.local') }, ...providers.map(p => ({ value: p.id, label: p.name, group: t('memory.cont.cloud') }))]} /></label>
-      ${c.provider_id && html`<label class="field"><span>${t('memory.cont.model_name')}</span><input class="input mono" value=${c.model || ''} placeholder="gpt-5-mini" onChange=${e => save({ model: e.target.value.trim() })} /></label>`}
-      ${!c.provider_id && html`<label class="check mi-cont-wide"><input type="checkbox" checked=${c.loaded_only !== false} onChange=${e => save({ loaded_only: e.target.checked })} /><span>${t('memory.cont.loaded_only')}</span><${Tip} text=${t('memory.cont.loaded_only_tip')} /></label>`}
-      <label class="field"><span>${t('memory.cont.idle')}</span><${ListPick} label=${t('memory.cont.idle')} value=${String(c.idle_minutes || 10)} onChange=${v => save({ idle_minutes: +v })} options=${[5, 10, 20, 30, 60].map(n => ({ value: String(n), label: t('memory.cont.minutes', { n }) }))} /></label>
-    </div>`}
-  </div>`;
 }
 
 // Passations : écrites par Loom à chaque échange (et états de projet). Lues
@@ -224,11 +187,10 @@ function Handoffs({ items, projects }) {
   </details>`;
 }
 
-export function MemoryItems() {
+export function MemoryItems({ q = '' }) {
   const projects = useStore(app, a => (a.workspace && a.workspace.projects) || []);
   const [cls_, setClass] = useState('all');
   const [status, setStatus] = useState('active');
-  const [q, setQ] = useState('');
   const [data, setData] = useState(null);
   const [form, setForm] = useState(null);
   const load = () => {
@@ -251,28 +213,23 @@ export function MemoryItems() {
     const p = it.provenance || {};
     return p.discussion_id ? html`<a href="#/chat" onClick=${e => { e.preventDefault(); import('../chat/engine.js').then(m => { m.open(p.discussion_id); go('chat'); }); }}>${PROV()[p.kind || 'discussion'] || p.kind}</a>` : PROV()[p.kind || 'user'] || p.kind;
   };
-  return html`<div class="mi">
-    <div class="mi-bar">
-      <label class="search mi-q"><${Icon} n="search" /><input placeholder=${t('memory.search')} value=${q} onInput=${e => setQ(e.target.value)} /></label>
-      <div class="mi-pick"><${ListPick} label=${t('memory.class')} value=${cls_} onChange=${setClass} options=${[{ value: 'all', label: t('memory.all_classes') }, ...MEMORY_CLASSES.map(c => ({ value: c, label: CLASS()[c] }))]} /></div>
-      <div class="mi-pick"><${ListPick} label=${t('memory.status')} value=${status} onChange=${setStatus} options=${STATUSES.map(s => ({ value: s, label: STATUS()[s] }))} /></div>
-      <button class="btn primary mi-add" onClick=${() => setForm({})}><${Icon} n="plus" />${t('memory.add')}</button>
-    </div>
+  const itemCard = it => html`<div class=${cls('mcard mi-card', it.status !== 'active' && 'dim')} key=${it.id}>
+      <div class="mcard-h"><span class="mx-ico"><${Icon} n=${CLASS_ICON[it.class] || 'brain'} /></span><span class="grow"><b>${CLASS()[it.class] || it.class}</b><small>${scopeLabel(it.scope, projects)} · ${prov(it)} · ${ago(it.updated_at || it.created_at)}</small></span>
+        ${it.status !== 'expired' && it.status !== 'superseded' && html`<button class="icon-btn" aria-label=${t('memory.edit_short')} title=${t('memory.edit_short')} onClick=${() => setForm(it)}><${Icon} n="edit" /></button>
+          <button class="icon-btn" aria-label=${t('memory.forget')} title=${t('memory.forget')} onClick=${() => forget(it)}><${Icon} n="trash" /></button>`}</div>
+      <p class="mcard-d mi-card-d">${it.text}</p>
+      ${(it.status !== 'active' || (it.tags || []).length > 0) && html`<div class="ws-card-f">${it.status !== 'active' && html`<span class="tag">${STATUS()[it.status]}</span>`}${(it.tags || []).map(tag => html`<span class="tag" key=${tag}>${tag}</span>`)}</div>`}
+    </div>`;
+  return html`<div class="bs">
     <${CoreMemory} onSaved=${load} />
-    <${Continuity} />
     <${Suggestions} projects=${projects} onChanged=${load} />
-    ${data && !data.error && html`<p class="mi-count">${t('memory.count', { n: items.length })}<${Tip} text=${t('memory.intro')} /></p>`}
-    ${data === null ? html`<div class="skeleton" style="height:180px"></div>`
-      : data.error ? html`<div class="card pad"><p class="note err">${data.error}</p></div>`
-      : !groups.length ? html`<div class="card"><${Empty} icon="brain" title=${t('memory.empty')} text=${t('memory.empty_note')}><button class="btn" onClick=${() => setForm({})}>${t('memory.add')}</button></${Empty}></div>`
-      : groups.map(([c, list]) => html`<section class="set-group" key=${c}><h3>${CLASS()[c]} <span class="count">${list.length}</span><${Tip} text=${CLASS_NOTE()[c]} /></h3>
-          <div class="card">${list.map(it => html`<div class=${cls('mi-item', it.status !== 'active' && 'dim')} key=${it.id}>
-            <div class="grow"><div class="mi-text">${it.text}</div>
-              <div class="mi-meta"><span>${scopeLabel(it.scope, projects)}</span><span>${prov(it)}</span><span>${ago(it.updated_at || it.created_at)}</span>
-                ${it.status !== 'active' && html`<span class="tag">${STATUS()[it.status]}</span>`}${(it.tags || []).map(tag => html`<span class="tag" key=${tag}>${tag}</span>`)}</div></div>
-            ${it.status !== 'expired' && it.status !== 'superseded' && html`<div class="mi-acts"><button class="icon-btn" aria-label=${t('memory.edit_short')} title=${t('memory.edit_short')} onClick=${() => setForm(it)}><${Icon} n="edit" /></button>
-              <button class="icon-btn" aria-label=${t('memory.forget')} title=${t('memory.forget')} onClick=${() => forget(it)}><${Icon} n="trash" /></button></div>`}
-          </div>`)}</div></section>`)}
+    <section class="sec"><div class="sec-h"><h2>${t('memory.items')}${data && !data.error && html` <span class="count">${items.length}</span>`}<${Tip} text=${t('memory.intro')} /></h2><span class="grow"></span>
+        <div class="mi-pick"><${ListPick} label=${t('memory.class')} value=${cls_} onChange=${setClass} options=${[{ value: 'all', label: t('memory.all_classes') }, ...MEMORY_CLASSES.map(c => ({ value: c, label: CLASS()[c] }))]} /></div>
+        <div class="mi-pick"><${ListPick} label=${t('memory.status')} value=${status} onChange=${setStatus} options=${STATUSES.map(s => ({ value: s, label: STATUS()[s] }))} /></div></div>
+      ${data === null ? html`<div class="skeleton" style="height:180px"></div>`
+        : data.error ? html`<div class="card pad"><p class="note err">${data.error}</p></div>`
+        : html`<div class="mcards">${groups.flatMap(([, list]) => list).map(itemCard)}<button type="button" class="mcard add" onClick=${() => setForm({})}><${Icon} n="plus" /><span>${t('memory.add')}</span><small>${t('memory.add_note')}</small></button></div>`}
+    </section>
     <${Handoffs} items=${auto} projects=${projects} />
     ${data && data.malformed > 0 && html`<p class="note">${t('memory.malformed', { n: data.malformed })}</p>`}
     ${form && html`<${ItemForm} item=${form.id ? form : null} projects=${projects} onClose=${() => setForm(null)} onSaved=${() => { setForm(null); load(); }} />`}

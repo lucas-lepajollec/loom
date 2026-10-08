@@ -420,20 +420,20 @@
 .eng-link .note{margin:0}
 
 /* Terminaux */
-.term-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:stretch;height:calc(100vh - 210px);min-height:420px}
+.term-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:stretch;height:clamp(340px,calc(100vh - 400px),820px)}
 .term-list{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2);overflow:hidden}
 .term-list-h{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--text-2);min-height:37px}
-.term-items{flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:2px}
-.term-previews{margin-top:22px}
-.term-item{display:flex;align-items:center;gap:4px;border-radius:6px}
-.term-item.on{background:var(--surface-3)}
+.term-items{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:4px}
+.term-previews{margin-top:18px}
+.term-item{display:flex;align-items:center;gap:2px;padding-right:6px;border-radius:var(--r-sm);border:1px solid transparent}
+.term-item.on{background:var(--surface-3);border-color:var(--line)}
 .term-item:hover:not(.on){background:var(--hover)}
 .term-pick{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:8px 10px;text-align:left}
 .term-pick .grow{display:flex;flex-direction:column;min-width:0}
 .term-pick b{font-weight:500;font-size:13px}
 .term-pick small{font-size:11.5px;color:var(--text-3)}
 .term-pick .trunc{display:block;max-width:none}
-.term-item .icon-btn{opacity:.6}
+.term-item .icon-btn{opacity:.6;width:26px;height:26px;flex:none}
 .term-item .icon-btn:hover{opacity:1}
 .term-view{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2);overflow:hidden}
 .term-head{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12.5px;min-width:0}
@@ -876,3 +876,21 @@
 .mcard.add small{font-size:11.5px;color:var(--text-3)}
 .ws-machine .sec-h{justify-content:flex-start}
 .mcp-card .ws-card-f .bs-state.err{max-width:100%}
+/* Brain : onglets et recherche sur une ligne ; tout en cartes. */
+.brain-bar{display:flex;align-items:center;gap:12px;margin:-8px 0 18px}
+.brain-bar .sec-tabs{margin:0}
+.brain-q{flex:1;min-width:0;max-width:340px;margin-left:auto}
+.mi-card{text-align:left;color:inherit;font:inherit;cursor:default}
+button.mi-card{cursor:pointer}
+.mi-card .mcard-h .icon-btn{flex:none}
+.mi-card.empty .mi-card-d{color:var(--text-3)}
+.mi-card-d{-webkit-line-clamp:4;white-space:pre-wrap;overflow-wrap:anywhere}
+.mi-card.dim{opacity:.6}
+.mi-group{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.mi-group-h{display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px;font-weight:500;color:var(--text-2)}
+.mi-add-row{margin-top:4px}
+.mi-add-row .mcard.add{min-height:80px}
+.src-card .mcard-d{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.hit-snip{margin-top:4px;font-size:12.5px;line-height:1.5;color:var(--text-2)}
+.brain-hit{width:100%;text-align:left}
+@media(max-width:720px){.brain-bar{flex-wrap:wrap}.brain-q{max-width:none;flex:1 1 100%;margin-left:0}}
