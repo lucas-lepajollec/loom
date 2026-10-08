@@ -355,6 +355,10 @@ func (s *brainService) distillHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		var result []brainDistilledItem
 		result, err = brainDistillWithChat(ctx, base, engineAPIKey(), engineRequestModel(), d)
+		if errors.Is(err, errEngineBusy) {
+			brainResponse(w, map[string]any{"ok": true, "items": []brainDistilledItem{}, "skipped_reason": "engine model_busy"}, nil)
+			return
+		}
 		if err != nil {
 			break
 		}

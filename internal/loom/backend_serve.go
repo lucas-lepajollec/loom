@@ -43,7 +43,18 @@ func cmdServe(args []string) error {
 			return fmt.Errorf("starting llama-server router: %w", err)
 		}
 		if model != "" {
+			startup := currentEngineService()
+			startup.mu.Lock()
+			startup.loading = true
+			startup.mu.Unlock()
 			go func() {
+				defer func() {
+					startup.mu.Lock()
+					defer startup.mu.Unlock()
+					startup.loading = false
+					_ = startup.refreshLocked()
+					startup.dispatchLocked()
+				}()
 				if err := waitRouterUp(2 * time.Minute); err != nil {
 					fmt.Fprintf(os.Stderr, "[loom serve] router unreachable: %v\n", err)
 					return

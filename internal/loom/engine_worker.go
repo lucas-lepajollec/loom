@@ -283,12 +283,15 @@ func newEngineWorkerMux(token string) *http.ServeMux {
 	})
 	// A node's inference credential is independent from its management token.
 	inference := func(w http.ResponseWriter, r *http.Request) {
-		key := readAPIKey()
-		if key == "" {
+		if readAPIKey() == "" {
 			sendJSON(w, 503, map[string]any{"ok": false, "error": "node inference credential unavailable"})
 			return
 		}
-		nodeAuth(hashWebKey(key), serveNodeInference)(w, r)
+		if _, ok := oaiKeyOK(r); !ok {
+			oaiError(w, 401, "invalid_request_error", "Invalid API key", "", "invalid_api_key")
+			return
+		}
+		serveNodeInference(w, r)
 	}
 	mux.HandleFunc("/v1/", inference)
 	for _, path := range []string{"/health", "/props", "/slots", "/metrics"} {
@@ -345,7 +348,11 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 	proxy.Director = func(req *http.Request) {
 		director(req)
 		req.Host = u.Host
-		req.Header.Set("Authorization", "Bearer "+key)
+		// Le front llama.cpp résout la clé cliente et compte sa propre requête.
+		// Un moteur direct, lui, ne connaît que sa credential native.
+		if currentEngineNode() != nil {
+			req.Header.Set("Authorization", "Bearer "+key)
+		}
 		req.Header.Del("Cookie")
 		req.Header.Del("Origin")
 	}

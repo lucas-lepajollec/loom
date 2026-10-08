@@ -42,7 +42,7 @@ func TestEngineHostDefautEtBascule(t *testing.T) {
 	if err := putStr(bkState, "api_key", ""); err != nil {
 		t.Fatal(err)
 	}
-	if oaiKeyOK(httptest.NewRequest("GET", "/v1/models", nil)) {
+	if _, ok := oaiKeyOK(httptest.NewRequest("GET", "/v1/models", nil)); ok {
 		t.Fatal("une configuration LAN sans clé doit refuser les requêtes")
 	}
 }

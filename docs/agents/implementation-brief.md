@@ -15,7 +15,8 @@ configuration before editing; preserve unrelated work.
    state, lifecycle policy and HTTP domain handlers deliberately remain in Loom.
    Do not recreate completed migrations described in architecture §4.
 3. Engines own inference. Keep llama.cpp router mode, native slots and one
-   argument builder; do not add scheduling or restart a router for model changes.
+   argument builder; do not add slot/token scheduling or restart a router for model changes.
+   Engine-service admission may queue residency changes until responses drain.
    Temporary API overrides never alter saved model settings.
 4. Descriptors must match implemented capabilities. Native runtime state,
    approvals and hidden reasoning remain private. Unknown metrics stay unknown.

@@ -6,6 +6,15 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Engine service admission with FIFO model swaps that drain existing streams,
+  resident-model batches, background priorities/grace, configurable idle VRAM
+  unload and cross-process native generation protection. Native chat and Bench
+  reload on demand; Bench model sweeps use the inference front's drain policy.
+- Named, hashed inference API keys with model restrictions, concurrency/rate
+  limits, persistent reported-token usage, rotation and legacy `default` key
+  compatibility. Authenticated, node-aware `/api/engine/service` and
+  `/api/engine/keys` control endpoints expose policy, live activity and keys.
+
 - Always-on, zero-model-cost discussion handoffs at workspace and native turn
   ends, asynchronous coalescing, incremental encrypted records, in-place Brain
   working items and three-discussion project state. Project state is pinned on

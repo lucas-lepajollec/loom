@@ -421,3 +421,31 @@ func TestBrainContinuityEconomies(t *testing.T) {
 		t.Fatalf("summary should use the loaded model, got %q %v", model, err)
 	}
 }
+
+func TestBrainContinuityEngineBusyRecordsSkip(t *testing.T) {
+	s := continuityFixture(t)
+	now := time.Now()
+	continuitySession(t, "busy", "", now.Add(-time.Hour))
+	calls := 0
+	brainFakeModelClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("X-Loom-Priority") != "background" {
+			t.Error("missing background priority")
+		}
+		identity, ok := oaiKeyOK(r)
+		if !ok || identity.ID != "loom" {
+			t.Error("missing internal identity")
+		}
+		w.WriteHeader(503)
+		io.WriteString(w, `{"error":{"code":"model_busy"}}`)
+	})
+	entries, err := s.runContinuity(context.Background(), "busy", now)
+	if err != nil || len(entries) != 1 || entries[0].SkippedReason != "engine model_busy" || calls != 1 {
+		t.Fatalf("entries %+v err %v calls %d", entries, err, calls)
+	}
+	s.continuity.mu.Lock()
+	defer s.continuity.mu.Unlock()
+	if s.continuity.status.LastError != "" {
+		t.Fatal("busy recorded as error")
+	}
+}

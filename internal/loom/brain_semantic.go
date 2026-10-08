@@ -546,12 +546,23 @@ func brainModelPOST(ctx context.Context, url, key string, input, output any) err
 	if key != "" {
 		req.Header.Set("Authorization", "Bearer "+key)
 	}
+	loomInferenceHeaders(req, "background")
 	resp, err := brainModelClient.Do(req)
 	if err != nil {
 		return errors.New("model request failed or timed out")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			var response struct {
+				Error struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&response) == nil && response.Error.Code == "model_busy" {
+				return errEngineBusy
+			}
+		}
 		return fmt.Errorf("model request refused (HTTP %d)", resp.StatusCode)
 	}
 	b, err = io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))

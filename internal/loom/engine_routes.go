@@ -42,6 +42,10 @@ func registerEngineControlRoutes(api func(string, http.HandlerFunc)) {
 	api("/api/preset/save", handlePresetSave)
 	api("/api/preset/delete", handlePresetDelete)
 	api("/api/engine/auto-update", handleEngineAuto)
+	api("/api/engine/service", handleEngineService)
+	for _, path := range []string{"/api/engine/keys", "/api/engine/keys/update", "/api/engine/keys/delete", "/api/engine/keys/rotate"} {
+		api(path, handleEngineKeys)
+	}
 	api("/api/engines/vllm", handleVLLM)
 	api("/api/engines/vllm/params", handleVLLMParams)
 	api("/api/engines/vllm/auto-update", handleVLLMAuto)

@@ -93,10 +93,14 @@ func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, 
 }
 
 func runCompletionBenchContext(ctx context.Context, userPrompt string, nPredict int, n *engineNode) (*benchResult, string, error) {
-	port := LLMPort()
-	if n == nil && !healthCheck() {
-		return nil, "", fmt.Errorf("server unreachable on :%d", port)
-	}
+	return runCompletionBenchModelContext(ctx, userPrompt, nPredict, n, "")
+}
+
+func runCompletionBenchModelContext(ctx context.Context, userPrompt string, nPredict int, n *engineNode, model string) (*benchResult, string, error) {
+	endEngineActivity := engineGenerationLease(ctx)
+	defer endEngineActivity()
+	// Le front réveillera le modèle après un déchargement idle ; /health reste
+	// une observation et ne doit pas empêcher cette première inférence.
 	if nPredict <= 0 {
 		nPredict = 256
 	}
@@ -109,6 +113,10 @@ func runCompletionBenchContext(ctx context.Context, userPrompt string, nPredict 
 		"cache_prompt": false,
 	}
 	body, _ := json.Marshal(payload)
+	if model != "" {
+		payload["model"] = model
+		body, _ = json.Marshal(payload)
+	}
 	url := engineBase() + "/v1/chat/completions"
 	if n != nil {
 		url = n.V1 + "/v1/chat/completions"
@@ -123,6 +131,7 @@ func runCompletionBenchContext(ctx context.Context, userPrompt string, nPredict 
 	req.Header.Set("Content-Type", "application/json")
 	if n == nil {
 		authHeader(req)
+		loomInferenceHeaders(req, "interactive") // CLI et files Bench sont lancés par l'utilisateur.
 	} else if n.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+n.APIKey)
 	}
@@ -190,7 +199,11 @@ type savedBench struct {
 // saveLastBench enregistre le dernier benchmark (best-effort) pour que l'UI
 // puisse l'afficher sans le relancer.
 func saveLastBench(res *benchResult) {
-	sb := savedBench{Result: *res, Model: filepath.Base(engineCurrentModel()), At: time.Now().Unix()}
+	saveLastBenchForModel(res, engineCurrentModel())
+}
+
+func saveLastBenchForModel(res *benchResult, model string) {
+	sb := savedBench{Result: *res, Model: filepath.Base(model), At: time.Now().Unix()}
 	_ = putJSON(bkState, "last_bench", sb)
 }
 
@@ -231,8 +244,12 @@ func saveBenchForActivePreset(res *benchResult) {
 	if id == "" {
 		return
 	}
+	saveBenchForPreset(res, id, engineCurrentModel())
+}
+
+func saveBenchForPreset(res *benchResult, id, model string) {
 	m := loadBenchStore()
-	m[id] = savedBench{Result: *res, Model: filepath.Base(engineCurrentModel()), At: time.Now().Unix()}
+	m[id] = savedBench{Result: *res, Model: filepath.Base(model), At: time.Now().Unix()}
 	_ = putJSON(bkState, "bench_presets", m)
 }
 

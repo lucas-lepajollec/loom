@@ -366,7 +366,7 @@ var errModelLoading = fmt.Errorf("⏳ The model is still loading — try again i
 // MODÈLE en tête du message, mais rendues comme pastilles dans la bulle : le fil
 // doit montrer ce que l'utilisateur a écrit, pas la consigne qu'on ajoute pour lui.
 func (c *Conversation) StartTurn(text string, files []attachInfo, caps Caps, temperature float64) error {
-	if !healthCheck() {
+	if !healthCheck() && !engineModelSelected() {
 		return errModelLoading
 	}
 	c.mu.Lock()
@@ -429,6 +429,8 @@ func (c *Conversation) StartTurn(text string, files []attachInfo, caps Caps, tem
 // tout ce que ce tour produirait ensuite (deltas, messages, persistance) est
 // abandonné au lieu de ressusciter des morceaux de l'ancienne conversation.
 func (c *Conversation) generate(ctx context.Context, caps Caps, temperature float64, epoch int, handoff handoffTurn) {
+	endEngineActivity := engineGenerationLease(ctx)
+	defer endEngineActivity()
 	// Horloge du tour : durée réelle (préchauffe + réflexion + outils + réponse),
 	// journalisée dans turn_done pour que l'UI affiche la MÊME durée en direct et
 	// après un rechargement (le chrono client, lui, n'existe qu'en direct).
@@ -668,7 +670,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 // événements passent par le flux d'abonnement, donc tous les appareils voient la
 // progression. Renvoie ErrBusy si un tour est déjà en cours.
 func (c *Conversation) CompactNow() error {
-	if !healthCheck() {
+	if !healthCheck() && !engineModelSelected() {
 		return errModelLoading
 	}
 	c.mu.Lock()
@@ -686,6 +688,8 @@ func (c *Conversation) CompactNow() error {
 	c.mu.Unlock()
 
 	go func() {
+		endEngineActivity := engineGenerationLease(ctx)
+		defer endEngineActivity()
 		defer func() {
 			c.mu.Lock()
 			// Même précaution que dans generate : une compaction abandonnée par un

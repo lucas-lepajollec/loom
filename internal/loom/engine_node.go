@@ -303,6 +303,7 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 
 // engineRoutes are the control API paths owned by the engine's machine.
 var engineRoutes = map[string]bool{
+	"/api/engine/service": true, "/api/engine/keys": true, "/api/engine/keys/update": true, "/api/engine/keys/delete": true, "/api/engine/keys/rotate": true,
 	"/api/status": true, "/api/service/log": true, "/api/vram": true, "/api/ram": true, "/api/config": true,
 	"/api/reasoning": true, "/api/catalog": true, "/api/paths": true, "/api/server": true,
 	"/api/models": true, "/api/models/delete": true, "/api/models/dirs": true, "/api/models/download": true,

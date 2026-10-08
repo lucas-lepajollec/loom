@@ -395,6 +395,11 @@ func (s *brainService) runContinuity(ctx context.Context, id string, now time.Ti
 				runCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 				entry.SummaryID, entry.StateID, err = s.summarizeContinuity(runCtx, endpoint, key, model, d, start)
 				cancel()
+				if errors.Is(err, errEngineBusy) {
+					entry.SkippedReason = "engine model_busy"
+					entries = append(entries, entry)
+					continue
+				}
 				if err != nil {
 					entries = append(entries, entry)
 					return entries, err
