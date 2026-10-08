@@ -180,14 +180,17 @@ text history and selected context; that can include earlier replies.
 
 Local builtin Codex prefers the installed `codex app-server` protocol; local
 builtin Pi prefers `pi --mode rpc`. Missing native protocol support selects the
-existing pinned ACP fallback. Claude Code and OpenCode use their ACP launchers.
+existing pinned ACP fallback. Claude Code uses its pinned ACP launcher with question/form and failure extensions.
+OpenCode prefers one owned authenticated loopback HTTP/SSE server; older CLIs,
+remote/custom launchers and launch-scoped Loom sources retain ACP.
 Remote/custom launchers retain ACP. Native startup/authentication/resume failures
 are visible and never silently retried through another protocol. See
 [agent compatibility](agents-compat.md) for tested versions, fixture maintenance,
 canonical event/request JSON and the backend-only UI contract.
-Antigravity uses Loom's own ACP bridge to `agy`; authentication, native models
-and access modes remain with that CLI. It does not receive Loom provider keys or
-MCP servers and does not provide an interactive Loom approval RPC. Hermes can
+Antigravity prefers the installed `agy` structured stream with Loom's ACP bridge
+as fallback; authentication, native models, conversation IDs and access modes
+remain with that CLI. It does not receive Loom provider keys or MCP servers and
+its headless stream has no interactive permission/question reply channel. Hermes can
 run through a custom or discovered SSH ACP launcher; its built-in local entry
 provides quotas and usage, not chat.
 

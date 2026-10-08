@@ -112,7 +112,8 @@ export function Approval({ a, resolved, root, onAnswer }) {
   const opts = [...(a.options || [])].sort((x, y) => (OPT_ORDER[x.kind] ?? 9) - (OPT_ORDER[y.kind] ?? 9));
   const diffs = localT.diffs || [];
   return html`<div class=${cls('approval', resolved && 'done')}>
-    <div class="ap-h"><${Icon} n="lock" /><span>${resolved ? (resolved.cancelled ? t("chat.tools.demande_annulee") : resolved.allowed ? t("chat.tools.autorise") + (resolved.auto ? t("chat.tools.automatiquement") : '') : t("chat.tools.refuse")) : t("chat.tools.autorisation_demandee")}</span></div>
+    <div class="ap-h"><${Icon} n="lock" /><span>${resolved ? (resolved.cancelled ? t("chat.tools.demande_annulee") : resolved.allowed ? t("chat.tools.autorise") + (resolved.auto ? t("chat.tools.automatiquement") : '') : t("chat.tools.refuse")) : a.approval_kind === 'plan' ? t("chat.tools.plan_validation") : t("chat.tools.autorisation_demandee")}</span></div>
+    ${a.approval_kind === 'plan' && a.message && !resolved && html`<div class="ap-plan">${a.message}</div>`}
     <div class="ap-tool"><${Icon} n=${ico} />${localT.kind === 'execute' ? html`<code>${localT.title}</code>` : html`<span>${localT.title}</span>`}</div>
     ${!resolved && diffs.map(d => html`<div class="tc-file"><div class="tc-path">${rel(d.path, root)}</div><${Diff} d=${d} /></div>`)}
     ${!resolved && html`<div class="ap-acts">${opts.map(o => html`<button class=${cls('btn sm', o.kind === 'allow_once' && 'primary', o.kind && o.kind.startsWith('reject') && 'ghost')} onClick=${() => onAnswer(o.id)}>${OPT_LABEL[o.kind] || o.name}</button>`)}</div>`}

@@ -267,8 +267,13 @@ func acpLaunchEnv(agentID, model string) []string {
 	if key == "" {
 		key = "loom"
 	}
-	env = append(env, "LOOM_API_KEY="+key)
+	if s.Format != "opencode" || strings.HasPrefix(model, "loom/") {
+		env = append(env, "LOOM_API_KEY="+key)
+	}
 	for _, p := range chatSources() {
+		if s.Format == "opencode" && !strings.HasPrefix(model, providerSlug(p)+"/") {
+			continue
+		}
 		if k := workspaceSessions.providerKey(p.ID); k != "" {
 			env = append(env, providerKeyEnv(p.ID)+"="+k)
 		}

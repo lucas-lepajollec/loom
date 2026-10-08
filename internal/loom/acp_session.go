@@ -40,7 +40,9 @@ type acpBinding struct {
 	mcpRevision   string
 	loomModel     bool // the harness runs a Loom model through its launch environment
 	loading       bool
+	failure       string
 	answer        string
+	claude        bool
 	agentID       string
 	remote        bool
 	prelude       string    // startup notice the agent repeats as a message (pi-acp)
@@ -90,6 +92,7 @@ func (m *runtimeSessions) closeACP(id string) {
 	}
 }
 func (m *runtimeSessions) shutdownACP() {
+	openCodeServer.Close()
 	m.acpMu.Lock()
 	ps := m.acp
 	m.acp = map[string]*acpBinding{}
@@ -190,7 +193,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		if err != nil {
 			return nil, err
 		}
-		p = &acpBinding{client: c, state: cloneACPState(s.ACPState), tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, manager: m, id: s.ID, ctx: requestCtx, emit: emit, active: true, mcpRevision: mcpRevision, loomModel: env != nil, agentID: agent.ID, remote: agent.Remote}
+		p = &acpBinding{client: c, state: cloneACPState(s.ACPState), tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, manager: m, id: s.ID, ctx: requestCtx, emit: emit, active: true, mcpRevision: mcpRevision, loomModel: env != nil, claude: claudeACPAgent(agent), agentID: agent.ID, remote: agent.Remote}
 		if p.state.Permission == "" {
 			p.state.Permission = "ask"
 		}
@@ -237,12 +240,18 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		var init struct {
 			ProtocolVersion   int            `json:"protocolVersion"`
 			AgentCapabilities map[string]any `json:"agentCapabilities"`
+			AgentInfo         map[string]any `json:"agentInfo"`
 		}
-		err = c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": !agent.Remote, "writeTextFile": !agent.Remote}, "terminal": false, "elicitation": map[string]any{"form": true, "url": true}}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init)
+		err = c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": acpClientCapabilities(!agent.Remote, true), "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init)
 		cancel()
 		if err != nil || init.ProtocolVersion != 1 {
+			p.publishClaudeRPCFailure(agent, err)
 			m.closeACP(s.ID)
-			return nil, errors.New("ACP initialization incompatible or failed")
+			return nil, claudeACPError(agent, err, "ACP initialization incompatible or failed")
+		}
+		record := recordACPCompatibility(agent, init.AgentInfo, []string{"chat", "stream", "cancel", "approvals", "user-input", "elicitation"})
+		if record.Warning != "" {
+			p.publish(DiscussionEvent{"type": "warning", "message": record.Warning, "agent_event": AgentEvent{Type: "warning", Runtime: agent.ID, Message: record.Warning, Raw: agentEvents.JSON(record)}})
 		}
 		p.mu.Lock()
 		p.state.AgentCapabilities = init.AgentCapabilities
@@ -290,8 +299,9 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			cancel()
 		}
 		if err != nil || response.SessionID == "" {
+			p.publishClaudeRPCFailure(agent, err)
 			m.closeACP(s.ID)
-			return nil, errors.New("ACP session creation failed; check native authentication")
+			return nil, claudeACPError(agent, err, "ACP session creation failed; check native authentication")
 		}
 		p.mu.Lock()
 		p.state.NativeSessionID = response.SessionID
@@ -419,14 +429,35 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			}
 		}
 	}()
+	var resultRaw json.RawMessage
 	var result struct {
-		StopReason string `json:"stopReason"`
+		StopReason string          `json:"stopReason"`
+		Meta       json.RawMessage `json:"_meta"`
 	}
 	p.mu.Lock()
+	p.failure = ""
 	p.retries, p.turnStart = 0, time.Now()
 	p.mu.Unlock()
 	p.publish(DiscussionEvent{"type": "turn.started", "agent_event": AgentEvent{Type: "turn.started", Runtime: agent.ID, ThreadID: state.NativeSessionID, Raw: agentEvents.JSON(map[string]any{"method": "session/prompt", "sessionId": state.NativeSessionID})}})
-	err = p.client.call(ctx, "session/prompt", map[string]any{"sessionId": state.NativeSessionID, "prompt": []any{map[string]any{"type": "text", "text": prompt}}}, &result)
+	err = p.client.call(ctx, "session/prompt", map[string]any{"sessionId": state.NativeSessionID, "prompt": []any{map[string]any{"type": "text", "text": prompt}}}, &resultRaw)
+	_ = json.Unmarshal(resultRaw, &result)
+	p.mu.Lock()
+	failure := p.failure
+	p.mu.Unlock()
+	if failure != "" {
+		err = errors.New(failure)
+	}
+	if message, severity := acpFailureMeta(result.Meta); message != "" && severity != "warning" {
+		err = errors.New(message)
+	}
+	var rpcErr *acpRPCError
+	if errors.As(err, &rpcErr) && claudeACPAgent(agent) {
+		resultRaw = rpcErr.Raw
+		err = errors.New(rpcErr.Message)
+	}
+	if err != nil && ctx.Err() == nil {
+		p.publish(DiscussionEvent{"type": "error", "error": err.Error(), "agent_event": AgentEvent{Type: "error", Runtime: agent.ID, Error: err.Error(), Raw: agentEvents.BoundedJSON(resultRaw)}})
+	}
 	requestCancel()
 	if p.broker != nil {
 		p.broker.Cancel()
@@ -444,7 +475,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	if ctx.Err() != nil || result.StopReason == "cancelled" {
 		status = "cancelled"
 	}
-	p.publish(DiscussionEvent{"type": "turn.completed", "agent_event": AgentEvent{Type: "turn.completed", Runtime: agent.ID, ThreadID: state.NativeSessionID, Status: status, Error: detail, Raw: agentEvents.JSON(result)}})
+	p.publish(DiscussionEvent{"type": "turn.completed", "agent_event": AgentEvent{Type: "turn.completed", Runtime: agent.ID, ThreadID: state.NativeSessionID, Status: status, Error: detail, Raw: agentEvents.BoundedJSON(resultRaw)}})
 	if err != nil || result.StopReason == "cancelled" {
 		if ctx.Err() != nil {
 			_ = p.client.notification("session/cancel", map[string]any{"sessionId": state.NativeSessionID})

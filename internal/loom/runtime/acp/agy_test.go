@@ -39,6 +39,35 @@ cat <<'EOS'
 EOS
 `
 
+func TestAgyBridgeLegacyPrintInput(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agy-legacy")
+	script := `#!/bin/sh
+for arg in "$@"; do
+ case "$arg" in --input-format|--dangerously-skip-permissions) exit 21;; esac
+done
+while [ "$#" -gt 0 ]; do
+ if [ "$1" = "--print" ]; then
+  shift
+  [ "$1" = "legacy prompt" ] || exit 22
+  printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","conversation_id":"legacy-id"}}'
+  exit 0
+ fi
+ shift
+done
+exit 23
+`
+	if err := os.WriteFile(path, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	b := AgyBridge{Executable: path, TextInput: true}
+	s := &agySession{cwd: dir, mode: "default"}
+	status, err := b.turn(context.Background(), s, "legacy prompt", func(map[string]any) {})
+	if err != nil || status != "end_turn" || s.conv != "legacy-id" {
+		t.Fatal(status, err, s.conv)
+	}
+}
+
 func TestAgyBridgeRefusesUnavailableOrEmptyCatalog(t *testing.T) {
 	for _, empty := range []bool{false, true} {
 		var out bytes.Buffer

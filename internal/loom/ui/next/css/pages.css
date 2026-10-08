@@ -936,3 +936,13 @@ button.mcard:hover{border-color:var(--line-strong)}
 @media (prefers-reduced-motion:reduce){.sec-pill,.view.page>.page-in>*,.tab-body{transition:none;animation:none}}
 .mi-path{display:flex;align-items:center;gap:6px;margin:-4px 0 10px}
 .mi-path .ico{width:13px;height:13px}
+.cat-search{position:relative;display:flex;align-items:center;margin-bottom:8px}
+.cat-search .ico{position:absolute;left:10px;width:14px;height:14px;color:var(--text-3)}
+.cat-search .input{padding-left:32px;width:100%}
+.cat-list{max-height:340px;overflow:auto}
+.cat-l{align-items:flex-start;min-width:0}
+.cat-ico{width:22px;height:22px;border-radius:5px;flex:none;object-fit:contain}
+.cat-name{font-size:13.5px}
+.cat-d{font-size:12px;color:var(--text-3);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cat-l .grow{min-width:0}
+.cat-list .set-c{flex:none;padding-left:12px}

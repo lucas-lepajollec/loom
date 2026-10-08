@@ -4,15 +4,18 @@ The ACP protocol package and Loom session integration implement NDJSON
 JSON-RPC v1 from the vendored
 [`acp-schema/schema.json`](acp-schema/schema.json). The embedded registry is
 [`internal/loom/harness/acp_agents.json`](../../internal/loom/harness/acp_agents.json).
-Codex, Claude Code, Pi and OpenCode use generic `acpAdapter` entries.
+Codex, Claude Code, Pi and OpenCode use the common harness registry.
+Local Codex prefers app-server, Pi prefers RPC and OpenCode prefers its native
+HTTP/SSE server; their ACP paths remain fallbacks. Claude uses ACP.
 Custom and SSH launchers can register other ACP agents, including Hermes.
 Hermes runs through `hermes acp`, locally or on an SSH machine. The npm bridges have pinned versions; direct native launchers use the installed CLI.
 Availability requires both the registry launcher and every `detect` executable.
 Antigravity runs through Loom’s `agy-acp` bridge to the native CLI. Its
 native access modes remain authoritative; Loom passes neither provider keys
 nor MCP servers, and there is no interactive Loom approval RPC for that bridge.
-Codex app-server is used for read-only quotas and explicitly requested native
-account sign-in, never discussion generation.
+Codex app-server also executes local discussions. See
+[agent compatibility](../agents-compat.md) for protocol selection, tested
+versions, Claude question/form/failure extensions and the backend UI contract.
 
 ## Native account connection
 

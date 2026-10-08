@@ -167,7 +167,7 @@ func TestRuntimeRegistryOrderAndIsolation(t *testing.T) {
 }
 
 func TestRuntimeRegistryStartupCatalog(t *testing.T) {
-	want := []string{"llama.cpp", "openai-compatible", "antigravity", "codex", "claude-code", "pi", "opencode", "hermes", "openclaw"}
+	want := []string{"llama.cpp", "openai-compatible", "antigravity", "codex", "claude-code", "pi", "opencode", "hermes", "openclaw", "deepseek-tui"}
 	got := []string{}
 	for _, d := range runtimeCatalog() {
 		got = append(got, d.ID)

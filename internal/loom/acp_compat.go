@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
+	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/acp"
 )
@@ -93,7 +95,14 @@ func newReplayBuilder() *acp.ReplayBuilder[Message, RuntimeTurnRecord, Discussio
 	)
 }
 func runAgyACP(in io.Reader, out io.Writer) {
-	(acp.AgyBridge{Read: agyRead, Executable: "agy"}).Run(in, out)
+	bridge := acp.AgyBridge{Read: agyRead, Executable: "agy"}
+	if path, err := lifecycleLookPath("agy"); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		help, err := exec.CommandContext(ctx, path, "--help").CombinedOutput()
+		cancel()
+		bridge.TextInput = err == nil && strings.Contains(string(help), "--output-format") && strings.Contains(string(help), "stream-json") && !strings.Contains(string(help), "--input-format")
+	}
+	bridge.Run(in, out)
 }
 func discoverAgyModelsNamed(ctx context.Context) ([][2]string, error) {
 	return acp.DiscoverAgyModelsNamed(ctx, agyRead)

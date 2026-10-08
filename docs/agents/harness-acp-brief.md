@@ -25,7 +25,7 @@ field name. Antigravity has no native ACP endpoint; Loom now provides its
 
 ```json
 { "id": "claude-code", "name": "Claude Code", "logo": "claudecode",
-  "command": "npx", "args": ["-y", "@agentclientprotocol/claude-agent-acp@0.84.0"],
+  "command": "npx", "args": ["-y", "@agentclientprotocol/claude-agent-acp@0.88.0"],
   "detect": ["claude"], "docs": "https://…" }
 ```
 

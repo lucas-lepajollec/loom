@@ -50,6 +50,14 @@ func Tool(tools map[string]map[string]any, update map[string]any) map[string]any
 	// content: terminal_output_delta chunks, or terminal_output once.
 	streamed := ""
 	if meta, ok := update["_meta"].(map[string]any); ok {
+		if exit, ok := meta["terminal_exit"].(map[string]any); ok {
+			if code, ok := exit["exit_code"]; ok {
+				t["exit_code"] = code
+			}
+			if signal, ok := exit["signal"]; ok {
+				t["signal"] = signal
+			}
+		}
 		for _, key := range []string{"terminal_output_delta", "terminal_output"} {
 			if chunk, ok := meta[key].(map[string]any); ok {
 				if data, ok := chunk["data"].(string); ok {

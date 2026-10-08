@@ -1,0 +1,6 @@
+{"frame":{"event":"init","conversation_id":"fixture-conversation","init":{"cwd":"/fixture/project","permission_mode":"request-review","tools":["run_command","write_to_file"]}},"events":["turn.started","raw"]}
+{"frame":{"event":"future_notice","payload":{"value":"preserve"}},"events":["raw"]}
+{"frame":{"event":"step_update","step_update":{"conversation_id":"fixture-conversation","step_index":1,"step_type":"future_reasoning","state":"ACTIVE","text_delta":"reported","new_field":"preserve"}},"events":["raw"]}
+{"frame":{"event":"step_update","step_update":{"conversation_id":"fixture-conversation","step_index":2,"step_type":"future_plan","state":"DONE","plan":[{"step":"Inspect","status":"completed"}]}},"events":["raw"]}
+{"frame":{"event":"future_context","context":{"used_tokens":12,"context_window":100}},"events":["raw"]}
+{"frame":{"event":"result","result":{"conversation_id":"fixture-conversation","status":"SUCCESS","response":"Done"}},"events":["content.delta","raw","turn.completed"]}

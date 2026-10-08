@@ -119,3 +119,33 @@ func TestPiDeclaresDeepSeekThinkingSwitch(t *testing.T) {
 		t.Fatalf("DeepSeek must expose its thinking switch to Pi: %+v", provider)
 	}
 }
+
+func TestOpenCodeLaunchSuppliesOnlySelectedLoomKey(t *testing.T) {
+	testHome(t)
+	one, err := workspaceSessions.saveProvider(CloudProvider{Name: "One", Endpoint: "https://one.example/v1", Model: "fixture", Models: []string{"fixture"}}, "fixture-one-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	two, err := workspaceSessions.saveProvider(CloudProvider{Name: "Two", Endpoint: "https://two.example/v1", Model: "fixture", Models: []string{"fixture"}}, "fixture-two-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = putStoreJSON(bkState, modelSinkState, map[string]bool{"opencode": true})
+	for _, model := range []string{"", "native/fixture", providerSlug(one) + "/fixture"} {
+		env := strings.Join(acpLaunchEnv("opencode", model), "\n")
+		if strings.Contains(env, "fixture-two-key") || strings.Contains(env, "LOOM_API_KEY=") {
+			t.Fatal("unselected credential supplied")
+		}
+		selected := model == providerSlug(one)+"/fixture"
+		if strings.Contains(env, providerKeyEnv(one.ID)+"=fixture-one-key") != selected {
+			t.Fatal("selected credential missing or supplied to a catalog probe")
+		}
+		if strings.Contains(env, providerKeyEnv(two.ID)+"=fixture-two-key") {
+			t.Fatal("other provider credential supplied")
+		}
+	}
+	a := acpAgent{ID: "opencode", Command: "opencode"}
+	if nativeAgentProtocol(a) != "" {
+		t.Fatal("launch-scoped model sources should retain ACP")
+	}
+}

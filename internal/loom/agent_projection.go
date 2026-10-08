@@ -106,12 +106,20 @@ func (p *agentProjection) event(e agent.AgentEvent) DiscussionEvent {
 			}
 		}
 		if e.ItemType == "file_change" {
+			if diff, ok := payload["diff"].([]any); ok {
+				tool["output"] = string(agent.JSON(diff))
+			}
 			if changes, ok := payload["changes"].([]any); ok {
 				tool["output"] = string(agent.JSON(changes))
 			}
 		}
 		if e.Status != "" {
 			tool["status"] = e.Status
+		}
+		if e.Error != "" {
+			if output, _ := tool["output"].(string); output == "" {
+				tool["output"] = e.Error
+			}
 		}
 		d["type"] = "tool_start"
 		if e.Type == "item.updated" {
@@ -179,7 +187,7 @@ func (p *agentProjection) event(e agent.AgentEvent) DiscussionEvent {
 	case "usage.spent", "context.updated":
 		d["type"] = "usage"
 		d["usage"] = e.Usage
-		if e.Usage != nil && e.Usage.Total != nil {
+		if e.Type == "context.updated" && e.Usage != nil && e.Usage.Total != nil {
 			d["context"] = map[string]any{"used": *e.Usage.Total, "size": e.Usage.ContextWindow}
 		}
 	}

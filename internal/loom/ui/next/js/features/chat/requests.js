@@ -14,18 +14,26 @@ async function resolve(sessionId, rid, body) {
   return true;
 }
 
+// La réponse d'une question est un tableau : les options choisies, puis le
+// texte libre éventuel (Claude le transmet comme « Autre » ou comme note).
 function Question({ q, value, onChange, single }) {
   const picked = value || [];
   const opts = q.options || [];
-  const other = picked.find(v => !opts.some(o => o.id === v)) || '';
-  const toggle = id => onChange(picked.includes(id) ? picked.filter(v => v !== id) : [id]);
+  const isOpt = v => opts.some(o => o.id === v);
+  const ids = picked.filter(isOpt);
+  const other = picked.find(v => !isOpt(v)) || '';
+  const toggle = id => {
+    const next = ids.includes(id) ? ids.filter(v => v !== id) : q.multi_select ? [...ids, id] : [id];
+    onChange(other ? [...next, other] : next);
+  };
   return html`<div class="rq-q">
     ${(q.header || !single) && q.header && html`<div class="rq-head">${q.header}</div>`}
     <div class="rq-text">${q.question}</div>
     ${opts.length > 0 && html`<div class="rq-opts">${opts.map(o => html`<button type="button" class=${cls('rq-opt', picked.includes(o.id) && 'on')} onClick=${() => toggle(o.id)}>
       <b>${o.label}</b>${o.description && html`<small>${o.description}</small>`}</button>`)}</div>`}
     ${(q.free_text || !opts.length) && html`<input class="input" type=${q.secret ? 'password' : 'text'} autocomplete="off" placeholder=${opts.length ? t('chat.request.other') : t('chat.request.answer')}
-      value=${other} onInput=${e => onChange(e.target.value ? [e.target.value] : [])} />`}
+      value=${other} onInput=${e => onChange(e.target.value ? [...ids, e.target.value] : ids)} />`}
+    ${(q.multi_select || q.optional) && html`<small class="rq-hint">${[q.multi_select && t('chat.request.multi'), q.optional && t('chat.request.optional')].filter(Boolean).join(' · ')}</small>`}
   </div>`;
 }
 
@@ -57,7 +65,7 @@ export function RequestCard({ r, resolved, sessionId }) {
   if (resolved) return html`<div class="approval done rq"><div class="ap-h"><${Icon} n="chat" /><span>${head}</span></div>
     ${qs.length > 0 && html`<div class="ap-tool"><span>${qs.map(q => q.question).join(' · ')}</span></div>`}${!qs.length && r.message && html`<div class="ap-tool"><span>${r.message}</span></div>`}</div>`;
   const required = (r.schema && r.schema.required) || [];
-  const ready = r.kind === 'user_input' ? qs.every(q => (answers[q.id] || []).length)
+  const ready = r.kind === 'user_input' ? qs.every(q => q.optional || (answers[q.id] || []).length)
     : r.url || required.every(k => content[k] !== undefined && content[k] !== '');
   return html`<div class="approval rq">
     <div class="ap-h"><${Icon} n="chat" /><span>${head}</span></div>
@@ -67,7 +75,7 @@ export function RequestCard({ r, resolved, sessionId }) {
     ${r.kind === 'elicitation' && r.url && html`<a class="btn sm" href=${r.url} target="_blank" rel="noopener noreferrer"><${Icon} n="link" />${t('chat.request.open_link')}</a>`}
     <div class="ap-acts">
       ${r.kind === 'user_input'
-        ? html`<button class="btn sm primary" disabled=${busy || !ready} onClick=${() => send({ answers })}>${t('chat.request.send')}</button>`
+        ? html`<button class="btn sm primary" disabled=${busy || !ready} onClick=${() => send({ answers: Object.fromEntries(qs.map(q => [q.id, answers[q.id] || []])) })}>${t('chat.request.send')}</button>`
         : html`<button class="btn sm primary" disabled=${busy || !ready} onClick=${() => send(r.url ? { decision: 'accept' } : { decision: 'accept', content })}>${r.url ? t('chat.request.done') : t('chat.request.send')}</button>`}
       <button class="btn sm ghost" disabled=${busy} onClick=${() => send({ decision: r.kind === 'user_input' ? 'cancel' : 'decline' })}>${t('chat.request.skip')}</button>
     </div>

@@ -35,6 +35,12 @@ func nativeHistoryClient(ctx context.Context, a acpAgent, cwd string) (*codexapp
 	return s, cleanup, nil
 }
 func listNativeAgentSessions(ctx context.Context, a acpAgent) ([]acpSessionInfo, error) {
+	if a.ID == "antigravity" {
+		return nil, errors.New("Antigravity stream-json has no session-list API; use the native CLI/IDE conversation catalog")
+	}
+	if a.ID == "opencode" {
+		return listOpenCodeSessions(ctx, a)
+	}
 	if a.ID == "pi" {
 		return listPiNativeSessions()
 	}
@@ -133,6 +139,22 @@ func readNativeAgentHistory(ctx context.Context, a acpAgent, info acpSessionInfo
 	messages := []Message{}
 	turns := []RuntimeTurnRecord{}
 	sessionFile := ""
+	if a.ID == "antigravity" {
+		return nil, nil, "", errors.New("Antigravity stream-json has no history-read API; native conversation resume is supported")
+	}
+	if a.ID == "opencode" {
+		messages, err := readOpenCodeHistory(ctx, info.SessionID, cwd)
+		if err != nil {
+			return nil, nil, "", err
+		}
+		turns := []RuntimeTurnRecord{}
+		for i, msg := range messages {
+			if msg.Role == "assistant" {
+				turns = append(turns, RuntimeTurnRecord{MessageIndex: i, RuntimeID: a.ID, ProviderName: a.Name, Model: "default", NativeSessionID: info.SessionID})
+			}
+		}
+		return messages, turns, "", nil
+	}
 	if a.ID == "pi" {
 		// Resolve the ID to Pi's own file; an API caller cannot supply an arbitrary
 		// local path as a session. Pi itself restores branch/compaction semantics.

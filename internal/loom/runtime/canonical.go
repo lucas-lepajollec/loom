@@ -51,7 +51,7 @@ type AgentRequest struct {
 	Kind         string          `json:"kind"` // approval, user_input, elicitation
 	Method       string          `json:"method"`
 	ItemID       string          `json:"item_id,omitempty"`
-	ApprovalKind string          `json:"approval_kind,omitempty"` // command, file, tool
+	ApprovalKind string          `json:"approval_kind,omitempty"` // command, file, tool, plan
 	Options      []RequestOption `json:"options,omitempty"`
 	Questions    []InputQuestion `json:"questions,omitempty"`
 	Message      string          `json:"message,omitempty"`
@@ -65,12 +65,14 @@ type RequestOption struct {
 	Description string `json:"description,omitempty"`
 }
 type InputQuestion struct {
-	ID       string          `json:"id"`
-	Header   string          `json:"header,omitempty"`
-	Question string          `json:"question"`
-	Options  []RequestOption `json:"options,omitempty"`
-	FreeText bool            `json:"free_text"`
-	Secret   bool            `json:"secret,omitempty"`
+	ID          string          `json:"id"`
+	Header      string          `json:"header,omitempty"`
+	Question    string          `json:"question"`
+	Options     []RequestOption `json:"options,omitempty"`
+	FreeText    bool            `json:"free_text"`
+	MultiSelect bool            `json:"multi_select,omitempty"`
+	Optional    bool            `json:"optional,omitempty"`
+	Secret      bool            `json:"secret,omitempty"`
 }
 type RequestAnswer struct {
 	Decision string              `json:"decision,omitempty"`
@@ -230,11 +232,33 @@ func ValidateAnswer(r AgentRequest, a RequestAnswer) error {
 			return errors.New("answer every question")
 		}
 		for _, q := range r.Questions {
-			answers := a.Answers[q.ID]
-			if len(answers) == 0 {
+			answers, present := a.Answers[q.ID]
+			if !present {
 				return errors.New("answer every question")
 			}
+			if len(answers) == 0 && !q.Optional {
+				return errors.New("answer every question")
+			}
+			if !q.MultiSelect && len(answers) > 1 {
+				picks := 0
+				for _, v := range answers {
+					for _, o := range q.Options {
+						if o.ID == v || o.Label == v {
+							picks++
+							break
+						}
+					}
+				}
+				if picks > 1 {
+					return errors.New("question allows one selection")
+				}
+			}
+			seen := map[string]bool{}
 			for _, v := range answers {
+				if seen[v] {
+					return errors.New("duplicate question answer")
+				}
+				seen[v] = true
 				valid := q.FreeText
 				for _, o := range q.Options {
 					if o.ID == v || o.Label == v {
@@ -278,12 +302,16 @@ func ValidateAnswer(r AgentRequest, a RequestAnswer) error {
 }
 
 type CompatibilityRecord struct {
-	Runtime        string   `json:"runtime"`
-	Executable     string   `json:"executable"`
-	Version        string   `json:"version"`
-	Protocol       string   `json:"protocol"`
-	AdapterVersion string   `json:"adapter_version"`
-	TestedVersion  string   `json:"tested_version"`
-	Capabilities   []string `json:"capabilities"`
-	Warning        string   `json:"warning,omitempty"`
+	TestedVersionSource string   `json:"tested_version_source,omitempty"`
+	Runtime             string   `json:"runtime"`
+	Executable          string   `json:"executable"`
+	Version             string   `json:"version"`
+	Protocol            string   `json:"protocol"`
+	AdapterVersion      string   `json:"adapter_version"`
+	AdapterPackage      string   `json:"adapter_package,omitempty"`
+	AgentVersion        string   `json:"agent_version,omitempty"`
+	TestedVersions      []string `json:"tested_versions,omitempty"`
+	TestedVersion       string   `json:"tested_version"`
+	Capabilities        []string `json:"capabilities"`
+	Warning             string   `json:"warning,omitempty"`
 }

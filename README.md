@@ -15,6 +15,11 @@ Loom is a single Go binary with a web UI. Run local inference, connect cloud pro
 - See native tools, permissions, usage and machine state in one workspace.
 - Keep data locally and choose when to share it with an external destination.
 
+The backend also offers the official ACP agent catalogue with pinned add/remove
+configuration and an offline snapshot, plus curated Hermes, OpenClaw and
+DeepSeek TUI launchers. See [agent compatibility](docs/agents-compat.md) for API
+shapes, verification limits and the weekly compatibility watch.
+
 ## Models and engines
 
 Install, compile or update **llama.cpp** from Loom, or link an existing binary. Router mode keeps the engine running while models load through its API. Browse and download GGUF models from Hugging Face, save presets and tune per-model parameters with an advisory VRAM estimate.
@@ -32,8 +37,10 @@ Link a running **llama-server, vLLM or OpenAI-compatible server** by address, wi
 ## Coding agents and projects
 
 Run local **Codex** through its installed app-server and **Pi** through native RPC,
-with pinned ACP fallbacks for older CLIs. **Claude Code, OpenCode and Hermes** use
-ACP. [Agent compatibility](docs/agents-compat.md) documents canonical events,
+with pinned ACP fallbacks for older CLIs. **Claude Code** uses pinned ACP with native questions/forms and plan approvals;
+**OpenCode** prefers its authenticated local HTTP/SSE server, with ACP fallback
+for older CLIs and launch-scoped Loom sources. **Antigravity** uses Loom's own
+bridge; **Hermes** and **OpenClaw** use native ACP. [Agent compatibility](docs/agents-compat.md) documents canonical events,
 durable interaction requests and tested protocol versions. **Antigravity** uses
 Loom's ACP bridge to its native CLI. Any other ACP agent can be added with a
 custom launcher. Harnesses can run locally or on connected machines over SSH,
@@ -199,6 +206,12 @@ Network access also occurs for requested model/catalog downloads, installs, upda
 Set an **access password** in Settings → Security and data to sign in from other devices. The browser uses an HttpOnly session cookie; no control key needs to be copied between devices. Existing control keys remain supported for automation and remote-engine links, separately from the `/v1` inference key. Network exposure requires a password or existing control key; use TLS for remote access. See [Interface access](docs/access.md) for migration, password changes and local recovery with `loom password`. The optional **vault** encrypts supported Loom stores and blocks access while locked. Cloud provider keys remain in memory unless explicitly remembered in the **OS keychain or encrypted server store**; they are not stored in provider records or browser storage. External files and native harness stores retain their own security rules. See [SECURITY.md](SECURITY.md).
 
 Update Loom from **Settings → About → Updates** using official GitHub releases, verified checksums and a retained previous binary. Linux system installations support a scoped updater and UI restart after one-time administrator setup; see [Updating Loom](docs/updates.md). A source push becomes available to installed users only after a release is published.
+
+
+Antigravity's builtin harness prefers the installed `agy` structured stream,
+retaining Loom's ACP bridge for older CLIs. Native conversation IDs resume with
+`--conversation`; headless permissions/questions follow native policy and have
+no interactive reply channel. See [agent compatibility](docs/agents-compat.md).
 
 
 ## Documentation

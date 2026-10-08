@@ -20,7 +20,7 @@
     "command": "npx",
     "args": [
       "-y",
-      "@agentclientprotocol/claude-agent-acp@0.84.0"
+      "@agentclientprotocol/claude-agent-acp@0.88.0"
     ],
     "detect": [
       "claude"
@@ -79,5 +79,19 @@
       "openclaw"
     ],
     "docs": "https://github.com/openclaw/openclaw/blob/main/docs/cli/acp.md"
+  },
+  {
+    "id": "deepseek-tui",
+    "name": "DeepSeek TUI",
+    "logo": "deepseek",
+    "command": "deepseek-tui",
+    "args": [
+      "serve",
+      "--acp"
+    ],
+    "detect": [
+      "deepseek-tui"
+    ],
+    "docs": ""
   }
 ]

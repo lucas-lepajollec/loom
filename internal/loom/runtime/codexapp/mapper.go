@@ -3,13 +3,14 @@ package codexapp
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"strings"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/agentstdio"
 )
 
-const TestedVersion = "codex-cli 0.159.2"
+var TestedVersion = harness.LatestTestedVersion("codex")
 
 func Notification(f agentstdio.Frame) []runtime.AgentEvent {
 	e := runtime.AgentEvent{Runtime: "codex", Type: "raw", Method: f.Method, Raw: runtime.BoundedJSON(f.Raw), Payload: runtime.BoundedJSON(f.Params)}

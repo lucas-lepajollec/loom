@@ -41,6 +41,12 @@ func loadACPProbe(id string) (acpProbe, bool) {
 }
 
 func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
+	if nativeAgentProtocol(agent) == "agy-stream-json" {
+		return probeAntigravity(ctx, agent)
+	}
+	if nativeAgentProtocol(agent) == "opencode-http" {
+		return probeOpenCode(ctx, agent)
+	}
 	if nativeAgentProtocol(agent) != "" {
 		return probeNativeAgent(ctx, agent)
 	}
@@ -102,14 +108,11 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 		AgentInfo         map[string]any   `json:"agentInfo"`
 		AuthMethods       []map[string]any `json:"authMethods"`
 	}
-	if err := c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": false, "writeTextFile": false}, "terminal": false}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init); err != nil || init.ProtocolVersion != 1 {
-		return fail(errors.New("the agent does not respond to the ACP protocol"))
+	if err := c.call(initCtx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": acpClientCapabilities(false, true), "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init); err != nil || init.ProtocolVersion != 1 {
+		return fail(claudeACPError(agent, err, "the agent does not respond to the ACP protocol"))
 	}
 	out.Agent, out.Auth, out.Caps = init.AgentInfo, init.AuthMethods, init.AgentCapabilities
-	version, _ := init.AgentInfo["version"].(string)
-	executable, _ := lifecycleLookPath(agent.Command)
-	out.Compatibility = &runtimeCompatibilityRecord{Runtime: agent.ID, Executable: executable, Version: version, Protocol: "acp", AdapterVersion: agentAdapterVersion, Capabilities: []string{"chat", "stream", "cancel", "approvals", "elicitation"}}
-	_ = putStoreJSON(bkState, "agent_compat_"+agent.ID, out.Compatibility)
+	out.Compatibility = recordACPCompatibility(agent, init.AgentInfo, []string{"chat", "stream", "cancel", "approvals", "user-input", "elicitation"})
 	probeDir := dir
 	if agent.Remote {
 		// A remote agent needs a folder of its own machine: its home, read
@@ -122,7 +125,7 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 	}
 	var session acpSessionResponse
 	if err := c.call(initCtx, "session/new", map[string]any{"cwd": probeDir, "mcpServers": []any{}}, &session); err != nil || session.SessionID == "" {
-		return fail(errors.New("session refused: check that the CLI is logged in to your account"))
+		return fail(claudeACPError(agent, err, "session refused: check that the CLI is logged in to your account"))
 	}
 	if session.Modes != nil {
 		out.Modes, out.Mode = session.Modes.Available, session.Modes.Current

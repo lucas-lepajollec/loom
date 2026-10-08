@@ -3,6 +3,7 @@ package loom
 import (
 	"encoding/json"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
+	"github.com/lucas-lepajollec/loom/internal/loom/runtime/acp"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -26,6 +27,18 @@ func (p *acpBinding) handleNotification(f acpFrame) {
 		return
 	}
 	u := params.Update
+	if message, severity := acpFailureMeta(agent.JSON(u["_meta"])); message != "" {
+		if severity != "warning" {
+			p.failure = message
+		}
+		p.mu.Unlock()
+		kind := "error"
+		if severity == "warning" {
+			kind = "warning"
+		}
+		p.publish(DiscussionEvent{"type": kind, "error": message, "message": message, "agent_event": AgentEvent{Type: kind, Runtime: p.agentID, Error: message, Message: message, Raw: agent.BoundedJSON(f.Raw)}})
+		return
+	}
 	if !p.active && (u["sessionUpdate"] == "agent_message_chunk" || u["sessionUpdate"] == "agent_thought_chunk" || u["sessionUpdate"] == "tool_call" || u["sessionUpdate"] == "tool_call_update") {
 		p.mu.Unlock()
 		return
@@ -225,3 +238,5 @@ func canonicalACPEvent(name string, f acpFrame, d DiscussionEvent) AgentEvent {
 	}
 	return e
 }
+
+func acpFailureMeta(raw json.RawMessage) (string, string) { return acp.FailureMeta(raw) }

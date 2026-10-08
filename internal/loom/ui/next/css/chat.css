@@ -466,3 +466,5 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .rq-form{display:flex;flex-direction:column;gap:10px}
 .rq-check{display:flex;align-items:center;gap:8px;font-size:13px}
 @media (max-width:640px){.rq-opt{flex:1 1 100%}}
+.rq-hint{font-size:11.5px;color:var(--text-3)}
+.ap-plan{white-space:pre-wrap;font-size:13px;line-height:1.5;color:var(--text-2);max-height:320px;overflow:auto;border-left:2px solid var(--line-strong);padding-left:10px}

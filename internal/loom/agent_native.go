@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/agentstdio"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/codexapp"
@@ -28,10 +29,29 @@ var nativeProtocolCache = struct {
 // Probe only a builtin local CLI's help, never an account or a turn. Missing
 // protocol support permits ACP fallback; authentication/runtime failures do not.
 func nativeAgentProtocol(a acpAgent) string {
-	if a.Command != "npx" || a.Remote || a.Custom || (a.ID != "codex" && a.ID != "pi") {
+	if a.Remote || a.Custom {
 		return ""
 	}
-	path, err := lifecycleLookPath(a.ID)
+	if a.ID == "antigravity" {
+		if len(a.Args) != 1 || a.Args[0] != "agy-acp" {
+			return ""
+		}
+	} else if a.ID == "opencode" {
+		// Launch-scoped Loom sources retain ACP.
+		if modelSinkEnabled("opencode") {
+			return ""
+		}
+		if a.Command != "opencode" {
+			return ""
+		}
+	} else if a.Command != "npx" || (a.ID != "codex" && a.ID != "pi") {
+		return ""
+	}
+	binary := a.ID
+	if a.ID == "antigravity" {
+		binary = "agy"
+	}
+	path, err := lifecycleLookPath(binary)
 	if err != nil {
 		return ""
 	}
@@ -39,7 +59,7 @@ func nativeAgentProtocol(a acpAgent) string {
 	if err != nil {
 		return ""
 	}
-	key := fmt.Sprintf("%s:%d:%d", path, info.ModTime().UnixNano(), info.Size())
+	key := fmt.Sprintf("%s:%s:%d:%d", a.ID, path, info.ModTime().UnixNano(), info.Size())
 	nativeProtocolCache.Lock()
 	defer nativeProtocolCache.Unlock()
 	supported, ok := nativeProtocolCache.entries[key]
@@ -48,17 +68,33 @@ func nativeAgentProtocol(a acpAgent) string {
 		defer cancel()
 		argv, err := harnessNativeArgv([]string{path, "--help"})
 		if err == nil {
-			out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).Output()
+			// Some CLIs (OpenCode, agy) print their help on stderr.
+			out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
 			needle := "app-server"
+			if a.ID == "antigravity" {
+				needle = "--input-format"
+			}
+			if a.ID == "opencode" {
+				needle = "opencode serve"
+			}
 			if a.ID == "pi" {
 				needle = "rpc"
 			}
 			supported = err == nil && strings.Contains(string(out), needle)
+			if a.ID == "antigravity" {
+				supported = supported && strings.Contains(string(out), "stream-json") && strings.Contains(string(out), "--output-format") && strings.Contains(string(out), "--conversation")
+			}
 		}
 		nativeProtocolCache.entries[key] = supported
 	}
 	if !supported {
 		return ""
+	}
+	if a.ID == "antigravity" {
+		return "agy-stream-json"
+	}
+	if a.ID == "opencode" {
+		return "opencode-http"
 	}
 	if a.ID == "pi" {
 		return "pi-rpc"
@@ -72,21 +108,28 @@ func agentCompatibility(a acpAgent) *agent.CompatibilityRecord {
 	}
 	var r agent.CompatibilityRecord
 	if getStoreJSON(bkState, "agent_compat_"+a.ID, &r) && r.Runtime != "" && r.Protocol == protocol {
-		return &r
+		if protocol == "acp" {
+			return acpCompatibility(a, map[string]any{"version": r.Version}, r.Capabilities)
+		}
+		if protocol == "opencode-http" {
+			return openCodeCompatibility(a, r.Version)
+		}
+		return nativeCompatibility(a, protocol, r.Executable, r.Version, r.Capabilities)
 	}
 	executable := a.Command
 	caps := []string{}
-	tested := ""
-	if protocol != "acp" {
-		executable, _ = lifecycleLookPath(a.ID)
-		caps = nativeAgentCaps(a.ID)
-		if a.ID == "codex" {
-			tested = codexapp.TestedVersion
-		} else {
-			tested = pirpc.TestedVersion
-		}
+	if protocol == "agy-stream-json" {
+		return antigravityCompatibility(a, "")
 	}
-	return &agent.CompatibilityRecord{Runtime: a.ID, Executable: executable, Protocol: protocol, AdapterVersion: agentAdapterVersion, TestedVersion: tested, Capabilities: caps}
+	if protocol == "opencode-http" {
+		return openCodeCompatibility(a, "")
+	}
+	if protocol == "acp" {
+		return acpCompatibility(a, nil, nil)
+	}
+	executable, _ = lifecycleLookPath(a.ID)
+	caps = nativeAgentCaps(a.ID)
+	return nativeCompatibility(a, protocol, executable, "", caps)
 }
 
 func recordAgentCompatibility(ctx context.Context, a acpAgent, protocol string, caps []string) *agent.CompatibilityRecord {
@@ -105,21 +148,25 @@ func recordAgentCompatibility(ctx context.Context, a acpAgent, protocol string, 
 			version = boundedBytes(strings.TrimSpace(string(out)), 200)
 		}
 	}
-	tested := ""
-	if protocol == "app-server" {
-		tested = codexapp.TestedVersion
-	}
-	if protocol == "pi-rpc" {
-		tested = pirpc.TestedVersion
-	}
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, Protocol: protocol, AdapterVersion: agentAdapterVersion, TestedVersion: tested, Capabilities: caps}
-	if tested != "" && version != tested {
-		r.Warning = fmt.Sprintf("%s %s differs from tested %s; protocol compatibility is unverified", a.Name, version, tested)
-	}
+	r := nativeCompatibility(a, protocol, path, version, caps)
 	_ = putStoreJSON(bkState, "agent_compat_"+a.ID, r)
 	return r
 }
+func nativeCompatibility(a acpAgent, protocol, executable, version string, caps []string) *agent.CompatibilityRecord {
+	tested := harness.LatestTestedVersion(a.ID)
+	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: executable, Version: version, AgentVersion: version, Protocol: protocol, AdapterVersion: agentAdapterVersion, TestedVersion: tested, TestedVersions: harness.TestedVersions(a.ID), TestedVersionSource: "loom", Capabilities: caps}
+	if version != "" && !harness.VersionTested(a.ID, version) {
+		r.Warning = fmt.Sprintf("%s %s differs from tested %s; protocol compatibility is unverified", a.Name, version, tested)
+	}
+	return r
+}
 func nativeAgentCaps(id string) []string {
+	if id == "antigravity" {
+		return antigravityCaps()
+	}
+	if id == "opencode" {
+		return openCodeCaps()
+	}
 	caps := []string{"chat", "stream", "cancel", "tools", "usage", "workdir", "resume", "connect", "native-events", "user-input", "raw-events"}
 	if id == "codex" {
 		caps = append(caps, "approvals", "elicitation", "plan", "reasoning-summary", "quota")

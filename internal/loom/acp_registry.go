@@ -13,13 +13,17 @@ import (
 var acpAgentsJSON []byte
 
 type acpAgent struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Logo    string   `json:"logo"`
-	Command string   `json:"command"`
-	Args    []string `json:"args"`
-	Detect  []string `json:"detect"`
-	Docs    string   `json:"docs"`
+	RegistryID      string   `json:"registry_id,omitempty"`
+	RegistryVersion string   `json:"registry_version,omitempty"`
+	RegistryPackage string   `json:"registry_package,omitempty"`
+	RegistryKind    string   `json:"registry_kind,omitempty"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Logo            string   `json:"logo"`
+	Command         string   `json:"command"`
+	Args            []string `json:"args"`
+	Detect          []string `json:"detect"`
+	Docs            string   `json:"docs"`
 	// Remote: the agent runs on another machine (e.g. through ssh); its folder
 	// is not on this disk. Custom: defined by the user in Harnesses.
 	Remote bool `json:"remote,omitempty"`
@@ -57,7 +61,7 @@ func builtinACPAgents() []acpAgent {
 }
 
 func registerACPAgents() {
-	// Antigravity speaks no ACP: Loom's own bridge (loom agy-acp) drives agy.
+	// Installed agy stream-json is preferred; Loom's ACP bridge remains the fallback.
 	if executable, err := os.Executable(); err == nil {
 		registerRuntime(&acpAdapter{agent: acpAgent{ID: "antigravity", Name: "Antigravity", Logo: "antigravity", Command: executable,
 			Args: []string{"agy-acp"}, Detect: []string{"agy"}, Docs: "https://antigravity.google/"}})
@@ -105,12 +109,18 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		caps = []string{"chat", "stream", "cancel", "tools", "plan", "usage", "workdir", "resume", "quota"}
 		cli, hint = "agy", "agy"
 	}
+	if a.agent.ID != "antigravity" {
+		caps = append(caps, "user-input", "elicitation")
+	}
 	caps = append(caps, "connect")
 	protocol := nativeAgentProtocol(a.agent)
 	if protocol != "" {
 		caps = nativeAgentCaps(a.agent.ID)
 		cli = a.agent.ID
 		hint = a.agent.ID
+		if a.agent.ID == "antigravity" {
+			cli, hint = "agy", "agy"
+		}
 	}
 	available := a.agent.available()
 	connected := harnessConnected(a.agent)
@@ -144,7 +154,11 @@ func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallbac
 	}
 	var result []Message
 	var err error
-	if nativeAgentProtocol(a.agent) != "" {
+	if nativeAgentProtocol(a.agent) == "agy-stream-json" {
+		result, err = a.sessions.runAntigravity(ctx, a.agent, a.session, turn, emit)
+	} else if nativeAgentProtocol(a.agent) == "opencode-http" {
+		result, err = a.sessions.runOpenCode(ctx, a.agent, a.session, turn, emit)
+	} else if nativeAgentProtocol(a.agent) != "" {
 		result, err = a.sessions.runNativeAgent(ctx, a.agent, a.session, turn, emit)
 	} else {
 		result, err = a.sessions.runACP(ctx, a.agent, a.session, turn, emit)

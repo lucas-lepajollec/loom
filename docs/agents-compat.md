@@ -1,7 +1,8 @@
 # Agent protocol compatibility
 
 Loom's local builtin Codex runtime prefers the installed `codex app-server`;
-local builtin Pi prefers `pi --mode rpc`. A read-only CLI help probe selects
+local builtin Pi prefers `pi --mode rpc`; local builtin Antigravity prefers
+`agy --input-format stream-json --output-format stream-json`. A read-only CLI help probe selects
 native transport when the protocol exists. A missing protocol selects the
 existing pinned ACP launcher. Authentication, startup, resume and RPC failures
 never silently retry a prompt through a different runtime. Remote/custom
@@ -143,7 +144,8 @@ ACP records its handshake agent version rather than the version of `npx`.
  "tested_version":"codex-cli 0.159.2","capabilities":["chat","stream","cancel","resume","approvals","user-input","elicitation"]}
 ```
 
-Loom's `native_session_id` is Codex's thread ID or Pi's native session ID.
+Loom's `native_session_id` is Codex's thread ID, Pi's native session ID, or
+Antigravity's conversation ID.
 Pi also saves `native_session_file`, and resumes that file through
 `switch_session`; an imported ID is resolved within Pi's native session store.
 Pi supplies no native turn ID, so its canonical `turn_id` is Loom's request ID;
@@ -240,3 +242,359 @@ other native state may still require write access in restricted environments.
 
 See [the implementation verification report](agents-v2-verification.md) for the
 checks completed and the sandbox failures encountered during this change.
+
+## Agents v2 step 2
+
+| Agent | Protocol / adapter | Tested version | Capabilities covered | Known gaps |
+| --- | --- | --- | --- | --- |
+| Claude Code | ACP v1, `@agentclientprotocol/claude-agent-acp@0.88.0` | Adapter 0.88.0 source/fixtures; installed CLI 2.1.294 version check | Text/thoughts, tools, terminal-output metadata, plans, plan approvals, AskUserQuestion single/multiple/multi-select/Other/Skip, MCP form/URL elicitation, failure metadata | No live 0.88 handshake/paid turn in this sandbox; Bash output timing is SDK-owned; no client-created terminals |
+| OpenCode | Native `opencode serve`, HTTP + `/event` SSE | Installed 1.18.33 schema generation; HTTP fixtures | Native session create/resume/list/text import, provider models, text/reasoning reconciliation, tools, reported patches/plans/usage, approvals, questions, abort, verbatim errors | Live listener blocked by sandbox; CLI-owned MCP; V2 question/permission variants fail explicitly; concurrent TUI answers are not resolved into Loom's pending cards until turn settlement |
+| OpenCode fallback | Native `opencode acp` | 1.18.33 schema/source and synthetic ACP v1 turn | Existing ACP tools, permissions, configuration, replay; launch-scoped Loom sources | No paid/live ACP turn; questions depend on what the upstream ACP bridge exposes |
+| Hermes | Native `hermes acp` | No release accepted in this step | Existing shared ACP surface when supplied by the handshake | Versions unknown until handshake; no new release acceptance claimed |
+| OpenClaw | Native `openclaw acp` | No release accepted in this step | Existing shared ACP surface when supplied by the handshake | Versions unknown until handshake; no new release acceptance claimed |
+| Antigravity | Native `agy` NDJSON; Loom `agy-acp` fallback | CLI 1.3.1 help/version/binary inspection; synthetic process fixtures | Text, tools/commands/reported file targets, per-step spend, native conversation IDs, effort/modes/sandbox, errors, outcomes, raw rows | No headless permission/question replies; no accepted reasoning/plan/context-occupancy schema; no history-list/read API |
+
+The local builtin OpenCode selects HTTP when its read-only help advertises
+`serve`. Loom starts one owned server lazily, with `--hostname 127.0.0.1`,
+`--port 0`, `--mdns=false` and a random per-process Basic-auth password. It
+verifies both health and rejection of unauthenticated access before submitting
+context. Session cancellation calls `/session/{id}/abort` and leaves the shared
+server available to other discussions. Shutdown closes only Loom's owned child.
+A startup/authentication/resume/prompt failure never retries a turn through ACP.
+Missing server support, remote/custom launchers and an enabled **Loom model
+source** use ACP. That launch supplies only the selected OpenCode provider key;
+catalog probes get provider definitions with environment references, without
+Loom keys. The shared HTTP server uses the CLI's own credentials/configuration.
+Native session IDs are also usable by `opencode --session ID` in the TUI.
+
+The versioned unedited OpenAPI snapshot is at
+[`runtime/opencodehttp/schema/`](../internal/loom/runtime/opencodehttp/schema/README.md).
+It was produced by installed `opencode generate`, which uses the same
+`Server.openapi()` as `/doc`; fetching live `/doc` was blocked by the sandbox.
+The 1.18.33 events are `permission.asked`, `question.asked`,
+`message.part.updated` and `message.part.delta`. The older
+`permission.updated`/session permission reply endpoint is accepted too.
+
+### Additional backend fields for the UI owner
+
+- `request.questions[].multi_select:true`: multiple offered labels may be
+  selected. Submit all selections in that question's existing answer array.
+  `false`/absent permits one offered option, plus free text when enabled.
+- `request.questions[].optional:true`: Skip is supported. Submit an empty array
+  for that question; include every question ID in `answers`, including skips.
+- Claude question IDs are `question_0`, `question_1`, etc. `free_text:true`
+  represents the native Other field. A selected option plus free text becomes
+  the native selection plus its custom note; multi-select Other is additive.
+- `request.approval_kind:"plan"`: EnterPlanMode/ExitPlanMode uses the existing
+  approval card and the exact offered option IDs. Plan transitions stay explicit
+  even when ordinary tool approvals are automated.
+- Compatibility adds `adapter_package`, `agent_version` (exact handshake value),
+  and `tested_versions` (known accepted fixture/source versions). Native CLIs
+  are not pinned by Loom; their `adapter_version` is empty on ACP records.
+  Missing observed/tested versions remain unknown. A new observed version
+  outside the tested set produces a non-blocking `warning`, including agents
+  with no accepted native release.
+
+Example multi-select answer (same endpoint, no new UI endpoint):
+
+```json
+{"answers":{"question_0":["Blue","Green","Purple"],"question_1":[]}}
+```
+
+Claude initialization advertises `elicitation:{form:{},url:{}}` (capability
+objects, not booleans), filesystem read/write where already permitted, and
+`_meta.terminal_output:true`. It negotiates only the documented AIR
+`sessionFailure` extension in `_meta.jetbrains.air`; reported failure titles
+are canonical error messages verbatim, including successful `end_turn`
+responses carrying failure metadata. Warning-severity notices remain warnings.
+RPC rejection messages for Claude are surfaced verbatim too. Failure and raw
+protocol metadata remain display/private state, outside portable context.
+
+Step 2 fixtures are synthetic version-derived protocol records under
+`testdata/agents/{claude,opencode,opencode-acp}`. They exercise replies,
+error outcomes, cancellation and complete fake ACP turns. HTTP fixtures use a
+real httptest server when sockets are permitted and the same streaming HTTP
+handlers through pipes/httptest writers in restricted environments. See
+[step 2 verification](agents-v2-step2-verification.md) for the actual checks and
+live-versus-fixture boundary. No paid turns were run.
+
+Sources: [Claude 0.88 changelog](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.88.0/CHANGELOG.md),
+[Claude elicitation source](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.88.0/src/elicitation.ts),
+[OpenCode server](https://opencode.ai/docs/server/),
+
+## Agents v2 step 3: Antigravity
+
+The builtin selects `agy-stream-json` when read-only help advertises input and
+output stream JSON plus explicit conversation resume. Otherwise it retains
+`loom agy-acp`; older structured-output CLIs without NDJSON input use the
+bridge's one-shot `--print` invocation. Remote/custom ACP launchers remain explicit. Selection happens
+before any transcript is sent. Startup, account, busy/lock, resume and process
+failures never retry a turn through the bridge. Antigravity remains separate
+from Gemini CLI, with its native account/catalog and no Loom provider keys.
+
+### Structured-path investigation
+
+| Option | Evidence and decision |
+| --- | --- |
+| Native `agy` print stream | Installed 1.3.1 help/changelog/binary types (`steps.StreamEvent`, `steps.StepUpdatePayload`, `steps.ToolInfo`, `steps.JSONUsage`); [Google headless contract](https://antigravity.google/docs/cli/headless/). Selected: a documented protocol on the installed executable, without an additional runtime or private DB decoding. |
+| Google ACP runtime | The [ACP registry entry](https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json) distributes proprietary Google `agy_acp_server.par`/`.exe` 1.2.1 separately (Linux argv includes `--uid=`). It is not an `agy --acp` mode advertised by this CLI. Not installed, downloaded, authenticated or accepted here. |
+| Loom bridge | Existing `loom agy-acp` translates the CLI into ACP and remains the compatibility fallback. Its synthetic approval/retry and file display behavior is a legacy bridge feature, not native stream permission RPC or a native reported diff. |
+
+The supplied Poracode study and Apache-2.0 Antigravity implementation were read
+as references, without wholesale copying. Its registry ACP integration normalizes
+model/effort IDs, suppresses output after interruption, and parses a stderr
+reply boundary while background tasks keep `session/prompt` open. These runtime
+quirks require separate exact-server acceptance before replacing the installed
+CLI lane; the older study recommendation predates this CLI investigation.
+
+### Accepted mapping and gaps
+
+Each turn writes one `user`/`message.content` NDJSON frame and closes stdin.
+`init`, `step_update`, and `result` retain bounded raw provider JSON. Step indices
+identify items within Loom's turn request ID, never replace the conversation ID.
+Text deltas reconcile with final-only/corrected responses. Tool errors and final
+errors remain verbatim; stderr diagnostics use the existing bounded credential
+redaction. Only owned child processes are stopped. Completion follows stdout
+drain and exit verification, so a success result followed by a nonzero exit fails.
+
+Command items retain command/output; file items retain native target/output.
+There is no filesystem diff reconstruction. Unknown messages, checkpoint,
+subagent metadata and future reasoning/plan/context variants retain raw rows.
+The accepted stream contract exposes no separate reasoning delta, structured
+plan or context occupancy. `--mode plan` remains available; its reported answer
+is text. These missing capabilities are not advertised or simulated.
+
+Per-step usage snapshots are deduplicated by step index and summed once at
+settlement as `usage.spent` with scope `turn`. Missing/invalid token fields stay
+unknown. The final raw result retains cumulative session usage/duration; those
+counters never become current-turn spend or context occupancy. Spent usage rows
+also no longer project a legacy `context.used` value in the shared mapper.
+
+Headless input rejects `control_request`/`control_response`; it has no permission
+or question reply channel. Native policy denials remain failed tool items and
+raw denied-action metadata and a visible denial warning. Native `DONE` is step
+completion; an uncorrelated denial list never becomes an invented per-command
+execution result. Loom sends no invented replies, approval cards or
+automatic continuation prompts. A visible warning explains this gap. Native
+permission settings remain active. Only an explicit full permission/mode
+selection adds `--dangerously-skip-permissions`; plan mode suppresses the full
+permission setting. Edits maps to `--mode accept-edits`. Selected
+`config_options.sandbox:true` passes `--sandbox`, independently of mode; this is
+the CLI terminal sandbox, not a new Loom filesystem-confinement guarantee.
+
+### Native continuity, catalog and compatibility
+
+`native_session_id` is the exact `conversation_id` received from init, steps or
+result. Compatible subsequent turns launch with `--conversation ID` and just the
+new prompt; native CLI/IDE turns remain in that conversation. Loom never uses
+`--continue`. A mismatched returned ID is a resume failure. A changed route or
+prepared context uses the existing explicit portable text handoff. Native errors
+report busy/locked conversations without starting a new session or killing a
+window; simultaneous IDE/CLI behavior still needs real-platform acceptance.
+
+Models use the existing read-only `agy models` parser. Effort configuration uses
+the installed help's `low`, `medium`, `high`, `xhigh`, `max` values and passes
+`--effort`; these are CLI choices, not a promise that every model accepts all
+values. Unsupported selection fails natively. No accepted CLI session-list or
+history-read API exists here; history actions fail clearly rather than invoking
+Codex or privately decoding native databases. No usable Antigravity discovery
+API existed in the bridge. Native ID resume remains available, and other agents'
+discovery/import paths are unchanged.
+
+Compatibility records include `protocol:agy-stream-json`, `adapter_package:agy`,
+`tested_version:1.3.1`, `tested_versions:[1.3.1]`, observed `version`/
+`agent_version` from a read-only version check, and the actual capabilities.
+Unknown versions remain empty. A differing observed version emits a visible,
+non-blocking drift warning; it never substitutes another runtime.
+
+Backend only: existing configuration shapes add discovered `reasoning_effort`
+(select) and `sandbox` (boolean) options, and the existing mode list is populated.
+No new top-level UI fields, endpoint or UI files. Native `payload.tool_info` and
+file `payload.path` are provider-shaped metadata within the existing event field.
+Explicit Loom MCP selections fail visibly; native CLI MCP remains CLI-owned.
+
+### Verification boundary
+
+`testdata/agents/antigravity/*.jsonl` is synthetic, derived from Google docs and
+installed type/help inspection, not recordings of paid outputs. Fake owned
+processes exercise normal/deduplicated usage, final-only/reconciled text,
+command/file/error items, unavailable permission/question interaction, busy
+errors, interrupt, unknown rows, missing results and nonzero exits. Additional
+checks cover cancellation, malformed JSON, stderr redaction, native ID mismatch,
+unknown counters, launch policy, read-only probes, fallback selection, native
+resume versus text handoff, and the canonical display projection.
+
+Live checks: `agy --help`, `agy help models`, `agy --version` (1.3.1),
+`agy changelog`, binary/type inspection. The read-only `agy models` attempt
+was blocked by `listen tcp 127.0.0.1:0: socket: operation not permitted` and
+read-only native log/crash paths. No generation, login, permission mutation,
+quota reset, paid turn or ACP server installation was performed.
+
+See [step 3 verification](agents-v2-step3-verification.md) for commands,
+sandbox failure names and the live-versus-fixture acceptance boundary.
+
+## Agents v2 step 4: official ACP catalogue
+
+The backend embeds the [official ACP registry](https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json)
+in `internal/loom/harness/acp_registry_snapshot.json`. Its initial snapshot has
+41 agents. Startup and catalogue reads request a background refresh, with a
+10-second deadline and at most one attempt per 24 hours, including failed
+attempts. Loom state retains the last good document, ETag and attempt time;
+conditional GET accepts 304 without replacing the document. Offline startup
+uses the saved document or the embedded snapshot. Startup never waits on CDN
+I/O. Unknown fields and malformed individual entries are ignored; an invalid
+binary archive URL rejects the update. All binary archives must use HTTPS.
+The registry is distribution metadata, not a claim of live Loom verification.
+
+Authenticated API shapes for the Agents page (no UI changes in this step):
+
+```json
+[
+  {
+    "id": "qwen-code",
+    "name": "Qwen Code",
+    "version": "0.25.0",
+    "description": "Registry description",
+    "repository": "https://github.com/QwenLM/qwen-code",
+    "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/qwen-code.svg",
+    "distribution": {
+      "kind": "npx",
+      "command": "npx",
+      "args": ["-y", "@qwen-code/qwen-code@0.25.0", "--acp", "--experimental-skills"],
+      "package": "@qwen-code/qwen-code"
+    },
+    "installed": true,
+    "added": false,
+    "builtin": false
+  }
+]
+```
+
+- `GET /api/agents/catalog` returns the array directly. `icon` and
+  `installed_version` are optional. `installed` means the required executable
+  is on PATH: the native binary, or `npx`/`uvx` for an on-demand package launch.
+  It does not assert that an npm/uv package has already been downloaded or that
+  an account is signed in. `installed_version` is a last observed compatibility
+  version, not a guess from the registry or PATH. `added` means a saved Loom
+  runtime exists independently of installation/sign-in.
+- `distribution.kind` is `npx`, `uvx`, `binary`, or `unsupported` for a platform
+  without a supported distribution. `command` is the executable; `args` is the
+  full argv excluding that executable and is always an array. `package` is the
+  unversioned package name (or binary name). Loom prefers npx, then uvx, then
+  the current platform's binary. Distribution environment/installer extensions
+  are not imported in this step; launch arguments are taken from the registry.
+- `codex-acp`, `claude-acp`, `pi-acp`, `opencode`, and `antigravity-acp` are
+  visible as `builtin:true` and excluded from adding another runtime. The same
+  rule applies if curated builtin IDs appear in a later registry. Gemini is
+  also reserved (`builtin:true`) by Loom policy: it has no Loom builtin runtime;
+  Antigravity is the Google harness. The UI must not offer Add on these rows.
+- `POST /api/agents/catalog/add` with `{"id":"qwen-code"}` returns
+  `{"ok":true,"agent":{"id":"registry-qwen-code","name":"Qwen Code","command":"npx","args":["-y","@qwen-code/qwen-code@0.25.0","--acp","--experimental-skills"],"custom":true,"registry_id":"qwen-code","registry_version":"0.25.0","registry_package":"@qwen-code/qwen-code","registry_kind":"npx"}}`
+  (ordinary ACP metadata such as `docs`, `logo`, `detect` is also present).
+  These runtimes use the existing ACP adapter, session configuration, consent
+  and request-resolution endpoints. Adding does not launch a process, sign in,
+  probe an account or share a transcript. Repeated Add returns the saved launch
+  unchanged: refreshing the registry never silently upgrades an added agent.
+- npx launches `npx -y <package>@<registry-version> <args>`; uvx launches
+  `uvx <package>==<registry-version> <args>`. Existing package pins are replaced,
+  including scoped npm names and uv entries using either `@` or `==`.
+  Binary entries launch the command basename on PATH with the selected
+  platform's argv. Loom does not download archives. Missing binaries return
+  HTTP 400, `{"ok":false,"error":"binary must already be installed on PATH","install_hint":"upstream repository or website/archive URL"}`.
+  Unsupported/reserved entries also return 400; unknown IDs return 404.
+- `POST /api/agents/catalog/remove` with the registry ID returns
+  `{"ok":true}` and removes the saved configuration/runtime registration;
+  a missing saved entry returns 404. It does not uninstall anything. Remove
+  and Add again explicitly select the current registry version.
+
+Catalogue compatibility records include `adapter_package`, `adapter_version`,
+`tested_version`, `tested_versions`, and `tested_version_source:"registry"`.
+The pinned registry version is the distribution baseline; `agent_version`
+and `version` remain the actual handshake value. A different handshake version
+produces a non-blocking warning. `registry` provenance must not be presented as
+an accepted live Loom test. `tested_version_source:"loom"` uses the accepted
+versions described below.
+
+## Curated ACP agents
+
+| Runtime ID | Launch | Availability | Live accepted versions |
+| --- | --- | --- | --- |
+| `hermes` | `hermes acp` | `hermes` on PATH | None |
+| `openclaw` | `openclaw acp` | `openclaw` on PATH | None |
+| `deepseek-tui` | `deepseek-tui serve --acp` | `deepseek-tui` on PATH | None |
+
+All three use the shared ACP initialization, permissions and form/URL
+elicitation path. Questions supplied as elicitation schemas remain forms;
+Loom does not invent a native question protocol for these agents. The accepted
+version lists are empty, and their compatibility warning is exactly
+`not yet verified with Loom`, including before any handshake. DeepSeek's launch
+is **documented-but-unverified**: the study's CDesktop executor launches
+`deepseek-tui serve --acp`, but no DeepSeek upstream repository clone/README was
+available for this implementation. No successful live launch is claimed.
+
+Synthetic shared ACP fixtures in `testdata/agents/{hermes,openclaw,deepseek-tui}`
+cover a normal turn, permission reply and form elicitation. Complete subprocess
+turn tests exercise the bidirectional reader and canonical request resolution.
+These fixtures establish Loom's shared path, not an upstream version's behavior.
+
+## Weekly compatibility watch and accepting versions
+
+`internal/loom/harness/tested_versions.json` is the **single source of truth**
+for accepted versions. It is embedded by the dependency-free `harness` package
+and consumed by native and ACP compatibility records, including refreshed
+observations saved before an upgrade. `tested_version` is the newest accepted
+entry, and every entry remains accepted for drift comparisons. The native
+schema `VERSION` files record snapshot provenance, not another accepted list.
+The existing Claude launcher pin stays explicit; accepting an adapter release
+in the watch does not silently change that launch pin.
+
+`.github/workflows/agents-watch.yml` runs every Monday at 06:17 UTC and through
+`workflow_dispatch` on Ubuntu. It uses the automatic `GITHUB_TOKEN` with
+contents, PR and issue permissions; no account or provider secrets are needed.
+The repository must allow GitHub Actions to create pull requests. The Go script
+in `tools/agents-watch/` is runnable locally:
+
+```sh
+make agents-watch                         # check installed CLIs; write report only
+make agents-watch AGENTS_WATCH_ARGS=--install  # latest npm releases, temporary prefix
+make agents-watch AGENTS_WATCH_ARGS='--install --publish' # explicit GitHub review writes
+```
+
+Local reports default to ignored `.project-local/agents-watch/`. `--install`
+uses temporary npm prefixes for `@openai/codex`, `opencode-ai`,
+`@agentclientprotocol/claude-agent-acp`, and the current official
+[`@earendil-works/pi-coding-agent`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/package.json).
+Probes use empty native profiles and an environment without provider/publishing
+credentials. They initialize Codex/Claude or read Pi state, list models where
+possible, and check the owned OpenCode loopback server. Authentication-required
+steps are explicit skips. No prompts or paid turns run.
+
+The script regenerates the Codex schemas consumed by Loom using
+`codex app-server generate-json-schema --out …` and the OpenCode OpenAPI using
+`opencode generate`. It compares parsed JSON with committed snapshots, ignoring
+formatting/key ordering while retaining every field/union. Changed schemas
+produce candidate JSON, a unified diff and a bounded changed-path summary.
+It runs `go test ./internal/loom/runtime/... -run Fixture` and the application
+ACP fixtures, refreshes/validates the registry, and writes a Markdown report
+uploaded as a workflow artifact and included in the job summary.
+
+With `--publish`, a completely passing check opens/updates
+`agents-watch/<UTC-date>` from the checked HEAD in a temporary worktree. Only
+`tested_versions.json` and the refreshed registry snapshot are included. Local
+publishing requires a clean checkout; the script does not commit local work.
+A schema change, installation/probe failure or failed fixture check opens or
+updates one exact-title issue per affected candidate:
+`Agents watch: <agent> <version> needs attention`. Registry-only failures use a
+registry attention issue. No versions are accepted automatically when a check
+fails. Automation returns a failing status after publishing attention issues.
+
+To accept a new version, review the watch report and skips, inspect schema diffs
+and adapt mappings/fixtures when needed, then rerun the checks. Merge the review
+PR or append the verified version to the agent's array in `tested_versions.json`
+in a reviewed change. For a changed native contract, refresh its schema and
+`VERSION` provenance and regenerate Codex projections with
+`tools/generate-codex-types.py` as appropriate. Curated agents remain unverified
+until a trusted live check justifies a first entry; fixtures alone do not do so.
+
+See [step 4 verification](agents-v2-step4-verification.md) for completed checks
+and the sandbox limits of the local watch run.
