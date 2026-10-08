@@ -14,6 +14,7 @@ import (
 )
 
 func TestTerminalConcurrentRetriesStartOnlyOneProcess(t *testing.T) {
+	requireTerminalPTY(t)
 	testHome(t)
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("HOME", t.TempDir())
@@ -96,6 +97,7 @@ func TestInteractiveRemoteWorkingDirectoryRejectsTerminalControls(t *testing.T) 
 }
 
 func TestTerminalRunsAndKeepsOutput(t *testing.T) {
+	requireTerminalPTY(t)
 	testHome(t)
 	dir := t.TempDir()
 	term, err := openTerminal("local", dir, "printf 'bonjour-terminal'; pwd", "")
@@ -117,6 +119,7 @@ func TestTerminalRunsAndKeepsOutput(t *testing.T) {
 }
 
 func TestTerminalInteractiveInputAndClose(t *testing.T) {
+	requireTerminalPTY(t)
 	testHome(t)
 	term, err := openTerminal("local", t.TempDir(), "cat", "Echo")
 	if err != nil {

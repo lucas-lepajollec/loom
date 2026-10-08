@@ -1,12 +1,11 @@
 # Engine node (Linux)
 
 Use **one main Loom** for discussions, Brain, projects, providers and harnesses.
-On a paired machine, `loom node` serves engine management, inference and an
-optional harness transport. It
-is a mode of the same release binary, sharing existing engine handlers and
+On a paired machine, `loom node` serves engine management, inference and
+optional harness and terminal transports. It is a mode of the same release binary, sharing existing engine handlers and
 native argument construction. It does not start the interface, Brain, MCP
 servers, provider keyring reads or harness update jobs. Harness inventory is probed only
-when requested; an agent starts only for an explicit Loom ACP launch.
+when requested; agents and terminals start only for explicit Loom requests.
 
 The binary still contains the main application's code and embedded assets;
 this first implementation reduces running services and state, not binary size.
@@ -138,7 +137,7 @@ server**, consumes the code and records the main's ID, name and `paired_at`
 (Unix milliseconds) on the node:
 
 ```json
-{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine","harness"],"handshake":1}}
+{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine","harness","terminal","observe"],"handshake":1}}
 ```
 
 **Plain LAN HTTP exposes both credentials once in this exchange response to
@@ -190,16 +189,16 @@ The existing **Connect its Loom node** address + token flow remains available.
 The token is in `node.token` under the node's data root; retrieve it privately
 on that machine, never put it in a URL, public configuration or shared log.
 SSH registration and node linking are independent: both can offer harnesses;
-terminals currently require SSH.
+the terminal module also opens real PTYs without SSH.
 
 All other management routes, including ping/info, require
 `Authorization: Bearer <machine token>`. Browser cookies and human passwords
 are not accepted by a node. `node.token` must be a regular private file (0600).
 The management token and inference key are distinct random 256-bit credentials.
 Authenticated `GET /api/node/info` retains its existing fields and adds `id`,
-`name`, `handshake:1` and `modules:["engine","harness","observe"]` by default. Unknown handshake majors are
+`name`, `handshake:1` and `modules:["engine","harness","terminal","observe"]` by default. Unknown handshake majors are
 refused with an update message. Missing handshake fields remain accepted only
-for legacy token links. Disabled harness and observe modules are omitted.
+for legacy token links. Disabled harness, terminal and observe modules are omitted.
 Direct API clients need the inference key for `/v1`, not the management token.
 
 The main Loom strips browser cookies/origin headers and substitutes the machine
@@ -210,7 +209,7 @@ forwarding inference to its local native engine and uses that engine's key.
 ## Run agents on a paired machine
 
 Pair by code as above; SSH is not required for harnesses. Nodes advertise
-`modules:["engine","harness","observe"]` with `handshake:1` by default, including existing
+`modules:["engine","harness","terminal","observe"]` with `handshake:1` by default, including existing
 nodes after updating. To disable harness execution while retaining read-only observation, initialize with:
 
 ```sh
@@ -282,8 +281,54 @@ to the node or its agents. A manually invoked bridge cannot read locked state.
 Main-side `GET /api/machines/folders?machine=ID&path=/absolute/folder` proxies the
 node picker response above. Without `path`, the existing `{"ok":true,"folders":
 […]}` favourite-folder response remains unchanged. Workspace validation and
-explicit creation also use the node, without SSH. Terminals on a machine without
-SSH return `terminals need SSH for now`.
+explicit creation also use the node, without SSH. Terminal transport is an
+independent module, described below.
+
+## Terminals on a paired machine
+
+The independent `terminal` module is on by default, including existing nodes
+when updated. Disable it with `loom node init --no-terminal`, or restore it with
+`loom node init --no-terminal=false`, using the same node home. The persisted
+`node_terminal_disabled` flag is preserved when init omits the option. Restart
+the node and refresh/re-pair the main's saved link after changing modules.
+Disabling the module returns HTTP 409 with
+`{"ok":false,"error":"node terminal module is disabled"}` on new requests.
+Harness and observation opt-outs do not disable terminals.
+
+`GET /api/node/terminal/ws?cwd=&command=&cols=&rows=` requires the machine
+Bearer token in the Authorization header, never a URL credential. It upgrades
+to a WebSocket and starts the node user's login shell (`$SHELL`, or `/bin/sh`)
+in an absolute existing directory; empty `cwd` selects that user's home. A
+supplied command runs through the shell with `-lc`. Default dimensions are
+100 columns by 30 rows; valid sizes are 1–1000 columns and 1–500 rows. Invalid
+cwd, command or dimensions return HTTP 400 before a process starts.
+
+Binary output and text keystrokes use the same framing as local terminals.
+Both text and binary input reach the PTY; text `{"resize":[cols,rows]}` is a
+resize control message. The main sends keystrokes as binary so JSON typed into
+a shell stays input. A completed process sends text
+`{"exit":true,"exit_code":7}` (with its actual exit code). Closing the connection
+or stopping the node kills the owned process group and reaps the shell. Each
+node allows eight concurrent terminals independently of harness slots;
+contention returns HTTP 429 with `node terminal process limit reached`.
+
+On the main, `POST /api/terminals` with
+`{"target":"paired-machine-id","dir":"/absolute/folder","command":""}` opens
+the node PTY through the saved protected maintenance credential. No local SSH
+client is needed. The existing registry, request IDs, 30-second single-use
+browser tickets, resize and recent-output replay stay shared with local/SSH
+terminals. Closing a browser socket leaves the main-to-node connection and
+process alive; a new ticket reattaches. Closing the terminal, stopping either
+Loom process or losing the node connection ends it. Node transport reconnection
+does not replay a command or start a replacement process. An unavailable exit
+code remains `-1`.
+
+`GET /api/machines` retains each machine's advertised `modules` and adds
+`capabilities:["terminals"]` when it has SSH or a paired node advertising
+`terminal` (otherwise `capabilities:[]`). A node target with this module uses
+its node even when SSH is also configured. A machine with neither terminal
+module nor SSH retains the clear `terminals need SSH for now` error. Backend
+only; the existing terminal UX is reused.
 
 ## Machine metrics
 
@@ -421,9 +466,11 @@ Loom port or expose the native front. Change the node listener in its
 service configuration, not through the native engine's network toggle.
 
 No UI/auth-session, discussion, Brain/MCP, cloud/provider, harness lifecycle,
-project, terminal or environment routes are registered. The optional harness
+project or environment routes are registered. The main `/api/terminals` routes
+are absent; node terminals use only `/api/node/terminal/ws`. The optional harness
 module exposes only inventory, ACP transport and directory/workspace control;
-the optional observe module exposes read-only machine metrics.
+the independent terminal module exposes PTY transport, and the optional
+observe module exposes read-only machine metrics.
 Unknown paths return 404. Native Windows/macOS node mode is explicitly
 unsupported in this initial Linux implementation; direct inference-server links
 remain available there. Migration from a previous full Loom is manual and

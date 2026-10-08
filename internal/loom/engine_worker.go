@@ -51,6 +51,7 @@ func cmdNode(args []string) error {
 	bin := flags.String("bin", "", "existing llama-server binary (init only)")
 	check := flags.Bool("check", false, "check node update without installing")
 	noObserve := flags.Bool("no-observe", false, "disable node observe module (init only)")
+	noTerminal := flags.Bool("no-terminal", false, "disable node terminal module (init only)")
 	noHarness := flags.Bool("no-harness", false, "disable node harness module (init only)")
 	models := flags.String("models", "", "existing model directory (init only)")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -67,6 +68,9 @@ func cmdNode(args []string) error {
 	}
 	if action != "init" && *noObserve {
 		return errors.New("--no-observe applies only to node init")
+	}
+	if action != "init" && *noTerminal {
+		return errors.New("--no-terminal applies only to node init")
 	}
 	if action != "init" && *noHarness {
 		return errors.New("--no-harness applies only to node init")
@@ -94,8 +98,11 @@ func cmdNode(args []string) error {
 	}
 	_ = os.Setenv("LOOM_SERVICE", "loom-node-engine")
 	_ = os.Setenv("LOOM_UI_SERVICE", "loom-node")
-	explicitListen, explicitHarness, explicitObserve := false, false, false
+	explicitListen, explicitHarness, explicitObserve, explicitTerminal := false, false, false, false
 	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "no-terminal" {
+			explicitTerminal = true
+		}
 		if f.Name == "no-observe" {
 			explicitObserve = true
 		}
@@ -118,6 +125,11 @@ func cmdNode(args []string) error {
 		}
 		if explicitHarness {
 			if err := putBool(bkState, nodeHarnessDisabledKey, *noHarness); err != nil {
+				return err
+			}
+		}
+		if explicitTerminal {
+			if err := putBool(bkState, nodeTerminalDisabledKey, *noTerminal); err != nil {
 				return err
 			}
 		}
@@ -276,6 +288,9 @@ func newEngineWorkerMux(token string) *http.ServeMux {
 	return newEngineWorkerMuxHarness(token, newNodeHarnessServer(8))
 }
 func newEngineWorkerMuxHarness(token string, harness *nodeHarnessServer) *http.ServeMux {
+	return newEngineWorkerMuxModules(token, harness, newNodeTerminalServer(defaultNodeTerminalLimit))
+}
+func newEngineWorkerMuxModules(token string, harness *nodeHarnessServer, terminal *nodeTerminalServer) *http.ServeMux {
 	mux := http.NewServeMux()
 	hash := ""
 	if token != "" {
@@ -295,6 +310,7 @@ func newEngineWorkerMuxHarness(token string, harness *nodeHarnessServer) *http.S
 	registerEngineControlRoutes(func(path string, h http.HandlerFunc) {
 		api(path, workerEngineRoute(path, h))
 	})
+	api("/api/node/terminal/ws", terminal.ws)
 	api("/api/node/observe", handleNodeObserve)
 	api("/api/node/harness/inventory", harness.inventory)
 	api("/api/node/harness/acp", harness.acp)
@@ -450,10 +466,13 @@ func serveEngineWorker(addr string) error {
 	go startConfiguredEngine(ctx)
 	harness := newNodeHarnessServer(8)
 	defer harness.stop()
-	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: newEngineWorkerMuxHarness(token, harness), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	terminal := newNodeTerminalServer(defaultNodeTerminalLimit)
+	defer terminal.stop()
+	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: newEngineWorkerMuxModules(token, harness, terminal), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	go func() {
 		<-ctx.Done()
 		harness.stop()
+		terminal.stop()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutdown)

@@ -6,6 +6,13 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Paired-machine terminals through the independent node `terminal` module,
+  enabled by default (`loom node init --no-terminal` disables it). Machine-token
+  WebSockets start a real PTY without SSH, with input, resize, exit codes,
+  eight-terminal limits and owned process-group cleanup. The main reuses its
+  terminal registry, request IDs, browser tickets and output replay; machine
+  responses expose terminal capabilities. Backend only; no new dependencies.
+
 - Backend machine metrics for this machine, paired nodes and Linux SSH machines:
   CPU, RAM, per-GPU utilization/VRAM, home filesystem disk usage, uptime and load.
   Read-only local/node samples are cached for two seconds; SSH samples/failures
@@ -19,8 +26,7 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   directory browsing and workspace creation. Paired machines can run the same
   harness launchers as SSH machines through the hidden `node-bridge` command,
   retaining per-machine management/enabling and discussion consent. Agent
-  processes have an eight-process limit and owned-group cleanup; terminals
-  still require SSH. Backend only.
+  processes have an eight-process limit and owned-group cleanup. Backend only.
 
 - Engine service admission with FIFO model swaps that drain existing streams,
   resident-model batches, background priorities/grace, configurable idle VRAM
