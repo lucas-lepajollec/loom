@@ -383,6 +383,8 @@ func (c *Conversation) StartTurn(text string, files []attachInfo, caps Caps, tem
 	}
 	// Content = simple texte d'ordinaire ; format multimodal (texte + images) quand
 	// la vision est active et qu'une pièce jointe est une image (userMessageContent).
+	messageIndex := nativePortableMessageCount(c.Log, c.Messages)
+	archiveID, projectID := c.ID, c.ActiveProject
 	c.Messages = append(c.Messages, Message{Role: "user", Content: userMessageContent(files, prompt)})
 	epoch := c.epoch
 	c.mu.Unlock()
@@ -399,6 +401,7 @@ func (c *Conversation) StartTurn(text string, files []attachInfo, caps Caps, tem
 	if temperature == 0 {
 		temperature = 0.7
 	}
+	collectNativeCandidates(archiveID, projectID, messageIndex, text)
 	go c.generate(ctx, caps, temperature, epoch)
 	return nil
 }

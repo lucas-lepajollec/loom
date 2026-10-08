@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -337,14 +336,9 @@ func (s *brainService) distillHTTP(w http.ResponseWriter, r *http.Request) {
 		brainResponse(w, nil, err)
 		return
 	}
-	base := engineBase()
-	u, err := url.Parse(base)
+	base, err := brainDistillDestination(req.Consent)
 	if err != nil {
-		brainResponse(w, nil, errors.New("invalid chat engine destination"))
-		return
-	}
-	if u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost" && u.Hostname() != "::1" && !req.Consent {
-		brainResponse(w, nil, errors.New("consent required to send discussion text to the linked engine"))
+		brainResponse(w, nil, err)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)

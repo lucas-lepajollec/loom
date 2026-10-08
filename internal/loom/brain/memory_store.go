@@ -323,7 +323,7 @@ func (s *MemoryStore) Remember(req RememberRequest) (MemoryItem, error) {
 	// Deterministic choice if external tools have introduced duplicate texts.
 	var match MemoryItem
 	for _, old := range s.items {
-		if old.Status == "active" && old.Scope == item.Scope && old.Class == item.Class && normalizedMemoryText(old.Text) == normalizedMemoryText(item.Text) && (match.ID == "" || old.ID < match.ID) {
+		if item.Status != "candidate" && old.Status == "active" && old.Scope == item.Scope && old.Class == item.Class && normalizedMemoryText(old.Text) == normalizedMemoryText(item.Text) && (match.ID == "" || old.ID < match.ID) {
 			match = old
 		}
 	}
@@ -375,6 +375,9 @@ func (s *MemoryStore) Update(req UpdateMemoryRequest) (MemoryItem, error) {
 		item.CreatedAt = item.UpdatedAt
 		item.LastUsedAt = 0
 		item.Status = "active"
+		if old.Status == "candidate" {
+			item.Status = "candidate"
+		}
 		if req.Patch.Status != nil {
 			item.Status = *req.Patch.Status
 		}
@@ -406,7 +409,7 @@ func (s *MemoryStore) List(filter MemoryFilter) (MemoryList, error) {
 	if filter.Status == "" {
 		filter.Status = "active"
 	}
-	if !contains([]string{"active", "superseded", "uncertain", "expired", "all"}, filter.Status) || filter.Limit < 0 {
+	if !contains([]string{"active", "candidate", "superseded", "uncertain", "expired", "all"}, filter.Status) || filter.Limit < 0 {
 		return MemoryList{}, errors.New("invalid memory status or limit")
 	}
 	for _, class := range filter.Classes {

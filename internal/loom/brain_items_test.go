@@ -285,6 +285,30 @@ func TestBrainItemsHTTPAndMCP(t *testing.T) {
 	if !found["list_memory"].Annotations.ReadOnlyHint || found["remember"].Annotations.ReadOnlyHint {
 		t.Fatal("wrong annotations")
 	}
+	candidateReq := brainItemRequest("MCP pending candidate")
+	candidateReq.Status = "candidate"
+	pending, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "remember", Arguments: candidateReq})
+	if err != nil || pending.IsError {
+		t.Fatalf("MCP candidate creation: %+v %v", pending, err)
+	}
+	for _, status := range []string{"", "candidate", "all"} {
+		listed, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "list_memory", Arguments: brain.MemoryFilter{Status: status, Query: candidateReq.Text}})
+		if err != nil || listed.IsError {
+			t.Fatalf("MCP candidate filter: %+v %v", listed, err)
+		}
+		raw, _ := json.Marshal(listed.StructuredContent)
+		var list brain.MemoryList
+		if err := json.Unmarshal(raw, &list); err != nil {
+			t.Fatal(err)
+		}
+		want := 1
+		if status == "" {
+			want = 0
+		}
+		if len(list.Items) != want {
+			t.Fatalf("MCP %q candidate visibility: %+v", status, list)
+		}
+	}
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "remember", Arguments: brainItemRequest("MCP durable fact")})
 	if err != nil || result.IsError {
 		t.Fatalf("MCP remember: %+v %v", result, err)

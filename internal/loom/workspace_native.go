@@ -9,6 +9,29 @@ import (
 
 // Portable text is a projection of the display journal, not a replacement for
 // native tool/compaction state. The source archive remains intact.
+func nativePortableMessageCount(events []LogEvent, messages []Message) int {
+	count, assistant := 0, false
+	if len(events) == 0 {
+		for _, msg := range messages {
+			if text, ok := msg.Content.(string); ok && text != "" && (msg.Role == "user" || msg.Role == "assistant") {
+				count++
+			}
+		}
+		return count
+	}
+	for _, event := range events {
+		if _, ok := event.Delta["user"].(string); ok {
+			count++
+			assistant = false
+		}
+		if text, ok := event.Delta["content"].(string); ok && text != "" && !assistant {
+			count++
+			assistant = true
+		}
+	}
+	return count
+}
+
 func archivePortableText(a *convArchive) []Message {
 	out := []Message{}
 	if len(a.Log) == 0 {

@@ -338,6 +338,7 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 	run := &runtimeRun{session: s, cancel: cancel}
 	m.runs[id] = run
 	m.publishLocked(id, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true, "provenance": s.Turns[len(s.Turns)-1], "session": cloneRuntimeSession(s), "context": turnContext(s, prepared.Context)})
+	collectDiscussionCandidates(s, len(messages)-1, text)
 	go m.generate(ctx, run, adapter, prepared.Messages, prepared.Context)
 	return nil
 }
