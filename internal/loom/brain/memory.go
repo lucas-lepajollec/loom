@@ -3,6 +3,7 @@ package brain
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"math"
 	"regexp"
 	"strings"
@@ -100,6 +101,23 @@ func validScope(scope string) bool {
 func normalizedMemoryText(text string) string {
 	return strings.ToLower(strings.Join(strings.Fields(text), " "))
 }
+
+// coreNoteLimit refuses a profile or project-notes write past its size, with
+// the space to free, so the writer condenses the note instead of losing it.
+func coreNoteLimit(item MemoryItem) error {
+	limit, name := 0, ""
+	switch {
+	case contains(item.Tags, ProfileTag):
+		limit, name = ProfileLimit, "user profile"
+	case contains(item.Tags, ProjectNotesTag):
+		limit, name = ProjectNotesLimit, "project notes"
+	}
+	if n := utf8.RuneCountInString(item.Text); limit > 0 && n > limit {
+		return fmt.Errorf("%s is full: %d/%d characters; condense or remove %d characters and retry", name, n, limit, n-limit)
+	}
+	return nil
+}
+
 func validateMemory(item MemoryItem) error {
 	if !memoryID.MatchString(item.ID) {
 		return errors.New("invalid memory id")

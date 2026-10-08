@@ -2,6 +2,7 @@ package loom
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -147,6 +148,9 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 	}
 	for _, part := range primarySecondBrainParts() {
 		appendContextPart(&c, part)
+	}
+	if text := memoryProtocol(s); text != "" && c.Problem == "" {
+		add("memory_protocol", "Loom memory", s.ID, "how to keep memory current", text)
 	}
 	if s.Instructions != "" {
 		add("discussion_instructions", "Discussion instructions", s.ID, "discussion instructions", "Discussion instructions:\n"+s.Instructions)
@@ -310,4 +314,22 @@ func handleRuntimeSessionRewind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "text": text, "session": clientSession(s), "context": discussionContext(s)})
+}
+
+// memoryProtocol is Hermes' habit for any agent Loom launches: it keeps the
+// small core notes current itself, with the loom MCP tools it already has, so
+// continuity costs no extra model call and needs no local engine.
+func memoryProtocol(s RuntimeSession) string {
+	registered, ok := registeredRuntimes.lookup(s.RuntimeID)
+	if !ok {
+		return ""
+	}
+	if _, acp := registered.(*acpAdapter); !acp {
+		return ""
+	}
+	project := "this discussion has no project, so skip project notes"
+	if s.ProjectID != "" {
+		project = fmt.Sprintf("the project notes: the semantic item tagged %s with scope project:%s (at most %d characters; its conventions, decisions and environment)", brain.ProjectNotesTag, s.ProjectID, brain.ProjectNotesLimit)
+	}
+	return fmt.Sprintf("Loom memory (tools on the MCP server \"loom\"): keep two short core notes current yourself, with update_memory (or remember when absent): the user profile, the global semantic item tagged %s (at most %d characters; who the user is, preferences, how they work), and %s. Update them when you learn something durable or finish meaningful work; condense instead of growing when a write reports the note is full. Use search_discussions to recall earlier discussions before asking the user to repeat. Never store secrets.", brain.ProfileTag, brain.ProfileLimit, project)
 }

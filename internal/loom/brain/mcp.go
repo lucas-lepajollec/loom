@@ -53,6 +53,11 @@ type Skill struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
+type DiscussionSearchRequest struct {
+	Query     string `json:"query" jsonschema:"words to find in past discussions"`
+	ProjectID string `json:"project_id,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
 type ReadSkillRequest struct {
 	Name string `json:"name" jsonschema:"skill name from list_skills"`
 }
@@ -87,6 +92,18 @@ func RegisterMCPTools(s *mcp.Server, reader Reader) {
 			hits, err = contextual.SearchContext(ctx, args)
 		} else {
 			hits, err = reader.Search(args)
+		}
+		return nil, SearchResult{hits}, err
+	})
+	// Session search, Hermes-style: past discussions by full text, no model.
+	mcp.AddTool(s, &mcp.Tool{Name: "search_discussions", Description: "Search past Loom discussions (all executors) by full text, without any model call, to recall earlier decisions, progress or what was tried. Returns matching passages with their discussion path; read one with brain_read. Optional project_id limits to that project. limit defaults to 10, maximum 50.", Annotations: annotations}, func(ctx context.Context, req *mcp.CallToolRequest, args DiscussionSearchRequest) (*mcp.CallToolResult, SearchResult, error) {
+		search := SearchRequest{Query: args.Query, ProjectID: args.ProjectID, Sources: []string{"conversations"}, Limit: min(max(args.Limit, 0), 50)}
+		var hits []Hit
+		var err error
+		if contextual, ok := reader.(ContextReader); ok {
+			hits, err = contextual.SearchContext(ctx, search)
+		} else {
+			hits, err = reader.Search(search)
 		}
 		return nil, SearchResult{hits}, err
 	})

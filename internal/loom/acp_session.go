@@ -227,6 +227,9 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			m.closeACP(s.ID)
 			return nil, err
 		}
+		if mem := sessionGatewayServer(init.AgentCapabilities, agent.Remote); mem != nil && !gatewayRegistered(s.RuntimeID) && definitions["loom"].Command == "" && definitions["loom"].URL == "" {
+			servers = append(servers, mem)
+		}
 		params := map[string]any{"cwd": s.Workdir, "additionalDirectories": append([]string{}, s.AdditionalDirs...), "mcpServers": servers}
 		var response acpSessionResponse
 		load, _ := init.AgentCapabilities["loadSession"].(bool)

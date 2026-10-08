@@ -315,6 +315,9 @@ func (s *MemoryStore) Remember(req RememberRequest) (MemoryItem, error) {
 	if err := validateMemory(item); err != nil {
 		return MemoryItem{}, err
 	}
+	if err := coreNoteLimit(item); err != nil {
+		return MemoryItem{}, err
+	}
 	root, err := s.open()
 	if err != nil {
 		return MemoryItem{}, err
@@ -384,6 +387,9 @@ func (s *MemoryStore) Update(req UpdateMemoryRequest) (MemoryItem, error) {
 		item.Supersedes = append(item.Supersedes, old.ID)
 	}
 	if err := validateMemory(item); err != nil {
+		return MemoryItem{}, err
+	}
+	if err := coreNoteLimit(item); err != nil {
 		return MemoryItem{}, err
 	}
 	if err := s.save(root, item); err != nil {

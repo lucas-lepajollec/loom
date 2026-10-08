@@ -43,7 +43,7 @@ func (s *brainService) get() (*brain.Engine, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.engine == nil {
-		e, err := brain.New(brain.Options{Storage: s.storage, ExcludedDirectories: s.skillsIndexExclusions, Conversations: brainConversations, Memory: brainMemory, Distilled: s.distilledDocuments, Available: brainAvailable})
+		e, err := brain.New(brain.Options{Storage: s.storage, ExcludedDirectories: func() []string { return append(s.skillsIndexExclusions(), s.coreFilesIndexExclusions()...) }, Conversations: brainConversations, Memory: brainMemory, Distilled: s.distilledDocuments, Available: brainAvailable})
 		if err != nil {
 			return nil, err
 		}
@@ -68,6 +68,7 @@ func (s *brainService) run(ctx context.Context) {
 			_ = e.Refresh(ctx)
 			s.refreshSemanticIfSelected()
 			syncPortableMCP()
+			_ = s.syncCoreFiles()
 		}
 	}
 	refresh()
@@ -380,7 +381,7 @@ func theBrain() *brainService {
 
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	s := theBrain()
-	for route, handler := range map[string]http.HandlerFunc{"items": s.itemsHTTP, "items/update": s.updateMemoryHTTP, "items/forget": s.forgetMemoryHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "consolidate": s.consolidateHTTP, "consolidation": s.consolidationHTTP, "continuity": s.continuityHTTP, "continuity/run": s.continuityRunHTTP, "continuity/status": s.continuityStatusHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
+	for route, handler := range map[string]http.HandlerFunc{"items": s.itemsHTTP, "items/update": s.updateMemoryHTTP, "items/forget": s.forgetMemoryHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "consolidate": s.consolidateHTTP, "consolidation": s.consolidationHTTP, "core-files": s.coreFilesHTTP, "continuity": s.continuityHTTP, "continuity/run": s.continuityRunHTTP, "continuity/status": s.continuityStatusHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
 		protected := requireWebAuth(handler)
 		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")

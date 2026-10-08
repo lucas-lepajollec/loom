@@ -398,7 +398,7 @@ func TestMCPToolsInProcess(t *testing.T) {
 	}
 	defer cs.Close()
 	list, err := cs.ListTools(ctx, nil)
-	if err != nil || len(list.Tools) != 3 {
+	if err != nil || len(list.Tools) != 4 {
 		t.Fatalf("tools: %v %v", list, err)
 	}
 	for _, tool := range list.Tools {

@@ -223,11 +223,21 @@ releases.
 - Delivered on 2026-10-08: user profile ("You", always in context), automatic
   continuity (off by default, uses only an already-loaded local model unless a
   consented provider is chosen), skills in the primary brain, MCP gateway.
-- **Automatic compaction** (accepted 2026-10-08): an opt-in setting. When it is
-  off and a discussion approaches its context limit, the discussion shows a
-  warning with a link to the compaction setting and two ways out: continue in a
-  new discussion of the same project (continuity carries the state), or create
-  a project, attach this discussion and start a new one there.
+- **Continuity without cost** (decided 2026-10-08): a deterministic handoff
+  per discussion, rebuilt at every turn end from structured signals (goal,
+  agent plan, files touched, commands, the agent's final recap, open
+  questions), aggregated into the project state. Always on, no model call, no
+  local engine needed. Model summaries stay an opt-in refinement.
+- **Compaction for every discussion** (accepted 2026-10-08). Today only Loom's
+  native chat with the local engine compacts (Hermes-style head/torso/tail,
+  automatic by default). Target, for Local, Cloud and Harness discussions:
+  a context meter; an automatic setting; and, when it is off or before the
+  limit, a warning offering **compact now and stay here** (keep the important
+  part, summarise the middle with the discussion's own model, or the harness's
+  native compact command when it advertises one), **continue in a new
+  discussion of the same project** (the handoff carries the state) or **create
+  a project, attach this discussion and start a new one there**, with a link to
+  the setting.
 - **Exit:** export → fresh Loom → identical canonical Brain; context packs stay
   within budget with no quality loss in dogfooding.
 

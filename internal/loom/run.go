@@ -117,6 +117,11 @@ func Main() {
 		mustExit(cmdInternet(args))
 	case "memory":
 		mustExit(cmdMemory(args))
+	case "mcp-bridge":
+		if err := cmdMCPBridge(args); err != nil {
+			fmt.Fprintln(os.Stderr, "[err]", err)
+			os.Exit(1)
+		}
 	case "serve":
 		mustExit(cmdServe(args))
 	case "test":

@@ -52,6 +52,13 @@ func ContextQuery(query string) string {
 // ProfileTag marks the single global item describing the user.
 const ProfileTag = "user-profile"
 
+// ProjectNotesTag marks a project's single notes item (its MEMORY.md).
+const ProjectNotesTag = "project-notes"
+
+// Core notes are small on purpose (Hermes: USER.md 1,375, MEMORY.md 2,200
+// characters): a full note makes the writer condense instead of growing.
+const ProfileLimit, ProjectNotesLimit = 1400, 2200
+
 func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages string, budgets MemoryBudgets, discussionIDs ...string) MemoryPack {
 	discussionID := ""
 	if len(discussionIDs) > 0 {
@@ -68,6 +75,11 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 	// always included first, truncated rather than dropped.
 	isProfile := func(item MemoryItem) bool {
 		return item.Class == "semantic" && item.Scope == "global" && contains(item.Tags, ProfileTag)
+	}
+	// The project's notes (conventions, decisions, environment) are the
+	// project's core memory, pinned like the profile.
+	isNotes := func(item MemoryItem) bool {
+		return projectID != "" && item.Class == "semantic" && item.Scope == "project:"+projectID && contains(item.Tags, ProjectNotesTag)
 	}
 	isSummary := func(item MemoryItem) bool {
 		return projectID != "" && item.Class == "episodic" && item.Scope == "project:"+projectID && contains(item.Tags, "session-summary")
@@ -104,7 +116,7 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 				overlap++
 			}
 		}
-		if overlap == 0 && item.Class != "reflex" && item.Class != "working" && !isSummary(item) && !isProfile(item) {
+		if overlap == 0 && item.Class != "reflex" && item.Class != "working" && !isSummary(item) && !isProfile(item) && !isNotes(item) {
 			continue
 		}
 		relevance := 0.0
@@ -131,8 +143,8 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 		pending = append(pending, ancestors[id]...)
 	}
 	recent := []MemoryItem{}
-	pinnedID, profileID := "", ""
-	var pinnedAt, profileAt int64
+	pinnedID, profileID, notesID := "", "", ""
+	var pinnedAt, profileAt, notesAt int64
 	for _, c := range candidates {
 		if superseded[c.item.ID] {
 			continue
@@ -142,6 +154,9 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 		}
 		if isProfile(c.item) && (profileID == "" || c.item.UpdatedAt > profileAt || c.item.UpdatedAt == profileAt && c.item.ID < profileID) {
 			profileID, profileAt = c.item.ID, c.item.UpdatedAt
+		}
+		if isNotes(c.item) && (notesID == "" || c.item.UpdatedAt > notesAt || c.item.UpdatedAt == notesAt && c.item.ID < notesID) {
+			notesID, notesAt = c.item.ID, c.item.UpdatedAt
 		}
 		if isSummary(c.item) {
 			recent = append(recent, c.item)
@@ -167,6 +182,9 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 		a, b := candidates[i], candidates[j]
 		if (a.item.ID == profileID) != (b.item.ID == profileID) {
 			return a.item.ID == profileID
+		}
+		if (a.item.ID == notesID) != (b.item.ID == notesID) {
+			return a.item.ID == notesID
 		}
 		if (a.item.ID == pinnedID) != (b.item.ID == pinnedID) {
 			return a.item.ID == pinnedID
@@ -206,7 +224,7 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 	seen := []string{normalizedMemoryText(passages)}
 	for _, c := range candidates {
 		item := c.item
-		if superseded[item.ID] || isSummary(item) && preferred[item.ID] == 0 && c.overlap == 0 || isState(item) && item.ID != pinnedID || isProfile(item) && item.ID != profileID {
+		if superseded[item.ID] || isSummary(item) && preferred[item.ID] == 0 && c.overlap == 0 || isState(item) && item.ID != pinnedID || isProfile(item) && item.ID != profileID || isNotes(item) && item.ID != notesID {
 			continue
 		}
 		normalized := normalizedMemoryText(item.Text)
@@ -217,7 +235,7 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 				break
 			}
 		}
-		pinned := item.ID == pinnedID || item.ID == profileID
+		pinned := item.ID == pinnedID || item.ID == profileID || item.ID == notesID
 		if duplicate && !pinned {
 			continue
 		}
@@ -265,6 +283,9 @@ func SelectMemory(items []MemoryItem, projectID, runtimeID, query, passages stri
 		}
 		if item.ID == profileID {
 			reason = "your profile (always included)"
+		}
+		if item.ID == notesID {
+			reason = "project notes (always included)"
 		}
 		if item.Status == "uncertain" {
 			reason += "; uncertain, ranked lower"
