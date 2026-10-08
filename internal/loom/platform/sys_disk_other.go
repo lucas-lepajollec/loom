@@ -12,15 +12,28 @@ import "syscall"
 // -1 si la mesure échoue. dir doit exister (l'appelant remonte les parents au
 // besoin).
 func DiskFreeAt(dir string) int64 {
+	available, _, _, err := diskSpaceAt(dir)
+	if err != nil || available > 1<<62 {
+		return -1
+	}
+	return int64(available)
+}
+
+// DiskUsageAt observes the filesystem containing dir, including reserved blocks.
+func DiskUsageAt(dir string) (used, total uint64, err error) {
+	_, total, free, err := diskSpaceAt(dir)
+	if err != nil {
+		return 0, 0, err
+	}
+	return total - free, total, nil
+}
+
+func diskSpaceAt(dir string) (available, total, free uint64, err error) {
 	var st syscall.Statfs_t
-	if err := syscall.Statfs(dir, &st); err != nil {
-		return -1
+	if err = syscall.Statfs(dir, &st); err != nil {
+		return
 	}
-	// Les types de Bavail/Bsize diffèrent selon l'OS (int64 sous Linux, uint64
-	// et uint32 sous macOS) : on passe par uint64 avant de multiplier.
-	free := uint64(st.Bavail) * uint64(st.Bsize)
-	if free > 1<<62 {
-		return -1
-	}
-	return int64(free)
+	// The native integer widths differ on Linux and macOS.
+	size := uint64(st.Bsize)
+	return uint64(st.Bavail) * size, uint64(st.Blocks) * size, uint64(st.Bfree) * size, nil
 }

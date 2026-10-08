@@ -50,6 +50,7 @@ func cmdNode(args []string) error {
 	listen := flags.String("listen", defaultNodeListen, "control and inference listener")
 	bin := flags.String("bin", "", "existing llama-server binary (init only)")
 	check := flags.Bool("check", false, "check node update without installing")
+	noObserve := flags.Bool("no-observe", false, "disable node observe module (init only)")
 	noHarness := flags.Bool("no-harness", false, "disable node harness module (init only)")
 	models := flags.String("models", "", "existing model directory (init only)")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -63,6 +64,9 @@ func cmdNode(args []string) error {
 	}
 	if action != "update" && *check {
 		return errors.New("--check applies only to node update")
+	}
+	if action != "init" && *noObserve {
+		return errors.New("--no-observe applies only to node init")
 	}
 	if action != "init" && *noHarness {
 		return errors.New("--no-harness applies only to node init")
@@ -90,8 +94,11 @@ func cmdNode(args []string) error {
 	}
 	_ = os.Setenv("LOOM_SERVICE", "loom-node-engine")
 	_ = os.Setenv("LOOM_UI_SERVICE", "loom-node")
-	explicitListen, explicitHarness := false, false
+	explicitListen, explicitHarness, explicitObserve := false, false, false
 	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "no-observe" {
+			explicitObserve = true
+		}
 		if f.Name == "no-harness" {
 			explicitHarness = true
 		}
@@ -110,7 +117,12 @@ func cmdNode(args []string) error {
 			return err
 		}
 		if explicitHarness {
-			return putBool(bkState, nodeHarnessDisabledKey, *noHarness)
+			if err := putBool(bkState, nodeHarnessDisabledKey, *noHarness); err != nil {
+				return err
+			}
+		}
+		if explicitObserve {
+			return putBool(bkState, nodeObserveDisabledKey, *noObserve)
 		}
 		return nil
 	case "install":
@@ -283,6 +295,7 @@ func newEngineWorkerMuxHarness(token string, harness *nodeHarnessServer) *http.S
 	registerEngineControlRoutes(func(path string, h http.HandlerFunc) {
 		api(path, workerEngineRoute(path, h))
 	})
+	api("/api/node/observe", handleNodeObserve)
 	api("/api/node/harness/inventory", harness.inventory)
 	api("/api/node/harness/acp", harness.acp)
 	api("/api/node/folders", handleNodeFolders)

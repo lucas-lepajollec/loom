@@ -16,12 +16,13 @@ package loom
 // plutôt que par un nom exact, et on ignore ce qu'on ne sait pas lire.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // rocmVramGPUs renvoie les GPU AMD au même format que handleVram
@@ -32,11 +33,14 @@ func rocmVramGPUs() []map[string]any {
 	if !hasTool("rocm-smi") {
 		return nil
 	}
-	// --json rend un objet { "card0": {...}, "card1": {...} }. Les drapeaux
-	// demandent explicitement nom, VRAM, charge et température ; une version qui
-	// ignore un drapeau inconnu rend juste moins de champs, sans casser le JSON.
-	out, err := hideCmd(exec.Command("rocm-smi",
-		"--showproductname", "--showmeminfo", "vram", "--showuse", "--showtemp", "--json")).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return rocmVramGPUsWithRunner(gpuRunner(ctx))
+}
+
+func rocmVramGPUsWithRunner(run gpuCommandRunner) []map[string]any {
+	query := gpuQueries[3]
+	out, err := run(query.name, query.args...)
 	if err != nil || len(out) == 0 {
 		return nil
 	}

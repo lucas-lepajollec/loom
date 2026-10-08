@@ -6,6 +6,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Backend machine metrics for this machine, paired nodes and Linux SSH machines:
+  CPU, RAM, per-GPU utilization/VRAM, home filesystem disk usage, uptime and load.
+  Read-only local/node samples are cached for two seconds; SSH samples/failures
+  for ten seconds, with bounded concurrent aggregate collection. The independent
+  node `observe` module is enabled by default (`loom node init --no-observe`
+  disables it). Non-Linux local samples are partial; non-Linux SSH is unsupported.
+  No new dependencies or UI changes.
+
 - Optional node harness module (on by default; `loom node init --no-harness`
   disables it), with authenticated inventory, binary ACP WebSocket transport,
   directory browsing and workspace creation. Paired machines can run the same

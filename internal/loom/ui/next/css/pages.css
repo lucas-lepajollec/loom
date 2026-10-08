@@ -913,3 +913,12 @@ button.mcard:hover{border-color:var(--line-strong)}
 .mi-hand>summary::-webkit-details-marker{display:none}
 .mi-hand>summary::before{content:"›";display:inline-block;margin-right:6px;color:var(--text-3);transition:transform var(--fast)}
 .mi-hand[open]>summary::before{transform:rotate(90deg)}
+.mmeters{display:flex;flex-direction:column;gap:6px;padding:0 18px 14px;font-size:11.5px}
+.mmeter{display:grid;grid-template-columns:96px 1fr 112px;align-items:center;gap:10px}
+.mmeter>span{color:var(--text-3)}
+.mmeter>em{text-align:right;font-style:normal;font-family:var(--mono);font-size:11px;color:var(--text-2);white-space:nowrap}
+.mmeter-bar{display:block;height:4px;border-radius:2px;background:var(--surface-3);overflow:hidden}
+.mmeter-bar b{display:block;height:100%;border-radius:2px;background:var(--text-2);transition:width var(--slow) var(--out)}
+.mmeter-bar b.warm{background:var(--amber)}
+.mmeter-bar b.hot{background:var(--red)}
+.mmeter-none{font-size:11.5px}

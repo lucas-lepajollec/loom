@@ -20,11 +20,12 @@ package loom
 // donc tolérante et ne suppose jamais un type précis.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // amdVramGPUs renvoie les GPU AMD au même format que handleVram
@@ -33,8 +34,14 @@ func amdVramGPUs() []map[string]any {
 	if !hasTool("amd-smi") {
 		return nil
 	}
-	names := amdSmiNames()
-	metric := amdSmiJSON("metric")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return amdVramGPUsWithRunner(gpuRunner(ctx))
+}
+
+func amdVramGPUsWithRunner(run gpuCommandRunner) []map[string]any {
+	names := amdSmiNamesWithRunner(run)
+	metric := amdSmiJSONWithRunner(run, "metric")
 	if len(metric) == 0 {
 		return nil
 	}
@@ -72,8 +79,14 @@ func amdPos(n int) int {
 // numéro de GPU. Vide si `amd-smi static` échoue : on retombe alors sur un nom
 // générique, sans empêcher l'affichage du reste.
 func amdSmiNames() map[int]string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return amdSmiNamesWithRunner(gpuRunner(ctx))
+}
+
+func amdSmiNamesWithRunner(run gpuCommandRunner) map[int]string {
 	names := map[int]string{}
-	for i, e := range amdSmiJSON("static") {
+	for i, e := range amdSmiJSONWithRunner(run, "static") {
 		idx := amdNum(e["gpu"])
 		if idx < 0 {
 			idx = i
@@ -97,7 +110,13 @@ func amdSmiNames() map[int]string {
 // Sans le déballage de « gpu_data », on prenait le wrapper pour un GPU : ni
 // « gpu » ni « mem_usage » à l'intérieur → toutes les valeurs à 0.
 func amdSmiJSON(sub string) []map[string]any {
-	out, err := hideCmd(exec.Command("amd-smi", sub, "--json")).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return amdSmiJSONWithRunner(gpuRunner(ctx), sub)
+}
+
+func amdSmiJSONWithRunner(run gpuCommandRunner, sub string) []map[string]any {
+	out, err := run("amd-smi", sub, "--json")
 	if err != nil || len(out) == 0 {
 		return nil
 	}

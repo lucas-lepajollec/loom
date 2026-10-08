@@ -197,9 +197,48 @@ func handleVram(w http.ResponseWriter, r *http.Request) {
 // liveGPUs lit la VRAM réellement présente (NVIDIA d'abord, sinon AMD).
 // used/total sont en Mo, comme /api/vram.
 func liveGPUs() []map[string]any {
-	out, err := hideCmd(exec.Command("nvidia-smi",
-		"--query-gpu=name,memory.used,memory.total,utilization.gpu,temperature.gpu",
-		"--format=csv,noheader,nounits")).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return liveGPUsWithRunner(gpuRunner(ctx))
+}
+
+// GPU commands and parsers are shared by engine observations and machine metrics.
+type gpuCommandRunner func(string, ...string) ([]byte, error)
+
+var gpuQueries = []struct {
+	id, name string
+	args     []string
+}{
+	{"nvidia", "nvidia-smi", []string{"--query-gpu=name,memory.used,memory.total,utilization.gpu,temperature.gpu", "--format=csv,noheader,nounits"}},
+	{"amd-static", "amd-smi", []string{"static", "--json"}},
+	{"amd-metric", "amd-smi", []string{"metric", "--json"}},
+	{"rocm", "rocm-smi", []string{"--showproductname", "--showmeminfo", "vram", "--showuse", "--showtemp", "--json"}},
+}
+
+func gpuRunner(ctx context.Context) gpuCommandRunner {
+	return func(name string, args ...string) ([]byte, error) {
+		cmd := hideCmd(exec.CommandContext(ctx, name, args...))
+		cmd.WaitDelay = 100 * time.Millisecond
+		return cmd.Output()
+	}
+}
+
+func liveGPUsWithRunner(run gpuCommandRunner) []map[string]any {
+	out, err := run(gpuQueries[0].name, gpuQueries[0].args...)
+	gpus := parseNvidiaGPUs(out, err)
+	if len(gpus) == 0 {
+		gpus = amdVramGPUsWithRunner(run)
+	}
+	if len(gpus) == 0 {
+		gpus = rocmVramGPUsWithRunner(run)
+	}
+	if gpus == nil {
+		gpus = []map[string]any{}
+	}
+	return gpus
+}
+
+func parseNvidiaGPUs(out []byte, err error) []map[string]any {
 	gpus := []map[string]any{}
 	if err == nil {
 		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -217,23 +256,6 @@ func liveGPUs() []map[string]any {
 			gpus = append(gpus, map[string]any{
 				"name": parts[0], "used": used, "total": total, "util": util, "temp": temp,
 			})
-		}
-	}
-	// Aucune carte NVIDIA (nvidia-smi absent ou muet) → on tente amd-smi, pour que
-	// les GPU AMD apparaissent aussi dans l'UI (issue #32). Mélanger les deux
-	// n'aurait pas de sens sur les rares machines mixtes : nvidia-smi prime, on ne
-	// bascule sur AMD que s'il n'a rien donné.
-	if len(gpus) == 0 {
-		if amd := amdVramGPUs(); len(amd) > 0 {
-			gpus = amd
-		}
-	}
-	// Toujours rien ? Beaucoup d'installations ROCm n'ont que `rocm-smi` (pas
-	// `amd-smi`) : dernier repli pour que la carte AMD apparaisse quand même dans
-	// l'UI au lieu d'un « (pas de GPU) » trompeur (issue #49).
-	if len(gpus) == 0 {
-		if amd := rocmVramGPUs(); len(amd) > 0 {
-			gpus = amd
 		}
 	}
 	return gpus
