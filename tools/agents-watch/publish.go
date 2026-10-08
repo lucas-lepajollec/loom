@@ -168,6 +168,11 @@ func publishVersions(reportPath string, registry []byte, passing []candidate) er
 		_, err = gh("pr", "edit", fmt.Sprint(prs[0].Number), "--body-file", reportPath)
 	} else {
 		_, err = gh("pr", "create", "--head", branch, "--title", "Agents watch: checked versions "+date, "--body-file", reportPath)
+		// Repositories may forbid Actions from creating pull requests. The branch
+		// is pushed, so hand the maintainer a one-click compare link instead.
+		if err != nil && strings.Contains(err.Error(), "not permitted to create") {
+			err = versionsReadyIssue(branch, date, reportPath)
+		}
 	}
 	if err != nil {
 		return err
@@ -186,4 +191,24 @@ func versionIncluded(versions []string, version string) bool {
 		}
 	}
 	return false
+}
+
+// versionsReadyIssue opens (or refreshes) one issue pointing at the pushed
+// branch when the repository does not let Actions open pull requests.
+func versionsReadyIssue(branch, date, reportPath string) error {
+	report, err := os.ReadFile(reportPath)
+	if err != nil {
+		return err
+	}
+	repo := os.Getenv("GITHUB_REPOSITORY")
+	link := "the `" + branch + "` branch"
+	if repo != "" {
+		link = "https://github.com/" + repo + "/compare/main..." + branch + "?expand=1"
+	}
+	body := filepath.Join(filepath.Dir(reportPath), "versions-ready.md")
+	text := "Checked versions are ready on `" + branch + "`. This repository does not allow GitHub Actions to open pull requests, so open it from " + link + " and run CI before merging.\n\n" + string(report)
+	if err := os.WriteFile(body, []byte(text), 0644); err != nil {
+		return err
+	}
+	return attentionIssue("Agents watch: checked versions ready", body)
 }
