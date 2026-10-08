@@ -28,6 +28,9 @@ type RemoteTool struct {
 }
 
 type RemoteMachine struct {
+	NodeID    string       `json:"node_id,omitempty"`
+	Modules   []string     `json:"modules,omitempty"`
+	Handshake int          `json:"handshake,omitempty"`
 	ID        string       `json:"id"`
 	Name      string       `json:"name"`
 	Host      string       `json:"host"`
@@ -422,6 +425,7 @@ func saveRemoteMachine(m RemoteMachine, agents []acpAgent) error {
 	replaced := false
 	for _, old := range loadRemoteMachines() {
 		if old.ID == m.ID {
+			m.NodeID, m.Modules, m.Handshake = old.NodeID, old.Modules, old.Handshake
 			if m.Folders == nil {
 				m.Folders = old.Folders // re-checking a machine keeps its folders
 			}

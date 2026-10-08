@@ -48,15 +48,21 @@ func nodeMaintenanceProbe(ctx context.Context, rawURL, key string) (*engineNode,
 	}
 	defer resp.Body.Close()
 	var info struct {
-		OK       bool   `json:"ok"`
-		Hostname string `json:"hostname"`
-		Version  string `json:"version"`
-		Role     string `json:"role"`
+		ID        string   `json:"id"`
+		Modules   []string `json:"modules"`
+		Handshake int      `json:"handshake"`
+		OK        bool     `json:"ok"`
+		Hostname  string   `json:"hostname"`
+		Version   string   `json:"version"`
+		Role      string   `json:"role"`
 	}
 	if resp.StatusCode != 200 || json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&info) != nil || !info.OK || info.Role != "engine-node" {
 		return nil, errors.New("engine node rejected the key or does not support maintenance")
 	}
-	return &engineNode{URL: base, WebKey: key, Hostname: info.Hostname, Version: info.Version, Role: info.Role, LinkedAt: time.Now().UnixMilli()}, nil
+	if err := checkNodeHandshake(info.Handshake); err != nil {
+		return nil, err
+	}
+	return &engineNode{NodeID: info.ID, Modules: info.Modules, Handshake: info.Handshake, URL: base, WebKey: key, Hostname: info.Hostname, Version: info.Version, Role: info.Role, LinkedAt: time.Now().UnixMilli()}, nil
 }
 
 func machineForNode(w http.ResponseWriter, r *http.Request) (RemoteMachine, bool) {
@@ -102,7 +108,8 @@ func handleMachineNode(w http.ResponseWriter, r *http.Request) {
 			if !usageVaultAccess(w) {
 				return
 			}
-			err = putStoreJSON(bkState, machineNodePrefix+m.ID, n)
+			m.NodeID, m.Modules, m.Handshake = n.NodeID, n.Modules, n.Handshake
+			m, err = savePairedMachine(m, n)
 		}
 		if err != nil {
 			sendJSON(w, 500, map[string]any{"ok": false, "error": "maintenance link could not be saved"})
@@ -114,7 +121,7 @@ func handleMachineNode(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, map[string]any{"ok": true, "linked": false})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "linked": true, "url": n.URL, "hostname": n.Hostname, "version": n.Version, "role": n.Role})
+	sendJSON(w, 200, map[string]any{"ok": true, "linked": true, "url": n.URL, "hostname": n.Hostname, "version": n.Version, "role": n.Role, "modules": n.Modules, "handshake": n.Handshake})
 }
 
 func handleMachineNodeUpdate(w http.ResponseWriter, r *http.Request) {
