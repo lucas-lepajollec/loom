@@ -106,6 +106,9 @@ func (p *agentProjection) event(e agent.AgentEvent) DiscussionEvent {
 			}
 		}
 		if e.ItemType == "file_change" {
+			if diff, ok := payload["diff"].([]any); ok {
+				tool["output"] = string(agent.JSON(diff))
+			}
 			if changes, ok := payload["changes"].([]any); ok {
 				tool["output"] = string(agent.JSON(changes))
 			}

@@ -32,8 +32,10 @@ Link a running **llama-server, vLLM or OpenAI-compatible server** by address, wi
 ## Coding agents and projects
 
 Run local **Codex** through its installed app-server and **Pi** through native RPC,
-with pinned ACP fallbacks for older CLIs. **Claude Code, OpenCode and Hermes** use
-ACP. [Agent compatibility](docs/agents-compat.md) documents canonical events,
+with pinned ACP fallbacks for older CLIs. **Claude Code** uses pinned ACP with native questions/forms and plan approvals;
+**OpenCode** prefers its authenticated local HTTP/SSE server, with ACP fallback
+for older CLIs and launch-scoped Loom sources. **Antigravity** uses Loom's own
+bridge; **Hermes** and **OpenClaw** use native ACP. [Agent compatibility](docs/agents-compat.md) documents canonical events,
 durable interaction requests and tested protocol versions. **Antigravity** uses
 Loom's ACP bridge to its native CLI. Any other ACP agent can be added with a
 custom launcher. Harnesses can run locally or on connected machines over SSH,

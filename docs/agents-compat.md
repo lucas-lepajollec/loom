@@ -240,3 +240,82 @@ other native state may still require write access in restricted environments.
 
 See [the implementation verification report](agents-v2-verification.md) for the
 checks completed and the sandbox failures encountered during this change.
+
+## Agents v2 step 2
+
+| Agent | Protocol / adapter | Tested version | Capabilities covered | Known gaps |
+| --- | --- | --- | --- | --- |
+| Claude Code | ACP v1, `@agentclientprotocol/claude-agent-acp@0.88.0` | Adapter 0.88.0 source/fixtures; installed CLI 2.1.294 version check | Text/thoughts, tools, terminal-output metadata, plans, plan approvals, AskUserQuestion single/multiple/multi-select/Other/Skip, MCP form/URL elicitation, failure metadata | No live 0.88 handshake/paid turn in this sandbox; Bash output timing is SDK-owned; no client-created terminals |
+| OpenCode | Native `opencode serve`, HTTP + `/event` SSE | Installed 1.18.33 schema generation; HTTP fixtures | Native session create/resume/list/text import, provider models, text/reasoning reconciliation, tools, reported patches/plans/usage, approvals, questions, abort, verbatim errors | Live listener blocked by sandbox; CLI-owned MCP; V2 question/permission variants fail explicitly; concurrent TUI answers are not resolved into Loom's pending cards until turn settlement |
+| OpenCode fallback | Native `opencode acp` | 1.18.33 schema/source and synthetic ACP v1 turn | Existing ACP tools, permissions, configuration, replay; launch-scoped Loom sources | No paid/live ACP turn; questions depend on what the upstream ACP bridge exposes |
+| Hermes | Native `hermes acp` | No release accepted in this step | Existing shared ACP surface when supplied by the handshake | Versions unknown until handshake; no new release acceptance claimed |
+| OpenClaw | Native `openclaw acp` | No release accepted in this step | Existing shared ACP surface when supplied by the handshake | Versions unknown until handshake; no new release acceptance claimed |
+| Antigravity | Loom `agy-acp` bridge (adapter pin = Loom version) | No additional native release accepted in this step | Existing native CLI text/tools/plans/usage/modes/resume | No interactive permission RPC, provider keys or Loom MCP; version remains handshake-observed |
+
+The local builtin OpenCode selects HTTP when its read-only help advertises
+`serve`. Loom starts one owned server lazily, with `--hostname 127.0.0.1`,
+`--port 0`, `--mdns=false` and a random per-process Basic-auth password. It
+verifies both health and rejection of unauthenticated access before submitting
+context. Session cancellation calls `/session/{id}/abort` and leaves the shared
+server available to other discussions. Shutdown closes only Loom's owned child.
+A startup/authentication/resume/prompt failure never retries a turn through ACP.
+Missing server support, remote/custom launchers and an enabled **Loom model
+source** use ACP. That launch supplies only the selected OpenCode provider key;
+catalog probes get provider definitions with environment references, without
+Loom keys. The shared HTTP server uses the CLI's own credentials/configuration.
+Native session IDs are also usable by `opencode --session ID` in the TUI.
+
+The versioned unedited OpenAPI snapshot is at
+[`runtime/opencodehttp/schema/`](../internal/loom/runtime/opencodehttp/schema/README.md).
+It was produced by installed `opencode generate`, which uses the same
+`Server.openapi()` as `/doc`; fetching live `/doc` was blocked by the sandbox.
+The 1.18.33 events are `permission.asked`, `question.asked`,
+`message.part.updated` and `message.part.delta`. The older
+`permission.updated`/session permission reply endpoint is accepted too.
+
+### Additional backend fields for the UI owner
+
+- `request.questions[].multi_select:true`: multiple offered labels may be
+  selected. Submit all selections in that question's existing answer array.
+  `false`/absent permits one offered option, plus free text when enabled.
+- `request.questions[].optional:true`: Skip is supported. Submit an empty array
+  for that question; include every question ID in `answers`, including skips.
+- Claude question IDs are `question_0`, `question_1`, etc. `free_text:true`
+  represents the native Other field. A selected option plus free text becomes
+  the native selection plus its custom note; multi-select Other is additive.
+- `request.approval_kind:"plan"`: EnterPlanMode/ExitPlanMode uses the existing
+  approval card and the exact offered option IDs. Plan transitions stay explicit
+  even when ordinary tool approvals are automated.
+- Compatibility adds `adapter_package`, `agent_version` (exact handshake value),
+  and `tested_versions` (known accepted fixture/source versions). Native CLIs
+  are not pinned by Loom; their `adapter_version` is empty on ACP records.
+  Missing observed/tested versions remain unknown. A new observed version
+  outside the tested set produces a non-blocking `warning`, including agents
+  with no accepted native release.
+
+Example multi-select answer (same endpoint, no new UI endpoint):
+
+```json
+{"answers":{"question_0":["Blue","Green","Purple"],"question_1":[]}}
+```
+
+Claude initialization advertises `elicitation:{form:{},url:{}}` (capability
+objects, not booleans), filesystem read/write where already permitted, and
+`_meta.terminal_output:true`. It negotiates only the documented AIR
+`sessionFailure` extension in `_meta.jetbrains.air`; reported failure titles
+are canonical error messages verbatim, including successful `end_turn`
+responses carrying failure metadata. Warning-severity notices remain warnings.
+RPC rejection messages for Claude are surfaced verbatim too. Failure and raw
+protocol metadata remain display/private state, outside portable context.
+
+Step 2 fixtures are synthetic version-derived protocol records under
+`testdata/agents/{claude,opencode,opencode-acp}`. They exercise replies,
+error outcomes, cancellation and complete fake ACP turns. HTTP fixtures use a
+real httptest server when sockets are permitted and the same streaming HTTP
+handlers through pipes/httptest writers in restricted environments. See
+[step 2 verification](agents-v2-step2-verification.md) for the actual checks and
+live-versus-fixture boundary. No paid turns were run.
+
+Sources: [Claude 0.88 changelog](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.88.0/CHANGELOG.md),
+[Claude elicitation source](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.88.0/src/elicitation.ts),
+[OpenCode server](https://opencode.ai/docs/server/),

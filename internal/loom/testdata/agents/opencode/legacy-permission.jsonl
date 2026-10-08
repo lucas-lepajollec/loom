@@ -1,0 +1,1 @@
+{"frame":{"type":"permission.updated","properties":{"sessionID":"ses_fixture","id":"per_old","title":"Allow command","type":"bash"}},"events":["request.opened"],"answer":{"decision":"deny"},"reply":{"path":"/session/ses_fixture/permissions/per_old","body":{"response":"reject"}}}

@@ -28,7 +28,18 @@ var nativeProtocolCache = struct {
 // Probe only a builtin local CLI's help, never an account or a turn. Missing
 // protocol support permits ACP fallback; authentication/runtime failures do not.
 func nativeAgentProtocol(a acpAgent) string {
-	if a.Command != "npx" || a.Remote || a.Custom || (a.ID != "codex" && a.ID != "pi") {
+	if a.Remote || a.Custom {
+		return ""
+	}
+	if a.ID == "opencode" {
+		// Launch-scoped Loom sources retain ACP.
+		if modelSinkEnabled("opencode") {
+			return ""
+		}
+		if a.Command != "opencode" {
+			return ""
+		}
+	} else if a.Command != "npx" || (a.ID != "codex" && a.ID != "pi") {
 		return ""
 	}
 	path, err := lifecycleLookPath(a.ID)
@@ -50,6 +61,9 @@ func nativeAgentProtocol(a acpAgent) string {
 		if err == nil {
 			out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).Output()
 			needle := "app-server"
+			if a.ID == "opencode" {
+				needle = "opencode serve"
+			}
 			if a.ID == "pi" {
 				needle = "rpc"
 			}
@@ -59,6 +73,9 @@ func nativeAgentProtocol(a acpAgent) string {
 	}
 	if !supported {
 		return ""
+	}
+	if a.ID == "opencode" {
+		return "opencode-http"
 	}
 	if a.ID == "pi" {
 		return "pi-rpc"
@@ -72,11 +89,20 @@ func agentCompatibility(a acpAgent) *agent.CompatibilityRecord {
 	}
 	var r agent.CompatibilityRecord
 	if getStoreJSON(bkState, "agent_compat_"+a.ID, &r) && r.Runtime != "" && r.Protocol == protocol {
+		if protocol == "acp" {
+			return acpCompatibility(a, map[string]any{"version": r.Version}, r.Capabilities)
+		}
 		return &r
 	}
 	executable := a.Command
 	caps := []string{}
 	tested := ""
+	if protocol == "opencode-http" {
+		return openCodeCompatibility(a, "")
+	}
+	if protocol == "acp" {
+		return acpCompatibility(a, nil, nil)
+	}
 	if protocol != "acp" {
 		executable, _ = lifecycleLookPath(a.ID)
 		caps = nativeAgentCaps(a.ID)
@@ -120,6 +146,9 @@ func recordAgentCompatibility(ctx context.Context, a acpAgent, protocol string, 
 	return r
 }
 func nativeAgentCaps(id string) []string {
+	if id == "opencode" {
+		return openCodeCaps()
+	}
 	caps := []string{"chat", "stream", "cancel", "tools", "usage", "workdir", "resume", "connect", "native-events", "user-input", "raw-events"}
 	if id == "codex" {
 		caps = append(caps, "approvals", "elicitation", "plan", "reasoning-summary", "quota")

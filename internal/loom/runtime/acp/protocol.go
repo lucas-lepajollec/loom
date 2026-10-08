@@ -29,8 +29,10 @@ type Frame struct {
 	Error   *RPCError       `json:"error,omitempty"`
 }
 type RPCError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Raw     json.RawMessage `json:"-"`
+	Data    json.RawMessage `json:"data,omitempty"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
 }
 
 func (e *RPCError) Error() string { return "ACP request rejected by the agent" } // upstream errors can contain secrets
@@ -116,6 +118,7 @@ func (c *Client) Call(ctx context.Context, method string, params any, result any
 		return ErrClosed
 	case f := <-ch:
 		if f.Error != nil {
+			f.Error.Raw = append(json.RawMessage(nil), f.Raw...)
 			return f.Error
 		}
 		if result != nil && json.Unmarshal(f.Result, result) != nil {

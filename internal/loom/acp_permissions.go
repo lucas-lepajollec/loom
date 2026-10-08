@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
+	"github.com/lucas-lepajollec/loom/internal/loom/runtime/acp"
 	"net/http"
 	"strings"
 	"time"
@@ -83,6 +84,12 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 	tool := p.tool(rawTool)
 	kind, _ := tool["kind"].(string)
 	policy := p.state.Permission
+	meta, _ := rawTool["_meta"].(map[string]any)
+	claudeMeta, _ := meta["claudeCode"].(map[string]any)
+	planApproval := claudeMeta["toolName"] == "ExitPlanMode" || claudeMeta["toolName"] == "EnterPlanMode"
+	if planApproval {
+		policy = "ask"
+	}
 	if p.state.FilesystemPolicy == "workspace-write" {
 		policy = "ask"
 	} // Never auto-approve native sandbox escalation.
@@ -103,6 +110,9 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 			uiOptions = append(uiOptions, map[string]any{"id": o["optionId"], "name": o["name"], "kind": o["kind"]})
 		}
 		r := &agent.AgentRequest{ID: id, Kind: "approval", Method: "session/request_permission", ItemID: firstNonEmptyString(tool["id"]), ApprovalKind: "tool"}
+		if planApproval {
+			r.ApprovalKind = "plan"
+		}
 		if kind == "execute" {
 			r.ApprovalKind = "command"
 		}
@@ -184,7 +194,7 @@ func (m *runtimeSessions) answerACP(id, approval, option string, cancel bool) er
 	broker := m.requests[id]
 	p := m.acp[id]
 	m.acpMu.Unlock()
-	if broker != nil && (strings.HasPrefix(approval, "codex:") || strings.HasPrefix(approval, "pi:") || strings.HasPrefix(approval, "acp:")) {
+	if broker != nil && (strings.HasPrefix(approval, "codex:") || strings.HasPrefix(approval, "pi:") || strings.HasPrefix(approval, "acp:") || strings.HasPrefix(approval, "opencode:")) {
 		decision := option
 		if cancel {
 			decision = "cancel"
@@ -227,7 +237,7 @@ func (m *runtimeSessions) answerRequest(id, requestID string, answer agent.Reque
 	m.acpMu.Lock()
 	broker := m.requests[id]
 	m.acpMu.Unlock()
-	if broker != nil && (strings.HasPrefix(requestID, "codex:") || strings.HasPrefix(requestID, "pi:") || strings.HasPrefix(requestID, "acp:")) {
+	if broker != nil && (strings.HasPrefix(requestID, "codex:") || strings.HasPrefix(requestID, "pi:") || strings.HasPrefix(requestID, "acp:") || strings.HasPrefix(requestID, "opencode:")) {
 		return broker.Resolve(requestID, answer)
 	}
 	option := answer.Decision
@@ -269,10 +279,32 @@ func (p *acpBinding) elicitation(ctx context.Context, f *acpFrame) (any, error) 
 		return nil, errors.New("inactive request broker")
 	}
 	r := &agent.AgentRequest{ID: "acp:" + string(f.ID), Kind: "elicitation", Method: f.Method, Message: params.Message, Schema: params.Schema, URL: params.URL, Payload: agent.BoundedJSON(f.Params)}
+	questions := acp.AskUserQuestions(f.Params)
+	if len(questions) > 0 && (p.claude || p.agentID == "claude-code") {
+		r.Kind = "user_input"
+		r.Questions = questions
+		r.Schema = nil
+		r.ItemID = firstNonEmptyStringFromParams(f.Params, "toolCallId")
+	}
 	e := AgentEvent{Type: "request.opened", Runtime: p.agentID, ThreadID: p.state.NativeSessionID, Method: f.Method, Request: r, Raw: agent.BoundedJSON(f.Raw)}
 	a, err := p.broker.Ask(ctx, e)
 	if err != nil {
 		return nil, err
 	}
+	if r.Kind == "user_input" {
+		if a.Decision == "cancel" {
+			return map[string]any{"action": "cancel"}, nil
+		}
+		return map[string]any{"action": "accept", "content": acp.QuestionContent(questions, a)}, nil
+	}
+	if a.Decision != "accept" {
+		return map[string]any{"action": a.Decision}, nil
+	}
 	return map[string]any{"action": a.Decision, "content": a.Content}, nil
+}
+
+func firstNonEmptyStringFromParams(raw json.RawMessage, key string) string {
+	var p map[string]any
+	_ = json.Unmarshal(raw, &p)
+	return firstNonEmptyString(p[key])
 }

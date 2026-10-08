@@ -4,6 +4,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Agents v2 step 2: Claude ACP 0.88.0 questions, multi-select/Other/Skip,
+  form/URL elicitation, explicit plan approvals, terminal metadata and verbatim
+  failures. OpenCode prefers one authenticated loopback HTTP/SSE server with
+  native session/model discovery and request replies, retaining ACP fallback.
+  ACP compatibility
+  records include package pins, handshake versions and drift warnings. Backend
+  only, no new Go dependencies or paid turns; versioned schema and fixtures are
+  documented in `docs/agents-compat.md`.
+
+
 ### Added
 
 - Agents v2 backend: canonical runtime events with bounded provider payloads,

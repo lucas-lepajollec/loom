@@ -105,6 +105,9 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		caps = []string{"chat", "stream", "cancel", "tools", "plan", "usage", "workdir", "resume", "quota"}
 		cli, hint = "agy", "agy"
 	}
+	if a.agent.ID == "claude-code" {
+		caps = append(caps, "user-input", "elicitation")
+	}
 	caps = append(caps, "connect")
 	protocol := nativeAgentProtocol(a.agent)
 	if protocol != "" {
@@ -144,7 +147,9 @@ func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallbac
 	}
 	var result []Message
 	var err error
-	if nativeAgentProtocol(a.agent) != "" {
+	if nativeAgentProtocol(a.agent) == "opencode-http" {
+		result, err = a.sessions.runOpenCode(ctx, a.agent, a.session, turn, emit)
+	} else if nativeAgentProtocol(a.agent) != "" {
 		result, err = a.sessions.runNativeAgent(ctx, a.agent, a.session, turn, emit)
 	} else {
 		result, err = a.sessions.runACP(ctx, a.agent, a.session, turn, emit)

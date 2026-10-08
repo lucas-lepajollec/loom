@@ -1,0 +1,1 @@
+{"frame":{"type":"session.error","properties":{"sessionID":"ses_fixture","error":{"name":"APIError","data":{"message":"Provider overloaded: try later."}}}},"events":["error"],"error":"Provider overloaded: try later."}

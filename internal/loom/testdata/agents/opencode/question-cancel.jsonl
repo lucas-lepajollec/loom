@@ -1,0 +1,1 @@
+{"frame":{"type":"question.asked","properties":{"sessionID":"ses_fixture","id":"que_cancel","questions":[{"header":"Note","question":"Choose?","options":[{"label":"Blue","description":"Cool"}],"custom":false}]}},"events":["request.opened"],"answer":{"decision":"cancel"},"reply":{"path":"/question/que_cancel/reject","body":null}}

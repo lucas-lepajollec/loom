@@ -132,9 +132,18 @@ func TestAgentFixtureProcess(t *testing.T) {
 	os.Exit(0)
 }
 func TestAgentFixtureCorpus(t *testing.T) {
-	paths, err := filepath.Glob("../testdata/agents/*/*.jsonl")
-	if err != nil || len(paths) < 16 {
-		t.Fatalf("corpus: %d %v", len(paths), err)
+	// This stdio driver speaks Codex app-server and Pi RPC. ACP/HTTP corpora
+	// have their own transport replay tests; never run them as Codex frames.
+	paths := []string{}
+	for _, name := range []string{"codex", "pi"} {
+		rows, err := filepath.Glob("../testdata/agents/" + name + "/*.jsonl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, rows...)
+	}
+	if len(paths) < 16 {
+		t.Fatalf("corpus: %d", len(paths))
 	}
 	for _, path := range paths {
 		t.Run(strings.TrimPrefix(path, "../testdata/agents/"), func(t *testing.T) {

@@ -50,11 +50,13 @@ func startACPReader(ctx context.Context, agent acpAgent, cwd string, notify func
 	var init struct {
 		ProtocolVersion   int            `json:"protocolVersion"`
 		AgentCapabilities map[string]any `json:"agentCapabilities"`
+		AgentInfo         map[string]any `json:"agentInfo"`
 	}
-	if err := c.call(ctx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": false, "writeTextFile": false}, "terminal": false}, "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init); err != nil || init.ProtocolVersion != 1 {
+	if err := c.call(ctx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": acpClientCapabilities(false, false), "clientInfo": map[string]string{"name": "loom", "version": Version}}, &init); err != nil || init.ProtocolVersion != 1 {
 		c.close()
 		return nil, nil, errors.New("the agent does not respond to the ACP protocol")
 	}
+	recordACPCompatibility(agent, init.AgentInfo, nil)
 	return c, init.AgentCapabilities, nil
 }
 
