@@ -5,6 +5,7 @@ import { t } from '../../core/i18n.js';
 import { GroupPage } from '../../app/sections.js';
 import { Engine } from '../settings/page.js';
 import { EngineRuntime } from '../local/page.js';
+import { EngineMemory, EngineKeys } from '../local/service.js';
 import { useVllm, VllmEngine } from '../settings/vllm.js';
 import { WorkspaceManager } from '../workspaces/folders.js';
 
@@ -14,6 +15,8 @@ export function EnginePage() {
   const v = useVllm();
   return html`<${GroupPage} title=${t('engine.page.title')} lead=${t('engine.page.lead')}>
     <${EngineRuntime} />
+    <${EngineMemory} />
+    <${EngineKeys} />
     ${v.x && v.x.installed && html`<section class="set-group"><h3>vLLM</h3><${VllmEngine} /></section>`}
     <${Engine} />
   </${GroupPage}>`;

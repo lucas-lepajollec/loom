@@ -6,6 +6,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ### Added
 
+- Engine-node pairing by a single-use, ten-minute Crockford code (`loom node
+  pair`, first-start log, `POST /api/node/pair`, `POST /api/machines/pair`), with
+  hashed storage, attempt/IP limits and explicit re-pairing. Reuses protected
+  machine maintenance credentials without switching the active engine.
+- Versioned node handshake (`handshake:1`, `modules:["engine"]`) and read-only
+  IPv4 LAN discovery (`GET /api/machines/discover`, UDP 2512), excluding linked
+  nodes. Backend only; legacy address/token linking remains available.
+
 - Always-on, zero-model-cost discussion handoffs at workspace and native turn
   ends, asynchronous coalescing, incremental encrypted records, in-place Brain
   working items and three-discussion project state. Project state is pinned on

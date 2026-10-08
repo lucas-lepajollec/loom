@@ -99,20 +99,105 @@ plain-HTTP links. The node does not change firewall rules.
 
 ## Connect the main Loom
 
-In Settings → Machines, select the GPU machine, choose **Connect its Loom node**,
-and enter its reachable node address and machine token. The token is in
-`node.token` under the node's data root; retrieve it privately on that machine,
-never put it in a URL, command argument, public configuration or shared log.
-SSH registration and engine linking are independent: SSH offers harnesses and
-terminals; the node offers only engines.
+On its first unpaired start the node logs one pairing code, for example
+`K7QM-4XPA`. To replace that code (including after expiry), run locally on the
+node machine, while its service continues running:
 
-Management requires `Authorization: Bearer <machine token>` on **every** control
-route, including ping/info. Browser session cookies and human passwords are not
-accepted. `node.token` must be a regular private file (0600). The management
-token and inference key are distinct random 256-bit credentials. Authenticated
-`GET /api/node/info` lets the main Loom obtain the inference key and negotiate
-`role: engine-node` and `v1_same_origin: true`. The link stores credentials with
-existing Loom local secret state and never returns them to its browser.
+```sh
+loom node pair
+# With a custom node data root:
+loom node pair --home /data/loom-node
+```
+
+Codes contain eight Crockford base32 characters, omit ambiguous letters, expire
+after **10 minutes** and work **once**. The node stores only the code's SHA-256
+hash and expiry, plus attempt counters; five wrong attempts invalidate it.
+Failures are also limited by the request's remote IP (five failures per ten-minute
+window), across source ports and code replacements. Service restarts do not
+print the first-start code again. Keep that short-lived log/code private.
+
+The main Loom backend now supports pairing without SSH or copying a machine
+token. UI integration is separate. Its authenticated, origin-protected
+`POST /api/machines/pair` accepts:
+
+```json
+{"address":"http://192.168.1.20:2511","code":"K7QM-4XPA"}
+```
+
+The main Loom sends `POST /api/node/pair` to that address:
+
+```json
+{"code":"K7QM-4XPA","main":{"id":"persistent-main-id","name":"Main Loom","version":"loom-version"}}
+```
+
+This is the only unauthenticated node control route; possession of the code
+authorizes the exchange. A successful response goes **only to the main Loom
+server**, consumes the code and records the main's ID, name and `paired_at`
+(Unix milliseconds) on the node:
+
+```json
+{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine"],"handshake":1}}
+```
+
+**Plain LAN HTTP exposes both credentials once in this exchange response to
+anyone able to observe that request.** Use a trusted network or an HTTPS endpoint
+when TLS is already configured (for example a reverse proxy); an explicit
+`https://` address is retained, certificates are verified, and redirects are
+refused. This feature does not configure TLS or open firewall ports.
+
+The main stores the credentials in the existing machine maintenance secret
+record, encrypted when the vault is enabled/unlocked, and returns only
+`{"ok":true,"machine":{…}}`. The machine includes `node_id`, `modules` and
+`handshake`, with its usual ID/name/host fields. A new entry uses the node's name;
+an existing matching machine retains its SSH configuration, harnesses and
+folders. Pairing does not change the active inference engine.
+
+Errors use `{"ok":false,"error_code":"…","error":"…"}`: `502 unreachable`,
+`401 invalid_code` (invalid/expired/consumed), `429 rate_limited`,
+`409 handshake_mismatch`, or `409 already_paired`. For a valid code presented
+by another main, the node's `409` also includes `main:{id,name,paired_at}` and
+names that main. To explicitly replace it, generate a fresh code and add
+`"force":true` to the main's pairing request; it forwards this flag. Force
+still requires a valid, unconsumed code. Re-pairing updates the association;
+it does not rotate credentials or revoke a previous main's retained token.
+
+### Find nodes on the LAN
+
+`GET /api/machines/discover` broadcasts `LOOM?` to UDP port **2512** on every
+active, non-loopback IPv4 broadcast interface, waits about **1.2 seconds**, and
+returns nodes not already linked here:
+
+```json
+{"nodes":[{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","address":"http://192.168.1.20:2511","port":2511,"paired":false}]}
+```
+
+This does not pair, generate a code or start inference. Nodes listen for probes
+only when their HTTP listener extends beyond loopback. Responses are rate-limited
+and contain no secrets. `paired:true` means a recorded main already exists;
+that node can still be explicitly re-paired. Discovery uses IPv4 broadcast on
+the local subnet; it does not cross routers/VPNs that block broadcast. A firewall
+must permit UDP 2512 separately from the node's TCP listener. UDP 2512 can coexist
+with llama.cpp's private TCP 2512. If UDP is unavailable, discovery returns
+`{"nodes":[]}` and a node logs discovery startup failure while its API stays up.
+Discovery advertises the native HTTP endpoint; supply the HTTPS reverse-proxy
+address explicitly when using TLS.
+
+### Token fallback and handshake
+
+The existing **Connect its Loom node** address + token flow remains available.
+The token is in `node.token` under the node's data root; retrieve it privately
+on that machine, never put it in a URL, public configuration or shared log.
+SSH registration and node linking are independent: SSH offers harnesses and
+terminals; the node currently offers only engines.
+
+All other management routes, including ping/info, require
+`Authorization: Bearer <machine token>`. Browser cookies and human passwords
+are not accepted by a node. `node.token` must be a regular private file (0600).
+The management token and inference key are distinct random 256-bit credentials.
+Authenticated `GET /api/node/info` retains its existing fields and adds `id`,
+`name`, `handshake:1` and `modules:["engine"]`. Unknown handshake majors are
+refused with an update message. Missing handshake fields remain accepted only
+for legacy token links. Future `harness`/`observe` modules are not advertised.
 Direct API clients need the inference key for `/v1`, not the management token.
 
 The main Loom strips browser cookies/origin headers and substitutes the machine
@@ -218,8 +303,9 @@ removing old services.
 
 ## Maintenance for each connected machine
 
-On the **Machines** page, open a machine and configure its engine-node address and
-management token under **Engine node management**. The same page can check and
+Pairing saves the same maintenance link used by the **Machines** page. As a
+fallback, open a machine and configure its engine-node address and management
+token under **Engine node management**. The same page can check and
 apply a Loom release for that node even when a different engine serves current
 discussions. Linking an engine through a matching machine address remembers its
 maintenance access automatically. The token is stored with local secrets,
