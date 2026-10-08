@@ -248,6 +248,12 @@ releases.
   per external session; import from the machine page.
 - **Exit:** GPU machine = engine node, server = Loom + agents, all managed from
   Machines without SSH copy-paste.
+- Delivered 2026-10-08: pairing by code with LAN discovery and versioned
+  handshake; node modules `engine`, `harness` (agents over a WebSocket bridge),
+  `terminal` (PTY) and `observe` (CPU/RAM/GPU/disk); engine as a service (swap
+  queue, background policy, idle unload, named API keys); using a paired
+  machine's engine without copying its key. SSH remains for machines without
+  Loom installed; the address + control-key forms were removed from the UI.
 
 ### 3b. Engine as a service (accepted 2026-10-08)
 - Clean API use of the local engine by other tools and by Loom's own features
