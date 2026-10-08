@@ -18,6 +18,9 @@ type runtimeRun struct {
 	finalError  string
 	acpBytes    int
 	acpError    string
+	handoff     handoffTurn
+	recap       strings.Builder
+	hasText     bool
 }
 type runtimeSessions struct {
 	shutdownOnce sync.Once
@@ -425,6 +428,20 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 				event.Content, _ = e["text"].(string)
 			}
 		}
+		if event.ToolUsed != nil {
+			if !event.ToolUsed.Done {
+				run.recap.Reset()
+			}
+			workdir := run.session.Workdir
+			if workdir == "" {
+				workdir = agentWorkspace()
+			}
+			run.handoff.nativeTool(event.ToolUsed, workdir)
+		}
+		if event.Content != "" {
+			run.recap.WriteString(event.Content)
+			run.hasText = true
+		}
 		if event.Content != "" {
 			i := len(run.session.Messages) - 1
 			previous, _ := run.session.Messages[i].Content.(string)
@@ -516,6 +533,7 @@ func (m *runtimeSessions) stop(id string) error {
 			if err := putStoreJSON(bkRuntimeSessions, id, recovered); err != nil {
 				return err
 			}
+			theBrain().queueHandoff(handoffRuntimeTurn(recovered))
 			m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(recovered), "context": discussionContext(recovered)})
 			delete(m.runs, id)
 		} else {
@@ -546,6 +564,17 @@ func (m *runtimeSessions) remove(id string) error {
 }
 
 func (m *runtimeSessions) finishDiscussionLocked(s RuntimeSession) {
+	if s.Status != "unsaved" {
+		t := handoffRuntimeTurn(s)
+		if run := m.runs[s.ID]; run != nil {
+			t.Files, t.Commands, t.CommandTitles = run.handoff.Files, run.handoff.Commands, run.handoff.CommandTitles
+			t.Errors = append(t.Errors, run.handoff.Errors...)
+			if run.hasText {
+				t.Recap = run.recap.String()
+			}
+		}
+		theBrain().queueHandoff(t)
+	}
 	snapshot := cloneRuntimeSession(s)
 	if s.Error != "" {
 		m.publishLocked(s.ID, DiscussionEvent{"type": "error", "error": s.Error})

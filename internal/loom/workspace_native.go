@@ -274,18 +274,23 @@ func nativePreparedContext(archiveID, projectID, query string) (string, error) {
 }
 
 func nativePreparedDiscussionContext(archiveID, projectID, query string) (DiscussionContext, error) {
-	session := RuntimeSession{RuntimeID: "llama.cpp", ProjectID: projectID}
+	session := nativeContextSession(archiveID, projectID)
+	c := discussionContextFor(session, query)
+	if c.Problem != "" {
+		return c, errors.New(c.Problem)
+	}
+	return c, nil
+}
+
+func nativeContextSession(archiveID, projectID string) RuntimeSession {
+	session := RuntimeSession{ID: archiveID, RuntimeID: "llama.cpp", ProjectID: projectID}
 	for _, s := range workspaceSessions.list() {
 		if s.NativeArchive == archiveID && s.RuntimeID == "llama.cpp" {
 			session = s
 			break
 		}
 	}
-	c := discussionContextFor(session, query)
-	if c.Problem != "" {
-		return c, errors.New(c.Problem)
-	}
-	return c, nil
+	return session
 }
 
 func handleRuntimeSessionLocal(w http.ResponseWriter, r *http.Request) {

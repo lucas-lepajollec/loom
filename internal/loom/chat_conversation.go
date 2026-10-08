@@ -384,7 +384,15 @@ func (c *Conversation) StartTurn(text string, files []attachInfo, caps Caps, tem
 	// Content = simple texte d'ordinaire ; format multimodal (texte + images) quand
 	// la vision est active et qu'une pièce jointe est une image (userMessageContent).
 	messageIndex := nativePortableMessageCount(c.Log, c.Messages)
-	archiveID, projectID := c.ID, c.ActiveProject
+	archiveID, projectID, title := c.ID, c.ActiveProject, c.ActiveTitle
+	first := text
+	if len(c.Log) > 0 {
+		if user, ok := c.Log[0].Delta["user"].(string); ok {
+			first = user
+		}
+	} else if len(c.Messages) > 0 && c.Messages[0].Role == "user" {
+		first = handoffMessageText(c.Messages[0].Content)
+	}
 	c.Messages = append(c.Messages, Message{Role: "user", Content: userMessageContent(files, prompt)})
 	epoch := c.epoch
 	c.mu.Unlock()
@@ -402,7 +410,12 @@ func (c *Conversation) StartTurn(text string, files []attachInfo, caps Caps, tem
 		temperature = 0.7
 	}
 	collectNativeCandidates(archiveID, projectID, messageIndex, text)
-	go c.generate(ctx, caps, temperature, epoch)
+	handoff := handoffTurn{handoffState: handoffState{ID: archiveID, ProjectID: projectID, Title: handoffClean(title, 100), Requests: []string{handoffClean(text, 300)}, Turn: fmt.Sprintf("%d:%d", epoch, messageIndex), Turns: messageIndex/2 + 1}, Completed: true}
+	if handoff.Title == "" {
+		handoff.Title = handoffClean(discussionTitle(text), 100)
+	}
+	handoff.First = handoffClean(first, 300)
+	go c.generate(ctx, caps, temperature, epoch, handoff)
 	return nil
 }
 
@@ -411,12 +424,13 @@ func (c *Conversation) StartTurn(text string, files []attachInfo, caps Caps, tem
 // epoch est capturé au StartTurn : si un Reset survient pendant la génération,
 // tout ce que ce tour produirait ensuite (deltas, messages, persistance) est
 // abandonné au lieu de ressusciter des morceaux de l'ancienne conversation.
-func (c *Conversation) generate(ctx context.Context, caps Caps, temperature float64, epoch int) {
+func (c *Conversation) generate(ctx context.Context, caps Caps, temperature float64, epoch int, handoff handoffTurn) {
 	// Horloge du tour : durée réelle (préchauffe + réflexion + outils + réponse),
 	// journalisée dans turn_done pour que l'UI affiche la MÊME durée en direct et
 	// après un rechargement (le chrono client, lui, n'existe qu'en direct).
 	turnStart := time.Now()
 	turnModel := engineCurrentModel()
+	var recap strings.Builder
 	defer func() {
 		c.mu.Lock()
 		stale := c.epoch != epoch
@@ -438,6 +452,14 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 		c.compactLogLocked() // le tour est fini : coalesce ses tokens pour garder le journal petit
 		c.mu.Unlock()
 		c.persist()
+		handoff.At = time.Now().UnixMilli()
+		handoff.Runtime, handoff.Model = "llama.cpp", turnModel
+		handoff.Recap = recap.String()
+		if ctx.Err() != nil {
+			handoff.Completed = false
+			handoff.Errors = handoffAppendUnique(handoff.Errors, handoffClean(ctx.Err().Error(), 160), 3)
+		}
+		theBrain().queueHandoff(handoff)
 		// Notification Web Push : ce chemin (generate) ne sert QUE les tours
 		// utilisateur — les tâches de fond passent par RunAutonomous, sans turn_done
 		// dans la conversation partagée — donc pas de spam. Détaché : l'envoi HTTP
@@ -463,8 +485,19 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	projectID := c.ActiveProject
 	archiveID := c.ID
 	c.mu.Unlock()
-	preparedContext, contextErr := nativePreparedDiscussionContext(archiveID, projectID, lastUserText(msgs))
+	session := nativeContextSession(archiveID, projectID)
+	handoff.ID = session.ID
+	if session.Title != "" {
+		handoff.Title = handoffClean(session.Title, 100)
+	}
+	preparedContext := discussionContextFor(session, lastUserText(msgs))
+	var contextErr error
+	if preparedContext.Problem != "" {
+		contextErr = fmt.Errorf("%s", preparedContext.Problem)
+	}
 	if contextErr != nil {
+		handoff.Completed = false
+		handoff.Errors = handoffAppendUnique(handoff.Errors, handoffClean(contextErr.Error(), 160), 3)
 		c.appendDelta(epoch, map[string]any{"error": contextErr.Error()})
 		return
 	}
@@ -496,9 +529,11 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 		return
 	}
 	touchContextMemory(preparedContext)
-	extra, _ := localChatRuntime().Run(ctx, RuntimeTurn{Messages: InjectSkills(final, caps), Temperature: temperature, Caps: caps}, func(ev StreamEvent) bool {
+	extra, runErr := localChatRuntime().Run(ctx, RuntimeTurn{Messages: InjectSkills(final, caps), Temperature: temperature, Caps: caps}, func(ev StreamEvent) bool {
 		switch {
 		case ev.Err != nil:
+			handoff.Completed = false
+			handoff.Errors = handoffAppendUnique(handoff.Errors, handoffClean(ev.Err.Error(), 160), 3)
 			// Arrêt volontaire (bouton stop → cancel du contexte) : ce n'est pas une
 			// erreur, juste une interruption. Afficher « Post http://…: context
 			// canceled » en rouge est laid et alarmant pour rien — on pose à la place
@@ -509,6 +544,10 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 				c.appendDelta(epoch, map[string]any{"error": ev.Err.Error()})
 			}
 		case ev.ToolUsed != nil:
+			if !ev.ToolUsed.Done {
+				recap.Reset()
+			}
+			handoff.nativeTool(ev.ToolUsed, agentWorkspace())
 			tu := map[string]any{
 				"name": ev.ToolUsed.Name, "label": ev.ToolUsed.Label,
 				"result": ev.ToolUsed.Result, "done": ev.ToolUsed.Done, "typing": ev.ToolUsed.Typing,
@@ -561,11 +600,16 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 			c.appendDelta(epoch, map[string]any{"reasoning_content": ev.Reasoning})
 		case ev.Content != "":
 			content.WriteString(ev.Content)
+			recap.WriteString(ev.Content)
 			c.appendDelta(epoch, map[string]any{"content": ev.Content})
 		}
 		return true // génération détachée : on ne s'interrompt jamais sur un abonné
 	})
 
+	if runErr != nil {
+		handoff.Completed = false
+		handoff.Errors = handoffAppendUnique(handoff.Errors, handoffClean(runErr.Error(), 160), 3)
+	}
 	// Persiste la vue modèle : messages d'outils (assistant tool_calls + résultats)
 	// PUIS la réponse finale — même ordre que l'ancien client, pour que le modèle
 	// garde la trace de ce qu'il a fait. Sauf si un Reset est passé entre-temps :

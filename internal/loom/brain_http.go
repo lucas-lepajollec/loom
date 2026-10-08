@@ -29,6 +29,7 @@ type brainService struct {
 	distillMu       sync.Mutex
 	consolidationMu sync.Mutex
 	continuity      brainContinuity
+	handoffs        brainHandoffs
 	candidateWrites sync.WaitGroup
 	writeRefresh    sync.WaitGroup
 }
@@ -52,6 +53,7 @@ func (s *brainService) get() (*brain.Engine, error) {
 	return s.engine, nil
 }
 func (s *brainService) run(ctx context.Context) {
+	defer s.waitHandoffs()
 	continuityDone := make(chan struct{})
 	go func() { defer close(continuityDone); s.continuityLoop(ctx) }()
 	defer func() { <-continuityDone }()
@@ -380,7 +382,7 @@ func theBrain() *brainService {
 
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	s := theBrain()
-	for route, handler := range map[string]http.HandlerFunc{"items": s.itemsHTTP, "items/update": s.updateMemoryHTTP, "items/forget": s.forgetMemoryHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "consolidate": s.consolidateHTTP, "consolidation": s.consolidationHTTP, "continuity": s.continuityHTTP, "continuity/run": s.continuityRunHTTP, "continuity/status": s.continuityStatusHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
+	for route, handler := range map[string]http.HandlerFunc{"items": s.itemsHTTP, "items/update": s.updateMemoryHTTP, "items/forget": s.forgetMemoryHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "consolidate": s.consolidateHTTP, "consolidation": s.consolidationHTTP, "continuity": s.continuityHTTP, "continuity/run": s.continuityRunHTTP, "continuity/status": s.continuityStatusHTTP, "continuity/handoff": s.handoffHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
 		protected := requireWebAuth(handler)
 		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
