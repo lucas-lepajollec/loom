@@ -323,7 +323,7 @@ func (s *MemoryStore) Remember(req RememberRequest) (MemoryItem, error) {
 	// Deterministic choice if external tools have introduced duplicate texts.
 	var match MemoryItem
 	for _, old := range s.items {
-		if item.Status != "candidate" && old.Status == "active" && old.Scope == item.Scope && old.Class == item.Class && normalizedMemoryText(old.Text) == normalizedMemoryText(item.Text) && (match.ID == "" || old.ID < match.ID) {
+		if item.Status != "candidate" && old.Status == "active" && old.Scope == item.Scope && old.Class == item.Class && normalizedMemoryText(old.Text) == normalizedMemoryText(item.Text) && sameContinuityIdentity(old, item) && (match.ID == "" || old.ID < match.ID) {
 			match = old
 		}
 	}
