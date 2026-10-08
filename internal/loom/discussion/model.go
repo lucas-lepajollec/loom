@@ -78,9 +78,29 @@ type NativeImport struct {
 	ImportedAt   int64  `json:"imported_at"`
 }
 
+type ContextState struct {
+	Used   int    `json:"used"`
+	Size   int    `json:"size"`
+	Source string `json:"source"`
+}
+type CompactionRecord struct {
+	At         int64  `json:"at"`
+	RuntimeID  string `json:"runtime_id"`
+	ProviderID string `json:"provider_id,omitempty"`
+	Model      string `json:"model"`
+	Before     int    `json:"before"`
+	After      int    `json:"after"`
+}
+
 // RuntimeSession is a Loom-owned conversation. Its portable transcript outlives
 // any execution route. A route change never replaces or forks this history.
 type RuntimeSession[Usage, Stats any] struct {
+	Context          *ContextState      `json:"context,omitempty"`
+	ContextWarning   bool               `json:"context_warning,omitempty"`
+	ContinuedFrom    string             `json:"continued_from,omitempty"`
+	PortableMessages []Message          `json:"portable_messages,omitempty"`
+	Compactions      []CompactionRecord `json:"compactions,omitempty"`
+
 	ACPState
 	ImportSource    *NativeImport `json:"import_source,omitempty"`
 	ID              string        `json:"id"`
@@ -137,6 +157,14 @@ func CloneRuntimeSession[Usage, Stats any](s RuntimeSession[Usage, Stats]) Runti
 		s.ImportSource = &source
 	}
 	s.Messages = append([]Message{}, s.Messages...)
+	if s.PortableMessages != nil {
+		s.PortableMessages = append([]Message{}, s.PortableMessages...)
+	}
+	s.Compactions = append([]CompactionRecord(nil), s.Compactions...)
+	if s.Context != nil {
+		c := *s.Context
+		s.Context = &c
+	}
 	s.RequestIDs = append([]string{}, s.RequestIDs...)
 	s.Turns = append([]RuntimeTurnRecord[Usage, Stats]{}, s.Turns...)
 	for i := range s.Turns {

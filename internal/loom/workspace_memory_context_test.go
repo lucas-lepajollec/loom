@@ -187,8 +187,12 @@ func TestDiscussionMemoryPreviewReadOnlySendTouches(t *testing.T) {
 	if used == 0 || contextLastUsed(t, excluded.ID) != 0 {
 		t.Fatal("send did not touch exactly included memory")
 	}
-	if after := prepareDiscussion(s, "Question"); after.Context.Revision != preview.Context.Revision {
-		t.Fatal("touch changed ranking or system text")
+	if after := discussionContextFor(RuntimeSession{RuntimeID: s.RuntimeID}, "Question"); after.System != preview.Context.System {
+		t.Fatal("touch changed existing memory ranking or system text")
+	}
+	after := prepareDiscussion(s, "Question")
+	if after.Context.Revision == preview.Context.Revision || !strings.Contains(after.Context.System, "Answer") {
+		t.Fatal("completed turn did not add its handoff")
 	}
 	if err := m.start(s.ID, "send-request", "Question", "stale"); err != nil {
 		t.Fatal(err)

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
+	"strings"
 	"time"
 )
 
@@ -171,7 +173,7 @@ func (m *runtimeSessions) activateLocal(id string, c *Conversation) (RuntimeSess
 	c.upsertSession()
 	m.mu.Lock()
 	s, ok := m.getLocked(id)
-	if !ok || s.RuntimeID != "llama.cpp" || m.runs[id] != nil {
+	if !ok || s.RuntimeID != "llama.cpp" || m.runs[id] != nil || m.preparing[id] {
 		m.mu.Unlock()
 		return s, errors.New("local discussion unavailable or busy")
 	}
@@ -199,6 +201,9 @@ func (m *runtimeSessions) activateLocal(id string, c *Conversation) (RuntimeSess
 		appendNativeText(a, prefix)
 	}
 	appendNativeText(a, s.Messages[len(prefix):])
+	if s.PortableMessages != nil && !reflect.DeepEqual(portableText(a.Messages), s.PortableMessages) {
+		a.Messages = append([]Message{}, s.PortableMessages...)
+	}
 	annotateNativeTurns(a, s.Turns)
 	a.Title, a.ProjectID, a.SavedAt = s.Title, s.ProjectID, time.Now().UnixMilli()
 	a.Turns = countUserTurns(a.Log)
@@ -242,6 +247,7 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 			continue
 		}
 		s.Messages = archivePortableText(a)
+		s.PortableMessages = portableText(a.Messages)
 		seen := map[int]bool{}
 		for _, turn := range s.Turns {
 			seen[turn.MessageIndex] = true
@@ -254,6 +260,15 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 		s.Title, s.ProjectID = a.Title, a.ProjectID
 		s.Model, s.Status, s.UpdatedAt = ReadConfig()["MODEL"], "idle", time.Now().UnixMilli()
 		_ = putStoreJSON(bkRuntimeSessions, id, s)
+		summary := ""
+		if a.CompactCount > len(s.Compactions) {
+			for _, msg := range a.Messages {
+				if strings.HasPrefix(msgText(msg), compactSummaryPrefix) {
+					summary = msgText(msg)
+				}
+			}
+		}
+		_ = saveDiscussionHandoff(s, summary)
 	}
 }
 
