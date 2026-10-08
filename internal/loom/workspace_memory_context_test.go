@@ -187,6 +187,10 @@ func TestDiscussionMemoryPreviewReadOnlySendTouches(t *testing.T) {
 	if used == 0 || contextLastUsed(t, excluded.ID) != 0 {
 		t.Fatal("send did not touch exactly included memory")
 	}
+	if after := discussionContextFor(RuntimeSession{RuntimeID: s.RuntimeID}, "Question"); after.System != preview.Context.System {
+		t.Fatal("touch changed existing memory ranking or system text")
+	}
+	// A short discussion's own handoff is not pinned: its transcript is there.
 	if after := prepareDiscussion(s, "Question"); after.Context.Revision != preview.Context.Revision {
 		t.Fatal("touch changed ranking or system text")
 	}
@@ -226,10 +230,20 @@ func TestNativeMemoryPreparationReadOnlyGenerationTouches(t *testing.T) {
 		if contextLastUsed(t, item.ID) == 0 {
 			t.Error("native send did not touch")
 		}
-		emit(StreamEvent{Content: "Answer"})
+		emit(StreamEvent{Content: "I will write the file."})
+		emit(StreamEvent{ToolUsed: &ToolUsedEvent{Name: "write", Label: "native.go"}})
+		emit(StreamEvent{ToolUsed: &ToolUsedEvent{Name: "write", Label: "native.go", Result: "ok", Done: true}})
+		emit(StreamEvent{ToolUsed: &ToolUsedEvent{Name: "bash", Label: "go test"}})
+		emit(StreamEvent{ToolUsed: &ToolUsedEvent{Name: "bash", Label: "go test", Result: "exit: 1", Done: true}})
+		emit(StreamEvent{Content: "Answer. Proceed?"})
 	}}
 	isolateRuntimeRegistry(t, adapter)
-	c.generate(context.Background(), Caps{}, .7, c.epoch)
+	c.generate(context.Background(), Caps{}, .7, c.epoch, handoffTurn{Completed: true})
+	theBrain().waitHandoffs()
+	var handoff handoffState
+	if err := handoffLoad("discussion:common-native", &handoff); err != nil || handoff.Recap != "Answer. Proceed?" || handoff.Commands != 1 || len(handoff.Files) != 1 || len(handoff.Errors) != 1 {
+		t.Fatal("native handoff", handoff, err)
+	}
 	if calls != 1 || contextLastUsed(t, excluded.ID) != 0 {
 		t.Fatalf("native send calls/scope: %d", calls)
 	}

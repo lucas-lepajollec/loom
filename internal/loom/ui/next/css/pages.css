@@ -822,6 +822,11 @@
 .mi-me .mi-cont-h b{display:inline-flex;align-items:center;gap:6px}
 .mi-me-text{margin-top:4px;font-size:13px;line-height:1.5;color:var(--text-2);white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .mi-cont-wide{grid-column:1/-1}
+.mi-core{display:flex;flex-direction:column;gap:8px}
+.mi-core-row{align-items:flex-start}
+.mi-core-row>.btn{flex:none}
+.mi-count-chars{font:500 11px var(--mono);color:var(--text-3)}
+.mi-count-chars.err{color:var(--red)}
 .mi-sugg{display:flex;flex-direction:column;gap:8px}
 .mi-sugg-h{display:flex;align-items:center;gap:8px;min-height:32px}
 .mi-sugg-h b{font-size:13.5px}

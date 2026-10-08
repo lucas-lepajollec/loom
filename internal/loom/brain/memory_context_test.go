@@ -272,3 +272,19 @@ func TestSelectMemoryAlwaysIncludesUserProfile(t *testing.T) {
 		t.Fatalf("profile not truncated to budget: %+v", pack.Used)
 	}
 }
+
+func TestSelectMemoryPinsProjectNotesAndLimitsCoreNotes(t *testing.T) {
+	notes := MemoryItem{ID: "n", Class: "semantic", Scope: "project:p", Status: "active", Tags: []string{ProjectNotesTag}, Text: "Release with an annotated tag."}
+	otherProject := notes
+	otherProject.ID, otherProject.Scope = "o", "project:q"
+	pack := SelectMemory([]MemoryItem{otherProject, notes}, "p", "", "unrelated words", "", DefaultMemoryBudgets())
+	if len(pack.Items) != 1 || pack.Items[0].Item.ID != "n" || !strings.Contains(pack.Items[0].Reason, "project notes") {
+		t.Fatalf("%+v", pack.Items)
+	}
+	if err := coreNoteLimit(MemoryItem{Tags: []string{ProfileTag}, Text: strings.Repeat("é", ProfileLimit+1)}); err == nil || !strings.Contains(err.Error(), "condense") {
+		t.Fatal("profile cap", err)
+	}
+	if err := coreNoteLimit(MemoryItem{Tags: []string{ProjectNotesTag}, Text: strings.Repeat("a", ProjectNotesLimit)}); err != nil {
+		t.Fatal(err)
+	}
+}

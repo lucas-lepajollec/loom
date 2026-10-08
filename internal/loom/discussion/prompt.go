@@ -79,7 +79,11 @@ func PrepareDiscussion[Usage, Stats, Capability any](s RuntimeSession[Usage, Sta
 	if c.System != "" {
 		p.Messages = append(p.Messages, Message{Role: "system", Content: c.System})
 	}
-	for _, msg := range s.Messages {
+	history := s.Messages
+	if s.PortableMessages != nil {
+		history = s.PortableMessages
+	}
+	for _, msg := range history {
 		content, ok := msg.Content.(string)
 		if !ok || (msg.Role != "user" && msg.Role != "assistant") || len(msg.ToolCalls) > 0 || msg.ToolCallID != "" {
 			p.Problem = "This thread contains a non-portable format; no automatic sending."
@@ -141,7 +145,11 @@ func (p *DiscussionPreview[Capability]) fitWindow() {
 // ContextRevision binds the same ordered route, history and assembled context.
 func ContextRevision[Usage, Stats, Capability any](s RuntimeSession[Usage, Stats], c DiscussionContext[Capability]) string {
 	// No credentials, unchosen folder contents, global/local-only prompt or hidden state.
-	encoded, _ := json.Marshal([]any{s.ID, s.Title, s.ProjectID, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.Mode, s.ConfigOptions, c.MCPServers, s.Messages, c.System, c.Problem, c.Warning})
+	tuple := []any{s.ID, s.Title, s.ProjectID, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.Mode, s.ConfigOptions, c.MCPServers, s.Messages, c.System, c.Problem, c.Warning}
+	if s.PortableMessages != nil || s.ContinuedFrom != "" {
+		tuple = append(tuple, s.PortableMessages, s.ContinuedFrom)
+	}
+	encoded, _ := json.Marshal(tuple)
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:])
 }

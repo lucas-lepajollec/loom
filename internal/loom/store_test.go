@@ -12,6 +12,12 @@ func testHome(t *testing.T) string {
 	firewallInert = true
 	t.Cleanup(func() {
 		skillSinkJobs.Wait()
+		brainSvcMu.Lock()
+		b := brainSvc
+		brainSvcMu.Unlock()
+		if b != nil {
+			b.waitHandoffs()
+		}
 		firewallInert = false
 	})
 	return home

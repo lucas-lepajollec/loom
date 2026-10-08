@@ -333,6 +333,25 @@ export async function compact() {
   if (!r.ok) toast(r.error || t("chat.engine.compactage_impossible"), 'err');
 }
 
+// Limite de contexte d'une discussion d'espace de travail : compacter ici, ou
+// continuer ailleurs sans perdre l'état (la passation suit la discussion).
+export async function compactSession() {
+  const st = chat.get();
+  if (!st.session) return compact();
+  if (!await confirm(t("chat.engine.compacter_le_contexte"), t("chat.engine.les_anciens_tours_sont_resumes_pour_liberer_de_la_place_la_discus"), { ok: t("chat.engine.compacter") })) return;
+  const r = await post('/api/runtime/sessions/compact', { id: st.session.id }).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok) toast(r.unsupported ? t('chat.limit.unsupported') : r.error || t("chat.engine.compactage_impossible"), 'err');
+}
+
+export async function continueSession(projectName) {
+  const st = chat.get();
+  if (!st.session) return;
+  const r = await post('/api/runtime/sessions/continue', projectName ? { id: st.session.id, project_name: projectName } : { id: st.session.id }).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok || !r.session) return toast(r.error || t('chat.limit.continue_failed'), 'err');
+  await refreshNav(); if (projectName) refreshWorkspace();
+  await open(r.session.id);
+}
+
 // ---------------------------------------------------------------- exécution
 // Choix cloud/harness : la discussion devient (ou reste) commune, avec accord
 // explicite avant tout envoi vers l'extérieur.

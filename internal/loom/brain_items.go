@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -89,14 +90,25 @@ func (s *brainService) Remember(req brain.RememberRequest) (brain.MemoryItem, er
 	if err != nil {
 		return brain.MemoryItem{}, err
 	}
-	return store.Remember(req)
+	item, err := store.Remember(req)
+	s.afterCoreWrite(item, err)
+	return item, err
 }
 func (s *brainService) UpdateMemory(req brain.UpdateMemoryRequest) (brain.MemoryItem, error) {
 	store, err := s.memoryStore()
 	if err != nil {
 		return brain.MemoryItem{}, err
 	}
-	return store.Update(req)
+	item, err := store.Update(req)
+	s.afterCoreWrite(item, err)
+	return item, err
+}
+
+// A core note changed through Loom (UI or agent): mirror it now, off the path.
+func (s *brainService) afterCoreWrite(item brain.MemoryItem, err error) {
+	if err == nil && (slices.Contains(item.Tags, brain.ProfileTag) || slices.Contains(item.Tags, brain.ProjectNotesTag)) {
+		coreFilesJobs.Go(func() { _ = s.syncCoreFiles() })
+	}
 }
 func (s *brainService) ForgetMemory(req brain.ForgetMemoryRequest) (brain.MemoryItem, error) {
 	store, err := s.memoryStore()

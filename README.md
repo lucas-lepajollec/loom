@@ -48,15 +48,22 @@ Projects link folders on this machine or a connected machine, with shared instru
 
 <img src="docs/screenshots/harnesses.png" alt="Coding harnesses, model sources and machine connections" width="1000" />
 
+Workspace discussions expose estimated or agent-reported context usage through
+the backend API. Compaction keeps the display history and uses the discussion's
+chosen model or an advertised agent command. A continuation can start in the
+same project or create one, carrying the discussion handoff. See
+[context limits and compaction](docs/workspace-architecture.md#context-limits-and-compaction)
+for API shapes and the automatic `COMPACT` setting.
+
 ## Brain and shared context
 
 **Brain** searches local sources with BM25 and builds cited context within a token budget. Optional semantic search uses a local CPU embedding model or a connected provider with explicit consent. Distillation extracts decisions, facts, todos and preferences on request, with links back to source messages and individual deletion.
 
 Brain v2 memory items retain scoped knowledge and superseded history in plain Markdown inside a writable primary vault, or Loom’s encrypted fallback store. HTTP and MCP operations support remembering, updating, forgetting and listing items. Cheap FR/EN heuristics propose candidates after accepted user messages; explicit discussion consolidation reuses the selected model. Candidates stay out of context until reviewed, and automatic collection can be disabled through `/api/brain/consolidation`. Discussions select relevant scoped memory under a 1500-token default budget, with ordered source/reason/token metadata in context previews; see the [memory format](docs/brain.md#memory-items-loom) and [context engine](docs/brain.md#context-engine).
 
-Automatic Brain continuity records idle discussion summaries and current project
-working state through the existing memory store. Local chat is the default;
-external destinations require consent. See [Brain continuity settings and API](docs/brain.md#automatic-cognitive-continuity).
+Automatic Brain continuity writes deterministic discussion handoffs at every turn
+end and aggregates recent project work, without model calls or a local engine.
+Model refinement is opt-in; external destinations require consent. See [Brain continuity settings and API](docs/brain.md#automatic-cognitive-continuity).
 
 Select Brain sources for a project or expose its authenticated MCP tools to harnesses at **`/mcp/brain`**. Loom must remain running; the browser can be closed. Personal sources require explicit selection and opt-in. See [Brain](docs/brain.md) and [MCP configuration](docs/mcp-files.md).
 

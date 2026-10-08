@@ -2,6 +2,7 @@ package loom
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -110,8 +111,22 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 		c.Budget.Memory.Classes[class] = discussion.TokenBudget{Available: limit}
 	}
 	scopes := []string{"global"}
-	if s.ProjectID == "" && s.ID != "" {
+	discussionID := ""
+	turns := len(s.Turns)
+	if turns == 0 {
+		var state handoffState
+		if handoffLoad("discussion:"+s.ID, &state) == nil {
+			turns = state.Turns
+		}
+	}
+	if turns >= handoffContextTurns {
+		discussionID = s.ID
+	}
+	if discussionID != "" {
 		scopes = append(scopes, "task:"+s.ID)
+	}
+	if s.ContinuedFrom != "" {
+		scopes = append(scopes, "task:"+s.ContinuedFrom)
 	}
 	if s.ProjectID != "" {
 		scopes = append(scopes, "project:"+s.ProjectID)
@@ -124,7 +139,7 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 			c.Problem = "Loom memory is unavailable: " + err.Error()
 		}
 	} else {
-		pack := brain.SelectMemory(list.Items, s.ProjectID, s.RuntimeID, query, passageText, budgets, s.ID)
+		pack := brain.SelectMemory(list.Items, s.ProjectID, s.RuntimeID, query, passageText, budgets, discussionID, s.ContinuedFrom)
 		c.Budget.Memory.Used = brain.Tokens(pack.Text)
 		for class, used := range pack.Used {
 			limit := c.Budget.Memory.Classes[class]
@@ -147,6 +162,9 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 	}
 	for _, part := range primarySecondBrainParts() {
 		appendContextPart(&c, part)
+	}
+	if text := memoryProtocol(s); text != "" && c.Problem == "" {
+		add("memory_protocol", "Loom memory", s.ID, "how to keep memory current", text)
 	}
 	if s.Instructions != "" {
 		add("discussion_instructions", "Discussion instructions", s.ID, "discussion instructions", "Discussion instructions:\n"+s.Instructions)
@@ -274,6 +292,8 @@ func (m *runtimeSessions) rewindLast(id string) (RuntimeSession, string, error) 
 	s = cloneRuntimeSession(s)
 	text, _ := s.Messages[last].Content.(string)
 	s.Messages = s.Messages[:last]
+	s.PortableMessages = nil
+	s.Compactions = nil
 	kept := []RuntimeTurnRecord{}
 	for _, turn := range s.Turns {
 		if turn.MessageIndex < last {
@@ -310,4 +330,22 @@ func handleRuntimeSessionRewind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "text": text, "session": clientSession(s), "context": discussionContext(s)})
+}
+
+// memoryProtocol is Hermes' habit for any agent Loom launches: it keeps the
+// small core notes current itself, with the loom MCP tools it already has, so
+// continuity costs no extra model call and needs no local engine.
+func memoryProtocol(s RuntimeSession) string {
+	registered, ok := registeredRuntimes.lookup(s.RuntimeID)
+	if !ok {
+		return ""
+	}
+	if _, acp := registered.(*acpAdapter); !acp {
+		return ""
+	}
+	project := "this discussion has no project, so skip project notes"
+	if s.ProjectID != "" {
+		project = fmt.Sprintf("the project notes: the semantic item tagged %s with scope project:%s (at most %d characters; its conventions, decisions and environment)", brain.ProjectNotesTag, s.ProjectID, brain.ProjectNotesLimit)
+	}
+	return fmt.Sprintf("Loom memory (tools on the MCP server \"loom\"): keep two short core notes current yourself, with update_memory (or remember when absent): the user profile, the global semantic item tagged %s (at most %d characters; who the user is, preferences, how they work), and %s. Update them when you learn something durable or finish meaningful work; condense instead of growing when a write reports the note is full. Use search_discussions to recall earlier discussions before asking the user to repeat. Never store secrets.", brain.ProfileTag, brain.ProfileLimit, project)
 }

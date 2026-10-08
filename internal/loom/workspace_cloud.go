@@ -2,12 +2,13 @@ package loom
 
 // Provider records belong to Loom; the cloud protocol lives in runtime/openai.
 type CloudProvider struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Endpoint  string   `json:"endpoint"`
-	Model     string   `json:"model"`
-	Models    []string `json:"models,omitempty"`
-	UsageMode string   `json:"usage_mode,omitempty"` // "none" for APIs rejecting stream_options.
+	ContextWindows map[string]int `json:"context_windows,omitempty"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Endpoint       string         `json:"endpoint"`
+	Model          string         `json:"model"`
+	Models         []string       `json:"models,omitempty"`
+	UsageMode      string         `json:"usage_mode,omitempty"` // "none" for APIs rejecting stream_options.
 	// Remember: the key is kept in the OS keychain or sealed service store.
 	Remember bool `json:"remember,omitempty"`
 	// Credentials are intentionally absent from this persistent record.

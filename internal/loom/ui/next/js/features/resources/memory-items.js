@@ -114,37 +114,58 @@ function Suggestions({ projects, onChanged }) {
   </section>`;
 }
 
-// Toi : la fiche globale de l'utilisateur, toujours dans le contexte (mémoire
-// cœur). Une seule, modifiable ici ou par les agents (update_memory).
-const PROFILE = 'user-profile';
+// Mémoire cœur (comme USER.md / MEMORY.md de Hermes) : « Toi » et une note
+// par projet, courtes, toujours dans le contexte et tenues à jour par les agents
+// eux-mêmes. En option, une copie lisible dans le cerveau, synchronisée.
+const PROFILE = 'user-profile', NOTES = 'project-notes';
+const LIMITS = { [PROFILE]: 1400, [NOTES]: 2200 };
 const isProfile = i => (i.tags || []).includes(PROFILE) && i.scope === 'global' && i.class === 'semantic' && i.status === 'active';
-function Profile({ onSaved }) {
-  const [item, setItem] = useState(undefined);
-  const load = () => get('/api/brain/items?class=semantic&limit=500').then(r => setItem((r.items || []).find(isProfile) || null)).catch(() => setItem(null));
-  useEffect(() => { load(); }, []);
-  const [edit, setEdit] = useState(false);
-  const [text, setText] = useState('');
+const isNotes = i => (i.tags || []).includes(NOTES) && i.scope.startsWith('project:') && i.class === 'semantic' && i.status === 'active';
+
+function CoreEditor({ target, onClose }) {
+  const [text, setText] = useState(target.item ? target.item.text : '');
   const [busy, setBusy] = useState(false);
-  const start = () => { setText(item ? item.text : ''); setEdit(true); };
+  const limit = LIMITS[target.tag];
   const save = async () => {
     setBusy(true);
-    const r = item ? await post('/api/brain/items/update', { id: item.id, patch: { text } })
-      : await post('/api/brain/items', { class: 'semantic', scope: 'global', text, importance: 1, tags: [PROFILE], provenance: { kind: 'user' } });
+    const r = target.item ? await post('/api/brain/items/update', { id: target.item.id, patch: { text } })
+      : await post('/api/brain/items', { class: 'semantic', scope: target.scope, text, importance: 1, tags: [target.tag], provenance: { kind: 'user' } });
     setBusy(false);
     if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err');
-    setEdit(false); load(); onSaved();
+    onClose(true);
   };
-  if (item === undefined) return null;
-  return html`<div class="card mi-cont mi-me">
-    <div class="mi-cont-h"><span class="mono-tile"><${Icon} n="heart" /></span>
-      <div class="grow"><b>${t('memory.me.title')}</b><${Tip} text=${t('memory.me.tip')} />
-        ${item ? html`<div class="mi-me-text">${item.text}</div>` : html`<div class="mi-meta"><span>${t('memory.me.empty')}</span></div>`}</div>
-      <button class=${cls('btn sm', item ? 'ghost' : 'primary')} onClick=${start}>${item ? t('memory.edit_short') : t('memory.me.write')}</button></div>
-    ${edit && html`<${Modal} title=${t('memory.me.title')} sub=${t('memory.me.sub')} onClose=${busy ? undefined : () => setEdit(false)}
-        foot=${html`<button class="btn ghost" disabled=${busy} onClick=${() => setEdit(false)}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !text.trim()} onClick=${save}>${t('ui.dialog.enregistrer')}</button>`}>
-      <textarea class="textarea" rows="10" maxlength="8000" value=${text} placeholder=${t('memory.me.placeholder')} onInput=${e => setText(e.target.value)}></textarea>
-    </${Modal}>`}
-  </div>`;
+  return html`<${Modal} title=${target.title} sub=${target.tag === PROFILE ? t('memory.me.sub') : t('memory.notes.sub')} onClose=${busy ? undefined : () => onClose()}
+      foot=${html`<span class=${cls('mi-count-chars grow', [...text].length > limit && 'err')}>${[...text].length} / ${limit}</span><button class="btn ghost" disabled=${busy} onClick=${() => onClose()}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !text.trim() || [...text].length > limit} onClick=${save}>${t('ui.dialog.enregistrer')}</button>`}>
+    <textarea class="textarea" rows="12" value=${text} placeholder=${target.tag === PROFILE ? t('memory.me.placeholder') : t('memory.notes.placeholder')} onInput=${e => setText(e.target.value)}></textarea>
+  </${Modal}>`;
+}
+
+function CoreMemory({ onSaved }) {
+  const projects = useStore(app, a => (a.workspace && a.workspace.projects) || []);
+  const [items, setItems] = useState(null);
+  const [files, setFiles] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const load = () => get('/api/brain/items?class=semantic&limit=1000').then(r => setItems((r.items || []).filter(i => isProfile(i) || isNotes(i)))).catch(() => setItems([]));
+  useEffect(() => { load(); get('/api/brain/core-files').then(r => setFiles(r.ok === false ? null : r)).catch(() => {}); }, []);
+  if (items === null) return null;
+  const toggleFiles = async enabled => {
+    const r = await post('/api/brain/core-files', { ...files, enabled }).catch(e => ({ ok: false, error: e.message }));
+    if (r.ok === false || r.error) return toast(r.error, 'err');
+    setFiles(r);
+  };
+  const profile = items.find(isProfile);
+  const rows = [{ key: 'me', icon: 'heart', title: t('memory.me.title'), tag: PROFILE, scope: 'global', item: profile, empty: t('memory.me.empty') },
+    ...projects.map(p => ({ key: p.id, icon: 'folder', title: p.name, tag: NOTES, scope: 'project:' + p.id, item: items.find(i => isNotes(i) && i.scope === 'project:' + p.id), empty: t('memory.notes.empty') }))];
+  return html`<section class="mi-core">
+    <div class="mi-sugg-h"><b>${t('memory.core.title')}</b><${Tip} text=${t('memory.core.tip')} /><span class="grow"></span>
+      ${files && html`<label class="mi-auto" title=${t('memory.core.files_tip', { folder: files.folder })}><span>${t('memory.core.files', { folder: files.folder })}</span><${Switch} label=${t('memory.core.files', { folder: files.folder })} checked=${!!files.enabled} onChange=${toggleFiles} /></label>`}</div>
+    <div class="card bs-list">${rows.map(r => html`<div class="bs-row mi-core-row" key=${r.key}>
+      <span class="mono-tile"><${Icon} n=${r.icon} /></span>
+      <div class="grow"><div class="bs-name">${r.title}${r.item && html`<span class="mi-count-chars">${[...r.item.text].length} / ${LIMITS[r.tag]}</span>`}</div>
+        ${r.item ? html`<div class="mi-me-text">${r.item.text}</div>` : html`<div class="bs-sub"><span>${r.empty}</span></div>`}</div>
+      <button class=${cls('btn sm', r.item ? 'ghost' : '')} onClick=${() => setEdit(r)}>${r.item ? t('memory.edit_short') : t('memory.me.write')}</button></div>`)}</div>
+    ${edit && html`<${CoreEditor} target=${edit} onClose=${ok => { setEdit(null); if (ok) { load(); onSaved(); } }} />`}
+  </section>`;
 }
 
 // Continuité : quand une discussion se met en pause, un petit modèle écrit où
@@ -172,10 +193,10 @@ function Continuity() {
   const where = c.provider_id ? ((providers.find(p => p.id === c.provider_id) || {}).name || c.provider_id) + (c.model ? ' · ' + c.model : '') : t('memory.cont.local');
   return html`<div class="card mi-cont">
     <div class="mi-cont-h"><span class="mono-tile"><${Icon} n="history" /></span>
-      <div class="grow"><b>${t('memory.cont.title')}</b><div class="mi-meta"><span>${c.enabled ? t(c.provider_id || !c.loaded_only ? 'memory.cont.on' : 'memory.cont.on_loaded', { where }) : t('memory.cont.off')}</span>${last && html`<span>${t('memory.cont.last', { when: last })}</span>`}${st && st.last_error && html`<span class="bs-state err" title=${st.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>
-      <button class="icon-btn" aria-label=${t('memory.cont.settings')} title=${t('memory.cont.settings')} onClick=${() => setOpen(!open)}><${Icon} n="sliders" /></button>
-      <${Switch} label=${t('memory.cont.title')} checked=${!!c.enabled} onChange=${enabled => save({ enabled })} /></div>
+      <div class="grow"><b>${t('memory.cont.title')}</b><div class="mi-meta"><span class="bs-state"><i class="dot green"></i>${t('memory.cont.always')}</span>${c.enabled && html`<span>${t('memory.cont.refined', { where })}</span>`}${c.enabled && last && html`<span>${t('memory.cont.last', { when: last })}</span>`}${c.enabled && st && st.last_error && html`<span class="bs-state err" title=${st.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>
+      <button class=${cls('btn sm', open ? '' : 'ghost')} onClick=${() => setOpen(!open)}><${Icon} n="sliders" />${t('memory.cont.refine')}</button></div>
     ${open && html`<div class="mi-cont-b">
+      <label class="check mi-cont-wide"><input type="checkbox" checked=${!!c.enabled} onChange=${e => save({ enabled: e.target.checked })} /><span>${t('memory.cont.refine_on')}</span><${Tip} text=${t('memory.cont.refine_tip')} /></label>
       <label class="field"><span>${t('memory.cont.model')}</span><${ListPick} label=${t('memory.cont.model')} value=${c.provider_id || ''} onChange=${provider_id => save({ provider_id, model: provider_id ? c.model : '' })} options=${[{ value: '', label: t('memory.cont.local') }, ...providers.map(p => ({ value: p.id, label: p.name, group: t('memory.cont.cloud') }))]} /></label>
       ${c.provider_id && html`<label class="field"><span>${t('memory.cont.model_name')}</span><input class="input mono" value=${c.model || ''} placeholder="gpt-5-mini" onChange=${e => save({ model: e.target.value.trim() })} /></label>`}
       ${!c.provider_id && html`<label class="check mi-cont-wide"><input type="checkbox" checked=${c.loaded_only !== false} onChange=${e => save({ loaded_only: e.target.checked })} /><span>${t('memory.cont.loaded_only')}</span><${Tip} text=${t('memory.cont.loaded_only_tip')} /></label>`}
@@ -204,7 +225,7 @@ export function MemoryItems() {
     if (!r.ok) return toast(r.error || t('memory.save_failed'), 'err');
     load();
   };
-  const items = ((data && data.items) || []).filter(i => !isProfile(i));
+  const items = ((data && data.items) || []).filter(i => !isProfile(i) && !isNotes(i));
   const groups = MEMORY_CLASSES.map(c => [c, items.filter(i => i.class === c)]).filter(([, list]) => list.length);
   const prov = it => {
     const p = it.provenance || {};
@@ -217,7 +238,7 @@ export function MemoryItems() {
       <div class="mi-pick"><${ListPick} label=${t('memory.status')} value=${status} onChange=${setStatus} options=${STATUSES.map(s => ({ value: s, label: STATUS()[s] }))} /></div>
       <button class="btn primary mi-add" onClick=${() => setForm({})}><${Icon} n="plus" />${t('memory.add')}</button>
     </div>
-    <${Profile} onSaved=${load} />
+    <${CoreMemory} onSaved=${load} />
     <${Continuity} />
     <${Suggestions} projects=${projects} onChanged=${load} />
     ${data && !data.error && html`<p class="mi-count">${t('memory.count', { n: items.length })}<${Tip} text=${t('memory.intro')} /></p>`}

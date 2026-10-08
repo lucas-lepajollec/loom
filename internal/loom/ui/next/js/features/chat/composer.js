@@ -8,7 +8,8 @@ import { toast } from '../../ui/dialog.js';
 import { request, get } from '../../core/api.js';
 
 import { runtimeCaps, app } from '../../core/state.js';
-import { chat, send, stop, compact } from './engine.js';
+import { chat, send, stop, compact, compactSession, continueSession } from './engine.js';
+import { prompt } from '../../ui/dialog.js';
 import { currentExec } from './picker.js';
 import { slashEntries, runChoice } from './slash.js';
 import { attachPaste, pastedMessage, downloadPaste, MAX_MESSAGE_BYTES } from './pasted-text.js';
@@ -50,7 +51,12 @@ export function Composer() {
   const exec = currentExec();
   const native = c.mode === 'native';
   const ctxMax = (status && status.ctx) || 0;
-  const pct = ctxMax ? Math.min(100, c.ctx * 100 / ctxMax) : 0;
+  const sc = (!native && c.session && c.session.context) || null;
+  const used = native ? c.ctx : sc ? sc.used || 0 : 0, size = native ? ctxMax : sc ? sc.size || 0 : 0;
+  const pct = size ? Math.min(100, used * 100 / size) : 0;
+  // Native chat compacts itself at 75 %: past 90 % it is off or failing.
+  const warn = native ? pct >= 90 : !!(c.session && c.session.context_warning);
+  const newProject = async () => { const name = await prompt(t('chat.limit.project_title'), { message: t('chat.limit.project_text'), placeholder: t('chat.limit.project_placeholder'), ok: t('chat.limit.project_ok') }); if (name && name.trim()) continueSession(name.trim()); };
 
   useEffect(() => { const el = ta.current; if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 240) + 'px'; }, [text]);
 
@@ -173,6 +179,10 @@ export function Composer() {
       ${rows.map((x, i) => html`<button type="button" role="option" aria-selected=${String(i === sel)} class=${cls('slash-row', level && 'sub', i === sel && 'on')} onMouseDown=${e => { e.preventDefault(); choose(x); }}>
         ${level ? html`<b>${x.label}</b>${x.current && html`<em>${t("chat.composer.actuel")}</em>`}<span>${x.description || ''}</span>`
           : html`<b>/${x.name}</b>${x.hint && html`<em>${x.hint}</em>`}<span>${x.description || ''}</span>${(x.children || x.load) && html`<${Icon} n="right" />`}`}</button>`)}</div>`}
+    ${warn && html`<div class="ctx-warn" role="status"><${Icon} n="alert" /><div class="grow"><b>${t('chat.limit.title', { pct: Math.round(pct) || 85 })}</b><span>${t('chat.limit.text')} <a href="#/settings/general">${t('chat.limit.setting')}</a></span></div>
+      <div class="ctx-warn-acts"><button class="btn sm" onClick=${native ? compact : compactSession}>${t('chat.limit.compact')}</button>
+        ${!native && html`<button class="btn sm ghost" onClick=${() => continueSession()}>${t(c.session && c.session.project_id ? 'chat.limit.continue_project' : 'chat.limit.continue')}</button>
+          ${!(c.session && c.session.project_id) && html`<button class="btn sm ghost" onClick=${newProject}>${t('chat.limit.new_project')}</button>`}`}</div></div>`}
     <div class="composer">
       ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}${typeof f.content === 'string' && html`<button title=${t('chat.composer.download_text')} aria-label=${t('chat.composer.download_text')} onClick=${() => downloadPaste(f)}><${Icon} n="download" /></button>`}<button aria-label="${t("chat.composer.retirer")}" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
       <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey} onPaste=${onPaste}
@@ -184,8 +194,8 @@ export function Composer() {
         ${workdir && html`<button class="chip-btn" title=${workdir} onClick=${() => app.set({ inspector: true })}><${Icon} n="folder" />${workdir.split('/').pop()}</button>`}
         ${entries.length > 0 && !text && html`<span class="composer-tip">${t("chat.composer.pour_les_commandes")}</span>`}
         <span class="grow"></span>
-        ${native && ctxMax ? html`<button class="ctx" title=${t("chat.composer.contexte_utilise") + c.ctx + ' / ' + ctxMax + ' tokens'} onClick=${compact}>
-          <span class="ctx-ring" style=${`--p:${pct}`}></span><span>${fmtTok(c.ctx)} / ${fmtTok(ctxMax)}</span></button>` : ''}
+        ${size ? html`<button class=${cls('ctx', pct >= 85 && 'hot')} title=${t("chat.composer.contexte_utilise") + used + ' / ' + size + ' tokens'} onClick=${native ? compact : compactSession}>
+          <span class="ctx-ring" style=${`--p:${pct}`}></span><span>${fmtTok(used)} / ${fmtTok(size)}</span></button>` : ''}
         ${c.busy ? html`<button class="send stop" aria-label="${t("chat.composer.arreter")}" onClick=${stop}><${Icon} n="stop" /></button>`
           : html`<button class="send" aria-label="${t("chat.composer.envoyer")}" disabled=${!!blocked || (!text.trim() && !files.length)} onClick=${submit}><${Icon} n="arrowUp" /></button>`}
       </div>

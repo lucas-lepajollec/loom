@@ -447,3 +447,10 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .why-item b{font-size:12.5px;font-weight:500}
 .why-item small{font-size:11.5px;color:var(--text-3)}
 .why-item .mono{font-size:11.5px}
+.ctx.hot{color:var(--amber)}
+.ctx-warn{display:flex;align-items:center;gap:12px;margin:0 0 8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2);font-size:12.5px;color:var(--text-2)}
+.ctx-warn>.ico{flex:none;color:var(--amber)}
+.ctx-warn b{display:block;color:var(--text);font-weight:500}
+.ctx-warn a{color:inherit;text-decoration:underline}
+.ctx-warn-acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+@media(max-width:720px){.ctx-warn{flex-wrap:wrap}.ctx-warn-acts{width:100%;justify-content:flex-start}}

@@ -20,9 +20,10 @@ const clientOldToolText, clientRecentTurns, clientToolTitle = 1 << 10, 3, 240
 // envelopes: turn metadata only (the interface replays turn events once,
 // through the discussion event stream).
 func clientSession(s RuntimeSession) RuntimeSession {
-	if len(s.Turns) == 0 {
-		return s
-	}
+	c := discussionLimit(s)
+	s.Context = &c
+	s.ContextWarning = contextWarning(s, c)
+	s.PortableMessages = nil
 	out := s
 	out.Turns = make([]RuntimeTurnRecord, len(s.Turns))
 	for i, turn := range s.Turns {

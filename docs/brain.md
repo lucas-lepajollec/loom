@@ -849,69 +849,98 @@ as **You**; agents update it with `update_memory` instead of creating another.
 
 ## Automatic cognitive continuity
 
-Continuity is **off by default**: summaries cost model time locally and money
-with a provider. Once enabled (ten-minute idle threshold by default), it is
-frugal: with the local engine and `loaded_only` (default `true`), Loom uses the
-model already loaded and skips with `local engine has no model loaded` rather
-than loading one; an automatic run also waits until there are two new user
-messages or 1,500 characters of new text. Run-now ignores that minimum. While the
-Brain service runs, a cancellable scan runs at startup and once a minute, with
-one summary operation at a time. It reads native display transcripts and
-workspace discussion text, deduplicating native archives bound to discussions.
-A discussion needs at least one new user message since its saved summary
-checkpoint. Idle time follows the last turn's timing (native journal timestamps,
-workspace turn timing, or saved time for older records). No summary starts while
-any discussion turn is generating or being prepared. Results are discarded if
-the discussion changes or generation starts during the model request.
+Continuity has an **always-on deterministic layer**. At every workspace or native
+Loom turn end, an asynchronous worker builds a discussion handoff without model
+calls, network access or an installed engine. Bursts coalesce per discussion.
+It uses the discussion title, first user message and last two requests (300
+characters each), the latest ACP plan and its statuses, up to 20 deduplicated
+reported edit/write/create targets, cumulative command count and last five
+command titles, and failures from the latest turn. Paths are relative to the
+workspace when possible. Reported write targets are not verified file diffs.
 
-Settings live in `LOOM_HOME/brain/continuity.json`, independently of candidate
-collection. The empty provider uses the selected Loom chat engine and its
-request model; a nonempty model overrides that default. A provider ID resolves
-an existing connected Loom provider, its endpoint and credential, with the
-provider's default model when model is empty. Credentials are never copied to
-Brain settings or memory files. A cloud provider or non-loopback linked engine
-requires stored `consent:true`; otherwise no text is sent and status records the
-skip reason. Disabling continuity prevents both automatic and explicit runs.
+The last completed turn's final assistant message supplies the recap (up to 800
+characters, cut at a sentence boundary where possible). Incomplete turns retain
+the previous completed recap and record their errors. Open items are unfinished
+plan entries and up to three questions from the latest assistant message. The
+fixed Markdown headings are `Goal`, `Plan`, `Done`, `Recap` and `Open`; values
+retain the discussion's language. Runtime, model and UTC time form the footer.
+The full handoff fits 2,000 Unicode characters, reducing Done details before the
+recap. Source text is quoted data, with HTML and code fences removed and
+whitespace collapsed; it is never a grant of instructions or permissions.
 
-Each call receives only the last 24 KiB of new user/assistant text, the previous
-session summary and the current project/discussion state. These are marked as
-untrusted data. Strict JSON validation allows one retry. Output is bounded to
-8 KiB per summary/rendered state/fact and 32 entries per state array or facts
-array. Values use the discussion's language. The two-minute operation timeout
-and Brain lifecycle cancellation bound background requests.
+Each discussion has a working item scoped to `task:<discussion_id>`, tagged
+`discussion-state` and `handoff`, with discussion provenance. Deterministic
+updates overwrite that item in place without creating supersession history.
+A small encrypted Loom-store record keeps incremental first/request/plan/file/
+command state; later updates read only the latest turn and stored state, never
+rescan the transcript. Vault locking applies to both records and memory items.
 
-A successful run writes active memory through the existing store: one episodic
-`session-summary` per discussion in `project:<id>` or `global`, and one working
-`project-state` per project. Unbound discussions instead get their own working
-`discussion-state` in `task:<discussion_id>`. Changed text supersedes the previous
-item, retaining history. Durable semantic/procedural/reflex facts become review
-candidates through the existing dedupe and pending limits. Message-count
-checkpoints live in Loom's `brain_continuity` store bucket and participate in
-vault encryption. They advance only after successful memory writes.
+A project also has a working `project-state` item, rebuilt from its three most
+recently active discussions, newest first (ties by ID). Each entry includes its
+title, first request, open items, recap's first sentence and `discussion:<id>`
+marker. It fits 2,500 characters and updates in place. When a model refinement
+is newer than those discussions, its bounded base text is retained above one
+`Recent discussions` section; later discussion activity makes stale refinement
+ineligible. The original refinement text is retained separately from aggregation.
 
-Context selection pins the applicable working state first, counting labels and
-header against the working and total budgets; oversized state is truncated with
-an ellipsis. A project's two newest session summaries are preferred within its
-episodic budget even without lexical overlap. Other memory keeps the existing
-scope, relevance, supersession and dedupe rules. Selection remains deterministic
-and does not alter persisted memory text.
+Project state is pinned even on a new discussion's very first turn. A continuing
+discussion adds its own handoff only from 20 turns onward, avoiding duplication
+of short transcripts. Project and discussion pins share the working budget;
+large pins are truncated instead of dropped. User-profile priority, scoped
+retrieval, supersession, deduplication and the total memory budget still apply.
+A project's two latest model-generated episodic summaries remain preferred
+within the episodic budget.
 
-All endpoints use normal Brain authentication, strict request decoding, vault
-access checks and `Cache-Control: no-store`:
+**Refine with a model** is a separate opt-in layer, off by default. The existing
+`enabled` setting controls only this layer; disabling it never disables
+handoffs. With `loaded_only:true` (the default), local refinement uses an
+already-loaded model and skips if none is loaded. Automatic refinement waits
+for ten idle minutes by default and at least two new user messages or 1,500
+characters. A cancellable scan runs at startup and once a minute, with one
+model operation at a time. It deduplicates native archives bound to discussions,
+requires a new user message since the saved checkpoint, waits while generation
+or preparation is active, and discards results when the discussion changes.
+
+Settings live in `LOOM_HOME/brain/continuity.json`. An empty provider uses Loom's
+chat engine; `model` can override its request model. A provider ID selects an
+existing connected provider and its own credential. Cloud providers and
+non-loopback linked engines require stored `consent:true`. Credentials never
+enter Brain settings or memory files. Refinement costs model time or provider
+tokens; deterministic handoff construction costs neither. Pinned handoffs, like
+other context, count toward the selected executor's input context budget.
+
+A refinement receives the last 24 KiB of new user/assistant text, the previous
+episodic summary and current state, all marked untrusted. Strict JSON validation
+allows one retry; the operation has a two-minute timeout and lifecycle
+cancellation. It writes an episodic `session-summary` in the project or global
+scope and refined working state, retaining supersession history. For an unbound
+discussion with a handoff, refined working state uses `discussion-refinement`
+without replacing the deterministic handoff. Durable facts become review
+candidates. Successful model checkpoints in `brain_continuity` survive restart
+and participate in vault encryption.
+
+All HTTP endpoints use Brain authentication, vault checks and
+`Cache-Control: no-store`; timestamps are Unix milliseconds:
 
 | Method / path | Input | Output |
 | --- | --- | --- |
-| `GET /api/brain/continuity` | — | `{"enabled":true,"idle_minutes":10,"provider_id":"","model":"","consent":false}` (current settings) |
-| `POST /api/brain/continuity` | All five settings fields above; idle minutes 1–1440 | Same saved settings object |
+| `GET /api/brain/continuity/handoff` | `?discussion_id=…` | `{"discussion_id":"…","text":"…","updated_at":0}` |
+| `GET /api/brain/continuity` | — | `{"enabled":false,"idle_minutes":10,"provider_id":"","model":"","consent":false,"loaded_only":true}` |
+| `POST /api/brain/continuity` | All settings except optional `loaded_only` (defaults true); idle minutes 1–1440 | Saved settings object |
 | `POST /api/brain/continuity/run` | `{"discussion_id":"…"}` | `{"discussion_id":"…","at":0,"summary_id":"…","state_id":"…","skipped_reason":""}` |
-| `GET /api/brain/continuity/status` | — | `{"running":false,"last_run":0,"last_error":"","recent":[{"discussion_id":"…","at":0,"summary_id":"…","state_id":"…","skipped_reason":""}]}` |
+| `GET /api/brain/continuity/status` | — | `{"running":false,"last_run":0,"last_error":"","recent":[]}` |
 
-Run-now is synchronous and bypasses idle time, but still requires a new user turn,
-enablement, no generation and destination consent. Skips return 200 with empty
-item IDs and a reason; failures use the normal `{ok:false,error}` response.
-Concurrent runs are rejected. Status retains the newest 20 observations in memory,
-newest first; timestamps are Unix milliseconds (zero before any run). Settings
-and summary checkpoints survive restart; the recent status list does not.
+The read-only Brain MCP tool `get_handoff` is available through `/mcp/brain` and
+`/mcp/loom`. Pass exactly one of `{"discussion_id":"…"}` or `{"project_id":"…"}`.
+It returns `{"discussion_id":"…","text":"…","updated_at":0}` or
+`{"project_id":"…","text":"…","updated_at":0}`. Missing handoffs return an
+error; reads never generate or call a network service.
+
+Model run-now is synchronous and bypasses the idle/minimum thresholds, but still
+requires enablement, a new user message, no generation and destination consent.
+Skips return 200 with empty item IDs and a reason; failures use `{ok:false,error}`.
+Concurrent model runs are rejected. Status keeps the latest 20 model observations
+in memory, newest first, and does not describe deterministic handoff activity.
 
 The model response schema is exactly:
 
@@ -920,3 +949,4 @@ The model response schema is exactly:
 ```
 
 Fact class accepts `semantic`, `procedural` or `reflex`; arrays may be empty.
+Summary, rendered state and each fact fit 8 KiB, with up to 32 entries per array.
