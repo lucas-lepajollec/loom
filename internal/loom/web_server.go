@@ -190,6 +190,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/harness/custom", handleCustomACP)
 	api("/api/harness/custom/delete", handleCustomACPDelete)
 	api("/api/machines", handleRemoteMachines)
+	api("/api/machines/pair", handleMachinesPair)
+	api("/api/machines/discover", handleMachinesDiscover)
 	api("/api/machines/delete", handleRemoteMachineDelete)
 	api("/api/machines/folders", handleMachineFolders)
 	api("/api/machines/local", handleLocalMachine)

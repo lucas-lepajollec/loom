@@ -5,7 +5,9 @@ import { FolderPicker } from '../../ui/folder.js';
 import { Modal, toast, confirm } from '../../ui/dialog.js';
 import { Icon } from '../../ui/icons.js';
 import { ListPick } from '../../ui/listpick.js';
-import { Line, Group } from '../settings/kit.js';
+import { Menu } from '../../ui/controls.js';
+
+const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
 
 const endpoint = target => '/api/workspaces?target=' + encodeURIComponent(target || 'local');
 async function change(target, body) {
@@ -77,15 +79,25 @@ export function WorkspacePicker({ target = 'local', current = '', onPick, inheri
   </div>`;
 }
 
-export function WorkspaceManager({ fixedTarget }) {
-  const [target, setTarget] = useState(fixedTarget || 'local');
-  const [machines, setMachines] = useState([]);
-  const [items, setItems] = useState([]);
+// Une carte par espace de travail, rangées par machine, comme la page Machines.
+function WorkspaceCard({ w, busy, onEdit, onAction }) {
+  const [anchor, setAnchor] = useState(null);
+  const items = [{ icon: 'edit', label: t('workspaces.edit'), run: onEdit }, ...(!w.default ? [{ icon: 'star', label: t('workspaces.make_default'), run: () => onAction('default', w) }] : []),
+    ...(!w.managed ? ['-', { icon: 'trash', label: t('workspaces.remove'), danger: true, run: () => onAction('remove', w) }] : [])];
+  return html`<div class="mcard ws-card">
+    <div class="mcard-h"><span class="mx-ico"><${Icon} n="folder" /></span><span class="grow"><b>${w.name}</b><small class="mono" title=${w.path}>${home(w.path)}</small></span>
+      <button class="icon-btn" disabled=${busy} aria-label=${t('brain.src.actions')} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button></div>
+    <div class="ws-card-f">${w.default ? html`<span class="tag">${t('workspaces.default')}</span>` : html`<span class="muted">${t('workspaces.saved')}</span>`}${w.managed && html`<span class="muted">${t('workspaces.managed')}</span>`}</div>
+    ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${items} />`}
+  </div>`;
+}
+
+function MachineWorkspaces({ target, title, sub }) {
+  const [items, setItems] = useState(null);
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState(false);
-  const refresh = () => get(endpoint(target)).then(r => { if (!r.ok) throw new Error(r.error); setItems(r.workspaces || []); });
-  useEffect(() => { if (!fixedTarget) get('/api/machines').then(r => setMachines(r.machines || [])).catch(() => {}); }, []);
-  useEffect(() => { let alive = true; setItems([]); get(endpoint(target)).then(r => { if (alive && r.ok) setItems(r.workspaces || []); }).catch(e => toast(e.message, 'err')); return () => { alive = false; }; }, [target]);
+  const refresh = () => get(endpoint(target)).then(r => { if (!r.ok) throw new Error(r.error); setItems(r.workspaces || []); }).catch(e => { setItems([]); toast(e.message, 'err'); });
+  useEffect(() => { refresh(); }, [target]);
   const action = async (action, w) => {
     if (action === 'remove' && !await confirm(t('workspaces.remove'), t('workspaces.remove_note'))) return;
     setBusy(true);
@@ -96,17 +108,28 @@ export function WorkspaceManager({ fixedTarget }) {
     } catch (e) { toast(e.message, 'err'); }
     finally { setBusy(false); }
   };
-  return html`<div>
-    ${!fixedTarget && html`<${Group}><${Line} label=${t('workspaces.machine')}><select class="select" value=${target} onChange=${e => setTarget(e.target.value)}><option value="local">${t('workspaces.local')}</option>${machines.map(m => html`<option key=${m.id} value=${m.id}>${m.name || m.host}</option>`)}</select></${Line}></${Group}>`}
-    <${Group} title=${t('workspaces.title')}>
-      ${items.map(w => html`<${Line} key=${w.id} label=${w.name + (w.default ? ' · ' + t('workspaces.default') : '')} tip=${w.path}>
-        <button class="btn sm ghost" disabled=${busy} onClick=${() => setForm(w)}>${t('workspaces.edit')}</button>
-        ${!w.default && html`<button class="btn sm" disabled=${busy} onClick=${() => action('default', w)}>${t('workspaces.make_default')}</button>`}
-        ${!w.managed && html`<button class="icon-btn" aria-label=${t('workspaces.remove')} disabled=${busy} onClick=${() => action('remove', w)}><${Icon} n="trash" /></button>`}
-      </${Line}>`)}
-      <${Line} label=${t('workspaces.new')}><button class="btn sm" onClick=${() => setForm({})}><${Icon} n="plus" />${t('workspaces.add')}</button></${Line}>
-    </${Group}>
-    <p class="note">${t('workspaces.note')}</p>
+  return html`<section class="sec ws-machine">
+    ${title && html`<div class="sec-h"><h2>${title}</h2>${sub && html`<span class="muted mono ws-sub">${sub}</span>`}</div>`}
+    ${items === null ? html`<div class="skeleton" style="height:96px"></div>` : html`<div class="mcards">
+      ${items.map(w => html`<${WorkspaceCard} key=${w.id} w=${w} busy=${busy} onEdit=${() => setForm(w)} onAction=${action} />`)}
+      <button type="button" class="mcard add" onClick=${() => setForm({})}><${Icon} n="plus" /><span>${t('workspaces.add')}</span></button>
+    </div>`}
     ${form && html`<${FolderForm} target=${target} editing=${form.id ? form : null} onClose=${() => setForm(null)} onDone=${refresh} />`}
+  </section>`;
+}
+
+export function WorkspaceManager({ fixedTarget }) {
+  const [machines, setMachines] = useState(null);
+  const [local, setLocal] = useState(null);
+  useEffect(() => {
+    if (fixedTarget) return;
+    get('/api/machines').then(r => setMachines(r.machines || [])).catch(() => setMachines([]));
+    get('/api/machines/local').then(setLocal).catch(() => {});
+  }, []);
+  if (fixedTarget) return html`<${MachineWorkspaces} target=${fixedTarget} />`;
+  return html`<div class="ws-page">
+    <${MachineWorkspaces} target="local" title=${(local && local.hostname) || t('workspaces.local')} sub=${t('settings.machines.cette_machine')} />
+    ${(machines || []).map(m => html`<${MachineWorkspaces} key=${m.id} target=${m.id} title=${m.name || m.host} sub=${m.user + '@' + m.host} />`)}
+    <p class="note">${t('workspaces.note')}</p>
   </div>`;
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -402,7 +403,7 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 		benchJobMu.Unlock()
 
 		n := currentEngineNode()
-		changed := (n == nil) != (j.engine == nil) || (n != nil && j.engine != nil && *n != *j.engine)
+		changed := !reflect.DeepEqual(n, j.engine)
 		if j.Rows[i].Kind == "local" && changed {
 			benchJobMu.Lock()
 			j.Rows[i].Status = "err"

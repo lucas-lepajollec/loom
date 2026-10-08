@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 )
@@ -60,5 +61,28 @@ func TestCoreFilesMirrorBothWays(t *testing.T) {
 		if validCoreFolder(bad) {
 			t.Fatal("accepted", bad)
 		}
+	}
+}
+
+// Regression: building the Brain engine asks for index exclusions while
+// holding the service lock; enabled core files must not re-enter it.
+func TestCoreFilesExclusionsDoNotDeadlockEngineBuild(t *testing.T) {
+	testHome(t)
+	t.Cleanup(coreFilesJobs.Wait)
+	s := theBrain()
+	primaryMemoryVault(t, s)
+	if err := s.storage.write("core_files.json", []byte(`{"enabled":true,"folder":"Loom"}`)); err != nil {
+		t.Fatal(err)
+	}
+	fresh := newBrainService(LoomHome())
+	done := make(chan error, 1)
+	go func() { _, err := fresh.get(); done <- err }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("brain engine build deadlocked on core-file exclusions")
 	}
 }

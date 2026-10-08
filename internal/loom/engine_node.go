@@ -29,14 +29,17 @@ import (
 const engineNodeState = "engine_node"
 
 type engineNode struct {
-	URL      string `json:"url"`            // control API of the remote Loom, e.g. http://tour:2510
-	WebKey   string `json:"web_key"`        // its control key
-	V1       string `json:"v1"`             // its /v1 base, e.g. http://tour:8080
-	APIKey   string `json:"api_key"`        // its /v1 key
-	Hostname string `json:"hostname"`       // for display
-	Role     string `json:"role,omitempty"` // engine-node or legacy full Loom
-	Version  string `json:"version"`        // remote Loom version
-	LinkedAt int64  `json:"linked_at"`      // unix ms
+	NodeID    string   `json:"node_id,omitempty"`
+	Modules   []string `json:"modules,omitempty"`
+	Handshake int      `json:"handshake,omitempty"`
+	URL       string   `json:"url"`            // control API of the remote Loom, e.g. http://tour:2510
+	WebKey    string   `json:"web_key"`        // its control key
+	V1        string   `json:"v1"`             // its /v1 base, e.g. http://tour:8080
+	APIKey    string   `json:"api_key"`        // its /v1 key
+	Hostname  string   `json:"hostname"`       // for display
+	Role      string   `json:"role,omitempty"` // engine-node or legacy full Loom
+	Version   string   `json:"version"`        // remote Loom version
+	LinkedAt  int64    `json:"linked_at"`      // unix ms
 	// Direct link (engine_direct.go): an inference server used by address,
 	// without Loom on its machine.
 	Direct bool   `json:"direct,omitempty"`
@@ -194,7 +197,7 @@ func handleNodeInfo(w http.ResponseWriter, r *http.Request) {
 	host, _ := os.Hostname()
 	st := networkStatus()
 	sendJSON(w, 200, map[string]any{"ok": true, "hostname": host, "version": Version, "llm_port": LLMPort(),
-		"v1_exposed": st.Exposed, "api_key": readAPIKey(), "engine": currentEngineNode() == nil})
+		"handshake": nodeHandshake, "modules": []string{"engine"}, "v1_exposed": st.Exposed, "api_key": readAPIKey(), "engine": currentEngineNode() == nil})
 }
 
 // --- the local side: linking and forwarding ---
@@ -239,16 +242,19 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	}
 	defer resp.Body.Close()
 	var info struct {
-		OK         bool   `json:"ok"`
-		Error      string `json:"error"`
-		Hostname   string `json:"hostname"`
-		Version    string `json:"version"`
-		LLMPort    int    `json:"llm_port"`
-		SameOrigin bool   `json:"v1_same_origin"`
-		Role       string `json:"role"`
-		Exposed    bool   `json:"v1_exposed"`
-		APIKey     string `json:"api_key"`
-		Engine     bool   `json:"engine"`
+		ID         string   `json:"id"`
+		Modules    []string `json:"modules"`
+		Handshake  int      `json:"handshake"`
+		OK         bool     `json:"ok"`
+		Error      string   `json:"error"`
+		Hostname   string   `json:"hostname"`
+		Version    string   `json:"version"`
+		LLMPort    int      `json:"llm_port"`
+		SameOrigin bool     `json:"v1_same_origin"`
+		Role       string   `json:"role"`
+		Exposed    bool     `json:"v1_exposed"`
+		APIKey     string   `json:"api_key"`
+		Engine     bool     `json:"engine"`
 	}
 	_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&info)
 	switch {
@@ -261,6 +267,8 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 			info.Error = "unexpected response from remote Loom (HTTP " + resp.Status + ")"
 		}
 		return nil, errors.New(info.Error)
+	case checkNodeHandshake(info.Handshake) != nil:
+		return nil, checkNodeHandshake(info.Handshake)
 	case !info.Engine:
 		return nil, errors.New("this Loom itself uses a remote engine: link directly to the machine hosting the engine")
 	case !info.Exposed:
@@ -272,7 +280,7 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	if info.SameOrigin {
 		v1 = base
 	}
-	n := &engineNode{URL: base, WebKey: webKey, V1: v1, APIKey: info.APIKey, Hostname: info.Hostname, Version: info.Version, Role: info.Role, LinkedAt: time.Now().UnixMilli()}
+	n := &engineNode{NodeID: info.ID, Modules: info.Modules, Handshake: info.Handshake, URL: base, WebKey: webKey, V1: v1, APIKey: info.APIKey, Hostname: info.Hostname, Version: info.Version, Role: info.Role, LinkedAt: time.Now().UnixMilli()}
 	// The /v1 API must answer with that key before the link is kept.
 	hreq, _ := http.NewRequestWithContext(ctx, http.MethodGet, v1+"/v1/models", nil)
 	if n.APIKey != "" {
@@ -289,7 +297,7 @@ func linkEngineNode(ctx context.Context, rawURL, webKey string) (*engineNode, er
 	if n.Role == "engine-node" {
 		for _, m := range loadRemoteMachines() {
 			if u.Hostname() == m.Host {
-				if err := putStoreJSON(bkState, machineNodePrefix+m.ID, n); err != nil {
+				if _, err := savePairedMachine(m, n); err != nil {
 					return nil, errors.New("machine maintenance access could not be saved")
 				}
 			}
