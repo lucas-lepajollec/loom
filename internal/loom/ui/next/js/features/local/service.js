@@ -15,7 +15,8 @@ const ago = ms => {
   const m = Math.round((Date.now() - ms) / 60000);
   return m < 1 ? t('resources.brain.a_l_instant') : m < 60 ? t('common.relative.minutes', { n: m }) : m < 1440 ? t('common.relative.hours', { n: Math.round(m / 60) }) : t('common.relative.days', { n: Math.round(m / 1440) });
 };
-const msOf = v => typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(v || '') || 0;
+// Go's zero time (0001-01-01) means never.
+const msOf = v => { const ms = typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(v || '') || 0; return ms > 0 ? ms : 0; };
 
 export function EngineMemory() {
   const [s, setS] = useState(null);
@@ -90,7 +91,7 @@ function KeyRow({ k, onEdit, onChanged }) {
   const limits = [k.priority === 'background' && t('engine.keys.background'), k.max_concurrency && t('engine.keys.conc_n', { n: k.max_concurrency }), k.requests_per_minute && t('engine.keys.rpm_n', { n: k.requests_per_minute }), (k.allowed_models || []).length && t('engine.keys.models_some', { n: k.allowed_models.length })].filter(Boolean);
   return html`<div class="bs-row">
     <span class="mono-tile"><${Icon} n="key" /></span>
-    <div class="grow"><div class="bs-name">${k.name}${k.id === 'default' && html`<span class="tag">${t('engine.keys.legacy')}</span>`}</div>
+    <div class="grow"><div class="bs-name">${k.id === 'default' ? t('engine.keys.default_name') : k.name}${k.id === 'default' && html`<span class="tag">${t('engine.keys.legacy')}</span>`}</div>
       <div class="bs-sub"><span>${t('engine.keys.usage', { req: fmtN(u.requests), tok: fmtN((u.prompt_tokens || 0) + (u.completion_tokens || 0)) })}</span><span>${t('engine.keys.last', { when: ago(msOf(k.last_used_at)) })}</span>${limits.map(l => html`<span>${l}</span>`)}${u.last_error && html`<span class="bs-state err" title=${u.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>
     <button class="icon-btn" aria-label=${t('brain.src.actions')} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
     ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[{ icon: 'edit', label: t('memory.edit_short'), run: () => onEdit(k) }, { icon: 'refresh', label: t('engine.keys.rotate'), run: rotate }, '-', { icon: 'trash', label: t('engine.keys.delete'), danger: true, run: del }]} />`}
