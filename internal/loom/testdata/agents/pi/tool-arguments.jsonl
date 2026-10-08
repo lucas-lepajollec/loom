@@ -1,0 +1,7 @@
+{"frame":{"type":"agent_start"},"events":["turn.started"]}
+{"frame":{"type":"message_start","message":{"role":"assistant","content":[]}},"events":["item.started"]}
+{"frame":{"type":"message_update","assistantMessageEvent":{"type":"toolcall_start","contentIndex":1,"id":"call-1","toolName":"bash"}},"events":["item.started"]}
+{"frame":{"type":"message_update","assistantMessageEvent":{"type":"toolcall_delta","contentIndex":1,"delta":"{\"command\":\"echo fixture\"}"}},"events":["content.delta"]}
+{"frame":{"type":"message_update","assistantMessageEvent":{"type":"toolcall_end","contentIndex":1,"toolCall":{"type":"toolCall","id":"call-1","name":"bash","arguments":{"command":"echo fixture"}}}},"events":["item.updated"]}
+{"frame":{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"toolUse"}},"events":["item.completed"]}
+{"frame":{"type":"agent_settled"},"events":["turn.completed"]}

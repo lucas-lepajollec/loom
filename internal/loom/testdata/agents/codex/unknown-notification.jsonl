@@ -1,0 +1,3 @@
+{"frame":{"method":"turn/started","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"inProgress","items":[],"error":null}}},"events":["turn.started"]}
+{"frame":{"method":"future/notification","params":{"threadId":"fixture-thread","detail":{"new":true}}},"events":["raw"]}
+{"frame":{"method":"turn/completed","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"completed","items":[],"error":null}}},"events":["turn.completed"]}

@@ -35,6 +35,9 @@ func (a acpAgent) available() bool {
 }
 
 func (a acpAgent) unavailableReason() string {
+	if nativeAgentProtocol(a) != "" {
+		return ""
+	}
 	for _, binary := range a.Detect {
 		if _, err := lifecycleLookPath(binary); err != nil {
 			return "Native CLI not installed or not executable: " + binary
@@ -103,9 +106,15 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 		cli, hint = "agy", "agy"
 	}
 	caps = append(caps, "connect")
+	protocol := nativeAgentProtocol(a.agent)
+	if protocol != "" {
+		caps = nativeAgentCaps(a.agent.ID)
+		cli = a.agent.ID
+		hint = a.agent.ID
+	}
 	available := a.agent.available()
 	connected := harnessConnected(a.agent)
-	return RuntimeDescriptor{ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirm sharing the conversation, instructions and selected folder with this harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, MachineID: a.agent.Machine, Connected: &connected, FilesystemPolicies: harnessFilesystemPolicies(a.agent), Machine: machineName(a.agent.Machine)}
+	return RuntimeDescriptor{Compatibility: agentCompatibility(a.agent), ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirm sharing the conversation, instructions and selected folder with this harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, MachineID: a.agent.Machine, Connected: &connected, FilesystemPolicies: harnessFilesystemPolicies(a.agent), Machine: machineName(a.agent.Machine)}
 }
 func joinACPArgs(args []string) string {
 	out := ""
@@ -133,7 +142,13 @@ func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallbac
 	if a.sessions == nil || a.session.ID == "" {
 		return nil, errors.New("discussion and ACP directory required")
 	}
-	result, err := a.sessions.runACP(ctx, a.agent, a.session, turn, emit)
+	var result []Message
+	var err error
+	if nativeAgentProtocol(a.agent) != "" {
+		result, err = a.sessions.runNativeAgent(ctx, a.agent, a.session, turn, emit)
+	} else {
+		result, err = a.sessions.runACP(ctx, a.agent, a.session, turn, emit)
+	}
 	if ctx.Err() != nil {
 		err = ctx.Err()
 	}
@@ -149,6 +164,9 @@ func acpDescription(a acpAgent) string {
 	}
 	if a.ID == "antigravity" {
 		return "Google agent, controlled by Loom in headless mode with native tools, working folder and modes."
+	}
+	if protocol := nativeAgentProtocol(a); protocol != "" {
+		return "Installed coding agent via " + protocol + ", using native authentication, sessions and tools."
 	}
 	return "Coding agent via ACP, using the harness's native authentication and tools."
 }

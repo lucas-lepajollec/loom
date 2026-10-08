@@ -25,11 +25,12 @@ func nativeImportMatches(s RuntimeSession, agent acpAgent, nativeID string) bool
 }
 
 type acpSessionInfo struct {
-	SessionID string `json:"sessionId"`
-	Cwd       string `json:"cwd"`
-	Title     string `json:"title,omitempty"`
-	UpdatedAt string `json:"updatedAt,omitempty"`
-	Imported  string `json:"imported,omitempty"` // Loom discussion already bound to it
+	SessionFile string `json:"sessionFile,omitempty"`
+	SessionID   string `json:"sessionId"`
+	Cwd         string `json:"cwd"`
+	Title       string `json:"title,omitempty"`
+	UpdatedAt   string `json:"updatedAt,omitempty"`
+	Imported    string `json:"imported,omitempty"` // Loom discussion already bound to it
 }
 
 func startACPReader(ctx context.Context, agent acpAgent, cwd string, notify func(acpFrame)) (*acpClient, map[string]any, error) {
@@ -58,6 +59,10 @@ func startACPReader(ctx context.Context, agent acpAgent, cwd string, notify func
 }
 
 func listACPSessions(ctx context.Context, agent acpAgent) ([]acpSessionInfo, error) {
+	if nativeAgentProtocol(agent) != "" {
+		rows, err := listNativeAgentSessions(ctx, agent)
+		return markNativeImports(agent, rows), err
+	}
 	home, _ := os.UserHomeDir()
 	c, caps, err := startACPReader(ctx, agent, home, func(acpFrame) {})
 	if err != nil {
@@ -149,22 +154,34 @@ func readNativeACPSession(ctx context.Context, agent acpAgent, info acpSessionIn
 	if err != nil {
 		return s, errors.New("this session's directory no longer exists on this machine")
 	}
-	b := newReplayBuilder()
-	processDir := cwd
-	if agent.Remote {
-		processDir, _ = os.UserHomeDir()
+	messages := []Message{}
+	turns := []RuntimeTurnRecord{}
+	commands := []map[string]any{}
+	sessionFile := ""
+	if nativeAgentProtocol(agent) != "" {
+		messages, turns, sessionFile, err = readNativeAgentHistory(ctx, agent, info, cwd)
+		if err != nil {
+			return s, err
+		}
+	} else {
+		b := newReplayBuilder()
+		processDir := cwd
+		if agent.Remote {
+			processDir, _ = os.UserHomeDir()
+		}
+		c, _, err := startACPReader(ctx, agent, processDir, b.Notify(agent.ID, agent.Name, info.SessionID))
+		if err != nil {
+			return s, err
+		}
+		defer c.close()
+		var loaded acpSessionResponse
+		if err := c.call(ctx, "session/load", map[string]any{"sessionId": info.SessionID, "cwd": cwd, "mcpServers": []any{}}, &loaded); err != nil {
+			return s, nativeLoadError(err)
+		}
+		time.Sleep(300 * time.Millisecond) // trailing updates sent just after the response
+		messages, turns, commands = b.Finish(agent.ID, agent.Name, info.SessionID)
+
 	}
-	c, _, err := startACPReader(ctx, agent, processDir, b.Notify(agent.ID, agent.Name, info.SessionID))
-	if err != nil {
-		return s, err
-	}
-	defer c.close()
-	var loaded acpSessionResponse
-	if err := c.call(ctx, "session/load", map[string]any{"sessionId": info.SessionID, "cwd": cwd, "mcpServers": []any{}}, &loaded); err != nil {
-		return s, nativeLoadError(err)
-	}
-	time.Sleep(300 * time.Millisecond) // trailing updates sent just after the response
-	messages, turns, commands := b.Finish(agent.ID, agent.Name, info.SessionID)
 	if len(messages) == 0 {
 		return s, errors.New("empty session: nothing to import")
 	}
@@ -184,6 +201,7 @@ func readNativeACPSession(ctx context.Context, agent acpAgent, info acpSessionIn
 	s.Workdir = cwd
 	s.Permission = "ask"
 	s.NativeSessionID, s.NativeRuntimeID = info.SessionID, agent.ID
+	s.NativeSessionFile = sessionFile
 	s.Commands = commands
 	// Same hash as the next send computes, so it resumes the native session.
 	prepared := prepareDiscussion(s, "x")
@@ -192,6 +210,7 @@ func readNativeACPSession(ctx context.Context, agent acpAgent, info acpSessionIn
 	}
 	if fresh {
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
+		s.NativeSessionFile = ""
 		s.Commands = nil
 		if projectID != "" {
 			s.Workdir = ""

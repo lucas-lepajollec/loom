@@ -287,8 +287,11 @@ func EnabledTools(caps Caps) []Tool {
 // Exactly one of {Content, Reasoning, ToolUsed, Stats, Err, DropReasoning} is set
 // per call.
 type StreamEvent struct {
-	ACPEvent DiscussionEvent
-	ACPState *ACPState
+	// Native adapters reconcile authoritative final messages with streamed deltas.
+	AssistantSnapshot *string
+	AgentEvent        *AgentEvent
+	ACPEvent          DiscussionEvent
+	ACPState          *ACPState
 	// Usage is supplied by external adapters only when reported upstream.
 	Usage           *RuntimeUsage
 	HarnessEvent    *HarnessEvent

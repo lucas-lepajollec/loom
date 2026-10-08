@@ -154,6 +154,7 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 			s.FilesystemPolicy = ""
 		}
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
+		s.NativeSessionFile = ""
 		s.Mode = ""
 		s.Commands = nil
 		s.ACPUsage = nil

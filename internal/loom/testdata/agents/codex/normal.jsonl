@@ -1,0 +1,6 @@
+{"frame":{"method":"turn/started","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"inProgress","items":[],"error":null}}},"events":["turn.started"]}
+{"frame":{"method":"item/started","params":{"threadId":"fixture-thread","turnId":"turn-1","item":{"id":"text-1","type":"agentMessage","text":""}}},"events":["item.started"]}
+{"frame":{"method":"item/agentMessage/delta","params":{"threadId":"fixture-thread","turnId":"turn-1","itemId":"text-1","delta":"Hello"}},"events":["content.delta"]}
+{"frame":{"method":"item/reasoning/summaryTextDelta","params":{"threadId":"fixture-thread","turnId":"turn-1","itemId":"reason-1","summaryIndex":0,"delta":"Summary"}},"events":["content.delta"]}
+{"frame":{"method":"thread/tokenUsage/updated","params":{"threadId":"fixture-thread","turnId":"turn-1","tokenUsage":{"total":{"inputTokens":10,"outputTokens":3,"cachedInputTokens":1,"reasoningOutputTokens":1,"totalTokens":13},"last":{"inputTokens":10,"outputTokens":3,"cachedInputTokens":1,"reasoningOutputTokens":1,"totalTokens":13},"modelContextWindow":1000}}},"events":["context.updated"]}
+{"frame":{"method":"turn/completed","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"completed","items":[],"error":null}}},"events":["turn.completed"]}

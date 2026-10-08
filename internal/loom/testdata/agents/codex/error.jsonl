@@ -1,0 +1,3 @@
+{"frame":{"method":"turn/started","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"inProgress","items":[],"error":null}}},"events":["turn.started"]}
+{"frame":{"method":"error","params":{"threadId":"fixture-thread","turnId":"turn-1","willRetry":false,"error":{"message":"fixture provider failure","codexErrorInfo":null,"additionalDetails":null}}},"events":["error"]}
+{"frame":{"method":"turn/completed","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"failed","items":[],"error":{"message":"fixture provider failure","codexErrorInfo":null,"additionalDetails":null}}}},"events":["turn.completed"]}

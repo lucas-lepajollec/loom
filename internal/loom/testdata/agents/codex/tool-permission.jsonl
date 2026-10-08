@@ -1,0 +1,3 @@
+{"frame":{"method":"turn/started","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"inProgress"}}},"events":["turn.started"]}
+{"frame":{"id":23,"method":"item/permissions/requestApproval","params":{"threadId":"fixture-thread","turnId":"turn-1","itemId":"permissions-1","startedAtMs":1,"cwd":"/fixture","permissions":{"network":{"enabled":true}}}},"events":["request.opened","request.resolved"],"answer":{"decision":"allow_once"},"response":{"result":{"permissions":{"network":{"enabled":true}},"scope":"turn"}}}
+{"frame":{"method":"turn/completed","params":{"threadId":"fixture-thread","turn":{"id":"turn-1","status":"completed"}}},"events":["turn.completed"]}

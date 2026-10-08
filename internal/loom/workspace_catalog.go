@@ -2,6 +2,7 @@ package loom
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -106,7 +107,26 @@ func modelCatalogSources(providers []CloudProvider, includeEngineSources bool) [
 				if name == "" {
 					name = m.Value
 				}
-				add(ModelChoice{ID: d.ID + ":" + m.Value, Name: name, Kind: "harness", ProviderName: d.Name, Model: m.Value, RuntimeID: d.ID, Ready: ready})
+				choice := ModelChoice{ID: d.ID + ":" + m.Value, Name: name, Kind: "harness", ProviderName: d.Name, Model: m.Value, RuntimeID: d.ID, Ready: ready}
+				if d.ID == "codex" {
+					for _, raw := range probe.NativeModels {
+						var native struct {
+							Model   string `json:"model"`
+							Default string `json:"defaultReasoningEffort"`
+							Efforts []struct {
+								ID string `json:"reasoningEffort"`
+							} `json:"supportedReasoningEfforts"`
+						}
+						if json.Unmarshal(raw, &native) == nil && native.Model == m.Value {
+							choice.DefaultEffort = native.Default
+							for _, e := range native.Efforts {
+								choice.ReasoningEfforts = append(choice.ReasoningEfforts, e.ID)
+							}
+							break
+						}
+					}
+				}
+				add(choice)
 			}
 			// Loom's local models and compatible cloud providers, passed at launch.
 			if includeEngineSources {

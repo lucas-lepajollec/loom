@@ -135,6 +135,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/workspace/codex/connect", handleCodexConnect)
 	api("/api/runtimes", handleACPRuntimes)
 	api("/api/runtime/sessions/approval", handleACPApproval)
+	api("/api/workspace/sessions/{id}/requests/{request_id}", handleAgentRequest)
+	api("/api/runtimes/{id}/compat", handleRuntimeCompatibility)
 	api("/api/runtime/sessions/files", handleACPFiles)
 	api("/api/runtime/sessions/diff", handleACPDiff)
 	api("/api/runtime/sessions/tool", handleRuntimeSessionTool)

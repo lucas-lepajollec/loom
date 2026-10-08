@@ -24,23 +24,24 @@ type QuotaReader[Snapshot any] interface {
 }
 
 type RuntimeDescriptor struct {
-	FilesystemPolicies []string `json:"filesystem_policies,omitempty"`
-	MachineID          string   `json:"machine_id,omitempty"`
-	Connected          *bool    `json:"connected,omitempty"`
-	Logo               string   `json:"logo,omitempty"`
-	Available          *bool    `json:"available,omitempty"`
-	InstallHint        string   `json:"install_hint,omitempty"`
-	Docs               string   `json:"docs,omitempty"`
-	Custom             bool     `json:"custom,omitempty"`
-	Machine            string   `json:"machine,omitempty"` // remote machine name, for harnesses running elsewhere
-	ID                 string   `json:"id"`
-	Name               string   `json:"name"`
-	Kind               string   `json:"kind"`
-	Description        string   `json:"description"`
-	CLI                string   `json:"cli"`
-	Consent            string   `json:"consent"`
-	Implemented        bool     `json:"implemented"`
-	Capabilities       []string `json:"capabilities"`
+	Compatibility      *CompatibilityRecord `json:"compatibility,omitempty"`
+	FilesystemPolicies []string             `json:"filesystem_policies,omitempty"`
+	MachineID          string               `json:"machine_id,omitempty"`
+	Connected          *bool                `json:"connected,omitempty"`
+	Logo               string               `json:"logo,omitempty"`
+	Available          *bool                `json:"available,omitempty"`
+	InstallHint        string               `json:"install_hint,omitempty"`
+	Docs               string               `json:"docs,omitempty"`
+	Custom             bool                 `json:"custom,omitempty"`
+	Machine            string               `json:"machine,omitempty"` // remote machine name, for harnesses running elsewhere
+	ID                 string               `json:"id"`
+	Name               string               `json:"name"`
+	Kind               string               `json:"kind"`
+	Description        string               `json:"description"`
+	CLI                string               `json:"cli"`
+	Consent            string               `json:"consent"`
+	Implemented        bool                 `json:"implemented"`
+	Capabilities       []string             `json:"capabilities"`
 }
 
 type RuntimeTurn[Message, Caps any] struct {

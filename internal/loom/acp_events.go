@@ -2,6 +2,7 @@ package loom
 
 import (
 	"encoding/json"
+	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,10 +12,12 @@ import (
 
 func (p *acpBinding) handleNotification(f acpFrame) {
 	if f.Method != "session/update" {
+		p.publishRawACP(f)
 		return
 	}
 	params, err := acpParseUpdate(f.Params)
 	if err != nil {
+		p.publishRawACP(f)
 		return
 	}
 	p.mu.Lock()
@@ -51,6 +54,7 @@ func (p *acpBinding) handleNotification(f acpFrame) {
 	e := acpUpdateEvent(u, p.tools)
 	if e == nil {
 		p.mu.Unlock()
+		p.publishRawACP(f)
 		return
 	}
 	var filesEvent DiscussionEvent
@@ -74,6 +78,7 @@ func (p *acpBinding) handleNotification(f acpFrame) {
 		p.state.Commands, _ = e["commands"].([]map[string]any)
 	}
 	p.mu.Unlock()
+	e["agent_event"] = canonicalACPEvent(p.agentID, f, e)
 	p.publish(e)
 	if filesEvent != nil {
 		p.publish(filesEvent)
@@ -184,4 +189,39 @@ func piTurnError(since time.Time) string {
 		return ""
 	}
 	return ""
+}
+
+func (p *acpBinding) publishRawACP(f acpFrame) {
+	e := AgentEvent{Type: "raw", Runtime: p.agentID, Method: f.Method, Raw: agent.BoundedJSON(f.Raw), Payload: agent.BoundedJSON(f.Params)}
+	p.publish(DiscussionEvent{"type": "tool_end", "tool": map[string]any{"id": "raw:" + newSessionID(), "kind": "other", "title": f.Method, "status": "completed", "output": string(e.Payload)}, "agent_event": e})
+}
+func canonicalACPEvent(name string, f acpFrame, d DiscussionEvent) AgentEvent {
+	e := AgentEvent{Type: "raw", Runtime: name, Method: f.Method, Raw: agent.BoundedJSON(f.Raw), Payload: agent.JSON(d)}
+	switch d["type"] {
+	case "text_delta", "reasoning_delta":
+		e.Type = "content.delta"
+		e.Stream = "assistant_text"
+		if d["type"] == "reasoning_delta" {
+			e.Stream = "reasoning_text"
+		}
+		e.Delta, _ = d["text"].(string)
+	case "tool_start", "tool_delta", "tool_end":
+		e.Type = "item.started"
+		if d["type"] == "tool_delta" {
+			e.Type = "item.updated"
+		}
+		if d["type"] == "tool_end" {
+			e.Type = "item.completed"
+		}
+		tool, _ := d["tool"].(map[string]any)
+		e.ItemID, _ = tool["id"].(string)
+		e.ItemType = "tool_call"
+		e.Payload = agent.JSON(tool)
+	case "plan":
+		e.Type = "item.updated"
+		e.ItemType = "plan"
+	case "usage":
+		e.Type = "context.updated"
+	}
+	return e
 }
