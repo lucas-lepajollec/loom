@@ -187,7 +187,7 @@ func TestCloudSessionsIsolationConsentPersistenceAndReplay(t *testing.T) {
 	awaitCloudFinished(t, m, b.ID)
 	personal := <-requests
 	if len(personal) != 1 || personal[0].Role != "user" {
-		t.Fatal("project context leaked into personal chat")
+		t.Fatalf("project context leaked into personal chat: %+v", personal)
 	}
 	restarted := newRuntimeSessions()
 	if len(restarted.list()) != 2 {

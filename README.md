@@ -77,6 +77,11 @@ can edit directly; the encrypted fallback remains available. See the
 
 Select Brain sources for a project or expose its authenticated MCP tools to harnesses at **`/mcp/brain`**. Loom must remain running; the browser can be closed. Personal sources require explicit selection and opt-in. See [Brain](docs/brain.md) and [MCP configuration](docs/mcp-files.md).
 
+Native agents can also read and write shared Markdown memory outside Loom after
+an explicit `POST /api/brain/agents` opt-in. Claude Code uses native auto-memory
+settings; Codex, OpenCode, Gemini CLI and documented Pi installations receive
+marked global instructions. See [Agents linked to the brain](docs/brain.md#agents-linked-to-the-brain).
+
 External Claude Code, Codex, OpenCode and Gemini CLI sessions can use one `loom` MCP entry at **`/mcp/loom`** for Brain, memory and all enabled Loom MCP servers. Explicit registration and token rotation use `/api/mcp/gateway` and `/api/mcp/gateway/token`; the dedicated gateway token cannot access control APIs. Secret-free MCP definitions travel with the primary Brain in `.loom/mcp.json` and import disabled. See [gateway and portable MCP APIs](docs/brain.md#one-loom-mcp-gateway-per-harness).
 
 <img src="docs/screenshots/brain.png" alt="Brain search, semantic indexing and distilled memory" width="1000" />

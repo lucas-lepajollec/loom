@@ -24,8 +24,15 @@ func FileMemoryContext(global MemoryFiles, project *MemoryFiles, query string, t
 	}
 	profileRemaining := 1500
 	for _, scope := range scopes {
-		index, _ := BoundMemoryIndex(scope.files.Index)
-		out = append(out, FileContext{scope.scope, "MEMORY.md", "Memory index (" + scope.scope + ", " + scope.files.Path + "):\n" + index, "session memory index"})
+		// An empty index is noise; the folder path only helps agents that can
+		// open files (Loom-held chats, topics=true, get topic text instead).
+		if index, _ := BoundMemoryIndex(scope.files.Index); strings.TrimSpace(index) != "" {
+			where := ""
+			if !topics {
+				where = ", " + scope.files.Path
+			}
+			out = append(out, FileContext{scope.scope, "MEMORY.md", "Memory index (" + scope.scope + where + "):\n" + index, "session memory index"})
+		}
 		for _, m := range scope.files.Items {
 			if m.Type == "user" && !m.Malformed && profileRemaining > 0 {
 				header := "User memory: " + m.Name + "\n"

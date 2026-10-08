@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -314,6 +315,20 @@ func TestWorkspaceContinueRetainsTranscriptAndProject(t *testing.T) {
 			if projectMode == "same" && next.ProjectID != s.ProjectID || projectMode == "new" && (next.ProjectID == "" || next.ProjectID != old.ProjectID) {
 				t.Fatal("project attachment", old.ProjectID, next.ProjectID)
 			}
+			// Indexes are only injected when they list something.
+			store, err := theBrain().memoryStore()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.Write(brain.MemoryWrite{Scope: "global", Name: "Profile", Description: "who the user is", Type: "user", Text: "Prefers short answers."}, nil); err != nil {
+				t.Fatal(err)
+			}
+			if next.ProjectID != "" {
+				if _, err := store.Write(brain.MemoryWrite{Scope: "project:" + next.ProjectID, Name: "Release", Description: "how to release", Type: "project", Text: "Tag then publish."}, nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			next.FrozenContext, next.FrozenRevision = "", ""
 			c := discussionContext(next)
 			globalIndex, projectIndex := false, false
 			for _, item := range c.Items {
@@ -331,10 +346,6 @@ func TestWorkspaceContinueRetainsTranscriptAndProject(t *testing.T) {
 				t.Fatal("memory exceeded budget")
 			}
 			transcriptJobs.Wait()
-			store, err := theBrain().memoryStore()
-			if err != nil {
-				t.Fatal(err)
-			}
 			if path, err := store.DiscussionPath(s.ID); err != nil || path == "" {
 				t.Fatal("original transcript missing", err)
 			}

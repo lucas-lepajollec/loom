@@ -16,6 +16,13 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   summaries, core-file mirrors and their obsolete endpoints. Backend only;
   UI and agent wiring are separate.
 
+- Opt-in local agent links to primary-brain Markdown memory through
+  `GET/POST /api/brain/agents`: Claude Code native auto-memory settings and
+  marked global instructions for Codex, OpenCode, Gemini CLI and documented Pi
+  installations. Owned entries have one-time backups, clean removal, project
+  memory mappings and automatic re-pointing; remote/paired agents remain
+  unsupported. Backend only.
+
 - Paired-machine terminals through the independent node `terminal` module,
   enabled by default (`loom node init --no-terminal` disables it). Machine-token
   WebSockets start a real PTY without SSH, with input, resize, exit codes,

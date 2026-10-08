@@ -327,6 +327,15 @@ func handleRuntimeSessionRewind(w http.ResponseWriter, r *http.Request) {
 
 // Native agents read the same files; gateway tools provide access when file
 // tools are unavailable. Background consolidation is Loom's own responsibility.
+// memoryProtocol is for agents that can act on memory (files or the loom MCP
+// tools); Loom-held chats have no such tools and Pi has no MCP.
 func memoryProtocol(s RuntimeSession) string {
+	registered, ok := registeredRuntimes.lookup(s.RuntimeID)
+	if !ok {
+		return ""
+	}
+	if _, acp := registered.(*acpAdapter); !acp || s.RuntimeID == "pi" || strings.HasSuffix(s.RuntimeID, "-pi") {
+		return ""
+	}
 	return "Memory is stored as Markdown in the second brain. Read MEMORY.md indexes above at session start, then relevant topic files on demand using file access or memory_read. Use memory_write and memory_delete to keep indexes consistent. Types: user, feedback, project, reference. Feedback/project memories include **Why:** and **How to apply:**. Prefer updating existing files to near-duplicates. Never store secrets or facts derivable from code/git. Use search_discussions for verbatim recall."
 }

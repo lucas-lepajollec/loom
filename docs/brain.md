@@ -804,3 +804,152 @@ Each connected second brain has one role:
 
 The role is stored on the source (`primary`, `secondary`) in `sources.json`;
 existing sources keep their behaviour (Context) until changed.
+
+
+## User profile
+
+One global `semantic` item tagged `user-profile` describes the user (who they
+are, how they work, preferences). The context engine always includes it first,
+truncated to the semantic budget rather than dropped. Brain › Memory edits it
+as **You**; agents update it with `update_memory` instead of creating another.
+
+## Automatic cognitive continuity
+
+Continuity has an **always-on deterministic layer**. At every workspace or native
+Loom turn end, an asynchronous worker builds a discussion handoff without model
+calls, network access or an installed engine. Bursts coalesce per discussion.
+It uses the discussion title, first user message and last two requests (300
+characters each), the latest ACP plan and its statuses, up to 20 deduplicated
+reported edit/write/create targets, cumulative command count and last five
+command titles, and failures from the latest turn. Paths are relative to the
+workspace when possible. Reported write targets are not verified file diffs.
+
+The last completed turn's final assistant message supplies the recap (up to 800
+characters, cut at a sentence boundary where possible). Incomplete turns retain
+the previous completed recap and record their errors. Open items are unfinished
+plan entries and up to three questions from the latest assistant message. The
+fixed Markdown headings are `Goal`, `Plan`, `Done`, `Recap` and `Open`; values
+retain the discussion's language. Runtime, model and UTC time form the footer.
+The full handoff fits 2,000 Unicode characters, reducing Done details before the
+recap. Source text is quoted data, with HTML and code fences removed and
+whitespace collapsed; it is never a grant of instructions or permissions.
+
+Each discussion has a working item scoped to `task:<discussion_id>`, tagged
+`discussion-state` and `handoff`, with discussion provenance. Deterministic
+updates overwrite that item in place without creating supersession history.
+A small encrypted Loom-store record keeps incremental first/request/plan/file/
+command state; later updates read only the latest turn and stored state, never
+rescan the transcript. Vault locking applies to both records and memory items.
+
+A project also has a working `project-state` item, rebuilt from its three most
+recently active discussions, newest first (ties by ID). Each entry includes its
+title, first request, open items, recap's first sentence and `discussion:<id>`
+marker. It fits 2,500 characters and updates in place. When a model refinement
+is newer than those discussions, its bounded base text is retained above one
+`Recent discussions` section; later discussion activity makes stale refinement
+ineligible. The original refinement text is retained separately from aggregation.
+
+Project state is pinned even on a new discussion's very first turn. A continuing
+discussion adds its own handoff only from 20 turns onward, avoiding duplication
+of short transcripts. Project and discussion pins share the working budget;
+large pins are truncated instead of dropped. User-profile priority, scoped
+retrieval, supersession, deduplication and the total memory budget still apply.
+A project's two latest model-generated episodic summaries remain preferred
+within the episodic budget.
+
+**Refine with a model** is a separate opt-in layer, off by default. The existing
+`enabled` setting controls only this layer; disabling it never disables
+handoffs. With `loaded_only:true` (the default), local refinement uses an
+already-loaded model and skips if none is loaded. Automatic refinement waits
+for ten idle minutes by default and at least two new user messages or 1,500
+characters. A cancellable scan runs at startup and once a minute, with one
+model operation at a time. It deduplicates native archives bound to discussions,
+requires a new user message since the saved checkpoint, waits while generation
+or preparation is active, and discards results when the discussion changes.
+
+Settings live in `LOOM_HOME/brain/continuity.json`. An empty provider uses Loom's
+chat engine; `model` can override its request model. A provider ID selects an
+existing connected provider and its own credential. Cloud providers and
+non-loopback linked engines require stored `consent:true`. Credentials never
+enter Brain settings or memory files. Refinement costs model time or provider
+tokens; deterministic handoff construction costs neither. Pinned handoffs, like
+other context, count toward the selected executor's input context budget.
+
+A refinement receives the last 24 KiB of new user/assistant text, the previous
+episodic summary and current state, all marked untrusted. Strict JSON validation
+allows one retry; the operation has a two-minute timeout and lifecycle
+cancellation. It writes an episodic `session-summary` in the project or global
+scope and refined working state, retaining supersession history. For an unbound
+discussion with a handoff, refined working state uses `discussion-refinement`
+without replacing the deterministic handoff. Durable facts become review
+candidates. Successful model checkpoints in `brain_continuity` survive restart
+and participate in vault encryption.
+
+All HTTP endpoints use Brain authentication, vault checks and
+`Cache-Control: no-store`; timestamps are Unix milliseconds:
+
+| Method / path | Input | Output |
+| --- | --- | --- |
+| `GET /api/brain/continuity/handoff` | `?discussion_id=…` | `{"discussion_id":"…","text":"…","updated_at":0}` |
+| `GET /api/brain/continuity` | — | `{"enabled":false,"idle_minutes":10,"provider_id":"","model":"","consent":false,"loaded_only":true}` |
+| `POST /api/brain/continuity` | All settings except optional `loaded_only` (defaults true); idle minutes 1–1440 | Saved settings object |
+| `POST /api/brain/continuity/run` | `{"discussion_id":"…"}` | `{"discussion_id":"…","at":0,"summary_id":"…","state_id":"…","skipped_reason":""}` |
+| `GET /api/brain/continuity/status` | — | `{"running":false,"last_run":0,"last_error":"","recent":[]}` |
+
+The read-only Brain MCP tool `get_handoff` is available through `/mcp/brain` and
+`/mcp/loom`. Pass exactly one of `{"discussion_id":"…"}` or `{"project_id":"…"}`.
+It returns `{"discussion_id":"…","text":"…","updated_at":0}` or
+`{"project_id":"…","text":"…","updated_at":0}`. Missing handoffs return an
+error; reads never generate or call a network service.
+
+Model run-now is synchronous and bypasses the idle/minimum thresholds, but still
+requires enablement, a new user message, no generation and destination consent.
+Skips return 200 with empty item IDs and a reason; failures use `{ok:false,error}`.
+Concurrent model runs are rejected. Status keeps the latest 20 model observations
+in memory, newest first, and does not describe deterministic handoff activity.
+
+The model response schema is exactly:
+
+```json
+{"summary":"…","state":{"objective":"…","done":["…"],"next":["…"],"open":["…"]},"facts":[{"class":"semantic","text":"…"}]}
+```
+
+Fact class accepts `semantic`, `procedural` or `reflex`; arrays may be empty.
+Summary, rendered state and each fact fit 8 KiB, with up to 32 entries per array.
+
+## Agents linked to the brain
+
+Explicit local opt-in links agents to the writable primary brain's Markdown
+memory: `Memory/MEMORY.md` plus topic files globally, and
+`Projects/<slug>/memory/MEMORY.md` plus topic files per project. Native sessions
+can use these files outside Loom, without its server running.
+
+[Claude Code](https://code.claude.com/docs/en/memory) uses `autoMemoryDirectory`
+in `~/.claude/settings.json` and local projects' `.claude/settings.local.json`;
+Loom adds local ignore rules and never edits repository `settings.json` or
+`AGENTS.md`. [Codex](https://developers.openai.com/codex/guides/agents-md)
+(`$CODEX_HOME/AGENTS.md`, default `~/.codex/AGENTS.md`),
+[OpenCode](https://opencode.ai/docs/rules/) (`~/.config/opencode/AGENTS.md`),
+[Gemini CLI](https://geminicli.com/docs/cli/tutorials/memory-management/)
+(`~/.gemini/GEMINI.md`) and Pi (only with installed documentation identifying
+its global instructions file) receive one short marked block. It explains
+session-start reads, Claude-format frontmatter, Why/How guidance, index updates
+and avoiding secrets/duplicates. `.loom/brain.json` preserves other metadata
+and records `agent_projects:{"project-id":{slug,directory,memory}}`, with stable
+project-ID slugs and brain-relative memory paths.
+
+`GET /api/brain/agents` and successful POSTs return
+`{memory_dir,agents:[{id,name,supported,linked,file,note}]}`.
+POST takes `{"id":"codex","enabled":true}` (or `false`); the toggle is consent.
+Local IDs are `claude-code`, `codex`, `opencode`, `gemini`, `pi`. `file` is the
+global native config/instructions path; `memory_dir` is the absolute global
+folder, or `""` without an available primary. Remote/paired installation runtime
+IDs report `supported:false,note:"local only for now"`. Existing Brain auth,
+strict JSON, no-store and `{ok:false,error}` error rules apply.
+
+One-time `.loom-backup` files and ownership checks preserve user text/keys.
+Unlink restores previous Claude settings and retains memory/backups; edited
+entries or foreign markers are refused. Source/project changes re-point links
+immediately, with reconciliation every three minutes. Removing the primary
+clears owned entries but retains opt-in. Conflicts return an error after the
+source/project change is saved. Native trust and access rules still apply.
