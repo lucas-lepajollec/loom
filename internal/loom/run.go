@@ -175,7 +175,7 @@ Engine (loom-engine):
                                 (HOST + firewall rule on Windows)
 
 Engine node (Linux GPU machine):
-  node init|serve|install|update engine-only API and optional user service (see docs/engine-node.md)
+  node init|serve|pair|install|update engine-only API, pairing code and optional user service (see docs/engine-node.md)
 
 Interface (loom-ui):
   ui [start|stop|restart|status]  manage the interface service

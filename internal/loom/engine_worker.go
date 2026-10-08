@@ -38,7 +38,7 @@ func cmdNode(args []string) error {
 		return errors.New("run loom node as the engine user, without sudo")
 	}
 	if len(args) == 0 {
-		return errors.New("usage: loom node init|serve|install|update|capabilities [--home DIR] [--listen HOST:PORT] [--bin PATH] [--models DIR]")
+		return errors.New("usage: loom node init|serve|pair|install|update|capabilities [--home DIR] [--listen HOST:PORT] [--bin PATH] [--models DIR]")
 	}
 	action := args[0]
 	if action == "capabilities" && len(args) == 1 {
@@ -57,7 +57,7 @@ func cmdNode(args []string) error {
 	if flags.NArg() != 0 {
 		return errors.New("unexpected node arguments")
 	}
-	if action != "init" && action != "serve" && action != "install" && action != "update" {
+	if action != "init" && action != "serve" && action != "pair" && action != "install" && action != "update" {
 		return errors.New("unknown node action")
 	}
 	if action != "update" && *check {
@@ -102,6 +102,12 @@ func cmdNode(args []string) error {
 		return initEngineWorker(*bin, *models)
 	case "install":
 		return installEngineWorker(abs, *listen)
+	case "pair":
+		code, err := issueNodePairCode(false, time.Now())
+		if err == nil {
+			printNodePairCode(code)
+		}
+		return err
 	case "update":
 		if *check {
 			return cmdUpdate([]string{"--check"})
@@ -278,9 +284,14 @@ func newEngineWorkerMux(token string) *http.ServeMux {
 		if !workspaceMethod(w, r, http.MethodGet) {
 			return
 		}
-		host, _ := os.Hostname()
-		sendJSON(w, 200, map[string]any{"ok": true, "hostname": host, "version": Version, "role": "engine-node", "engine": true, "v1_exposed": true, "v1_same_origin": true, "api_key": readAPIKey(), "capabilities": []string{"llama.cpp", "vllm", "models", "presets", "downloads", "engine-updates", "node-updates", "startup", "local-benchmarks"}})
+		node, err := describeNode()
+		if err != nil {
+			sendJSON(w, 503, map[string]any{"ok": false, "error": "node identity unavailable"})
+			return
+		}
+		sendJSON(w, 200, map[string]any{"ok": true, "id": node.ID, "name": node.Name, "hostname": node.Name, "version": Version, "role": node.Role, "modules": node.Modules, "handshake": node.Handshake, "engine": true, "v1_exposed": true, "v1_same_origin": true, "api_key": readAPIKey(), "capabilities": []string{"llama.cpp", "vllm", "models", "presets", "downloads", "engine-updates", "node-updates", "startup", "local-benchmarks"}})
 	})
+	mux.HandleFunc("/api/node/pair", controlRequests("/api/node/pair", handleNodePair))
 	// A node's inference credential is independent from its management token.
 	inference := func(w http.ResponseWriter, r *http.Request) {
 		key := readAPIKey()
@@ -375,6 +386,18 @@ func serveEngineWorker(addr string) error {
 		return err
 	}
 	defer ln.Close()
+	code, err := issueNodePairCode(true, time.Now())
+	if err != nil {
+		return err
+	}
+	printNodePairCode(code)
+	discovery, err := startNodeDiscovery(ln.Addr().String())
+	if err != nil {
+		fmt.Printf("[loom node] LAN discovery unavailable: %v\n", err)
+	}
+	if discovery != nil {
+		defer discovery.Close()
+	}
 	host, port, _ := net.SplitHostPort(addr)
 	webBound.host, webBound.port = host, func() int { n, _ := strconv.Atoi(port); return n }()
 	cleanStalePartFiles()
