@@ -80,8 +80,14 @@ func (m *MCPManager) Invalidate(name string) {
 	// Une session encore en cours de connexion a sess == nil : c'est sa goroutine
 	// qui refermera ce qu'elle vient d'ouvrir, en constatant qu'elle n'est plus
 	// dans le pool.
-	if s != nil && s.sess != nil {
-		_ = s.sess.Close()
+	if s != nil {
+		select {
+		case <-s.ready:
+			if s.sess != nil {
+				_ = s.sess.Close()
+			}
+		default:
+		}
 	}
 }
 
@@ -93,8 +99,12 @@ func (m *MCPManager) CloseAll() {
 	m.registry = map[string]mcpToolRef{}
 	m.mu.Unlock()
 	for _, s := range sessions {
-		if s.sess != nil {
-			_ = s.sess.Close()
+		select {
+		case <-s.ready:
+			if s.sess != nil {
+				_ = s.sess.Close()
+			}
+		default:
 		}
 	}
 }
@@ -148,11 +158,11 @@ func (m *MCPManager) Ensure(name string, cfg resources.MCPServerConfig) *MCPSess
 		}
 	}
 	m.mu.Unlock()
-	close(s.ready)
 	if stale && s.sess != nil {
 		_ = s.sess.Close()
 		s.sess = nil
 	}
+	close(s.ready)
 	return s
 }
 
@@ -282,6 +292,11 @@ func (m *MCPManager) PromptLine() string {
 	defer m.mu.Unlock()
 	var names []string
 	for name, s := range m.sessions {
+		select {
+		case <-s.ready:
+		default:
+			continue
+		}
 		if s.sess != nil && len(s.tools) > 0 {
 			names = append(names, fmt.Sprintf("%s (%d)", name, len(s.tools)))
 		}

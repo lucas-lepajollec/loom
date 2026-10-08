@@ -125,6 +125,9 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		definitions = map[string]MCPServerConfig{}
 	}
 	encoded, _ := json.Marshal(definitions)
+	if !agent.Remote {
+		encoded = append(encoded, []byte(gatewayRevision(agent.ID))...)
+	}
 	// A Loom model is passed in the launch environment: changing it (or going
 	// back to a native model) restarts the adapter, the native session resumes.
 	env := acpLaunchEnv(agent.ID, s.Model)
@@ -590,6 +593,9 @@ func acpSessionMCPDefinitions(s RuntimeSession) (map[string]MCPServerConfig, err
 		selected = harnessMCPBinding(s.RuntimeID)
 	}
 	if selected == nil {
+		if gatewayRegistered(s.RuntimeID) {
+			return map[string]MCPServerConfig{}, nil
+		}
 		// All servers enabled in Loom; disabled ones are never passed.
 		out := map[string]MCPServerConfig{}
 		for name, d := range definitions {
