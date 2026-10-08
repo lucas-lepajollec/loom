@@ -81,9 +81,9 @@ function Meters({ m }) {
   const row = (label, value, sub, title) => html`<div class="mmeter" title=${title || ''}><span>${label}</span><i class="mmeter-bar"><b style=${`width:${value}%`} class=${value >= 90 ? 'hot' : value >= 70 ? 'warm' : ''}></b></i><em>${sub}</em></div>`;
   return html`<div class="mmeters">
     ${row(t('machines.metrics.cpu'), Math.round(m.cpu || 0), Math.round(m.cpu || 0) + ' %', m.cores ? t('machines.metrics.cores', { n: m.cores }) : '')}
-    ${row(t('machines.metrics.ram'), pct(m.ram_used, m.ram_total), gb(m.ram_used) + ' / ' + gb(m.ram_total) + ' ' + t('common.units.gb'))}
-    ${gpu && row(t('machines.metrics.gpu'), pct(gpu.vram_used, gpu.vram_total), gb(gpu.vram_used) + ' / ' + gb(gpu.vram_total) + ' ' + t('common.units.gb'), gpu.name + ' · ' + Math.round(gpu.util || 0) + ' %')}
-    ${m.disk && m.disk.total ? row(t('machines.metrics.disk'), pct(m.disk.used, m.disk.total), gb(m.disk.used) + ' / ' + gb(m.disk.total) + ' ' + t('common.units.gb'), m.disk.path) : ''}
+    ${row(t('machines.metrics.ram'), pct(m.ram_used, m.ram_total), gb(m.ram_used) + ' / ' + gb(m.ram_total) + t('common.units.gb'))}
+    ${gpu && row(t('machines.metrics.gpu'), pct(gpu.vram_used, gpu.vram_total), gb(gpu.vram_used) + ' / ' + gb(gpu.vram_total) + t('common.units.gb'), gpu.name + ' · ' + Math.round(gpu.util || 0) + ' %')}
+    ${m.disk && m.disk.total ? row(t('machines.metrics.disk'), pct(m.disk.used, m.disk.total), gb(m.disk.used) + ' / ' + gb(m.disk.total) + t('common.units.gb'), m.disk.path) : ''}
   </div>`;
 }
 
