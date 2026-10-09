@@ -37,7 +37,7 @@ function composer(mode = 'thread', accepted = false) {
   let stateIndex = 0, refIndex = 0, tree;
   const env = { t: french, html: htm.bind((type, props, ...children) => ({ type, props: props || {}, children })),
     configOptions, modeOptions, TextEncoder, setTimeout: f => f(), attachPaste, pastedMessage, downloadPaste() {}, MAX_MESSAGE_BYTES,
-    runtimeCaps: () => [], currentExec: () => ({ name: 'Fixture' }), slashEntries: () => [],
+    runtimeCaps: () => [], runtimeKind: () => 'harness', get: async () => ({}), Tip: 'Tip', currentExec: () => ({ name: 'Fixture' }), slashEntries: () => [],
     chat: { get: () => ({ mode, busy: false, session: { runtime_id: 'pi', workdir: '/fixture' } }) },
     app: { get: () => ({ status: { health: true } }) },
     useStore: (store, select) => select(store.get()), useEffect() {},
@@ -85,4 +85,14 @@ test('oversized paste is refused explicitly without deleting existing draft or a
   assert.equal(f.states[0], 'keep');
   assert.equal(f.states[1].length, 0);
   assert.equal(f.notices.length, 1);
+});
+
+test('loom-file blocks from cloud and agent turns become file pills', () => {
+  const cloud = splitPastedMessage('Résume\n\n<loom-file name="notes.md">\n# Titre\nligne\n</loom-file>\n\n<loom-file name="a.png" size="12" omitted="binary" />');
+  assert.equal(cloud.text, 'Résume');
+  assert.deepEqual(cloud.files.map(f => [f.name, f.content]), [['notes.md', '# Titre\nligne'], ['a.png', null]]);
+  const agent = splitPastedMessage('Regarde\n\nAttached files (read them from these paths):\n<loom-file name="x.log" path="/tmp/u/x.log" size="3" />');
+  assert.equal(agent.text, 'Regarde');
+  assert.deepEqual(agent.files.map(f => f.name), ['x.log']);
+  assert.equal(splitPastedMessage('plain <loom-file is text').files.length, 0);
 });

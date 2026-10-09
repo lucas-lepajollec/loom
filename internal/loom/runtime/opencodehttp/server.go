@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -26,6 +27,10 @@ type Server struct {
 	cmd       *exec.Cmd
 	done      chan struct{}
 	newClient func(string, string, string) *Client
+	envSig    string
+	// Busy reports turns in flight: a changed configuration waits for them
+	// instead of killing the shared server under a running answer.
+	Busy func() bool
 }
 
 func (s *Server) Client(ctx context.Context, argv []string, env []string) (*Client, error) {
@@ -37,7 +42,12 @@ func (s *Server) Client(ctx context.Context, argv []string, env []string) (*Clie
 			s.client = nil
 			s.cmd = nil
 		default:
-			return s.client, nil
+			if envSignature(env) == s.envSig || (s.Busy != nil && s.Busy()) {
+				return s.client, nil
+			}
+			acp.KillProcessGroup(s.cmd)
+			<-s.done
+			s.client, s.cmd = nil, nil
 		}
 	}
 	if len(argv) == 0 {
@@ -48,8 +58,8 @@ func (s *Server) Client(ctx context.Context, argv []string, env []string) (*Clie
 		return nil, err
 	}
 	cmd := exec.Command(argv[0], append(argv[1:], "serve", "--hostname", "127.0.0.1", "--port", "0", "--mdns=false")...)
-	// Native credentials/config remain CLI-owned. No Loom provider keys are
-	// exported into this shared process; per-discussion keys need scoped routing.
+	// Native credentials/config stay CLI-owned. The caller adds Loom's models
+	// and their keys only when the user enabled Loom models for OpenCode.
 	cmd.Env = append(os.Environ(), env...)
 	cmd.Env = append(cmd.Env, "OPENCODE_SERVER_USERNAME=loom", "OPENCODE_SERVER_PASSWORD="+hex.EncodeToString(secret))
 	acp.ProcessGroup(cmd)
@@ -118,8 +128,13 @@ func (s *Server) Client(ctx context.Context, argv []string, env []string) (*Clie
 	if resp.StatusCode != 401 {
 		return fail(errors.New("OpenCode server did not enforce authentication"))
 	}
-	s.client, s.cmd, s.done = c, cmd, done
+	s.client, s.cmd, s.done, s.envSig = c, cmd, done, envSignature(env)
 	return c, nil
+}
+
+func envSignature(env []string) string {
+	sum := sha256.Sum256([]byte(strings.Join(env, "\x00")))
+	return hex.EncodeToString(sum[:])
 }
 func (s *Server) Close() {
 	s.mu.Lock()

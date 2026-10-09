@@ -914,7 +914,8 @@ button.mcard:hover{border-color:var(--line-strong)}
 .mi-hand>summary::before{content:"›";display:inline-block;margin-right:6px;color:var(--text-3);transition:transform var(--fast)}
 .mi-hand[open]>summary::before{transform:rotate(90deg)}
 .mmeters{display:flex;flex-direction:column;gap:6px;padding:0 18px 14px;font-size:11.5px}
-.mmeter{display:grid;grid-template-columns:96px 1fr 112px;align-items:center;gap:10px}
+.mmeter{display:grid;grid-template-columns:minmax(64px,max-content) minmax(36px,1fr) max-content;align-items:center;gap:10px}
+.mmeter>span{white-space:nowrap}
 .mmeter>span{color:var(--text-3)}
 .mmeter>em{text-align:right;font-style:normal;font-family:var(--mono);font-size:11px;color:var(--text-2);white-space:nowrap}
 .mmeter-bar{display:block;height:4px;border-radius:2px;background:var(--surface-3);overflow:hidden}
@@ -999,3 +1000,9 @@ details.vx-lib[open]>summary h3::after{content:" ⌄"}
 .jv-talk .note{margin:0}
 .jv-persona .set-actions{display:flex;align-items:center;gap:8px;margin-top:8px}
 .jv-persona .note{margin:8px 0 0}
+.mcard-up{display:inline-flex;align-items:center;gap:5px;margin-left:8px;font-size:11px;font-weight:500;color:var(--text-2);vertical-align:1px}
+.mcard-up i{width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.upd{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.upd .state{font-size:12.5px}
+.insp-hint{display:flex;align-items:center;gap:6px;margin:0 0 12px}
+.insp-hint .ico{width:14px;height:14px;flex:none;color:var(--text-3)}

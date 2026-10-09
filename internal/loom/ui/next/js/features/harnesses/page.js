@@ -11,7 +11,7 @@ import { SelectionInfo } from '../inspector/selection.js';
 import { Icon } from '../../ui/icons.js';
 import { Switch, Tip, Seg } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
-import { get, post } from '../../core/api.js';
+import { get, post, onChanged as onStateChanged } from '../../core/api.js';
 import { app, go, refreshWorkspace, refreshNav } from '../../core/state.js';
 import { groupVariants } from '../chat/picker.js';
 import { splitEffort } from '../inspector/inspector.js';
@@ -91,7 +91,7 @@ function AddAgentDialog({ installs, onClose, onChanged, onCustom }) {
         : html`<p class="note">${t('agents.add.none_detected')}</p>`}
       ${missing.length > 0 && html`<h4>${t('agents.add.install')}</h4><div class="card">${missing.map(i => html`<div class="set-line" key=${i.harness}>
           <div class="set-l"><${Logo} name=${i.logo || i.harness} size="sm" /><span>${i.name}</span></div>
-          <div class="set-c"><${Lifecycle} compact target="local" id=${i.harness} name=${i.name} where=${t('agents.this_machine')} onChange=${() => onChanged(null)} /></div></div>`)}</div>
+          <div class="set-c"><${Lifecycle} compact target="local" id=${i.harness} name=${i.name} where=${t('agents.this_machine')} onChange=${async action => { if (action === 'install') await post('/api/agents/installations', { machine: 'local', harness: i.harness, managed: true, enabled: true, consent: true }).catch(() => {}); await refreshWorkspace(); onChanged(null); }} /></div></div>`)}</div>
         <p class="note">${t('agents.add.install_note')}</p>`}
       <h4>${t('agents.catalog.title')}</h4>
       <${Catalogue} onAdded=${id => { onClose(); if (id) go('harnesses', id); }} />
@@ -398,7 +398,7 @@ function MachineRow({ i, onChanged }) {
   const version = lifecycleVersion(x ? x.version : i.version);
   return html`<div class="am-row">
     <span class="am-m"><${Icon} n=${i.machine === 'local' ? 'chip' : 'server'} /><b>${where}</b></span>
-    <span class="am-v">${!i.installed ? html`<${Lifecycle} compact target=${i.machine} id=${i.harness} name=${i.name} where=${where} onChange=${onChanged} />` : !i.managed ? html`<span class="muted">${lifecycleVersion(i.version) || t('harnesses.lifecycle.version_unknown')}</span>` : x === null ? html`<span class="spinner"></span>` : html`<span class="mono">${version || t('harnesses.lifecycle.version_unknown')}</span>${x?.channel && html`<span class="tag" title=${x.path}>${lifecycleChannel(x, t)}</span>`}
+    <span class="am-v">${!i.installed ? html`<${Lifecycle} compact target=${i.machine} id=${i.harness} name=${i.name} where=${where} onChange=${async action => { if (action === 'install') await post('/api/agents/installations', { machine: i.machine, harness: i.harness, managed: true, enabled: true, consent: true }).catch(() => {}); onChanged(); }} />` : !i.managed ? html`<span class="muted">${lifecycleVersion(i.version) || t('harnesses.lifecycle.version_unknown')}</span>` : x === null ? html`<span class="spinner"></span>` : html`<span class="mono">${version || t('harnesses.lifecycle.version_unknown')}</span>${x?.channel && html`<span class="tag" title=${x.path}>${lifecycleChannel(x, t)}</span>`}
       ${x && !x.can_update && html`<span class="muted" title=${(x.errors || []).join(' · ')}>${t('harnesses.lifecycle.manual_update')}</span>`}${x && x.can_update ? html`<button class="btn sm" disabled=${!!busy} onClick=${update}>${busy === 'update' ? html`<span class="spinner"></span>` : html`<${Icon} n="download" />`}${x.check_update ? t("harnesses.lifecycle.check_update") : t("harnesses.lifecycle.mettre_a_jour") + (x.update_available ? " " + x.latest : "")}</button>` : ''}${lifecycleCurrent(x) && html`<span class="muted">${t('harnesses.lifecycle.a_jour')}</span>`}`}</span>
     <${Switch} label=${t('agents.manage')} checked=${i.managed} disabled=${!!busy} onChange=${v => change({ managed: v })} />
     <${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${!!busy || !i.ready} onChange=${v => change({ enabled: v })} />
@@ -458,8 +458,10 @@ function AgentDetail({ rt, models, onEdit }) {
   const loadInfo = refresh => get('/api/runtimes/' + rt.id + '/inspect' + (refresh ? '?refresh=1' : '')).then(r => setInfo(r && r.ok ? r.inspection : false)).catch(() => setInfo(false));
   useEffect(() => {
     loadInstalls(); loadProbe(); if (!rt.machine) loadInfo();
+    const off = onStateChanged(() => { loadInstalls(); loadProbe(); });
     if (rt.custom) get('/api/harness/custom').then(r => setCustom((r.agents || []).find(a => a.id === rt.id) || null)).catch(() => {});
     get('/api/usage/native?days=7').then(r => setUsage((r.harnesses || []).find(x => x.runtime_id === rt.id) || null)).catch(() => {});
+    return off;
   }, [rt.id]);
   const here = installs.find(i => i.runtime_id === rt.id) || installs.find(i => i.machine === 'local');
   const managed = !!(here && here.managed) || !!rt.custom, used = !!rt.connected;
@@ -583,6 +585,7 @@ export function HarnessesPage({ route }) {
   const [dlg, setDlg] = useState(null);
   const [installs, setInstalls] = useState([]);
   const loadInstalls = () => get('/api/agents/installations').then(r => r.ok && setInstalls(r.installations || [])).catch(() => {});
+  useEffect(() => onStateChanged(loadInstalls), []);
   useEffect(() => { loadInstalls(); }, []);
   useEffect(() => { setSelected(s => s && s.runtime !== route.sub ? null : s); }, [route.sub]);
   // Une carte par famille gérée quelque part ; un agent personnalisé a la sienne.

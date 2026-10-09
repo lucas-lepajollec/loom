@@ -29,7 +29,7 @@ export function Lifecycle({ target, id, name, where, onChange, compact }) {
     setBusy('');
     setLog({ ok: r.ok, text: r.log || r.error || '' });
     if (r.state) setX(r.state); else load();
-    if (r.ok) { toast(name + (action === 'install' ? t("harnesses.lifecycle.installe") : lifecycleResult(r.state, t))); refreshWorkspace(); onChange && onChange(); }
+    if (r.ok) { toast(name + (action === 'install' ? t("harnesses.lifecycle.installe") : lifecycleResult(r.state, t))); refreshWorkspace(); onChange && onChange(action); }
     else toast(r.error || t("harnesses.lifecycle.echec"), 'err');
   };
   const auto = async on => {

@@ -120,3 +120,6 @@ export function startPolling() {
   stopPolling = () => { stops.forEach(stop => stop()); stopPolling = null; };
   return stopPolling;
 }
+
+// Shared lists (agents, models, providers) follow any change made elsewhere.
+if (typeof window !== 'undefined') window.addEventListener('loom:changed', () => { refreshWorkspace(); refreshNav(); });

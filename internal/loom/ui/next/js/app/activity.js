@@ -48,7 +48,7 @@ export function Activity() {
   }, 3000), []);
   const running = items.filter(i => !i.err).length;
   return html`<button class=${cls('icon-btn act-btn', running && 'busy')} ref=${btn} aria-label=${t("app.activity.activite") + (items.length ? ' · ' + items.length : '')} title="${t("app.activity.activite")}"
-      onClick=${() => setAnchor(anchor ? null : btn.current)}><${Icon} n="activity" />${items.length > 0 && html`<i class="act-dot"></i>`}</button>
+      onClick=${() => setAnchor(anchor ? null : btn.current)}><${Icon} n="bell" />${items.length > 0 && html`<i class="act-dot"></i>`}</button>
     ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${320} class="act-pop">
       <div class="act-h">${t("app.activity.activite")}</div>
       ${items.length ? items.map(i => html`<div class="act-row" key=${i.id}>

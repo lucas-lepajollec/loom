@@ -100,10 +100,13 @@ type CompactionRecord struct {
 // any execution route. A route change never replaces or forks this history.
 type RuntimeSession[Usage, Stats any] struct {
 	FrozenSnapshot
-	ContextExtras    string             `json:"context_extras,omitempty"`
-	Context          *ContextState      `json:"context,omitempty"`
-	ContextWarning   bool               `json:"context_warning,omitempty"`
-	ContinuedFrom    string             `json:"continued_from,omitempty"`
+	ContextExtras  string        `json:"context_extras,omitempty"`
+	Context        *ContextState `json:"context,omitempty"`
+	ContextWarning bool          `json:"context_warning,omitempty"`
+	ContinuedFrom  string        `json:"continued_from,omitempty"`
+	// WebSearch is this discussion's web-search switch for cloud turns (nil:
+	// follow the global Internet setting alone, as before).
+	WebSearch        *bool              `json:"web_search,omitempty"`
 	PortableMessages []Message          `json:"portable_messages,omitempty"`
 	Compactions      []CompactionRecord `json:"compactions,omitempty"`
 

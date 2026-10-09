@@ -4,6 +4,21 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Composer parity: cloud and agent discussions accept attached files (cloud:
+  text files inlined in <loom-file> blocks within a 112 KiB message; agents:
+  read from Loom's upload folder on this machine) and cloud discussions get
+  the web-search switch in "Tools" (per discussion, Internet setting remains
+  the master switch). The side panel only points to it.
+- OpenCode receives Loom's local models and cloud providers when "Loom models"
+  is enabled for it (its shared server previously started without them); the
+  server restarts on a configuration change once no OpenCode turn is running.
+- llama.cpp updates can no longer silently produce a CPU-only engine (see #98).
+- UI: short development versions with full ones in tooltips, compact node
+  update controls, robust machine card meters, bell icon for notifications,
+  no shortcut hint on "New conversation", API keys section spacing, agent
+  pages reload after changes made elsewhere, and installing an agent turns on
+  Manage and Use.
+
 - Jarvis model resolution is strict again (discussion model, else configured
   fallback for agent/no discussion) with coded, localized errors instead of
   "discussion model is no longer available"; no cascade to other models.

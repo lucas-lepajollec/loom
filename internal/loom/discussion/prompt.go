@@ -10,7 +10,11 @@ import (
 const MaxDiscussionInstructions = 12000
 const MaxPortableBytes = 128 << 10
 const MaxPortableMessages = 200
-const MaxMessageBytes = 64 << 10
+const MaxMessageBytes = 112 << 10
+
+// MaxTypedBytes bounds what the user types; attached files fill the rest of
+// MaxMessageBytes, which stays under the portable window.
+const MaxTypedBytes = 64 << 10
 
 // ContextItem explains one ordered part of the outgoing Loom context.
 type ContextItem struct {
@@ -108,7 +112,7 @@ func PrepareDiscussion[Usage, Stats, Capability any](s RuntimeSession[Usage, Sta
 		p.TextBytes += len(msg.Content.(string))
 	}
 	if len(draft) > MaxMessageBytes {
-		p.Problem = "Message too long (maximum 64 KiB)."
+		p.Problem = "Message too long (maximum 112 KiB with attached files)."
 		return p
 	}
 	if p.TextBytes > MaxPortableBytes || len(p.Messages) > MaxPortableMessages {

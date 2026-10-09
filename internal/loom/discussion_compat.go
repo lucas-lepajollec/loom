@@ -44,7 +44,16 @@ func discussionContextRevision(s RuntimeSession, c DiscussionContext) string {
 func portablePrefix(prefix, messages []Message) bool {
 	return discussion.PortablePrefix(prefix, messages)
 }
-func discussionTitle(text string) string { return discussion.TitleFromText(text) }
+
+// Titles come from what the user typed, never from attached file blocks.
+func discussionTitle(text string) string {
+	for _, cut := range []string{"\n\nAttached files (read them from these paths):", "\n\n<loom-file "} {
+		if i := strings.Index(text, cut); i >= 0 {
+			text = text[:i]
+		}
+	}
+	return discussion.TitleFromText(text)
+}
 func discussionTurnRecord(s RuntimeSession, p DiscussionPreview, index int) RuntimeTurnRecord {
 	return discussion.NewTurnRecord(s, p, index)
 }

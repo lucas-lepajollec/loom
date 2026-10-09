@@ -1,3 +1,4 @@
+import { shortVersion } from '../../core/version.js';
 import { HttpsSettings } from './https.js';
 import { PolicySettings } from './policy.js';
 import { DoctorSettings } from './doctor.js';
@@ -24,7 +25,7 @@ import { StartupSettings } from './startup.js';
 import { VLLMEngine } from './vllm.js';
 import { ListPick } from '../../ui/listpick.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'pulse'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 function usePref() {
@@ -535,7 +536,7 @@ function About() {
   return html`
     <${Group} title="${t("settings.page.loom")}">
       <${Line} label="${t("settings.page.version")}"><span class="mono">${serverInfo && serverInfo.version || '—'}</span></${Line}>
-      ${remote && status && status.version && html`<${Line} label=${t('settings.about.engine_version', { machine: engineName })} tip=${status.version !== (serverInfo && serverInfo.version) ? t('settings.about.engine_outdated') : ''}><span class="mono">${status.version}</span></${Line}>`}
+      ${remote && status && status.version && html`<${Line} label=${t('settings.about.engine_version', { machine: engineName })} tip=${status.version !== (serverInfo && serverInfo.version) ? t('settings.about.engine_outdated') : ''}><span class="mono" title=${status.version}>${shortVersion(status.version)}</span></${Line}>`}
       <${Line} label=${t('welcome.about.label')}><button class="btn sm" onClick=${openWelcome}>${t('welcome.about.open')}</button></${Line}>
     </${Group}>
     <${LoomUpdates} />
