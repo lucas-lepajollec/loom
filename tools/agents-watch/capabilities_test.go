@@ -122,3 +122,21 @@ func TestModelNamedCapabilityBooleansAreNotCatalogs(t *testing.T) {
 		t.Fatal(diff, err)
 	}
 }
+
+func TestCapabilityProseIgnored(t *testing.T) {
+	a, err := normalizeCapabilities(map[string]any{"commands": []any{map[string]any{"name": "review", "description": "Review the diff", "hint": "[pr]"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := normalizeCapabilities(map[string]any{"commands": []any{map[string]any{"name": "review", "description": "Review the current diff carefully", "hint": "[pr#]"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(a) != string(b) {
+		t.Fatalf("rewording changed the snapshot:\n%s\n%s", a, b)
+	}
+	c, _ := normalizeCapabilities(map[string]any{"commands": []any{map[string]any{"name": "review"}, map[string]any{"name": "doctor"}}})
+	if string(a) == string(c) {
+		t.Fatal("a new command must change the snapshot")
+	}
+}

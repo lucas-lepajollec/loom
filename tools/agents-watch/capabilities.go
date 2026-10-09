@@ -31,6 +31,14 @@ func normalizeCapability(value any, key string) any {
 			case "messagecount", "pendingmessagecount", "sessionname", "sessionid", "sessionfile", "sessionpath", "cwd", "directory", "timestamp", "createdat", "updatedat", "created_at", "updated_at", "version", "useragent", "modelcount", "model_count", "platformfamily", "platformos", "nextcursor", "currentmodelid", "currentmodeid", "currentvalue", "default", "connected":
 				continue
 			}
+			// Human text is reworded often; a capability is its name, kind and
+			// shape. Keep that prose out so rewording never raises an alert.
+			switch strings.ToLower(k) {
+			case "description", "hint", "title", "label", "help", "summary", "detail", "details", "placeholder", "tooltip":
+				if _, ok := child.(string); ok {
+					continue
+				}
+			}
 			if k == "options" && (v["category"] == "model" || v["id"] == "model") {
 				out[k] = modelCapabilities(child)
 			} else if k == "_meta" {
