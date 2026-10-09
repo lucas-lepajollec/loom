@@ -22,8 +22,11 @@ func TestAgentsCatalogSnapshotAndExclusions(t *testing.T) {
 	}
 	missing := func(string) (string, error) { return "", os.ErrNotExist }
 	rows := catalogEntries(entries, nil, missing)
-	reserved := map[string]bool{"codex-acp": false, "claude-acp": false, "pi-acp": false, "opencode": false, "antigravity-acp": false, "gemini": false}
+	reserved := map[string]bool{"codex-acp": false, "claude-acp": false, "pi-acp": false, "opencode": false, "antigravity-acp": false}
 	for _, row := range rows {
+		if row.ID == "gemini" || row.ID == "gemini-cli" {
+			t.Fatal("Gemini offered", row)
+		}
 		if _, ok := reserved[row.ID]; ok {
 			reserved[row.ID] = row.Builtin
 			if row.Added || row.Installed {

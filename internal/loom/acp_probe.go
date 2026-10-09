@@ -16,6 +16,7 @@ import (
 // costs nothing), records what the agent announces, and closes it.
 
 type acpProbe struct {
+	Features      *agent.HarnessFeatures     `json:"features,omitempty"`
 	NativeModels  []json.RawMessage          `json:"native_models,omitempty"`
 	Compatibility *agent.CompatibilityRecord `json:"compatibility,omitempty"`
 	At            int64                      `json:"at"`
@@ -37,10 +38,24 @@ var acpProbeMu sync.Mutex
 func loadACPProbe(id string) (acpProbe, bool) {
 	var p acpProbe
 	ok := getStoreJSON(bkState, acpProbeKey+id, &p) && p.At > 0
+	if a, found := acpAgentFor(id); found && p.Compatibility != nil {
+		protocol := nativeAgentProtocol(a)
+		if protocol == "" {
+			protocol = "acp"
+		}
+		if p.Compatibility.Protocol != protocol {
+			p.Config, p.Modes, p.NativeModels, p.Features = nil, nil, nil, nil
+			p.Caps = nil
+			p.Mode = ""
+			p.Error = "agent transport changed; reconnect to refresh its catalog"
+		}
+	}
+
 	return p, ok
 }
 
-func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
+func probeACPAgent(ctx context.Context, agent acpAgent) (result acpProbe) {
+	defer func() { projectHarnessProbe(agent, &result) }()
 	if nativeAgentProtocol(agent) == "agy-stream-json" {
 		return probeAntigravity(ctx, agent)
 	}
@@ -112,7 +127,7 @@ func probeACPAgent(ctx context.Context, agent acpAgent) acpProbe {
 		return fail(claudeACPError(agent, err, "the agent does not respond to the ACP protocol"))
 	}
 	out.Agent, out.Auth, out.Caps = init.AgentInfo, init.AuthMethods, init.AgentCapabilities
-	out.Compatibility = recordACPCompatibility(agent, init.AgentInfo, []string{"chat", "stream", "cancel", "approvals", "user-input", "elicitation"})
+	out.Compatibility = recordACPCompatibility(agent, init.AgentInfo, harnessFeatureCaps(harnessFeatures(agent, "acp", out)))
 	probeDir := dir
 	if agent.Remote {
 		// A remote agent needs a folder of its own machine: its home, read
@@ -152,6 +167,7 @@ func refreshACPProbe(ctx context.Context, agent acpAgent) acpProbe {
 		}
 		p = old
 	}
+	projectHarnessProbe(agent, &p)
 	_ = putStoreJSON(bkState, acpProbeKey+agent.ID, p)
 	return p
 }
@@ -188,6 +204,7 @@ func handleACPProbe(w http.ResponseWriter, r *http.Request) {
 		if reason := agent.unavailableReason(); reason != "" {
 			p.Error = reason
 		}
+		projectHarnessProbe(agent, &p)
 		sendJSON(w, 200, map[string]any{"ok": true, "probe": p})
 		return
 	}

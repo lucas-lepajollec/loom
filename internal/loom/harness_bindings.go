@@ -60,6 +60,13 @@ func handleHarnessBindings(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "harness not found"})
 		return
 	}
+	if a, ok := registeredRuntimes.lookup(req.ID); ok && req.MCP != nil && len(*req.MCP) > 0 {
+		d := a.Descriptor()
+		if d.Features == nil || !d.Features.MCPSelection {
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "Loom MCP selection unavailable for this transport"})
+			return
+		}
+	}
 	if err := setHarnessMCPBinding(req.ID, req.MCP); err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return

@@ -94,7 +94,7 @@ func brainAgentSpecs() []brainAgentSpec {
 		{"claude-code", "Claude Code", filepath.Join(home, ".claude", "settings.json"), ""},
 		{"codex", "Codex", filepath.Join(expandHome(codex), "AGENTS.md"), ""},
 		{"opencode", "OpenCode", filepath.Join(home, ".config", "opencode", "AGENTS.md"), ""},
-		{"gemini", "Gemini CLI", filepath.Join(home, ".gemini", "GEMINI.md"), ""},
+		{"antigravity", "Antigravity", filepath.Join(home, ".gemini", "config", "AGENTS.md"), ""},
 		{"pi", "Pi", pi, note},
 	}
 }
@@ -541,6 +541,9 @@ func (s *brainService) brainAgentsInfo(state brainAgentState) brainAgentsInfo {
 		info.MemoryDir = filepath.Join(layout.Dir, "Memory")
 	}
 	for _, spec := range brainAgentSpecs() {
+		if !localHarnessUsable(spec.id) {
+			continue
+		}
 		row := brainAgentInfo{ID: spec.id, Name: spec.name, Supported: spec.file != "", File: spec.file, Note: spec.note}
 		link := state[spec.id]
 		row.Linked = link.Enabled && len(link.Files) > 0
@@ -570,12 +573,6 @@ func (s *brainService) brainAgentsInfo(state brainAgentState) brainAgentsInfo {
 			row.Note = layoutErr.Error()
 		}
 		info.Agents = append(info.Agents, row)
-	}
-	for _, installation := range agentInstallations() {
-		if installation.Machine == "local" {
-			continue
-		}
-		info.Agents = append(info.Agents, brainAgentInfo{ID: installation.RuntimeID, Name: installation.Name + " (" + installation.MachineName + ")", Note: "local only for now"})
 	}
 	return info
 }

@@ -214,9 +214,9 @@ func TestAgyBridgeClosesUnfinishedTools(t *testing.T) {
 	}
 }
 
-// In Cautious mode a refused command becomes a Loom permission request; once
-// allowed, the bridge resumes the conversation with that action permitted.
-func TestAgyBridgeAsksApprovalForRefusedCommands(t *testing.T) {
+// The safest working default cannot reply to native approval requests and
+// must not ask an invented question or retry with broader permissions.
+func TestAgyBridgeDefaultDoesNotInventApprovals(t *testing.T) {
 	bin := t.TempDir()
 	script := `#!/bin/sh
 case "$1" in
@@ -281,7 +281,7 @@ esac
 		}
 	}
 	inW.Close()
-	if !asked || !strings.Contains(outputs, "ok") {
+	if asked || strings.Contains(outputs, "ok") {
 		t.Fatalf("asked=%v outputs=%s", asked, outputs)
 	}
 }

@@ -8,7 +8,7 @@ export const GROUPS = [
   { get name() { return t("cloud.catalog.grands_laboratoires"); }, items: [
     { name: 'OpenAI', logo: 'openai', get hint() { return t("cloud.catalog.gpt_series_o"); }, endpoint: 'https://api.openai.com/v1', usage: true },
     { name: 'Anthropic', logo: 'anthropic', get hint() { return t("cloud.catalog.claude"); }, endpoint: 'https://api.anthropic.com/v1' },
-    { name: 'Google', logo: 'gemini', get hint() { return t("cloud.catalog.gemini"); }, endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai' },
+    { name: 'Google', logo: 'google', get hint() { return t("cloud.catalog.google_ai"); }, endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai' },
     { name: 'xAI', logo: 'xai', get hint() { return t("cloud.catalog.grok"); }, endpoint: 'https://api.x.ai/v1', usage: true },
     { name: 'Mistral', logo: 'mistral', get hint() { return t("cloud.catalog.mistral_codestral"); }, endpoint: 'https://api.mistral.ai/v1' },
     { name: 'Cohere', logo: 'cohere', get hint() { return t("cloud.catalog.command"); }, endpoint: 'https://api.cohere.ai/compatibility/v1' },

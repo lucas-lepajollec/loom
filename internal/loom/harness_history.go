@@ -45,13 +45,21 @@ func harnessHistorySources() []harnessHistorySource {
 	out := []harnessHistorySource{}
 	for _, d := range registeredRuntimes.catalog() {
 		adapter, _ := registeredRuntimes.lookup(d.ID)
-		if acp, ok := adapter.(*acpAdapter); ok && !acp.agent.Remote && acp.agent.available() && (acp.agent.Custom || harnessManaged("local", d.ID)) {
+		if acp, ok := adapter.(*acpAdapter); ok && !acp.agent.Remote && acp.agent.available() && d.Features != nil && d.Features.HistoryImport && (acp.agent.Custom || harnessManaged("local", d.ID)) {
 			out = append(out, harnessHistorySource{"local:" + d.ID, d.Name, "local"})
 		}
 	}
 	for _, m := range loadRemoteMachines() {
 		for _, offer := range remoteOffers(m) {
 			if id, _ := offer["id"].(string); offer["ready"] == true && harnessManaged(m.ID, id) {
+				adapter, ok := registeredRuntimes.lookup(remoteRuntimeID(m.ID, id))
+				if !ok {
+					continue
+				}
+				d := adapter.Descriptor()
+				if d.Features == nil || !d.Features.HistoryImport {
+					continue
+				}
 				name, _ := offer["name"].(string)
 				out = append(out, harnessHistorySource{"remote:" + m.ID + ":" + id, name, m.Name})
 			}

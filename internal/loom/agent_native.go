@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -161,18 +162,18 @@ func nativeCompatibility(a acpAgent, protocol, executable, version string, caps 
 	return r
 }
 func nativeAgentCaps(id string) []string {
-	if id == "antigravity" {
-		return antigravityCaps()
+	protocol := "app-server"
+	switch id {
+	case "pi":
+		protocol = "pi-rpc"
+	case "opencode":
+		protocol = "opencode-http"
+	case "antigravity":
+		protocol = "agy-stream-json"
 	}
-	if id == "opencode" {
-		return openCodeCaps()
-	}
-	caps := []string{"chat", "stream", "cancel", "tools", "usage", "workdir", "resume", "connect", "native-events", "user-input", "raw-events"}
-	if id == "codex" {
-		caps = append(caps, "approvals", "elicitation", "plan", "reasoning-summary", "quota")
-	}
-	return caps
+	return harnessFeatureCaps(harnessFeatures(acpAgent{ID: id}, protocol, acpProbe{}))
 }
+
 func startNativeAgent(a acpAgent, s RuntimeSession, probe bool) (*agentstdio.Client, error) {
 	args := []string{a.ID, "app-server"}
 	var env []string
@@ -288,6 +289,32 @@ func probeNativeAgent(ctx context.Context, a acpAgent) acpProbe {
 		options = append(options, map[string]any{"value": id, "name": firstNonEmpty(m.DisplayName, m.Name, id), "description": m.Description})
 	}
 	out.Config = []map[string]any{{"id": "model", "name": "Model", "category": "model", "type": "select", "options": options}}
+
+	efforts := []string{}
+	if a.ID == "pi" {
+		efforts = []string{"off", "minimal", "low", "medium", "high", "xhigh"}
+	} else {
+		for _, raw := range models {
+			var m struct {
+				Efforts []struct {
+					ID string `json:"reasoningEffort"`
+				} `json:"supportedReasoningEfforts"`
+			}
+			_ = json.Unmarshal(raw, &m)
+			for _, e := range m.Efforts {
+				if e.ID != "" && !slices.Contains(efforts, e.ID) {
+					efforts = append(efforts, e.ID)
+				}
+			}
+		}
+	}
+	if len(efforts) > 0 {
+		values := []any{}
+		for _, effort := range efforts {
+			values = append(values, map[string]any{"value": effort, "name": effort})
+		}
+		out.Config = append(out.Config, map[string]any{"id": "reasoning_effort", "name": "Reasoning effort", "category": "thought_level", "type": "select", "options": values})
+	}
 	out.Agent = map[string]any{"name": a.Name, "version": record.Version}
 	return out
 }

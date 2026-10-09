@@ -148,8 +148,8 @@ printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux
 		if _, err := historySource("remote:gpu:codex"); pass == 0 && err == nil {
 			t.Fatal("an unmanaged remote agent opened as a history source")
 		}
-		if err := setHarnessManaged("gpu", "codex", true); err != nil || !listed() {
-			t.Fatalf("a managed, unused remote agent must serve history: %v", err)
+		if err := setHarnessManaged("gpu", "codex", true); err != nil || listed() {
+			t.Fatalf("unprobed remote history must remain hidden: %v", err)
 		}
 		if _, err := historySource("remote:gpu:codex"); err != nil {
 			t.Fatal(err)

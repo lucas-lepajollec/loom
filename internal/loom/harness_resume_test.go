@@ -7,7 +7,7 @@ func TestNativeResumeCommand(t *testing.T) {
 		"claude-code": "claude --resume ae8d0813-fbad-4779-9d21-0a0fdc930472",
 		"codex":       "codex resume ae8d0813-fbad-4779-9d21-0a0fdc930472",
 		"hermes":      "hermes --resume ae8d0813-fbad-4779-9d21-0a0fdc930472",
-		"antigravity": "",
+		"antigravity": "agy --conversation ae8d0813-fbad-4779-9d21-0a0fdc930472",
 	}
 	for harness, want := range cases {
 		if got := nativeResumeCommand(harness, "ae8d0813-fbad-4779-9d21-0a0fdc930472"); got != want {

@@ -98,8 +98,8 @@ func TestGatewayHarnessWriters(t *testing.T) {
 					if entry["type"] != "remote" || entry["enabled"] != true {
 						t.Fatal(entry)
 					}
-				case "gemini":
-					if entry["httpUrl"] != gatewayURL() {
+				case "antigravity":
+					if entry["url"] != gatewayURL() {
 						t.Fatal(entry)
 					}
 				}
@@ -201,7 +201,7 @@ func TestGatewayOwnershipAndConfinement(t *testing.T) {
 		if err := os.Symlink(outside, filepath.Join(os.Getenv("HOME"), ".gemini")); err != nil {
 			t.Skip(err)
 		}
-		if err := setGatewayHarness("gemini", true); err == nil {
+		if err := setGatewayHarness("antigravity", true); err == nil {
 			t.Fatal("escaped home")
 		}
 		if entries, _ := os.ReadDir(outside); len(entries) != 0 {
@@ -599,6 +599,7 @@ func TestGatewayTOMLMarkersAndTableBoundaries(t *testing.T) {
 }
 func TestGatewayHTTPShapes(t *testing.T) {
 	gatewayTestHome(t)
+	fakeAgentCLIs(t)
 	if err := storeWebKey("control"); err != nil {
 		t.Fatal(err)
 	}

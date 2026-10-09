@@ -1,3 +1,4 @@
+import { modeOptions, configOptions, permissionOptions } from '../harnesses/options.js';
 import { t, locale, tSource } from '../../core/i18n.js';
 // Panneau de droite : s'adapte à l'exécution choisie. Local = paramètres
 // llama.cpp ; Cloud = fournisseur, usage, coût ; Harness = session native.
@@ -143,18 +144,19 @@ function HarnessPanel() {
   const filesystem = s.filesystem_policy || 'native';
   const protections = rt.filesystem_policies || ['native'];
   const setFilesystem = async value => { if (value === 'full-access' && !await confirm(t('filesystem.full'), t('filesystem.full_note'), { danger: true })) return; if (await configure(s, { filesystem_policy: value, consent: value === 'full-access' })) open(s.id, true); };
-  const canDir = caps.includes('workdir'), canAsk = caps.includes('approvals'), remote = caps.includes('remote');
+  const canDir = caps.includes('workdir'), canAsk = (rt.features?.permissions || []).length > 0, remote = caps.includes('remote');
   const workdir = h.workdir || s.workdir || '';
   const level = h.permission || s.permission || 'ask';
-  const modes = h.modes || s.available_modes || [];
+  const modes = modeOptions(rt.features, h.modes || s.available_modes || []);
   const mode = h.mode || s.mode || '';
-  const config = h.config || s.config_options || [];
+  const config = configOptions(rt.features, h.config || s.available_config_options || []);
   // The model choice always has a place, even before the agent's session
   // exists: then it comes from Loom's catalog for this agent.
   const nativeModel = config.find(o => o.category === 'model');
   const fromCatalog = catalog.filter(m => m.runtime_id === s.runtime_id && m.enabled !== false);
   const modelOpt = nativeModel || (fromCatalog.length > 1 ? { id: 'model', name: t('inspector.model'), category: 'model', currentValue: s.model, options: fromCatalog.map(m => ({ value: m.model, name: m.name })) } : null);
-  const others = config.filter(o => o.category !== 'model' && !(filesystem !== 'native' && ['mode','sandbox','sandbox_mode'].includes(o.id)) && !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode')));
+  const selectedModel = fromCatalog.find(m => m.model === s.model);
+  const others = config.filter(o => o.category !== 'model' && !(filesystem !== 'native' && ['mode','sandbox','sandbox_mode'].includes(o.id)) && !(modes.length > 1 && (o.id === 'mode' || o.category === 'mode'))).map(o => rt.features?.protocol === 'app-server' && o.category === 'thought_level' ? { ...o, options: (o.options || []).filter(v => selectedModel?.reasoning_efforts?.includes(v.value)) } : o).filter(o => o.type !== 'select' || (o.options || []).length > 0);
   // Some agents (Pi) announce the same choice as modes and as an option: keep the option.
   const modeIds = new Set(modes.map(m => m.id));
   const modesDuplicated = others.some(o => { const vals = (o.options || []).flatMap(x => x.options ? x.options : [x]).map(x => x.value); return vals.length > 1 && vals.every(v => modeIds.has(v)); });
@@ -179,17 +181,16 @@ function HarnessPanel() {
     ${canDir && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.dossier_de_travail")}</div>
       <${WorkspacePicker} target=${remote ? ((runtimes.find(r => r.id === s.runtime_id) || {}).machine_id || s.workspace_target || '') : 'local'} current=${workdir} onPick=${async w => { const ok = await configure(s, w.id ? { workspace_id: w.id } : { workdir: w.path }); if (ok) open(s.id, true); return ok; }} />
       ${workdir && html`<button class="btn sm ghost hs-term" onClick=${() => openHarnessTerminal(s, workdir, remote)}><${Icon} n="prompt" />${t("inspector.inspector.ouvrir_un_terminal_ici")}</button>`}
-      ${s.native_session_id && html`<button class="btn sm ghost hs-term" title=${t('inspector.resume.tip')} onClick=${() => resumeInTerminal(s)}><${Icon} n="terminal" />${t('inspector.resume.label')}</button>`}</div>`}
+      ${rt.features?.terminal && s.native_session_id && html`<button class="btn sm ghost hs-term" title=${t('inspector.resume.tip')} onClick=${() => resumeInTerminal(s)}><${Icon} n="terminal" />${t('inspector.resume.label')}</button>`}</div>`}
 
     ${canAsk && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.autorisations")}<${Tip} text=${LEVEL_TIP()} /></div>
-      <${Seg} value=${level} onChange=${setLevel} label="${t("inspector.inspector.niveau_d_autorisation")}" options=${LEVELS()} /></div>`}
+      <${Seg} value=${level} onChange=${setLevel} label="${t("inspector.inspector.niveau_d_autorisation")}" options=${permissionOptions(rt.features, LEVELS())} /></div>`}
 
     ${modes.length > 1 && !modesDuplicated && html`<div class="hs-sec"><div class="hs-h">${t("inspector.inspector.mode_de_l_agent")}<${Tip} text="${t("inspector.inspector.modes_proposes_par_le_harness_lui_meme_par_exemple_planifier_avan")}" /></div>
       <${ListPick} label=${t("inspector.inspector.mode_de_l_agent")} disabled=${filesystem !== 'native'} value=${mode} onChange=${v => configure(s, { mode: v })} options=${modes.map(m => ({ value: m.id, label: tSource(m.name) }))} /></div>`}
 
-    ${canDir && html`<div class="hs-sec"><div class="hs-h">${t('filesystem.title')}<${Tip} text=${t('filesystem.note')} /></div>
-      <${ListPick} label=${t('filesystem.title')} value=${filesystem} onChange=${setFilesystem} options=${[{ value: 'native', label: t('filesystem.native') }, { value: 'workspace-only', label: t('filesystem.workspace_only'), note: t('filesystem.unavailable'), disabled: true },
-        ...['workspace-write', 'full-access'].map(p => ({ value: p, label: p === 'workspace-write' ? t('filesystem.workspace_write') : t('filesystem.full'), note: protections.includes(p) ? '' : t('filesystem.unavailable'), disabled: !protections.includes(p) }))]} /><p class="note">${filesystem === 'workspace-write' ? t('filesystem.workspace_write_note') : t('filesystem.native_note')}</p>
+    ${protections.length > 1 && html`<div class="hs-sec"><div class="hs-h">${t('filesystem.title')}<${Tip} text=${t('filesystem.note')} /></div>
+      <${ListPick} label=${t('filesystem.title')} value=${filesystem} onChange=${setFilesystem} options=${protections.map(p => ({ value: p, label: p === 'native' ? t('filesystem.native') : p === 'workspace-write' ? t('filesystem.workspace_write') : t('filesystem.full') }))} /><p class="note">${filesystem === 'workspace-write' ? t('filesystem.workspace_write_note') : t('filesystem.native_note')}</p>
     </div>`}
 
 

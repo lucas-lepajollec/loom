@@ -318,7 +318,7 @@ Harness IDs and the sole owned entry are:
 | `claude-code` | `~/.claude.json` | `mcpServers.loom = {"type":"http","url":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
 | `codex` | `~/.codex/config.toml` | `[mcp_servers.loom]` with `url` and `http_headers = { "Authorization" = "Bearer TOKEN" }` |
 | `opencode` | `~/.config/opencode/opencode.json` | `mcp.loom = {"type":"remote","url":URL,"headers":{"Authorization":"Bearer TOKEN"},"enabled":true}` |
-| `gemini` | `~/.gemini/settings.json` | `mcpServers.loom = {"httpUrl":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
+| `antigravity` | `~/.gemini/config/mcp_config.json` | `mcpServers.loom = {"url":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
 
 Codex's static HTTP header key is documented in the
 [configuration reference](https://developers.openai.com/codex/config-reference/).
@@ -930,8 +930,7 @@ Loom adds local ignore rules and never edits repository `settings.json` or
 `AGENTS.md`. [Codex](https://developers.openai.com/codex/guides/agents-md)
 (`$CODEX_HOME/AGENTS.md`, default `~/.codex/AGENTS.md`),
 [OpenCode](https://opencode.ai/docs/rules/) (`~/.config/opencode/AGENTS.md`),
-[Gemini CLI](https://geminicli.com/docs/cli/tutorials/memory-management/)
-(`~/.gemini/GEMINI.md`) and Pi (only with installed documentation identifying
+Antigravity (`~/.gemini/config/AGENTS.md`, verified in the installed agy documentation) and Pi (only with installed documentation identifying
 its global instructions file) receive one short marked block. It explains
 session-start reads, Claude-format frontmatter, Why/How guidance, index updates
 and avoiding secrets/duplicates. `.loom/brain.json` preserves other metadata

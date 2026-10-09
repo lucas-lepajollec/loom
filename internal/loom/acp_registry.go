@@ -39,6 +39,11 @@ func (a acpAgent) available() bool {
 }
 
 func (a acpAgent) unavailableReason() string {
+	if a.ID == "deepseek-harness" {
+		if _, err := lifecycleLookPath("dsh"); err == nil {
+			return ""
+		}
+	}
 	if nativeAgentProtocol(a) != "" {
 		return ""
 	}
@@ -87,44 +92,18 @@ type acpAdapter struct {
 }
 
 func (a *acpAdapter) Descriptor() RuntimeDescriptor {
-	caps := []string{"chat", "stream", "cancel", "tools", "approvals", "plan", "usage", "workdir", "mcp"}
-	if a.agent.Remote {
-		caps = []string{"chat", "stream", "cancel", "tools", "approvals", "plan", "usage", "workdir", "remote"}
-	}
-	a.negotiatedMu.RLock()
-	if a.loadSession {
-		caps = append(caps, "resume")
-	}
-	a.negotiatedMu.RUnlock()
-	if harnessHasQuota(a.agent) {
-		caps = append(caps, "quota")
-	}
+	features := a.features()
+	caps := harnessFeatureCaps(features)
 	cli, hint := a.agent.Command, a.agent.Command+" "+joinACPArgs(a.agent.Args)
-	switch a.agent.ID {
-	case "codex":
-		caps = append(caps, "quota")
-	case "antigravity":
-		// Driven headless through Loom's bridge: agy cannot ask for permission
-		// (access is a mode) and receives no MCP servers from Loom.
-		caps = []string{"chat", "stream", "cancel", "tools", "plan", "usage", "workdir", "resume", "quota"}
+	if features.Protocol != "acp" {
+		cli, hint = a.agent.ID, a.agent.ID
+	}
+	if a.agent.ID == "antigravity" {
 		cli, hint = "agy", "agy"
-	}
-	if a.agent.ID != "antigravity" {
-		caps = append(caps, "user-input", "elicitation")
-	}
-	caps = append(caps, "connect")
-	protocol := nativeAgentProtocol(a.agent)
-	if protocol != "" {
-		caps = nativeAgentCaps(a.agent.ID)
-		cli = a.agent.ID
-		hint = a.agent.ID
-		if a.agent.ID == "antigravity" {
-			cli, hint = "agy", "agy"
-		}
 	}
 	available := a.agent.available()
 	connected := harnessConnected(a.agent)
-	return RuntimeDescriptor{Compatibility: agentCompatibility(a.agent), ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirm sharing the conversation, instructions and selected folder with this harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, MachineID: a.agent.Machine, Connected: &connected, FilesystemPolicies: harnessFilesystemPolicies(a.agent), Machine: machineName(a.agent.Machine)}
+	return RuntimeDescriptor{Features: &features, DescriptionKey: harnessDescriptionKey(a.agent), Compatibility: agentCompatibility(a.agent), ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirm sharing the conversation, instructions and selected folder with this harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, MachineID: a.agent.Machine, Connected: &connected, FilesystemPolicies: features.FilesystemPolicies, Machine: machineName(a.agent.Machine)}
 }
 func joinACPArgs(args []string) string {
 	out := ""
@@ -176,6 +155,9 @@ func acpDescription(a acpAgent) string {
 	case a.Custom:
 		return "Custom ACP harness launched by " + a.Command + "."
 	}
+	if a.ID == "deepseek-harness" {
+		return "Official DeepSeek Harness via ACP. Developer preview; not yet verified with Loom."
+	}
 	if a.ID == "antigravity" {
 		return "Google agent, controlled by Loom in headless mode with native tools, working folder and modes."
 	}
@@ -183,4 +165,26 @@ func acpDescription(a acpAgent) string {
 		return "Installed coding agent via " + protocol + ", using native authentication, sessions and tools."
 	}
 	return "Coding agent via ACP, using the harness's native authentication and tools."
+}
+
+func harnessDescriptionKey(a acpAgent) string {
+	if a.Remote {
+		return "agents.description.remote"
+	}
+	if a.Custom {
+		return "agents.description.custom"
+	}
+	if a.ID == "deepseek-harness" {
+		return "agents.description.deepseek"
+	}
+	if a.ID == "antigravity" {
+		if nativeAgentProtocol(a) == "" {
+			return "agents.description.antigravity-acp"
+		}
+		return "agents.description.antigravity"
+	}
+	if p := nativeAgentProtocol(a); p != "" {
+		return "agents.description." + p
+	}
+	return "agents.description.acp"
 }

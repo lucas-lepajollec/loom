@@ -39,7 +39,6 @@ type agySession struct {
 }
 
 var agyModes = []map[string]any{
-	{"id": "default", "name": "Cautious", "description": "Risky actions (commands…) are denied: Antigravity cannot request approval in headless mode."},
 	{"id": "accept-edits", "name": "Auto edits", "description": "File reads and edits are allowed."},
 	{"id": "plan", "name": "Plan", "description": "Antigravity prepares a plan without making changes."},
 	{"id": "full", "name": "Allow everything", "description": "All actions are allowed without asking."},
@@ -97,7 +96,7 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 		return map[string]any{"currentModeId": s.mode, "availableModes": agyModes}
 	}
 	newSession := func(params map[string]any, id string) *agySession {
-		s := &agySession{model: defaultModel, mode: "default", conv: id}
+		s := &agySession{model: defaultModel, mode: "accept-edits", conv: id}
 		s.cwd, _ = params["cwd"].(string)
 		if dirs, ok := params["additionalDirectories"].([]any); ok {
 			for _, d := range dirs {
@@ -227,7 +226,7 @@ func (b AgyBridge) Run(in io.Reader, out io.Writer) {
 					// Only this resumed turn runs with permissions skipped.
 					s.mode = "full"
 					stop, err = b.turn(ctx, s, "The user approved the actions you could not run: "+strings.Join(cmds, " ; ")+". Run exactly these now, then continue the task.", upd)
-					s.mode = "default"
+					s.mode = "accept-edits"
 				}
 				if err != nil && ctx.Err() == nil {
 					fail(id, err.Error())

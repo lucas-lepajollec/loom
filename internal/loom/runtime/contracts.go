@@ -23,7 +23,42 @@ type QuotaReader[Snapshot any] interface {
 	Quota(context.Context) (Snapshot, error)
 }
 
+// HarnessFeatures describes supported paths, not a successful account handshake.
+// Modes and configuration IDs for generic ACP are populated from discovery.
+type HarnessFeatures struct {
+	Protocol           string   `json:"protocol"`
+	LoomProtocol       string   `json:"loom_protocol,omitempty"`
+	ModelSources       []string `json:"model_sources"`
+	Permissions        []string `json:"permissions"`
+	Modes              []string `json:"modes"`
+	DefaultMode        string   `json:"default_mode,omitempty"`
+	ConfigOptions      []string `json:"config_options"`
+	FilesystemPolicies []string `json:"filesystem_policies"`
+	Models             bool     `json:"models"`
+	Effort             bool     `json:"effort"`
+	Workdir            bool     `json:"workdir"`
+	AdditionalDirs     bool     `json:"additional_dirs"`
+	Sandbox            bool     `json:"sandbox"`
+	Resume             bool     `json:"resume"`
+	SessionList        bool     `json:"session_list"`
+	HistoryImport      bool     `json:"history_import"`
+	Questions          bool     `json:"questions"`
+	Forms              bool     `json:"forms"`
+	Approvals          bool     `json:"approvals"`
+	Plan               bool     `json:"plan"`
+	Usage              bool     `json:"usage"`
+	Quota              bool     `json:"quota"`
+	MCPSelection       bool     `json:"mcp_selection"`
+	MCPGateway         bool     `json:"mcp_gateway"`
+	Skills             bool     `json:"skills"`
+	Memory             bool     `json:"memory"`
+	Terminal           bool     `json:"terminal"`
+	Remote             bool     `json:"remote"`
+}
+
 type RuntimeDescriptor struct {
+	Features           *HarnessFeatures     `json:"features,omitempty"`
+	DescriptionKey     string               `json:"description_key,omitempty"`
 	Compatibility      *CompatibilityRecord `json:"compatibility,omitempty"`
 	FilesystemPolicies []string             `json:"filesystem_policies,omitempty"`
 	MachineID          string               `json:"machine_id,omitempty"`
