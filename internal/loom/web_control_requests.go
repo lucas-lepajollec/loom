@@ -21,6 +21,9 @@ func controlRequests(path string, next http.HandlerFunc) http.HandlerFunc {
 		if r.Method == http.MethodPost && r.Body != nil {
 			limit := int64(1 << 20)
 			deadline := 30 * time.Second
+			if path == "/api/voice/test/stt" {
+				limit = 2 << 20
+			}
 			if path == "/api/chat/upload" {
 				limit = 2 * uploadChunkMax
 				deadline = 2 * time.Minute
@@ -35,7 +38,7 @@ func controlRequests(path string, next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 			trimmed := bytes.TrimSpace(body)
-			if len(body) > 0 && (!json.Valid(body) || len(trimmed) == 0 || trimmed[0] != '{') {
+			if path != "/api/voice/test/stt" && len(body) > 0 && (!json.Valid(body) || len(trimmed) == 0 || trimmed[0] != '{') {
 				sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid JSON request"})
 				return
 			}

@@ -111,6 +111,7 @@ func doctorJobs() []doctor.Job {
 			return doctorTokenAges()
 		}},
 	}
+	jobs = append(jobs, voiceDoctorJobs()...)
 	if !usageVaultAccessStream() {
 		return jobs
 	}

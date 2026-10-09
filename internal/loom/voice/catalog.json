@@ -1,0 +1,318 @@
+{
+  "version": "1.13.8",
+  "engines": [
+    {
+      "id": "linux-amd64-cpu",
+      "os": "linux",
+      "arch": "amd64",
+      "provider": "cpu",
+      "sha256": "c0bdb7907d3a74bba1d55d22bf4d9fa75586cf1530614ebe88a27b9118e015c4",
+      "archive": "sherpa-onnx-v1.13.8-linux-x64-shared.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-shared.tar.bz2",
+      "size": 28156791
+    },
+    {
+      "id": "linux-amd64-cuda",
+      "os": "linux",
+      "arch": "amd64",
+      "provider": "cuda",
+      "sha256": "2132af1ae8c84c84f86ac091e4311839287851d2bf5e660332ebce3898a1e0b2",
+      "archive": "sherpa-onnx-v1.13.8-cuda-12.x-cudnn-9.x-onnxruntime1.28.2-linux-x64-gpu.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-cuda-12.x-cudnn-9.x-onnxruntime1.28.2-linux-x64-gpu.tar.bz2",
+      "size": 393010348
+    },
+    {
+      "id": "linux-arm64-cpu",
+      "os": "linux",
+      "arch": "arm64",
+      "provider": "cpu",
+      "sha256": "4e3734f82bc1379fd91f219f5869c7e9d03b7a4f7561907d8abca4849c51a789",
+      "archive": "sherpa-onnx-v1.13.8-linux-aarch64-shared-cpu.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-cpu.tar.bz2",
+      "size": 28091778
+    },
+    {
+      "id": "linux-arm64-cuda",
+      "os": "linux",
+      "arch": "arm64",
+      "provider": "cuda",
+      "sha256": "bfb045486bac530976f2bff9bfbb88a96efad4c87a839cce334714e4c513bc5a",
+      "archive": "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.1.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.1.tar.bz2",
+      "size": 68414362
+    },
+    {
+      "id": "darwin-amd64-cpu",
+      "os": "darwin",
+      "arch": "amd64",
+      "provider": "cpu",
+      "sha256": "54aad64acee9d2d596535a6080d6f22602a720af5460e1d50461b1e1b06bee40",
+      "archive": "sherpa-onnx-v1.13.8-osx-x64-shared.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-shared.tar.bz2",
+      "size": 22846038
+    },
+    {
+      "id": "darwin-arm64-cpu",
+      "os": "darwin",
+      "arch": "arm64",
+      "provider": "cpu",
+      "sha256": "b10e5c7e2c30ea03de9c442655d14860d9edc475c6251d58a8f5f06e913a1d56",
+      "archive": "sherpa-onnx-v1.13.8-osx-arm64-shared.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-shared.tar.bz2",
+      "size": 20314448
+    },
+    {
+      "id": "windows-amd64-cpu",
+      "os": "windows",
+      "arch": "amd64",
+      "provider": "cpu",
+      "sha256": "6dffdc715a4465b989446a6105265d2cb345e7101591a17d35534b6758f6e8df",
+      "archive": "sherpa-onnx-v1.13.8-win-x64-shared-MT-Release.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Release.tar.bz2",
+      "size": 24805859
+    },
+    {
+      "id": "windows-amd64-cuda",
+      "os": "windows",
+      "arch": "amd64",
+      "provider": "cuda",
+      "sha256": "066c5b54dbafaa1388001a9c9837ac1374dbba6d6678f193ca06aa0d8e94d8c3",
+      "archive": "sherpa-onnx-v1.13.8-cuda-12.x-cudnn-9.x-onnxruntime1.28.2-win-x64-cuda.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-cuda-12.x-cudnn-9.x-onnxruntime1.28.2-win-x64-cuda.tar.bz2",
+      "size": 595017373
+    },
+    {
+      "id": "windows-arm64-cpu",
+      "os": "windows",
+      "arch": "arm64",
+      "provider": "cpu",
+      "sha256": "455ea18dc44aea188b4f7976037dea3d77e3f8d7afe0760f34244a7a0db53c4c",
+      "archive": "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release.tar.bz2",
+      "size": 23341583
+    }
+  ],
+  "models": [
+    {
+      "id": "zipformer-fr",
+      "kind": "stt",
+      "languages": [
+        "fr"
+      ],
+      "archive": "sherpa-onnx-streaming-zipformer-fr-kroko-2025-08-06.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-fr-kroko-2025-08-06.tar.bz2",
+      "size": 57220361,
+      "sha256": "e6ffd3dc43725cd6c8137b05c739f15607d0df946b9b90eb141e10059efca024",
+      "family": "online-transducer",
+      "files": {
+        "encoder": "encoder*.onnx",
+        "decoder": "decoder*.onnx",
+        "joiner": "joiner*.onnx",
+        "tokens": "tokens.txt"
+      },
+      "streaming": true
+    },
+    {
+      "id": "zipformer-en",
+      "kind": "stt",
+      "languages": [
+        "en"
+      ],
+      "archive": "sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2",
+      "size": 310414022,
+      "sha256": "639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282",
+      "family": "online-transducer",
+      "files": {
+        "encoder": "encoder*.int8.onnx",
+        "decoder": "decoder*.onnx",
+        "joiner": "joiner*.int8.onnx",
+        "tokens": "tokens.txt"
+      },
+      "streaming": true
+    },
+    {
+      "id": "nemo-multi-int8",
+      "kind": "stt",
+      "languages": [
+        "be",
+        "de",
+        "en",
+        "es",
+        "fr",
+        "hr",
+        "it",
+        "pl",
+        "ru",
+        "uk"
+      ],
+      "archive": "sherpa-onnx-nemo-fast-conformer-ctc-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-fast-conformer-ctc-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2",
+      "size": 102261698,
+      "sha256": "2116eebbfc923ee3332a244e8c933ccc1b7e6783070f7bf842d0b5fc64f6ae33",
+      "family": "offline-nemo-ctc",
+      "files": {
+        "model": "*.int8.onnx",
+        "tokens": "tokens.txt"
+      },
+      "streaming": false
+    },
+    {
+      "id": "parakeet-v3-int8",
+      "kind": "stt",
+      "languages": [
+        "multi"
+      ],
+      "archive": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
+      "size": 487170055,
+      "sha256": "5793d0fd397c5778d2cf2126994d58e9d56b1be7c04d13c7a15bb1b4eafb16bf",
+      "family": "offline-transducer",
+      "files": {
+        "encoder": "encoder*.int8.onnx",
+        "decoder": "decoder*.onnx",
+        "joiner": "joiner*.int8.onnx",
+        "tokens": "tokens.txt"
+      },
+      "streaming": false
+    },
+    {
+      "id": "piper-fr",
+      "kind": "tts",
+      "languages": [
+        "fr"
+      ],
+      "archive": "vits-piper-fr_FR-siwis-medium-int8.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-fr_FR-siwis-medium-int8.tar.bz2",
+      "size": 20914888,
+      "sha256": "3909cff9b3cfd4820c66aa13bf554315c82e34899c161f0b446ece372bc4b5ec",
+      "family": "vits",
+      "files": {
+        "model": "*.onnx",
+        "tokens": "tokens.txt",
+        "data_dir": "espeak-ng-data"
+      },
+      "streaming": false
+    },
+    {
+      "id": "piper-en",
+      "kind": "tts",
+      "languages": [
+        "en"
+      ],
+      "archive": "vits-piper-en_US-lessac-medium-int8.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-medium-int8.tar.bz2",
+      "size": 20969179,
+      "sha256": "f1c6d0295cf16087b05f80fdca5b44daca5cd78e2c425d419a42ba34929805f9",
+      "family": "vits",
+      "files": {
+        "model": "*.onnx",
+        "tokens": "tokens.txt",
+        "data_dir": "espeak-ng-data"
+      },
+      "streaming": false
+    },
+    {
+      "id": "kokoro-multi-int8",
+      "kind": "tts",
+      "languages": [
+        "en",
+        "fr",
+        "es",
+        "it",
+        "pt-br",
+        "hi",
+        "zh"
+      ],
+      "archive": "kokoro-int8-multi-lang-v1_1.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2",
+      "size": 147031220,
+      "sha256": "a1e94694776049035c4f2c6529f003aaece993c76aae9a78995831c3c4dcafc6",
+      "family": "kokoro",
+      "files": {
+        "model": "*.onnx",
+        "tokens": "tokens.txt",
+        "voices": "voices.bin",
+        "data_dir": "espeak-ng-data"
+      },
+      "streaming": false
+    },
+    {
+      "id": "silero-v5",
+      "kind": "vad",
+      "languages": [
+        "multi"
+      ],
+      "archive": "silero_vad_v5.onnx",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad_v5.onnx",
+      "size": 2313101,
+      "sha256": "6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396",
+      "family": "silero",
+      "files": {
+        "model": "silero_vad_v5.onnx"
+      },
+      "streaming": false
+    },
+    {
+      "id": "kws-en",
+      "kind": "kws",
+      "languages": [
+        "en"
+      ],
+      "archive": "sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01.tar.bz2",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01.tar.bz2",
+      "size": 17626723,
+      "sha256": "f170013b4716e41b62b9bfd809687c207cef798ef9bc6534d524e17af9b6561a",
+      "family": "kws",
+      "files": {
+        "encoder": "encoder*.onnx",
+        "decoder": "decoder*.onnx",
+        "joiner": "joiner*.onnx",
+        "tokens": "tokens.txt"
+      },
+      "streaming": false
+    }
+  ],
+  "packs": [
+    {
+      "id": "fr-cpu-small",
+      "language": "fr",
+      "hardware": "cpu",
+      "stt": "zipformer-fr",
+      "tts": "piper-fr",
+      "vad": "silero-v5",
+      "kws": "",
+      "reason": "57 MB streaming French STT and 21 MB Piper TTS for modest CPUs."
+    },
+    {
+      "id": "en-cpu-small",
+      "language": "en",
+      "hardware": "cpu",
+      "stt": "zipformer-en",
+      "tts": "piper-en",
+      "vad": "silero-v5",
+      "kws": "",
+      "reason": "Streaming English Zipformer; int8 encoder/joiner, Piper int8 TTS. The archive includes floating-point variants."
+    },
+    {
+      "id": "multi-cpu",
+      "language": "multi",
+      "hardware": "cpu",
+      "stt": "nemo-multi-int8",
+      "tts": "kokoro-multi-int8",
+      "vad": "silero-v5",
+      "kws": "",
+      "reason": "102 MB multilingual int8 CTC with Silero turn detection; Kokoro quality TTS."
+    },
+    {
+      "id": "fr-gpu",
+      "language": "fr",
+      "hardware": "cuda",
+      "stt": "parakeet-v3-int8",
+      "tts": "kokoro-multi-int8",
+      "vad": "silero-v5",
+      "kws": "",
+      "reason": "Larger multilingual Parakeet TDT v3 for an opted-in NVIDIA machine; Kokoro quality TTS."
+    }
+  ]
+}

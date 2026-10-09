@@ -13,6 +13,7 @@ package loom
 import (
 	"archive/tar"
 	"archive/zip"
+	"compress/bzip2"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -638,12 +639,18 @@ func extractArchive(path, dir string) error {
 		return err
 	}
 	defer f.Close()
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return err
+	var compressed io.Reader
+	if strings.HasSuffix(path, ".tar.bz2") {
+		compressed = bzip2.NewReader(f)
+	} else {
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			return err
+		}
+		defer gz.Close()
+		compressed = gz
 	}
-	defer gz.Close()
-	tr := tar.NewReader(gz)
+	tr := tar.NewReader(compressed)
 	// Les liens sont appliqués APRÈS coup : leur cible n'est pas forcément déjà
 	// extraite au moment où on croise l'entrée.
 	var links []archiveLink

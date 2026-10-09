@@ -10,9 +10,9 @@ import { toast } from '../../ui/dialog.js';
 import { Icon } from '../../ui/icons.js';
 import { Group } from './kit.js';
 
-const AREAS = ['core', 'engine', 'machines', 'agents', 'brain', 'notifications', 'security'];
+const AREAS = ['core', 'engine', 'voice', 'machines', 'agents', 'brain', 'notifications', 'security'];
 const TONE = { ok: 'green', warn: 'amber', fail: 'red', skip: '' };
-const AREA_LABEL = () => ({ core: t('doctor.area.core'), engine: t('doctor.area.engine'), machines: t('doctor.area.machines'), agents: t('doctor.area.agents'), brain: t('doctor.area.brain'), notifications: t('doctor.area.notifications'), security: t('doctor.area.security') });
+const AREA_LABEL = () => ({ core: t('doctor.area.core'), engine: t('doctor.area.engine'), voice: t('doctor.area.voice'), machines: t('doctor.area.machines'), agents: t('doctor.area.agents'), brain: t('doctor.area.brain'), notifications: t('doctor.area.notifications'), security: t('doctor.area.security') });
 const fmtBytes = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' Go' : (n / 1e6).toFixed(0) + ' Mo';
 
 // Titre lisible : les vérifications par entité réutilisent le nom connu.

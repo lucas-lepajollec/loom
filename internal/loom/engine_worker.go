@@ -60,6 +60,7 @@ func cmdNode(args []string) error {
 	check := flags.Bool("check", false, "check node update without installing")
 	noObserve := flags.Bool("no-observe", false, "disable node observe module (init only)")
 	noTerminal := flags.Bool("no-terminal", false, "disable node terminal module (init only)")
+	noVoice := flags.Bool("no-voice", false, "disable node voice module (init only)")
 	noHarness := flags.Bool("no-harness", false, "disable node harness module (init only)")
 	models := flags.String("models", "", "existing model directory (init only)")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -80,6 +81,9 @@ func cmdNode(args []string) error {
 	if action != "init" && *noTerminal {
 		return errors.New("--no-terminal applies only to node init")
 	}
+	if action != "init" && *noVoice {
+		return errors.New("--no-voice applies only to node init")
+	}
 	if action != "init" && *noHarness {
 		return errors.New("--no-harness applies only to node init")
 	}
@@ -98,8 +102,11 @@ func cmdNode(args []string) error {
 	}
 	_ = os.Setenv("LOOM_SERVICE", "loom-node-engine")
 	_ = os.Setenv("LOOM_UI_SERVICE", "loom-node")
-	explicitListen, explicitHarness, explicitObserve, explicitTerminal := false, false, false, false
+	explicitListen, explicitHarness, explicitObserve, explicitTerminal, explicitVoice := false, false, false, false, false
 	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "no-voice" {
+			explicitVoice = true
+		}
 		if f.Name == "no-terminal" {
 			explicitTerminal = true
 		}
@@ -130,6 +137,11 @@ func cmdNode(args []string) error {
 	case "init":
 		if err := initEngineWorker(*bin, *models); err != nil {
 			return err
+		}
+		if explicitVoice {
+			if err := putBool(bkState, "node_voice_disabled", *noVoice); err != nil {
+				return err
+			}
 		}
 		if explicitHarness {
 			if err := putBool(bkState, nodeHarnessDisabledKey, *noHarness); err != nil {
@@ -316,6 +328,7 @@ func newEngineWorkerMuxModules(token string, harness *nodeHarnessServer, termina
 	registerEngineControlRoutes(func(path string, h http.HandlerFunc) {
 		api(path, workerEngineRoute(path, h))
 	})
+	registerVoiceRoutes(api, true)
 	api("/api/node/terminal/ws", terminal.ws)
 	api("/api/node/observe", handleNodeObserve)
 	api("/api/node/harness/inventory", harness.inventory)
@@ -470,6 +483,7 @@ func serveEngineWorker(addr string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go startConfiguredEngine(ctx)
+	go voiceLifecycle(ctx)
 	harness := newNodeHarnessServer(8)
 	defer harness.stop()
 	terminal := newNodeTerminalServer(defaultNodeTerminalLimit)

@@ -32,7 +32,7 @@ func registerPWAAssets(mux *http.ServeMux)               { webAssets().RegisterP
 func registerWebAssets(mux *http.ServeMux)               { webAssets().Register(mux) }
 func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
 	return func(path string, handler http.HandlerFunc) {
-		if path == "/api/chat" || path == "/api/discussion/events" {
+		if path == "/api/chat" || path == "/api/discussion/events" || path == "/api/voice/stream" {
 			handler = revocableControlStream(handler)
 		}
 		if controlActionRequiresPost(path) {

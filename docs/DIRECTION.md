@@ -285,6 +285,10 @@ releases.
 - **Exit:** "do this task" picks model and agent within budget and explains why.
 
 ### 6. Voice and Jarvis
+- 6.1: manage a local sherpa-onnx voice engine and curated speech models on this
+  machine or a paired Node, with supervised STT/TTS, verification, Doctor,
+  policy and a streaming API. See [voice](voice.md) for the backend contract;
+  real speech/platform acceptance and the Models › Voix UI remain separate.
 - Browser voice mode → Node `voice` module → Home Assistant provider → presence,
   quiet hours and escalation to phone, all configurable from a Jarvis page.
 - **Exit:** "it lives", "it acts", "it works" scenarios on several hardware

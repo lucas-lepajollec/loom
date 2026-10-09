@@ -4,6 +4,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Jarvis 6.1 voice backend: pinned sherpa-onnx 1.13.8 engine installation,
+  curated local speech packs and model library, verified staged downloads with
+  cancellation/rollback, supervised resident STT/TTS workers, idle unload,
+  independent paired-node voice routing, Startup and Doctor observations,
+  `voice.install` policy, WAV tests/benchmark and authenticated PCM/TTS WebSocket
+  with barge-in. Python 3 standard-library ctypes loads the installed shared
+  engine without exposing sherpa listener ports. Missing catalog hashes block
+  installation; real speech/GPU/platform acceptance and the Voice UI remain
+  separate. Contracts are in [voice](docs/voice.md).
+
 - Phase 4b backend: central allow/confirm/deny capability policy with one-time
   legacy-setting migration, canonical Tasks/phone confirmations, bounded audit
   without private inputs and policy rule/evaluation APIs. Optional provider caps
