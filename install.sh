@@ -13,7 +13,7 @@ set -e
 # Node binaries default to ~/.local/lib/loom-node; full Loom is separate.
 # Options (via environment variables):
 #   LOOM_INSTALL_DIR   Target directory for binary (default: /usr/local/bin)
-#   LOOM_VERSION       Specific version tag (default: latest)
+#   LOOM_VERSION       Specific version tag, "edge" for the development build (default: latest)
 # ==============================================================================
 
 REPO="lucas-lepajollec/loom"
@@ -113,8 +113,8 @@ echo "--> Checking available releases for ${REPO}..."
 
 DOWNLOAD_URL=""
 if [ -n "$LOOM_VERSION" ] && [ "$LOOM_VERSION" != "latest" ]; then
-  if ! printf '%s' "$LOOM_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-    echo "Error: LOOM_VERSION must be a release tag such as v0.1.0." >&2
+  if ! printf '%s' "$LOOM_VERSION" | grep -Eq '^(v[0-9]+\.[0-9]+\.[0-9]+|edge)$'; then
+    echo "Error: LOOM_VERSION must be a release tag such as v0.1.0, or edge." >&2
     exit 1
   fi
   RELEASE_TAG="$LOOM_VERSION"
@@ -233,9 +233,14 @@ if [ "$MODE" = "node" ]; then
   if [ "$NODE_SERVICE" = 1 ] && [ "$NODE_START" = 1 ]; then
     echo ""
     echo "=========================================================================="
-    set -- node pair --if-unpaired
+    # Older node binaries lack --if-unpaired; a missing code never fails the install.
+    if "$TARGET" node pair -h 2>&1 | grep -q -- 'if-unpaired'; then
+      set -- node pair --if-unpaired
+    else
+      set -- node pair
+    fi
     [ -z "$NODE_HOME" ] || set -- "$@" --home "$NODE_HOME"
-    "$TARGET" "$@"
+    "$TARGET" "$@" || echo "Pairing code unavailable now: run '$TARGET node pair' on this machine to get one."
     echo "=========================================================================="
   fi
   exit 0
