@@ -1,0 +1,9 @@
+{
+  "name": "loom-ui-routes",
+  "private": true,
+  "type": "module",
+  "description": "Crawls every Loom UI route on a real binary and fails on render crashes.",
+  "dependencies": {
+    "playwright": "1.64.0"
+  }
+}

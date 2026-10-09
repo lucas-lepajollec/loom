@@ -33,3 +33,4 @@ AGENTS.override.md
 .env
 .env.local
 .env.*.local
+tools/tests/ui-routes/node_modules/

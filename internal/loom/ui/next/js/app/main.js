@@ -23,6 +23,9 @@ class PageGuard extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
   componentDidCatch(error) { reportClientError(error, 'page ' + this.props.name); }
+  // Changer d'onglet ou de sous-page réessaie : l'erreur d'une sous-page ne
+  // bloque pas ses voisines.
+  componentDidUpdate(prev) { if (this.state.error && prev.sub !== this.props.sub) this.setState({ error: null }); }
   render() {
     const e = this.state.error;
     if (!e) return this.props.children;
@@ -56,7 +59,7 @@ function Main() {
   const Page = pageFor(route.section) || Placeholder;
   return html`<main class="main">
     ${route.section !== 'chat' && html`<div class="mobile-bar only-mobile"><button class="icon-btn" aria-label="${t("app.main.menu")}" onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button><b>${t("app.main.loom")}</b></div>`}
-    <${PageGuard} key=${route.section} name=${route.section}><${Page} route=${route} /></${PageGuard}></main>`;
+    <${PageGuard} key=${route.section} name=${route.section} sub=${route.sub || ''}><${Page} route=${route} /></${PageGuard}></main>`;
 }
 
 function App() {

@@ -26,10 +26,10 @@ function keepDocumentAtTop() {
 // l'écran montre les derniers touchers (élément visé, élément réellement
 // atteint, clic reçu ou non) et l'état du défilement/zoom. Rien n'est envoyé.
 function touchDebug() {
-  try {
-    if (new URLSearchParams(location.search).has('touchdebug')) sessionStorage.setItem('loom-touchdebug', '1');
-    if (sessionStorage.getItem('loom-touchdebug') !== '1') return;
-  } catch (_) { return; }
+  // Seulement quand l'adresse le demande, jamais mémorisé : rien ne reste
+  // affiché après coup. On efface l'ancienne mémorisation des onglets ouverts.
+  try { sessionStorage.removeItem('loom-touchdebug'); } catch (_) {}
+  if (new URLSearchParams(location.search).get('touchdebug') !== '1') return;
   const box = document.createElement('div');
   box.setAttribute('style', 'position:fixed;left:4px;right:4px;bottom:calc(4px + env(safe-area-inset-bottom));z-index:9999;max-height:38vh;overflow:auto;font:11px/1.35 ui-monospace,monospace;background:rgba(0,0,0,.82);color:#e8e8e8;padding:6px 8px;border-radius:8px;pointer-events:none;white-space:pre-wrap');
   document.body.appendChild(box);
