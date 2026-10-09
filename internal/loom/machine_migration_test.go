@@ -220,3 +220,14 @@ func TestNodeMigrationRequiresAuthenticationVaultAndSerializesRequests(t *testin
 		t.Fatal("locked vault accepted migration")
 	}
 }
+
+func TestNodeReleaseForThisLoom(t *testing.T) {
+	old := Version
+	defer func() { Version = old }()
+	for in, want := range map[string]string{"0.2.11-dev.20261009125029": "edge", "0.2.10": "v0.2.10", "v0.3.0": "v0.3.0", "dev": "edge", "": "edge", "custom-build": "latest"} {
+		Version = in
+		if got := nodeReleaseForThisLoom(); got != want {
+			t.Errorf("%q: got %q, want %q", in, got, want)
+		}
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +19,7 @@ const remoteNodeInstallScript = remotePathPreamble + `set -eu
 file=$(mktemp)
 trap 'rm -f "$file"' EXIT
 curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh -o "$file"
-LOOM_INSTALL_DIR="$HOME/.local/lib/loom-node" sh "$file" --node --listen lan
+LOOM_VERSION="${LOOM_NODE_VERSION:-latest}" LOOM_INSTALL_DIR="$HOME/.local/lib/loom-node" sh "$file" --node --listen lan
 set -- node pair --json
 if [ -f "$HOME/.local/lib/loom-node/node-home" ]; then
  set -- "$@" --home "$(cat "$HOME/.local/lib/loom-node/node-home")"
@@ -34,7 +35,9 @@ var machineMigrations = struct {
 
 var runNodeMigrationSSH = func(ctx context.Context, m RemoteMachine, key string) (string, error) {
 	cmd := exec.CommandContext(ctx, "ssh", sshArgs(m, key, "sh", "-s")...)
-	cmd.Stdin = strings.NewReader(remoteNodeInstallScript)
+	// Install the node build matching this Loom: its flags and protocol are the
+	// ones this interface expects (a development build installs the edge build).
+	cmd.Stdin = strings.NewReader("LOOM_NODE_VERSION=" + nodeReleaseForThisLoom() + "\nexport LOOM_NODE_VERSION\n" + remoteNodeInstallScript)
 	var out, stderr harnessTail
 	cmd.Stdout, cmd.Stderr = &out, &stderr
 	acpProcessGroup(cmd)
@@ -125,4 +128,17 @@ func handleMachineNodeMigrate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	handleMachinePairInput(w, r.WithContext(ctx), machinePairInput{Address: details.Address, Code: details.Code, MachineID: m.ID})
+}
+
+// nodeReleaseForThisLoom names the release a remote node should install so that
+// it speaks the same flags and protocol as this Loom.
+func nodeReleaseForThisLoom() string {
+	v := strings.TrimPrefix(Version, "v")
+	if strings.Contains(v, "-dev") || v == "" || v == "dev" {
+		return "edge"
+	}
+	if ok, _ := regexp.MatchString(`^[0-9]+\.[0-9]+\.[0-9]+$`, v); ok {
+		return "v" + v
+	}
+	return "latest"
 }
