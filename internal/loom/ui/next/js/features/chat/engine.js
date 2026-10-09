@@ -258,6 +258,11 @@ export async function newDiscussion(projectId) {
   try { r = await post('/api/chat/reset', { project_id: projectId || '' }); }
   finally { opening = false; if (abort) abort.abort(); }
   if (!r.ok) toast(t("chat.engine.impossible_de_creer_la_discussion"), 'err');
+  else if (r.initial_choice) {
+    const choice = r.initial_choice;
+    if (choice.kind === 'local') await chooseLocal({ model: choice.engine_value || choice.model, path: choice.model, name: choice.name });
+    else await chooseRemote(choice, { quiet: true });
+  }
   refreshNav();
   go('chat');
 }
@@ -363,11 +368,12 @@ export async function continueSession(projectName) {
 // ---------------------------------------------------------------- exécution
 // Choix cloud/harness : la discussion devient (ou reste) commune, avec accord
 // explicite avant tout envoi vers l'extérieur.
-export async function chooseRemote(choice) {
+export async function chooseRemote(choice, { quiet = false } = {}) {
   const st = chat.get();
   if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
   const dest = choice.kind === 'harness' ? choice.provider_name : choice.endpoint || choice.provider_name;
-  const ok = await confirm(t("chat.engine.continuer_avec") + choice.name,
+  // quiet : choix par défaut d'une discussion neuve, déjà consenti dans les réglages.
+  const ok = quiet || await confirm(t("chat.engine.continuer_avec") + choice.name,
     t("chat.engine.le_texte_de_la_discussion_et_le_contexte_du_projet_instructions_e") + dest + t("chat.engine.les_autres_fichiers_les_outils_et_la_memoire_privee_ne_sont_pas_t"), { ok: t("chat.engine.continuer") });
   if (!ok) return false;
   try {

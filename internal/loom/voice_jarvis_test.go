@@ -75,26 +75,30 @@ func TestJarvisModelResolution(t *testing.T) {
 	cloud := ModelChoice{ID: "cloud:fixture", Kind: "cloud", ProviderID: "p", Endpoint: "https://fixture.invalid/v1", Model: "m", Ready: true}
 	harness := ModelChoice{ID: "codex:m", Kind: "harness", RuntimeID: "codex", Model: "m"}
 	for _, tc := range []struct {
-		s        RuntimeSession
-		settings jarvisSettings
-		want     string
-		fail     bool
+		name       string
+		s          RuntimeSession
+		settings   jarvisSettings
+		want, code string
 	}{
-		{RuntimeSession{RuntimeID: "llama.cpp", Model: "fixture.gguf"}, jarvisSettings{Model: "discussion", Fallback: cloud.ID}, local.ID, false},
-		{RuntimeSession{RuntimeID: "openai-compatible", ProviderID: "p", Endpoint: cloud.Endpoint, Model: "m"}, jarvisSettings{Model: "discussion", Fallback: local.ID}, cloud.ID, false},
-		{RuntimeSession{RuntimeID: "codex", Model: "m"}, jarvisSettings{Model: "discussion", Fallback: local.ID}, local.ID, false},
-		{RuntimeSession{}, jarvisSettings{Model: "discussion", Fallback: cloud.ID}, cloud.ID, false},
-		// No usable discussion route and no fallback: a ready cloud route, never a dead end.
-		{RuntimeSession{RuntimeID: "codex"}, jarvisSettings{Model: "discussion"}, cloud.ID, false},
-		{RuntimeSession{}, jarvisSettings{Model: harness.ID}, cloud.ID, false},
-		// A local discussion whose model path moved still gets an answer.
-		{RuntimeSession{RuntimeID: "llama.cpp", Model: "/old/path/gone.gguf"}, jarvisSettings{Model: "discussion"}, cloud.ID, false},
+		{"local library loads on demand", RuntimeSession{RuntimeID: "llama.cpp", Model: "fixture.gguf"}, jarvisSettings{Model: "discussion", Fallback: cloud.ID}, local.ID, ""},
+		{"cloud discussion", RuntimeSession{RuntimeID: "openai-compatible", ProviderID: "p", Endpoint: cloud.Endpoint, Model: "m"}, jarvisSettings{Model: "discussion", Fallback: local.ID}, cloud.ID, ""},
+		{"harness fallback", RuntimeSession{RuntimeID: "codex", Model: "m"}, jarvisSettings{Model: "discussion", Fallback: local.ID}, local.ID, ""},
+		{"absent fallback", RuntimeSession{}, jarvisSettings{Model: "discussion", Fallback: cloud.ID}, cloud.ID, ""},
+		{"harness needs fallback", RuntimeSession{RuntimeID: "codex"}, jarvisSettings{Model: "discussion"}, "", "jarvis_no_fallback"},
+		{"absent needs fallback", RuntimeSession{}, jarvisSettings{}, "", "jarvis_no_fallback"},
+		{"explicit harness forbidden", RuntimeSession{}, jarvisSettings{Model: harness.ID, Fallback: cloud.ID}, "", "jarvis_model_unavailable"},
+		{"missing local never falls back", RuntimeSession{RuntimeID: "llama.cpp", Model: "/old/path/gone.gguf"}, jarvisSettings{Model: "discussion", Fallback: cloud.ID}, "", "jarvis_model_not_loaded: Load /old/path/gone.gguf in the engine, then retry"},
+		{"empty MODEL never falls back", RuntimeSession{RuntimeID: "llama.cpp"}, jarvisSettings{Model: "discussion", Fallback: cloud.ID}, "", "jarvis_model_not_loaded"},
+		{"changed cloud destination", RuntimeSession{RuntimeID: "openai-compatible", ProviderID: "p", Endpoint: "https://changed.invalid/v1", Model: "m"}, jarvisSettings{Model: "discussion", Fallback: local.ID}, "", "jarvis_model_unavailable"},
+		{"explicit selection", RuntimeSession{}, jarvisSettings{Model: local.ID}, local.ID, ""},
+		{"stale fallback", RuntimeSession{}, jarvisSettings{Model: "discussion", Fallback: "local:gone"}, "", "jarvis_model_unavailable"},
 	} {
-		routes := []ModelChoice{local, cloud}
-		c, err := resolveJarvisModel(tc.settings, tc.s, routes, "")
-		if (err != nil) != tc.fail || c.ID != tc.want {
-			t.Fatalf("resolution: %+v %v", c, err)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := resolveJarvisModel(tc.settings, tc.s, []ModelChoice{local, cloud}, local.Model)
+			if c.ID != tc.want || (tc.code == "" && err != nil) || (tc.code != "" && (err == nil || !strings.Contains(err.Error(), tc.code))) {
+				t.Fatalf("resolution: %+v %v", c, err)
+			}
+		})
 	}
 }
 func TestJarvisSessionLifecycleIsolationLimitsAndExpiry(t *testing.T) {
@@ -446,5 +450,44 @@ func TestJarvisLifecycleShutdownDiscardsSessions(t *testing.T) {
 	defer manager.mu.Unlock()
 	if len(manager.sessions) != 0 {
 		t.Fatal("shutdown retained voice sessions")
+	}
+}
+func TestJarvisWebSearchFollowsDiscussionToggle(t *testing.T) {
+	jarvisTestSetup(t)
+	if err := setInternetEnabled(true); err != nil {
+		t.Fatal(err)
+	}
+	w := jarvisRequest(t, "/api/voice/jarvis/session", `{"discussion_id":"`+conv.ID+`","internet":true}`)
+	var created struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil || created.SessionID == "" {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	sawTools := false
+	http.DefaultClient = &http.Client{Transport: voiceRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		var payload struct {
+			Messages []Message `json:"messages"`
+			Tools    []any     `json:"tools"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		sawTools = len(payload.Tools) > 0 && strings.Contains(payload.Messages[0].Content.(string), "web_search")
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(sseChunk("Voilà.") + "data: [DONE]\n\n"))}, nil
+	})}
+	w = jarvisRequest(t, "/api/voice/jarvis/turn", `{"session_id":"`+created.SessionID+`","text":"Quoi de neuf ?"}`)
+	if !sawTools || !strings.Contains(w.Body.String(), `"type":"done"`) {
+		t.Fatal("search not offered", w.Body.String())
+	}
+	// An agent discussion never gets tools, even with search enabled.
+	if jarvisSearchEnabled(&jarvisSession{Internet: true}, RuntimeSession{RuntimeID: "codex"}) {
+		t.Fatal("harness discussion got web search")
+	}
+	if err := setInternetEnabled(false); err != nil {
+		t.Fatal(err)
+	}
+	if jarvisSearchEnabled(&jarvisSession{Internet: true}, RuntimeSession{RuntimeID: "llama.cpp"}) {
+		t.Fatal("search offered while Internet is off")
 	}
 }

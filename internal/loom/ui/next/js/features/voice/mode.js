@@ -107,10 +107,11 @@ function Orb({ levels, state }) {
   return html`<canvas ref=${ref} class=${cls('vm-orb', state)} aria-hidden="true"></canvas>`;
 }
 
-export function VoiceMode({ discussionId, onClose }) {
+export function VoiceMode({ discussionId, internet = false, onClose }) {
   const [phase, setPhase] = useState('starting'); // starting | listening | thinking | speaking | error | insecure | unavailable
   const [error, setErrorRaw] = useState('');
-  const setError = m => setErrorRaw(/^jarvis_no_model/.test(m || '') ? t('vm.no_model') : m);
+  // Erreurs codées du serveur (« jarvis_xxx: détail ») : une phrase claire par cas.
+  const setError = m => { const c = /^(jarvis_\w+):\s*(?:Load (.+?) in the engine)?/.exec(m || ''); setErrorRaw(!c ? m : ({ jarvis_model_not_loaded: c[2] ? t('vm.err_not_loaded', { model: c[2].split('/').pop() }) : t('vm.err_no_local'), jarvis_no_fallback: t('vm.err_no_fallback'), jarvis_model_unavailable: t('vm.err_unavailable') })[c[1]] || m); };
   const [lines, setLines] = useState([]); // {who:'me'|'jarvis', text, live?}
   const [ending, setEnding] = useState(false);
   const levels = useRef({ me: 0, them: 0, state: 'idle' });
@@ -134,7 +135,7 @@ export function VoiceMode({ discussionId, onClose }) {
       const v = await get('/api/voice').catch(() => null);
       if (!v || !v.engine || !v.engine.installed || !(v.config && v.config.stt && v.config.tts)) { setState('unavailable'); return; }
       if (!v.service || !v.service.running) await post('/api/voice/service', { action: 'start' }).catch(() => {});
-      const s = await post('/api/voice/jarvis/session', discussionId ? { discussion_id: discussionId } : {}).catch(e => ({ ok: false, error: e.message }));
+      const s = await post('/api/voice/jarvis/session', { discussion_id: discussionId || '', internet }).catch(e => ({ ok: false, error: e.message }));
       if (s.ok === false) throw new Error(s.error || t('vm.failed'));
       r.session = s.session_id;
       // Micro.
@@ -225,7 +226,9 @@ export function VoiceMode({ discussionId, onClose }) {
             const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
             if (!data) continue;
             const ev = JSON.parse(data);
-            if (ev.type === 'delta') {
+            if (ev.type === 'status') {
+              setState(ev.text === 'searching' ? 'searching' : 'thinking');
+            } else if (ev.type === 'delta') {
               said += ev.text; buffer += ev.text;
               upsert('jarvis', said, true);
               const { sentences, rest } = takeSentences(buffer, false); buffer = rest;
@@ -262,7 +265,7 @@ export function VoiceMode({ discussionId, onClose }) {
   };
   const exchanged = lines.some(l => l.who === 'jarvis' && !l.live);
   const close = () => (discussionId && exchanged ? setEnding(true) : finish(false));
-  const label = { starting: t('vm.starting'), listening: t('vm.listening'), thinking: t('vm.thinking'), speaking: t('vm.speaking'), error: t('vm.error') }[phase] || '';
+  const label = { starting: t('vm.starting'), listening: t('vm.listening'), thinking: t('vm.thinking'), searching: t('vm.searching'), speaking: t('vm.speaking'), error: t('vm.error') }[phase] || '';
   return html`<div class="voice-mode" role="dialog" aria-label=${t('vm.title')}>
     <button class="icon-btn vm-close" aria-label=${t('vm.close')} onClick=${close}><${Icon} n="close" /></button>
     ${phase === 'insecure' ? html`<${Insecure} onClose=${() => onClose(false)} />`

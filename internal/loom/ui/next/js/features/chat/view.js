@@ -39,7 +39,7 @@ export function ChatView() {
   const insp = useStore(app, s => s.inspector);
   const toggle = () => { const v = !app.get().inspector; if (innerWidth > 1100) { try { localStorage.setItem('loom.next.insp', v ? '1' : '0'); } catch (_) {} } app.set({ inspector: v }); };
   const voice = useStore(app, s => s.voiceMode);
-  if (voice) return html`<div class="view chat-view"><${VoiceMode} discussionId=${voice.discussion} onClose=${async injected => { app.set({ voiceMode: null }); if (injected && voice.discussion) await open(voice.discussion, true); }} /></div>`;
+  if (voice) return html`<div class="view chat-view"><${VoiceMode} discussionId=${voice.discussion} internet=${!!voice.internet} onClose=${async injected => { app.set({ voiceMode: null }); if (injected && voice.discussion) await open(voice.discussion, true); }} /></div>`;
   return html`<div class="view chat-view">
     <div class="chat-col">
       <header class="topbar">

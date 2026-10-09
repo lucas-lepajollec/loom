@@ -4,6 +4,18 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Jarvis model resolution is strict again (discussion model, else configured
+  fallback for agent/no discussion) with coded, localized errors instead of
+  "discussion model is no longer available"; no cascade to other models.
+- Jarvis voice turns can search the web when the discussion has web search on
+  (Loom-held local/cloud chats only), with a "Searching…" state.
+- Pi receives Loom's cloud models again: the model projection is synced before
+  Pi is probed or started (a probe could cache a stale, local-only catalog), and
+  hidden cloud models are no longer projected.
+- Default model or agent for new discussions (Settings › General, and
+  `GET/POST /api/chat/settings`). A project's default wins; existing discussions
+  never change model.
+
 - Jarvis 6.3 backend profile: saved name, language, bounded personality, spoken
   length with 160/400/900-token caps, French formality, context selection and
   request-scoped TTS model/speaker/speed overrides. Legacy model/fallback saves

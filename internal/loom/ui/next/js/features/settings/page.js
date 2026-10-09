@@ -22,6 +22,7 @@ import { Line, Group } from './kit.js';
 import { LoomUpdates } from './updates.js';
 import { StartupSettings } from './startup.js';
 import { VLLMEngine } from './vllm.js';
+import { ListPick } from '../../ui/listpick.js';
 
 const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'pulse'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
@@ -52,6 +53,7 @@ function General() {
         <${Line} label="${t("settings.page.entree_pour_aller_a_la_ligne")}" tip="${t("settings.page.par_defaut_entree_envoie_et_maj_entree_va_a_la_ligne")}"><${Switch} checked=${p.enter_newline === '1'} onChange=${v => setPref('enter_newline', v ? '1' : '0')} /></${Line}>`}
     </${Group}>
     <${Group} title="${t("settings.page.discussions")}">
+      <${DefaultChoice} />
       <${PushNotifications} />
       ${agent && html`<${Line} label="${t("settings.page.compactage_automatique")}" tip="${t("settings.page.vers_75_du_contexte_les_anciens_tours_sont_resumes_pour_laisser_d")}">
         <${Switch} checked=${agent.compact} onChange=${async v => { await post('/api/agent/compact', { on: v }); setAgent({ ...agent, compact: v }); }} /></${Line}>`}
@@ -59,6 +61,19 @@ function General() {
         ${sys !== null && html`<textarea class="textarea" rows="4" value=${sys} onInput=${e => setSys(e.target.value)} placeholder="${t("settings.page.ex_reponds_en_francais_de_facon_concise")}"></textarea>
           <div><button class="btn sm" onClick=${saveSys}>${t("settings.page.enregistrer")}</button></div>`}</${Line}>
     </${Group}>`;
+}
+
+// Modèle ou agent d'une discussion neuve. Le défaut d'un projet passe avant ;
+// une discussion existante ne change jamais de modèle.
+function DefaultChoice() {
+  const ws = useStore(app, s => s.workspace);
+  const [v, setV] = useState(null);
+  useEffect(() => { get('/api/chat/settings').then(r => setV(r.default_choice || '')).catch(() => setV('')); }, []);
+  if (v === null) return null;
+  const kinds = { local: t('settings.default.local'), cloud: t('settings.default.cloud'), harness: t('settings.default.agents') };
+  const options = [{ value: '', label: t('settings.default.none') }, ...((ws && ws.models) || []).filter(m => m.enabled !== false && kinds[m.kind] && (m.kind === 'local' || m.ready)).map(m => ({ value: m.id, label: m.name, note: m.provider_name || '', group: kinds[m.kind] }))];
+  const save = async x => { const r = await post('/api/chat/settings', { default_choice: x }).catch(e => ({ ok: false, error: e.message })); if (r.ok === false) return toast(r.error, 'err'); setV(x); toast(t('settings.default.saved')); };
+  return html`<${Line} label=${t('settings.default.label')} tip=${t('settings.default.tip')}><div class="set-pick"><${ListPick} label=${t('settings.default.label')} value=${v} onChange=${save} options=${options} /></div></${Line}>`;
 }
 
 function PushNotifications() {

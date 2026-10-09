@@ -9,7 +9,7 @@ func handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{
-		"ok": true, "runtimes": runtimeCatalog(), "projects": listProjects(),
+		"ok": true, "chat": map[string]string{"default_choice": ReadConfig()[chatDefaultChoiceKey]}, "runtimes": runtimeCatalog(), "projects": listProjects(),
 		"capabilities": listCapabilities(), "active_project": conv.currentProject(),
 		"providers": workspaceSessions.providers(), "sessions": workspaceSessions.list(),
 		"models": modelCatalog(workspaceSessions.providers()), "harness_profiles": harnessProfiles(),

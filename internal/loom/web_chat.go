@@ -92,7 +92,8 @@ func handleChatReset(w http.ResponseWriter, r *http.Request) {
 			conv.setActiveProject(pid)
 		}
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "active": id, "project_id": conv.currentProject()})
+	choice := initialDiscussionChoice(conv.currentProject(), ReadConfig()[chatDefaultChoiceKey], modelCatalog(workspaceSessions.providers()))
+	sendJSON(w, 200, map[string]any{"ok": true, "active": id, "project_id": conv.currentProject(), "initial_choice": choice})
 }
 
 // handleChatHistory (GET) : liste des sessions + id de la session active (pour
