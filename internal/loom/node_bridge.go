@@ -88,6 +88,9 @@ func nodeMachineAccessForModule(machine, module string) (nodeBridgeAccess, error
 }
 
 func nodeMachineModuleAccess(m RemoteMachine, module string) (nodeBridgeAccess, error) {
+	if capabilityDisabled("machine:"+m.ID, module) {
+		return nodeBridgeAccess{}, errors.New("machine capability degraded; run Doctor")
+	}
 	if !hasNodeModule(m.Modules, module) {
 		if module == "observe" {
 			return nodeBridgeAccess{}, errors.New(nodeObserveDisabled)

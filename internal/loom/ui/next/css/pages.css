@@ -978,3 +978,10 @@ details.eng-recent[open]>summary h3::after{content:" ⌄"}
 .mig-banner{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 .mig-banner>.state{margin-right:auto}
 .mx-body .mx-code>.btn{position:static;align-self:flex-end;margin:0 8px 8px}
+.doc-row .set-c{gap:10px}
+.doc-row .set-l .dot{margin-right:8px}
+.pol-rule{flex-direction:column;align-items:flex-start;gap:2px}
+.pol-rule small{font-size:12px}
+details.pol-imported>summary{list-style:none;cursor:pointer}
+details.pol-imported>summary::-webkit-details-marker{display:none}
+details.pol-imported>summary h3::after{content:" ›";color:var(--text-3)}

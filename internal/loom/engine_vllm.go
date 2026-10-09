@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 )
 
 // vLLM as a second local engine: Loom installs it in its own Python
@@ -122,8 +124,15 @@ func (v *vllmState) installOrUpdate(update bool) error {
 	defer func() { v.mu.Lock(); v.job = ""; v.mu.Unlock() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
+	subject := "node.install"
+	if update {
+		subject = "node.update"
+	}
 	dir := vllmDir()
 	err := requireInstallWritable(dir, filepath.Join(dir, "bin"), filepath.Join(dir, "lib"))
+	if err == nil {
+		err = workspaceSessions.authorizePolicy(ctx, policy.Input{Subject: subject, MachineID: "local", Fallback: policy.Allow}, false)
+	}
 	if err == nil {
 		err = os.MkdirAll(filepath.Dir(dir), 0o755)
 	}

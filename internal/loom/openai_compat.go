@@ -61,6 +61,9 @@ func (a cloudRuntimeAdapter) APIKey() string           { return a.key }
 func (a cloudRuntimeAdapter) HTTPClient() *http.Client { return a.client }
 
 func (a cloudRuntimeAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
+	if err := authorizeProviderTurn(ctx, a.provider); err != nil {
+		return nil, err
+	}
 	cloudTurn := openai.Turn{Messages: turn.Messages, MaxTokens: turn.MaxTokens}
 	if turn.Caps.Internet {
 		cloudTurn.Tools = cloudWebSearch{}

@@ -245,6 +245,7 @@ func TestACPPermissionPolicies(t *testing.T) {
 	}
 }
 func TestACPFilesystemConfinementAndDiff(t *testing.T) {
+	testHome(t)
 	dir, outside := t.TempDir(), t.TempDir()
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -253,7 +254,7 @@ func TestACPFilesystemConfinementAndDiff(t *testing.T) {
 	defer root.Close()
 	path := filepath.Join(dir, "file.txt")
 	_ = os.WriteFile(path, []byte("one\ntwo\n"), 0600)
-	p := &acpBinding{roots: []*os.Root{root}, state: ACPState{Workdir: dir}, emit: func(StreamEvent) bool { return true }}
+	p := &acpBinding{ctx: context.Background(), roots: []*os.Root{root}, state: ACPState{Workdir: dir}, emit: func(StreamEvent) bool { return true }}
 	if _, err = p.writeFile(path, "one\nnew\ntwo\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -383,6 +384,7 @@ func TestACPMCPWireDefinitions(t *testing.T) {
 }
 
 func TestACPApprovalSubscriberLifetime(t *testing.T) {
+	testHome(t)
 	m := newRuntimeSessions()
 	id := "grace-fixture"
 	sub := &discussionSubscriber{events: make(chan DiscussionEvent, 1)}

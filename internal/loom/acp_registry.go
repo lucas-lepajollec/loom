@@ -5,7 +5,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -103,7 +105,7 @@ func (a *acpAdapter) Descriptor() RuntimeDescriptor {
 	}
 	available := a.agent.available()
 	connected := harnessConnected(a.agent)
-	return RuntimeDescriptor{Features: &features, DescriptionKey: harnessDescriptionKey(a.agent), Compatibility: agentCompatibility(a.agent), ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirm sharing the conversation, instructions and selected folder with this harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, MachineID: a.agent.Machine, Connected: &connected, FilesystemPolicies: features.FilesystemPolicies, Machine: machineName(a.agent.Machine)}
+	return degradedDescriptor(RuntimeDescriptor{Features: &features, DescriptionKey: harnessDescriptionKey(a.agent), Compatibility: agentCompatibility(a.agent), ID: a.agent.ID, Name: a.agent.Name, Kind: "harness", Logo: a.agent.Logo, CLI: cli, Description: acpDescription(a.agent), Consent: "Confirm sharing the conversation, instructions and selected folder with this harness.", Implemented: true, Available: &available, InstallHint: hint, Capabilities: caps, Docs: a.agent.Docs, Custom: a.agent.Custom, MachineID: a.agent.Machine, Connected: &connected, FilesystemPolicies: features.FilesystemPolicies, Machine: machineName(a.agent.Machine)})
 }
 func joinACPArgs(args []string) string {
 	out := ""
@@ -128,8 +130,33 @@ func (a *acpAdapter) Quota(ctx context.Context) (QuotaSnapshot, error) {
 	return QuotaSnapshot{}, errors.New("quotas unavailable")
 }
 func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
+	if capabilityDisabled("agent:"+a.agent.ID, "chat") {
+		return nil, errors.New("agent chat capability degraded; refresh its probe")
+	}
 	if a.sessions == nil || a.session.ID == "" {
 		return nil, errors.New("discussion and ACP directory required")
+	}
+	if err := a.sessions.authorizePolicy(ctx, sessionPolicyInput(a.session, "data.send_provider", policy.Allow), false); err != nil {
+		return nil, err
+	}
+	if a.session.ProviderID != "" {
+		in := sessionPolicyInput(a.session, "spend.provider", policy.Allow)
+		in.Cost = a.sessions.observedMonthlySpend(in.ProviderID, in.Endpoint)
+		if err := a.sessions.authorizePolicy(ctx, in, false); err != nil {
+			return nil, err
+		}
+	}
+	if policyNeedsAgentApprovals(a.session) {
+		f := a.features()
+		if !f.Approvals {
+			return nil, errors.New("agent protocol cannot enforce tool policy; choose an approval-capable executor")
+		}
+		// Opaque ACP bypass/auto modes can suppress requests. A restrictive
+		// policy requires the agent's ordinary interactive mode.
+		mode := strings.ToLower(a.session.Mode)
+		if mode == "full" || mode == "bypasspermissions" || mode == "accept-edits" || mode == "acceptedits" || mode == "auto" {
+			return nil, errors.New("agent mode bypasses approvals required by policy")
+		}
 	}
 	var result []Message
 	var err error

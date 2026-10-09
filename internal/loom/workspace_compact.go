@@ -97,6 +97,7 @@ func contextWarning(s RuntimeSession, c discussion.ContextState) bool {
 	return c.Size > 0 && float64(c.Used)/float64(c.Size) >= .85 && (!compactEnabled() || !loomTranscript(s) && !offersCompact(s))
 }
 func (m *runtimeSessions) compactSnapshot(ctx context.Context, s RuntimeSession, key string) (RuntimeSession, string, bool, error) {
+	ctx = withPolicySession(ctx, m, s)
 	endpoint, model := strings.TrimRight(s.Endpoint, "/")+"/chat/completions", s.Model
 	if s.RuntimeID == "llama.cpp" {
 		if !sameModelPath(s.Model, ReadConfig()["MODEL"]) {

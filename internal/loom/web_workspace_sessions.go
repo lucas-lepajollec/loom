@@ -47,7 +47,7 @@ func handleProviderSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, 400, policyErrorEnvelope(err))
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "provider": p})
@@ -63,7 +63,7 @@ func handleProviderDisconnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := workspaceSessions.disconnect(req.ID); err != nil {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, 409, policyErrorEnvelope(err))
 		return
 	}
 	resyncHarnessSources()
@@ -98,9 +98,9 @@ func handleRuntimeSessionCreate(w http.ResponseWriter, r *http.Request) {
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	s, err := workspaceSessions.create(req.ProjectID, req.ProviderID, req.Consent)
+	s, err := workspaceSessions.createContext(r.Context(), req.ProjectID, req.ProviderID, req.Consent)
 	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, 400, policyErrorEnvelope(err))
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s)})
@@ -119,7 +119,7 @@ func handleRuntimeSessionSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := workspaceSessions.start(req.ID, req.RequestID, req.Text, req.ContextRevision); err != nil {
-		out := map[string]any{"ok": false, "error": err.Error()}
+		out := policyErrorEnvelope(err)
 		if errors.Is(err, errContextChanged) {
 			out["code"] = "context_changed"
 		}
@@ -155,7 +155,7 @@ func handleRuntimeSessionDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := workspaceSessions.remove(req.ID); err != nil {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, 409, policyErrorEnvelope(err))
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true})
@@ -176,7 +176,7 @@ func handleRuntimeSessionSelect(w http.ResponseWriter, r *http.Request) {
 	}
 	s, err := workspaceSessions.selectModelContext(r.Context(), req.ID, req.ChoiceID, req.Consent, req.ReasoningEffort)
 	if err != nil {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, 409, policyErrorEnvelope(err))
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s), "context": discussionContext(s)})
@@ -215,7 +215,7 @@ func handleRuntimeSessionConfigure(w http.ResponseWriter, r *http.Request) {
 	}
 	s, err := workspaceSessions.configureDiscussion(req.ID, req.Title, req.ProjectID, req.Instructions, req.Revision, req.Consent, req.acpConfiguration)
 	if err != nil {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, 409, policyErrorEnvelope(err))
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s), "context": discussionContext(s)})
@@ -285,7 +285,7 @@ func handleHarnessProfileSave(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := saveHarnessProfile(p)
 	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, 400, policyErrorEnvelope(err))
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "profile": saved})
@@ -302,7 +302,7 @@ func handleRuntimeSessionImport(w http.ResponseWriter, r *http.Request) {
 	}
 	s, err := workspaceSessions.importArchive(req.ID)
 	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		sendJSON(w, 400, policyErrorEnvelope(err))
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s)})

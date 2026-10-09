@@ -534,6 +534,13 @@ func brainEmbeddingEnv() []string {
 var brainModelClient = &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 func brainModelPOST(ctx context.Context, url, key string, input, output any) error {
+	model := ""
+	if params, ok := input.(map[string]any); ok {
+		model, _ = params["model"].(string)
+	}
+	if err := authorizeModelDestination(ctx, url, model); err != nil {
+		return err
+	}
 	b, err := json.Marshal(input)
 	if err != nil {
 		return err

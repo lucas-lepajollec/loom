@@ -35,7 +35,7 @@ function harness(source, view, overrides = {}) {
     t: french, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu',
-    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', NotificationSettings: 'NotificationSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
+    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
     inspectTrigger: () => ({}), baseName: p => (p || '').split('/').pop(),
     useState(initial) {
       const i = cursor++;
@@ -427,12 +427,12 @@ test('each saved machine node updates through its own endpoint, independent of t
 
 test('mobile Settings opens its index, follows section links and returns without mounting hidden forms', () => {
   let media = { matches: true, addEventListener: (_name, fn) => media.change = fn, removeEventListener: () => {} };
-  const h = harness(settings, 'SettingsPage', { window: { matchMedia: () => media }, WorkspaceManager: 'WorkspaceManager', MachinesSettings: 'MachinesSettings', StartupSettings: 'StartupSettings', NotificationSettings: 'NotificationSettings' });
+  const h = harness(settings, 'SettingsPage', { window: { matchMedia: () => media }, WorkspaceManager: 'WorkspaceManager', MachinesSettings: 'MachinesSettings', StartupSettings: 'StartupSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings' });
   let tree = h.render({ route: { sub: '' } });
   assert.equal(nodes(tree, 'nav').length, 1);
   assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
   const links = nodes(tree, 'a');
-  assert.equal(links.length, 6);
+  assert.equal(links.length, 8);
   assert.equal(links.find(n => textOf(n).includes('Démarrage')).props.href, '#/settings/startup');
   for (const moved of ['Machines', 'Espaces de travail', 'Moteurs']) assert.ok(!links.some(n => textOf(n).includes(moved)), moved + ' lives on its domain page, not in Settings');
   assert.equal(links.find(n => textOf(n).includes('Internet')).props.href, '#/settings/internet');

@@ -11,7 +11,7 @@ import (
 type llamaRuntimeAdapter struct{}
 
 func (llamaRuntimeAdapter) Descriptor() RuntimeDescriptor {
-	return (local.Adapter[Message, Caps, ChatCallback]{}).Descriptor()
+	return degradedDescriptor((local.Adapter[Message, Caps, ChatCallback]{}).Descriptor())
 }
 func (llamaRuntimeAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
 	return (local.Adapter[Message, Caps, ChatCallback]{RunChat: runChat}).Run(ctx, turn, emit)

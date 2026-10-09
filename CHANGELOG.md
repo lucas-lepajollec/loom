@@ -4,6 +4,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Phase 4b backend: central allow/confirm/deny capability policy with one-time
+  legacy-setting migration, canonical Tasks/phone confirmations, bounded audit
+  without private inputs and policy rule/evaluation APIs. Optional provider caps
+  use observed monthly usage; unknown usage stays unknown. Read-only Loom Doctor
+  checks and an opt-in redacted diagnostic ZIP support maintenance. Feature-level
+  failures project degraded reasons into agent/machine/engine contracts, block
+  affected execution and recover on successful probes; transition notification
+  rules default off. Backend contracts are in [policy](docs/policy.md) and
+  [Doctor](docs/doctor.md); UI and real-platform acceptance remain separate.
+
 - Machines now has one **Add a machine** stepper: install Loom Node, choose its
   discovered/addressed listener and enter the pairing code, then see its modules.
   SSH is retired from adding machines; existing SSH machines stay editable and

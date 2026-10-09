@@ -2,7 +2,6 @@ package loom
 
 import (
 	"context"
-	"net/http"
 	"sync"
 	"time"
 
@@ -58,14 +57,10 @@ func (s *notificationService) monitorHealth(ctx context.Context) {
 				continue
 			}
 			check, cancel := context.WithTimeout(ctx, 5*time.Second)
-			r, err := http.NewRequestWithContext(check, http.MethodGet, n.URL+"/api/ping", nil)
-			online := false
-			if err == nil {
-				r.Header.Set("Authorization", "Bearer "+n.WebKey)
-				if resp, err := nodeClient.Do(r); err == nil {
-					online = resp.StatusCode == 200
-					resp.Body.Close()
-				}
+			info, err := nodeMaintenanceProbe(check, n.URL, n.WebKey)
+			online := err == nil
+			if ctx.Err() == nil {
+				observeMachineProbe(m, info, err)
 			}
 			cancel()
 			if ctx.Err() == nil {

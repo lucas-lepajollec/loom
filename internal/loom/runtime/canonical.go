@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"net/url"
 	"sync"
 )
@@ -96,11 +97,17 @@ func JSON(value any) json.RawMessage { b, _ := json.Marshal(value); return Bound
 // RequestBroker keeps live response channels separate from durable request data.
 // Publishing under this lock orders opened/resolved even when a turn ends early.
 type RequestBroker struct {
-	mu      sync.Mutex
-	pending map[string]*pendingRequest
-	closed  bool
-	emit    EventSink[AgentEvent]
-	runtime string
+	// Decide is installed before publication. It authorizes only requests the
+	// upstream actually exposes; unknown requests retain explicit interaction.
+	Decide func(context.Context, AgentEvent) (RequestAnswer, bool, error)
+	// AuthorizeAnswer rechecks application policy immediately before delivering
+	// an explicit answer. It must not call back into this broker.
+	AuthorizeAnswer func(context.Context, AgentRequest, RequestAnswer) (RequestAnswer, error)
+	mu              sync.Mutex
+	pending         map[string]*pendingRequest
+	closed          bool
+	emit            EventSink[AgentEvent]
+	runtime         string
 }
 type pendingRequest struct {
 	request AgentRequest
@@ -123,6 +130,27 @@ func (b *RequestBroker) Ask(ctx context.Context, e AgentEvent) (RequestAnswer, e
 // Open records the request synchronously in protocol order; only waiting for
 // its answer runs asynchronously, so turn completion cannot overtake opening.
 func (b *RequestBroker) Open(ctx context.Context, e AgentEvent) (func(context.Context) (RequestAnswer, error), error) {
+	b.mu.Lock()
+	closed := b.closed
+	b.mu.Unlock()
+	if closed || ctx.Err() != nil {
+		return nil, context.Canceled
+	}
+	if b.Decide != nil && e.Request != nil {
+		answer, automatic, err := b.Decide(ctx, e)
+		if err != nil {
+			return nil, err
+		}
+		if automatic {
+			if err := ValidateAnswer(*e.Request, answer); err != nil {
+				return nil, err
+			}
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			return func(context.Context) (RequestAnswer, error) { return answer, nil }, nil
+		}
+	}
 	b.mu.Lock()
 	if b.closed {
 		b.mu.Unlock()
@@ -174,6 +202,16 @@ func (b *RequestBroker) resolve(id string, a RequestAnswer, validate bool) error
 	if validate {
 		if err := ValidateAnswer(p.request, a); err != nil {
 			return err
+		}
+		if b.AuthorizeAnswer != nil {
+			var err error
+			a, err = b.AuthorizeAnswer(p.ctx, p.request, a)
+			if err != nil {
+				return err
+			}
+			if err = ValidateAnswer(p.request, a); err != nil {
+				return err
+			}
 		}
 	}
 	delete(b.pending, id)
@@ -302,16 +340,17 @@ func ValidateAnswer(r AgentRequest, a RequestAnswer) error {
 }
 
 type CompatibilityRecord struct {
-	TestedVersionSource string   `json:"tested_version_source,omitempty"`
-	Runtime             string   `json:"runtime"`
-	Executable          string   `json:"executable"`
-	Version             string   `json:"version"`
-	Protocol            string   `json:"protocol"`
-	AdapterVersion      string   `json:"adapter_version"`
-	AdapterPackage      string   `json:"adapter_package,omitempty"`
-	AgentVersion        string   `json:"agent_version,omitempty"`
-	TestedVersions      []string `json:"tested_versions,omitempty"`
-	TestedVersion       string   `json:"tested_version"`
-	Capabilities        []string `json:"capabilities"`
-	Warning             string   `json:"warning,omitempty"`
+	CapabilityChecks    []capability.Probe `json:"capability_checks,omitempty"`
+	TestedVersionSource string             `json:"tested_version_source,omitempty"`
+	Runtime             string             `json:"runtime"`
+	Executable          string             `json:"executable"`
+	Version             string             `json:"version"`
+	Protocol            string             `json:"protocol"`
+	AdapterVersion      string             `json:"adapter_version"`
+	AdapterPackage      string             `json:"adapter_package,omitempty"`
+	AgentVersion        string             `json:"agent_version,omitempty"`
+	TestedVersions      []string           `json:"tested_versions,omitempty"`
+	TestedVersion       string             `json:"tested_version"`
+	Capabilities        []string           `json:"capabilities"`
+	Warning             string             `json:"warning,omitempty"`
 }

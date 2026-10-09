@@ -48,7 +48,7 @@ try {
   const routes = ['chat', 'models', 'cloud', 'local', 'engine', 'harnesses', 'harnesses/history', ...runtimes.map(id => 'harnesses/' + id),
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
     'tasks', 'brain', 'brain/sources', 'brain/memory', 'brain/skills', 'brain/mcp', 'usage', 'bench',
-    'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/security', 'settings/about'];
+    'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
   const browser = await chromium.launch();
   for (const [form, context] of [['desktop', { viewport: { width: 1360, height: 860 } }], ['phone', devices['iPhone 15']]]) {
     for (const mocked of [false, true]) {

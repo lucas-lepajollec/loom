@@ -72,9 +72,11 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 		upstream = nil
 	}
 	names := gatewayToolNames(upstream)
+	subjects := map[string]string{}
 	for i, item := range upstream {
 		tool := *item.Tool
 		tool.Name = names[i]
+		subjects[tool.Name] = "mcp.tool:" + item.Server + "/" + item.Tool.Name
 		if tool.InputSchema == nil {
 			tool.InputSchema = map[string]any{"type": "object"}
 		}
@@ -86,6 +88,7 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 		_, status, err := mcpMgr.GatewayTools()
 		return nil, gatewayStatusResult{status}, err
 	})
+	server.AddReceivingMiddleware(gatewayPolicyMiddleware(subjects))
 	return server
 }
 
@@ -96,6 +99,10 @@ func requireGatewayAuth(next http.HandlerFunc) http.HandlerFunc {
 			state, err := loadGatewayState()
 			if err != nil {
 				webAuthUnavailable(w)
+				return
+			}
+			if ctx, ok := gatewayPolicyContext(r); ok {
+				next(w, r.WithContext(ctx))
 				return
 			}
 			if sessionGatewayAuthorized(r) {

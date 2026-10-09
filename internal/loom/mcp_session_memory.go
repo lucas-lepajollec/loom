@@ -33,19 +33,23 @@ func sessionGatewayAuthorized(r *http.Request) bool {
 
 // sessionGatewayServer is the ACP mcpServers entry for Loom's own memory, or
 // nil when the agent runs on another machine (127.0.0.1 would not be Loom).
-func sessionGatewayServer(caps map[string]any, remote bool) map[string]any {
+func sessionGatewayServer(caps map[string]any, remote bool, discussion ...string) map[string]any {
 	if remote || os.Getenv("LOOM_NO_SESSION_MEMORY") == "1" {
 		return nil
 	}
+	token := sessionGatewayToken
+	if len(discussion) > 0 && discussion[0] != "" {
+		token = scopedGatewayToken(discussion[0])
+	}
 	httpCaps, _ := caps["mcpCapabilities"].(map[string]any)
 	if httpCaps["http"] == true {
-		return map[string]any{"type": "http", "name": "loom", "url": gatewayURL(), "headers": []any{map[string]string{"name": "Authorization", "value": "Bearer " + sessionGatewayToken}}}
+		return map[string]any{"type": "http", "name": "loom", "url": gatewayURL(), "headers": []any{map[string]string{"name": "Authorization", "value": "Bearer " + token}}}
 	}
 	exe, err := os.Executable()
 	if err != nil {
 		return nil
 	}
-	return map[string]any{"name": "loom", "command": exe, "args": []string{"mcp-bridge"}, "env": []any{map[string]string{"name": "LOOM_GATEWAY_URL", "value": gatewayURL()}, map[string]string{"name": "LOOM_GATEWAY_TOKEN", "value": sessionGatewayToken}}}
+	return map[string]any{"name": "loom", "command": exe, "args": []string{"mcp-bridge"}, "env": []any{map[string]string{"name": "LOOM_GATEWAY_URL", "value": gatewayURL()}, map[string]string{"name": "LOOM_GATEWAY_TOKEN", "value": token}}}
 }
 
 // cmdMCPBridge relays newline-delimited JSON-RPC from stdin to the stateless

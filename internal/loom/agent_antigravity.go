@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/antigravity"
@@ -68,11 +69,13 @@ func probeAntigravity(ctx context.Context, a acpAgent) acpProbe {
 	catalog, err := agyRead(ctx, "models")
 	if err != nil {
 		out.Error = err.Error()
+		out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: false, Reason: "catalog_probe_failed"})
 		return out
 	}
 	models, err := antigravity.ParseModels(catalog)
 	if err != nil {
 		out.Error = err.Error()
+		out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: false, Reason: "catalog_probe_failed"})
 		return out
 	}
 	out.Config = antigravityOptions(models)
@@ -115,7 +118,7 @@ func (m *runtimeSessions) runAntigravity(ctx context.Context, a acpAgent, s Runt
 	state := cloneACPState(s.ACPState)
 	state.NativeRuntimeID = a.ID
 	prefix := acpContextHash(turn.Messages[:len(turn.Messages)-1])
-	resume := state.NativeSessionID != "" && s.NativeRuntimeID == a.ID && s.NativeContext == prefix
+	resume := state.NativeSessionID != "" && s.NativeRuntimeID == a.ID && s.NativeContext == prefix && !capabilityDisabled("agent:"+a.ID, "resume")
 	if !resume {
 		state.NativeSessionID = ""
 		state.NativeSessionFile = ""

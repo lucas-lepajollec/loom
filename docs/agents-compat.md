@@ -18,6 +18,17 @@ and the installed Pi package's `docs/rpc.md` define the wire protocols.
 
 ## Capability truth table
 
+Phase 4b projects failed feature observations through this same contract:
+descriptor capabilities are removed, corresponding feature booleans become
+false, and descriptors/probes/installations expose optional
+`degraded: [{capability, reason, since}]`. Probe and compatibility records accept
+`capability_checks: [{capability, ok, reason?}]`; a successful refresh restores
+features no longer failed. A catalog handshake failure disables catalog/history
+operations, not the whole installed chat protocol. Untested versions remain
+warnings unless a specific feature check fails. See [Doctor](doctor.md) for exact
+JSON and [Policy](policy.md) for approval-channel enforcement; native full mode
+retains interactive approvals when a restrictive central tool rule requires them.
+
 `harness_features.go` owns the transport contract. `/api/runtimes` and each
 `/api/runtimes/{id}/probe` expose the same `features` shape, and the Session,
 Agents and composer controls filter through it. **D** means discovered from the

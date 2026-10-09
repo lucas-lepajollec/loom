@@ -18,6 +18,7 @@ import (
 
 	"github.com/lucas-lepajollec/loom/internal/loom/events"
 	"github.com/lucas-lepajollec/loom/internal/loom/notify"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 )
 
@@ -132,14 +133,15 @@ func publicURLWarning(raw string) string {
 }
 
 type notificationService struct {
-	manager   *runtimeSessions
-	mu        sync.Mutex
-	tokens    *notify.Tokens
-	started   bool
-	workers   sync.WaitGroup
-	coalescer notify.Coalescer
-	pending   []notify.Message
-	lastError map[string]string
+	manager       *runtimeSessions
+	mu            sync.Mutex
+	tokens        *notify.Tokens
+	started       bool
+	workers       sync.WaitGroup
+	coalescer     notify.Coalescer
+	pending       []notify.Message
+	lastError     map[string]string
+	deliverySlots chan struct{}
 }
 
 func (m *runtimeSessions) notifications(ctx context.Context) *notificationService {
@@ -234,7 +236,20 @@ func (m *runtimeSessions) notifications(ctx context.Context) *notificationServic
 				if len(kept) > 1 {
 					e = events.Event{Type: e.Type, At: now.UnixMilli(), Title: "Loom", Status: fmt.Sprintf("%d task updates", len(kept)), Count: len(kept)}
 				}
-				s.deliver(ctx, cfg, e, "")
+				if cfg.Rules.IncludeSummaries && e.Summary != "" && !strings.HasPrefix(e.RequestID, "policy:") {
+					if s.deliverySlots == nil {
+						s.deliverySlots = make(chan struct{}, 4)
+					}
+					select {
+					case s.deliverySlots <- struct{}{}:
+						s.workers.Add(1)
+						go func() { defer s.workers.Done(); defer func() { <-s.deliverySlots }(); _ = s.deliver(ctx, cfg, e, "") }()
+					default:
+						s.coalescer.Add(e)
+					}
+				} else {
+					_ = s.deliver(ctx, cfg, e, "")
+				}
 			}
 		}
 	}()
@@ -273,8 +288,18 @@ func requestChoices(r agent.AgentRequest) ([]string, []agent.RequestAnswer) {
 	}
 	return labels, answers
 }
-func (s *notificationService) message(c notify.Config, e events.Event) notify.Message {
-	e = notify.Redact(e, c.Rules.IncludeSummaries)
+func (s *notificationService) message(c notify.Config, e events.Event, summaryAllowed ...bool) notify.Message {
+	summaries := c.Rules.IncludeSummaries
+	if len(summaryAllowed) > 0 {
+		summaries = summaryAllowed[0]
+	} else if summaries {
+		in := policy.Input{Subject: "notification.summary", Fallback: policy.Allow}
+		if session, ok := s.manager.get(e.DiscussionID); ok {
+			in = sessionPolicyInput(session, in.Subject, policy.Allow)
+		}
+		summaries = evaluatePolicy(in, false).Decision == policy.Allow
+	}
+	e = notify.Redact(e, summaries)
 	base := strings.TrimRight(c.PublicBaseURL, "/")
 	link := base + "/#/tasks"
 	if e.DiscussionID != "" {
@@ -335,7 +360,15 @@ func (s *notificationService) deliver(ctx context.Context, c notify.Config, e ev
 	if only == "" && !c.Ntfy.Enabled && !c.Webhook.Enabled && !c.Push.Enabled {
 		return nil
 	}
-	m := s.message(c, e)
+	summaries := c.Rules.IncludeSummaries && e.Summary != "" && !strings.HasPrefix(e.RequestID, "policy:")
+	if summaries {
+		in := policy.Input{Subject: "notification.summary", Fallback: policy.Allow}
+		if session, ok := s.manager.get(e.DiscussionID); ok {
+			in = sessionPolicyInput(session, in.Subject, policy.Allow)
+		}
+		summaries = s.manager.authorizePolicy(ctx, in, false) == nil
+	}
+	m := s.message(c, e, summaries)
 	var failures []error
 	send := func(channel string, fn func() error) {
 		err := fn()

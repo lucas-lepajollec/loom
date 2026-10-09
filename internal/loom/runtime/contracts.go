@@ -1,6 +1,9 @@
 package runtime
 
-import "context"
+import (
+	"context"
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
+)
 
 // RuntimeAdapter is the execution seam, not an inference engine. Adapters own
 // protocol translation; their upstream owns inference, tools and cancellation.
@@ -57,26 +60,27 @@ type HarnessFeatures struct {
 }
 
 type RuntimeDescriptor struct {
-	Features           *HarnessFeatures     `json:"features,omitempty"`
-	DescriptionKey     string               `json:"description_key,omitempty"`
-	Compatibility      *CompatibilityRecord `json:"compatibility,omitempty"`
-	FilesystemPolicies []string             `json:"filesystem_policies,omitempty"`
-	MachineID          string               `json:"machine_id,omitempty"`
-	Connected          *bool                `json:"connected,omitempty"`
-	Logo               string               `json:"logo,omitempty"`
-	Available          *bool                `json:"available,omitempty"`
-	InstallHint        string               `json:"install_hint,omitempty"`
-	Docs               string               `json:"docs,omitempty"`
-	Custom             bool                 `json:"custom,omitempty"`
-	Machine            string               `json:"machine,omitempty"` // remote machine name, for harnesses running elsewhere
-	ID                 string               `json:"id"`
-	Name               string               `json:"name"`
-	Kind               string               `json:"kind"`
-	Description        string               `json:"description"`
-	CLI                string               `json:"cli"`
-	Consent            string               `json:"consent"`
-	Implemented        bool                 `json:"implemented"`
-	Capabilities       []string             `json:"capabilities"`
+	Degraded           []capability.Degraded `json:"degraded,omitempty"`
+	Features           *HarnessFeatures      `json:"features,omitempty"`
+	DescriptionKey     string                `json:"description_key,omitempty"`
+	Compatibility      *CompatibilityRecord  `json:"compatibility,omitempty"`
+	FilesystemPolicies []string              `json:"filesystem_policies,omitempty"`
+	MachineID          string                `json:"machine_id,omitempty"`
+	Connected          *bool                 `json:"connected,omitempty"`
+	Logo               string                `json:"logo,omitempty"`
+	Available          *bool                 `json:"available,omitempty"`
+	InstallHint        string                `json:"install_hint,omitempty"`
+	Docs               string                `json:"docs,omitempty"`
+	Custom             bool                  `json:"custom,omitempty"`
+	Machine            string                `json:"machine,omitempty"` // remote machine name, for harnesses running elsewhere
+	ID                 string                `json:"id"`
+	Name               string                `json:"name"`
+	Kind               string                `json:"kind"`
+	Description        string                `json:"description"`
+	CLI                string                `json:"cli"`
+	Consent            string                `json:"consent"`
+	Implemented        bool                  `json:"implemented"`
+	Capabilities       []string              `json:"capabilities"`
 }
 
 type RuntimeTurn[Message, Caps any] struct {

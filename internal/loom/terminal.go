@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	"net/http"
 	"os"
 	"os/exec"
@@ -185,7 +186,16 @@ func remoteTerminalArgs(m RemoteMachine, key, dir, command string) []string {
 var terminalOpenMu sync.Mutex
 
 func openTerminal(target, dir, command, title string) (*Terminal, error) {
+	return openTerminalContext(context.Background(), target, dir, command, title)
+}
+func openTerminalContext(ctx context.Context, target, dir, command, title string) (*Terminal, error) {
 	command = strings.TrimSpace(command)
+	if err := workspaceSessions.authorizePolicy(ctx, policy.Input{Subject: "node.terminal", MachineID: target, Workdir: dir, Command: command, Fallback: policy.Allow}, false); err != nil {
+		return nil, err
+	}
+	if capabilityDisabled("machine:"+target, "terminal") {
+		return nil, errors.New("terminal capability degraded; run Doctor")
+	}
 	terminalOpenMu.Lock()
 	defer terminalOpenMu.Unlock()
 	terminals.Lock()
@@ -461,7 +471,7 @@ func handleTerminals(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	t, err := openTerminal(req.Target, strings.TrimSpace(req.Dir), req.Command, strings.TrimSpace(req.Title))
+	t, err := openTerminalContext(r.Context(), req.Target, strings.TrimSpace(req.Dir), req.Command, strings.TrimSpace(req.Title))
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return

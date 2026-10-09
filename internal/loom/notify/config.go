@@ -78,7 +78,7 @@ func (c Config) Validate() error {
 	}
 	for _, e := range c.Rules.Events {
 		switch e {
-		case events.TaskStarted, events.TaskWaiting, events.TaskResumed, events.TaskCompleted, events.TaskFailed, events.NodeOnline, events.NodeOffline, events.EngineDown:
+		case events.TaskStarted, events.TaskWaiting, events.TaskResumed, events.TaskCompleted, events.TaskFailed, events.NodeOnline, events.NodeOffline, events.EngineDown, events.CapabilityDegraded, events.CapabilityRestored:
 		default:
 			return errors.New("unknown notification event")
 		}

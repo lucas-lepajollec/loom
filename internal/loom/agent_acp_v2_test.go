@@ -18,6 +18,7 @@ import (
 )
 
 func TestClaudeACPFixtures(t *testing.T) {
+	testHome(t)
 	paths, err := filepath.Glob("testdata/agents/claude/*.jsonl")
 	if err != nil || len(paths) == 0 {
 		t.Fatal(paths, err)

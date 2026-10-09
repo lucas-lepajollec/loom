@@ -130,7 +130,9 @@ func (a *acpAdapter) features() agent.HarnessFeatures {
 		p.Caps["loadSession"] = true
 	}
 	a.negotiatedMu.RUnlock()
-	return harnessFeatures(a.agent, protocol, p)
+	f := harnessFeatures(a.agent, protocol, p)
+	applyDegradedFeatures(&f, degradedCapabilities.Snapshot("agent:"+a.agent.ID))
+	return f
 }
 
 func harnessFeatureCaps(f agent.HarnessFeatures) []string {
@@ -173,6 +175,8 @@ func projectHarnessProbe(a acpAgent, p *acpProbe) {
 		protocol = "acp"
 	}
 	f := harnessFeatures(a, protocol, *p)
+	p.Degraded = degradedCapabilities.Snapshot("agent:" + a.ID)
+	applyDegradedFeatures(&f, p.Degraded)
 	p.Features = &f
 	modes := []map[string]any{}
 	for _, m := range p.Modes {

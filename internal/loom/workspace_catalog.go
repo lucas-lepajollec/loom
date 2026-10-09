@@ -98,6 +98,9 @@ func modelCatalogSources(providers []CloudProvider, includeEngineSources bool) [
 			ready := d.Available != nil && *d.Available
 			probe, _ := loadACPProbe(d.ID)
 			models := acpOptionValues(acpModelOption(probe.Config))
+			if capabilityDisabled("agent:"+d.ID, "models") {
+				models = nil
+			}
 			if len(models) == 0 {
 				add(ModelChoice{ID: d.ID + ":default", Name: d.Name, Kind: "harness", ProviderName: d.Name, RuntimeID: d.ID, Ready: ready})
 			}
@@ -108,7 +111,7 @@ func modelCatalogSources(providers []CloudProvider, includeEngineSources bool) [
 					name = m.Value
 				}
 				choice := ModelChoice{ID: d.ID + ":" + m.Value, Name: name, Kind: "harness", ProviderName: d.Name, Model: m.Value, RuntimeID: d.ID, Ready: ready}
-				if d.ID == "codex" {
+				if d.ID == "codex" && !capabilityDisabled("agent:"+d.ID, "reasoning-effort") {
 					for _, raw := range probe.NativeModels {
 						var native struct {
 							Model   string `json:"model"`
@@ -129,7 +132,7 @@ func modelCatalogSources(providers []CloudProvider, includeEngineSources bool) [
 				add(choice)
 			}
 			// Loom's local models and compatible cloud providers, passed at launch.
-			if includeEngineSources {
+			if includeEngineSources && !capabilityDisabled("agent:"+d.ID, "models") {
 				for _, c := range harnessLoomChoices(d, ready) {
 					add(c)
 				}

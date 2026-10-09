@@ -602,6 +602,25 @@ func isNetTimeout(err error) bool {
 }
 
 func runChat(ctx context.Context, messages []Message, temperature float64, caps Caps, cb ChatCallback) ([]Message, error) {
+	// Bind authorization and every retry to one destination. Switching the
+	// linked engine while confirmation waits must not redirect this transcript
+	// or attach the new engine's credential to the approved destination.
+	node := currentEngineNode()
+	base, model, key := fmt.Sprintf("http://127.0.0.1:%d", LLMPort()), "loom", ""
+	if node != nil {
+		base, key = strings.TrimRight(node.V1, "/"), node.APIKey
+		if node.Direct && node.Model != "" {
+			model = node.Model
+		}
+	} else {
+		key = loomInferenceSecret()
+	}
+	if capabilityDisabled(engineCapabilityOwner(node), "chat") {
+		return nil, errors.New("engine chat capability degraded; run Doctor")
+	}
+	if err := authorizeEngineDestination(ctx, node); err != nil {
+		return nil, err
+	}
 	var extra []Message
 	tools := EnabledTools(caps)
 	// Some backends (vanilla llama.cpp builds) don't populate `reasoning_content`
@@ -636,13 +655,13 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// d'appels, parfois identiques). Le seul frein est le bouton stop, qui annule
 	// le contexte — c'est un choix assumé.
 	for iter := 0; ; iter++ {
-		cfg, err := engineExecutionConfig(ctx)
+		cfg, err := engineExecutionConfigFor(ctx, node)
 		if err != nil {
 			return extra, err
 		}
 		reasoningOn = reasoningActive(cfg["REASONING"])
 		payload := map[string]any{
-			"model": engineRequestModel(),
+			"model": model,
 			// Normalisé juste avant l'envoi : un seul system, en tête. Les gabarits
 			// stricts (Qwen3.x) refusent un system ailleurs qu'en position 0 (issue #26).
 			"messages":    normalizeSystemMessages(messages),
@@ -668,14 +687,16 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 			payload["parallel_tool_calls"] = false
 		}
 		body, _ := json.Marshal(payload)
-		url := engineBase() + "/v1/chat/completions"
+		url := base + "/v1/chat/completions"
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 		if err != nil {
 			return extra, err
 		}
 		req.Header.Set("Content-Type", "application/json")
-		authHeader(req)
-		loomInferenceHeaders(req, "interactive")
+		if key != "" {
+			req.Header.Set("Authorization", "Bearer "+key)
+		}
+		req.Header.Set("X-Loom-Priority", "interactive")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			err = friendlyLLMError(err)

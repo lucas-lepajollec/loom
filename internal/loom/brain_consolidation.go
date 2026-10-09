@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 )
 
 type memoryStatus struct {
@@ -390,6 +391,17 @@ func (s *brainService) runMemoryConsolidation(ctx context.Context, id string) (s
 	if discussionGenerating() {
 		return status, nil
 	}
+	in := sessionPolicyInput(d.Session, "memory.consolidate", policy.Allow)
+	in.Endpoint, in.Model = strings.TrimSuffix(endpoint, "/chat/completions"), model
+	for _, provider := range workspaceSessions.providers() {
+		if strings.TrimRight(provider.Endpoint, "/") == in.Endpoint {
+			in.ProviderID = provider.ID
+		}
+	}
+	if err := workspaceSessions.authorizePolicy(ctx, in, false); err != nil {
+		return status, err
+	}
+	ctx = withPolicySession(ctx, workspaceSessions, d.Session)
 	ran = true
 	reply, err := memoryModelCall(ctx, endpoint, key, model, consolidationInput(d.Transcript, part, indexes))
 	if errors.Is(err, errEngineBusy) {
@@ -636,6 +648,10 @@ func (s *brainService) memorySettingsHTTP(w http.ResponseWriter, r *http.Request
 			}
 			p, _, err := brainConnectedProvider(pair.ProviderID, "")
 			if err != nil {
+				return err
+			}
+			in := policy.Input{Subject: "memory.consolidate", MachineID: "local", ProviderID: pair.ProviderID, Endpoint: p.Endpoint, Model: pair.Model, Operation: "select", Fallback: policy.Allow}
+			if err := workspaceSessions.authorizePolicy(r.Context(), in, false); err != nil {
 				return err
 			}
 			b, _ := json.Marshal(pair)

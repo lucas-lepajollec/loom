@@ -358,11 +358,11 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		n := currentEngineNode()
 		if n == nil {
-			sendJSON(w, 200, map[string]any{"ok": true, "remote": false})
+			sendJSON(w, 200, map[string]any{"ok": true, "remote": false, "degraded": degradedCapabilities.Snapshot("engine:local")})
 			return
 		}
 		if n.Direct {
-			sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "direct": true, "kind": n.Kind, "url": n.V1, "hostname": directHostname(n),
+			sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "direct": true, "kind": n.Kind, "url": n.V1, "hostname": directHostname(n), "degraded": degradedCapabilities.Snapshot(currentEngineCapabilityOwner()),
 				"model": n.Model, "ctx": n.Ctx, "reachable": directEngineHealthy(n)})
 			return
 		}
@@ -374,7 +374,7 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 			resp.Body.Close()
 			reachable = resp.StatusCode == 200
 		}
-		sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "url": n.URL, "v1": n.V1, "hostname": n.Hostname, "version": n.Version, "role": n.Role, "reachable": reachable})
+		sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "url": n.URL, "v1": n.V1, "hostname": n.Hostname, "version": n.Version, "role": n.Role, "reachable": reachable, "degraded": degradedCapabilities.Snapshot(currentEngineCapabilityOwner())})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -550,7 +550,10 @@ func handleEngineNodeUpdate(w http.ResponseWriter, r *http.Request) {
 // local preset to requests headed for the GPU machine. Fail visibly if that
 // configuration cannot be read; do not silently substitute local defaults.
 func engineExecutionConfig(ctx context.Context) (map[string]string, error) {
-	n := currentEngineNode()
+	return engineExecutionConfigFor(ctx, currentEngineNode())
+}
+
+func engineExecutionConfigFor(ctx context.Context, n *engineNode) (map[string]string, error) {
 	if n == nil || n.Direct {
 		return ReadConfig(), nil
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 	"github.com/lucas-lepajollec/loom/internal/loom/events"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 )
 
@@ -26,21 +27,23 @@ type runtimeRun struct {
 	toolPending bool
 }
 type runtimeSessions struct {
-	events       *events.Bus
-	health       domainHealth
-	notify       *notificationService
-	shutdownOnce sync.Once
-	acpMu        sync.Mutex
-	acp          map[string]*acpBinding
-	requests     map[string]*agent.RequestBroker
-	providerMu   sync.Mutex
-	nativeMu     sync.Mutex
-	mu           sync.Mutex
-	keys         map[string]string
-	balances     *providerBalanceCache
-	preparing    map[string]bool
-	runs         map[string]*runtimeRun
-	subscribers  map[string]map[*discussionSubscriber]bool
+	policyConsents policyConsents
+	policyWorkers  sync.WaitGroup
+	events         *events.Bus
+	health         domainHealth
+	notify         *notificationService
+	shutdownOnce   sync.Once
+	acpMu          sync.Mutex
+	acp            map[string]*acpBinding
+	requests       map[string]*agent.RequestBroker
+	providerMu     sync.Mutex
+	nativeMu       sync.Mutex
+	mu             sync.Mutex
+	keys           map[string]string
+	balances       *providerBalanceCache
+	preparing      map[string]bool
+	runs           map[string]*runtimeRun
+	subscribers    map[string]map[*discussionSubscriber]bool
 }
 
 func newRuntimeSessions() *runtimeSessions {
@@ -152,11 +155,24 @@ func (m *runtimeSessions) disconnect(id string) error {
 }
 
 func (m *runtimeSessions) create(projectID, providerID string, consent bool) (RuntimeSession, error) {
+	return m.createContext(context.Background(), projectID, providerID, consent)
+}
+func (m *runtimeSessions) createContext(ctx context.Context, projectID, providerID string, consent bool) (RuntimeSession, error) {
+	var s RuntimeSession
+	if providerID != "" {
+		var p CloudProvider
+		if !getStoreJSON(bkProviders, providerID, &p) {
+			return s, errors.New("provider not found")
+		}
+		in := policy.Input{Subject: "data.send_provider", Operation: "select", ProjectID: projectID, ProviderID: providerID, Endpoint: p.Endpoint, Model: p.Model, Fallback: policy.Confirm}
+		if err := m.authorizePolicy(ctx, in, consent); err != nil {
+			return s, err
+		}
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	var s RuntimeSession
-	if providerID != "" && !consent {
-		return s, errors.New("confirm sending messages and selected context to this provider")
+	if err := ctx.Err(); err != nil {
+		return s, err
 	}
 	var p CloudProvider
 	if providerID != "" && !getStoreJSON(bkProviders, providerID, &p) {
@@ -215,6 +231,9 @@ func (m *runtimeSessions) list() []RuntimeSession {
 	out := []RuntimeSession{}
 	for id := range allKV(bkRuntimeSessions) {
 		if s, ok := m.getLocked(id); ok {
+			if s.RuntimeID == "policy" {
+				continue
+			}
 			s = clientSession(s)
 			s.MessageCount = len(s.Messages)
 			s.Messages = nil
@@ -408,6 +427,7 @@ func turnContext(s RuntimeSession, c DiscussionContext) DiscussionContext {
 
 func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter RuntimeAdapter, messages []Message, preparedContext DiscussionContext) {
 	defer run.cancel()
+	ctx = withPolicySession(ctx, m, run.session)
 	caps := Caps{}
 	if adapter.Descriptor().Kind == "cloud" {
 		caps.Internet = getBool(bkState, "internet")

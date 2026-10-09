@@ -121,7 +121,7 @@ func handleMachineNode(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, map[string]any{"ok": true, "linked": false})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "linked": true, "url": n.URL, "hostname": n.Hostname, "version": n.Version, "role": n.Role, "modules": n.Modules, "handshake": n.Handshake})
+	sendJSON(w, 200, map[string]any{"ok": true, "linked": true, "url": n.URL, "hostname": n.Hostname, "version": n.Version, "role": n.Role, "modules": degradedCapabilities.Filter("machine:"+m.ID, n.Modules), "handshake": n.Handshake, "degraded": degradedCapabilities.Snapshot("machine:" + m.ID)})
 }
 
 func handleMachineNodeUpdate(w http.ResponseWriter, r *http.Request) {

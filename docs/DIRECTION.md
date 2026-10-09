@@ -31,7 +31,7 @@ These names are the contract for new code and UI copy.
 | **InteractionRequest** | A question, approval, choice or login a running executor needs from the user. Answerable from chat, a task view, a notification or voice. | ACP approvals in chat only |
 | **Event** | A domain event (`task.completed`, `node.offline`, `service.down`). Distinct from `DiscussionEvent`, which renders a turn. | — |
 | **Automation** | Trigger + condition + action over events and capabilities. | — |
-| **Policy** | Central `allow / confirm / deny` decision for capability use, cost and data sharing. | scattered checks |
+| **Policy** | Central `allow / confirm / deny` decision for capability use, cost and data sharing. | phase 4b backend; UI pending |
 | **Orchestrator** | Decides whether an intent becomes a direct capability call, a model request or a delegated task. | direct routing |
 | **Brain** | Knowledge and memory: the user's vault plus Loom's cognitive memory and the context engine. *Not* the orchestrator. | second brains, distillation |
 
@@ -136,7 +136,7 @@ project context). Installing, updating or system configuration never lives there
 - **Loom Doctor**: core, machines, integrations, capabilities and security checks,
   plus opt-in acceptance tests on the user's real hardware and accounts, and a
   **redacted diagnostic bundle** (versions, failed probes, sanitized config and
-  protocol traces; no secrets, prompts or Brain content) for bug reports.
+  protocol metadata; no secrets, prompts or Brain content) for bug reports.
 - Release cadence: features are batched; a patch release ships only for a
   blocking regression. Day-to-day testing uses a preview channel or `make dev`,
   not public releases.
@@ -258,7 +258,16 @@ releases.
   payload-free Web Push, with request-bound single-use phone action tokens.
   `task.completed → notify` is the first rule. See [notifications](notifications.md)
   for setup and exact Tasks/Settings UI contracts. Checkpoint/process restart
-  resume, central policy, maintenance and real hour-long phone acceptance remain.
+  resume and real hour-long phone acceptance remain.
+- Phase 4b backend (unreleased): one capability Policy evaluates agent approvals,
+  destination consent, notification summaries, consolidation, MCP gateway calls,
+  node lifecycle/terminal actions and observed provider spend. Confirmations use
+  canonical requests, Tasks and phone answers; the audit excludes private inputs.
+  Doctor runs bounded read-only checks and produces an opt-in redacted ZIP.
+  Capability failures remove affected features and emit degraded/restored events
+  (notification rules default off). See [policy](policy.md) and [Doctor](doctor.md)
+  for exact UI JSON contracts and observation limits. Settings/Doctor/degraded UI,
+  durable checkpoints and real-platform acceptance remain.
 - Durable tasks with checkpoints; InteractionRequest for questions, approvals
   and logins answered from chat, tasks or notifications.
 - Domain event bus; first automation `task.completed → notify`.
