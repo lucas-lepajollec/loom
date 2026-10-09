@@ -33,7 +33,7 @@ func doctorJobs() []doctor.Job {
 		{ID: "core.version", Area: "core", Run: func(context.Context) doctor.Check { return doctorCheck("ok", Version+"; "+updateChannel(), "") }},
 		{ID: "core.data_writable", Area: "core", Run: func(context.Context) doctor.Check {
 			if !doctor.Writable(LoomHome()) {
-				return doctorCheck("fail", "data_not_writable", "#/settings")
+				return doctorCheck("fail", "data_not_writable", "#/settings/security")
 			}
 			return doctorCheck("ok", "data_writable", "")
 		}},
@@ -43,13 +43,13 @@ func doctorJobs() []doctor.Job {
 				return doctorCheck("skip", "disk_space_unknown", "")
 			}
 			if available < 512<<20 {
-				return doctorCheck("warn", "disk_space_low", "#/machines")
+				return doctorCheck("warn", "disk_space_low", "#/machines/local")
 			}
 			return doctorCheck("ok", fmt.Sprintf("available_bytes:%d", available), "")
 		}},
 		{ID: "security.vault", Area: "security", Run: func(context.Context) doctor.Check {
 			if memEncActive() && !memUnlocked() {
-				return doctorCheck("fail", "vault_locked", "#/settings")
+				return doctorCheck("fail", "vault_locked", "#/settings/security")
 			}
 			if !vaultExists() {
 				return doctorCheck("skip", "vault_not_configured", "")
@@ -62,26 +62,26 @@ func doctorJobs() []doctor.Job {
 			}
 			sources, err := theBrain().storage.LoadSources()
 			if err != nil {
-				return doctorCheck("warn", "brain_config_unavailable", "#/brain")
+				return doctorCheck("warn", "brain_config_unavailable", "#/brain/sources")
 			}
 			for _, s := range sources {
 				if s.Primary {
 					if s.Permission != "write" || !doctor.Writable(s.Path) {
-						return doctorCheck("fail", "brain_not_writable", "#/brain")
+						return doctorCheck("fail", "brain_not_writable", "#/brain/sources")
 					}
 					return doctorCheck("ok", "brain_writable", "")
 				}
 			}
-			return doctorCheck("skip", "brain_primary_missing", "#/brain")
+			return doctorCheck("skip", "brain_primary_missing", "#/brain/sources")
 		}},
 		{ID: "engine.reachable", Area: "engine", Run: doctorEngine},
 		{ID: "security.password", Area: "security", Run: func(context.Context) doctor.Check {
 			p, _, err := readWebPassword()
 			if err != nil {
-				return doctorCheck("fail", "password_unreadable", "#/settings")
+				return doctorCheck("fail", "password_unreadable", "#/settings/security")
 			}
 			if p == nil {
-				return doctorCheck("warn", "password_missing", "#/settings")
+				return doctorCheck("warn", "password_missing", "#/settings/security")
 			}
 			return doctorCheck("ok", "password_set", "")
 		}},
@@ -89,21 +89,21 @@ func doctorJobs() []doctor.Job {
 			p, _, err := readWebPassword()
 			exposed := !isLoopbackHost(webHost()) || webBound.host != "" && !isLoopbackHost(webBound.host)
 			if exposed && (err != nil || p == nil) {
-				return doctorCheck("fail", "lan_without_password", "#/settings")
+				return doctorCheck("fail", "lan_without_password", "#/settings/security")
 			}
 			return doctorCheck("ok", "lan_protected_or_loopback", "")
 		}},
 		{ID: "security.push_https", Area: "security", Run: func(context.Context) doctor.Check {
 			cfg, err := notificationConfig()
 			if err != nil {
-				return doctorCheck("warn", "notification_config_unavailable", "#/settings")
+				return doctorCheck("warn", "notification_config_unavailable", "#/settings/notifications")
 			}
 			if !cfg.Push.Enabled {
 				return doctorCheck("skip", "push_disabled", "")
 			}
 			u, err := url.Parse(cfg.PublicBaseURL)
 			if err != nil || u.Scheme != "https" {
-				return doctorCheck("fail", "push_requires_https", "#/settings")
+				return doctorCheck("fail", "push_requires_https", "#/settings/notifications")
 			}
 			return doctorCheck("ok", "push_https", "")
 		}},
@@ -143,7 +143,7 @@ func doctorJobs() []doctor.Job {
 		}
 		identity := a.agent
 		jobs = append(jobs, doctor.Job{ID: "agent." + identity.ID, Area: "agents", Run: func(ctx context.Context) doctor.Check {
-			href := "#/agents/" + url.PathEscape(identity.ID)
+			href := "#/harnesses/" + url.PathEscape(identity.ID)
 			p, exists := cachedAgentProbe(identity.ID)
 			compat := p.Compatibility
 			if compat == nil {
@@ -205,10 +205,10 @@ func doctorJobs() []doctor.Job {
 				}
 				observed, connected, _ := mcpMgr.Probe(ctx, name)
 				if !observed {
-					return doctorCheck("skip", "mcp_not_observed", "#/brain")
+					return doctorCheck("skip", "mcp_not_observed", "#/brain/mcp")
 				}
 				if !connected {
-					return doctorCheck("warn", "mcp_unreachable", "#/brain")
+					return doctorCheck("warn", "mcp_unreachable", "#/brain/mcp")
 				}
 				return doctorCheck("ok", "mcp_reachable", "")
 			}})
@@ -218,7 +218,7 @@ func doctorJobs() []doctor.Job {
 		jobs = append(jobs, doctor.Job{ID: "notifications." + channel, Area: "notifications", Run: func(context.Context) doctor.Check {
 			cfg, err := notificationConfig()
 			if err != nil {
-				return doctorCheck("warn", "notification_config_unavailable", "#/settings")
+				return doctorCheck("warn", "notification_config_unavailable", "#/settings/notifications")
 			}
 			enabled := map[string]bool{"ntfy": cfg.Ntfy.Enabled, "webhook": cfg.Webhook.Enabled, "push": cfg.Push.Enabled}[channel]
 			if !enabled {
@@ -229,7 +229,7 @@ func doctorJobs() []doctor.Job {
 			lastError := svc.lastError[channel]
 			svc.mu.Unlock()
 			if lastError != "" {
-				return doctorCheck("warn", "notification_delivery_failed", "#/settings")
+				return doctorCheck("warn", "notification_delivery_failed", "#/settings/notifications")
 			}
 			return doctorCheck("ok", "no_delivery_error_observed", "")
 		}})
@@ -241,7 +241,7 @@ func doctorTokenAges() doctor.Check {
 	if usageVaultAccessStream() {
 		entries, err := os.ReadDir(providerSecretRoot())
 		if err != nil && !os.IsNotExist(err) {
-			return doctorCheck("warn", "token_metadata_unavailable", "#/settings")
+			return doctorCheck("warn", "token_metadata_unavailable", "#/settings/security")
 		}
 		for _, entry := range entries {
 			if entry.Type().IsRegular() && strings.HasSuffix(entry.Name(), ".sealed") {
@@ -256,11 +256,11 @@ func doctorTokenAges() doctor.Check {
 			continue
 		}
 		if err != nil || !info.Mode().IsRegular() {
-			return doctorCheck("warn", "token_metadata_unavailable", "#/settings")
+			return doctorCheck("warn", "token_metadata_unavailable", "#/settings/security")
 		}
 		known = true
 		if time.Since(info.ModTime()) > 90*24*time.Hour {
-			return doctorCheck("warn", "token_rotation_due", "#/settings")
+			return doctorCheck("warn", "token_rotation_due", "#/settings/security")
 		}
 	}
 	if usageVaultAccessStream() {
@@ -268,7 +268,7 @@ func doctorTokenAges() doctor.Check {
 			if n := savedMachineNode(m); n != nil && n.LinkedAt > 0 {
 				known = true
 				if time.Since(time.UnixMilli(n.LinkedAt)) > 90*24*time.Hour {
-					return doctorCheck("warn", "token_rotation_due", "#/settings")
+					return doctorCheck("warn", "token_rotation_due", "#/settings/security")
 				}
 			}
 		}
@@ -291,7 +291,7 @@ func doctorEngine(ctx context.Context) doctor.Check {
 			if doctorObservationAllowed(ctx) {
 				observeEngineReachability(owner, false)
 			}
-			return doctorCheck("warn", "engine_unreachable", "#/models")
+			return doctorCheck("warn", "engine_unreachable", "#/engine")
 		}
 		outdatedNode = info.Version != Version
 	}
@@ -312,7 +312,7 @@ func doctorEngine(ctx context.Context) doctor.Check {
 		if doctorObservationAllowed(ctx) {
 			observeEngineReachability(owner, false)
 		}
-		return doctorCheck("warn", "engine_unreachable_or_unloaded", "#/models")
+		return doctorCheck("warn", "engine_unreachable_or_unloaded", "#/engine")
 	}
 	if doctorObservationAllowed(ctx) {
 		observeEngineReachability(owner, true)
@@ -325,11 +325,11 @@ func doctorEngine(ctx context.Context) doctor.Check {
 		observeCapability(owner, "properties", true, "probe_succeeded")
 		installed, _ := prebuiltVersion()
 		if n == nil && resolvedEngineBin() == prebuiltServerBin() && installed != "" && properties.BuildInfo != "" && !strings.Contains(properties.BuildInfo, strings.TrimPrefix(installed, "b")) {
-			return doctorCheck("warn", "engine_outdated", "#/models")
+			return doctorCheck("warn", "engine_outdated", "#/engine")
 		}
 	}
 	if outdatedNode {
-		return doctorCheck("warn", "engine_outdated", "#/models")
+		return doctorCheck("warn", "engine_outdated", "#/engine")
 	}
 	return doctorCheck("ok", "engine_reachable", "")
 }
