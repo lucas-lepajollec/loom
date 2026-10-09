@@ -38,6 +38,7 @@ func probeNodeHarness(ctx context.Context) (RemoteMachine, error) {
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sh", "-s")
+	cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
 	cmd.Stdin = strings.NewReader(remoteProbeScript)
 	acpProcessGroup(cmd)
 	cmd.Cancel = func() error { acpKillProcessGroup(cmd); return nil }
@@ -46,7 +47,41 @@ func probeNodeHarness(ctx context.Context) (RemoteMachine, error) {
 	if err != nil {
 		return RemoteMachine{}, errors.New("node tool probe failed")
 	}
-	return parseRemoteProbe(string(out))
+	m, err := parseRemoteProbe(string(out))
+	if err != nil {
+		return m, err
+	}
+	return nodeHarnessSavedPaths(ctx, m), nil
+}
+
+func nodeHarnessSavedPaths(ctx context.Context, m RemoteMachine) RemoteMachine {
+	harnessInspectSpec("")
+	for _, spec := range inspectSpecs {
+		var path string
+		if !getStoreJSON(bkState, "harness_executable:"+spec.Binary, &path) || !filepath.IsAbs(path) {
+			continue
+		}
+		if _, err := exec.LookPath(path); err != nil {
+			continue
+		}
+		version := ""
+		out, err := runHarnessLifecycleRaw(ctx, nil, append([]string{path}, spec.Version[1:]...))
+		if err == nil {
+			version = strings.TrimSpace(strings.SplitN(out, "\n", 2)[0])
+		}
+		tool := RemoteTool{ID: spec.Binary, Path: path, Version: version}
+		found := false
+		for i := range m.Tools {
+			if m.Tools[i].ID == spec.Binary {
+				m.Tools[i], found = tool, true
+				break
+			}
+		}
+		if !found {
+			m.Tools = append(m.Tools, tool)
+		}
+	}
+	return m
 }
 
 // One server owns its slots. Hooks let tests exercise the actual transport with
@@ -55,13 +90,15 @@ type nodeHarnessServer struct {
 	mu        sync.Mutex
 	closing   bool
 	processes map[*exec.Cmd]bool
+	actions   map[context.Context]context.CancelFunc
 	slots     chan struct{}
+	lifecycle *harnessLifecycleService
 	probe     func(context.Context) (RemoteMachine, error)
 	command   func(RemoteMachine, string, string) (*exec.Cmd, error)
 }
 
 func newNodeHarnessServer(limit int) *nodeHarnessServer {
-	return &nodeHarnessServer{processes: map[*exec.Cmd]bool{}, slots: make(chan struct{}, limit), probe: probeNodeHarness, command: nodeHarnessCommand}
+	return &nodeHarnessServer{processes: map[*exec.Cmd]bool{}, actions: map[context.Context]context.CancelFunc{}, slots: make(chan struct{}, limit), probe: probeNodeHarness, command: nodeHarnessCommand, lifecycle: newHarnessLifecycleService()}
 }
 func nodeHarnessCommand(m RemoteMachine, harness, cwd string) (*exec.Cmd, error) {
 	for _, d := range remoteHarnessDefs {
@@ -321,6 +358,9 @@ func (s *nodeHarnessServer) stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closing = true
+	for _, cancel := range s.actions {
+		cancel()
+	}
 	for cmd := range s.processes {
 		acpKillProcessGroup(cmd)
 	}

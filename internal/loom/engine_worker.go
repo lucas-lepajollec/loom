@@ -319,6 +319,7 @@ func newEngineWorkerMuxModules(token string, harness *nodeHarnessServer, termina
 	api("/api/node/terminal/ws", terminal.ws)
 	api("/api/node/observe", handleNodeObserve)
 	api("/api/node/harness/inventory", harness.inventory)
+	api("/api/node/harness/lifecycle", harness.lifecycleAction)
 	api("/api/node/harness/acp", harness.acp)
 	api("/api/node/folders", handleNodeFolders)
 	api("/api/node/workspace", handleNodeWorkspace)

@@ -16,6 +16,97 @@ schema snapshot and generated Go message projections live in
 new variant survives translation. The official [app-server contract](https://developers.openai.com/codex/app-server)
 and the installed Pi package's `docs/rpc.md` define the wire protocols.
 
+## Installation and update lifecycle
+
+Use **Agents → an agent → On your machines** to inspect versions and install or
+update each local, paired Loom Node or existing SSH installation. Installation
+does not enable an agent, sign in, or grant transcript sharing consent. Unknown
+versions appear as **Unknown version** and never imply **up to date**.
+
+`GET /api/harness/lifecycle?target=local&id=codex` checks without installing;
+`target` can also be a saved machine ID. `POST /api/harness/lifecycle` accepts
+`{target,id,action}` with `check`, `install`, `update` or `repair`. Responses include
+`{ok,state,log}`; failures also include `error`. State reports the executable
+`path`, `channel` (`npm`, `native`, `homebrew` or `unknown`), `can_repair`,
+`repair_path` when recoverable, `version`, `latest`, `update_available`, `can_update`, `check_update`,
+missing prerequisites and automatic-update settings. Mutation responses also
+report `from_version` and, when both versions were read, `result: "updated"`
+or `"unchanged"`. Logs retain the last 32 KiB of combined installer output;
+failed npm output is preserved verbatim. Each machine/agent pair has one action
+at a time, a 15-minute deadline and cancellation of its owned child processes.
+
+The machine table shows a small installation-channel label. Loom detects the
+channel from the selected executable and its symlink target, not from the
+agent name or an available npm command:
+
+- **npm** requires a path inside that agent's npm package or a matching Windows
+  npm shim. Updates retain the existing prefix.
+- **Native** recognizes the catalog's installer directories, including Codex's
+  standalone releases/current tree, Claude's native versions, OpenCode's bin
+  directory and Antigravity's installer path. These use `codex update`,
+  `claude update`, `opencode upgrade` or `agy update`. A native Pi installation
+  must advertise an update command in `--help` before Loom offers it.
+- **Homebrew** requires the agent's known formula/cask in a Homebrew
+  Cellar/Caskroom layout and uses `brew upgrade <formula>` (with `--cask` for
+  casks).
+- **Unknown** refuses mutations: “installed outside Loom's known channels;
+  update it the way you installed it”. Automatic updates also skip it.
+
+If the launcher is missing, Loom searches known native installations and user
+npm prefixes, including a configured npm prefix outside its service PATH.
+**Repair** verifies the candidate's `--version`, then restores a missing Unix
+user-bin symlink or remembers its path on a Windows local/Node installation.
+It refreshes the same inventories and probes without downloading another copy.
+An install/update request refuses when a recovery candidate needs Repair.
+Repair uses the `node.install` policy and does not overwrite a working launcher.
+Windows SSH repair restores a symlink when the target account has permission;
+paired Windows nodes can remember the discovered path without a symlink.
+
+Local and Node npm actions resolve the existing executable's installation
+prefix first, including user and nvm layouts. Volta shims are unwrapped with
+its read-only `volta which` command; the manager's launchers stay intact. With no existing installation,
+Loom uses `npm prefix -g` if writable, otherwise `~/.local` (on Unix), which its
+PATH search includes. Existing unwritable installations report an error rather
+than moving or removing the working agent. Loom sets `--prefix` per command;
+it never changes npm configuration or adds sudo. The package installs in a
+temporary directory on the selected prefix's filesystem and must run
+`--version` before promotion. Loom retains the previous package and launchers
+until a second version check succeeds; a promotion/check failure restores them.
+Failed transactions retain the previous executable path in the returned state.
+Successful installations remember their executable path so a prefix outside the
+service PATH remains discoverable, including in Node inventories.
+
+Local/Node native updates preserve the selected executable and its symlink
+launcher until the updated `--version` succeeds; an updater error, empty version
+or failed version check restores them. This does not snapshot native account or
+runtime state. Homebrew and SSH installers keep their upstream rollback
+semantics; Loom verifies `--version` and refreshes observations even after an
+updater failure. No update switches to npm over a native or Homebrew install.
+
+Successful mutations invalidate the agent's inspection, compatibility and
+protocol-help caches and refresh its probe before returning. The new protocol
+and version replace observations from the update window. Successful probes
+restore degraded features; independently observed failures remain visible.
+
+Paired machines use the authenticated Node harness module endpoint
+`POST /api/node/harness/lifecycle` with `{id,action}`. It runs the same embedded
+recipes and npm handling as the Node's OS user, returning state and the bounded
+log. The controller enforces `node.install`/`node.update` policy before sending
+mutations. The node also requires its harness module to be enabled; arbitrary
+commands and target overrides are rejected. Lifecycle requests use the paired
+control credential, never an inference key. Existing SSH installations continue
+using their target-side recipes and npm prefix probe.
+
+Antigravity uses its native `agy update` command. The inspected
+`agy update --help` does not expose a read-only check/dry-run flag, and the
+catalog has no verified latest-version source. Its **Check and update** action
+is available for a recognized native installation; Loom compares `agy --version` before and
+after to report **already up to date** or the version transition. It makes no
+currency claim during a read-only check and does not automatically update it.
+Native self-updaters and official non-npm installers retain their own update
+semantics. See [architecture](architecture.md#harness-lifecycle-api) and
+[policy](policy.md) for automatic-update and approval contracts.
+
 ## Capability truth table
 
 Phase 4b projects failed feature observations through this same contract:

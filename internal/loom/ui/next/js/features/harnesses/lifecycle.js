@@ -1,3 +1,4 @@
+import { lifecycleVersion, lifecycleCurrent, lifecycleResult, lifecycleChannel, lifecycleInstallAction } from './lifecycle-state.js';
 import { t, locale } from '../../core/i18n.js';
 // Version et mises à jour d'un harness, sur cette machine ou une machine
 // connectée : version installée et dernière publiée, installer, mettre à
@@ -21,14 +22,14 @@ export function Lifecycle({ target, id, name, where, onChange, compact }) {
     .then(r => setX(r.state || false)).catch(() => setX(false));
   useEffect(() => { setX(null); load(); }, [target, id]);
   const run = async action => {
-    const verb = action === 'install' ? t("harnesses.lifecycle.installer") : t("harnesses.lifecycle.mettre_a_jour");
-    if (!await confirm(verb + ' ' + name, (action === 'install' ? t("harnesses.lifecycle.loom_lance_l_installation_officielle_de") : t("harnesses.lifecycle.loom_lance_la_mise_a_jour_de")) + name + ' ' + where + t("harnesses.lifecycle.cela_peut_prendre_quelques_minutes") + (action === 'update' ? t("harnesses.lifecycle.les_discussions_en_cours_avec_ce_harness_peuvent_etre_interrompue") : ''), { ok: verb })) return;
+    const verb = action === 'repair' ? t('harnesses.lifecycle.repair') : action === 'install' ? t("harnesses.lifecycle.installer") : t("harnesses.lifecycle.mettre_a_jour");
+    if (!await confirm(verb + ' ' + name, (action === 'repair' ? t('harnesses.lifecycle.repair_note') : action === 'install' ? t("harnesses.lifecycle.loom_lance_l_installation_officielle_de") : t("harnesses.lifecycle.loom_lance_la_mise_a_jour_de")) + name + ' ' + where + t("harnesses.lifecycle.cela_peut_prendre_quelques_minutes") + (action === 'update' ? t("harnesses.lifecycle.les_discussions_en_cours_avec_ce_harness_peuvent_etre_interrompue") : ''), { ok: verb })) return;
     setBusy(action);
-    const r = await post('/api/harness/lifecycle', { target, id, action }).catch(e => ({ ok: false, error: e.message }));
+    const r = await post('/api/harness/lifecycle', { target, id, action }, { timeout: 16 * 60 * 1000 }).catch(e => ({ ok: false, error: e.message }));
     setBusy('');
     setLog({ ok: r.ok, text: r.log || r.error || '' });
     if (r.state) setX(r.state); else load();
-    if (r.ok) { toast(name + (action === 'install' ? t("harnesses.lifecycle.installe") : t("harnesses.lifecycle.mis_a_jour"))); refreshWorkspace(); onChange && onChange(); }
+    if (r.ok) { toast(name + (action === 'install' ? t("harnesses.lifecycle.installe") : lifecycleResult(r.state, t))); refreshWorkspace(); onChange && onChange(); }
     else toast(r.error || t("harnesses.lifecycle.echec"), 'err');
   };
   const auto = async on => {
@@ -38,23 +39,28 @@ export function Lifecycle({ target, id, name, where, onChange, compact }) {
   };
   if (x === false) return null;
   if (!x) return compact ? html`<span class="spinner"></span>` : html`<div class="kv"><span>${t("harnesses.lifecycle.version")}</span><span class="state"><span class="spinner"></span>${t("harnesses.lifecycle.verification")}</span></div>`;
-  const missing = (x.requires_missing || []).length > 0;
+  const missing = !x.can_repair && (x.requires_missing || []).length > 0;
+  const installAction = lifecycleInstallAction(x);
+  const installLabel = t(x.can_repair ? 'harnesses.lifecycle.repair' : 'harnesses.lifecycle.installer');
+  const actionLog = log && html`<details class="lc-log" open=${!log.ok}><summary>${t(log.ok ? "harnesses.lifecycle.journal_de_l_action" : "harnesses.lifecycle.journal_de_l_echec")}</summary><pre>${log.text || '(vide)'}</pre></details>`;
   // Ligne compacte d'un harness absent : juste de quoi l'installer.
-  if (compact && !x.installed) return missing ? html`<span class="state err">${t("harnesses.lifecycle.manque")} ${x.requires_missing.join(', ')}</span>`
-    : html`<span class="muted">${x.latest ? 'v' + String(x.latest).replace(/^v/, '') : ''}</span><button class="btn sm" disabled=${!!busy} onClick=${() => run('install')}>${busy ? html`<span class="spinner"></span>${t("harnesses.lifecycle.installation")}` : html`<${Icon} n="download" />${t("harnesses.lifecycle.installer")}`}</button>`;
+  if (compact && !x.installed) return html`${x.can_repair && html`<span class="tag" title=${x.repair_path}>${lifecycleChannel(x, t)}</span>`}${missing ? html`<span class="state err">${t("harnesses.lifecycle.manque")} ${x.requires_missing.join(', ')}</span>`
+    : html`<span class="muted">${x.latest ? 'v' + String(x.latest).replace(/^v/, '') : ''}</span><button class="btn sm" disabled=${!!busy} onClick=${() => run(installAction)}>${busy ? html`<span class="spinner"></span>${t("harnesses.lifecycle.installation")}` : html`<${Icon} n="download" />${installLabel}`}</button>`}${actionLog}`;
   const la = x.last_auto;
   return html`<div class="lc">
-    <div class="kv"><span>${t("harnesses.lifecycle.version")}</span><span class="num">${x.installed ? clean(x.version) || t('common.unknown_lower') : t("harnesses.lifecycle.non_installe")}${x.latest && html`<span class="muted"> ${t("harnesses.lifecycle.derniere")} ${x.latest}</span>`}</span></div>
+    ${x.channel && html`<span class="tag" title=${x.repair_path || x.path}>${lifecycleChannel(x, t)}</span>`}
+    <div class="kv"><span>${t("harnesses.lifecycle.version")}</span><span class="num">${x.installed ? lifecycleVersion(x.version) || t('harnesses.lifecycle.version_unknown') : t("harnesses.lifecycle.non_installe")}${x.latest && html`<span class="muted"> ${t("harnesses.lifecycle.derniere")} ${x.latest}</span>`}</span></div>
     ${x.installed ? html`<div class="kv"><span>${t("harnesses.lifecycle.mise_a_jour")}</span><span>${x.update_available
-        ? html`<button class="btn sm" disabled=${!!busy} onClick=${() => run('update')}>${busy ? html`<span class="spinner"></span>${t("harnesses.lifecycle.mise_a_jour_2")}` : html`<${Icon} n="download" />${t("harnesses.lifecycle.mettre_a_jour_vers")} ${x.latest}`}</button>`
-        : html`<span class="state"><i class="dot green"></i>${t("harnesses.lifecycle.a_jour")}</span><button class="btn sm ghost" disabled=${!!busy} onClick=${() => run('update')}>${busy ? t("harnesses.lifecycle.mise_a_jour_2") : t("harnesses.lifecycle.forcer")}</button>`}</span></div>
-      <div class="kv"><span>${t("harnesses.lifecycle.mise_a_jour_automatique")}<${Tip} text=${t("harnesses.lifecycle.verifiee_toutes_les_6_h") + where + t("harnesses.lifecycle.jamais_pendant_une_discussion_avec") + name + '.'} /></span><${Switch} checked=${x.auto} label=${t("harnesses.lifecycle.mise_a_jour_automatique_de") + name} onChange=${auto} /></div>
-      ${la && html`<div class="kv"><span>${t("harnesses.lifecycle.derniere_auto")}</span><span class=${'state' + (la.ok ? '' : ' err')}>${when(la.at)} · ${la.ok ? (la.from ? clean(la.from) + ' → ' : '') + (la.to || t("harnesses.lifecycle.a_jour")) : t("harnesses.lifecycle.echec_2")}</span></div>`}`
+        ? html`<button class="btn sm" disabled=${!!busy || !x.can_update} onClick=${() => run('update')}>${busy ? html`<span class="spinner"></span>${t("harnesses.lifecycle.mise_a_jour_2")}` : html`<${Icon} n="download" />${t("harnesses.lifecycle.mettre_a_jour_vers")} ${x.latest}`}</button>`
+        : html`${lifecycleCurrent(x) && html`<span class="state"><i class="dot green"></i>${t("harnesses.lifecycle.a_jour")}</span>`}<button class="btn sm ghost" disabled=${!!busy || !x.can_update} onClick=${() => run('update')}>${busy ? t("harnesses.lifecycle.mise_a_jour_2") : (x.check_update ? t("harnesses.lifecycle.check_update") : t("harnesses.lifecycle.mettre_a_jour"))}</button>`}</span></div>
+      ${!x.check_update && html`<div class="kv"><span>${t("harnesses.lifecycle.mise_a_jour_automatique")}<${Tip} text=${t("harnesses.lifecycle.verifiee_toutes_les_6_h") + where + t("harnesses.lifecycle.jamais_pendant_une_discussion_avec") + name + '.'} /></span><${Switch} checked=${x.auto} disabled=${!x.can_update} label=${t("harnesses.lifecycle.mise_a_jour_automatique_de") + name} onChange=${auto} /></div>`}
+      ${la && html`<div class="kv"><span>${t("harnesses.lifecycle.derniere_auto")}</span><span class=${'state' + (la.ok ? '' : ' err')}>${when(la.at)} · ${la.ok ? (la.from ? clean(la.from) + ' → ' : '') + (la.to || t("harnesses.lifecycle.version_unknown")) : t("harnesses.lifecycle.echec_2")}</span></div>`}`
     : html`<div class="kv"><span>${t("harnesses.lifecycle.installation_2")}</span><span>${missing
         ? html`<span class="state err">${t("harnesses.lifecycle.manque")} ${x.requires_missing.join(', ')} ${where}</span>`
-        : html`<button class="btn sm" disabled=${!!busy} onClick=${() => run('install')}>${busy ? html`<span class="spinner"></span>${t("harnesses.lifecycle.installation")}` : html`<${Icon} n="download" />${t("harnesses.lifecycle.installer")} ${name}`}</button>`}</span></div>`}
+        : html`<button class="btn sm" disabled=${!!busy} onClick=${() => run(installAction)}>${busy ? html`<span class="spinner"></span>${t("harnesses.lifecycle.installation")}` : html`<${Icon} n="download" />${installLabel} ${name}`}</button>`}</span></div>`}
     ${x.unverified && html`<p class="note">${t("harnesses.lifecycle.commande_d_installation_non_verifiee_pour_ce_harness_relis_le_jou")}</p>`}
-    ${log && html`<details class="lc-log" open=${!log.ok}><summary>${log.ok ? t("harnesses.lifecycle.journal_de_l_action") : t("harnesses.lifecycle.journal_de_l_echec")}</summary><pre>${log.text || '(vide)'}</pre></details>`}
+    ${x.installed && !x.can_update && html`<p class="note">${(x.errors || []).join(' · ')}</p>`}
+    ${actionLog}
   </div>`;
 }
 

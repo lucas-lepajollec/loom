@@ -266,9 +266,12 @@ func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, 
 		request.Header.Set("Content-Type", "application/json")
 	}
 	client := nodeClient
-	if path == "/api/node/harness/inventory" {
+	if path == "/api/node/harness/inventory" || path == "/api/node/harness/lifecycle" {
 		copied := *nodeClient
 		copied.Timeout = 30 * time.Second
+		if path == "/api/node/harness/lifecycle" {
+			copied.Timeout = harnessActionTimeout
+		}
 		client = &copied
 	}
 	resp, err := client.Do(request)
@@ -279,7 +282,7 @@ func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, 
 		return errors.New("node machine unreachable")
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 && path != "/api/node/harness/lifecycle" {
 		if resp.StatusCode == 409 {
 			if module == "observe" {
 				return errors.New(nodeObserveDisabled)
@@ -288,7 +291,15 @@ func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, 
 		}
 		return errors.New("node machine rejected the request; check credential and directory")
 	}
-	return json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(result)
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(result); err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		// Lifecycle failures carry useful state and the installer log. Preserve
+		// them above, along with contention/authorization status below.
+		return runtimeActionError{resp.StatusCode, "node harness lifecycle failed"}
+	}
+	return nil
 }
 func refreshNodeMachine(ctx context.Context, m RemoteMachine) (RemoteMachine, error) {
 	var info struct {
