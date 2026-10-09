@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -207,7 +208,7 @@ func buildPlanFor(force string) buildPlan {
 func buildLlamacpp(repo string, p buildPlan, clean bool) error {
 	build := filepath.Join(repo, "build")
 
-	if clean || cacheStale(build, repo) {
+	if clean || cacheStale(build, repo) || cacheMismatch(build, p) {
 		if isDir(build) {
 			fmt.Printf("%s clean reconfiguration (removing build/)\n", dim("[info]"))
 			old := build + ".old"
@@ -350,6 +351,47 @@ func cacheStale(build, repo string) bool {
 				home := strings.TrimSpace(line[i+1:])
 				return home != "" && home != absRepo
 			}
+		}
+	}
+	return false
+}
+
+// cacheMismatch reports a build/ whose CMake cache disagrees with the plan's
+// backend switches or CUDA compiler. CMake reacts to a changed
+// CMAKE_CUDA_COMPILER by deleting its cache and re-running configure, and that
+// re-run drops -DGGML_CUDA=ON: the update silently produced a CPU-only engine.
+// A clean configure avoids that path entirely.
+func cacheMismatch(build string, p buildPlan) bool {
+	b, err := os.ReadFile(filepath.Join(build, "CMakeCache.txt"))
+	if err != nil {
+		return false
+	}
+	cache := map[string]string{}
+	for _, line := range strings.Split(string(b), "\n") {
+		name, rest, ok := strings.Cut(line, ":")
+		if !ok || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+			continue
+		}
+		if _, value, ok := strings.Cut(rest, "="); ok {
+			cache[name] = strings.TrimSpace(value)
+		}
+	}
+	on := func(v string) bool {
+		switch strings.ToUpper(v) {
+		case "ON", "1", "TRUE", "YES":
+			return true
+		}
+		return false
+	}
+	for _, name := range []string{"GGML_CUDA", "GGML_HIP", "GGML_VULKAN", "GGML_METAL"} {
+		want := slices.Contains(p.flags, "-D"+name+"=ON")
+		if want != on(cache[name]) && (want || cache[name] != "") {
+			return true
+		}
+	}
+	if p.backend == "cuda" && p.cudaCXX != "" {
+		if got := cache["CMAKE_CUDA_COMPILER"]; got != "" && filepath.Clean(got) != filepath.Clean(p.cudaCXX) {
+			return true
 		}
 	}
 	return false

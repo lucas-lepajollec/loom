@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -674,6 +675,15 @@ func lcBuildAndSwitch(repo string, clean bool) bool {
 		return false
 	}
 	lcAppend("binary compiled: " + bin)
+	if err := verifyGPUBuild(bin, plan.backend); err != nil {
+		if !clean {
+			// A reused build/ can still lose the accelerator: retry once from scratch.
+			lcAppend(err.Error() + " — retrying with a clean build")
+			return lcBuildAndSwitch(repo, true)
+		}
+		lcFail(err)
+		return false
+	}
 	if err := SetConfigKey("BIN", bin); err != nil {
 		lcFail(fmt.Errorf("build succeeded but failed to write BIN: %w", err))
 		return false
@@ -683,6 +693,41 @@ func lcBuildAndSwitch(repo string, clean bool) bool {
 		lcAppend("models : " + models)
 	}
 	return true
+}
+
+// verifyGPUBuild asks the new llama-server which devices it can use. A GPU plan
+// that yields no device of that kind is a failed build, never a success.
+func verifyGPUBuild(bin, backend string) error {
+	tag := map[string]string{"cuda": "CUDA", "hip": "ROCm", "vulkan": "Vulkan", "metal": "Metal"}[backend]
+	if tag == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := hideCmd(exec.CommandContext(ctx, bin, "--list-devices"))
+	cmd.Env = libraryPathEnv(filepath.Dir(bin))
+	out, _ := cmd.CombinedOutput()
+	if !gpuListed(string(out), tag) {
+		return fmt.Errorf("the engine was built without %s support (no %s device listed)", tag, tag)
+	}
+	return nil
+}
+
+// gpuListed matches device lines such as "  CUDA0: NVIDIA …" (Metal: MTL0).
+func gpuListed(listing, tag string) bool {
+	prefixes := []string{tag}
+	if tag == "Metal" {
+		prefixes = append(prefixes, "MTL")
+	}
+	for _, line := range strings.Split(listing, "\n") {
+		line = strings.TrimSpace(line)
+		for _, p := range prefixes {
+			if rest, ok := strings.CutPrefix(line, p); ok && len(rest) > 1 && rest[0] >= '0' && rest[0] <= '9' && strings.Contains(rest, ":") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // lcAppendLogTail remonte la fin des logs de build dans le job pour que
