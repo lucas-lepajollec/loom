@@ -4,6 +4,7 @@ package loom
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -148,6 +150,7 @@ func buildPlanFor(force string) buildPlan {
 			}
 		}
 		p.flags = append(p.flags, "-DGGML_CUDA=ON", "-DGGML_CUDA_F16=ON", "-DGGML_CUDA_FA_ALL_QUANTS=ON")
+		p.flags = append(p.flags, cudaHostCompilerFlags(p.cudaCXX)...)
 		if arch := detectCudaArch(); arch != "" {
 			p.cudaArch = arch
 			p.flags = append(p.flags, "-DCMAKE_CUDA_ARCHITECTURES="+arch)
@@ -177,6 +180,7 @@ func buildPlanFor(force string) buildPlan {
 				"-DCUDAToolkit_ROOT="+root,
 				"-DCMAKE_CUDA_COMPILER="+nvcc)
 		}
+		p.flags = append(p.flags, cudaHostCompilerFlags(nvcc)...)
 		if arch := detectCudaArch(); arch != "" {
 			p.cudaArch = arch
 			p.flags = append(p.flags, "-DCMAKE_CUDA_ARCHITECTURES="+arch)
@@ -393,8 +397,94 @@ func cacheMismatch(build string, p buildPlan) bool {
 		if got := cache["CMAKE_CUDA_COMPILER"]; got != "" && filepath.Clean(got) != filepath.Clean(p.cudaCXX) {
 			return true
 		}
+		want := ""
+		for _, f := range p.flags {
+			if v, ok := strings.CutPrefix(f, "-DCMAKE_CUDA_HOST_COMPILER="); ok {
+				want = v
+			}
+		}
+		if got := cache["CMAKE_CUDA_HOST_COMPILER"]; want != "" && filepath.Clean(got) != filepath.Clean(want) {
+			return true
+		}
 	}
 	return false
+}
+
+// cudaHostCompilerFlags picks a host C++ compiler nvcc accepts. A distribution
+// often ships a newer GCC than the CUDA toolkit supports ("unsupported GNU
+// version"); the build then needs an older installed GCC (g++-15, cuda-g++…).
+// nvcc itself decides: a one-line kernel is compiled with the default compiler,
+// then with each candidate, newest first.
+func cudaHostCompilerFlags(nvcc string) []string {
+	if nvcc == "" || runtime.GOOS == "windows" {
+		return nil
+	}
+	if host := pickCudaHostCompiler(nvcc, nvccCompiles); host != "" {
+		return []string{"-DCMAKE_CUDA_HOST_COMPILER=" + host}
+	}
+	return nil
+}
+
+func pickCudaHostCompiler(nvcc string, compiles func(nvcc, host string) bool) string {
+	if compiles(nvcc, "") {
+		return ""
+	}
+	for _, host := range cudaHostCandidates() {
+		if compiles(nvcc, host) {
+			fmt.Printf("%s CUDA host compiler: %s (the default compiler is not supported by nvcc)\n", dim("[info]"), host)
+			return host
+		}
+	}
+	fmt.Printf("%s nvcc rejects the default C++ compiler and no older g++ was found — install a GCC version supported by your CUDA toolkit\n", yellow("[warn]"))
+	return ""
+}
+
+// cudaHostCandidates lists installed g++-N (newest first) and distribution
+// CUDA wrappers.
+func cudaHostCandidates() []string {
+	type cand struct {
+		path string
+		ver  int
+	}
+	var list []cand
+	for _, dir := range []string{"/usr/bin", "/usr/local/bin"} {
+		matches, _ := filepath.Glob(filepath.Join(dir, "g++-[0-9]*"))
+		for _, m := range matches {
+			if v, err := strconv.Atoi(strings.TrimPrefix(filepath.Base(m), "g++-")); err == nil && isFile(m) {
+				list = append(list, cand{m, v})
+			}
+		}
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].ver > list[j].ver })
+	out := []string{}
+	for _, c := range list {
+		out = append(out, c.path)
+	}
+	for _, p := range []string{"/usr/bin/cuda-g++", "/usr/local/cuda/bin/g++"} {
+		if isFile(p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func nvccCompiles(nvcc, host string) bool {
+	dir, err := os.MkdirTemp("", "loom-nvcc-")
+	if err != nil {
+		return false
+	}
+	defer os.RemoveAll(dir)
+	src := filepath.Join(dir, "probe.cu")
+	if os.WriteFile(src, []byte("__global__ void k() {}\nint main() { return 0; }\n"), 0o600) != nil {
+		return false
+	}
+	args := []string{"-c", src, "-o", filepath.Join(dir, "probe.o")}
+	if host != "" {
+		args = append([]string{"-ccbin", host}, args...)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, nvcc, args...).Run() == nil
 }
 
 // ---------------------------------------------------------------------------

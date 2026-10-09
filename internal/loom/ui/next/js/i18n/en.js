@@ -424,6 +424,7 @@ export default {
   "app.groups.models": "Models",
   "app.groups.agents": "Agents",
   "app.groups.activity": "Activity",
+  "updates.installing_short": "Updating…",
   "updates.channel": "Channel",
   "updates.channel_tip": "Stable: published releases. Development: a test build rebuilt after every merged change, to get fixes right away. It may contain defects.",
   "updates.stable": "Stable",

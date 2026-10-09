@@ -1006,3 +1006,8 @@ details.vx-lib[open]>summary h3::after{content:" ⌄"}
 .upd .state{font-size:12.5px}
 .insp-hint{display:flex;align-items:center;gap:6px;margin:0 0 12px}
 .insp-hint .ico{width:14px;height:14px;flex:none;color:var(--text-3)}
+.mc-title{flex-wrap:nowrap;min-width:0}
+.mc-title>div{min-width:0}
+.mc-title h2,.mc-title p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-title>.btn,.mc-title>.upd,.mc-title>.icon-btn{flex:none}
+@media (max-width:640px){.mc-title{flex-wrap:wrap}}
