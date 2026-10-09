@@ -197,6 +197,7 @@ export function Composer() {
         ${workdir && html`<button class="chip-btn" title=${workdir} onClick=${() => app.set({ inspector: true })}><${Icon} n="folder" />${workdir.split('/').pop()}</button>`}
         ${entries.length > 0 && !text && html`<span class="composer-tip">${t("chat.composer.pour_les_commandes")}</span>`}
         <span class="grow"></span>
+        <button class="icon-btn vm-open" aria-label=${t('vm.open')} title=${t('vm.open')} onClick=${() => app.set({ voiceMode: { discussion: chat.get().sessionId || (app.get().nav && app.get().nav.active) || '' } })}><${Icon} n="mic" /></button>
         ${size ? html`<button class=${cls('ctx', pct >= 85 && 'hot')} title=${t("chat.composer.contexte_utilise") + used + ' / ' + size + ' tokens'} onClick=${native ? compact : compactSession}>
           <span class="ctx-ring" style=${`--p:${pct}`}></span><span>${fmtTok(used)} / ${fmtTok(size)}</span></button>` : ''}
         ${c.busy ? html`<button class="send stop" aria-label="${t("chat.composer.arreter")}" onClick=${stop}><${Icon} n="stop" /></button>`
