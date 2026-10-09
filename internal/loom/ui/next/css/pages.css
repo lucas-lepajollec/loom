@@ -985,3 +985,7 @@ details.eng-recent[open]>summary h3::after{content:" ⌄"}
 details.pol-imported>summary{list-style:none;cursor:pointer}
 details.pol-imported>summary::-webkit-details-marker{display:none}
 details.pol-imported>summary h3::after{content:" ›";color:var(--text-3)}
+.vx-filter{width:200px;margin-bottom:8px}
+.vx-model{flex-direction:column;align-items:flex-start;gap:2px}
+.vx-model small{font-size:12px}
+.vx-try{display:flex;flex-direction:column;gap:10px}

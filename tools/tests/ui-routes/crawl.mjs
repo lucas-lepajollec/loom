@@ -45,7 +45,7 @@ try {
   await fetch(base + 'api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"onboarded":"1"}' });
   const ws = await (await fetch(base + 'api/workspace')).json();
   const runtimes = (ws.runtimes || []).map(r => r.id);
-  const routes = ['chat', 'models', 'cloud', 'local', 'engine', 'harnesses', 'harnesses/history', ...runtimes.map(id => 'harnesses/' + id),
+  const routes = ['chat', 'models', 'cloud', 'local', 'engine', 'voice', 'harnesses', 'harnesses/history', ...runtimes.map(id => 'harnesses/' + id),
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
     'tasks', 'brain', 'brain/sources', 'brain/memory', 'brain/skills', 'brain/mcp', 'usage', 'bench',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
