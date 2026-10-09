@@ -1,26 +1,17 @@
-// push.go — notifications Web Push : quand un tour utilisateur se termine
-// (chat_conversation.go, turn_done), le serveur Loom pousse une notification
-// vers les navigateurs abonnés (iPhone verrouillé, Android, desktop) via leur
-// service de push (Apple/Google). C'est le SERVEUR qui pousse, directement vers
-// le endpoint du navigateur — ça marche donc app fermée, contrairement à une
-// notification purement client (l'onglet caché relâche son flux SSE).
-//
-// Ce que ça ne fait PAS transiter par le tunnel E2E : la charge utile est
-// chiffrée de bout en bout avec les clés PROPRES de l'abonnement (RFC 8291),
-// puis remise au service de push public. L'inscription, elle, passe par /api
-// (donc jfetch/E2E) comme le reste.
+// push.go retains the installation's existing Web Push subscriptions. Phase 4
+// delivery is opt-in through notification rules and uses payload-free VAPID
+// requests; the worker fetches notices through normal Loom authentication.
 package loom
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	webpush "github.com/SherClockHolmes/webpush-go"
+	"github.com/lucas-lepajollec/loom/internal/loom/notify"
 )
 
 // fmtDurFR : durée → « 42s », « 3 mn 05s », « 1 h 12 mn » pour le corps de la
@@ -48,11 +39,13 @@ const (
 	stPushSubs      = "push_subs"       // liste JSON des abonnements
 )
 
-// pushSub : un abonnement PushSubscription du navigateur. Même forme que l'objet
-// JS, on le reçoit tel quel depuis l'UI et on le rejoue tel quel à l'envoi.
+type pushKeys struct {
+	Auth   string `json:"auth"`
+	P256dh string `json:"p256dh"`
+}
 type pushSub struct {
-	Endpoint string       `json:"endpoint"`
-	Keys     webpush.Keys `json:"keys"`
+	Endpoint string   `json:"endpoint"`
+	Keys     pushKeys `json:"keys"`
 }
 
 // vapidMu sérialise la génération paresseuse des clés : deux requêtes /api/push/key
@@ -66,32 +59,45 @@ var vapidMu sync.Mutex
 func vapidKeys() (priv, pub string, err error) {
 	vapidMu.Lock()
 	defer vapidMu.Unlock()
-	priv = getStr(bkState, stPushVAPIDPriv)
-	pub = getStr(bkState, stPushVAPIDPub)
-	if priv != "" && pub != "" {
-		return priv, pub, nil
-	}
-	priv, pub, err = webpush.GenerateVAPIDKeys()
+	pair, err := persistentNotificationSecret("notify-vapid", func() (string, error) {
+		priv, pub := getStr(bkState, stPushVAPIDPriv), getStr(bkState, stPushVAPIDPub)
+		if priv == "" || pub == "" {
+			var err error
+			priv, pub, err = notify.GenerateVAPID()
+			if err != nil {
+				return "", err
+			}
+		}
+		return priv + "." + pub, nil
+	})
 	if err != nil {
 		return "", "", err
 	}
-	if err = putStr(bkState, stPushVAPIDPriv, priv); err != nil {
+	parts := strings.Split(pair, ".")
+	if len(parts) != 2 {
+		return "", "", errors.New("invalid stored VAPID keys")
+	}
+	if err := putStr(bkState, stPushVAPIDPriv, ""); err != nil {
 		return "", "", err
 	}
-	if err = putStr(bkState, stPushVAPIDPub, pub); err != nil {
-		return "", "", err
-	}
-	return priv, pub, nil
+	return parts[0], parts[1], nil
 }
 
 // subsMu sérialise les mutations de la liste d'abonnements (lecture-modif-écriture) :
 // une inscription et une purge concurrentes ne doivent pas s'écraser l'une l'autre.
 var subsMu sync.Mutex
 
-func loadSubs() []pushSub {
-	var subs []pushSub
-	getJSON(bkState, stPushSubs, &subs)
-	return subs
+func loadSubs() []pushSub { subs, _ := loadSubsErr(); return subs }
+func loadSubsErr() ([]pushSub, error) {
+	raw, err := getBytesErr(bkState, stPushSubs)
+	if err != nil {
+		return nil, errors.New("push subscription storage unavailable")
+	}
+	subs := []pushSub{}
+	if len(raw) > 0 && json.Unmarshal(raw, &subs) != nil {
+		return nil, errors.New("push subscription storage invalid")
+	}
+	return subs, nil
 }
 
 func saveSubs(subs []pushSub) error { return putJSON(bkState, stPushSubs, subs) }
@@ -105,12 +111,18 @@ func addSub(s pushSub) error {
 	}
 	subsMu.Lock()
 	defer subsMu.Unlock()
-	subs := loadSubs()
+	subs, err := loadSubsErr()
+	if err != nil {
+		return err
+	}
 	for i, x := range subs {
 		if x.Endpoint == s.Endpoint {
 			subs[i] = s
 			return saveSubs(subs)
 		}
+	}
+	if len(subs) >= 64 {
+		return errors.New("maximum 64 push subscriptions")
 	}
 	subs = append(subs, s)
 	return saveSubs(subs)
@@ -118,85 +130,24 @@ func addSub(s pushSub) error {
 
 // removeSub retire un abonnement par son endpoint (désinscription explicite, ou
 // purge après un 404/410 « gone » renvoyé par le service de push).
-func removeSub(endpoint string) {
+func removeSub(endpoint string) error {
 	if endpoint == "" {
-		return
+		return nil
 	}
 	subsMu.Lock()
 	defer subsMu.Unlock()
-	subs := loadSubs()
+	subs, err := loadSubsErr()
+	if err != nil {
+		return err
+	}
 	out := subs[:0]
 	for _, x := range subs {
 		if x.Endpoint != endpoint {
 			out = append(out, x)
 		}
 	}
-	_ = saveSubs(out)
+	return saveSubs(out)
 }
 
-// pushPayload : ce que le service worker reçoit dans l'événement `push`.
-type pushPayload struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
-	Tag   string `json:"tag"`
-}
-
-// hasPushSubs : y a-t-il au moins un abonnement ? Évite de sérialiser une charge
-// utile pour rien à chaque fin de tour quand personne n'a activé les notifs.
+// Legacy subscriptions remain usable through the opt-in notification rules.
 func hasPushSubs() bool { return len(loadSubs()) > 0 }
-
-// sendPushToAll pousse une notification à tous les abonnés. Best-effort : les
-// échecs réseau sont ignorés (le service de push réessaiera selon le TTL), mais un
-// abonnement rejeté définitivement (404/410) est purgé pour ne pas s'accumuler.
-// Appelé depuis la goroutine de génération, à turn_done — jamais bloquant pour l'UI.
-func sendPushToAll(title, body string) {
-	subs := loadSubs()
-	if len(subs) == 0 {
-		fmt.Printf("[push] end of turn: no subscribers registered (nothing to send)\n")
-		return
-	}
-	priv, pub, err := vapidKeys()
-	if err != nil {
-		fmt.Printf("[push] VAPID keys unavailable: %v\n", err)
-		return
-	}
-	msg, _ := json.Marshal(pushPayload{Title: title, Body: body, Tag: "loom-turn"})
-	opts := &webpush.Options{
-		// ⚠️ SANS préfixe « mailto: » : webpush-go l'ajoute lui-même (sauf si la
-		// chaîne commence par « https: »). Passer « mailto:… » ici donnait
-		// « mailto:mailto:… », un sujet VAPID malformé → Apple répond 403
-		// BadJwtToken et rien n'arrive. On donne donc l'email nu.
-		Subscriber:      "noreply@lucas-homelab.fr",
-		VAPIDPublicKey:  pub,
-		VAPIDPrivateKey: priv,
-		TTL:             120, // périmé après 2 min : une notif « réponse prête » n'a pas de sens tardive
-		Urgency:         webpush.UrgencyHigh,
-	}
-	fmt.Printf("[push] sending to %d subscriber(s)…\n", len(subs))
-	for _, s := range subs {
-		sub := &webpush.Subscription{Endpoint: s.Endpoint, Keys: s.Keys}
-		resp, err := webpush.SendNotification(msg, sub, opts)
-		if err != nil {
-			fmt.Printf("[push] sending failed (%s): %v\n", endpointHost(s.Endpoint), err)
-			continue
-		}
-		// 201 Created = accepté par le service de push. 4xx = problème (VAPID,
-		// chiffrement, abonnement mort) — on TRACE le corps de la réponse, qui porte
-		// le motif exact d'Apple/Google (ex. « BadJwtToken »).
-		if resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-			fmt.Printf("[push] refus %d (%s) : %s\n", resp.StatusCode, endpointHost(s.Endpoint), strings.TrimSpace(string(body)))
-		} else {
-			fmt.Printf("[push] accepted %d (%s)\n", resp.StatusCode, endpointHost(s.Endpoint))
-		}
-		// 404/410 = abonnement expiré côté service de push : on le retire.
-		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
-			removeSub(s.Endpoint)
-		}
-		resp.Body.Close()
-	}
-}
-
-// endpointHost : hôte de l'endpoint pour les logs (miroir de pushEndpointHost,
-// gardé dans ce fichier pour éviter un couplage de compilation entre les deux).
-func endpointHost(endpoint string) string { return pushEndpointHost(endpoint) }

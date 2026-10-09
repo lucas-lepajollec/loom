@@ -8,7 +8,6 @@ import (
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/acp"
 	"net/http"
 	"strings"
-	"time"
 )
 
 func acpAutoOption(policy, kind string, options []map[string]any) string {
@@ -135,35 +134,14 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 		}
 		e := AgentEvent{Type: "request.opened", Runtime: p.agentID, Request: r, Raw: raw}
 		p.publish(DiscussionEvent{"type": "approval_request", "approval": map[string]any{"id": id, "tool": tool, "options": uiOptions}, "agent_event": e})
-		grace := p.approvalGrace
-		if grace <= 0 {
-			grace = 30 * time.Minute
-		}
-		ticker := time.NewTicker(min(time.Second, grace))
-		defer ticker.Stop()
-		absentSince := time.Now()
-	wait:
-		for {
-			select {
-			case decision = <-pending.answer:
-				break wait
-			case <-ctx.Done():
-				decision = acpDecision{}
-				break wait
-			case <-p.client.done:
-				decision = acpDecision{}
-				break wait
-			case now := <-ticker.C:
-				p.manager.mu.Lock()
-				subscribed := len(p.manager.subscribers[p.id]) > 0
-				p.manager.mu.Unlock()
-				if subscribed {
-					absentSince = now
-				} else if now.Sub(absentSince) >= grace {
-					decision = acpDecision{auto: true}
-					break wait
-				}
-			}
+		// Browser presence is not execution ownership. Pending approvals remain
+		// answerable from Tasks or a phone until the turn or harness ends.
+		select {
+		case decision = <-pending.answer:
+		case <-ctx.Done():
+			decision = acpDecision{}
+		case <-p.client.done:
+			decision = acpDecision{}
 		}
 	}
 	// Cancellation always wins over a simultaneously submitted approval.

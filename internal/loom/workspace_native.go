@@ -100,7 +100,17 @@ func nativeTurnRecords(a *convArchive) []RuntimeTurnRecord {
 				stats = &value
 			}
 		}
-		if ev.Delta["turn_done"] == true && assistant {
+		if ev.Delta["turn_done"] == true {
+			// Phase 4 also retains failed/cancelled turns with no assistant text.
+			// Legacy journals keep their original projection.
+			if !assistant {
+				var record RuntimeTurnRecord
+				b, _ := json.Marshal(ev.Delta["runtime_turn"])
+				_ = json.Unmarshal(b, &record)
+				if record.Outcome == "" {
+					continue
+				}
+			}
 			var turn RuntimeTurnRecord
 			if raw, ok := ev.Delta["runtime_turn"]; ok {
 				data, _ := json.Marshal(raw)

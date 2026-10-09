@@ -95,7 +95,7 @@ func probeAntigravity(ctx context.Context, a acpAgent) acpProbe {
 }
 
 func (m *runtimeSessions) runAntigravity(ctx context.Context, a acpAgent, s RuntimeSession, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if len(turn.Messages) == 0 {
 		return nil, errors.New("agent message required")

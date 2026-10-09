@@ -74,7 +74,7 @@ func probeOpenCode(ctx context.Context, a acpAgent) acpProbe {
 	return out
 }
 func (m *runtimeSessions) runOpenCode(ctx context.Context, a acpAgent, s RuntimeSession, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if len(turn.Messages) == 0 {
 		return nil, errors.New("agent message required")

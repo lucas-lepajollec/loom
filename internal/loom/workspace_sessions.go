@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
+	"github.com/lucas-lepajollec/loom/internal/loom/events"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 )
 
@@ -25,6 +26,9 @@ type runtimeRun struct {
 	toolPending bool
 }
 type runtimeSessions struct {
+	events       *events.Bus
+	health       domainHealth
+	notify       *notificationService
 	shutdownOnce sync.Once
 	acpMu        sync.Mutex
 	acp          map[string]*acpBinding
@@ -40,7 +44,7 @@ type runtimeSessions struct {
 }
 
 func newRuntimeSessions() *runtimeSessions {
-	return &runtimeSessions{preparing: map[string]bool{}, acp: map[string]*acpBinding{}, keys: map[string]string{}, balances: newProviderBalanceCache(nil), runs: map[string]*runtimeRun{}, subscribers: map[string]map[*discussionSubscriber]bool{}}
+	return &runtimeSessions{events: events.New(512), preparing: map[string]bool{}, acp: map[string]*acpBinding{}, keys: map[string]string{}, balances: newProviderBalanceCache(nil), runs: map[string]*runtimeRun{}, subscribers: map[string]map[*discussionSubscriber]bool{}}
 }
 
 var workspaceSessions = newRuntimeSessions()
@@ -343,6 +347,8 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 	recordTurnContext(&s.Turns[len(s.Turns)-1], prepared.Context)
 	s.Turns[len(s.Turns)-1].ReasoningEffort = s.ReasoningEffort
 	s.Turns[len(s.Turns)-1].StartedAt = time.Now().UnixMilli()
+	s.Turns[len(s.Turns)-1].ActivityAt = s.Turns[len(s.Turns)-1].StartedAt
+	s.Turns[len(s.Turns)-1].ActivityText = "Working"
 	s.Status = "running"
 	s.Error = ""
 	s.Usage = nil
@@ -353,13 +359,14 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 		return errors.New("could not save: storage unavailable or locked")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	if _, ok := adapter.(*acpAdapter); ok {
+	if adapter.Descriptor().Kind == "harness" {
 		cancel()
 		ctx, cancel = context.WithCancel(context.Background())
 	}
 	theBrain().cancelMemoryConsolidation()
 	run := &runtimeRun{session: s, cancel: cancel, providerKey: key}
 	m.runs[id] = run
+	m.taskEventLocked(s, events.TaskStarted, nil)
 	m.publishLocked(id, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true, "provenance": s.Turns[len(s.Turns)-1], "session": cloneRuntimeSession(s), "context": turnContext(s, prepared.Context)})
 	go m.generate(ctx, run, adapter, prepared.Messages, prepared.Context)
 	return nil
@@ -549,10 +556,58 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 					turn.Events = append(turn.Events, *event.HarnessEvent)
 				}
 			}
-			if event.ACPEvent != nil || event.ACPState != nil {
+			run.session.UpdatedAt = time.Now().UnixMilli()
+			turn.ActivityAt = run.session.UpdatedAt
+			if event.Content != "" {
+				turn.ActivityText = "Writing response"
+			}
+			if e := event.AgentEvent; e != nil {
+				switch e.Type {
+				case "request.opened":
+					turn.ActivityText = "Waiting for user"
+				case "request.resolved":
+					turn.ActivityText = "Resumed"
+				case "item.started":
+					if e.ItemType != "agent_message" && e.ItemType != "assistant_message" && e.ItemType != "reasoning" && e.ItemType != "user_message" && e.ItemType != "plan" {
+						turn.StepsStarted++
+						turn.ActivityText = "Running a step"
+					}
+				case "item.completed":
+					if e.ItemType != "agent_message" && e.ItemType != "assistant_message" && e.ItemType != "reasoning" && e.ItemType != "user_message" && e.ItemType != "plan" {
+						turn.StepsCompleted++
+						turn.ActivityText = "Step finished"
+					}
+				}
+			} else if event.ACPEvent != nil {
+				switch event.ACPEvent["type"] {
+				case "tool_start":
+					turn.StepsStarted++
+					turn.ActivityText = "Running a tool"
+				case "tool_end":
+					turn.StepsCompleted++
+					turn.ActivityText = "Tool finished"
+				}
+			} else if event.ToolUsed != nil && !event.ToolUsed.Typing {
+				if event.ToolUsed.Done {
+					turn.StepsCompleted++
+				} else {
+					turn.StepsStarted++
+				}
+				turn.ActivityText = "Using a tool"
+			}
+			if event.ACPEvent != nil || event.ACPState != nil || event.AgentEvent != nil && (event.AgentEvent.Type == "request.opened" || event.AgentEvent.Type == "request.resolved") {
 				if err := putStoreJSON(bkRuntimeSessions, run.session.ID, run.session); err != nil {
 					run.cancel()
 					return false
+				}
+			}
+			if event.AgentEvent != nil {
+				e := event.AgentEvent
+				if e.Type == "request.opened" && e.Request != nil {
+					m.taskEventLocked(run.session, events.TaskWaiting, e.Request)
+				}
+				if e.Type == "request.resolved" {
+					m.taskEventLocked(run.session, events.TaskResumed, nil)
 				}
 			}
 			m.publishLocked(run.session.ID, liveRuntimeDiscussionEvents(event, *turn)...)
@@ -583,6 +638,10 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 			s.Status = "cancelled"
 			s.Error = "Response stopped. Partial text is preserved."
 		}
+	}
+	if n := len(s.Turns); n > 0 {
+		t := &s.Turns[n-1]
+		t.FinishedAt, t.Outcome, t.ActivityAt, t.ActivityText = s.UpdatedAt, taskStatus(s.Status), s.UpdatedAt, taskStatus(s.Status)
 	}
 	// Keep a failed-to-persist result in memory for recovery, instead of silently
 	// losing text or reporting that it was saved. A later retry can persist it.
@@ -638,6 +697,11 @@ func (m *runtimeSessions) remove(id string) error {
 }
 
 func (m *runtimeSessions) finishDiscussionLocked(s RuntimeSession) {
+	kind := events.TaskCompleted
+	if s.Status != "complete" {
+		kind = events.TaskFailed
+	}
+	m.taskEventLocked(s, kind, nil)
 	if s.Status != "unsaved" {
 		theBrain().queueSessionTranscript(s)
 	}

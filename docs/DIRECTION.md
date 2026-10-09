@@ -250,6 +250,13 @@ releases.
   with without a declared policy; VRAM is released when idle.
 
 ### 4. Tasks, interactions, events, policy, maintenance
+- Phase 4a backend (unreleased): Tasks are derived from existing session turns
+  and pending requests; server-owned turns and ACP approvals survive closed
+  browser tabs. A bounded domain event bus drives opt-in ntfy, webhook and
+  payload-free Web Push, with request-bound single-use phone action tokens.
+  `task.completed → notify` is the first rule. See [notifications](notifications.md)
+  for setup and exact Tasks/Settings UI contracts. Checkpoint/process restart
+  resume, central policy, maintenance and real hour-long phone acceptance remain.
 - Durable tasks with checkpoints; InteractionRequest for questions, approvals
   and logins answered from chat, tasks or notifications.
 - Domain event bus; first automation `task.completed → notify`.

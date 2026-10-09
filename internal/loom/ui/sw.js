@@ -14,27 +14,40 @@ self.addEventListener('fetch',function(e){
   }
 });
 
+// A payload-free push wakes the worker even when every tab is closed. Normal
+// same-origin authentication protects pending notices; never cache this reply.
 self.addEventListener('push', function(e){
-  var data = { title: 'Loom', body: 'Réponse prête' };
-  try { if (e.data) data = Object.assign(data, e.data.json()); } catch (_){}
-  e.waitUntil(self.registration.showNotification(data.title, {
-    body: data.body,
-    // tag + renotify : une nouvelle réponse REMPLACE l'ancienne notif (pas
-    // d'empilement), mais re-sonne/vibre pour signaler qu'elle est fraîche.
-    tag: data.tag || 'loom-turn',
-    renotify: true,
-    // Icône = le logo de la marque Loom, en data-URI.
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230d0d0d'/><g fill='none' stroke='%23f4f1ea' stroke-width='1.35' stroke-linecap='round'><path d='M3 5.5h10M3 8h10M3 10.5h10'/><path d='M5.5 3v10M8 3v10M10.5 3v10'/></g></svg>"
-  }));
+  e.waitUntil((async function(){
+    let notices = [];
+    try {
+      const response = await fetch('/api/notify/pending', {credentials:'same-origin',cache:'no-store'});
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data.notifications)) notices = data.notifications;
+      }
+    } catch (_) {}
+    if (!notices.length) notices = [{title:'Loom',body:'Open Loom to view task updates',url:'/#/tasks',tag:'loom-tasks'}];
+    for (const notice of notices.slice(-64)) {
+      let url = '/#/tasks';
+      try { if (typeof notice.url === 'string' && notice.url) { const target = new URL(notice.url, self.location.origin); if (target.origin === self.location.origin) url = target.href; } } catch (_) {}
+      await self.registration.showNotification(notice.title || 'Loom', {
+        body: notice.body || 'Task update', tag: notice.tag || 'loom-tasks', renotify:false,
+        icon:'/icons/loom-192.png', data:{url}, actions:[{action:'open',title:'Open'}]
+      });
+    }
+  })());
 });
-
-// Clic sur la notif : ramène l'onglet Loom au premier plan s'il est déjà ouvert,
-// sinon en ouvre un. `includeUncontrolled` : les onglets ouverts AVANT que ce
-// worker prenne le contrôle comptent aussi.
 self.addEventListener('notificationclick', function(e){
   e.notification.close();
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(cl){
-    for (var i = 0; i < cl.length; i++){ if ('focus' in cl[i]) return cl[i].focus(); }
-    if (self.clients.openWindow) return self.clients.openWindow('/');
-  }));
+  e.waitUntil((async function(){
+    let url = new URL('/#/tasks', self.location.origin).href;
+    try { const raw = e.notification.data?.url; if (typeof raw === 'string' && raw) { const target = new URL(raw, self.location.origin); if (target.origin === self.location.origin) url = target.href; } } catch (_) {}
+    const windows = await self.clients.matchAll({type:'window',includeUncontrolled:true});
+    for (const client of windows) {
+      if (new URL(client.url).origin !== self.location.origin) continue;
+      if ('navigate' in client) await client.navigate(url);
+      if ('focus' in client) return client.focus();
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(url);
+  })());
 });
