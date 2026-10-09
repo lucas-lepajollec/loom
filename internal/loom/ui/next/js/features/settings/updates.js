@@ -1,3 +1,5 @@
+import { Icon } from '../../ui/icons.js';
+import { shortVersion } from '../../core/version.js';
 import { html, useState, useRef, useEffect } from '../../core/lib.js';
 import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
@@ -60,15 +62,19 @@ export function LoomUpdates({ node = false, endpoint = '', compact = false } = {
       await check();
     } catch (err) { setError(err.message); }
   };
-  if (compact) return html`<div><button class="btn sm primary" disabled=${busy || (!!info && (!info.available || !info.can_apply))} onClick=${() => info?.available ? install() : check()}>${t('machines.node.update')} ${info?.current || ''}</button>
-    ${info?.available && html`<span class="tag">${info.latest}</span>`}
+  // Compact (machine page): the state in one line, a small action only when
+  // there is something to do; full versions in the tooltip.
+  if (compact) return html`<div class="upd">
+    ${info?.available
+      ? html`<button class="btn sm" disabled=${busy || !info.can_apply} title=${info.current + ' → ' + info.latest} onClick=${install}><${Icon} n="download" />${t('machines.node.update_to', { version: shortVersion(info.latest) })}</button>`
+      : info?.current && html`<span class="state" title=${info.current}><i class="dot green"></i>${t('machines.node.up_to_date', { version: shortVersion(info.current) })}</span>`}
     ${message && html`<p class="set-note" role="status">${message}</p>`}${error && html`<p class="set-note" role="alert">${error}</p>`}
     ${info?.available && !info.can_apply && html`<p class="set-note">${info.apply_reason}</p>`}</div>`;
   return html`<${Group} title=${t(node ? 'node.updates' : 'settings.page.mises_a_jour')}>
     ${!node && html`<${Line} label=${t('updates.channel')} tip=${t('updates.channel_tip')}><${Seg} size="sm" label=${t('updates.channel')} value=${info?.channel || 'stable'} onChange=${setChannel} options=${[{ value: 'stable', label: t('updates.stable'), disabled: busy }, { value: 'edge', label: t('updates.edge'), disabled: busy }]} /></${Line}>`}
     <${Line} label=${t('updates.source')}><a href="https://github.com/lucas-lepajollec/loom/releases" target="_blank" rel="noopener noreferrer">${t('updates.releases')}</a></${Line}>
     <${Line} label=${t('updates.version')}>
-      ${info?.current && html`<span class="state">${info.available ? t('updates.available', { version: info.latest }) : t('updates.current', { version: info.current })}</span>`}
+      ${info?.current && html`<span class="state" title=${info.available ? info.latest : info.current}>${info.available ? t('updates.available', { version: shortVersion(info.latest) }) : t('updates.current', { version: shortVersion(info.current) })}</span>`}
       <button class="btn sm" disabled=${busy} onClick=${check}>${t('settings.page.verifier')}</button>
       ${info?.available && html`<button class="btn sm primary" disabled=${busy || !info.can_apply} onClick=${install}>${t('updates.install')}</button>`}
     </${Line}>

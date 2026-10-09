@@ -173,7 +173,7 @@ function EditableUser({ it, pasted }) {
       <button class="btn sm primary" disabled=${busy || !text.trim()} onClick=${() => { setEditing(false); editLast(text); }}>${t('chat.edit.resend')}</button></div></div>`;
   return html`<div class="msg-user can-edit">
     ${pasted.text && html`<div class="bubble">${pasted.text}</div>`}
-    ${pasted.files.map(f => html`<${Collapsible} icon="file" label=${f.name}><button class="btn sm" onClick=${() => downloadPaste(f)}>${t('chat.composer.download_text')}</button><${Body} text=${f.content} isPlain=${true} /></${Collapsible}>`)}
+    ${pasted.files.map(f => f.content === null ? html`<span class="file-pill"><${Icon} n="file" />${f.name}</span>` : html`<${Collapsible} icon="file" label=${f.name}><button class="btn sm" onClick=${() => downloadPaste(f)}>${t('chat.composer.download_text')}</button><${Body} text=${f.content} isPlain=${true} /></${Collapsible}>`)}
     <button type="button" class="icon-btn msg-edit" aria-label=${t('chat.edit.label')} title=${t('chat.edit.label')} disabled=${busy} onClick=${() => { setText(it.text); setEditing(true); }}><${Icon} n="edit" /></button>
   </div>`;
 }
@@ -195,7 +195,7 @@ export function Messages({ items, gen, compacting, root, sessionId }) {
         return html`<div key=${i} class=${cls('msg-user', it.pending && 'pending')}>
         ${it.files && it.files.length ? html`<div class="msg-files">${it.files.map(f => html`<span class="file-pill"><${Icon} n="file" />${f.name || String(f).split('/').pop()}</span>`)}</div>` : ''}
         ${pasted.text && html`<div class="bubble">${pasted.text}</div>`}
-        ${pasted.files.map(f => html`<${Collapsible} icon="file" label=${f.name}>
+        ${pasted.files.map(f => f.content === null ? html`<span class="file-pill"><${Icon} n="file" />${f.name}</span>` : html`<${Collapsible} icon="file" label=${f.name}>
           <button class="btn sm" onClick=${() => downloadPaste(f)}>${t('chat.composer.download_text')}</button>
           <${Body} text=${f.content} isPlain=${true} />
         </${Collapsible}>`)}

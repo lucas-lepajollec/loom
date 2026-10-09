@@ -4,11 +4,11 @@ import { t } from '../../core/i18n.js';
 // contexte, envoi/arrêt. S'adapte au mode (local natif ou discussion commune).
 import { html, useState, useRef, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Popover } from '../../ui/controls.js';
+import { Popover, Tip } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
 import { request, get } from '../../core/api.js';
 
-import { runtimeCaps, app } from '../../core/state.js';
+import { runtimeCaps, runtimeKind, app } from '../../core/state.js';
 import { chat, send, stop, compact, compactSession, continueSession } from './engine.js';
 import { prompt } from '../../ui/dialog.js';
 import { currentExec } from './picker.js';
@@ -52,6 +52,15 @@ export function Composer() {
   const ta = useRef(), fileIn = useRef(), pasteNumber = useRef(0), submitting = useRef(false);
   const exec = currentExec();
   const native = c.mode === 'native';
+  // What this route can take: local and cloud get files and web search, agents
+  // get files (they read them from disk) and keep their own tools.
+  const kind = native ? 'native' : c.session ? runtimeKind(c.session.runtime_id) : '';
+  const remote = !native && c.session && runtimeCaps(c.session.runtime_id).includes('remote');
+  const canAttach = native || kind === 'local' || kind === 'cloud' || (kind === 'harness' && !remote);
+  const toolList = native ? ['internet', 'mcp'] : kind === 'cloud' || kind === 'local' ? ['internet'] : [];
+  const [webOn, setWebOn] = useState(null);
+  useEffect(() => { get('/api/internet').then(r => setWebOn(r && r.ok !== false ? !!r.enabled : false)).catch(() => setWebOn(false)); }, []);
+  const activeTools = toolList.filter(n => tools[n] && (n !== 'internet' || webOn !== false));
   const ctxMax = (status && status.ctx) || 0;
   const sc = (!native && c.session && c.session.context) || null;
   const used = native ? c.ctx : sc ? sc.used || 0 : 0, size = native ? ctxMax : sc ? sc.size || 0 : 0;
@@ -74,12 +83,11 @@ export function Composer() {
     if (!localT && !files.length) return;
     if (c.busy || blocked || submitting.current) return;
     const uploaded = files.filter(f => f.path);
-    if (!native && uploaded.length) { toast(t("chat.composer.ce_mode_accepte_uniquement_du_texte")); return; }
     if (new TextEncoder().encode(localT).length > MAX_MESSAGE_BYTES) { toast(t('chat.composer.text_too_large'), 'err'); return; }
     submitting.current = true;
     // Keep the editable draft and attachments intact until acceptance.
     try {
-      const sent = await send(localT, { files: native ? uploaded.map(f => f.path) : [], internet: tools.internet, mcp: tools.mcp });
+      const sent = await send(localT, { files: uploaded.map(f => f.path), internet: tools.internet && toolList.includes('internet'), mcp: tools.mcp && toolList.includes('mcp') });
       if (sent) { setText(current => current === text ? '' : current); setFiles(current => current.filter(f => !files.includes(f))); }
     } finally { submitting.current = false; }
   };
@@ -191,9 +199,9 @@ export function Composer() {
       <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey} onPaste=${onPaste}
         placeholder=${exec.name ? t("chat.composer.ecrire_a") + exec.name + '…' : t('chat.composer.placeholder')} aria-label="${t("chat.composer.message")}"></textarea>
       <div class="composer-bar">
-        ${native && html`<button class="icon-btn" aria-label="${t("chat.composer.joindre_un_fichier")}" title="${t("chat.composer.joindre")}" onClick=${() => fileIn.current.click()}><${Icon} n="paperclip" /></button>
-          <input type="file" multiple hidden ref=${fileIn} onChange=${pick} />
-          <button class=${cls('chip-btn', (tools.internet || tools.mcp) && 'on')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="sliders" />${t("chat.composer.outils")}${tools.internet || tools.mcp ? html` <span class="n">${(tools.internet ? 1 : 0) + (tools.mcp ? 1 : 0)}</span>` : ''}</button>`}
+        ${canAttach && html`<button class="icon-btn" aria-label="${t("chat.composer.joindre_un_fichier")}" title=${kind === 'harness' ? t('chat.composer.attach_agent') : t("chat.composer.joindre")} onClick=${() => fileIn.current.click()}><${Icon} n="paperclip" /></button>
+          <input type="file" multiple hidden ref=${fileIn} onChange=${pick} />`}
+        ${toolList.length > 0 && html`<button class=${cls('chip-btn', activeTools.length && 'on')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="sliders" />${t("chat.composer.outils")}${activeTools.length ? html` <span class="n">${activeTools.length}</span>` : ''}</button>`}
         ${workdir && html`<button class="chip-btn" title=${workdir} onClick=${() => app.set({ inspector: true })}><${Icon} n="folder" />${workdir.split('/').pop()}</button>`}
         ${entries.length > 0 && !text && html`<span class="composer-tip">${t("chat.composer.pour_les_commandes")}</span>`}
         <span class="grow"></span>
@@ -206,8 +214,9 @@ export function Composer() {
     </div>
     <div class=${cls('composer-hint', hint && 'warn')}>${hint || t("chat.composer.entree_pour_envoyer_maj_entree_pour_une_nouvelle_ligne")}</div>
     ${menu && html`<${Popover} anchor=${menu} onClose=${() => setMenu(null)} place="above" width=${240}>
-      <button class="item" onClick=${() => toggleTool('internet')}><${Icon} n="globe" />${t("chat.composer.recherche_web")}<span class="grow"></span>${tools.internet && html`<${Icon} n="check" />`}</button>
-      <button class="item" onClick=${() => toggleTool('mcp')}><${Icon} n="plug" />${t("chat.composer.outils_mcp")}<span class="grow"></span>${tools.mcp && html`<${Icon} n="check" />`}</button>
+      <button class="item" disabled=${webOn === false} onClick=${() => toggleTool('internet')}><${Icon} n="globe" />${t("chat.composer.recherche_web")}<${Tip} text=${webOn === false ? t('chat.tools.web_off') : t('chat.tools.web_tip')} /><span class="grow"></span>${tools.internet && webOn !== false && html`<${Icon} n="check" />`}</button>
+      ${toolList.includes('mcp') && html`<button class="item" onClick=${() => toggleTool('mcp')}><${Icon} n="plug" />${t("chat.composer.outils_mcp")}<${Tip} text=${t('chat.tools.mcp_tip')} /><span class="grow"></span>${tools.mcp && html`<${Icon} n="check" />`}</button>`}
+      <a class="item sub" href="#/settings/internet" onClick=${() => setMenu(null)}><${Icon} n="gear" />${t('chat.tools.settings')}</a>
     </${Popover}>`}
   </div>`;
 }

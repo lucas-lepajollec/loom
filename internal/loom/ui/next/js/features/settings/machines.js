@@ -1,3 +1,4 @@
+import { shortVersion } from '../../core/version.js';
 import { t } from '../../core/i18n.js';
 // Réglages › Machines : l'endroit unique pour connecter une machine et gérer ce
 // qui s'y trouve. Cette machine et chaque machine appairée ont leur
@@ -102,7 +103,7 @@ function NodeUpdateBadge({ m }) {
     get('/api/machines/' + encodeURIComponent(m.id) + '/node/update').then(r => { if (alive && !r.error) setInfo(r); }).catch(() => {});
     return () => { alive = false; };
   }, [m.id]);
-  return info?.available ? html`<span class="tag">${t('machines.node.update_available', { version: info.latest })}</span>` : null;
+  return info?.available ? html`<span class="mcard-up" title=${t('machines.node.update_available', { version: info.latest })}><i></i>${t('machines.node.update_short')}</span>` : null;
 }
 
 // Les nœuds Loom du réseau local qui répondent à la recherche (sans secret).
@@ -117,7 +118,7 @@ function Discovered({ onPair }) {
       <button class="icon-btn" disabled=${busy} aria-label=${t('machines.disc.scan')} onClick=${scan}><${Icon} n="refresh" /></button></div>
     <div class="card bs-list">${nodes.map(n => html`<div class="bs-row" key=${n.id}>
       <span class="mono-tile"><${Icon} n="server" /></span>
-      <div class="grow"><div class="bs-name">${n.name}${n.paired && html`<span class="tag">${t('machines.disc.paired_elsewhere')}</span>`}</div><div class="bs-sub"><span class="mono">${n.address}</span><span>Loom ${n.version}</span></div></div>
+      <div class="grow"><div class="bs-name">${n.name}${n.paired && html`<span class="tag">${t('machines.disc.paired_elsewhere')}</span>`}</div><div class="bs-sub"><span class="mono">${n.address}</span><span title=${n.version}>Loom ${shortVersion(n.version)}</span></div></div>
       <button class="btn sm" onClick=${() => onPair({ address: n.address, name: n.name })}>${t('machines.pair.ok')}</button></div>`)}</div>
   </section>`;
 }
@@ -177,7 +178,7 @@ export function MachinesSettings({ route }) {
     const used = mine.filter(i => i.enabled).length, managed = mine.filter(i => i.managed).length;
     const terms = terminals.filter(x => x.target === id).length;
     return html`<div class="mcard" key=${id}>
-      <a class="mcard-h" href=${'#/machines/' + encodeURIComponent(id)}><span class="mx-ico"><${Icon} n=${icon} /></span><span class="grow"><b>${name}</b><small class="mono">${sub}</small></span><${Icon} n="right" /></a>
+      <a class="mcard-h" href=${'#/machines/' + encodeURIComponent(id)}><span class="mx-ico"><${Icon} n=${icon} /></span><span class="grow"><b>${name}${machine?.node_id && html`<${NodeUpdateBadge} m=${machine} />`}</b><small class="mono">${sub}</small></span><${Icon} n="right" /></a>
       <${Meters} m=${metrics[id]} />
       <div class="mcard-s">
         <div><span>${t('app.groups.agents')}</span><b>${mine.length ? t('machines.card.agents', { used, managed }) : '—'}</b></div>
@@ -186,7 +187,6 @@ export function MachinesSettings({ route }) {
       </div>
       ${mine.length > 0 && html`<div class="mcard-a">${mine.map(i => html`<span class=${'mcard-chip' + (i.enabled ? ' on' : '')} key=${i.harness} title=${i.name}><${Logo} name=${i.logo || i.harness} size="sm" /></span>`)}</div>`}
       ${machine?.user && html`<${MachineMigration} m=${machine} onChange=${load} compact=${true} />`}
-      ${machine?.node_id && html`<${NodeUpdateBadge} m=${machine} />`}
     </div>`;
   };
   return html`

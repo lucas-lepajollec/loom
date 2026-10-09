@@ -231,8 +231,8 @@ export function EngineRuntime({ management, access }) {
           <span class="mono">${x.busy ? (x.toks || 0).toFixed(1) + ' tok/s' : t('local.page.free')}</span></div>`)}</div></div>`}
         <details class="set-line curl-line"><summary>${t("local.page.exemple_curl")}</summary><pre class="mono">${curl}</pre><button class="btn sm" onClick=${() => copy(curl)}>${t("local.page.copier")}</button></details>
       </div>
-      ${access}
     </section>
+    ${access}
 
     <details class="set-group eng-recent"><summary><h3>${t("local.page.requetes_recentes")}</h3></summary>
       <div class="card">${srv && srv.recent && srv.recent.length ? html`<div class="req-list">${srv.recent.slice(0, 12).map(r => html`<div class="req"><span class="mono">${t("local.page.slot")} ${r.slot}</span><span class="mono muted">${r.prompt || 0} → ${r.tokens || 0}</span></div>`)}</div>`

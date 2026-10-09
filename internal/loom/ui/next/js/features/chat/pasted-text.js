@@ -18,8 +18,22 @@ export function pastedMessage(text, files) {
     `${f.name} (${f.content.length} UTF-16 units)\n${f.content}`).join('\n') + END;
 }
 
+// Files attached to a cloud or agent turn travel as <loom-file> blocks
+// (workspace_attachments.go): shown as file pills, not as raw text.
+const LOOM_FILE = /\n*<loom-file name="((?:[^"\\]|\\.)*)"([^>]*?)(?:\/>|>\n([\s\S]*?)\n<\/loom-file>)/g;
+function splitLoomFiles(text) {
+  const files = [];
+  const rest = text.replace(LOOM_FILE, (_, name, attrs, content) => {
+    files.push({ name: name.replace(/\\(.)/g, '$1'), content: content === undefined ? null : content, note: /omitted|truncated/.test(attrs) ? attrs.trim() : '' });
+    return '';
+  }).replace(/\n*Attached files \(read them from these paths\):\s*$/, '');
+  return files.length ? { text: rest.trimEnd(), files } : null;
+}
+
 export function splitPastedMessage(text) {
   text = String(text || '');
+  const attached = splitLoomFiles(text);
+  if (attached) return attached;
   const fallback = { text, files: [] };
   const start = text.indexOf(START);
   if (start < 0 || !text.endsWith(END)) return fallback;

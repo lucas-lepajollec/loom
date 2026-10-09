@@ -197,6 +197,24 @@ func (m *runtimeSessions) createContext(ctx context.Context, projectID, provider
 	return s, putStoreJSON(bkRuntimeSessions, s.ID, s)
 }
 
+// setWebSearch records the discussion's web-search switch (cloud turns).
+func (m *runtimeSessions) setWebSearch(id string, on bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.getLocked(id)
+	if !ok {
+		return errors.New("discussion not found or locked")
+	}
+	if m.runs[id] != nil {
+		return errors.New("wait for the current answer before changing web search")
+	}
+	if s.WebSearch != nil && *s.WebSearch == on {
+		return nil
+	}
+	s.WebSearch = &on
+	return putStoreJSON(bkRuntimeSessions, id, s)
+}
+
 func (m *runtimeSessions) getLocked(id string) (RuntimeSession, bool) {
 	// Reading the stored record also checks vault access before exposing a live
 	// in-memory session, so locking memory doesn't leave an API read backdoor.
@@ -258,7 +276,7 @@ var errContextChanged = errors.New("the model, thread or its context changed; ch
 func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func(RuntimeSession, string) DiscussionPreview, expectedRevision ...string) error {
 	text = strings.TrimSpace(text)
 	if text == "" || len(text) > maxMessageBytes || len(requestID) < 8 || len(requestID) > 100 {
-		return errors.New("message required (maximum 64 KiB) and valid request ID")
+		return errors.New("message required (maximum 112 KiB with attached files) and valid request ID")
 	}
 	m.mu.Lock()
 	s, ok := m.getLocked(id)
@@ -431,6 +449,11 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 	caps := Caps{}
 	if adapter.Descriptor().Kind == "cloud" {
 		caps.Internet = getBool(bkState, "internet")
+		// Same rule as local turns: the Internet setting is the master switch,
+		// the composer's per-discussion choice opts in.
+		if run.session.WebSearch != nil {
+			caps.Internet = caps.Internet && *run.session.WebSearch
+		}
 	}
 	var err error
 	if loomTranscript(run.session) && compactEnabled() {

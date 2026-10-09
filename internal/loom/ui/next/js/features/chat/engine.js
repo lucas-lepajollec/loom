@@ -270,7 +270,7 @@ export async function newDiscussion(projectId) {
 // ---------------------------------------------------------------- envoi
 export async function send(text, opts = {}) {
   const st = chat.get();
-  if (st.mode === 'thread') return sendThread(text);
+  if (st.mode === 'thread') return sendThread(text, opts);
   if (st.busy) return false;
   push({ k: 'user', text, files: opts.files || [], pending: true });
   for (let i = 0; i < 3; i++) {
@@ -297,7 +297,7 @@ export async function editLast(text) {
 }
 
 const pendingReq = new Map();
-async function sendThread(text) {
+async function sendThread(text, opts = {}) {
   const s = chat.get().session;
   if (!s || chat.get().busy || s.status === 'running') return false;
   let p = pendingReq.get(s.id);
@@ -311,7 +311,7 @@ async function sendThread(text) {
     // If that context moves before the server starts (background indexing,
     // another tab), prepare once more and resend instead of blocking the user.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const preview = await post('/api/runtime/sessions/preview', { id: s.id, text });
+      const preview = await post('/api/runtime/sessions/preview', { id: s.id, text, files: opts.files || [] });
       if (!preview.ok || preview.preview?.problem || !preview.preview?.context?.revision) throw new Error(preview.error || preview.preview?.problem || t('chat.engine.envoi_refuse'));
       if (ep !== epoch || chat.get().session?.id !== s.id) { if (ep === epoch) chat.set({ busy: false }); return false; }
       if (preview.runtime_id !== s.runtime_id || preview.model !== s.model ||
@@ -323,7 +323,7 @@ async function sendThread(text) {
       }
       chat.set({ context: preview.preview.context });
       if (preview.preview.omitted > 0 && attempt === 0) toast(t('chat.engine.older_omitted', { n: preview.preview.omitted }));
-      r = await post('/api/runtime/sessions/send', { id: s.id, ...p, context_revision: preview.preview.context.revision });
+      r = await post('/api/runtime/sessions/send', { id: s.id, ...p, files: opts.files || [], web_search: opts.internet === undefined ? undefined : !!opts.internet, context_revision: preview.preview.context.revision });
       if (r.ok || r.code !== 'context_changed' || ep !== epoch) break;
     }
   }

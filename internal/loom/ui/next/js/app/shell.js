@@ -1,3 +1,4 @@
+import { shortVersion } from '../core/version.js';
 import { t } from '../core/i18n.js';
 // Coquille : barre latérale (navigation, projets, récents, carte moteur) et
 // zone principale routée.
@@ -118,7 +119,7 @@ export function Sidebar() {
     <div class="brand"><b><svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M40 64H52H52V104H40A20 20 0 0 1 20 84V84A20 20 0 0 1 40 64ZM116 64H216A20 20 0 0 1 236 84V84A20 20 0 0 1 216 104H116H116V64ZM40 152H140H140V192H40A20 20 0 0 1 20 172V172A20 20 0 0 1 40 152ZM204 152H216A20 20 0 0 1 236 172V172A20 20 0 0 1 216 192H204H204V152ZM64 40A20 20 0 0 1 84 20H84A20 20 0 0 1 104 40V140V140H64ZM64 204V204H104V216A20 20 0 0 1 84 236H84A20 20 0 0 1 64 216ZM152 40A20 20 0 0 1 172 20H172A20 20 0 0 1 192 40V52V52H152ZM152 116V116H192V216A20 20 0 0 1 172 236H172A20 20 0 0 1 152 216Z"></path></svg>${t("app.shell.loom")}</b>
       <span class="brand-acts"><button class="icon-btn" aria-label="${t("app.shell.rechercher")}" title="${t("app.shell.rechercher_ctrl_k")}" onClick=${openPalette}><${Icon} n="search" /></button><${Activity} /></span>
       <button class="icon-btn only-mobile" aria-label="${t("app.shell.fermer")}" onClick=${() => app.set({ sideOpen: false })}><${Icon} n="close" /></button></div>
-    <button class="new-chat" onClick=${() => newDiscussion()}><${Icon} n="plus" />${t("app.shell.nouvelle_discussion")}<kbd><span class="kbd">${t("app.shell.ctrl")}</span><span class="kbd">${t("app.shell.maj")}</span><span class="kbd">${t("app.shell.o")}</span></kbd></button>
+    <button class="new-chat" onClick=${() => newDiscussion()}><${Icon} n="plus" />${t("app.shell.nouvelle_discussion")}</button>
     <nav class="nav">${NAV_ITEMS.map(r => html`<a href=${r.href} aria-current=${groupOf(route.section)?.id === r.id ? 'page' : undefined}><${Icon} n=${r.nav.icon} />${r.nav.label}</a>`)}</nav>
     <div class="side-sec">
       <div class="side-sec-h"><span>${t("app.shell.projets")}</span><button class="icon-btn" style="width:24px;height:24px" aria-label="${t("app.shell.nouveau_projet")}" onClick=${newProject}><${Icon} n="plus" /></button></div>
@@ -141,7 +142,7 @@ export function Sidebar() {
       <${EngineCard} />
       <div class="me">
         <span class="avatar-i" aria-hidden="true">${(serverInfo && serverInfo.hostname || 'L').slice(0, 1).toUpperCase()}</span>
-        <span class="who"><b>${(serverInfo && serverInfo.hostname) || t("app.shell.cette_machine")}</b><small>${serverInfo && serverInfo.version ? 'Loom ' + serverInfo.version : 'Loom'}</small></span>
+        <span class="who"><b>${(serverInfo && serverInfo.hostname) || t("app.shell.cette_machine")}</b><small title=${serverInfo && serverInfo.version || ''}>${serverInfo && serverInfo.version ? 'Loom ' + shortVersion(serverInfo.version) : 'Loom'}</small></span>
         <a class="icon-btn" href="#/settings" aria-label="${t("app.shell.reglages")}" title="${t("app.shell.reglages")}" aria-current=${route.section === 'settings' ? 'page' : undefined}><${Icon} n="gear" /></a>
       </div>
     </div>

@@ -114,7 +114,7 @@ test('sidebar renders control-plane version, name and avatar independently from 
   const app = {}, chat = {};
   const state = { route: { section: 'harnesses' }, nav: { conversations: [], projects: [] },
     status: { hostname: 'engine-fixture', version: '0.1.4' }, serverInfo: { hostname: 'control-fixture', version: '0.2.1' } };
-  const env = { html, t: french, app, chat, cls: (...a) => a.filter(Boolean).join(' '), Icon: 'Icon', Menu: 'Menu', Activity: 'Activity', NAV_ITEMS: [],
+  const env = { html, t: french, app, chat, cls: (...a) => a.filter(Boolean).join(' '), Icon: 'Icon', Menu: 'Menu', shortVersion: v => String(v || ''), Activity: 'Activity', NAV_ITEMS: [],
     localStorage: { getItem: () => null }, useStore: (store, select) => select(store === app ? state : { sessionId: '' }),
     useState: value => [typeof value === 'function' ? value() : value, () => {}], useEffect() {}, openPalette() {},
   };

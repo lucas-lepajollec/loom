@@ -2,6 +2,7 @@ package loom
 
 import (
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 	"net/http"
 )
 
@@ -110,15 +111,37 @@ func handleRuntimeSessionSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ID              string `json:"id"`
-		RequestID       string `json:"request_id"`
-		Text            string `json:"text"`
-		ContextRevision string `json:"context_revision"`
+		ID              string   `json:"id"`
+		RequestID       string   `json:"request_id"`
+		Text            string   `json:"text"`
+		ContextRevision string   `json:"context_revision"`
+		Files           []string `json:"files"`
+		WebSearch       *bool    `json:"web_search"`
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	if err := workspaceSessions.start(req.ID, req.RequestID, req.Text, req.ContextRevision); err != nil {
+	if len(req.Text) > discussion.MaxTypedBytes || len(req.Files) > 20 {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "message too long (maximum 64 KiB) or too many files (maximum 20)"})
+		return
+	}
+	s, ok := workspaceSessions.get(req.ID)
+	if !ok {
+		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found or locked"})
+		return
+	}
+	text, err := composeTurnText(s, req.Text, req.Files)
+	if err != nil {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	if req.WebSearch != nil {
+		if err := workspaceSessions.setWebSearch(req.ID, *req.WebSearch); err != nil {
+			sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+	}
+	if err := workspaceSessions.start(req.ID, req.RequestID, text, req.ContextRevision); err != nil {
 		out := policyErrorEnvelope(err)
 		if errors.Is(err, errContextChanged) {
 			out["code"] = "context_changed"
@@ -226,8 +249,9 @@ func handleRuntimeSessionConfigure(w http.ResponseWriter, r *http.Request) {
 func handleRuntimeSessionPreview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	var req struct {
-		ID   string `json:"id"`
-		Text string `json:"text"`
+		ID    string   `json:"id"`
+		Text  string   `json:"text"`
+		Files []string `json:"files"`
 	}
 	if r.Method == http.MethodGet {
 		req.ID = r.URL.Query().Get("id")
@@ -241,7 +265,12 @@ func handleRuntimeSessionPreview(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found or locked"})
 		return
 	}
-	p := prepareDiscussion(s, req.Text)
+	text, err := composeTurnText(s, req.Text, req.Files)
+	if err != nil {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	p := prepareDiscussion(s, text)
 	sendJSON(w, 200, map[string]any{"ok": true, "preview": p, "runtime_id": s.RuntimeID, "provider_id": s.ProviderID, "provider_name": s.ProviderName, "model": s.Model, "endpoint": s.Endpoint, "reasoning_effort": s.ReasoningEffort, "running": s.Status == "running"})
 }
 func handleModelChoice(w http.ResponseWriter, r *http.Request) {

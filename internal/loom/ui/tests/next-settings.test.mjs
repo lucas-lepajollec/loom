@@ -34,7 +34,7 @@ function harness(source, view, overrides = {}) {
   const env = {
     t: french, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
-    Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu',
+    Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu', shortVersion: v => String(v || ''),
     Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
     inspectTrigger: () => ({}), baseName: p => (p || '').split('/').pop(),
     useState(initial) {
@@ -555,7 +555,7 @@ test('node update header checks on mount and applies the displayed node version'
   const h = harness(updates, 'LoomUpdates');
   h.data[endpoint] = { current: '0.1.4', latest: '0.2.0', available: true, can_apply: true };
   const tree = await h.ready({ node: true, compact: true, endpoint });
-  const install = button(tree, 'Mettre à jour le nœud 0.1.4');
+  const install = button(tree, 'Mettre à jour (0.2.0)');
   assert.ok(install);
   await install.props.onClick();
   assert.equal(h.posts[0][0], endpoint + '/apply');

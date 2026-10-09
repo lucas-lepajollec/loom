@@ -120,10 +120,26 @@ async function jsonRequest(url, opts) {
   }
 }
 export const get = (url, opts = {}) => jsonRequest(url, opts);
+// A change to agents, machines, the engine or providers announces itself so
+// open pages reload what they show instead of waiting for a page refresh.
+const MUTATIONS = /^\/api\/(agents|harness|runtimes|machines|engine|providers|network|server|voice|chat\/settings)\b/;
+let mutated = 0;
 export const post = async (url, body, opts = {}) => {
-  try { return await jsonRequest(url, { ...opts, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); }
+  let r;
+  try { r = await jsonRequest(url, { ...opts, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); }
   catch (e) { return { ok: false, status: 0, error: e.message || t('core.api.le_serveur_ne_repond_pas') }; }
+  if (r && r.ok !== false && MUTATIONS.test(url) && !/\/(probe|preview|status|check)\b/.test(url) && typeof window !== 'undefined') {
+    clearTimeout(mutated);
+    mutated = setTimeout(() => window.dispatchEvent(new CustomEvent('loom:changed', { detail: { url } })), 150);
+  }
+  return r;
 };
+// Re-runs `reload` whenever another action changed shared state.
+export function onChanged(reload) {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener('loom:changed', reload);
+  return () => window.removeEventListener('loom:changed', reload);
+}
 
 // Lecture d'un flux SSE POST (le journal de la conversation native). Rappelle
 // onEvent(delta) pour chaque événement ; retourne quand le flux se termine.

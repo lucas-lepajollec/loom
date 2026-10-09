@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/capability"
@@ -24,7 +25,32 @@ func openCodeClient(ctx context.Context) (*opencodehttp.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return openCodeServer.Client(ctx, argv, []string{"PATH=" + lifecycleLocalPath()})
+	return openCodeServer.Client(ctx, argv, openCodeLaunchEnv())
+}
+
+// openCodeActive counts OpenCode turns in flight (see opencodehttp.Server.Busy).
+var openCodeActive atomic.Int32
+
+func init() { openCodeServer.Busy = func() bool { return openCodeActive.Load() > 0 } }
+
+// openCodeLaunchEnv gives the shared OpenCode server Loom's local models and
+// cloud providers, with their keys, only when Loom models are enabled for it.
+func openCodeLaunchEnv() []string {
+	env := []string{"PATH=" + lifecycleLocalPath()}
+	if !modelSinkEnabled("opencode") {
+		return env
+	}
+	key := engineAPIKey()
+	if key == "" {
+		key = "loom"
+	}
+	env = append(env, "LOOM_API_KEY="+key, "OPENCODE_CONFIG_CONTENT="+openCodeConfig())
+	for _, p := range chatSources() {
+		if k := workspaceSessions.providerKey(p.ID); k != "" {
+			env = append(env, providerKeyEnv(p.ID)+"="+k)
+		}
+	}
+	return env
 }
 func openCodeCaps() []string {
 	return harnessFeatureCaps(harnessFeatures(acpAgent{ID: "opencode"}, "opencode-http", acpProbe{}))
@@ -76,6 +102,8 @@ func probeOpenCode(ctx context.Context, a acpAgent) acpProbe {
 	return out
 }
 func (m *runtimeSessions) runOpenCode(ctx context.Context, a acpAgent, s RuntimeSession, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
+	openCodeActive.Add(1)
+	defer openCodeActive.Add(-1)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if len(turn.Messages) == 0 {
