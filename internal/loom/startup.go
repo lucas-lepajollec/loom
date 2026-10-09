@@ -178,7 +178,7 @@ func handleStartup(w http.ResponseWriter, r *http.Request) {
 			linger = &yes
 		}
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "supported": true, "node": isEngineWorker(), "services": services, "policy": readEngineStartup(), "linger": linger})
+	sendJSON(w, 200, map[string]any{"ok": true, "supported": true, "node": isEngineWorker(), "services": services, "policy": readEngineStartup(), "linger": linger, "engines": startupEngines(services)})
 }
 
 // Explicit saved policy, no generation/download and no second inference runtime.
@@ -355,4 +355,29 @@ func handleMachineNodeStartup(w http.ResponseWriter, r *http.Request) {
 	u.RawPath = ""
 	u.RawQuery = ""
 	proxyEngineNode(w, cloned, n)
+}
+
+// startupEngines tells the UI which engines this machine can start at boot,
+// so it never offers one that is not installed (or a vLLM model not downloaded).
+func startupEngines(services []startupService) map[string]any {
+	llama := false
+	if isEngineWorker() {
+		llama = isLlamaServerPath(ReadConfig()["BIN"])
+	} else {
+		for _, s := range services {
+			llama = llama || s.ID == "engine" && s.Installed
+		}
+	}
+	models := []string{}
+	installed := vllmInstalled()
+	if installed {
+		if cached, err := listVLLMCache(vllmHFCache()); err == nil {
+			for _, m := range cached {
+				if m.Servable {
+					models = append(models, m.ID)
+				}
+			}
+		}
+	}
+	return map[string]any{"llama": llama, "vllm": installed, "vllm_models": models}
 }
