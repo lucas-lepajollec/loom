@@ -284,11 +284,47 @@ releases.
   bounded long-running loops (iterations, cost, deadline, checkpoints, resume).
 - **Exit:** "do this task" picks model and agent within budget and explains why.
 
-### 6. Voice and Jarvis
-- Browser voice mode → Node `voice` module → Home Assistant provider → presence,
-  quiet hours and escalation to phone, all configurable from a Jarvis page.
-- **Exit:** "it lives", "it acts", "it works" scenarios on several hardware
-  classes.
+### 6. Voice and Jarvis (plan accepted 2026-10-09)
+Voice is managed exactly like local LLMs: a **voice engine** that Loom installs on
+this machine or on a paired machine (Node `voice` module), with default models per
+hardware class and language, then models, parameters and benchmarks from Loom.
+It is for every user: any USB/Bluetooth/built-in microphone and speaker, Linux
+first then macOS/Windows, CPU-only machines supported, cloud speech optional with
+consent. Each step ships and is used before the next.
+
+1. **6.1 Voice engine.** sherpa-onnx (Apache-2.0, official prebuilt binaries for
+   Linux x64/ARM, macOS, Windows, CPU and CUDA) is to speech what llama.cpp is to
+   text: Loom downloads and supervises it as an external process. Swappable
+   providers: streaming STT, TTS, VAD, optional keyword spotting. A default pack per
+   hardware class and language (small CPU STT + Kokoro/Piper-class TTS + Silero VAD)
+   is installed in one click; models are downloaded, listed, deleted and benchmarked
+   (latency, real-time factor) from a Voice page next to Models. Same install
+   choice as the LLM engine: this machine or a paired machine through its node.
+2. **6.2 Browser voice mode.** A Voice button in any discussion: microphone →
+   streaming STT → the same discussion turn (same memory, models, agents, policies)
+   → streamed TTS playback. Push-to-talk and hands-free (VAD endpointing), barge-in
+   (speaking stops the voice), partial transcripts shown live. No wake word: the
+   button is the activation. This is the test bench for everything below.
+3. **6.3 Jarvis profile.** One page: language, voice, STT/TTS choice per machine,
+   the model or agent that answers by default (fast and cheap), persona, spoken
+   length, which actions need confirmation (central policy), and live latency.
+4. **6.4 Voice satellite (Node `voice` module).** Native audio on a paired machine
+   (PipeWire/ALSA first) with any mic/speaker; echo cancellation (hardware when the
+   device has it, software otherwise); turn detection; barge-in; wake by transcript
+   ("Jarvis", fuzzy-matched by local STT on VAD-gated speech, any language) plus an
+   optional physical button; follow-up turns without repeating the wake word; a
+   short conversation window. Runs as a user service, no container for audio.
+5. **6.5 Fast path and actions.** Deterministic or small-model intents call
+   capabilities directly (timers, status questions, Loom actions) without a frontier
+   model; Home Assistant as a provider (entities and services discovered as
+   capabilities, called directly); everything else goes to a model or an agent
+   task. Confirmations, spending and data sharing go through the central policy.
+6. **6.6 Presence.** Several satellites and rooms, quiet hours, speaking only when
+   appropriate, spoken summaries of finished tasks, escalation to phone
+   notifications when no one answers.
+- **Exit:** "it lives" (natural conversation with barge-in), "it acts" (controls
+  the home and Loom), "it works" (delegates real tasks and reports back) on at least
+  three hardware classes (modest CPU, GPU desktop, ARM board).
 
 Graph indexes, automatic memory rewrites and agent-generated capabilities stay out
 of scope until phases 2–5 are stable.
