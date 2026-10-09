@@ -134,6 +134,12 @@ type RuntimeSession[Usage, Stats any] struct {
 }
 
 type RuntimeTurnRecord[Usage, Stats any] struct {
+	FinishedAt       int64             `json:"finished_at,omitempty"`
+	Outcome          string            `json:"outcome,omitempty"`
+	ActivityAt       int64             `json:"activity_at,omitempty"`
+	ActivityText     string            `json:"activity_text,omitempty"`
+	StepsStarted     int               `json:"steps_started,omitempty"`
+	StepsCompleted   int               `json:"steps_completed,omitempty"`
 	ContextItems     []ContextItem     `json:"context_items,omitempty"`
 	ContextBudget    *ContextBudget    `json:"context_budget,omitempty"`
 	FrozenRevision   string            `json:"frozen_revision,omitempty"`

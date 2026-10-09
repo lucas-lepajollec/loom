@@ -113,6 +113,10 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	registerWebAssets(mux)
 	registerWebLogin(mux)
 	api := webAPI(mux)
+	registerNotifications(mux, api, brainCtx)
+	api("/api/tasks", handleTasks)
+	api("/api/tasks/stream", handleTasksStream)
+	api("/api/events", handleDomainEvents)
 	registerEngineControlRoutes(func(path string, h http.HandlerFunc) {
 		if path == "/api/models/delete" || path == "/api/preset/save" || path == "/api/preset/delete" {
 			h = resyncModelSinks(h)

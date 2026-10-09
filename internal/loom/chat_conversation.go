@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/events"
 	"sort"
 	"strings"
 	"sync"
@@ -401,6 +402,7 @@ func (c *Conversation) StartTurn(text string, files []attachInfo, caps Caps, tem
 	}
 	c.appendDelta(epoch, delta)
 	c.persist()
+	c.publishTask(events.TaskStarted, c.genStart, "running", nil)
 	if temperature == 0 {
 		temperature = 0.7
 	}
@@ -419,9 +421,14 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	// Horloge du tour : durée réelle (préchauffe + réflexion + outils + réponse),
 	// journalisée dans turn_done pour que l'UI affiche la MÊME durée en direct et
 	// après un rechargement (le chrono client, lui, n'existe qu'en direct).
-	turnStart := time.Now()
+	c.mu.Lock()
+	turnStart := c.genStart
+	c.mu.Unlock()
 	turnModel := engineCurrentModel()
 	var sentContext DiscussionContext
+	var turnError error
+	var stepsStarted, stepsCompleted int
+	var toolPending bool
 	defer func() {
 		c.mu.Lock()
 		stale := c.epoch != epoch
@@ -438,7 +445,14 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 		if stale {
 			return // Reset pendant le tour : Reset a déjà persisté l'état vide
 		}
-		turn := RuntimeTurnRecord{RuntimeID: "llama.cpp", ProviderName: "llama.cpp", Model: turnModel}
+		outcome := "done"
+		if turnError != nil {
+			outcome = "failed"
+		}
+		if ctx.Err() != nil {
+			outcome = "cancelled"
+		}
+		turn := RuntimeTurnRecord{RuntimeID: "llama.cpp", ProviderName: "llama.cpp", Model: turnModel, StartedAt: turnStart.UnixMilli(), FinishedAt: time.Now().UnixMilli(), DurationSeconds: time.Since(turnStart).Seconds(), Outcome: outcome, StepsStarted: stepsStarted, StepsCompleted: stepsCompleted, ActivityAt: time.Now().UnixMilli(), ActivityText: outcome}
 		if sentContext.Snapshot.FrozenRevision != "" {
 			recordTurnContext(&turn, sentContext)
 		}
@@ -450,18 +464,11 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 		if archive := c.snapshotForSession(); archive != nil {
 			theBrain().queueNativeTranscript(*archive, turnModel)
 		}
-		// Notification Web Push : ce chemin (generate) ne sert QUE les tours
-		// utilisateur — les tâches de fond passent par RunAutonomous, sans turn_done
-		// dans la conversation partagée — donc pas de spam. Détaché : l'envoi HTTP
-		// vers le service de push ne doit pas retenir la fin du tour. Corps générique
-		// (pas d'extrait de réponse) : la notif transite par Apple/Google.
-		//
-		// ctx.Err() != nil = tour interrompu par un clic « stop » (c.cancel) : pas de
-		// notification, l'utilisateur est là et a coupé volontairement. Un Reset annule
-		// aussi le ctx, mais ce cas sort plus haut (stale) sans jamais atteindre ici.
-		if hasPushSubs() && ctx.Err() == nil {
-			go sendPushToAll("Loom", "Response ready · "+fmtDurFR(time.Since(turnStart)))
+		kind := events.TaskCompleted
+		if outcome != "done" {
+			kind = events.TaskFailed
 		}
+		c.publishTask(kind, turnStart, outcome, &turn)
 	}()
 
 	// Snapshot de la vue modèle.
@@ -478,6 +485,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	session := nativeContextSession(archiveID, projectID)
 	preparedContext, contextErr := c.captureDiscussionContext(epoch, session, lastUserText(msgs))
 	if contextErr != nil {
+		turnError = contextErr
 		c.appendDelta(epoch, map[string]any{"error": contextErr.Error()})
 		return
 	}
@@ -491,6 +499,7 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 			msgs = out
 			preparedContext, contextErr = c.captureDiscussionContext(epoch, nativeContextSession(archiveID, projectID), lastUserText(msgs))
 			if contextErr != nil {
+				turnError = contextErr
 				c.appendDelta(epoch, map[string]any{"error": contextErr.Error()})
 				return
 			}
@@ -514,9 +523,10 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 		return
 	}
 	sentContext = preparedContext
-	extra, _ := localChatRuntime().Run(ctx, RuntimeTurn{Messages: InjectSkills(final, caps), Temperature: temperature, Caps: caps}, func(ev StreamEvent) bool {
+	extra, runError := localChatRuntime().Run(ctx, RuntimeTurn{Messages: InjectSkills(final, caps), Temperature: temperature, Caps: caps}, func(ev StreamEvent) bool {
 		switch {
 		case ev.Err != nil:
+			turnError = ev.Err
 			// Arrêt volontaire (bouton stop → cancel du contexte) : ce n'est pas une
 			// erreur, juste une interruption. Afficher « Post http://…: context
 			// canceled » en rouge est laid et alarmant pour rien — on pose à la place
@@ -527,6 +537,15 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 				c.appendDelta(epoch, map[string]any{"error": ev.Err.Error()})
 			}
 		case ev.ToolUsed != nil:
+			if !ev.ToolUsed.Typing {
+				if !ev.ToolUsed.Done || !toolPending {
+					stepsStarted++
+				}
+				if ev.ToolUsed.Done {
+					stepsCompleted++
+				}
+				toolPending = !ev.ToolUsed.Done
+			}
 			tu := map[string]any{
 				"name": ev.ToolUsed.Name, "label": ev.ToolUsed.Label,
 				"result": ev.ToolUsed.Result, "done": ev.ToolUsed.Done, "typing": ev.ToolUsed.Typing,
@@ -593,6 +612,9 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 	// PUIS la réponse finale — même ordre que l'ancien client, pour que le modèle
 	// garde la trace de ce qu'il a fait. Sauf si un Reset est passé entre-temps :
 	// la nouvelle conversation vide ne doit pas hériter de la fin de l'ancienne.
+	if runError != nil {
+		turnError = runError
+	}
 	c.mu.Lock()
 	if c.epoch == epoch {
 		if newBase != nil {

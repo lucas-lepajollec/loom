@@ -5,8 +5,8 @@
 package loom
 
 import (
-	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 )
@@ -24,6 +24,13 @@ func pushEndpointHost(endpoint string) string {
 // s'abonner (PushManager.subscribe applicationServerKey). Générée à la volée au
 // premier appel, puis stable.
 func handlePushKey(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodGet) || !usageVaultAccess(w) {
+		return
+	}
+	if secure, reason := browserSecure(r); !secure {
+		sendJSON(w, 400, map[string]any{"ok": false, "secure": false, "reason": reason})
+		return
+	}
 	_, pub, err := vapidKeys()
 	if err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
@@ -35,9 +42,21 @@ func handlePushKey(w http.ResponseWriter, r *http.Request) {
 // handlePushSubscribe (POST) : enregistre l'abonnement PushSubscription du
 // navigateur. Corps = l'objet renvoyé par subscription.toJSON() côté JS.
 func handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodPost) || !usageVaultAccess(w) {
+		return
+	}
+	if secure, _ := browserSecure(r); !secure {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "Web Push requires a secure browser context"})
+		return
+	}
 	var s pushSub
-	if err := json.NewDecoder(r.Body).Decode(&s); err != nil || s.Endpoint == "" {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid subscription"})
+	if !workspaceDecode(w, r, &s) {
+		return
+	}
+	u, err := url.Parse(s.Endpoint)
+	ip := net.ParseIP(uHostname(u))
+	if err != nil || u == nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" || len(s.Endpoint) > 4096 || len(s.Keys.Auth) > 1024 || len(s.Keys.P256dh) > 1024 || ip != nil && (!ip.IsGlobalUnicast() || ip.IsPrivate()) || u.Hostname() == "localhost" {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "public HTTPS push endpoint required"})
 		return
 	}
 	if err := addSub(s); err != nil {
@@ -52,10 +71,25 @@ func handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 // handlePushUnsubscribe (POST {endpoint}) : retire un abonnement (l'utilisateur a
 // coupé les notifs dans les réglages).
 func handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodPost) || !usageVaultAccess(w) {
+		return
+	}
 	var body struct {
 		Endpoint string `json:"endpoint"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
-	removeSub(body.Endpoint)
+	if !workspaceDecode(w, r, &body) {
+		return
+	}
+	if err := removeSub(body.Endpoint); err != nil {
+		webAuthUnavailable(w)
+		return
+	}
 	sendJSON(w, 200, map[string]any{"ok": true})
+}
+
+func uHostname(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	return u.Hostname()
 }

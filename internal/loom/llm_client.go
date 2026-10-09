@@ -1244,7 +1244,8 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 var healthClient = &http.Client{Timeout: 3 * time.Second}
 
 // healthCheck pings llama.cpp's /health endpoint.
-func healthCheck() bool {
+func healthCheck() (healthy bool) {
+	defer func() { workspaceSessions.observeHealth("engine", "Engine", "", healthy, true) }()
 	req, err := http.NewRequest(http.MethodGet, engineBase()+"/health", nil)
 	if err != nil {
 		return false

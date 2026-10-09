@@ -269,6 +269,9 @@ func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, 
 		client = &copied
 	}
 	resp, err := client.Do(request)
+	if ctx.Err() == nil {
+		workspaceSessions.observeHealth("node:"+m.ID, m.Name, m.ID, err == nil && resp.StatusCode == 200, false)
+	}
 	if err != nil {
 		return errors.New("node machine unreachable")
 	}

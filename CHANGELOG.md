@@ -4,6 +4,15 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Phase 4a backend: live Tasks snapshots/SSE and bounded domain events derive
+  from discussion sessions. Harness turns and pending ACP approvals continue
+  with every browser closed. Opt-in ntfy, signed webhooks and payload-free Web
+  Push support quiet hours, burst coalescing and completed-turn notifications.
+  Signed, expiring, single-use ntfy actions answer only their bound request.
+  Web Push requires secure context; VAPID keys use the existing sealed secret
+  store and standard-library ES256. See [notifications](docs/notifications.md)
+  for setup, security, backend UI contracts and real-platform acceptance limits.
+
 - The agents watch detects changes in raw no-account capability announcements
   for Codex, OpenCode, Pi and Claude ACP, including agents without schemas.
   Missing snapshots become reviewable baselines; `--update-capabilities` refreshes
