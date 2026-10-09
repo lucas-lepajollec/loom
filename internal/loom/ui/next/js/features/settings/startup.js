@@ -89,6 +89,8 @@ export function StartupSettings() {
             ? html`<div class="set-pick"><${ListPick} label=${t('startup.model')} disabled=${busy} value=${policy.model} onChange=${m => choose('vllm', m)} options=${engines.vllm_models.map(m => ({ value: m, label: m }))} /></div>`
             : html`<span class="note">${t('startup.no_vllm_model')}</span>`}</${Line}>`}
           ${!engines.llama && !engines.vllm && current === 'off' && html`<div class="pad"><p class="note">${t('startup.no_engine', { machine: machineName })}</p></div>`}
+          ${node.voice && html`<${Line} label=${t('startup.voice')} tip=${t('startup.voice_tip')}>
+            <${Switch} label=${t('startup.voice')} checked=${node.voice.boot} disabled=${busy || (!node.voice.ready && !node.voice.boot)} onChange=${voice_boot => run(() => call(nodeURL, { voice_boot }))} /></${Line}>`}
           <div class="pad"><p class="note">${t('startup.engine_note')}</p></div>`
         : html`<div class="pad"><p class="note">${machine ? t('startup.link_node') : t('startup.loading')}</p></div>`}
       </${Group}>`}`;

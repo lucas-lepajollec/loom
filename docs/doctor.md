@@ -172,3 +172,8 @@ Owners are `agent:<runtime_id>`, `machine:<machine_id>`, `engine:local`, or an
 opaque `engine:<destination_digest>` for a linked engine (no URL). Notification
 rules accept both types and exclude them by default. Existing Events/Tasks SSE
 and notification settings remain the delivery surface; no parallel bus exists.
+
+Voice checks (`voice.installed`, `voice.version`, `voice.models`,
+`voice.service`) observe the selected local/paired voice machine without starting
+models or generation. Uninstalled/stopped voice is skipped; missing selected
+models warn. See [voice](voice.md) for the health API and runtime prerequisites.

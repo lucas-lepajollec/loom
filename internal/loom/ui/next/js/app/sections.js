@@ -7,7 +7,7 @@ import { app } from '../core/state.js';
 import { TabNav } from '../ui/tabnav.js';
 
 export const GROUPS = [
-  { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [['local', () => t('local.page.local')], ['cloud', () => t('app.routes.cloud')], ['engine', () => t('engine.page.title')]] },
+  { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [['local', () => t('local.page.local')], ['cloud', () => t('app.routes.cloud')], ['engine', () => t('engine.page.title')], ['voice', () => t('voice.title')]] },
   { id: 'agents', icon: 'terminal', get label() { return t('app.groups.agents'); }, tabs: [['harnesses', () => t('app.routes.harnesses')]] },
   { id: 'tasks', icon: 'pulse', get label() { return t('tasks.title'); }, tabs: [['tasks', () => t('tasks.title')]] },
   { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')], ['workspaces', () => t('workspaces.title')], ['terminals', () => t('app.routes.terminaux')], ['environment', () => t('app.routes.environnement')]] },

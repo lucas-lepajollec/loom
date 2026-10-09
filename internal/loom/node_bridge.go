@@ -27,6 +27,9 @@ type nodeBridgeAccess struct {
 
 func nodeModules() []string {
 	modules := []string{"engine"}
+	if nodeVoiceEnabled() {
+		modules = append(modules, "voice")
+	}
 	if nodeHarnessEnabled() {
 		modules = append(modules, "harness")
 	}
@@ -92,6 +95,9 @@ func nodeMachineModuleAccess(m RemoteMachine, module string) (nodeBridgeAccess, 
 		return nodeBridgeAccess{}, errors.New("machine capability degraded; run Doctor")
 	}
 	if !hasNodeModule(m.Modules, module) {
+		if module == "voice" {
+			return nodeBridgeAccess{}, errors.New("node voice module unavailable; update or reconnect this machine")
+		}
 		if module == "observe" {
 			return nodeBridgeAccess{}, errors.New(nodeObserveDisabled)
 		}

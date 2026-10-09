@@ -8,6 +8,13 @@
 
 Loom is a single Go binary with a web UI. Run local inference, connect cloud providers or use coding-agent harnesses in the same discussion. The interface defaults to English; French is available in Settings and the first-run guide. On phones, Settings opens a section menu with a back link; model selection, Bench and Usage adapt to the available screen width.
 
+Local speech management (Jarvis 6.1) uses sherpa-onnx 1.13.8 on this machine
+or a paired node's `voice` module. It provides verified engine/model downloads,
+curated packs, supervised STT/TTS, Doctor and a streaming API for browser voice.
+Voice requires Python 3; missing catalog hashes refuse installation. See
+[voice engine and API contracts](docs/voice.md). The Models › Voix UI is a
+separate slice.
+
 ## Why Loom
 
 - Keep a discussion and its project context when switching models or harnesses.
@@ -259,7 +266,7 @@ curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.
 The installer creates a user service without sudo, selects a private LAN address
 on port **2511**, and prints a single-use code valid for ten minutes. Loom can
 also find nodes on the local network. The paired machine page displays its
-engine, harness, terminal and observe modules; discussions and Brain stay on
+engine, voice, harness, terminal and observe modules; discussions and Brain stay on
 the main Loom. macOS and Windows nodes are not available yet.
 
 Existing SSH machines remain editable and offer **Install Loom Node over SSH**

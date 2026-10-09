@@ -16,6 +16,7 @@ import { EnvironmentPage } from '../features/environment/page.js';
 import { MachinesPage } from '../features/machines/page.js';
 import { EnginePage, WorkspacesPage } from '../features/machines/panes.js';
 import { TasksPage } from '../features/tasks/page.js';
+import { VoicePage } from '../features/voice/page.js';
 import { GROUPS } from './sections.js';
 
 export const ROUTES = [
@@ -24,6 +25,7 @@ export const ROUTES = [
   { id: 'cloud', page: CloudPage },
   { id: 'harnesses', page: HarnessesPage },
   { id: 'tasks', page: TasksPage },
+  { id: 'voice', page: VoicePage },
   { id: 'brain', page: ResourcesPage },
   { id: 'resources', page: ResourcesPage },
   { id: 'terminals', page: TerminalsPage },

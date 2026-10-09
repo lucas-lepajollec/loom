@@ -52,6 +52,7 @@ func cmdWeb(args []string) error {
 	defer stopLifecycle()
 	go officialAgentsCatalog.refresh(lifecycleCtx, time.Now())
 	go startConfiguredEngine(lifecycleCtx)
+	go voiceLifecycle(lifecycleCtx)
 	go harnessLifecycle.autoLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
 	fmt.Printf("[loom web] http://%s  (Ctrl-C to stop)\n", addr)
@@ -129,6 +130,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 		}
 		api(path, h)
 	})
+	registerVoiceRoutes(api, false)
 	newEnvironment().register(api)
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)

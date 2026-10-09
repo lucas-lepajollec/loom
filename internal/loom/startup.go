@@ -118,15 +118,30 @@ func handleStartup(w http.ResponseWriter, r *http.Request) {
 	services := startupServices(ctx)
 	if r.Method == http.MethodPost {
 		var req struct {
-			Service string         `json:"service"`
-			Enabled bool           `json:"enabled"`
-			Policy  *engineStartup `json:"policy"`
+			Service   string         `json:"service"`
+			Enabled   bool           `json:"enabled"`
+			Policy    *engineStartup `json:"policy"`
+			VoiceBoot *bool          `json:"voice_boot"`
 		}
 		if !workspaceDecode(w, r, &req) {
 			return
 		}
 		var err error
-		if req.Policy != nil && req.Service == "" {
+		if req.VoiceBoot != nil && req.Policy == nil && req.Service == "" {
+			voiceRuntime.mu.Lock()
+			c := readVoiceConfig()
+			c.Boot = *req.VoiceBoot
+			err = validateVoiceConfig(c, true)
+			if err == nil && c.Boot && !voiceEngineInstalled() {
+				err = errors.New("install the voice engine first")
+			}
+			if err == nil {
+				err = putStoreJSON(bkState, "voice_config", c)
+			}
+			voiceRuntime.mu.Unlock()
+		} else if req.VoiceBoot != nil {
+			err = errors.New("choose voice startup or a service/engine policy")
+		} else if req.Policy != nil && req.Service == "" {
 			err = validateEngineStartup(*req.Policy, isEngineWorker())
 			if req.Policy.Engine == "vllm" {
 				for _, s := range services {
@@ -162,7 +177,7 @@ func handleStartup(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			message := "startup setting not saved: service unavailable or authorization denied"
-			if req.Policy != nil || req.Service == "engine" && req.Enabled && readEngineStartup().Engine == "vllm" {
+			if req.VoiceBoot != nil || req.Policy != nil || req.Service == "engine" && req.Enabled && readEngineStartup().Engine == "vllm" {
 				message = err.Error()
 			}
 			sendJSON(w, 409, map[string]any{"ok": false, "error": message})
@@ -178,7 +193,7 @@ func handleStartup(w http.ResponseWriter, r *http.Request) {
 			linger = &yes
 		}
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "supported": true, "node": isEngineWorker(), "services": services, "policy": readEngineStartup(), "linger": linger, "engines": startupEngines(services)})
+	sendJSON(w, 200, map[string]any{"ok": true, "supported": true, "node": isEngineWorker(), "services": services, "policy": readEngineStartup(), "linger": linger, "engines": startupEngines(services), "voice": map[string]any{"boot": readVoiceConfig().Boot, "installed": voiceEngineInstalled(), "ready": voiceBootReady()}})
 }
 
 // Explicit saved policy, no generation/download and no second inference runtime.

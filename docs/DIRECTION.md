@@ -292,6 +292,9 @@ It is for every user: any USB/Bluetooth/built-in microphone and speaker, Linux
 first then macOS/Windows, CPU-only machines supported, cloud speech optional with
 consent. Each step ships and is used before the next.
 
+**Status:** 6.1 delivered — engine, packs, library, supervision, Doctor and the
+Models › Voice page ([voice](voice.md)); verified on a real Linux CPU machine.
+
 1. **6.1 Voice engine.** sherpa-onnx (Apache-2.0, official prebuilt binaries for
    Linux x64/ARM, macOS, Windows, CPU and CUDA) is to speech what llama.cpp is to
    text: Loom downloads and supervises it as an external process. Swappable

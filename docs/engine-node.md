@@ -14,7 +14,7 @@
    after ten minutes and work once. Both machines must be able to reach the
    selected listener on port **2511**.
 3. Loom opens the paired machine and displays its detected **engine, harness,
-   terminal and observe** modules. Use that page to manage what runs there.
+   voice, terminal and observe** modules. Use that page to manage what runs there.
    Module availability is read-only; the node currently has no module-toggle API.
 
 Existing SSH machines show **Connected over SSH (old method)**. Select
@@ -200,7 +200,7 @@ server**, consumes the code and records the main's ID, name and `paired_at`
 (Unix milliseconds) on the node:
 
 ```json
-{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine","harness","terminal","observe"],"handshake":1}}
+{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine","voice","harness","terminal","observe"],"handshake":1}}
 ```
 
 **Plain LAN HTTP exposes both credentials once in this exchange response to
@@ -261,9 +261,9 @@ All other management routes, including ping/info, require
 are not accepted by a node. `node.token` must be a regular private file (0600).
 The management token and inference key are distinct random 256-bit credentials.
 Authenticated `GET /api/node/info` retains its existing fields and adds `id`,
-`name`, `handshake:1` and `modules:["engine","harness","terminal","observe"]` by default. Unknown handshake majors are
+`name`, `handshake:1` and `modules:["engine","voice","harness","terminal","observe"]` by default. Unknown handshake majors are
 refused with an update message. Missing handshake fields remain accepted only
-for legacy token links. Disabled harness, terminal and observe modules are omitted.
+for legacy token links. Disabled voice, harness, terminal and observe modules are omitted.
 Direct API clients need the inference key for `/v1`, not the management token.
 
 The main Loom strips browser cookies/origin headers and substitutes the machine
@@ -274,7 +274,7 @@ forwarding inference to its local native engine and uses that engine's key.
 ## Run agents on a paired machine
 
 Pair by code as above; SSH is not required for harnesses. Nodes advertise
-`modules:["engine","harness","terminal","observe"]` with `handshake:1` by default, including existing
+`modules:["engine","voice","harness","terminal","observe"]` with `handshake:1` by default, including existing
 nodes after updating. To disable harness execution while retaining read-only observation, initialize with:
 
 ```sh
@@ -616,3 +616,12 @@ behavior require acceptance on the actual target machine.
   release channel per request. They leave the node's saved channel unchanged.
   Release updates atomically replace `~/.local/lib/loom-node/loom`, preserve
   `loom.previous`, verify checksums/node capability, and restart the user service.
+
+## Voice module
+
+Nodes advertise `voice` by default. Voice engine/model installation, service
+controls, WAV tests and PCM/TTS WebSocket traffic use the paired machine token.
+`loom node init --no-voice` disables it; `--no-voice=false` restores it. Restart
+and refresh/re-pair the saved link after changing modules. Voice selection is
+independent of the LLM engine link. See [voice](voice.md) for runtime prerequisites,
+verified catalog setup and API shapes.
