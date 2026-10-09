@@ -86,7 +86,7 @@ function MachineMigration({ m, onChange, compact = false }) {
     } catch (e) { if (alive.current) setError(e.message); }
     finally { clearInterval(timer); if (alive.current) { setBusy(false); setPhase(''); } }
   };
-  return html`<div class=${compact ? 'mcard-a' : 'card pad'}>
+  return html`<div class=${compact ? 'mcard-a' : 'card pad mig-banner'}>
     <span class="state">${t('machines.migrate.old')}</span>
     <button class="btn sm primary" disabled=${busy} onClick=${migrate}>${t('machines.migrate.install')}</button>
     <button class="btn sm ghost" disabled=${busy} onClick=${e => { e.preventDefault(); e.stopPropagation(); setPairing(true); }}>${t('machines.migrate.manual')}</button>

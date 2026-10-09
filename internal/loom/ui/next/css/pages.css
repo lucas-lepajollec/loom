@@ -972,3 +972,9 @@ details.eng-recent>summary h3::after{content:" ›";color:var(--text-3)}
 details.eng-recent[open]>summary h3::after{content:" ⌄"}
 .eng-na{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:12px}
 .eng-na .note{margin:0}
+/* Commande d'installation du nœud : elle passe à la ligne, le bouton Copier reste dessous. */
+.mx-body .mx-code{display:flex;flex-direction:column;align-items:stretch;gap:0}
+.mx-body .mx-code pre{padding-right:12px;white-space:pre-wrap;word-break:break-all;max-height:none}
+.mig-banner{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.mig-banner>.state{margin-right:auto}
+.mx-body .mx-code>.btn{position:static;align-self:flex-end;margin:0 8px 8px}
