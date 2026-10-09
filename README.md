@@ -18,6 +18,11 @@ message-only injection into the originating discussion. Optional HTTPS on port
 2543 shares Loom authentication and supports sealed self-signed or existing PEM
 certificates for secure browser microphone access. The browser voice view is
 built separately; exact API contracts are in the voice documentation.
+Jarvis 6.3 adds a saved spoken profile (name, language, personality, length,
+French formality and context), plus Jarvis-only TTS overrides. Idle engine
+configuration changes restart resident speech workers. Kokoro/Piper deliver
+audio after each native sentence batch; a single long sentence still waits for
+synthesis, and the benchmark reports the measured first PCM separately.
 
 ## Why Loom
 

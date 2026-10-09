@@ -995,3 +995,7 @@ details.vx-lib>summary::-webkit-details-marker{display:none}
 details.vx-lib>summary h3::after{content:" ›";color:var(--text-3)}
 details.vx-lib[open]>summary h3::after{content:" ⌄"}
 .vx-lib-note{margin:0 0 10px}
+.jv-talk{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}
+.jv-talk .note{margin:0}
+.jv-persona .set-actions{display:flex;align-items:center;gap:8px;margin-top:8px}
+.jv-persona .note{margin:8px 0 0}

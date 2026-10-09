@@ -17,6 +17,7 @@ import { MachinesPage } from '../features/machines/page.js';
 import { EnginePage, WorkspacesPage } from '../features/machines/panes.js';
 import { TasksPage } from '../features/tasks/page.js';
 import { VoicePage } from '../features/voice/page.js';
+import { JarvisPage } from '../features/voice/jarvis.js';
 import { GROUPS } from './sections.js';
 
 export const ROUTES = [
@@ -26,6 +27,7 @@ export const ROUTES = [
   { id: 'harnesses', page: HarnessesPage },
   { id: 'tasks', page: TasksPage },
   { id: 'voice', page: VoicePage },
+  { id: 'jarvis', page: JarvisPage },
   { id: 'brain', page: ResourcesPage },
   { id: 'resources', page: ResourcesPage },
   { id: 'terminals', page: TerminalsPage },

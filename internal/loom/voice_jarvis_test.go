@@ -80,15 +80,15 @@ func TestJarvisModelResolution(t *testing.T) {
 		want     string
 		fail     bool
 	}{
-		{RuntimeSession{RuntimeID: "llama.cpp", Model: "fixture.gguf"}, jarvisSettings{"discussion", cloud.ID}, local.ID, false},
-		{RuntimeSession{RuntimeID: "openai-compatible", ProviderID: "p", Endpoint: cloud.Endpoint, Model: "m"}, jarvisSettings{"discussion", local.ID}, cloud.ID, false},
-		{RuntimeSession{RuntimeID: "codex", Model: "m"}, jarvisSettings{"discussion", local.ID}, local.ID, false},
-		{RuntimeSession{}, jarvisSettings{"discussion", cloud.ID}, cloud.ID, false},
+		{RuntimeSession{RuntimeID: "llama.cpp", Model: "fixture.gguf"}, jarvisSettings{Model: "discussion", Fallback: cloud.ID}, local.ID, false},
+		{RuntimeSession{RuntimeID: "openai-compatible", ProviderID: "p", Endpoint: cloud.Endpoint, Model: "m"}, jarvisSettings{Model: "discussion", Fallback: local.ID}, cloud.ID, false},
+		{RuntimeSession{RuntimeID: "codex", Model: "m"}, jarvisSettings{Model: "discussion", Fallback: local.ID}, local.ID, false},
+		{RuntimeSession{}, jarvisSettings{Model: "discussion", Fallback: cloud.ID}, cloud.ID, false},
 		// No usable discussion route and no fallback: a ready cloud route, never a dead end.
-		{RuntimeSession{RuntimeID: "codex"}, jarvisSettings{"discussion", ""}, cloud.ID, false},
-		{RuntimeSession{}, jarvisSettings{harness.ID, ""}, cloud.ID, false},
+		{RuntimeSession{RuntimeID: "codex"}, jarvisSettings{Model: "discussion"}, cloud.ID, false},
+		{RuntimeSession{}, jarvisSettings{Model: harness.ID}, cloud.ID, false},
 		// A local discussion whose model path moved still gets an answer.
-		{RuntimeSession{RuntimeID: "llama.cpp", Model: "/old/path/gone.gguf"}, jarvisSettings{"discussion", ""}, cloud.ID, false},
+		{RuntimeSession{RuntimeID: "llama.cpp", Model: "/old/path/gone.gguf"}, jarvisSettings{Model: "discussion"}, cloud.ID, false},
 	} {
 		routes := []ModelChoice{local, cloud}
 		c, err := resolveJarvisModel(tc.settings, tc.s, routes, "")
@@ -156,7 +156,7 @@ func TestJarvisStreamingContextAndNoDiscussionWrite(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatal(err)
 		}
-		if r.URL.Path != "/v1/chat/completions" || payload.Model != "fixture.gguf" || payload.MaxTokens != 512 || payload.Tools != nil {
+		if r.URL.Path != "/v1/chat/completions" || payload.Model != "fixture.gguf" || payload.MaxTokens != 160 || payload.Tools != nil {
 			t.Fatalf("bad request: %+v %s", payload, r.URL)
 		}
 		if !strings.Contains(payload.Messages[0].Content.(string), "Earlier discussion") || !strings.Contains(payload.Messages[0].Content.(string), "no tools") {

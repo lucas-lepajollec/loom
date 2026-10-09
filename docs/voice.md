@@ -1,4 +1,4 @@
-# Local voice engine (Jarvis 6.1)
+# Local voice engine and Jarvis API (6.1–6.3)
 
 Loom manages **sherpa-onnx 1.13.8** separately from the LLM engine. Voice runs on
 this machine or a paired Loom Node advertising `voice`. It does not change the
@@ -84,6 +84,24 @@ communicate over private stdin/stdout and **open no listener ports**. The only
 voice WebSocket is Loom's existing authenticated HTTP listener, including the
 paired node listener. There is no unauthenticated sherpa listener on a LAN.
 
+`config.threads` reaches both workers' startup JSON and the native online/offline
+recognizer `model_config.num_threads` and `OfflineTtsModelConfig.num_threads`.
+There is no separate STT server or `--num-threads` argv in this implementation:
+the C API field is its equivalent. Changing the configuration while idle replaces
+previously resident workers; stopped workers remain stopped until requested.
+TTS always uses CPU. Thread counts do not guarantee proportional speedups.
+
+The pinned [Kokoro implementation](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.8/sherpa-onnx/csrc/offline-tts-kokoro-impl.h)
+and [Piper/VITS implementation](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.8/sherpa-onnx/csrc/offline-tts-vits-impl.h)
+invoke the generation callback **after a sentence batch has been synthesized**.
+Loom sets `max_num_sentences:1`, converts each callback immediately to PCM16,
+and flushes transport chunks of at most 3,200 samples before native generation
+continues. A multi-sentence request can play the first batch before later batches
+finish. One long sentence still waits for its entire native synthesis: these
+models do not expose PCM during that ONNX run. Splitting transport chunks does
+not reduce that wait. Loom does not split text artificially or claim sub-sentence
+streaming; the native frontend chooses sentence boundaries.
+
 Streaming Zipformer owns partial recognition and native endpointing. Non-streaming
 models use the native Silero detector and offline recognizer; they emit final
 transcripts at VAD boundaries, without invented partials. VAD threshold/minimum
@@ -94,8 +112,8 @@ numeric speaker ID; unavailable speaker IDs are rejected by the worker.
 
 Idle unloading defaults to 30 minutes; zero disables it. An open voice stream or
 active request protects residency. Observation never starts inference. A request
-may load a stopped worker lazily. Stop/restart and configuration changes refuse
-while requests are in flight. Barge-in cancels only TTS, suppresses stale audio,
+may load a stopped worker lazily. Stop/restart and engine configuration changes
+refuse while requests are in flight. Barge-in cancels only TTS, suppresses stale audio,
 and kills/reaps that owned worker; the next speech request reloads it. STT stays
 resident. Failed workers recover on a subsequent request. Native stderr logs are
 bounded to 32 KiB per worker; protocol text/audio is not added to the logs.
@@ -166,7 +184,10 @@ changing that selection. These choices do not affect the LLM engine link.
 
 `POST /api/voice` sends the **complete config object** above. Send empty model
 IDs to deselect. It validates installed models and parameter ranges and refuses
-changes until the service and downloads are stopped. `boot:true` requires all
+changes during requests or downloads. An idle service restarts its resident
+workers with changed parameters, including `threads`. If reloading fails, the
+saved config remains and the service is stopped; POST reports the error.
+`boot:true` requires all
 three model selections. `last_used` is a timestamp, with the zero timestamp
 meaning never used; status `version` is the curated release, while Doctor executes
 the installed version binary. `selection` may also contain `previous_version`,
@@ -195,9 +216,14 @@ The benchmark uses a fixed sentence in English/French for TTS and a fixed
 embedded English/French WAV for STT (generated with eSpeak NG at 155 words/minute,
 converted to PCM16 16 kHz mono). `sample_source` is
 `embedded_espeak_ng_fixture`. RTF is elapsed seconds / audio seconds, not the
-LLM's token throughput. TTS also reports `first_audio_ms`; `latency_ms` measures
-total completion time. These are local diagnostic timings; they include a cold
-load when the worker is stopped. No microphone or external provider is used.
+LLM's token throughput. TTS reports `first_audio_ms` from request start to the
+first nonempty PCM callback received by Go, including conversion/worker transport;
+the sample-rate announcement (`audio_start` on the WebSocket) is not first audio.
+`latency_ms` measures total completion time. The fixed single-sentence bench can
+therefore report nearly equal first-audio and total times; it does not prove
+sub-sentence streaming or measure browser playback/network latency. These are
+local diagnostic timings; they include a cold load when the worker is stopped.
+No microphone or external provider is used.
 
 ## Streaming contract for 6.2
 
@@ -217,6 +243,13 @@ The server announces:
   emits `{type:"audio_start",id,format:"pcm_s16le",sample_rate,channels:1}`,
   binary PCM chunks, then `{type:"audio_end",id}`. Output rate is model-native.
   Speech IDs are at most 80 bytes. Only one speech generation may be active.
+  Jarvis speech can attach `"voice":{"tts_model":"piper-fr","voice_id":0,"speed":1.2}`
+  from the session response (below). Omitted/empty `tts_model` and omitted/null
+  `voice_id`/`speed` inherit the selected machine's engine config. Overrides apply
+  only to this request and are forwarded unchanged to a paired voice node.
+  The TTS model must be installed there; an unavailable model returns an error.
+  Model changes replace only an idle TTS worker, retain STT, and refuse while TTS
+  is in use. Ordinary `speak`, WAV tests and benchmarks use engine defaults.
 - Send `{"type":"cancel","id":"utterance-1"}` or `barge_in`. The server
   cancels the current speech and emits `{type:"cancelled",id}`. No old audio
   follows that acknowledgement. STT continues; cancel before submitting new speech.
@@ -261,15 +294,22 @@ All routes use the main Loom control authentication and `Cache-Control: no-store
 They stay on the main host even when speech is routed to a paired voice node.
 POST requires `Content-Type: application/json`; unknown fields are rejected.
 
-### Model settings
+### Jarvis profile (6.3)
 
 `GET /api/voice/jarvis` returns:
 
 ```json
 {
   "ok": true,
+  "name": "Jarvis",
+  "language": "auto",
+  "personality": "",
+  "length": "short",
+  "formality": "tu",
   "model": "discussion",
   "fallback": "",
+  "context": "discussion+memory",
+  "voice": {"tts_model":"", "voice_id":null, "speed":null},
   "routes": [
     {
       "id": "local:example.gguf", "name": "example.gguf", "kind": "local",
@@ -288,10 +328,30 @@ listed with `enabled:false`; this flag controls picker visibility. `ready` is
 an observation, not a guarantee of successful inference.
 
 `POST /api/voice/jarvis {"model":"discussion","fallback":"local:example.gguf"}`
-saves both settings and returns the same shape as GET. `model` accepts
+saves both settings and returns the same shape as GET. All profile fields can
+be sent together or partially; omitted fields retain their saved values, so older
+model/fallback clients preserve the profile. Empty defaulted strings restore
+their defaults; `personality:""` clears the persona. Unknown fields and invalid
+values return HTTP 400 without saving. `model` accepts
 `discussion` or a returned local/cloud route; `fallback` accepts a returned route
 or `""`. They persist as `voice.jarvis_model` and `voice.jarvis_fallback`.
 Selecting settings does not grant permission to send data.
+
+| Profile field | Default and meaning |
+| --- | --- |
+| `name` | `Jarvis`; at most 80 Unicode characters. Used as the spoken identity; retained for future wake-word work, with no wake detector started here. |
+| `language` | `auto` follows the user; otherwise a language code such as `fr`, `en`, `fr-FR` or `zh-Hant` (at most 16 bytes). This controls the answer prompt; STT/TTS language and supported voices remain engine/model choices per machine. |
+| `personality` | Empty; free user text up to 1,000 Unicode characters. Control/format characters are removed (newline/tab retained as data), then JSON-quoted under `Personality:` in the speech prompt. Explicit prompt rules treat it as untrusted style text and reject role/tool/permission/rule changes; no tools are granted by persona text. |
+| `length` | `short`: 1–2 sentences unless asked, `max_tokens:160`; `normal`: concise explanation, cap 400; `detailed`: fuller spoken explanation, cap 900. Provider enforcement/tokenization remains native. |
+| `formality` | `tu` or `vous` when speaking French, neutral register in other languages. Default `tu`. |
+| `context` | `discussion+memory`: bounded recent discussion and existing Brain memory; `memory`: Brain memory only; `none`: neither. The voice session's completed exchanges always remain. Discussion metadata still resolves the model and project scope. |
+| `voice` | `tts_model:""`, `voice_id:null`, `speed:null` inherit the selected machine's `/api/voice` config at speech time. A TTS catalog ID, numeric speaker ID 0–1024, or speed 0.25–4 overrides only Jarvis speech. Model installation and actual speaker range are checked on the speech machine; no automatic install/fallback occurs. |
+
+The profile persists through the existing settings store under `voice.jarvis_*`;
+the original model/fallback keys are unchanged and GET fills missing defaults.
+Reset voice inheritance with `{"voice":{"tts_model":"","voice_id":null,"speed":null}}`.
+The profile page is built separately. Its voice flow sends the returned session
+`voice` object with each Jarvis `speak` command, including on paired nodes.
 
 With `discussion`, a Loom-held local/cloud discussion supplies its own model
 route. A harness discussion or absent discussion uses `fallback`. An empty or
@@ -312,17 +372,18 @@ cloud requests use the existing provider completion client, with no tools.
 Omit `discussion_id` to start without a discussion. Response:
 
 ```json
-{"ok":true,"session_id":"opaque-session-id","model":{"route":"local:example.gguf","label":"example.gguf"}}
+{"ok":true,"session_id":"opaque-session-id","model":{"route":"local:example.gguf","label":"example.gguf"},"voice":{"tts_model":"","voice_id":null,"speed":null}}
 ```
 
-The model route is pinned for that session. Jarvis reads Brain's same bounded
+The model route and profile are pinned for that session; reopen voice mode to
+apply profile edits. With default `context`, Jarvis reads Brain's same bounded
 memory index, user profile and relevant topic block used by Loom-held chats,
 scoped to the originating project. It reads recent visible discussion text with
 a 6 KiB budget allocated newest first, then presented chronologically, plus its
 own completed voice exchanges. Tool state and harness-private context are not
 included; reading does not capture or change a discussion's frozen snapshot.
-The speech system prompt requests the user's language, short spoken sentences,
-natural numbers and no Markdown, lists, code blocks or emojis. Jarvis tells the
+The speech system prompt follows profile language, length, French formality and
+personality, with natural numbers and no Markdown, lists, code blocks or emojis. Jarvis tells the
 user to use an agent in the discussion for tasks requiring tools.
 
 `POST /api/voice/jarvis/turn` accepts:

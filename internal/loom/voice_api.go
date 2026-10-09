@@ -165,17 +165,7 @@ func handleVoice(w http.ResponseWriter, r *http.Request) {
 				voiceAPIError(w, err)
 				return
 			}
-			voiceRuntime.mu.Lock()
-			var err error
-			if voiceRuntime.busyLocked() || voiceJob.snapshot().Running {
-				err = errors.New("stop voice and finish downloads before changing configuration")
-			} else if c.Boot && !voiceEngineInstalled() {
-				err = errors.New("install the voice engine before enabling boot")
-			} else {
-				err = putStoreJSON(bkState, "voice_config", c)
-			}
-			voiceRuntime.mu.Unlock()
-			if err != nil {
+			if err := voiceRuntime.configure(r.Context(), c); err != nil {
 				voiceAPIError(w, err)
 				return
 			}
@@ -472,17 +462,23 @@ func handleVoice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func voiceSynthesize(ctx context.Context, text string, emit func(voiceWorkerEvent) error) ([]byte, int, error) {
+	return voiceSynthesizeWithVoice(ctx, text, jarvisVoiceOverrides{}, emit)
+}
+
+func voiceSynthesizeWithVoice(ctx context.Context, text string, voice jarvisVoiceOverrides, emit func(voiceWorkerEvent) error) ([]byte, int, error) {
 	if strings.TrimSpace(text) == "" || len(text) > 4096 || strings.ContainsRune(text, 0) {
 		return nil, 0, errors.New("text must contain 1–4096 bytes without NUL")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	worker, release, err := voiceRuntime.acquire(ctx, "tts")
+	if err := voice.validate(); err != nil {
+		return nil, 0, err
+	}
+	worker, release, c, err := voiceRuntime.acquireVoice(ctx, "tts", voice)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer release()
-	c := readVoiceConfig()
 	var audio bytes.Buffer
 	rate := 0
 	err = worker.request(ctx, map[string]any{"op": "tts", "text": text, "voice": c.Voice, "speed": c.Speed}, func(e voiceWorkerEvent) error {

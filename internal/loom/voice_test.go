@@ -118,19 +118,32 @@ func TestVoiceFakeWorkerProcess(t *testing.T) {
 	if !scan.Scan() {
 		os.Exit(1)
 	}
+	var config map[string]any
+	if json.Unmarshal(scan.Bytes(), &config) != nil {
+		os.Exit(2)
+	}
 	emit(map[string]any{"ready": true})
+	var lastTTS map[string]any
 	for scan.Scan() {
 		var req map[string]any
 		if json.Unmarshal(scan.Bytes(), &req) != nil {
 			os.Exit(2)
 		}
 		switch req["op"] {
+		case "inspect":
+			config["last_tts"] = lastTTS
+			b, _ := json.Marshal(config)
+			emit(map[string]any{"text": string(b)})
 		case "pcm":
 			emit(map[string]any{"type": "partial", "text": "bonjour"})
 		case "finish":
 			emit(map[string]any{"type": "final", "text": "bonjour Loom"})
 		case "tts":
+			lastTTS = req
 			emit(map[string]any{"sample_rate": 16000})
+			if os.Getenv("LOOM_VOICE_FAKE_TIMINGS") == "1" {
+				time.Sleep(80 * time.Millisecond)
+			}
 			count := 1
 			if req["text"] == "slow" {
 				count = 1000
@@ -140,6 +153,9 @@ func TestVoiceFakeWorkerProcess(t *testing.T) {
 				if count > 1 {
 					time.Sleep(10 * time.Millisecond)
 				}
+			}
+			if os.Getenv("LOOM_VOICE_FAKE_TIMINGS") == "1" {
+				time.Sleep(100 * time.Millisecond)
 			}
 		case "health":
 			if os.Getenv("LOOM_VOICE_FAKE_HEALTH_HANG") == "1" {
@@ -443,7 +459,7 @@ func TestVoiceWebSocketPCMPartialFinalAudioAndBargeIn(t *testing.T) {
 	if e := read(); e.Type != "stt_done" {
 		t.Fatal(e)
 	}
-	write(map[string]string{"type": "speak", "id": "a", "text": "hello"})
+	write(map[string]any{"type": "speak", "id": "a", "text": "hello", "voice": map[string]any{"voice_id": 0, "speed": 1.25}})
 	if e := read(); e.Type != "audio_start" {
 		t.Fatal(e)
 	}
@@ -452,6 +468,10 @@ func TestVoiceWebSocketPCMPartialFinalAudioAndBargeIn(t *testing.T) {
 	}
 	if e := read(); e.Type != "audio_end" {
 		t.Fatal(e)
+	}
+	speech := voiceInspectWorker(t, voiceRuntime.tts)["last_tts"].(map[string]any)
+	if speech["voice"] != float64(0) || speech["speed"] != 1.25 {
+		t.Fatal("WebSocket lost Jarvis voice override", speech)
 	}
 	write(map[string]string{"type": "speak", "id": "b", "text": "slow"})
 	if e := read(); e.Type != "audio_start" {
@@ -638,6 +658,26 @@ func TestVoicePairedNodeRoutingAndMachineCredentials(t *testing.T) {
 	_, b, err := conn.Read(ctx)
 	if err != nil || !strings.Contains(string(b), `"type":"ready"`) {
 		t.Fatal("node WS proxy", string(b), err)
+	}
+	if err := conn.Write(ctx, websocket.MessageText, []byte(`{"type":"speak","id":"node-speech","text":"hello","voice":{"tts_model":"piper-fr","voice_id":0,"speed":1.25}}`)); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"audio_start", "pcm", "audio_end"} {
+		typ, b, err := conn.Read(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if expected == "pcm" {
+			if typ != websocket.MessageBinary || len(b) == 0 {
+				t.Fatal("node PCM missing", typ, string(b))
+			}
+		} else if !strings.Contains(string(b), `"type":"`+expected+`"`) {
+			t.Fatal("node speech event", expected, string(b))
+		}
+	}
+	speech := voiceInspectWorker(t, voiceRuntime.tts)["last_tts"].(map[string]any)
+	if speech["voice"] != float64(0) || speech["speed"] != 1.25 {
+		t.Fatal("paired node lost Jarvis voice override", speech)
 	}
 	if currentEngineNode() != nil {
 		t.Fatal("voice routing changed the LLM engine target")

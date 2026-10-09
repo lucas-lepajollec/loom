@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,40 @@ type voiceConfig struct {
 	MinSpeech       float64 `json:"min_speech"`
 	IdleMinutes     int     `json:"idle_unload_minutes"`
 	Boot            bool    `json:"boot"`
+}
+
+// Empty/null overrides inherit the selected speech machine's engine config.
+// Speaker zero is a real override, so it must be distinct from inheritance.
+type jarvisVoiceOverrides struct {
+	TTSModel string   `json:"tts_model"`
+	VoiceID  *int     `json:"voice_id"`
+	Speed    *float64 `json:"speed"`
+}
+
+func (v jarvisVoiceOverrides) validate() error {
+	if v.TTSModel != "" {
+		m, err := voiceModel(v.TTSModel)
+		if err != nil || m.Kind != "tts" {
+			return errors.New("Jarvis tts_model must be a TTS catalog ID")
+		}
+	}
+	if v.VoiceID != nil && (*v.VoiceID < 0 || *v.VoiceID > 1024) || v.Speed != nil && (math.IsNaN(*v.Speed) || math.IsInf(*v.Speed, 0) || *v.Speed < .25 || *v.Speed > 4) {
+		return errors.New("invalid Jarvis voice id or speed")
+	}
+	return nil
+}
+
+func (v jarvisVoiceOverrides) apply(c voiceConfig) voiceConfig {
+	if v.TTSModel != "" {
+		c.TTS = v.TTSModel
+	}
+	if v.VoiceID != nil {
+		c.Voice = *v.VoiceID
+	}
+	if v.Speed != nil {
+		c.Speed = *v.Speed
+	}
+	return c
 }
 
 func readVoiceConfig() voiceConfig {
@@ -119,6 +154,7 @@ type voiceWorker struct {
 	done   chan struct{}
 	cancel context.CancelFunc
 	logs   *voiceBoundedLog
+	config voiceConfig
 }
 
 var voiceWorkerCommand = func(ctx context.Context, library, mode string) *exec.Cmd {
@@ -201,12 +237,13 @@ func (v *voiceWorker) read(emit func(voiceWorkerEvent) error, ready bool) error 
 }
 
 type voiceService struct {
-	mu       sync.Mutex
-	stt, tts *voiceWorker
-	inflight int
-	last     time.Time
-	err      string
-	log      []string
+	mu          sync.Mutex
+	stt, tts    *voiceWorker
+	inflight    int
+	ttsInFlight int
+	last        time.Time
+	err         string
+	log         []string
 }
 
 var voiceRuntime = &voiceService{}
@@ -245,14 +282,22 @@ func voiceLibraryPath(root string) (string, error) {
 	return found, nil
 }
 func (s *voiceService) workerLocked(ctx context.Context, mode string) (*voiceWorker, error) {
+	return s.workerConfigLocked(ctx, mode, readVoiceConfig())
+}
+
+func (s *voiceService) workerConfigLocked(ctx context.Context, mode string, c voiceConfig) (*voiceWorker, error) {
 	dst := &s.stt
 	if mode == "tts" {
 		dst = &s.tts
 	}
 	if *dst != nil && (*dst).alive() {
-		return *dst, nil
+		if mode != "tts" || ((*dst).config.TTS == c.TTS && (*dst).config.Language == c.Language && (*dst).config.Threads == c.Threads) {
+			return *dst, nil
+		}
+		if s.ttsInFlight > 0 {
+			return nil, errors.New("TTS is in use; retry the voice model change after speech ends")
+		}
 	}
-	c := readVoiceConfig()
 	if err := validateVoiceConfig(c, true); err != nil {
 		return nil, err
 	}
@@ -288,6 +333,11 @@ func (s *voiceService) workerLocked(ctx context.Context, mode string) (*voiceWor
 		}
 		payload["vad_model"] = vf["model"]
 	}
+	// Validate and resolve the replacement before stopping the resident TTS.
+	if *dst != nil {
+		(*dst).stop()
+		*dst = nil
+	}
 	workerCtx, cancel := context.WithCancel(context.Background())
 	cmd := voiceWorkerCommand(workerCtx, library, mode)
 	stdin, err := cmd.StdinPipe()
@@ -304,7 +354,7 @@ func (s *voiceService) workerLocked(ctx context.Context, mode string) (*voiceWor
 	// startup and never hold the process pipes hostage to that lock.
 	logs := &voiceBoundedLog{}
 	cmd.Stderr = logs
-	v := &voiceWorker{gate: make(chan struct{}, 1), cmd: cmd, stdin: stdin, scan: bufio.NewScanner(stdout), done: make(chan struct{}), cancel: cancel, logs: logs}
+	v := &voiceWorker{gate: make(chan struct{}, 1), cmd: cmd, stdin: stdin, scan: bufio.NewScanner(stdout), done: make(chan struct{}), cancel: cancel, logs: logs, config: c}
 	v.scan.Buffer(make([]byte, 64<<10), 8<<20)
 	if err := cmd.Start(); err != nil {
 		cancel()
@@ -360,18 +410,67 @@ func (l *voiceBoundedLog) Write(p []byte) (int, error) {
 }
 func (l *voiceBoundedLog) String() string { l.mu.Lock(); defer l.mu.Unlock(); return l.b }
 func (s *voiceService) acquire(ctx context.Context, mode string) (*voiceWorker, func(), error) {
+	worker, release, _, err := s.acquireVoice(ctx, mode, jarvisVoiceOverrides{})
+	return worker, release, err
+}
+
+func (s *voiceService) acquireVoice(ctx context.Context, mode string, voice jarvisVoiceOverrides) (*voiceWorker, func(), voiceConfig, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Resolve inheritance under the same lock as configuration changes and worker
+	// admission, so a concurrent save cannot relaunch an old thread/model config.
+	c := voice.apply(readVoiceConfig())
 	if voiceJob.snapshot().Running {
-		return nil, nil, errors.New("voice installation in progress")
+		return nil, nil, c, errors.New("voice installation in progress")
 	}
-	v, err := s.workerLocked(ctx, mode)
+	v, err := s.workerConfigLocked(ctx, mode, c)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, c, err
 	}
 	s.inflight++
+	if mode == "tts" {
+		s.ttsInFlight++
+	}
 	s.last = time.Now()
-	return v, func() { s.mu.Lock(); defer s.mu.Unlock(); s.inflight--; s.last = time.Now() }, nil
+	return v, func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.inflight--
+		if mode == "tts" {
+			s.ttsInFlight--
+		}
+		s.last = time.Now()
+	}, c, nil
+}
+
+func (s *voiceService) configure(ctx context.Context, c voiceConfig) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.inflight > 0 || voiceJob.snapshot().Running {
+		return errors.New("finish voice requests and downloads before changing configuration")
+	}
+	if c.Boot && !voiceEngineInstalled() {
+		return errors.New("install the voice engine before enabling boot")
+	}
+	if c == readVoiceConfig() {
+		return nil
+	}
+	if err := putStoreJSON(bkState, "voice_config", c); err != nil {
+		return err
+	}
+	stt, tts := s.stt != nil && s.stt.alive(), s.tts != nil && s.tts.alive()
+	s.stopLocked()
+	// Recreate only previously resident workers. Saving stopped config is inert.
+	for _, mode := range []string{"stt", "tts"} {
+		if mode == "stt" && !stt || mode == "tts" && !tts {
+			continue
+		}
+		if _, err := s.workerLocked(ctx, mode); err != nil {
+			s.stopLocked()
+			return err
+		}
+	}
+	return nil
 }
 func (s *voiceService) stopLocked() {
 	if s.stt != nil {
@@ -510,8 +609,18 @@ func (s *voiceService) health(ctx context.Context) error {
 	}
 	workers := []*voiceWorker{s.stt, s.tts}
 	s.inflight++
+	if workers[1] != nil {
+		s.ttsInFlight++
+	}
 	s.mu.Unlock()
-	defer func() { s.mu.Lock(); s.inflight--; s.mu.Unlock() }()
+	defer func() {
+		s.mu.Lock()
+		s.inflight--
+		if workers[1] != nil {
+			s.ttsInFlight--
+		}
+		s.mu.Unlock()
+	}()
 	for _, v := range workers {
 		if v != nil {
 			if err := v.health(ctx); err != nil {
