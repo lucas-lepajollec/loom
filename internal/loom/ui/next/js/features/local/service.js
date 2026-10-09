@@ -2,7 +2,8 @@
 // consommation) et comment il gère la mémoire vidéo (déchargement après
 // inactivité, file d'attente quand un autre modèle est demandé).
 import { t } from '../../core/i18n.js';
-import { html, useState, useEffect, cls } from '../../core/lib.js';
+import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
+import { app } from '../../core/state.js';
 import { Icon } from '../../ui/icons.js';
 import { Tip, Menu } from '../../ui/controls.js';
 import { ListPick } from '../../ui/listpick.js';
@@ -18,11 +19,22 @@ const ago = ms => {
 // Go's zero time (0001-01-01) means never.
 const msOf = v => { const ms = typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(v || '') || 0; return ms > 0 ? ms : 0; };
 
+// Un moteur plus ancien que l'interface n'a pas ces réglages : on le dit au lieu
+// de masquer la section (cas d'un moteur lié sur une machine pas à jour).
+export function EngineUnavailable({ what, error }) {
+  const node = useStore(app, a => a.engineNode);
+  const outdated = error && (error.error_code === 'engine_outdated' || /older|404|not found/i.test(error.error || ''));
+  return html`<div class="card pad eng-na"><b>${what}</b><p class="note">${outdated
+    ? (node ? t('engine.na.outdated_remote', { machine: node.hostname || '' }) : t('engine.na.outdated_local'))
+    : t('engine.na.unreachable')}</p>${outdated && node && html`<a class="btn sm" href="#/machines">${t('engine.na.open_machines')}</a>`}</div>`;
+}
+
 export function EngineMemory() {
   const [s, setS] = useState(null);
-  const load = () => get('/api/engine/service').then(r => setS(r.ok === false ? null : r)).catch(() => setS(null));
+  const [err, setErr] = useState(null);
+  const load = () => get('/api/engine/service').then(r => { if (r.ok === false) { setS(null); setErr(r); } else { setS(r); setErr(null); } }).catch(e => { setS(null); setErr({ error: e.message }); });
   useEffect(() => { load(); const id = setInterval(load, 5000); return () => clearInterval(id); }, []);
-  if (!s) return null;
+  if (!s) return err ? html`<${EngineUnavailable} what=${t('engine.svc.memory')} error=${err} />` : null;
   const save = async patch => {
     const r = await post('/api/engine/service', patch).catch(e => ({ ok: false, error: e.message }));
     if (r.ok === false || r.error) return toast(r.error, 'err');
@@ -30,8 +42,8 @@ export function EngineMemory() {
   };
   const opt = (values, unit) => values.map(v => ({ value: String(v), label: v === 0 ? t('engine.svc.never_unload') : t(unit, { n: v }) }));
   const resident = s.resident || [], queue = s.queue || [];
-  return html`<section class="set-group"><h3>${t('engine.svc.memory')}<${Tip} text=${t('engine.svc.memory_tip')} /></h3>
-    <div class="card">
+  return html`<div class="card eng-mem">
+      <div class="set-line"><div class="set-l"><span class="eng-sub">${t('engine.svc.memory')}</span><${Tip} text=${t('engine.svc.memory_tip')} /></div><div class="set-c"></div></div>
       <div class="set-line"><div class="set-l"><span>${t('engine.svc.resident')}</span></div>
         <div class="set-c es-res">${resident.length ? resident.map(r => html`<span class="tag"><i class=${'dot ' + (r.in_flight ? 'blue' : 'green')}></i>${r.model}${r.in_flight ? ' · ' + t('engine.svc.in_flight', { n: r.in_flight }) : ''}</span>`) : html`<span class="muted">${t('engine.svc.none_loaded')}</span>`}
           ${queue.map(q => html`<span class="tag amber">${t('engine.svc.waiting', { model: q.model, n: q.waiting })}</span>`)}</div></div>
@@ -41,8 +53,7 @@ export function EngineMemory() {
         <div class="set-c es-pick"><${ListPick} label=${t('engine.svc.models_max')} value=${String(s.models_max)} onChange=${v => save({ models_max: +v })} options=${[1, 2, 3, 4].map(n => ({ value: String(n), label: n === 1 ? t('engine.svc.one_model') : t('engine.svc.n_models', { n }) }))} /></div></div>
       <div class="set-line"><div class="set-l"><span>${t('engine.svc.grace')}</span><${Tip} text=${t('engine.svc.grace_tip')} /></div>
         <div class="set-c es-pick"><${ListPick} label=${t('engine.svc.grace')} value=${String(s.interactive_grace_minutes)} onChange=${v => save({ interactive_grace_minutes: +v })} options=${[5, 15, 30, 60].map(n => ({ value: String(n), label: t('engine.svc.minutes', { n }) }))} /></div></div>
-    </div>
-  </section>`;
+    </div>`;
 }
 
 function KeyForm({ k, models, onClose }) {
@@ -102,9 +113,10 @@ export function EngineKeys() {
   const [d, setD] = useState(null);
   const [models, setModels] = useState([]);
   const [form, setForm] = useState(null);
-  const load = () => get('/api/engine/keys').then(r => setD(r.ok === false ? null : r)).catch(() => setD(null));
+  const [err, setErr] = useState(null);
+  const load = () => get('/api/engine/keys').then(r => { if (r.ok === false) { setD(null); setErr(r); } else { setD(r); setErr(null); } }).catch(e => { setD(null); setErr({ error: e.message }); });
   useEffect(() => { load(); get('/api/models').then(r => setModels((Array.isArray(r) ? r : []).map(m => String(m.name || m.file || m.id || '').replace(/\.gguf$/i, '')).filter(Boolean).slice(0, 40))).catch(() => {}); }, []);
-  if (!d) return null;
+  if (!d) return err ? html`<${EngineUnavailable} what=${t('engine.keys.title')} error=${err} />` : null;
   const keys = d.keys || [];
   return html`<section class="set-group"><h3>${t('engine.keys.title')}<${Tip} text=${t('engine.keys.tip')} /></h3>
     <div class="card bs-list">
