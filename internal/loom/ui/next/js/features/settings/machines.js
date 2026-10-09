@@ -149,7 +149,6 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
   const isLocal = !m;
   const target = isLocal ? 'local' : m.id;
   const name = isLocal ? (local && local.hostname) || t("settings.machines.cette_machine_2") : m.name;
-  const where = isLocal ? t("settings.machines.sur_cette_machine") : t("settings.machines.sur") + m.name;
   const remove = async () => {
     if (!await confirm(t("settings.machines.retirer") + m.name, t("settings.machines.ses_harnesses_disparaissent_de_loom_les_discussions_deja_faites_r"), { ok: t("settings.machines.retirer_2"), danger: true })) return;
     const r = await post('/api/machines/delete', { id: m.id });

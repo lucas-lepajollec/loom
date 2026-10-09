@@ -16,7 +16,7 @@ test('composants utilisés = composants définis ou importés', () => {
     const src = fs.readFileSync(f, 'utf8');
     const used = new Set([...src.matchAll(/<\$\{([A-Z][A-Za-z0-9_]*)\}/g)].map(m => m[1]));
     for (const name of used) {
-      const declared = new RegExp(`(function\\s+${name}\\b|(const|let|var)\\s+${name}\\b|import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}|import\\s+${name}\\b|\\b${name}\\s*:)`).test(src);
+      const declared = new RegExp(`(function\\s+${name}\\b|class\\s+${name}\\b|(const|let|var)\\s+${name}\\b|import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}|import\\s+${name}\\b|\\b${name}\\s*:)`).test(src);
       if (!declared) missing.push(path.relative(root, f) + ' : ' + name);
     }
   }
