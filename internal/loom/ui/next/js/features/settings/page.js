@@ -1,3 +1,4 @@
+import { HttpsSettings } from './https.js';
 import { PolicySettings } from './policy.js';
 import { DoctorSettings } from './doctor.js';
 import { NotificationSettings } from './notifications.js';
@@ -472,7 +473,7 @@ function Security() {
   });
   const vault = mem && (mem.encrypted || mem.vault_copies > 0);
   const blocked = busy || !!secretForm;
-  return html`
+  return html`<${HttpsSettings} />
     <${AccessSettings} />
     <${NetworkAccess} />
     <${Group} title="${t("settings.page.api_v1")}">
