@@ -29,6 +29,8 @@ var modelSinks = []modelSink{
 	{Harness: "codex", Format: "env"},
 	{Harness: "claude-code", Format: "env"},
 	{Harness: "opencode", Format: "opencode"},
+	{Harness: "deepseek-harness", Format: "dsh"},
+	{Harness: "hermes", File: "~/.hermes/config.yaml", Format: "hermes"},
 }
 
 const modelSinkState = "model_sinks" // map[harness]bool
@@ -149,7 +151,7 @@ func resyncHarnessSources() {
 	_ = syncModelSinks()
 	reprobe := false
 	for _, s := range modelSinks {
-		if (s.Format == "pi" || s.Format == "opencode") && modelSinkEnabled(s.Harness) {
+		if (s.Format == "pi" || s.Format == "opencode" || s.Format == "dsh" || s.Format == "hermes") && modelSinkEnabled(s.Harness) {
 			acpProbeMu.Lock()
 			_ = putBytes(bkState, acpProbeKey+s.Harness, nil)
 			acpProbeMu.Unlock()
@@ -171,6 +173,10 @@ func syncModelSinks() error {
 		switch s.Format {
 		case "pi":
 			err = writePiProvider(expandHome(s.File), on, loomLocalModels(), engineBase()+"/v1", loomAPIKey(), piCloudProviders())
+		case "dsh":
+			err = writeDshPatch(on)
+		case "hermes":
+			err = writeHermesProviders(hermesConfigPath(), on, hermesLoomProviders())
 		case "env", "opencode":
 			// Read at launch: nothing to write.
 		}

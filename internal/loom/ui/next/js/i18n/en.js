@@ -1205,6 +1205,8 @@ export default {
   "harnesses.machines.dans_loom": "in Loom",
   "harnesses.machines.ajouter_a_loom": "Add to Loom",
   "harnesses.machines.sur": "on ",
+  "harnesses.models.dsh_note": "Your local models and cloud providers appear in {name} when Loom launches it, through a configuration layer Loom keeps in its own folder. Your {name} files are not modified and keys are never written: Loom provides them at launch.",
+  "harnesses.models.hermes_note": "Loom adds \"loom-…\" providers to {file} (your local models and one per cloud provider). The rest of the file, comments included, is untouched. Keys are not written there: only the name of a variable Loom fills when it launches {name}. Turning this off removes those providers.",
   "harnesses.page.discussion_dans_le_fil_commun": "Chat in the shared conversation",
   "harnesses.page.outils_natifs_visibles": "Native tools visible",
   "harnesses.page.tokens_et_quotas": "Tokens and quotas",
