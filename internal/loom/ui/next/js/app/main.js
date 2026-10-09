@@ -12,6 +12,7 @@ import { initLang } from '../core/i18n.js';
 import { Welcome, initWelcome } from '../features/onboarding/welcome.js';
 import { authStatus } from '../core/api.js';
 import { AccessScreen } from './access.js';
+import { initTouch } from './touch.js';
 
 
 function Main() {
@@ -46,4 +47,5 @@ async function boot() {
     render(html`<div class="welcome" style="min-height:100dvh"><h1>Loom</h1><p role="alert">${t('access.unavailable')}</p><button class="btn" onClick=${boot}>${t('access.retry')}</button></div>`, root);
   }
 }
+initTouch();
 boot();

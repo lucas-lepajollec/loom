@@ -470,3 +470,16 @@ input[type="checkbox"]:disabled,input[type="radio"]:disabled{opacity:.4;cursor:n
 .chat-link .more{flex:none;display:inline-flex;align-items:center;justify-content:center}
 .drop-on{border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line-strong);background:var(--hover)}
 .chat-link[draggable="true"]{-webkit-user-drag:element}
+
+/* Écrans tactiles (voir js/app/touch.js). Le document ne défile ni ne rebondit
+   jamais : un rebond iOS décale la page et le toucher suivant ne fait qu'arrêter
+   l'inertie au lieu de cliquer. Les zones qui défilent gardent leur défilement
+   pour elles. Les champs passent à 16 px, sinon iOS zoome à la saisie et laisse
+   la page agrandie. cursor:pointer fait émettre un clic iOS sur toute zone, ce
+   qui permet de fermer un menu en touchant à côté. */
+html,body{overscroll-behavior:none}
+@media (hover:none) and (pointer:coarse){
+  html,body{cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  .view,.page,.pick-list,.lpick-list,.pop,.dialog-body,.insp-scroll,.insp-body,.side,.thread,.cat-list{overscroll-behavior:contain}
+  input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea,select{font-size:16px!important}
+}
