@@ -14,7 +14,7 @@ type StreamEvent[Usage, Stats any] struct {
 
 func NativeDiscussionEvents(d map[string]any) []DiscussionEvent {
 	base := DiscussionEvent{}
-	for _, key := range []string{"seq", "ts", "ts0", "replace", "toks", "portable_text"} {
+	for _, key := range []string{"seq", "ts", "ts0", "replace", "toks", "portable_text", "source", "source_id"} {
 		if v, ok := d[key]; ok {
 			base[key] = v
 		}
@@ -111,7 +111,7 @@ func RuntimeReplay[Usage, Stats any](s RuntimeSession[Usage, Stats], context fun
 	for i, message := range s.Messages {
 		text, _ := message.Content.(string)
 		if message.Role == "user" {
-			out = append(out, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true})
+			out = append(out, DiscussionEvent{"type": "turn_start", "text": text, "portable_text": true, "source": message.Source})
 			continue
 		}
 		if message.Role != "assistant" {
@@ -130,7 +130,7 @@ func RuntimeReplay[Usage, Stats any](s RuntimeSession[Usage, Stats], context fun
 			if turn != nil && turn.ReasoningSummary != "" {
 				out = append(out, DiscussionEvent{"type": "reasoning_delta", "text": turn.ReasoningSummary, "summary": true})
 			}
-			out = append(out, DiscussionEvent{"type": "text_delta", "text": text})
+			out = append(out, DiscussionEvent{"type": "text_delta", "text": text, "source": message.Source})
 		}
 		running := s.Status == "running" && i == len(s.Messages)-1
 		if running {

@@ -64,7 +64,7 @@ func (a cloudRuntimeAdapter) Run(ctx context.Context, turn RuntimeTurn, emit Cha
 	if err := authorizeProviderTurn(ctx, a.provider); err != nil {
 		return nil, err
 	}
-	cloudTurn := openai.Turn{Messages: turn.Messages, MaxTokens: turn.MaxTokens}
+	cloudTurn := openai.Turn{Messages: modelMessages(turn.Messages), MaxTokens: turn.MaxTokens}
 	if turn.Caps.Internet {
 		cloudTurn.Tools = cloudWebSearch{}
 	}

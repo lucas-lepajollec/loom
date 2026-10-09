@@ -40,20 +40,24 @@ func archivePortableText(a *convArchive) []Message {
 	if len(a.Log) == 0 {
 		for _, msg := range a.Messages {
 			if text, ok := msg.Content.(string); ok && text != "" && (msg.Role == "user" || msg.Role == "assistant") {
-				out = append(out, Message{Role: msg.Role, Content: text})
+				out = append(out, Message{Role: msg.Role, Content: text, Source: msg.Source, SourceID: msg.SourceID})
 			}
 		}
 		return out
 	}
 	for _, event := range a.Log {
 		if text, ok := event.Delta["user"].(string); ok {
-			out = append(out, Message{Role: "user", Content: text})
+			source, _ := event.Delta["source"].(string)
+			sourceID, _ := event.Delta["source_id"].(string)
+			out = append(out, Message{Role: "user", Content: text, Source: source, SourceID: sourceID})
 		}
 		if text, ok := event.Delta["content"].(string); ok && text != "" {
 			if len(out) > 0 && out[len(out)-1].Role == "assistant" {
 				out[len(out)-1].Content = out[len(out)-1].Content.(string) + text
 			} else {
-				out = append(out, Message{Role: "assistant", Content: text})
+				source, _ := event.Delta["source"].(string)
+				sourceID, _ := event.Delta["source_id"].(string)
+				out = append(out, Message{Role: "assistant", Content: text, Source: source, SourceID: sourceID})
 			}
 		}
 	}
@@ -69,6 +73,10 @@ func appendNativeText(a *convArchive, messages []Message) {
 			key = "user"
 		}
 		a.Log = append(a.Log, LogEvent{Seq: a.Seq, TS: time.Now().UnixMilli(), Delta: map[string]any{key: msg.Content, "portable_text": true}})
+		if msg.Source != "" {
+			a.Log[len(a.Log)-1].Delta["source"] = msg.Source
+			a.Log[len(a.Log)-1].Delta["source_id"] = msg.SourceID
+		}
 		if msg.Role == "assistant" {
 			a.Seq++
 			a.Log = append(a.Log, LogEvent{Seq: a.Seq, Delta: map[string]any{"turn_done": true}})

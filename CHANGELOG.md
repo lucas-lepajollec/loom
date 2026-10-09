@@ -4,6 +4,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Jarvis 6.2 backend: bounded, authenticated in-memory voice conversations,
+  local/cloud model selection with harness fallback, read-only Brain/discussion
+  context, cancellable SSE answers and provider policy refusal. Optional closing
+  injection persists ordinary voice messages and publishes them without starting
+  a model/agent turn. Additional HTTPS serves the same authenticated handlers,
+  with sealed ECDSA self-signed certificates, explicit regeneration or existing
+  PEM files, live listener configuration and Doctor `security.https`. Browser
+  voice UI and real mobile/certificate/speech acceptance remain separate. Exact
+  JSON/SSE contracts are in [voice](docs/voice.md).
+
 - Jarvis 6.1 voice backend: pinned sherpa-onnx 1.13.8 engine installation,
   curated local speech packs and model library, verified staged downloads with
   cancellation/rollback, supervised resident STT/TTS workers, idle unload,

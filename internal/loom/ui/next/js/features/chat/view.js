@@ -1,9 +1,10 @@
+import { VoiceMode } from '../voice/mode.js';
 import { t } from '../../core/i18n.js';
 // Vue discussion : en-tête (exécution, projet, panneau), fil, composeur.
 import { html, useRef, useEffect, useLayoutEffect, useStore, useState, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { app } from '../../core/state.js';
-import { chat } from './engine.js';
+import { chat, open } from './engine.js';
 import { Messages } from './messages.js';
 import { Composer } from './composer.js';
 import { Picker, currentExec } from './picker.js';
@@ -32,9 +33,13 @@ function Thread() {
   </div>`;
 }
 
+// Le mode vocal remplace la discussion le temps de l'échange avec Jarvis.
+function voiceDiscussion() { return chat.get().sessionId || (app.get().nav && app.get().nav.active) || ''; }
 export function ChatView() {
   const insp = useStore(app, s => s.inspector);
   const toggle = () => { const v = !app.get().inspector; if (innerWidth > 1100) { try { localStorage.setItem('loom.next.insp', v ? '1' : '0'); } catch (_) {} } app.set({ inspector: v }); };
+  const voice = useStore(app, s => s.voiceMode);
+  if (voice) return html`<div class="view chat-view"><${VoiceMode} discussionId=${voice.discussion} onClose=${async injected => { app.set({ voiceMode: null }); if (injected && voice.discussion) await open(voice.discussion, true); }} /></div>`;
   return html`<div class="view chat-view">
     <div class="chat-col">
       <header class="topbar">

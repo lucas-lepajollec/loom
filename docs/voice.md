@@ -238,3 +238,227 @@ barge-in and paired-node credentials without opening network sockets. The worker
 C API symbols, all 46 struct sizes and field offsets were also checked against the supplied 1.13.8 Linux shared library.
 Real model inference, CUDA and macOS/Windows acceptance remain pending the reviewed
 model/platform hashes and installed runtime on those machines.
+
+## Jarvis 6.2: isolated spoken conversations
+
+This backend supplies APIs for the design owner's full-screen voice view. The
+browser connects the existing `/api/voice/stream` STT/TTS WebSocket to the Jarvis
+text endpoints below: final STT text starts a Jarvis turn, streamed answer text
+can be synthesized with the WebSocket's `speak` command. Playback, microphone
+selection, animation, push-to-talk, VAD interaction and closing the view belong
+to that UI. These APIs do not record audio or start a harness.
+
+A voice conversation lives only in RAM and belongs to its authenticated browser
+session or control credential generation. Logout, credential rotation and vault
+locking revoke access. A session accepts at most **200 completed user/assistant
+exchanges**, expires after **two idle hours**, and allows one turn at a time.
+There are at most 64 sessions per Loom process. Restart discards them. User text
+is 1–4096 UTF-8 bytes without NUL; answers are limited to 16 KiB and requests to
+three minutes. Failed/cancelled turns do not enter session history. No automatic
+retry or discussion write occurs during a turn.
+
+All routes use the main Loom control authentication and `Cache-Control: no-store`.
+They stay on the main host even when speech is routed to a paired voice node.
+POST requires `Content-Type: application/json`; unknown fields are rejected.
+
+### Model settings
+
+`GET /api/voice/jarvis` returns:
+
+```json
+{
+  "ok": true,
+  "model": "discussion",
+  "fallback": "",
+  "routes": [
+    {
+      "id": "local:example.gguf", "name": "example.gguf", "kind": "local",
+      "provider_name": "llama.cpp", "model": "example.gguf",
+      "enabled": true, "ready": true
+    }
+  ]
+}
+```
+
+`routes` contains the existing model picker's `ModelChoice` objects, restricted
+to local/cloud routes. Cloud IDs are opaque `cloud:…` values; use the returned
+IDs, not a provider/model string invented by the browser. Optional picker fields
+include `engine_value`, `provider_id`, `endpoint` and `via`. Hidden routes remain
+listed with `enabled:false`; this flag controls picker visibility. `ready` is
+an observation, not a guarantee of successful inference.
+
+`POST /api/voice/jarvis {"model":"discussion","fallback":"local:example.gguf"}`
+saves both settings and returns the same shape as GET. `model` accepts
+`discussion` or a returned local/cloud route; `fallback` accepts a returned route
+or `""`. They persist as `voice.jarvis_model` and `voice.jarvis_fallback`.
+Selecting settings does not grant permission to send data.
+
+With `discussion`, a Loom-held local/cloud discussion supplies its own model
+route. A harness discussion or absent discussion uses `fallback`. An empty or
+missing fallback returns an actionable error; a missing discussion model also
+returns an error. Explicit routes always use their selected model. Jarvis never
+uses harnesses, including harnesses with a Loom model association. Local requests
+use the existing engine's Chat Completions endpoint and residency/loading policy;
+cloud requests use the existing provider completion client, with no tools.
+
+### Create and stream
+
+`POST /api/voice/jarvis/session` accepts:
+
+```json
+{"discussion_id":"discussion-id"}
+```
+
+Omit `discussion_id` to start without a discussion. Response:
+
+```json
+{"ok":true,"session_id":"opaque-session-id","model":{"route":"local:example.gguf","label":"example.gguf"}}
+```
+
+The model route is pinned for that session. Jarvis reads Brain's same bounded
+memory index, user profile and relevant topic block used by Loom-held chats,
+scoped to the originating project. It reads recent visible discussion text with
+a 6 KiB budget allocated newest first, then presented chronologically, plus its
+own completed voice exchanges. Tool state and harness-private context are not
+included; reading does not capture or change a discussion's frozen snapshot.
+The speech system prompt requests the user's language, short spoken sentences,
+natural numbers and no Markdown, lists, code blocks or emojis. Jarvis tells the
+user to use an agent in the discussion for tasks requiring tools.
+
+`POST /api/voice/jarvis/turn` accepts:
+
+```json
+{"session_id":"opaque-session-id","text":"Bonjour Jarvis"}
+```
+
+It returns `Content-Type: text/event-stream`. Each SSE frame is a JSON `data`
+frame with no named SSE event:
+
+```text
+data: {"type":"delta","text":"Bonjour. "}
+
+data: {"type":"delta","text":"Comment puis-je vous aider ?"}
+
+data: {"type":"done","text":"Bonjour. Comment puis-je vous aider ?"}
+
+```
+
+On an execution/policy error the terminal frame is instead:
+
+```text
+data: {"type":"error","error":"confirmation required for capability: data.send_provider; authorize this destination in policy settings"}
+
+```
+
+Closing/aborting the request cancels inference. Validation, missing/foreign
+sessions and busy/limit errors happen before streaming and return JSON
+`{"ok":false,"error":"…"}` with HTTP 400/404/409 respectively. Authentication
+and vault errors retain the existing 401/403/423/503 contracts. No metrics or
+hidden reasoning are synthesized. Clients must not resubmit a completed turn.
+
+`data.send_provider` is evaluated before any context leaves Loom. A cloud
+route already selected for the originating cloud discussion retains that
+existing exact-destination consent; another cloud route needs an existing
+policy allow grant. An explicit confirm or deny rule always applies. Linked
+engine destinations also need consent. A confirm decision returns immediately
+as an SSE error and does not create an approval task or grant. Provider spending
+policy also applies. Redirects are rejected, and upstream error bodies are not
+returned. Only the selected destination's credential is sent.
+
+### Close and optional injection
+
+`POST /api/voice/jarvis/end` accepts:
+
+```json
+{"session_id":"opaque-session-id","inject":true}
+```
+
+Response is `{"ok":true}`. With `inject:true` and an originating discussion,
+the entire completed exchange is appended as ordinary user/assistant messages,
+each with `source:"voice"` and an opaque `source_id` for retry deduplication.
+Both native journals/archives and workspace sessions are persisted and published
+through their existing discussion subscriptions. Their Markdown transcripts and
+Brain consolidation see this text like other messages. Display provenance is
+removed from inference requests.
+
+No model turn, agent session, tool action or model selection is triggered.
+`inject:false`, or a session with no discussion, writes no messages. Successful
+end deletes the in-memory session. Repeating end for an ended/expired/unknown ID
+returns `{"ok":true}` without writing anything. A foreign live session returns
+404. Ending while a voice turn or destination discussion is busy returns 409;
+abort the turn or wait, then retry. A persistence error keeps the voice session
+available for retry, with durable source IDs preventing duplicate messages.
+
+### HTTPS for browser microphones
+
+Browsers expose microphones in secure contexts: HTTPS, or recognized loopback
+hosts such as `localhost`. Plain LAN HTTP remains a preview. Loom can serve the
+same handlers, browser login, cookies, control authentication and origin checks
+on an additional HTTPS listener. It uses the running HTTP listener's bind host;
+it does not independently expose loopback Loom to the LAN. Existing network
+exposure rules still require a password/control key. `/api/network/web` controls
+the web bind address; `/api/network` remains the engine API's network control.
+Restart Loom after changing the web host.
+
+`GET /api/https` is inert and returns:
+
+```json
+{
+  "ok": true, "enabled": false, "port": 2543, "mode": "self-signed",
+  "urls": ["https://127.0.0.1:2543"],
+  "fingerprint_sha256": "", "running": false
+}
+```
+
+`urls` reflects the listener bind host (LAN names/addresses for an all-interface
+bind). `fingerprint_sha256` is the lowercase hexadecimal SHA-256 of the leaf
+certificate DER, or empty if no readable certificate exists. A startup failure
+adds `error`; `enabled` is saved intent while `running` is observed listener
+state. GET never generates a certificate or starts a listener.
+
+`POST /api/https` sends the full listener configuration:
+
+```json
+{"enabled":true,"port":2543,"mode":"self-signed"}
+```
+
+It returns the same status shape. Settings persist as `https.enabled`,
+`https.port`, `https.mode`, `https.cert_path`, `https.key_path`. Defaults are
+HTTPS off, port 2543 and `self-signed`. Enabling/disabling, changing ports and
+regenerating certificates apply live in `loom web` and the desktop app; bind/certificate failures
+return 409 and preserve the previous listener settings. Tunnel-only serving
+cannot start this local listener.
+
+Self-signed mode generates an ECDSA P-256 certificate once, valid for 825 days,
+with SANs for the hostnames, localhost, loopback addresses and all observed
+private LAN IP addresses. Certificate and private key are stored together in
+Loom's private sealed secret store, never in API JSON. New addresses require an
+explicit regeneration:
+
+```json
+{"enabled":true,"port":2543,"mode":"self-signed","regenerate":true}
+```
+
+This changes the fingerprint and persists the new identity. It updates the
+certificate used by new TLS connections without dropping the request carrying
+the update. Corruption does not silently regenerate an identity. The UI can
+guide users: **Open the returned https://… URL and accept the certificate once.**
+Self-signed trust depends on the browser/device; it is not public-CA trust.
+
+Files mode loads an existing matching PEM certificate/key, for example output
+from `tailscale cert`, using absolute paths on the Loom host:
+
+```json
+{"enabled":true,"port":2543,"mode":"files","cert_paths":{"cert":"/path/to/host.crt","key":"/path/to/host.key"}}
+```
+
+The response includes `cert_paths`. Loom does not issue, renew or rewrite these
+files; POST again or restart after replacing them. `regenerate` is restricted to
+self-signed mode. Port zero/omitted selects 2543; other valid ports are 1–65535.
+No new firewall rule or public tunnel is created.
+
+Doctor's read-only `security.https` check is `ok` for a running HTTPS listener or
+running loopback HTTP origin, `warn` when voice is installed/selected and neither
+exists, and `skip` when voice is absent. Real mobile microphone, certificate
+trust and speech/model performance acceptance remains separate from synthetic
+backend tests.

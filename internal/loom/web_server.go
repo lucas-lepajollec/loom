@@ -55,6 +55,9 @@ func cmdWeb(args []string) error {
 	go voiceLifecycle(lifecycleCtx)
 	go harnessLifecycle.autoLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
+	if err := webHTTPS.start(lifecycleCtx, mux, host); err != nil {
+		fmt.Printf("[loom web] HTTPS unavailable: %v\n", err)
+	}
 	fmt.Printf("[loom web] http://%s  (Ctrl-C to stop)\n", addr)
 	p, _, _ := readWebPassword()
 	if p != nil {
@@ -110,6 +113,9 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	if len(lifecycle) > 0 {
 		brainCtx = lifecycle[0]
 	}
+	if brainCtx != nil {
+		go jarvis.lifecycle(brainCtx)
+	}
 	registerBrainRoutes(mux, brainCtx)
 	registerWebAssets(mux)
 	registerWebLogin(mux)
@@ -131,6 +137,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 		api(path, h)
 	})
 	registerVoiceRoutes(api, false)
+	registerJarvisRoutes(api)
+	api("/api/https", handleHTTPS)
 	newEnvironment().register(api)
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)

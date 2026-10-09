@@ -9,6 +9,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 // readAPIKey renvoie la clé Bearer de llama-server, ou "" si aucune n'est
@@ -135,6 +138,18 @@ func ReadConfig() map[string]string { return cachedKV(bkConfig) }
 
 // SetConfigKey définit une clé de configuration. Une valeur vide la supprime.
 func SetConfigKey(key, value string) error { return putStr(bkConfig, key, value) }
+
+// Change related settings together, preserving concurrent unrelated settings.
+func setConfigKeys(values map[string]string) error {
+	return store.Update(dbPath(), bkConfig, func(b *bolt.Bucket) error {
+		for key, value := range values {
+			if err := b.Put([]byte(key), []byte(value)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
 
 // WriteConfig remplace TOUTE la configuration en une transaction. C'est ce
 // qu'exige l'application d'un preset : jamais un état mi-ancien mi-nouveau.

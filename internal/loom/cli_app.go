@@ -41,10 +41,14 @@ func cmdApp(args []string) error {
 		return openBrowser(url)
 	}
 	defer ln.Close()
+	webBound.host, webBound.port = "127.0.0.1", appPort
 
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	mux := newWebMux(ctx)
+	if err := webHTTPS.start(ctx, mux, "127.0.0.1"); err != nil {
+		fmt.Printf("[loom app] HTTPS unavailable: %v\n", err)
+	}
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	defer srv.Close()
 	go func() { _ = srv.Serve(ln) }()

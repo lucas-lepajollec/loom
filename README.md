@@ -13,7 +13,11 @@ or a paired node's `voice` module. It provides verified engine/model downloads,
 curated packs, supervised STT/TTS, Doctor and a streaming API for browser voice.
 Voice requires Python 3; missing catalog hashes refuse installation. See
 [voice engine and API contracts](docs/voice.md). The Models › Voix UI is a
-separate slice.
+separate slice. Jarvis 6.2 adds isolated voice-session text streaming and optional
+message-only injection into the originating discussion. Optional HTTPS on port
+2543 shares Loom authentication and supports sealed self-signed or existing PEM
+certificates for secure browser microphone access. The browser voice view is
+built separately; exact API contracts are in the voice documentation.
 
 ## Why Loom
 

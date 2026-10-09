@@ -35,7 +35,7 @@ function harness(source, view, overrides = {}) {
     t: french, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu',
-    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
+    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
     inspectTrigger: () => ({}), baseName: p => (p || '').split('/').pop(),
     useState(initial) {
       const i = cursor++;
