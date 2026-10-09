@@ -25,16 +25,7 @@ func brainAgentsFixture(t *testing.T) (*brainService, string) {
 	pkg := filepath.Join(home, "pi-package")
 	brainAgentsWrite(t, filepath.Join(pkg, "README.md"), "Global instructions: ~/.pi/agent/AGENTS.md\nPI_CODING_AGENT_DIR overrides the config directory.\n")
 	t.Setenv("PI_PACKAGE_DIR", pkg)
-	// Linked agents are listed only when installed here: provide stand-ins so
-	// the test does not depend on the CLIs of the machine running it.
-	bin := filepath.Join(home, "fake-bin")
-	for _, name := range []string{"claude", "codex", "opencode", "agy", "pi"} {
-		brainAgentsWrite(t, filepath.Join(bin, name), "#!/bin/sh\nexit 0\n")
-		if err := os.Chmod(filepath.Join(bin, name), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	fakeAgentCLIs(t)
 	s := theBrain()
 	dir := t.TempDir()
 	e, err := s.get()
@@ -484,4 +475,18 @@ func TestBrainAgentsPreserveEditedPrefixAndConfineProjectSettings(t *testing.T) 
 	if _, err := os.Stat(filepath.Join(target, "settings.local.json")); !os.IsNotExist(err) {
 		t.Fatal("outside settings written")
 	}
+}
+
+// fakeAgentCLIs puts stand-in agent executables first on PATH: lists that show
+// only agents installed on this machine must not depend on the host's CLIs.
+func fakeAgentCLIs(t *testing.T) {
+	t.Helper()
+	bin := t.TempDir()
+	for _, name := range []string{"claude", "codex", "opencode", "agy", "pi"} {
+		brainAgentsWrite(t, filepath.Join(bin, name), "#!/bin/sh\nexit 0\n")
+		if err := os.Chmod(filepath.Join(bin, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }

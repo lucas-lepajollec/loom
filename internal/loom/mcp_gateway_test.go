@@ -599,6 +599,7 @@ func TestGatewayTOMLMarkersAndTableBoundaries(t *testing.T) {
 }
 func TestGatewayHTTPShapes(t *testing.T) {
 	gatewayTestHome(t)
+	fakeAgentCLIs(t)
 	if err := storeWebKey("control"); err != nil {
 		t.Fatal(err)
 	}
