@@ -476,3 +476,8 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 /* Liste de ListPick dans un Popover : elle suit le Popover, pas son ancien conteneur. */
 .lpick-pop{padding:4px;z-index:170}
 .lpick-pop .lpick-list{position:static;max-height:none;padding:0;box-shadow:none;background:transparent;border-radius:0;overflow:visible}
+/* Options avec une note : libellé au-dessus, note dessous, jamais de défilement horizontal. */
+.lpick-pop{overflow-x:hidden}
+.lpick-pop .lpick-o{flex-wrap:wrap;row-gap:1px;height:auto;min-height:32px;padding-top:6px;padding-bottom:6px;white-space:normal}
+.lpick-pop .lpick-o>.trunc{flex:1 1 100%;min-width:0}
+.lpick-pop .lpick-o small{flex:1 1 100%;margin-left:0;padding-left:0;white-space:normal;line-height:1.35}
