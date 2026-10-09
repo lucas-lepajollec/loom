@@ -387,7 +387,8 @@ func TestACPApprovalSubscriberLifetime(t *testing.T) {
 	id := "grace-fixture"
 	sub := &discussionSubscriber{events: make(chan DiscussionEvent, 1)}
 	m.subscribers[id] = map[*discussionSubscriber]bool{sub: true}
-	p := &acpBinding{manager: m, id: id, state: ACPState{Permission: "ask"}, client: &acpClient{done: make(chan struct{})}, tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, approvalGrace: 25 * time.Millisecond, emit: func(StreamEvent) bool { return true }}
+	done := make(chan struct{})
+	p := &acpBinding{manager: m, id: id, state: ACPState{Permission: "ask"}, client: &acpClient{done: done}, tools: map[string]map[string]any{}, approvals: map[string]*acpApproval{}, emit: func(StreamEvent) bool { return true }}
 	result := make(chan any, 1)
 	go func() {
 		r, _ := p.permission(context.Background(), map[string]any{"toolCallId": "tool", "kind": "execute"}, []map[string]any{{"optionId": "once", "kind": "allow_once"}})
@@ -402,12 +403,18 @@ func TestACPApprovalSubscriberLifetime(t *testing.T) {
 	delete(m.subscribers, id)
 	m.mu.Unlock()
 	select {
+	case <-result:
+		t.Fatal("closed browsers cancelled approval")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(done)
+	select {
 	case raw := <-result:
 		if raw.(map[string]any)["outcome"].(map[string]any)["outcome"] != "cancelled" {
-			t.Fatal("absent UI not auto-rejected")
+			t.Fatal("harness exit did not cancel approval")
 		}
 	case <-time.After(time.Second):
-		t.Fatal("absent UI approval did not expire")
+		t.Fatal("approval remained after harness exit")
 	}
 }
 func TestACPConfigureNativeModeAndScope(t *testing.T) {

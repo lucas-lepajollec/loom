@@ -157,7 +157,7 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
   };
   return html`
     <div class="mc-head anim-rise"><a class="btn sm ghost" href="#/machines"><${Icon} n="left" />${t("settings.machines.machines")}</a>
-      <div class="mc-title"><span class="mx-ico"><${Icon} n=${isLocal ? 'chip' : 'server'} /></span><div><h2>${name}</h2>
+      <div class="mc-title"><span class="mx-ico"><${Icon} n=${isLocal ? 'chip' : 'server'} /></span><div><h2>${name}${!isLocal && html` <span class=${'pill ' + (m.user ? '' : 'green')} title=${m.user ? t('machines.ssh.card_note') : t('machines.pair.card_note')}>${m.user ? t('machines.link.ssh') : t('machines.link.paired')}</span>`}</h2>
         <p class="mono">${isLocal ? (local ? local.user + ' · ' + home(local.home) + ' · ' + local.os : '') : where(m) + (m.home ? ' · ' + m.home : '')}</p></div>
         <span class="grow"></span>
         ${(isLocal || m.user || (m.modules || []).includes('terminal')) && html`<button class="btn sm" onClick=${() => openTerminalWith({ target, dir: isLocal ? '' : m.home || '', title: name })}><${Icon} n="prompt" />${t("settings.machines.terminal")}</button>`}

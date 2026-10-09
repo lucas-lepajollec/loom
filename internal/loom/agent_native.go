@@ -319,7 +319,7 @@ func probeNativeAgent(ctx context.Context, a acpAgent) acpProbe {
 	return out
 }
 func (m *runtimeSessions) runNativeAgent(ctx context.Context, a acpAgent, s RuntimeSession, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
-	ctx, turnCancel := context.WithTimeout(ctx, 30*time.Minute)
+	ctx, turnCancel := context.WithCancel(ctx)
 	defer turnCancel()
 	if len(turn.Messages) == 0 {
 		return nil, errors.New("agent message required")

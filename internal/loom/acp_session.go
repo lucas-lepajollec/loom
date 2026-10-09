@@ -22,35 +22,34 @@ type acpDecision struct {
 	auto   bool
 }
 type acpBinding struct {
-	broker        *agentEvents.RequestBroker
-	mu            sync.Mutex
-	emitMu        sync.Mutex
-	fsMu          sync.Mutex
-	client        *acpClient
-	state         ACPState
-	roots         []*os.Root
-	remoteRoot    string // remote agents: folder on the other machine, never opened locally
-	tools         map[string]map[string]any
-	approvals     map[string]*acpApproval
-	ctx           context.Context
-	emit          ChatCallback
-	manager       *runtimeSessions
-	id            string
-	idle          *time.Timer
-	mcpRevision   string
-	loomModel     bool // the harness runs a Loom model through its launch environment
-	loading       bool
-	failure       string
-	answer        string
-	claude        bool
-	agentID       string
-	remote        bool
-	prelude       string    // startup notice the agent repeats as a message (pi-acp)
-	retries       int       // provider retries announced as messages this turn (pi-acp)
-	turnStart     time.Time // for reading the agent's own journal after a silent failure
-	approvalGrace time.Duration
-	requestWG     sync.WaitGroup
-	active        bool
+	broker      *agentEvents.RequestBroker
+	mu          sync.Mutex
+	emitMu      sync.Mutex
+	fsMu        sync.Mutex
+	client      *acpClient
+	state       ACPState
+	roots       []*os.Root
+	remoteRoot  string // remote agents: folder on the other machine, never opened locally
+	tools       map[string]map[string]any
+	approvals   map[string]*acpApproval
+	ctx         context.Context
+	emit        ChatCallback
+	manager     *runtimeSessions
+	id          string
+	idle        *time.Timer
+	mcpRevision string
+	loomModel   bool // the harness runs a Loom model through its launch environment
+	loading     bool
+	failure     string
+	answer      string
+	claude      bool
+	agentID     string
+	remote      bool
+	prelude     string    // startup notice the agent repeats as a message (pi-acp)
+	retries     int       // provider retries announced as messages this turn (pi-acp)
+	turnStart   time.Time // for reading the agent's own journal after a silent failure
+	requestWG   sync.WaitGroup
+	active      bool
 }
 
 func (p *acpBinding) publish(e DiscussionEvent) bool {
