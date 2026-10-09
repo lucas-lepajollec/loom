@@ -989,3 +989,9 @@ details.pol-imported>summary h3::after{content:" ›";color:var(--text-3)}
 .vx-model{flex-direction:column;align-items:flex-start;gap:2px}
 .vx-model small{font-size:12px}
 .vx-try{display:flex;flex-direction:column;gap:10px}
+.vx-contents{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+details.vx-lib>summary{list-style:none;cursor:pointer}
+details.vx-lib>summary::-webkit-details-marker{display:none}
+details.vx-lib>summary h3::after{content:" ›";color:var(--text-3)}
+details.vx-lib[open]>summary h3::after{content:" ⌄"}
+.vx-lib-note{margin:0 0 10px}

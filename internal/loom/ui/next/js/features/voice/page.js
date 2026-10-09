@@ -74,6 +74,7 @@ export function VoicePage() {
       <div class="mcards">${packs.map(p => { const pk = p.pack || {}; const have = [pk.stt, pk.tts, pk.vad].filter(Boolean).every(id => installed.some(m => m.id === id));
         return html`<div class="mcard" key=${pk.id}><div class="mcard-h"><span class="mx-ico"><${Icon} n="mic" /></span><span class="grow"><b>${PACK()[pk.id] || pk.id}</b><small>${[pk.language, pk.hardware, fmtSize(p.size)].filter(Boolean).join(' · ')}</small></span></div>
           <p class="mcard-d">${PACK_WHY()[pk.id] || pk.reason}</p>
+          <p class="mcard-d vx-contents">${t('voice.pack_contains')} ${[pk.stt, pk.tts, pk.vad].filter(Boolean).map(id => html`<span class=${cls('tag', installed.some(m => m.id === id) && 'green')}>${id}</span>`)}</p>
           <div class="mcard-a">${have ? html`<span class="state"><i class="dot green"></i>${t('voice.pack_installed')}</span>`
             : html`<button class="btn sm" disabled=${!!busy || dl.running || !p.installable} title=${p.requires_nvidia ? t('voice.needs_gpu') : ''} onClick=${() => act('pack', '/api/voice/packs', { id: pk.id, cuda: !!p.requires_nvidia })}>${t('voice.install')}</button>`}</div></div>`; })}</div>
     </section>`}
@@ -96,13 +97,14 @@ export function VoicePage() {
 
     ${ready && html`<${VoiceTest} q=${q} />`}
 
-    ${e.installed && html`<section class="set-group"><h3>${t('voice.library')} <span class="count">${fmtSize(v.disk_bytes)}</span></h3>
+    ${e.installed && html`<details class="set-group vx-lib" open=${!packs.length}><summary><h3>${t('voice.library')} <span class="count">${fmtSize(v.disk_bytes)}</span></h3></summary>
+      <p class="note vx-lib-note">${t('voice.library_note')}</p>
       <div class="vx-filter"><${ListPick} label=${t('voice.kind_filter')} value=${kind} onChange=${setKind} options=${[{ value: '', label: t('voice.all') }, ...Object.entries(KIND()).map(([k, l]) => ({ value: k, label: l }))]} /></div>
       <div class="card">${models.filter(m => !kind || m.kind === kind).map(m => html`<div class="set-line" key=${m.id}>
-        <div class="set-l vx-model"><span><b>${m.id}</b> <span class="tag">${KIND()[m.kind] || m.kind}</span>${m.streaming && html` <span class="tag">${t('voice.streaming')}</span>`}</span><small class="muted">${[(m.languages || []).join(', '), m.family, fmtSize(m.installed ? m.disk_bytes : m.size)].filter(Boolean).join(' · ')}</small></div>
+        <div class="set-l vx-model"><span><b>${m.id}</b> <span class="tag">${KIND()[m.kind] || m.kind}</span>${[cfg.stt, cfg.tts, cfg.vad].includes(m.id) && html` <span class="tag green">${t('voice.in_use')}</span>`}${m.streaming && html` <span class="tag">${t('voice.streaming')}</span>`}</span><small class="muted">${[(m.languages || []).join(', '), m.family, fmtSize(m.installed ? m.disk_bytes : m.size)].filter(Boolean).join(' · ')}</small></div>
         <div class="set-c">${m.installed ? html`<button class="icon-btn" aria-label=${t('settings.page.supprimer')} disabled=${!!busy || svc.running} onClick=${async () => { if (await confirm(t('voice.delete_title', { id: m.id }), t('voice.delete_text'), { ok: t('settings.page.supprimer'), danger: true })) act('del', '/api/voice/models/delete', { id: m.id }); }}><${Icon} n="trash" /></button>`
           : html`<button class="btn sm ghost" disabled=${!!busy || dl.running || !m.installable} onClick=${() => act('dl', '/api/voice/models/download', { id: m.id })}><${Icon} n="download" />${t('voice.download')}</button>`}</div></div>`)}</div>
-    </section>`}
+    </details>`}
   </${GroupPage}>`;
 }
 
