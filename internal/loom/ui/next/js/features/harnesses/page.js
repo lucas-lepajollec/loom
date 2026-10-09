@@ -511,6 +511,7 @@ function AgentDetail({ rt, models, onEdit }) {
           : html`<button class="icon-btn" title=${t("harnesses.page.actualiser")} aria-label=${t("harnesses.page.actualiser")} disabled=${busy} onClick=${reread}><${Icon} n="refresh" /></button>
             <button class="btn primary" disabled=${!choices.length} onClick=${() => startWith(choiceFor(modelOpt && modelOpt.currentValue))}><${Icon} n="plus" />${t("harnesses.page.nouvelle_discussion")}</button>`}</div></div>
     ${!missing && probe && probe.error && html`<div class="alert amber"><${Icon} n="alert" /><span>${probe.error}</span></div>`}
+    ${(() => { const d = (probe && probe.degraded) || rt.degraded || []; return d.length > 0 && html`<div class="alert amber"><${Icon} n="alert" /><span><b>${t('agents.degraded')}</b> : ${d.map(x => x.capability).join(', ')}. ${t('agents.degraded_note')}</span></div>`; })()}
     ${!missing && compat.warning && html`<div class="alert"><${Icon} n="info" /><span>${compat.version && compat.tested_version ? t('agents.compat.drift', { v: compat.version, tested: compat.tested_version }) : t('agents.compat.unverified')}</span></div>`}
     ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => loadInfo(true)} onConnect=${reread} />`}
 
