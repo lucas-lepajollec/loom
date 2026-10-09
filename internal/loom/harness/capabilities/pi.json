@@ -1,0 +1,78 @@
+{
+  "get_available_models": {
+    "models": {}
+  },
+  "get_commands": {
+    "commands": {
+      "llama": {
+        "name": "llama",
+        "source": "extension",
+        "sourceInfo": {
+          "origin": "top-level",
+          "path": "\u003cpath\u003e",
+          "scope": "temporary",
+          "source": "builtin"
+        }
+      },
+      "mcp": {
+        "name": "mcp",
+        "source": "extension",
+        "sourceInfo": {
+          "origin": "top-level",
+          "path": "\u003cpath\u003e",
+          "scope": "temporary",
+          "source": "builtin"
+        }
+      }
+    }
+  },
+  "get_state": {
+    "autoCompactionEnabled": true,
+    "followUpMode": "one-at-a-time",
+    "isCompacting": false,
+    "isStreaming": false,
+    "model": {
+      "/api": [
+        "unknown"
+      ],
+      "/baseUrl": [
+        "string"
+      ],
+      "/contextWindow": [
+        "number"
+      ],
+      "/cost/cacheRead": [
+        "number"
+      ],
+      "/cost/cacheWrite": [
+        "number"
+      ],
+      "/cost/input": [
+        "number"
+      ],
+      "/cost/output": [
+        "number"
+      ],
+      "/id": [
+        "string"
+      ],
+      "/input": [
+        "array"
+      ],
+      "/maxTokens": [
+        "number"
+      ],
+      "/name": [
+        "string"
+      ],
+      "/provider": [
+        "string"
+      ],
+      "/reasoning": [
+        false
+      ]
+    },
+    "steeringMode": "one-at-a-time",
+    "thinkingLevel": "off"
+  }
+}

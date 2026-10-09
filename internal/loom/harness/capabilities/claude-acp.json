@@ -1,0 +1,356 @@
+{
+  "initialize": {
+    "_meta": {
+      "steering": true
+    },
+    "agentCapabilities": {
+      "_meta": {
+        "authStatus": true,
+        "claudeCode": true
+      },
+      "auth": {
+        "logout": {}
+      },
+      "loadSession": true,
+      "mcpCapabilities": {
+        "http": true,
+        "sse": true
+      },
+      "promptCapabilities": {
+        "embeddedContext": true,
+        "image": true
+      },
+      "providers": {},
+      "sessionCapabilities": {
+        "additionalDirectories": {},
+        "close": {},
+        "delete": {},
+        "fork": {},
+        "list": {},
+        "resume": {},
+        "subagents": {}
+      }
+    },
+    "agentInfo": {
+      "name": "@agentclientprotocol/claude-agent-acp"
+    },
+    "authMethods": {},
+    "protocolVersion": 1
+  },
+  "session/new": {
+    "configOptions": {
+      "effort": {
+        "category": "thought_level",
+        "id": "effort",
+        "name": "Effort",
+        "options": {
+          "default": {
+            "name": "Default",
+            "value": "default"
+          },
+          "high": {
+            "name": "High",
+            "value": "high"
+          },
+          "low": {
+            "name": "Low",
+            "value": "low"
+          },
+          "max": {
+            "name": "Max",
+            "value": "max"
+          },
+          "medium": {
+            "name": "Medium",
+            "value": "medium"
+          },
+          "xhigh": {
+            "name": "Xhigh",
+            "value": "xhigh"
+          }
+        },
+        "type": "select"
+      },
+      "fast": {
+        "category": "model_config",
+        "id": "fast",
+        "name": "Fast mode",
+        "options": {
+          "off": {
+            "name": "Off",
+            "value": "off"
+          },
+          "on": {
+            "name": "On",
+            "value": "on"
+          }
+        },
+        "type": "select"
+      },
+      "mode": {
+        "category": "mode",
+        "id": "mode",
+        "name": "Mode",
+        "options": {
+          "acceptEdits": {
+            "name": "Accept edits",
+            "value": "acceptEdits"
+          },
+          "auto": {
+            "name": "Auto",
+            "value": "auto"
+          },
+          "bypassPermissions": {
+            "name": "Bypass permissions",
+            "value": "bypassPermissions"
+          },
+          "default": {
+            "name": "Manual",
+            "value": "default"
+          },
+          "plan": {
+            "name": "Plan",
+            "value": "plan"
+          }
+        },
+        "type": "select"
+      },
+      "model": {
+        "category": "model",
+        "id": "model",
+        "name": "Model",
+        "options": {
+          "/description": [
+            "string"
+          ],
+          "/name": [
+            "string"
+          ],
+          "/value": [
+            "string"
+          ]
+        },
+        "type": "select"
+      }
+    },
+    "modes": {
+      "availableModes": {
+        "acceptEdits": {
+          "id": "acceptEdits",
+          "name": "Accept edits"
+        },
+        "auto": {
+          "id": "auto",
+          "name": "Auto"
+        },
+        "bypassPermissions": {
+          "id": "bypassPermissions",
+          "name": "Bypass permissions"
+        },
+        "default": {
+          "id": "default",
+          "name": "Manual"
+        },
+        "plan": {
+          "id": "plan",
+          "name": "Plan"
+        }
+      }
+    }
+  },
+  "session/update": {
+    "available_commands_update": {
+      "availableCommands": {
+        "__remote-workflow": {
+          "input": null,
+          "name": "__remote-workflow"
+        },
+        "agents": {
+          "input": null,
+          "name": "agents"
+        },
+        "auto-mode-setup": {
+          "input": {},
+          "name": "auto-mode-setup"
+        },
+        "autocompact": {
+          "input": {},
+          "name": "autocompact"
+        },
+        "batch": {
+          "input": {},
+          "name": "batch"
+        },
+        "claude-api": {
+          "input": null,
+          "name": "claude-api"
+        },
+        "code-review": {
+          "input": {},
+          "name": "code-review"
+        },
+        "color": {
+          "input": {},
+          "name": "color"
+        },
+        "compact": {
+          "input": {},
+          "name": "compact"
+        },
+        "config": {
+          "input": {},
+          "name": "config"
+        },
+        "context": {
+          "input": null,
+          "name": "context"
+        },
+        "dataviz": {
+          "input": null,
+          "name": "dataviz"
+        },
+        "debug": {
+          "input": {},
+          "name": "debug"
+        },
+        "deep-research": {
+          "input": null,
+          "name": "deep-research"
+        },
+        "design": {
+          "input": {},
+          "name": "design"
+        },
+        "design-consent": {
+          "input": null,
+          "name": "design-consent"
+        },
+        "design-revoke": {
+          "input": null,
+          "name": "design-revoke"
+        },
+        "design-sync": {
+          "input": {},
+          "name": "design-sync"
+        },
+        "doctor": {
+          "input": {},
+          "name": "doctor"
+        },
+        "effort": {
+          "input": {},
+          "name": "effort"
+        },
+        "fast": {
+          "input": {},
+          "name": "fast"
+        },
+        "fewer-permission-prompts": {
+          "input": null,
+          "name": "fewer-permission-prompts"
+        },
+        "focus": {
+          "input": {},
+          "name": "focus"
+        },
+        "goal": {
+          "input": null,
+          "name": "goal"
+        },
+        "heapdump": {
+          "input": null,
+          "name": "heapdump"
+        },
+        "init": {
+          "input": null,
+          "name": "init"
+        },
+        "insights": {
+          "input": null,
+          "name": "insights"
+        },
+        "list-agents": {
+          "input": null,
+          "name": "list-agents"
+        },
+        "loop": {
+          "input": {},
+          "name": "loop"
+        },
+        "mcp": {
+          "input": {},
+          "name": "mcp"
+        },
+        "model": {
+          "input": {},
+          "name": "model"
+        },
+        "output-style": {
+          "input": {},
+          "name": "output-style"
+        },
+        "plugin-authoring": {
+          "input": null,
+          "name": "plugin-authoring"
+        },
+        "recap": {
+          "input": null,
+          "name": "recap"
+        },
+        "reload-plugins": {
+          "input": {},
+          "name": "reload-plugins"
+        },
+        "reload-skills": {
+          "input": null,
+          "name": "reload-skills"
+        },
+        "rename": {
+          "input": {},
+          "name": "rename"
+        },
+        "run": {
+          "input": null,
+          "name": "run"
+        },
+        "run-skill-generator": {
+          "input": null,
+          "name": "run-skill-generator"
+        },
+        "security-review": {
+          "input": null,
+          "name": "security-review"
+        },
+        "simplify": {
+          "input": {},
+          "name": "simplify"
+        },
+        "team-onboarding": {
+          "input": null,
+          "name": "team-onboarding"
+        },
+        "update-config": {
+          "input": null,
+          "name": "update-config"
+        },
+        "usage": {
+          "input": null,
+          "name": "usage"
+        },
+        "verify": {
+          "input": null,
+          "name": "verify"
+        },
+        "workflow-authoring": {
+          "input": null,
+          "name": "workflow-authoring"
+        },
+        "workflow-launch-exec": {
+          "input": null,
+          "name": "workflow-launch-exec"
+        }
+      },
+      "sessionUpdate": "available_commands_update"
+    }
+  }
+}
