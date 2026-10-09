@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	"io"
 	"net/http"
 	"os"
@@ -522,6 +523,9 @@ func (s *harnessLifecycleService) check(ctx context.Context, target, id string, 
 
 func (s *harnessLifecycleService) mutate(ctx context.Context, target, id, action string, m *RemoteMachine, spec inspectSpec) (harnessLifecycleState, error) {
 	state := harnessLifecycleState{Target: target, ID: id, RequiresMissing: []string{}, Unverified: spec.Unverified}
+	if err := workspaceSessions.authorizePolicy(ctx, policy.Input{Subject: "node." + action, MachineID: target, AgentID: id, Fallback: policy.Allow}, false); err != nil {
+		return state, err
+	}
 	argv, err := lifecycleActionCommand(spec, lifecycleOS(m), action)
 	if err != nil {
 		return state, err

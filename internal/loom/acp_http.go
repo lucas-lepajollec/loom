@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"slices"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 )
 
 type acpConfiguration struct {
@@ -76,8 +78,10 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 		if _, err := harnessFilesystemMode(agent, *c.FilesystemPolicy); err != nil {
 			return err
 		}
-		if *c.FilesystemPolicy == "full-access" && old.FilesystemPolicy != "full-access" && !consent {
-			return errors.New("confirm full filesystem access with consent:true")
+		if *c.FilesystemPolicy == "full-access" && old.FilesystemPolicy != "full-access" {
+			if err := m.authorizePolicy(context.Background(), sessionPolicyInput(*s, "agent.filesystem_full", policy.Confirm), consent); err != nil {
+				return err
+			}
 		}
 		s.FilesystemPolicy = *c.FilesystemPolicy
 	}
@@ -146,8 +150,10 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 		if level != "ask" && level != "edits" && level != "full" {
 			return errors.New("invalid permission: ask, edits or full")
 		}
-		if level == "full" && old.Permission != "full" && !consent {
-			return errors.New("explicitly confirm the full level with consent:true")
+		if level == "full" && old.Permission != "full" {
+			if err := m.authorizePolicy(context.Background(), sessionPolicyInput(*s, "agent.permission_full", policy.Confirm), consent); err != nil {
+				return err
+			}
 		}
 		s.Permission = level
 	}

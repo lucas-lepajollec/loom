@@ -63,6 +63,27 @@ type mcpToolRef struct {
 	tool   string
 }
 
+// Probe only pings an existing connection. Doctor must not start a configured
+// command or sign in just to report its availability.
+func (m *MCPManager) Probe(ctx context.Context, name string) (observed, connected bool, err error) {
+	m.mu.Lock()
+	s := m.sessions[name]
+	m.mu.Unlock()
+	if s == nil {
+		return false, false, nil
+	}
+	select {
+	case <-s.ready:
+	case <-ctx.Done():
+		return true, false, ctx.Err()
+	}
+	if s.err != nil || s.sess == nil {
+		return true, false, fmt.Errorf("upstream unavailable")
+	}
+	err = s.sess.Ping(ctx, nil)
+	return true, err == nil, err
+}
+
 // Invalidate ferme et oublie la session d'un serveur (après un changement de
 // config), pour qu'elle soit reconstruite avec la nouvelle config au prochain
 // usage.

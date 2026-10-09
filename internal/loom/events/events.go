@@ -11,17 +11,22 @@ import (
 type Type string
 
 const (
-	TaskStarted   Type = "task.started"
-	TaskWaiting   Type = "task.waiting"
-	TaskResumed   Type = "task.resumed"
-	TaskCompleted Type = "task.completed"
-	TaskFailed    Type = "task.failed"
-	NodeOffline   Type = "node.offline"
-	NodeOnline    Type = "node.online"
-	EngineDown    Type = "engine.down"
+	TaskStarted        Type = "task.started"
+	TaskWaiting        Type = "task.waiting"
+	TaskResumed        Type = "task.resumed"
+	TaskCompleted      Type = "task.completed"
+	TaskFailed         Type = "task.failed"
+	NodeOffline        Type = "node.offline"
+	NodeOnline         Type = "node.online"
+	EngineDown         Type = "engine.down"
+	CapabilityDegraded Type = "capability.degraded"
+	CapabilityRestored Type = "capability.restored"
 )
 
 type Event struct {
+	Owner           string  `json:"owner,omitempty"`
+	Capability      string  `json:"capability,omitempty"`
+	Reason          string  `json:"reason,omitempty"`
 	ID              uint64  `json:"id"`
 	At              int64   `json:"at"`
 	Type            Type    `json:"type"`

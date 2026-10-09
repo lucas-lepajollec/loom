@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/acp"
 	"net/http"
@@ -82,23 +83,63 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 	p.mu.Lock()
 	tool := p.tool(rawTool)
 	kind, _ := tool["kind"].(string)
-	policy := p.state.Permission
+	level := p.state.Permission
+	filesystemPolicy := p.state.FilesystemPolicy
 	meta, _ := rawTool["_meta"].(map[string]any)
 	claudeMeta, _ := meta["claudeCode"].(map[string]any)
 	planApproval := claudeMeta["toolName"] == "ExitPlanMode" || claudeMeta["toolName"] == "EnterPlanMode"
 	if planApproval {
-		policy = "ask"
+		level = "ask"
 	}
-	if p.state.FilesystemPolicy == "workspace-write" {
-		policy = "ask"
+	if filesystemPolicy == "workspace-write" {
+		level = "ask"
 	} // Never auto-approve native sandbox escalation.
 	p.mu.Unlock()
 	if len(options) == 0 {
 		return nil, errors.New("permission options required")
 	}
 	id := newSessionID()
-	decision := acpDecision{option: acpAutoOption(policy, kind, options), auto: true}
-	if decision.option == "" {
+	subject := agentToolSubject(kind)
+	fallback := policy.Confirm
+	if acpAutoOption(level, kind, options) != "" {
+		fallback = policy.Allow
+	}
+	in := p.policyInput(subject, fallback)
+	in.LegacyPermission = level
+	if level == "edits" && (kind == "delete" || kind == "move") {
+		in.LegacyPermission = "ask"
+	}
+	if input, ok := rawTool["rawInput"].(map[string]any); ok {
+		in.Command, _ = input["command"].(string)
+		in.Path, _ = input["path"].(string)
+	}
+	if locations, ok := rawTool["locations"].([]any); ok && len(locations) > 0 {
+		if len(locations) > 1 {
+			in.Path = ""
+		} else if location, ok := locations[0].(map[string]any); ok {
+			in.Path, _ = location["path"].(string)
+		}
+	}
+	result := evaluatePolicy(in, false)
+	if (planApproval || filesystemPolicy == "workspace-write") && result.Decision == policy.Allow {
+		result.Decision = policy.Confirm
+		result.Reason = "native_safety_confirmation"
+		policyAudit.Record(in, result, false)
+	}
+	denied := result.Decision == policy.Deny
+	decision := acpDecision{auto: true}
+	if result.Decision == policy.Allow {
+		decision.option = acpAutoOption("full", kind, options)
+	}
+	if denied {
+		for _, option := range options {
+			if option["kind"] == "reject_once" {
+				decision.option, _ = option["optionId"].(string)
+				break
+			}
+		}
+	}
+	if decision.option == "" && !denied {
 		pending := &acpApproval{options: options, answer: make(chan acpDecision, 1)}
 		p.mu.Lock()
 		p.approvals[id] = pending
@@ -144,6 +185,33 @@ func (p *acpBinding) permission(ctx context.Context, rawTool map[string]any, opt
 			decision = acpDecision{}
 		}
 	}
+	if !decision.auto {
+		current := evaluatePolicy(in, false)
+		if current.Decision == policy.Deny {
+			decision.option = ""
+		}
+		if ctx.Err() != nil {
+			decision.option = ""
+		}
+		if policyNeedsAgentApprovals(RuntimeSession{RuntimeID: in.AgentID, ProjectID: in.ProjectID, ACPState: ACPState{}}) {
+			for _, option := range options {
+				if option["optionId"] == decision.option && option["kind"] == "allow_always" {
+					decision.option = acpAutoOption("full", kind, options)
+					break
+				}
+			}
+		}
+		answered := policy.Deny
+		for _, option := range options {
+			if option["optionId"] == decision.option {
+				k, _ := option["kind"].(string)
+				if strings.HasPrefix(k, "allow") {
+					answered = policy.Allow
+				}
+			}
+		}
+		policyAudit.Record(in, policy.Result{Decision: answered, Reason: "interaction_answer"}, false)
+	}
 	// Cancellation always wins over a simultaneously submitted approval.
 	if ctx.Err() != nil {
 		decision.option = ""
@@ -176,7 +244,7 @@ func (m *runtimeSessions) answerACP(id, approval, option string, cancel bool) er
 	broker := m.requests[id]
 	p := m.acp[id]
 	m.acpMu.Unlock()
-	if broker != nil && (strings.HasPrefix(approval, "codex:") || strings.HasPrefix(approval, "pi:") || strings.HasPrefix(approval, "acp:") || strings.HasPrefix(approval, "opencode:")) {
+	if broker != nil && (strings.HasPrefix(approval, "codex:") || strings.HasPrefix(approval, "pi:") || strings.HasPrefix(approval, "acp:") || strings.HasPrefix(approval, "opencode:") || strings.HasPrefix(approval, "policy:")) {
 		decision := option
 		if cancel {
 			decision = "cancel"
@@ -219,7 +287,7 @@ func (m *runtimeSessions) answerRequest(id, requestID string, answer agent.Reque
 	m.acpMu.Lock()
 	broker := m.requests[id]
 	m.acpMu.Unlock()
-	if broker != nil && (strings.HasPrefix(requestID, "codex:") || strings.HasPrefix(requestID, "pi:") || strings.HasPrefix(requestID, "acp:") || strings.HasPrefix(requestID, "opencode:")) {
+	if broker != nil && (strings.HasPrefix(requestID, "codex:") || strings.HasPrefix(requestID, "pi:") || strings.HasPrefix(requestID, "acp:") || strings.HasPrefix(requestID, "opencode:") || strings.HasPrefix(requestID, "policy:")) {
 		return broker.Resolve(requestID, answer)
 	}
 	option := answer.Decision

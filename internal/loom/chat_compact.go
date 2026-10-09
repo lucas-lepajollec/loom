@@ -218,6 +218,9 @@ func summarizeTranscript(ctx context.Context, transcript string) (string, error)
 }
 
 func summarizeTranscriptAt(ctx context.Context, transcript, endpoint, key, model string, local bool) (string, error) {
+	if err := authorizeModelDestination(ctx, endpoint, model); err != nil {
+		return "", err
+	}
 	sys := `You are a context compactor. You are given the transcript of the older turns of a conversation between a user and an AI assistant (with its tools). The PURPOSE of your summary is to let the conversation continue in a fresh, smaller context WITHOUT losing any information that is useful or important to understand what came before and keep working — preserve everything that matters, drop only what is redundant.
 
 The assistant is MID-TASK: it will read your summary and must resume exactly where it left off, WITHOUT redoing work it has already done. Its own internal reasoning is NOT part of the transcript and is lost — your summary is the only memory it keeps.

@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	"github.com/lucas-lepajollec/loom/internal/loom/project"
 )
 
@@ -202,8 +204,15 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 			return s, errors.New("project not found or locked")
 		}
 	}
-	if s.RuntimeID != "llama.cpp" && (s.ProjectID != projectID || s.Instructions != instructions) && !consent {
-		return s, errors.New("confirm sharing the new context with the selected provider")
+	if s.RuntimeID != "llama.cpp" && (s.ProjectID != projectID || s.Instructions != instructions) {
+		in := sessionPolicyInput(s, "data.send_provider", policy.Confirm)
+		// Context changes need a fresh grant; a migrated route grant does not
+		// authorize adding new project text or instructions.
+		in.ProjectID, in.DiscussionID = projectID, ""
+		in.ConsentKey = hashWebKey(s.ID + "|" + nextContext.Revision)
+		if err := m.authorizePolicy(context.Background(), in, consent); err != nil {
+			return s, err
+		}
 	}
 	if len(harness) > 0 && harness[0].present() {
 		if err := m.configureACPLocked(&s, harness[0], consent); err != nil {

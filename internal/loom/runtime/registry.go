@@ -85,16 +85,31 @@ func (reg *Registry[Message, Caps, Event, Snapshot]) Lookup(id string) (RuntimeA
 
 func (reg *Registry[Message, Caps, Event, Snapshot]) List() []RuntimeDescriptor {
 	reg.mu.RLock()
-	defer reg.mu.RUnlock()
-	catalog := make([]RuntimeDescriptor, 0, len(reg.order))
+	adapters := make([]RuntimeAdapter[Message, Caps, Event], 0, len(reg.order))
 	for _, id := range reg.order {
-		d := reg.adapters[id].Descriptor()
+		adapters = append(adapters, reg.adapters[id])
+	}
+	reg.mu.RUnlock()
+	catalog := make([]RuntimeDescriptor, 0, len(adapters))
+	for _, adapter := range adapters {
+		d := adapter.Descriptor()
 		// Never expose a shared capability slice to callers. Empty is [], not null.
 		d.Capabilities = append([]string{}, d.Capabilities...)
 		d.FilesystemPolicies = append([]string(nil), d.FilesystemPolicies...)
 		catalog = append(catalog, d)
 	}
 	return catalog
+}
+
+// Adapters snapshots identities without invoking a CLI-backed descriptor.
+func (reg *Registry[Message, Caps, Event, Snapshot]) Adapters() []RuntimeAdapter[Message, Caps, Event] {
+	reg.mu.RLock()
+	defer reg.mu.RUnlock()
+	out := make([]RuntimeAdapter[Message, Caps, Event], 0, len(reg.order))
+	for _, id := range reg.order {
+		out = append(out, reg.adapters[id])
+	}
+	return out
 }
 
 func HasRuntimeCapability(d RuntimeDescriptor, capability string) bool {

@@ -12,6 +12,7 @@ import (
 // Exercise the historical adapter, message JSON and shared usage flags without
 // sockets, so the migration boundary remains covered in restricted sandboxes.
 func TestOpenAICompatibilityPayloadAndUsage(t *testing.T) {
+	testHome(t)
 	client := &http.Client{Transport: benchRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {

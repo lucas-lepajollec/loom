@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/agentstdio"
@@ -245,6 +246,7 @@ func probeNativeAgent(ctx context.Context, a acpAgent) acpProbe {
 	b := agent.NewRequestBroker(a.ID, sink)
 	defer b.Cancel()
 	var models []json.RawMessage
+	catalogStage := false
 	if a.ID == "codex" {
 		s := codexapp.New(c, b, sink)
 		err = c.Start()
@@ -252,6 +254,7 @@ func probeNativeAgent(ctx context.Context, a acpAgent) acpProbe {
 			err = s.Initialize(ctx)
 		}
 		if err == nil {
+			catalogStage = true
 			models, err = s.Models(ctx)
 		}
 	} else {
@@ -261,11 +264,15 @@ func probeNativeAgent(ctx context.Context, a acpAgent) acpProbe {
 			_, err = s.State(ctx)
 		}
 		if err == nil {
+			catalogStage = true
 			models, err = s.Models(ctx)
 		}
 	}
 	if err != nil {
 		out.Error = err.Error()
+		if catalogStage {
+			out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: false, Reason: "catalog_probe_failed"})
+		}
 		return out
 	}
 	out.NativeModels = models
@@ -334,7 +341,7 @@ func (m *runtimeSessions) runNativeAgent(ctx context.Context, a acpAgent, s Runt
 		return nil, errors.New("Loom MCP selection is not supported by this native adapter yet; configure MCP in the CLI")
 	}
 	prefix := acpContextHash(turn.Messages[:len(turn.Messages)-1])
-	resume := s.NativeRuntimeID == a.ID && s.NativeSessionID != "" && s.NativeContext == prefix
+	resume := s.NativeRuntimeID == a.ID && s.NativeSessionID != "" && s.NativeContext == prefix && !capabilityDisabled("agent:"+a.ID, "resume")
 	if !resume {
 		s.NativeSessionID = ""
 		s.NativeSessionFile = ""
@@ -422,6 +429,7 @@ func (m *runtimeSessions) runNativeAgent(ctx context.Context, a acpAgent, s Runt
 		return emit(event)
 	}
 	b := agent.NewRequestBroker(a.ID, emitEvent)
+	nativePolicyBroker(b, s)
 	m.acpMu.Lock()
 	if m.requests == nil {
 		m.requests = map[string]*agent.RequestBroker{}
@@ -463,7 +471,7 @@ func (m *runtimeSessions) runNativeAgent(ctx context.Context, a acpAgent, s Runt
 			sandbox = "danger-full-access"
 		}
 		approval := "on-request"
-		if s.Permission == "full" {
+		if s.Permission == "full" && !policyNeedsAgentApprovals(s) {
 			approval = "never"
 		}
 		model := s.Model

@@ -3,6 +3,7 @@ package loom
 import (
 	"context"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	"reflect"
 	"time"
 )
@@ -35,10 +36,7 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 		m.mu.Unlock()
 		return s, errors.New("wait for or stop the response before changing models")
 	}
-	if (choice.Kind == "cloud" || choice.Kind == "harness") && !consent {
-		m.mu.Unlock()
-		return s, errors.New("confirm sending the thread and context to this destination")
-	}
+
 	if choice.Kind == "cloud" && m.keys[choice.ProviderID] == "" {
 		m.mu.Unlock()
 		return s, errors.New("connect this provider in Models → Providers")
@@ -46,6 +44,19 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 	original := s
 	s = cloneRuntimeSession(s)
 	m.mu.Unlock()
+	if choice.Kind == "cloud" || choice.Kind == "harness" {
+		in := sessionPolicyInput(s, "data.send_provider", policy.Confirm)
+		in.ProviderID, in.Endpoint, in.Model, in.AgentID = choice.ProviderID, choice.Endpoint, choice.Model, choice.RuntimeID
+		in.MachineID = "local"
+		if agent, ok := acpAgentFor(choice.RuntimeID); ok && agent.Machine != "" {
+			in.MachineID = agent.Machine
+		}
+		// Existing grants match only this discussion and destination.
+		in.DiscussionID = s.ID
+		if err := m.authorizePolicy(ctx, in, consent); err != nil {
+			return s, err
+		}
+	}
 	previousRuntime, previousModel := s.RuntimeID, s.Model
 	s.RuntimeID = "llama.cpp"
 	if choice.Kind == "cloud" {

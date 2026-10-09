@@ -1,5 +1,11 @@
 # Tasks and notifications (phase 4a)
 
+Phase 4b adds [central Policy](policy.md) decisions for opt-in summaries and
+canonical capability approvals. Policy confirmations reuse these Tasks/request
+and phone action contracts. `capability.degraded` and `capability.restored` are
+accepted notification rule types, excluded from the default rule list. Their
+feature/reason and backend UI shapes are described in [Doctor](doctor.md).
+
 Loom executes workspace and harness turns on the server, independently of SSE
 subscribers. Closing every tab does not stop a turn or cancel an approval.
 Harness turns have no cloud request timeout. Pending requests and completed

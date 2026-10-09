@@ -113,6 +113,9 @@ func (p *acpBinding) readFile(path string, line, limit *int) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := p.authorizeFile(path, "agent.file_read"); err != nil {
+		return nil, err
+	}
 	content, err := acpReadFile(root, rel)
 	if err != nil {
 		return nil, errors.New("read denied")
@@ -150,6 +153,9 @@ func (p *acpBinding) writeFile(path, content string) (any, error) {
 	defer p.fsMu.Unlock()
 	root, rel, canonical, err := acpScopedPath(p.roots, path)
 	if err != nil {
+		return nil, err
+	}
+	if err := p.authorizeFile(path, "agent.file_write"); err != nil {
 		return nil, err
 	}
 	before, err := acpReadFile(root, rel)

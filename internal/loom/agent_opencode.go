@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/opencodehttp"
@@ -59,6 +60,7 @@ func probeOpenCode(ctx context.Context, a acpAgent) acpProbe {
 	models, err := c.Models(ctx, dir)
 	if err != nil {
 		out.Error = err.Error()
+		out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: false, Reason: "catalog_probe_failed"})
 		return out
 	}
 	sort.Slice(models, func(i, j int) bool { return string(models[i]) < string(models[j]) })
@@ -96,7 +98,7 @@ func (m *runtimeSessions) runOpenCode(ctx context.Context, a acpAgent, s Runtime
 	state := cloneACPState(s.ACPState)
 	state.NativeRuntimeID = a.ID
 	prefix := acpContextHash(turn.Messages[:len(turn.Messages)-1])
-	resume := s.NativeRuntimeID == a.ID && s.NativeSessionID != "" && s.NativeContext == prefix
+	resume := s.NativeRuntimeID == a.ID && s.NativeSessionID != "" && s.NativeContext == prefix && !capabilityDisabled("agent:"+a.ID, "resume")
 	if !resume {
 		state.NativeSessionID = ""
 	}
@@ -153,6 +155,7 @@ func (m *runtimeSessions) runOpenCode(ctx context.Context, a acpAgent, s Runtime
 		return emit(event)
 	}
 	broker := agent.NewRequestBroker(a.ID, sink)
+	nativePolicyBroker(broker, s)
 	m.acpMu.Lock()
 	if m.requests == nil {
 		m.requests = map[string]*agent.RequestBroker{}

@@ -234,6 +234,10 @@ func handleACPSessions(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "ACP harness not found"})
 		return
 	}
+	if capabilityDisabled("agent:"+agent.ID, "session-list") {
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "session-list capability degraded", "degraded": degradedCapabilities.Snapshot("agent:" + agent.ID)})
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 	list, err := listACPSessions(ctx, agent)
@@ -251,6 +255,10 @@ func handleACPImport(w http.ResponseWriter, r *http.Request) {
 	agent, ok := acpAgentFor(r.PathValue("id"))
 	if !ok {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "ACP harness not found"})
+		return
+	}
+	if capabilityDisabled("agent:"+agent.ID, "history-import") {
+		sendJSON(w, 409, map[string]any{"ok": false, "error": "history-import capability degraded", "degraded": degradedCapabilities.Snapshot("agent:" + agent.ID)})
 		return
 	}
 	var req struct {

@@ -131,6 +131,8 @@ The UI also provides a **PWA** shell where the browser supports installation. HT
 
 The unreleased Tasks/Notifications backend keeps harness work and pending approvals running with every browser closed. Opt-in ntfy actions can answer an offered choice from a phone; webhooks and secure-context Web Push observe task events. All channels default off. See [notifications](docs/notifications.md) for setup and the Tasks/Settings UI API contracts.
 
+The phase 4b backend adds [central capability policy](docs/policy.md), canonical confirmations and a bounded audit, plus [Loom Doctor](docs/doctor.md), degraded feature fields and opt-in redacted support bundles. These documents include the exact API contracts for the separate Settings and Doctor UI work.
+
 ## Install
 
 The installers download a matching GitHub release binary and verify `SHA256SUMS.txt`. They require published assets; if none are available, build from source. Linux/macOS installation also configures system services and requires root or `sudo`. Review [install.sh](install.sh) or [install.ps1](install.ps1) before running it.

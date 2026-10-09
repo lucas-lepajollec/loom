@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"net/http"
 	"os"
@@ -16,19 +17,21 @@ import (
 // costs nothing), records what the agent announces, and closes it.
 
 type acpProbe struct {
-	Features      *agent.HarnessFeatures     `json:"features,omitempty"`
-	NativeModels  []json.RawMessage          `json:"native_models,omitempty"`
-	Compatibility *agent.CompatibilityRecord `json:"compatibility,omitempty"`
-	At            int64                      `json:"at"`
-	Agent         map[string]any             `json:"agent,omitempty"` // agentInfo: name, version
-	Auth          []map[string]any           `json:"auth,omitempty"`  // authMethods
-	Caps          map[string]any             `json:"capabilities,omitempty"`
-	Modes         []map[string]any           `json:"modes,omitempty"`
-	Mode          string                     `json:"mode,omitempty"`
-	Config        []map[string]any           `json:"config,omitempty"`
-	Commands      []map[string]any           `json:"commands,omitempty"` // "/" commands announced by the agent
-	Error         string                     `json:"error,omitempty"`
-	Duration      float64                    `json:"duration_seconds,omitempty"`
+	CapabilityChecks []capability.Probe         `json:"capability_checks,omitempty"`
+	Degraded         []capability.Degraded      `json:"degraded,omitempty"`
+	Features         *agent.HarnessFeatures     `json:"features,omitempty"`
+	NativeModels     []json.RawMessage          `json:"native_models,omitempty"`
+	Compatibility    *agent.CompatibilityRecord `json:"compatibility,omitempty"`
+	At               int64                      `json:"at"`
+	Agent            map[string]any             `json:"agent,omitempty"` // agentInfo: name, version
+	Auth             []map[string]any           `json:"auth,omitempty"`  // authMethods
+	Caps             map[string]any             `json:"capabilities,omitempty"`
+	Modes            []map[string]any           `json:"modes,omitempty"`
+	Mode             string                     `json:"mode,omitempty"`
+	Config           []map[string]any           `json:"config,omitempty"`
+	Commands         []map[string]any           `json:"commands,omitempty"` // "/" commands announced by the agent
+	Error            string                     `json:"error,omitempty"`
+	Duration         float64                    `json:"duration_seconds,omitempty"`
 }
 
 const acpProbeKey = "acp_probe_"
@@ -159,9 +162,11 @@ func refreshACPProbe(ctx context.Context, agent acpAgent) acpProbe {
 	acpProbeMu.Lock()
 	defer acpProbeMu.Unlock()
 	p := probeACPAgent(ctx, agent)
+	observeAgentProbe(agent.ID, p)
 	if old, ok := loadACPProbe(agent.ID); ok && p.Error != "" && len(old.Config) > 0 {
 		// Keep the last good catalog; only report the new failure.
 		old.Error, old.At = p.Error, p.At
+		old.CapabilityChecks, old.Duration = p.CapabilityChecks, p.Duration
 		if p.Compatibility != nil {
 			old.Compatibility = p.Compatibility
 		}

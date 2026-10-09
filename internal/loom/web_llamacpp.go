@@ -11,6 +11,7 @@
 package loom
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -20,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 )
 
 // lcJob est LE job llama.cpp en cours (un seul à la fois). Les lignes de log
@@ -86,6 +89,19 @@ func lcPhase(phase string) {
 
 // startLcJob démarre un job (install ou update) si aucun n'est en cours.
 func startLcJob(action string, run func()) error {
+	return startLcJobContext(context.Background(), action, run)
+}
+func startLcJobContext(ctx context.Context, action string, run func()) error {
+	subject := "node.install"
+	if action == "update" || action == "prebuilt" && resolvedEngineBin() == prebuiltServerBin() && isFile(prebuiltServerBin()) {
+		subject = "node.update"
+	}
+	if err := workspaceSessions.authorizePolicy(ctx, policy.Input{Subject: subject, MachineID: "local", Fallback: policy.Allow}, false); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	lcMu.Lock()
 	defer lcMu.Unlock()
 	if lcCur != nil && lcCur.Running {
@@ -269,7 +285,7 @@ func handleLlamacppInstall(w http.ResponseWriter, r *http.Request) {
 	if !legacyControlDecode(w, r, &req) {
 		return
 	}
-	if err := startLcJob("install", func() { lcRunInstall(req.Force, req.Dir) }); err != nil {
+	if err := startLcJobContext(r.Context(), "install", func() { lcRunInstall(req.Force, req.Dir) }); err != nil {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
@@ -293,7 +309,7 @@ func handleLlamacppInstallCustom(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "repository URL required"})
 		return
 	}
-	if err := startLcJob("custom", func() { lcRunCustomInstall(req.Repo, req.Name, req.Ref) }); err != nil {
+	if err := startLcJobContext(r.Context(), "custom", func() { lcRunCustomInstall(req.Repo, req.Name, req.Ref) }); err != nil {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
@@ -322,7 +338,7 @@ func handleLlamacppUpdate(w http.ResponseWriter, r *http.Request) {
 	if !legacyControlDecode(w, r, &req) {
 		return
 	}
-	if err := startLcJob("update", func() { lcRunUpdate(req.Clean) }); err != nil {
+	if err := startLcJobContext(r.Context(), "update", func() { lcRunUpdate(req.Clean) }); err != nil {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
@@ -356,7 +372,7 @@ func handleLlamacppPrebuiltCheck(w http.ResponseWriter, r *http.Request) {
 // handleLlamacppPrebuilt lance le job de téléchargement / mise à jour des
 // binaires précompilés officiels (pas de compilation).
 func handleLlamacppPrebuilt(w http.ResponseWriter, r *http.Request) {
-	if err := startLcJob("prebuilt", lcRunPrebuilt); err != nil {
+	if err := startLcJobContext(r.Context(), "prebuilt", lcRunPrebuilt); err != nil {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}

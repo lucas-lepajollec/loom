@@ -115,6 +115,7 @@ func TestBrainEmbeddingRejectsMalformedVectors(t *testing.T) {
 	}
 }
 func TestBrainDistillationRetryStrictParsingAndProvenance(t *testing.T) {
+	testHome(t)
 	d := brainDistillDiscussion{ID: "discussion-one", Date: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), Messages: []Message{{Role: "system", Content: "hidden instruction"}, {Role: "user", Content: "Prefer concise reports"}, {Role: "tool", Content: "hidden tool output"}, {Role: "assistant", Content: "Recorded"}}}
 	calls := 0
 	brainFakeModelClient(t, func(w http.ResponseWriter, r *http.Request) {

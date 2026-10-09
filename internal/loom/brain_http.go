@@ -399,6 +399,7 @@ func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 		})
 	}
 	server := brain.MCPServer(s)
+	server.AddReceivingMiddleware(gatewayPolicyMiddleware(nil))
 	registerMCPTransport(mux, "/mcp/brain", func(*http.Request) *mcp.Server { return server })
 	registerMCPTransport(mux, "/mcp/loom", func(*http.Request) *mcp.Server { return gatewayServer(s) })
 	if ctx != nil {

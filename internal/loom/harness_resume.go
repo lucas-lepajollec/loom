@@ -54,6 +54,10 @@ func handleRuntimeSessionTerminal(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "this discussion has no native session to resume"})
 		return
 	}
+	if capabilityDisabled("agent:"+runtimeID, "terminal") {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "terminal capability degraded; refresh the agent probe"})
+		return
+	}
 	command := nativeResumeCommand(usageHarnessID(acp.agent), s.NativeSessionID)
 	if command == "" {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "terminal resume is not available for this harness"})

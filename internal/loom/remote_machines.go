@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,21 +29,22 @@ type RemoteTool struct {
 }
 
 type RemoteMachine struct {
-	NodeID    string       `json:"node_id,omitempty"`
-	Modules   []string     `json:"modules,omitempty"`
-	Handshake int          `json:"handshake,omitempty"`
-	ID        string       `json:"id"`
-	Name      string       `json:"name"`
-	Host      string       `json:"host"`
-	User      string       `json:"user"`
-	Port      int          `json:"port"`
-	Hostname  string       `json:"hostname,omitempty"`
-	Home      string       `json:"home,omitempty"`
-	OS        string       `json:"os,omitempty"`
-	Tools     []RemoteTool `json:"tools,omitempty"`
-	Harnesses []string     `json:"harnesses,omitempty"` // registered harness ids on this machine
-	Folders   []string     `json:"folders,omitempty"`   // favourite work folders there (suggestions)
-	CheckedAt int64        `json:"checked_at,omitempty"`
+	Degraded  []capability.Degraded `json:"degraded,omitempty"`
+	NodeID    string                `json:"node_id,omitempty"`
+	Modules   []string              `json:"modules,omitempty"`
+	Handshake int                   `json:"handshake,omitempty"`
+	ID        string                `json:"id"`
+	Name      string                `json:"name"`
+	Host      string                `json:"host"`
+	User      string                `json:"user"`
+	Port      int                   `json:"port"`
+	Hostname  string                `json:"hostname,omitempty"`
+	Home      string                `json:"home,omitempty"`
+	OS        string                `json:"os,omitempty"`
+	Tools     []RemoteTool          `json:"tools,omitempty"`
+	Harnesses []string              `json:"harnesses,omitempty"` // registered harness ids on this machine
+	Folders   []string              `json:"folders,omitempty"`   // favourite work folders there (suggestions)
+	CheckedAt int64                 `json:"checked_at,omitempty"`
 }
 
 const remoteMachinesState = "remote_machines"
@@ -366,10 +368,10 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 		list := []remoteMachineInfo{}
 		for _, m := range loadRemoteMachines() {
 			caps := []string{}
-			if machineTerminalsSupported(m) {
+			if machineTerminalsSupported(m) && !capabilityDisabled("machine:"+m.ID, "terminal") {
 				caps = append(caps, "terminals")
 			}
-			list = append(list, remoteMachineInfo{m, caps})
+			list = append(list, remoteMachineInfo{projectMachineCapabilities(m), degradedCapabilities.Filter("machine:"+m.ID, caps)})
 		}
 		_, pub, err := loomSSHKey()
 		// Paired nodes remain usable on a main without SSH tooling.

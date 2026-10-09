@@ -3,6 +3,7 @@ package loom
 import (
 	"context"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"net/http"
 	"os"
 	"strings"
@@ -19,17 +20,18 @@ import (
 const harnessScopeKey = "harness_scope" // map["<machine>:<harness>"]managed
 
 type agentInstallation struct {
-	Machine     string `json:"machine"` // "local" or a machine id
-	MachineName string `json:"machine_name"`
-	Harness     string `json:"harness"` // family id (codex, claude-code…)
-	Name        string `json:"name"`
-	Logo        string `json:"logo"`
-	RuntimeID   string `json:"runtime_id"` // the Loom runtime that drives it
-	Installed   bool   `json:"installed"`
-	Ready       bool   `json:"ready"`
-	Version     string `json:"version,omitempty"`
-	Managed     bool   `json:"managed"`
-	Enabled     bool   `json:"enabled"`
+	Degraded    []capability.Degraded `json:"degraded,omitempty"`
+	Machine     string                `json:"machine"` // "local" or a machine id
+	MachineName string                `json:"machine_name"`
+	Harness     string                `json:"harness"` // family id (codex, claude-code…)
+	Name        string                `json:"name"`
+	Logo        string                `json:"logo"`
+	RuntimeID   string                `json:"runtime_id"` // the Loom runtime that drives it
+	Installed   bool                  `json:"installed"`
+	Ready       bool                  `json:"ready"`
+	Version     string                `json:"version,omitempty"`
+	Managed     bool                  `json:"managed"`
+	Enabled     bool                  `json:"enabled"`
 }
 
 func remoteRuntimeID(machine, harness string) string { return "custom-" + machine + "-" + harness }
@@ -93,6 +95,15 @@ func agentInstallations() []agentInstallation {
 			}
 			out = append(out, agentInstallation{Machine: m.ID, MachineName: m.Name, Harness: id, Name: name, Logo: logo, RuntimeID: remoteRuntimeID(m.ID, id),
 				Installed: installed, Ready: ready, Version: strings.TrimSpace(version), Managed: enabled || harnessManaged(m.ID, id), Enabled: enabled})
+		}
+	}
+	for i := range out {
+		out[i].Degraded = degradedCapabilities.Snapshot("agent:" + out[i].RuntimeID)
+		if out[i].Version == "" {
+			var record runtimeCompatibilityRecord
+			if getStoreJSON(bkState, "agent_compat_"+out[i].RuntimeID, &record) {
+				out[i].Version = record.Version
+			}
 		}
 	}
 	return out

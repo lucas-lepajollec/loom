@@ -91,6 +91,14 @@ func (m *runtimeSessions) closeACP(id string) {
 	}
 }
 func (m *runtimeSessions) shutdownACP() {
+	// Stop consent workers before examining live runs: a worker may not have
+	// published its synthetic task yet. Serialize Add/Wait through this lock.
+	m.policyConsents.mu.Lock()
+	m.policyConsents.closed = true
+	for _, request := range m.policyConsents.pending {
+		request.cancel()
+	}
+	m.policyConsents.mu.Unlock()
 	openCodeServer.Close()
 	m.acpMu.Lock()
 	ps := m.acp
@@ -100,10 +108,11 @@ func (m *runtimeSessions) shutdownACP() {
 		p.close()
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	for _, run := range m.runs {
 		run.cancel()
 	}
+	m.mu.Unlock()
+	m.policyWorkers.Wait()
 }
 func acpContextHash(messages []Message) string {
 	b, _ := json.Marshal(messages)
@@ -260,12 +269,13 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			m.closeACP(s.ID)
 			return nil, err
 		}
-		if mem := sessionGatewayServer(init.AgentCapabilities, agent.Remote); mem != nil && !gatewayRegistered(s.RuntimeID) && definitions["loom"].Command == "" && definitions["loom"].URL == "" {
+		if mem := sessionGatewayServer(init.AgentCapabilities, agent.Remote, s.ID); mem != nil && !gatewayRegistered(s.RuntimeID) && definitions["loom"].Command == "" && definitions["loom"].URL == "" {
 			servers = append(servers, mem)
 		}
 		params := map[string]any{"cwd": s.Workdir, "additionalDirectories": append([]string{}, s.AdditionalDirs...), "mcpServers": servers}
 		var response acpSessionResponse
 		load, _ := init.AgentCapabilities["loadSession"].(bool)
+		load = load && !capabilityDisabled("agent:"+agent.ID, "resume")
 		if registered, ok := registeredRuntimes.lookup(agent.ID); ok {
 			if adapter, ok := registered.(*acpAdapter); ok {
 				adapter.negotiatedMu.Lock()
