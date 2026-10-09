@@ -481,3 +481,21 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .lpick-pop .lpick-o{flex-wrap:wrap;row-gap:1px;height:auto;min-height:32px;padding-top:6px;padding-bottom:6px;white-space:normal}
 .lpick-pop .lpick-o>.trunc{flex:1 1 100%;min-width:0}
 .lpick-pop .lpick-o small{flex:1 1 100%;margin-left:0;padding-left:0;white-space:normal;line-height:1.35}
+/* Mode vocal : plein écran sobre, une sphère monochrome, la transcription dessous. */
+.voice-mode{--orb-fg:#f4f4f2;--orb-edge:#55554f;--orb-glow:rgba(255,255,255,.16);position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;min-height:0;height:100%;padding:24px 20px calc(24px + env(safe-area-inset-bottom));background:var(--bg);overflow:hidden;animation:in-fade var(--mid) var(--ease)}
+[data-theme="light"] .voice-mode{--orb-fg:#2a2a27;--orb-edge:#b9b9b2;--orb-glow:rgba(0,0,0,.08)}
+.vm-close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:2}
+.vm-stage{position:relative;width:min(70vmin,460px);aspect-ratio:1;display:flex;align-items:center;justify-content:center}
+.vm-orb{position:absolute;inset:0;width:100%;height:100%}
+.vm-state{position:absolute;bottom:4%;font-size:13px;color:var(--text-3);letter-spacing:.02em}
+.vm-lines{width:min(720px,100%);max-height:30vh;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;text-align:center;-webkit-mask-image:linear-gradient(to bottom,transparent,#000 35%)}
+.vm-line{margin:0;font-size:17px;line-height:1.45;color:var(--text);transition:opacity var(--fast)}
+.vm-line.jarvis{color:var(--text-2)}
+.vm-line.live{opacity:.7}
+.vm-line.err{color:var(--red);font-size:14px}
+.vm-msg{max-width:440px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+.vm-msg h2{margin:0;font-size:20px}
+.vm-msg p{margin:0;color:var(--text-2)}
+.vm-end{position:absolute;inset:0;z-index:3;display:flex;align-items:flex-end;justify-content:center;padding:20px 16px calc(20px + env(safe-area-inset-bottom));background:rgba(8,8,7,.45);animation:in-fade var(--fast)}
+.vm-end .card{width:min(460px,100%)}
+@media (max-width:720px){.vm-line{font-size:16px}.vm-stage{width:min(78vw,360px)}}
