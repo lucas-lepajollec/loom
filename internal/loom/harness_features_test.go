@@ -28,9 +28,9 @@ func TestHarnessFeaturePaths(t *testing.T) {
 		{"opencode", "opencode-http", []string{}, []string{}, []string{"native", "loom"}, false, true, false, false, true, "runtime/opencodehttp/session.go", []string{"question", "permission", "Model"}},
 		{"antigravity", "agy-stream-json", []string{}, []string{"accept-edits", "plan", "full"}, []string{"native"}, true, false, false, false, false, "runtime/antigravity/stream.go", []string{"--effort", "--sandbox", "--conversation", "--mode"}},
 		{"claude-code", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native", "loom"}, false, true, true, true, false, "acp_session.go", []string{"session/set_mode", "session/set_model", "session/set_config_option"}},
-		{"hermes", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, false, false, true, true, false, "acp_permissions.go", []string{"session/request_permission", "session/create_elicitation"}},
+		{"hermes", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native", "loom"}, false, false, true, true, false, "acp_permissions.go", []string{"session/request_permission", "session/create_elicitation"}},
 		{"openclaw", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, false, false, true, true, false, "acp_permissions.go", []string{"session/request_permission", "session/create_elicitation"}},
-		{"deepseek-harness", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, true, false, false, true, false, "acp_session.go", []string{"session/resume", "session/new", "session/set_config_option"}},
+		{"deepseek-harness", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native", "loom"}, true, false, false, true, false, "acp_session.go", []string{"session/resume", "session/new", "session/set_config_option"}},
 		{"registry-example", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, false, false, true, true, false, "acp_session.go", []string{"session/new", "session/set_config_option"}},
 		{"custom-example", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, false, false, true, true, false, "acp_session.go", []string{"session/new", "session/set_config_option"}},
 	} {

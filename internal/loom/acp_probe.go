@@ -89,7 +89,7 @@ func probeACPAgent(ctx context.Context, agent acpAgent) (result acpProbe) {
 	}
 	// Refresh the file projection after credentials are restored and before Pi
 	// starts. A cached catalog must never reflect a stale local-only file.
-	if agent.ID == "pi" && !agent.Remote {
+	if (agent.ID == "pi" || agent.ID == "hermes" || deepseekACPAgent(agent)) && !agent.Remote {
 		if err := syncModelSinks(); err != nil {
 			return fail(err)
 		}
@@ -155,7 +155,7 @@ func probeACPAgent(ctx context.Context, agent acpAgent) (result acpProbe) {
 	if session.Modes != nil {
 		out.Modes, out.Mode = session.Modes.Available, session.Modes.Current
 	}
-	out.Config = session.options()
+	out.Config = withLoomModelOptions(agent, session.options())
 	// Agents announce their commands right after session/new.
 	select {
 	case out.Commands = <-commands:

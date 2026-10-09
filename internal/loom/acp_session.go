@@ -190,7 +190,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 	if p == nil {
 		// Pi reads Loom's models and cloud providers from its own file: bring
 		// it up to date before Pi starts (a provider added since is listed).
-		if agent.ID == "pi" && !agent.Remote {
+		if (agent.ID == "pi" || agent.ID == "hermes" || deepseekACPAgent(agent)) && !agent.Remote {
 			if err := syncModelSinks(); err != nil {
 				return nil, err
 			}
@@ -552,7 +552,7 @@ func (p *acpBinding) applySessionResponse(r acpSessionResponse) {
 		p.state.Mode = r.Modes.Current
 		p.state.AvailableModes = r.Modes.Available
 	}
-	if options := r.options(); options != nil {
+	if options := withLoomModelOptions(acpAgent{ID: p.agentID, Remote: p.remote}, r.options()); options != nil {
 		p.applyConfig(options)
 	}
 }

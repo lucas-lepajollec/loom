@@ -4,6 +4,13 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Loom models for DeepSeek Harness (a Loom-owned `--patch` layer, user layers'
+  providers carried over, keys only at launch) and Hermes (loom-* providers
+  merged into config.yaml with comments preserved; Loom's choices added to its
+  model list since its ACP adapter lists only the default provider).
+- llama.cpp CUDA builds pick a host compiler nvcc accepts (newer distribution
+  GCC rejected by the CUDA toolkit).
+
 - Cloud discussions can use the MCP servers declared in Brain (composer Tools ›
   MCP tools, per discussion), alongside web search, through the same tool loop.
 - Composer parity: cloud and agent discussions accept attached files (cloud:

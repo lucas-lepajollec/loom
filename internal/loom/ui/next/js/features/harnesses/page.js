@@ -250,6 +250,10 @@ function ModelSource({ rt, line }) {
       ? t("harnesses.page.tes_modeles_locaux_et_tes_fournisseurs_cloud_apparaissent_dans_la") + rt.name + t("harnesses.page.quand_loom_le_lance_rien_n_est_ecrit_dans_ses_fichiers_et_les_cle")
       : x.format === 'pi'
       ? t("harnesses.page.loom_ajoute_a") + x.file + t("harnesses.page.un_fournisseur_loom_tes_modeles_locaux_et_un_par_fournisseur_clou")
+      : x.format === 'dsh'
+      ? t('harnesses.models.dsh_note', { name: rt.name })
+      : x.format === 'hermes'
+      ? t('harnesses.models.hermes_note', { name: rt.name, file: x.file })
       : x.format === 'env'
       ? t("harnesses.page.tes_modeles_locaux_apparaissent_sous") + rt.name + t("harnesses.page.dans_le_selecteur_quand_tu_en_choisis_un_loom_lance") + rt.name + t("harnesses.page.avec_son_api_locale_comme_fournisseur_aucun_fichier_de") + rt.name + t("harnesses.page.n_est_modifie_et_ses_modeles_natifs_restent_disponibles")
       : t("harnesses.page.loom_ajoute_un_fournisseur_loom_dans") + x.file + t("harnesses.page.avec_tes_modeles_locaux_tes_autres_fournisseurs_ne_sont_pas_modif");

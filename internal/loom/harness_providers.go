@@ -267,7 +267,7 @@ func openCodeConfig() string {
 func acpLaunchEnv(agentID, model string) []string {
 	env := acpLoomModelEnv(agentID, model)
 	s, ok := modelSinkFor(agentID)
-	if !ok || (s.Format != "pi" && s.Format != "opencode") || !modelSinkEnabled(agentID) {
+	if !ok || (s.Format != "pi" && s.Format != "opencode" && s.Format != "dsh" && s.Format != "hermes") || !modelSinkEnabled(agentID) {
 		return env
 	}
 	key := engineAPIKey()

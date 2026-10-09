@@ -109,3 +109,55 @@ func TestPiProbeReceivesProjectedProviderKeys(t *testing.T) {
 		t.Fatalf("probe env lacks projected keys:\n%s", env)
 	}
 }
+
+func TestHermesProvidersKeepUserConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	orig := "# my settings\nmodel:\n  provider: openrouter\nproviders:\n  mine:\n    base_url: https://x.invalid/v1\n    key_env: MINE_KEY\n  loom-old:\n    base_url: http://stale\n"
+	if err := os.WriteFile(path, []byte(orig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loom := map[string]map[string]any{"loom-fake": {"name": "Fake (Loom)", "base_url": "http://127.0.0.1:2790/v1", "key_env": "LOOM_KEY_X", "models": []string{"m"}}}
+	if err := writeHermesProviders(path, true, loom); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(path)
+	s := string(b)
+	if !strings.Contains(s, "# my settings") || !strings.Contains(s, "provider: openrouter") || !strings.Contains(s, "MINE_KEY") || strings.Contains(s, "loom-old") || !strings.Contains(s, "loom-fake:") || !strings.Contains(s, "LOOM_KEY_X") {
+		t.Fatalf("unexpected config:\n%s", s)
+	}
+	if err := writeHermesProviders(path, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(path)
+	if strings.Contains(string(b), "loom-fake") || !strings.Contains(string(b), "MINE_KEY") {
+		t.Fatalf("disable did not remove only Loom entries:\n%s", b)
+	}
+	if err := os.WriteFile(path, []byte("{broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if writeHermesProviders(path, true, loom) == nil {
+		t.Fatal("broken config rewritten")
+	}
+}
+
+func TestDshPatchArgsInsertAfterProfile(t *testing.T) {
+	testHome(t)
+	if err := putStoreJSON(bkState, modelSinkState, map[string]bool{"deepseek-harness": true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(dshPatchPath()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dshPatchPath(), []byte("[]"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := acpAgent{ID: "deepseek-harness", Args: []string{"-y", "@deepseek-ai/dsh@0.2.0-rc.2", "--profile", "acp"}}
+	got := strings.Join(dshPatchArgs(a, a.Args), " ")
+	if got != "-y @deepseek-ai/dsh@0.2.0-rc.2 --profile acp --patch "+dshPatchPath() {
+		t.Fatal(got)
+	}
+	a.Remote = true
+	if len(dshPatchArgs(a, a.Args)) != 4 {
+		t.Fatal("remote agent got a local patch")
+	}
+}

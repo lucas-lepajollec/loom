@@ -47,7 +47,10 @@ func TestGPUListedNeedsADeviceLine(t *testing.T) {
 
 func TestPickCudaHostCompilerFallsBackToAcceptedGCC(t *testing.T) {
 	calls := []string{}
-	compiles := func(nvcc, host string) bool { calls = append(calls, host); return host != "" && strings.HasSuffix(host, "-15") }
+	compiles := func(nvcc, host string) bool {
+		calls = append(calls, host)
+		return host != "" && strings.HasSuffix(host, "-15")
+	}
 	got := pickCudaHostCompiler("/usr/local/cuda/bin/nvcc", func(n, h string) bool { return compiles(n, h) })
 	// The default compiler is tried first; a fallback is only returned when one
 	// of the installed candidates is accepted by nvcc.

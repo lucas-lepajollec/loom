@@ -76,7 +76,7 @@ func acpSessionArgs(agent acpAgent, cwd string) []string {
 	if agent.Remote && len(args) == 4 && args[0] == "node-bridge" && args[3] == nodeBridgeCwd {
 		args[3] = cwd
 	}
-	return args
+	return dshPatchArgs(agent, args)
 }
 func nodeMachineAccess(machine string) (nodeBridgeAccess, error) {
 	return nodeMachineAccessForModule(machine, "harness")
