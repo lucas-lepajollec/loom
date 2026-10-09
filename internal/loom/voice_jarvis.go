@@ -133,26 +133,48 @@ func jarvisRoutes() []ModelChoice {
 	}
 	return routes
 }
-func resolveJarvisModel(settings jarvisSettings, discussion RuntimeSession, routes []ModelChoice) (ModelChoice, error) {
-	route := settings.Model
-	if route == "discussion" {
-		if discussion.RuntimeID == "llama.cpp" || discussion.RuntimeID == "openai-compatible" {
-			for _, c := range routes {
-				if (discussion.RuntimeID == "llama.cpp" && c.Kind == "local" && (c.Model == discussion.Model || sameModelPath(c.Model, discussion.Model))) ||
-					(discussion.RuntimeID == "openai-compatible" && c.Kind == "cloud" && c.ProviderID == discussion.ProviderID && c.Model == discussion.Model && c.Endpoint == discussion.Endpoint) {
-					return c, nil
-				}
+
+// resolveJarvisModel never strands the voice mode: the discussion's model,
+// then the chosen fallback, then the model loaded in the engine, then the first
+// ready cloud route, then any local model. It fails only when Loom has none.
+func resolveJarvisModel(settings jarvisSettings, discussion RuntimeSession, routes []ModelChoice, loaded string) (ModelChoice, error) {
+	usable := func(c ModelChoice) bool { return c.Kind == "local" || c.Kind == "cloud" }
+	byID := func(id string) (ModelChoice, bool) {
+		for _, c := range routes {
+			if id != "" && c.ID == id && usable(c) {
+				return c, true
 			}
-			return ModelChoice{}, errors.New("discussion model is no longer available")
 		}
-		route = settings.Fallback
+		return ModelChoice{}, false
 	}
-	for _, c := range routes {
-		if c.ID == route && (c.Kind == "local" || c.Kind == "cloud") {
-			return c, nil
+	if settings.Model == "discussion" {
+		for _, c := range routes {
+			if (discussion.RuntimeID == "llama.cpp" && c.Kind == "local" && discussion.Model != "" && (c.Model == discussion.Model || sameModelPath(c.Model, discussion.Model))) ||
+				(discussion.RuntimeID == "openai-compatible" && c.Kind == "cloud" && c.ProviderID == discussion.ProviderID && c.Model == discussion.Model && c.Endpoint == discussion.Endpoint) {
+				return c, nil
+			}
+		}
+	} else if c, ok := byID(settings.Model); ok {
+		return c, nil
+	}
+	if c, ok := byID(settings.Fallback); ok {
+		return c, nil
+	}
+	if loaded != "" {
+		for _, c := range routes {
+			if c.Kind == "local" && (c.Model == loaded || sameModelPath(c.Model, loaded)) {
+				return c, nil
+			}
 		}
 	}
-	return ModelChoice{}, errors.New("choose a local or cloud Jarvis fallback model in voice settings")
+	for _, kind := range []string{"cloud", "local"} {
+		for _, c := range routes {
+			if c.Kind == kind && (kind == "local" || c.Ready) {
+				return c, nil
+			}
+		}
+	}
+	return ModelChoice{}, errors.New("jarvis_no_model: no local or cloud model is available for Jarvis; load a local model or connect a cloud provider")
 }
 
 // Voice sessions never own a persistent discussion or a harness binding.
@@ -427,7 +449,7 @@ func handleJarvis(w http.ResponseWriter, r *http.Request) {
 			voiceAPIError(w, err)
 			return
 		}
-		model, err := resolveJarvisModel(profile, discussion, jarvisRoutes())
+		model, err := resolveJarvisModel(profile, discussion, jarvisRoutes(), strings.TrimSpace(ReadConfig()["MODEL"]))
 		if err != nil {
 			voiceAPIError(w, err)
 			return
