@@ -36,6 +36,10 @@ type inspectCmd struct {
 }
 
 type inspectSpec struct {
+	NativeRoots   []string            `json:"native_roots"`
+	RepairPaths   []string            `json:"repair_paths"`
+	NativeUpdate  []string            `json:"native_update"`
+	BrewNames     []string            `json:"brew_names"`
 	Install       map[string][]string `json:"install"`
 	Latest        *harnessLatestSpec  `json:"latest"`
 	Requires      []string            `json:"requires"`

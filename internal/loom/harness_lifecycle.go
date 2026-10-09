@@ -49,6 +49,14 @@ type harnessLifecycleSetting struct {
 type harnessLifecycleState struct {
 	Target          string             `json:"target"`
 	ID              string             `json:"id"`
+	Path            string             `json:"path"`
+	Channel         string             `json:"channel"`
+	RepairPath      string             `json:"repair_path,omitempty"`
+	CanRepair       bool               `json:"can_repair"`
+	CanUpdate       bool               `json:"can_update"`
+	CheckUpdate     bool               `json:"check_update"`
+	FromVersion     string             `json:"from_version,omitempty"`
+	Result          string             `json:"result,omitempty"`
 	Installed       bool               `json:"installed"`
 	Version         string             `json:"version"`
 	Latest          string             `json:"latest"`
@@ -70,6 +78,8 @@ type harnessLifecycleService struct {
 	storeMu      sync.Mutex
 	run          func(context.Context, *RemoteMachine, []string) (string, error)
 	refresh      func(context.Context, *RemoteMachine, string) error
+	installation func(context.Context, *RemoteMachine, inspectSpec, string) (harnessInstallation, error)
+	preserve     func(string) (func(bool) error, error)
 	latestGitHub func(context.Context, string) (string, error)
 	active       func(string, string) bool
 	reserveAuto  func(string, string) (func(), bool)
@@ -78,7 +88,7 @@ type harnessLifecycleService struct {
 
 func newHarnessLifecycleService() *harnessLifecycleService {
 	return &harnessLifecycleService{busy: map[string]bool{}, updating: map[string][2]string{}, run: runHarnessLifecycleCommand,
-		refresh: refreshHarnessLifecycle, latestGitHub: readHarnessGitHubLatest,
+		refresh: refreshHarnessLifecycle, installation: inspectHarnessInstallation, preserve: preserveHarnessExecutable, latestGitHub: readHarnessGitHubLatest,
 		active: harnessDiscussionRunning, now: time.Now}
 }
 
@@ -114,6 +124,9 @@ func resolveHarnessTarget(target, id string) (string, *RemoteMachine, inspectSpe
 	}
 	for _, m := range loadRemoteMachines() {
 		if m.ID == target {
+			if m.NodeID != "" {
+				return target, &m, spec, nil
+			}
 			valid, err := validRemoteMachine(m)
 			if err != nil {
 				return target, nil, spec, err
@@ -142,11 +155,6 @@ func lifecycleActionCommand(spec inspectSpec, osFamily, action string) ([]string
 		argv = spec.Install[osFamily]
 	case "update":
 		argv = spec.Update
-		// The catalog installs OpenCode with npm. Its native upgrader cannot
-		// replace a system-owned npm installation as the service user.
-		if osFamily == "unix" && spec.Binary == "opencode" && spec.Latest != nil && spec.Latest.NPM != "" {
-			argv = []string{"npm", "install", "-g", spec.Latest.NPM + "@latest"}
-		}
 		if spec.UpdateInstall {
 			argv = spec.Install[osFamily]
 		}
@@ -231,7 +239,7 @@ func lifecycleLocalPath() string {
 	if runtime.GOOS == "windows" {
 		dirs = append(dirs, filepath.Join(os.Getenv("APPDATA"), "npm"), filepath.Join(home, ".local", "bin"), filepath.Join(os.Getenv("LOCALAPPDATA"), "agy", "bin"), filepath.Join(os.Getenv("LOCALAPPDATA"), "hermes", "bin"))
 	} else {
-		dirs = append(dirs, filepath.Join(home, ".local", "bin"), filepath.Join(home, ".npm-global", "bin"), filepath.Join(home, ".bun", "bin"), "/usr/local/bin", "/opt/homebrew/bin")
+		dirs = append(dirs, filepath.Join(home, ".local", "bin"), filepath.Join(home, ".npm-global", "bin"), filepath.Join(home, ".bun", "bin"), filepath.Join(home, ".volta", "bin"), "/usr/local/bin", "/opt/homebrew/bin")
 		nvm, _ := filepath.Glob(filepath.Join(home, ".nvm", "versions", "node", "*", "bin"))
 		dirs = append(dirs, nvm...)
 	}
@@ -242,6 +250,12 @@ func lifecycleLocalPath() string {
 func lifecycleLookPath(name string) (string, error) {
 	if filepath.IsAbs(name) {
 		return exec.LookPath(name)
+	}
+	var saved string
+	if getStoreJSON(bkState, "harness_executable:"+name, &saved) && filepath.IsAbs(saved) {
+		if path, err := exec.LookPath(saved); err == nil {
+			return path, nil
+		}
 	}
 	// Services launched before installation may have an older PATH.
 	for _, d := range filepath.SplitList(lifecycleLocalPath()) {
@@ -300,6 +314,13 @@ func harnessNativeArgv(argv []string) ([]string, error) {
 }
 
 func runHarnessLifecycleCommand(ctx context.Context, m *RemoteMachine, argv []string) (string, error) {
+	if m == nil && lifecycleGlobalNPM(argv) {
+		return runHarnessNPMInstall(ctx, argv)
+	}
+	return runHarnessLifecycleRaw(ctx, m, argv)
+}
+
+func runHarnessLifecycleRaw(ctx context.Context, m *RemoteMachine, argv []string) (string, error) {
 	if len(argv) == 0 {
 		return "", errors.New("empty command")
 	}
@@ -309,13 +330,7 @@ func runHarnessLifecycleCommand(ctx context.Context, m *RemoteMachine, argv []st
 	var cleanup func()
 	if m == nil {
 		argv = append([]string{}, argv...)
-		if runtime.GOOS != "windows" && lifecycleGlobalNPM(argv) {
-			prefix, err := lifecycleNPMPrefix(ctx, argv)
-			if err != nil {
-				return "", err
-			}
-			argv = append(argv[:3], append([]string{"--prefix", prefix}, argv[3:]...)...)
-		}
+
 		if i := lifecycleScriptArg(argv); i >= 0 {
 			path, err := downloadHarnessInstaller(ctx, argv[i])
 			if err != nil {
@@ -340,6 +355,13 @@ func runHarnessLifecycleCommand(ctx context.Context, m *RemoteMachine, argv []st
 		if buildErr != nil {
 			return "", buildErr
 		}
+	}
+	if m == nil && len(argv) > 0 && filepath.Base(argv[0]) == "npm" {
+		path, err := lifecycleUnwrapVolta(ctx, argv[0], "npm")
+		if err != nil {
+			return "", err
+		}
+		argv[0] = path
 	}
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	if m == nil {
@@ -462,8 +484,11 @@ func (s *harnessLifecycleService) setAuto(target, id string, auto bool) error {
 }
 
 func (s *harnessLifecycleService) check(ctx context.Context, target, id string, m *RemoteMachine, spec inspectSpec) (state harnessLifecycleState, checkErr error) {
+	if m != nil && m.NodeID != "" {
+		return s.nodeAction(ctx, target, id, "check", m)
+	}
 	setting := s.setting(target, id)
-	state = harnessLifecycleState{Target: target, ID: id, Auto: setting.Auto, LastAuto: setting.LastAuto, RequiresMissing: []string{}, Unverified: spec.Unverified}
+	state = harnessLifecycleState{Target: target, ID: id, Auto: setting.Auto, LastAuto: setting.LastAuto, RequiresMissing: []string{}, Unverified: spec.Unverified, Channel: "unknown", CheckUpdate: spec.Latest == nil}
 	output := &harnessTail{}
 	defer func() { state.Log = output.String() }()
 	run := func(ctx context.Context, m *RemoteMachine, argv []string) (string, error) {
@@ -475,13 +500,32 @@ func (s *harnessLifecycleService) check(ctx context.Context, target, id string, 
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	_, err := run(probeCtx, m, []string{"command", "-v", spec.Binary})
+	path, err := run(probeCtx, m, []string{"command", "-v", spec.Binary})
 	if err != nil && !lifecycleMissingCommand(err) {
 		return state, fmt.Errorf("detection failed: %w", err)
 	}
 	state.Installed = err == nil
 	if state.Installed {
-		out, e := run(probeCtx, m, spec.Version)
+		state.Path = strings.TrimSpace(path)
+	}
+	install, e := s.installation(probeCtx, m, spec, state.Path)
+	if e != nil {
+		state.Errors = append(state.Errors, "installation channel: "+e.Error())
+	} else {
+		state.Channel = install.Channel
+		if !state.Installed && install.Path != "" && install.Channel != "unknown" {
+			state.CanRepair, state.RepairPath = true, install.Path
+		}
+		if state.Installed {
+			_, updateErr := s.installationUpdateCommand(probeCtx, m, spec, install)
+			state.CanUpdate = updateErr == nil
+			if updateErr != nil {
+				state.Errors = append(state.Errors, updateErr.Error())
+			}
+		}
+	}
+	if state.Installed {
+		out, e := run(probeCtx, m, append([]string{state.Path}, spec.Version[1:]...))
 		if e != nil {
 			state.Errors = append(state.Errors, "version : "+e.Error())
 		} else {
@@ -491,6 +535,9 @@ func (s *harnessLifecycleService) check(ctx context.Context, target, id string, 
 	requires := spec.Requires
 	if tools, ok := spec.RequiresOS[lifecycleOS(m)]; ok {
 		requires = tools
+	}
+	if state.CanRepair || (state.Installed && state.Channel != "npm") {
+		requires = nil
 	}
 	for _, tool := range requires {
 		_, e := run(probeCtx, m, []string{"command", "-v", tool})
@@ -523,18 +570,118 @@ func (s *harnessLifecycleService) check(ctx context.Context, target, id string, 
 
 func (s *harnessLifecycleService) mutate(ctx context.Context, target, id, action string, m *RemoteMachine, spec inspectSpec) (harnessLifecycleState, error) {
 	state := harnessLifecycleState{Target: target, ID: id, RequiresMissing: []string{}, Unverified: spec.Unverified}
-	if err := workspaceSessions.authorizePolicy(ctx, policy.Input{Subject: "node." + action, MachineID: target, AgentID: id, Fallback: policy.Allow}, false); err != nil {
+	policyAction := action
+	if action == "repair" {
+		policyAction = "install"
+	}
+	if err := workspaceSessions.authorizePolicy(ctx, policy.Input{Subject: "node." + policyAction, MachineID: target, AgentID: id, Fallback: policy.Allow}, false); err != nil {
 		return state, err
 	}
-	argv, err := lifecycleActionCommand(spec, lifecycleOS(m), action)
+	if m != nil && m.NodeID != "" {
+		after, err := s.nodeAction(ctx, target, id, action, m)
+		if err == nil {
+			err = s.refresh(ctx, m, id)
+		}
+		return after, err
+	}
+	path, detectErr := s.run(ctx, m, []string{"command", "-v", spec.Binary})
+	if detectErr != nil && !lifecycleMissingCommand(detectErr) {
+		return state, detectErr
+	}
+	installed := detectErr == nil
+	if !installed {
+		path = ""
+	}
+	install, err := s.installation(ctx, m, spec, strings.TrimSpace(path))
 	if err != nil {
 		return state, err
 	}
+	state.Path, state.Channel, state.Installed = install.Path, install.Channel, installed
+	if !installed && install.Path != "" {
+		state.CanRepair, state.RepairPath = true, install.Path
+	}
+	if action == "repair" {
+		if installed || !state.CanRepair {
+			return state, errors.New("no missing launcher with a known installation to repair")
+		}
+		version, err := s.run(ctx, m, append([]string{install.Path}, spec.Version[1:]...))
+		if err != nil || strings.TrimSpace(version) == "" {
+			return state, errors.New("repair candidate failed --version verification")
+		}
+		if err := repairHarnessInstallation(ctx, m, spec, install.Path); err != nil {
+			return state, err
+		}
+		if err := s.refresh(ctx, m, id); err != nil {
+			return state, err
+		}
+		after, err := s.check(ctx, target, id, m, spec)
+		after.Result = "repaired"
+		return after, err
+	}
+	if !installed && state.CanRepair {
+		return state, errors.New("a known installation exists; choose Repair instead of installing another copy")
+	}
+	var argv []string
+	if installed {
+		argv, err = s.installationUpdateCommand(ctx, m, spec, install)
+	} else if action == "update" {
+		err = errors.New("agent is not installed; install or repair it first")
+	} else {
+		argv, err = lifecycleActionCommand(spec, lifecycleOS(m), "install")
+	}
+	if err != nil {
+		return state, err
+	}
+	versionArgv := spec.Version
+	if installed {
+		versionArgv = append([]string{install.Path}, spec.Version[1:]...)
+	}
+	before, beforeErr := s.run(ctx, m, versionArgv)
+	var finish func(bool) error
+	if installed && install.Channel == "native" && m == nil {
+		if beforeErr != nil || strings.TrimSpace(before) == "" {
+			return state, errors.New("existing executable failed --version; repair it before updating")
+		}
+		finish, err = s.preserve(install.Path)
+		if err != nil {
+			return state, err
+		}
+	}
 	out, runErr := s.run(ctx, m, argv)
-	// Even a failed installer may have changed files. Refresh observations in both cases.
-	refreshErr := s.refresh(ctx, m, id)
+	if runErr == nil {
+		version, err := s.run(ctx, m, versionArgv)
+		if err != nil {
+			runErr = fmt.Errorf("verify --version: %w\n%s", err, version)
+		} else if strings.TrimSpace(version) == "" {
+			runErr = errors.New("verify --version returned no version")
+		}
+	}
+	if runErr == nil && installed {
+		verified, err := s.installation(ctx, m, spec, install.Path)
+		if err != nil {
+			runErr = err
+		} else if verified.Channel != install.Channel {
+			runErr = errors.New("updated executable changed installation channel")
+		}
+	}
+	if finish != nil {
+		runErr = errors.Join(runErr, finish(runErr == nil))
+	}
+	// Failed local npm transactions leave the previous installation intact.
+	// Other upstream installers may have changed files even on failure.
+	var refreshErr error
+	if runErr == nil || m != nil || !lifecycleGlobalNPM(argv) {
+		refreshErr = s.refresh(ctx, m, id)
+	}
 	after, checkErr := s.check(ctx, target, id, m, spec)
 	after.Log = out
+	after.FromVersion = strings.TrimSpace(strings.SplitN(before, "\n", 2)[0])
+	if runErr == nil && after.FromVersion != "" && after.Version != "" {
+		after.Result = "updated"
+		if after.FromVersion == after.Version {
+			after.Result = "unchanged"
+		}
+	}
 	if runErr != nil {
 		return after, fmt.Errorf("%s failed: %w", action, runErr)
 	}
@@ -549,7 +696,7 @@ func (s *harnessLifecycleService) action(ctx context.Context, target, id, action
 	if err != nil {
 		return harnessLifecycleState{}, err
 	}
-	if action != "check" && action != "install" && action != "update" {
+	if action != "check" && action != "install" && action != "update" && action != "repair" {
 		return harnessLifecycleState{}, errors.New("unknown action")
 	}
 	if !s.acquire(target, id) {
@@ -570,9 +717,13 @@ func refreshHarnessLifecycle(ctx context.Context, m *RemoteMachine, id string) e
 		if err != nil {
 			return err
 		}
-		key, _, err := loomSSHKey()
-		if err != nil {
-			return err
+		key := ""
+		if m.NodeID == "" {
+			var err error
+			key, _, err = loomSSHKey()
+			if err != nil {
+				return err
+			}
 		}
 		agents := []acpAgent{}
 		for _, old := range loadCustomACPAgents() {
@@ -596,7 +747,12 @@ func refreshHarnessLifecycle(ctx context.Context, m *RemoteMachine, id string) e
 		}
 		*m = checked
 		for _, a := range agents {
-			go refreshACPProbe(context.Background(), a)
+			if a.ID != remoteRuntimeID(m.ID, id) {
+				continue
+			}
+			if err := refreshHarnessAgentProbe(ctx, a); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -609,18 +765,42 @@ func refreshHarnessLifecycle(ctx context.Context, m *RemoteMachine, id string) e
 			continue
 		}
 		spec, _ := harnessInspectSpec(id)
-		if a.ID != id && a.Command != spec.Binary {
+		if a.ID != id && a.Command != spec.Binary && !strings.Contains(strings.Join(a.Detect, " "), spec.Binary) {
 			continue
 		}
-		acpProbeMu.Lock()
-		err := putBytes(bkState, acpProbeKey+a.ID, nil)
-		acpProbeMu.Unlock()
-		if err != nil {
+		if err := refreshHarnessAgentProbe(ctx, a); err != nil {
 			return err
 		}
-		go refreshACPProbe(context.Background(), a)
 	}
 	return nil
+}
+
+func refreshHarnessAgentProbe(ctx context.Context, a acpAgent) error {
+	if err := invalidateHarnessAgentObservations(a); err != nil {
+		return err
+	}
+	// Successful probes restore degraded capabilities; real failures remain
+	// visible rather than clearing independent failures without evidence.
+	refreshACPProbe(ctx, a)
+	return nil
+}
+
+func invalidateHarnessAgentObservations(a acpAgent) error {
+	// Force help detection even when a replacement keeps the same size/mtime.
+	nativeProtocolCache.Lock()
+	for key := range nativeProtocolCache.entries {
+		if strings.HasPrefix(key, a.ID+":") {
+			delete(nativeProtocolCache.entries, key)
+		}
+	}
+	nativeProtocolCache.Unlock()
+	acpProbeMu.Lock()
+	err := putBytes(bkState, acpProbeKey+a.ID, nil)
+	if err == nil {
+		err = putBytes(bkState, "agent_compat_"+a.ID, nil)
+	}
+	acpProbeMu.Unlock()
+	return err
 }
 
 func harnessRuntimeMatches(runtimeID, target, id string) bool {
@@ -650,7 +830,7 @@ func harnessDiscussionRunning(target, id string) bool {
 
 func harnessAutoDue(setting harnessLifecycleSetting, state harnessLifecycleState, now time.Time, active bool) bool {
 	return setting.Auto && (setting.CheckedAt == 0 || now.Sub(time.UnixMilli(setting.CheckedAt)) >= harnessAutoInterval) &&
-		state.Installed && state.UpdateAvailable && !active
+		state.Installed && state.CanUpdate && state.UpdateAvailable && !active
 }
 
 // A cycle holds the same pair lock as HTTP across check and update. Settings

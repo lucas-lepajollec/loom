@@ -42,6 +42,10 @@ func windowsRemoteLifecycleCommand(m RemoteMachine, key string, argv []string) [
 		for i, a := range argv {
 			parts[i] = powershellLiteral(a)
 		}
+		if lifecycleGlobalNPM(argv) {
+			script += windowsRemoteNPMPrefixScript(argv)
+			parts = append(parts[:3], append([]string{"'--prefix'", "$loom_npm_prefix"}, parts[3:]...)...)
+		}
 		if i := lifecycleScriptArg(argv); i >= 0 {
 			script += "$loom_installer = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName() + '.ps1')\ntry {\nInvoke-WebRequest -UseBasicParsing -Uri " + powershellLiteral(argv[i]) + " -OutFile $loom_installer\n"
 			parts[i] = "$loom_installer"

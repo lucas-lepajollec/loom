@@ -62,7 +62,20 @@
       "npm",
       "node"
     ],
-    "source": "https://code.claude.com/docs/en/setup"
+    "source": "https://code.claude.com/docs/en/setup",
+    "native_roots": [
+      "~/.local/share/claude/versions/",
+      "~/.claude/local/claude"
+    ],
+    "repair_paths": [
+      "~/.local/share/claude/versions/*"
+    ],
+    "native_update": [
+      "update"
+    ],
+    "brew_names": [
+      "claude-code"
+    ]
   },
   "codex": {
     "binary": "codex",
@@ -122,7 +135,22 @@
       "npm",
       "node"
     ],
-    "source": "https://github.com/openai/codex/blob/main/README.md"
+    "source": "https://github.com/openai/codex/blob/main/README.md",
+    "native_roots": [
+      "~/.codex/packages/standalone/"
+    ],
+    "repair_paths": [
+      "~/.codex/packages/standalone/current/bin/codex",
+      "~/.codex/packages/standalone/releases/*/bin/codex",
+      "~/.codex/packages/standalone/current/bin/codex.exe",
+      "~/.codex/packages/standalone/releases/*/bin/codex.exe"
+    ],
+    "native_update": [
+      "update"
+    ],
+    "brew_names": [
+      "codex"
+    ]
   },
   "pi": {
     "binary": "pi",
@@ -178,7 +206,18 @@
       "npm",
       "node"
     ],
-    "source": "https://github.com/badlogic/pi-mono/blob/v0.60.0/packages/coding-agent/README.md"
+    "source": "https://github.com/badlogic/pi-mono/blob/v0.60.0/packages/coding-agent/README.md",
+    "native_roots": [
+      "~/.pi/bin/"
+    ],
+    "repair_paths": [
+      "~/.pi/bin/pi"
+    ],
+    "native_update": [],
+    "brew_names": [
+      "pi",
+      "pi-coding-agent"
+    ]
   },
   "antigravity": {
     "binary": "agy",
@@ -186,7 +225,10 @@
       "agy",
       "--version"
     ],
-    "update": [],
+    "update": [
+      "agy",
+      "update"
+    ],
     "mcp": {
       "cmd": [
         "agy",
@@ -234,10 +276,28 @@
         "curl"
       ]
     },
-    "update_install": true,
     "source": "https://antigravity.google/docs/cli/install/",
     "skills": [
       "~/.gemini/config/skills"
+    ],
+    "native_roots": [
+      "~/.local/bin/agy",
+      "~/.agy/",
+      "~/.antigravity/",
+      "~/AppData/Local/agy/"
+    ],
+    "repair_paths": [
+      "~/.local/bin/agy",
+      "~/.agy/bin/agy",
+      "~/.antigravity/bin/agy",
+      "~/AppData/Local/agy/bin/agy.exe"
+    ],
+    "native_update": [
+      "update"
+    ],
+    "brew_names": [
+      "antigravity",
+      "agy"
     ]
   },
   "hermes": {
@@ -283,7 +343,22 @@
     "source": "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
     "latest": {
       "github": "NousResearch/hermes-agent"
-    }
+    },
+    "native_roots": [
+      "~/.hermes/",
+      "~/AppData/Local/hermes/"
+    ],
+    "repair_paths": [
+      "~/.hermes/venv/bin/hermes",
+      "~/.hermes/bin/hermes",
+      "~/AppData/Local/hermes/bin/hermes.exe"
+    ],
+    "native_update": [
+      "update"
+    ],
+    "brew_names": [
+      "hermes-agent"
+    ]
   },
   "opencode": {
     "binary": "opencode",
@@ -316,7 +391,21 @@
       "npm",
       "node"
     ],
-    "source": "https://opencode.ai/docs/"
+    "source": "https://opencode.ai/docs/",
+    "native_roots": [
+      "~/.opencode/bin/"
+    ],
+    "repair_paths": [
+      "~/.opencode/bin/opencode",
+      "~/.opencode/bin/opencode.exe"
+    ],
+    "native_update": [
+      "upgrade"
+    ],
+    "brew_names": [
+      "opencode",
+      "opencode-ai"
+    ]
   },
   "openclaw": {
     "binary": "openclaw",
@@ -349,7 +438,10 @@
       "npm",
       "node"
     ],
-    "source": "https://github.com/openclaw/openclaw#readme"
+    "source": "https://github.com/openclaw/openclaw#readme",
+    "brew_names": [
+      "openclaw"
+    ]
   },
   "deepseek-harness": {
     "binary": "dsh",
@@ -382,6 +474,9 @@
       "npm"
     ],
     "unverified": true,
-    "source": "https://github.com/deepseek-ai/deepseek-harness"
+    "source": "https://github.com/deepseek-ai/deepseek-harness",
+    "brew_names": [
+      "dsh"
+    ]
   }
 }

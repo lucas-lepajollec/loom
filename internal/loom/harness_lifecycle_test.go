@@ -181,13 +181,16 @@ func fakeHarnessLifecycle(t *testing.T) (*harnessLifecycleService, *string, *int
 	t.Helper()
 	testHome(t)
 	s := newHarnessLifecycleService()
+	s.installation = func(_ context.Context, _ *RemoteMachine, _ inspectSpec, path string) (harnessInstallation, error) {
+		return harnessInstallation{Channel: "npm", Path: path, Prefix: "/fake"}, nil
+	}
 	version := "codex-cli 1.0.0"
 	updates, refreshes := 0, 0
 	s.run = func(ctx context.Context, m *RemoteMachine, argv []string) (string, error) {
 		if argv[0] == "command" {
 			return "/bin/tool", nil
 		}
-		if reflect.DeepEqual(argv, []string{"codex", "--version"}) {
+		if len(argv) == 2 && argv[1] == "--version" {
 			return version, nil
 		}
 		if reflect.DeepEqual(argv, []string{"npm", "view", "@openai/codex", "version"}) {
