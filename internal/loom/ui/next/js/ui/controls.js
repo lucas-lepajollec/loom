@@ -56,7 +56,17 @@ export function Tip({ text }) {
   };
   const hide = () => { if (tipLayer) render(null, tipLayer); };
   useEffect(() => hide, []);
-  return html`<span class="tip" tabindex="0" ref=${ref} onMouseEnter=${show} onMouseLeave=${hide} onFocus=${show} onBlur=${hide} aria-label=${text}>${t("ui.controls.i")}</span>`;
+  // Au toucher, iOS simule un survol qui laisserait la bulle ouverte : seule la
+  // souris ouvre au survol ; un toucher ouvre, le toucher suivant referme.
+  const enter = e => { if (e.pointerType === 'mouse') show(); };
+  const leave = e => { if (e.pointerType === 'mouse') hide(); };
+  const tap = e => {
+    e.preventDefault(); e.stopPropagation();
+    show();
+    const away = () => { hide(); document.removeEventListener('touchstart', away, true); window.removeEventListener('scroll', away, true); };
+    setTimeout(() => { document.addEventListener('touchstart', away, true); window.addEventListener('scroll', away, true); }, 0);
+  };
+  return html`<span class="tip" tabindex="0" ref=${ref} onPointerEnter=${enter} onPointerLeave=${leave} onClick=${tap} onBlur=${hide} aria-label=${text}>${t("ui.controls.i")}</span>`;
 }
 
 // Popover ancré sous (ou au-dessus de) son déclencheur, fermé par clic extérieur/Échap.

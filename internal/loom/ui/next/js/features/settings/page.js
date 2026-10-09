@@ -502,17 +502,23 @@ function Security() {
     ${secretForm && html`<${SecretDialog} key=${secretForm.action} title=${secretForm.title} tip=${secretForm.tip} onClose=${() => setSecretForm(null)} onSubmit=${submitSecret} />`}`;
 }
 
+// La version affichée est celle de CE Loom (/api/ping). Quand le moteur tourne
+// sur une autre machine, /api/status et /api/paths sont relayés vers elle : on
+// les étiquette comme tels au lieu de les faire passer pour ceux de Loom.
 function About() {
-  const status = useStore(app, s => s.status);
+  const { status, serverInfo, engineNode } = useStore(app, s => ({ status: s.status, serverInfo: s.serverInfo, engineNode: s.engineNode }));
   const [paths, setPaths] = useState(null);
   useEffect(() => { get('/api/paths').then(setPaths); }, []);
+  const remote = !!engineNode;
+  const engineName = remote && (engineNode.name || engineNode.hostname || (status && status.hostname)) || '';
   return html`
     <${Group} title="${t("settings.page.loom")}">
-      <${Line} label="${t("settings.page.version")}"><span class="mono">${status ? status.version : '—'}</span></${Line}>
+      <${Line} label="${t("settings.page.version")}"><span class="mono">${serverInfo && serverInfo.version || '—'}</span></${Line}>
+      ${remote && status && status.version && html`<${Line} label=${t('settings.about.engine_version', { machine: engineName })} tip=${status.version !== (serverInfo && serverInfo.version) ? t('settings.about.engine_outdated') : ''}><span class="mono">${status.version}</span></${Line}>`}
       <${Line} label=${t('welcome.about.label')}><button class="btn sm" onClick=${openWelcome}>${t('welcome.about.open')}</button></${Line}>
     </${Group}>
     <${LoomUpdates} />
-    ${paths && html`<${Group} title="${t("settings.page.emplacements")}">${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
+    ${paths && html`<${Group} title=${remote ? t('settings.about.engine_paths', { machine: engineName }) : t("settings.page.emplacements")}>${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
 }
 
 // Match the drawer breakpoint; the index does not mount a hidden settings form.
