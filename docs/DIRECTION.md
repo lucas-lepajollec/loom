@@ -235,8 +235,10 @@ releases.
   handshake; node modules `engine`, `harness` (agents over a WebSocket bridge),
   `terminal` (PTY) and `observe` (CPU/RAM/GPU/disk); engine as a service (swap
   queue, background policy, idle unload, named API keys); using a paired
-  machine's engine without copying its key. SSH remains for machines without
-  Loom installed; the address + control-key forms were removed from the UI.
+  machine's engine without copying its key. New machines are added only through
+  Loom Node and a pairing code. Existing SSH machines remain editable until
+  migrated using **Install Loom Node over SSH** or **Pair manually**; SSH is
+  retired from the add flow. One Node daemon per machine advertises its modules.
 
 ### 3b. Engine as a service (accepted 2026-10-08)
 - Clean API use of the local engine by other tools and by Loom's own features

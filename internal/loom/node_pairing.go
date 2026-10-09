@@ -144,11 +144,15 @@ func issueNodePairCode(firstStart bool, now time.Time) (string, error) {
 			code = ""
 			return nil
 		}
-		hash := sha256.Sum256([]byte(normalizePairCode(code)))
-		s.Hash, s.Expires, s.Attempts, s.Started = hash[:], now.Add(pairCodeLifetime).UnixMilli(), 0, true
+		setNodePairCode(s, code, now)
 		return nil
 	})
 	return code, err
+}
+
+func setNodePairCode(s *nodePairState, code string, now time.Time) {
+	hash := sha256.Sum256([]byte(normalizePairCode(code)))
+	s.Hash, s.Expires, s.Attempts, s.Started = hash[:], now.Add(pairCodeLifetime).UnixMilli(), 0, true
 }
 
 func printNodePairCode(code string) {

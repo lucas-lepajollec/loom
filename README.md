@@ -47,7 +47,7 @@ for older CLIs and launch-scoped Loom sources. **Antigravity** uses Loom's own
 bridge; **Hermes** and **OpenClaw** use native ACP. [Agent compatibility](docs/agents-compat.md) documents canonical events,
 durable interaction requests and tested protocol versions. **Antigravity** uses
 Loom's ACP bridge to its native CLI. Any other ACP agent can be added with a
-custom launcher. Harnesses can run locally or on connected machines over SSH,
+custom launcher. Harnesses can run locally or on paired Loom Node machines (and existing SSH machines),
 with installation and update controls where the lifecycle catalog supports them.
 
 Installation, native account sign-in and connecting a harness to Loom are separate.
@@ -237,9 +237,28 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and checks, [SUPPORT.md](
 
 Loom is licensed under the [MIT License](LICENSE). Engines, models and other dependencies retain their own licenses and terms.
 
-### GPU machine without another full Loom
+### Add a machine
 
-Run `loom node` on Linux to expose engine management, inference and optional harness and terminal modules, with separate data and a machine credential. `loom node pair` prints a one-time, ten-minute code; the main backend pairs by address/code and discovers LAN nodes over UDP 2512, without SSH or copying tokens (UI integration is separate). Keep discussions and Brain on the main Loom; selected harnesses can execute on a paired node without SSH. `loom node init --no-harness` disables harness execution. Paired terminals use real PTYs without SSH and reuse the existing tickets/reconnect UX; `loom node init --no-terminal` disables that independent module (eight terminals per node). The independent `observe` module provides read-only machine metrics by default (`loom node init --no-observe` disables it). Backend metrics APIs cover this machine, paired nodes and Linux SSH machines, with a concurrent aggregate for ten-second polling; UI integration is separate. Starting with v0.1.4, use the same release installer with `sh -s -- --node`; it creates a separate user service and binary. See [Engine node](docs/engine-node.md) for pairing, installation, control coverage and updates. The main interface now defaults to port **2510**; explicit `loom web PORT` values remain supported.
+Open **Machines › Add a machine**, install **Loom Node** on the other Linux
+machine, then enter the address and pairing code it shows:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh -s -- --node --listen lan
+```
+
+The installer creates a user service without sudo, selects a private LAN address
+on port **2511**, and prints a single-use code valid for ten minutes. Loom can
+also find nodes on the local network. The paired machine page displays its
+engine, harness, terminal and observe modules; discussions and Brain stay on
+the main Loom. macOS and Windows nodes are not available yet.
+
+Existing SSH machines remain editable and offer **Install Loom Node over SSH**
+or **Pair manually**. Migration preserves the same machine, folders, agent
+choices and terminal history. Cards indicate available node updates; use
+**Update node** at the top-right of the machine page. Updates follow the main
+Loom's release channel and restart the node user service. To change its listener
+later, run `~/.local/lib/loom-node/loom node listen lan|ADDR:PORT|local` with one
+of those values. See [Loom Node](docs/engine-node.md) for technical details.
 
 The [control plane audit](docs/control-plane-audit.md) records the security,
 performance and architecture review, its regression gates and operational limits.

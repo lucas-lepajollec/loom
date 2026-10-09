@@ -526,7 +526,7 @@ func handleEngineNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cloned := r.Clone(r.Context())
-	cloned.URL.Path, cloned.URL.RawPath = path, ""
+	cloned.URL.Path, cloned.URL.RawPath, cloned.URL.RawQuery = path, "", "channel="+updateChannel()
 	proxyEngineNode(w, cloned, n)
 }
 

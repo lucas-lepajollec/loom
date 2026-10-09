@@ -14,7 +14,7 @@ export async function waitForUpdatedVersion(version, read = get, pause = ms => n
   return false;
 }
 
-export function LoomUpdates({ node = false, endpoint = '' } = {}) {
+export function LoomUpdates({ node = false, endpoint = '', compact = false } = {}) {
  const base = endpoint || (node ? '/api/engine/node/update' : '/api/update');
   const [info, setInfo] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -23,7 +23,7 @@ export function LoomUpdates({ node = false, endpoint = '' } = {}) {
   const running = useRef(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
-  useEffect(() => { if (!node) check(); }, []);
+  useEffect(() => { alive.current = true; check(); }, [base]);
   const check = async () => {
     if (running.current) return;
     running.current = true; setBusy(true); setError(''); setMessage('');
@@ -60,6 +60,10 @@ export function LoomUpdates({ node = false, endpoint = '' } = {}) {
       await check();
     } catch (err) { setError(err.message); }
   };
+  if (compact) return html`<div><button class="btn sm primary" disabled=${busy || (!!info && (!info.available || !info.can_apply))} onClick=${() => info?.available ? install() : check()}>${t('machines.node.update')} ${info?.current || ''}</button>
+    ${info?.available && html`<span class="tag">${info.latest}</span>`}
+    ${message && html`<p class="set-note" role="status">${message}</p>`}${error && html`<p class="set-note" role="alert">${error}</p>`}
+    ${info?.available && !info.can_apply && html`<p class="set-note">${info.apply_reason}</p>`}</div>`;
   return html`<${Group} title=${t(node ? 'node.updates' : 'settings.page.mises_a_jour')}>
     ${!node && html`<${Line} label=${t('updates.channel')} tip=${t('updates.channel_tip')}><${Seg} size="sm" label=${t('updates.channel')} value=${info?.channel || 'stable'} onChange=${setChannel} options=${[{ value: 'stable', label: t('updates.stable'), disabled: busy }, { value: 'edge', label: t('updates.edge'), disabled: busy }]} /></${Line}>`}
     <${Line} label=${t('updates.source')}><a href="https://github.com/lucas-lepajollec/loom/releases" target="_blank" rel="noopener noreferrer">${t('updates.releases')}</a></${Line}>

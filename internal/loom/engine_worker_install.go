@@ -91,5 +91,5 @@ func handleNodeNetwork(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodGet) {
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "managed": true, "status": map[string]any{"host": webBound.host, "port": webBound.port, "exposed": !localLoopbackHost(webBound.host), "url": "http://" + r.Host + "/v1", "hint": "Configure the node listener with loom node install --listen HOST:PORT; restart loom-node to apply."}})
+	sendJSON(w, 200, map[string]any{"ok": true, "managed": true, "status": map[string]any{"host": webBound.host, "port": webBound.port, "exposed": !localLoopbackHost(webBound.host), "url": "http://" + r.Host + "/v1", "hint": "Change the listener with loom node listen lan|ADDR:PORT|local."}})
 }

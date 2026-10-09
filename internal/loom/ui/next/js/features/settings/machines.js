@@ -1,9 +1,9 @@
 import { t } from '../../core/i18n.js';
 // Réglages › Machines : l'endroit unique pour connecter une machine et gérer ce
-// qui s'y trouve. Cette machine et chaque machine connectée en SSH ont leur
+// qui s'y trouve. Cette machine et chaque machine appairée ont leur
 // page : moteur, harnesses (installer, mettre à jour, ajouter à Loom),
 // dossiers de travail favoris, dossiers de modèles, terminaux.
-import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
+import { html, useState, useRef, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
 import { Empty, Tip, Switch } from '../../ui/controls.js';
@@ -11,6 +11,7 @@ import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace, refreshEngineNode, refreshStatus, refreshLibrary } from '../../core/state.js';
+import { copyText } from '../../ui/clipboard.js';
 import { MachineDialog } from '../harnesses/machines.js';
 import { Lifecycle } from '../harnesses/lifecycle.js';
 import { openTerminalWith } from '../terminals/page.js';
@@ -27,44 +28,97 @@ export const MachinesLink = ({ label }) => html`<a class="btn sm ghost" href="#/
 
 // Appairage : sur la machine, `loom node pair` affiche un code à usage unique ;
 // ici on donne son adresse (ou on la choisit parmi celles trouvées) et le code.
+const NODE_INSTALL = 'curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh -s -- --node --listen lan';
+const nodeAddress = m => (m.host.includes(':') ? '[' + m.host.replace(/^\[|\]$/g, '') + ']' : m.host) + ':2511';
+
 function PairDialog({ start, onClose }) {
-  const [v, setV] = useState({ address: (start && start.address) || '', code: '' });
+  const [v, setV] = useState({ address: start?.address || '', code: '' });
+  const [step, setStep] = useState(start?.address ? 2 : 1);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const fmt = c => { const x = c.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 8); return x.length > 4 ? x.slice(0, 4) + '-' + x.slice(4) : x; };
   const pair = async force => {
-    setBusy(true);
-    const r = await post('/api/machines/pair', { address: v.address.trim(), code: v.code.replace('-', ''), ...(force ? { force: true } : {}) }, { timeout: 30000 }).catch(e => ({ ok: false, error: e.message }));
+    setBusy(true); setError('');
+    const r = await post('/api/machines/pair', { address: v.address.trim(), code: v.code.replace('-', ''), ...(start?.machine_id ? { machine_id: start.machine_id } : {}), ...(force ? { force: true } : {}) }, { timeout: 30000, retryAuth: false }).catch(e => ({ ok: false, error: e.message }));
     setBusy(false);
     if (!r.ok && r.error_code === 'already_paired' && !force) {
       if (await confirm(t('machines.pair.already_title'), r.error + '. ' + t('machines.pair.already_text'), { ok: t('machines.pair.already_ok') })) return pair(true);
       return;
     }
-    if (!r.ok) return toast(r.error || t('machines.pair.failed'), 'err');
-    toast(t('machines.pair.done', { name: (r.machine && r.machine.name) || v.address })); await refreshEngineNode(); refreshWorkspace(); onClose(r.machine || true);
+    if (!r.ok) { setError(r.error || t('machines.pair.failed')); return; }
+    setResult(r.machine); setStep(3); await refreshEngineNode(); refreshWorkspace();
   };
-  return html`<${Modal} title=${start && start.name ? t('machines.pair.title_named', { name: start.name }) : t('machines.pair.title')} sub=${t('machines.pair.sub')} onClose=${busy ? undefined : () => onClose()}
-      foot=${html`<button class="btn ghost" disabled=${busy} onClick=${() => onClose()}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !v.address.trim() || v.code.replace('-', '').length !== 8} onClick=${() => pair(false)}>${busy ? t('settings.machines.verification') : t('machines.pair.ok')}</button>`}>
-    <div class="ws-form">
-      <div class="pair-how"><span class="mono">loom node pair</span><span>${t('machines.pair.how')}</span></div>
-      <label class="field"><span>${t('machines.pair.address')}</span><input class="input mono" value=${v.address} placeholder="192.168.1.20:2511" onInput=${e => setV({ ...v, address: e.target.value })} /></label>
-      <label class="field"><span>${t('machines.pair.code')}</span><input class="input mono pair-code" value=${v.code} placeholder="K7QM-4XPA" autocomplete="one-time-code" onInput=${e => setV({ ...v, code: fmt(e.target.value) })} /></label>
-      <p class="note">${t('machines.pair.lan_note')}</p>
-    </div></${Modal}>`;
+  const title = t(step === 1 ? 'machines.add.install' : step === 2 ? 'machines.add.code' : 'machines.add.done');
+  return html`<${Modal} title=${t('machines.add.title')} sub=${step + ' / 3 · ' + title} onClose=${busy ? undefined : () => onClose(result)}
+      foot=${step === 3 ? html`<button class="btn primary" onClick=${() => onClose(result)}>${t('machines.add.open')}</button>` : html`<button class="btn ghost" disabled=${busy} onClick=${() => onClose()}>${t('ui.dialog.annuler')}</button>
+        ${step === 2 && html`<button class="btn ghost" disabled=${busy} onClick=${() => setStep(1)}>${t('machines.add.back')}</button>`}
+        <button class="btn primary" disabled=${busy || (step === 2 && (!v.address.trim() || v.code.replace('-', '').length !== 8))} onClick=${() => step === 1 ? setStep(2) : pair(false)}>${busy ? t('settings.machines.verification') : t(step === 1 ? 'machines.add.next' : 'machines.pair.ok')}</button>`}>
+    <div class="mx-steps"><div class="mx-step"><span class="mx-n">${step}</span><div class="mx-body"><b>${title}</b>
+      ${step === 1 ? html`<p class="note">${t('machines.add.linux')}</p><div class="mx-code"><pre>${NODE_INSTALL}</pre><button class="btn sm" onClick=${async () => { const ok = await copyText(NODE_INSTALL); toast(t(ok ? 'harnesses.machines.bloc_copie' : 'harnesses.machines.copie_refusee_selectionne_le_texte'), ok ? '' : 'err'); }}><${Icon} n="copy" />${t('harnesses.machines.copier')}</button></div><p class="note">${t('machines.add.installs')}</p>`
+      : step === 2 ? html`<${Discovered} onPair=${n => setV(old => ({ ...old, address: n.address }))} />
+        <label class="field"><span>${t('machines.pair.address')}</span><input class="input mono" value=${v.address} placeholder="192.168.1.20:2511" onInput=${e => setV({ ...v, address: e.target.value })} /></label>
+        <label class="field"><span>${t('machines.pair.code')}</span><input class="input mono pair-code" value=${v.code} placeholder="K7QM-4XPA" autocomplete="one-time-code" onInput=${e => setV({ ...v, code: fmt(e.target.value) })} /></label>
+        <p class="note">${t('machines.pair.lan_note')}</p><p class="note">${t('machines.add.fresh')}</p>`
+      : html`<p>${result?.name}</p><${NodeModules} modules=${result?.modules} />`}
+      ${error && html`<p class="note err" role="alert">${error}</p>`}
+    </div></div></div></${Modal}>`;
+}
+
+function NodeModules({ modules = [] }) {
+  return html`<div class="mx-offers">${['engine', 'harness', 'terminal', 'observe'].map(id => html`<div class="mx-offer" key=${id}><span class="grow">${t(({ engine: 'machines.module.engine', harness: 'machines.module.harness', terminal: 'machines.module.terminal', observe: 'machines.module.observe' })[id])}</span><span class="state">${t(modules.includes(id) ? 'machines.module.enabled' : 'machines.module.disabled')}</span></div>`)}</div>`;
+}
+
+function MachineMigration({ m, onChange, compact = false }) {
+  const [busy, setBusy] = useState(false), [phase, setPhase] = useState(''), [error, setError] = useState(''), [pairing, setPairing] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const migrate = async e => {
+    e?.preventDefault(); e?.stopPropagation();
+    if (busy) return;
+    setBusy(true); setPhase('installing'); setError('');
+    const base = '/api/machines/' + encodeURIComponent(m.id) + '/node/migrate';
+    const timer = setInterval(() => get(base).then(r => { if (alive.current && r.phase) setPhase(r.phase); }).catch(() => {}), 1500);
+    try {
+      const r = await post(base, {}, { timeout: 16 * 60 * 1000 });
+      if (!r.ok) throw new Error(r.error || t('machines.pair.failed'));
+      await refreshEngineNode(); await refreshWorkspace(); onChange();
+    } catch (e) { if (alive.current) setError(e.message); }
+    finally { clearInterval(timer); if (alive.current) { setBusy(false); setPhase(''); } }
+  };
+  return html`<div class=${compact ? 'mcard-a' : 'card pad'}>
+    <span class="state">${t('machines.migrate.old')}</span>
+    <button class="btn sm primary" disabled=${busy} onClick=${migrate}>${t('machines.migrate.install')}</button>
+    <button class="btn sm ghost" disabled=${busy} onClick=${e => { e.preventDefault(); e.stopPropagation(); setPairing(true); }}>${t('machines.migrate.manual')}</button>
+    ${phase && html`<span role="status">${t(phase === 'pairing' ? 'machines.migrate.pairing' : 'machines.migrate.installing')}</span>`}${error && html`<p class="note err" role="alert">${error}</p>`}
+    ${pairing && html`<${PairDialog} start=${{ address: nodeAddress(m), name: m.name, machine_id: m.id }} onClose=${ok => { setPairing(false); if (ok) onChange(); }} />`}
+  </div>`;
+}
+
+function NodeUpdateBadge({ m }) {
+  const [info, setInfo] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    get('/api/machines/' + encodeURIComponent(m.id) + '/node/update').then(r => { if (alive && !r.error) setInfo(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [m.id]);
+  return info?.available ? html`<span class="tag">${t('machines.node.update_available', { version: info.latest })}</span>` : null;
 }
 
 // Les nœuds Loom du réseau local qui répondent à la recherche (sans secret).
 function Discovered({ onPair }) {
   const [nodes, setNodes] = useState(null);
   const [busy, setBusy] = useState(false);
-  const scan = async () => { setBusy(true); const r = await get('/api/machines/discover', { timeout: 8000 }).catch(() => null); setBusy(false); setNodes(r && r.nodes ? r.nodes : []); };
-  useEffect(() => { scan(); }, []);
+  const scan = async () => { if (scanning.current) return; scanning.current = true; setBusy(true); const r = await get('/api/machines/discover', { timeout: 8000 }).catch(() => null); scanning.current = false; if (alive.current) { setBusy(false); setNodes(r?.nodes || []); } };
+  const scanning = useRef(false), alive = useRef(true);
+  useEffect(() => { alive.current = true; scan(); const timer = setInterval(scan, 10000); return () => { alive.current = false; clearInterval(timer); }; }, []);
   if (nodes === null || (!nodes.length && !busy)) return html`<div class="disc-empty"><button class="btn sm ghost" disabled=${busy} onClick=${scan}><${Icon} n="search" />${busy ? t('machines.disc.scanning') : t('machines.disc.scan')}</button></div>`;
   return html`<section class="sec"><div class="sec-h"><h2>${t('machines.disc.title')}<${Tip} text=${t('machines.disc.tip')} /></h2><span class="grow"></span>
       <button class="icon-btn" disabled=${busy} aria-label=${t('machines.disc.scan')} onClick=${scan}><${Icon} n="refresh" /></button></div>
     <div class="card bs-list">${nodes.map(n => html`<div class="bs-row" key=${n.id}>
       <span class="mono-tile"><${Icon} n="server" /></span>
-      <div class="grow"><div class="bs-name">${n.name}${n.paired && html`<span class="tag">${t('machines.disc.paired_elsewhere')}</span>`}</div><div class="bs-sub"><span class="mono">${n.address}${n.port ? ':' + n.port : ''}</span><span>Loom ${n.version}</span></div></div>
-      <button class="btn sm" onClick=${() => onPair({ address: n.address + (n.port ? ':' + n.port : ''), name: n.name })}>${t('machines.pair.ok')}</button></div>`)}</div>
+      <div class="grow"><div class="bs-name">${n.name}${n.paired && html`<span class="tag">${t('machines.disc.paired_elsewhere')}</span>`}</div><div class="bs-sub"><span class="mono">${n.address}</span><span>Loom ${n.version}</span></div></div>
+      <button class="btn sm" onClick=${() => onPair({ address: n.address, name: n.name })}>${t('machines.pair.ok')}</button></div>`)}</div>
   </section>`;
 }
 
@@ -118,12 +172,12 @@ export function MachinesSettings({ route }) {
       ${dlg && html`<${MachineDialog} machine=${dlg.machine} onClose=${x => { setDlg(null); if (x) load(); }} />`}`;
   }
   // Une carte par machine : ce qui y tourne pour Loom, d'un coup d'œil.
-  const card = (id, name, sub, icon) => {
+  const card = (id, name, sub, icon, machine = null) => {
     const mine = installs.filter(i => i.machine === id && i.installed);
     const used = mine.filter(i => i.enabled).length, managed = mine.filter(i => i.managed).length;
     const terms = terminals.filter(x => x.target === id).length;
-    return html`<a class="mcard" key=${id} href=${'#/machines/' + encodeURIComponent(id)}>
-      <div class="mcard-h"><span class="mx-ico"><${Icon} n=${icon} /></span><span class="grow"><b>${name}</b><small class="mono">${sub}</small></span><${Icon} n="right" /></div>
+    return html`<div class="mcard" key=${id}>
+      <a class="mcard-h" href=${'#/machines/' + encodeURIComponent(id)}><span class="mx-ico"><${Icon} n=${icon} /></span><span class="grow"><b>${name}</b><small class="mono">${sub}</small></span><${Icon} n="right" /></a>
       <${Meters} m=${metrics[id]} />
       <div class="mcard-s">
         <div><span>${t('app.groups.agents')}</span><b>${mine.length ? t('machines.card.agents', { used, managed }) : '—'}</b></div>
@@ -131,18 +185,19 @@ export function MachinesSettings({ route }) {
         <div><span>${t('app.routes.terminaux')}</span><b>${terms || '—'}</b></div>
       </div>
       ${mine.length > 0 && html`<div class="mcard-a">${mine.map(i => html`<span class=${'mcard-chip' + (i.enabled ? ' on' : '')} key=${i.harness} title=${i.name}><${Logo} name=${i.logo || i.harness} size="sm" /></span>`)}</div>`}
-    </a>`;
+      ${machine?.user && html`<${MachineMigration} m=${machine} onChange=${load} compact=${true} />`}
+      ${machine?.node_id && html`<${NodeUpdateBadge} m=${machine} />`}
+    </div>`;
   };
   return html`
     <div class="mcards">
       ${card('local', (local && local.hostname) || t("settings.machines.cette_machine_2"), t("settings.machines.cette_machine") + (local ? ' · ' + local.os : ''), 'chip')}
-      ${data.machines.map(m => card(m.id, m.name, where(m), 'server'))}
-      <button type="button" class="mcard add" onClick=${() => setPair({})}><${Icon} n="key" /><span>${t('machines.pair.card')}</span><small>${t('machines.pair.card_note')}</small></button>
-      <button type="button" class="mcard add" onClick=${() => setDlg({})}><${Icon} n="plus" /><span>${t("settings.machines.connecter_une_machine")}</span><small>${t('machines.ssh.card_note')}</small></button>
+      ${data.machines.map(m => card(m.id, m.name, where(m), 'server', m))}
+      <button type="button" class="mcard add" onClick=${() => setPair({})}><${Icon} n="plus" /><span>${t('machines.add.title')}</span><small>${t('machines.add.note')}</small></button>
     </div>
-    <${Discovered} onPair=${setPair} />
+    ${!pair && html`<${Discovered} onPair=${setPair} />`}
     ${pair && html`<${PairDialog} start=${pair} onClose=${x => { setPair(null); if (x) { load(); if (x.id) go('machines', x.id); } }} />`}
-    ${dlg && html`<${MachineDialog} machine=${null} onClose=${x => { setDlg(null); if (x) { load(); go('machines', x.id); } }} />`}`;
+`;
 }
 
 function MachineDetail({ m, local, offers, onChange, onEdit }) {
@@ -160,16 +215,19 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
       <div class="mc-title"><span class="mx-ico"><${Icon} n=${isLocal ? 'chip' : 'server'} /></span><div><h2>${name}${!isLocal && html` <span class=${'pill ' + (m.user ? '' : 'green')} title=${m.user ? t('machines.ssh.card_note') : t('machines.pair.card_note')}>${m.user ? t('machines.link.ssh') : t('machines.link.paired')}</span>`}</h2>
         <p class="mono">${isLocal ? (local ? local.user + ' · ' + home(local.home) + ' · ' + local.os : '') : where(m) + (m.home ? ' · ' + m.home : '')}</p></div>
         <span class="grow"></span>
+        ${m?.node_id && html`<${LoomUpdates} key=${m.node_id} node=${true} compact=${true} endpoint=${'/api/machines/' + encodeURIComponent(m.id) + '/node/update'} />`}
         ${(isLocal || m.user || (m.modules || []).includes('terminal')) && html`<button class="btn sm" onClick=${() => openTerminalWith({ target, dir: isLocal ? '' : m.home || '', title: name })}><${Icon} n="prompt" />${t("settings.machines.terminal")}</button>`}
-        ${!isLocal && html`<button class="btn sm ghost" onClick=${onEdit}>${t("settings.machines.modifier")}</button><button class="icon-btn" aria-label=${t("settings.machines.retirer") + m.name} onClick=${remove}><${Icon} n="trash" /></button>`}</div></div>
+        ${!isLocal && html`${m.user && html`<button class="btn sm ghost" onClick=${onEdit}>${t("settings.machines.modifier")}</button>`}<button class="icon-btn" aria-label=${t("settings.machines.retirer") + m.name} onClick=${remove}><${Icon} n="trash" /></button>`}</div></div>
+    ${m?.user && html`<${MachineMigration} m=${m} onChange=${onChange} />`}
+    ${m?.node_id && html`<${NodeModules} modules=${m.modules} />`}
     <${HarnessesSection} m=${m} onChange=${onChange} />
-    <${EngineSection} m=${m} />
+    <${EngineSection} m=${m} onChange=${onChange} />
     <${FoldersSection} target=${target} m=${m} />
     <${TerminalsSection} target=${target} name=${name} m=${m} />`;
 }
 
 // Moteur : sur cette machine, ou le Loom d'une machine distante lié comme moteur.
-function EngineSection({ m }) {
+function EngineSection({ m, onChange }) {
   const node = useStore(app, a => a.engineNode);
   const [direct, setDirect] = useState(false);
   const [pairing, setPairing] = useState(false);
@@ -194,15 +252,15 @@ function EngineSection({ m }) {
       : owns ? html`<${Line} label="${t("settings.machines.moteur_de_loom")}"><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? t("settings.machines.serveur") + node.kind + t("settings.machines.utilise_par_loom") : t("settings.machines.moteur_utilise_par_loom")}</span><a class="btn sm ghost" href="#/engine">${t("settings.machines.reglages_du_moteur")}</a><button class="btn sm ghost" onClick=${unlink}>${t("settings.machines.ne_plus_l_utiliser")}</button></${Line}>`
       : html`<${Line} label="${t("settings.machines.moteur_de_loom")}" tip="${t("settings.machines.si_cette_machine_a_une_carte_graphique_et_loom_installe_loom_peut")}">
           ${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.machines.lier_son_serveur_llama_cpp_vllm")}</button>${paired ? html`<button class="btn sm ghost" disabled=${busy} onClick=${useEngine}>${t('machines.node.use_engine')}</button>` : html`<button class="btn sm ghost" onClick=${() => setPairing(true)}>${t("settings.machines.utiliser_le_loom_de_cette_machine")}</button>`}`}</${Line}>
-        ${pairing && html`<${PairDialog} start=${{ address: m.host + ':2511', name: m.name }} onClose=${() => setPairing(false)} />`}
+        ${pairing && html`<${PairDialog} start=${{ address: nodeAddress(m), name: m.name, machine_id: m.id }} onClose=${ok => { setPairing(false); if (ok) onChange?.(); }} />`}
         ${direct && html`<${DirectEngineForm} start=${'http://' + m.host + ':8080'} onDone=${() => setDirect(false)} />`}
 `}
   </${Group}>
   ${owns && !(node && node.direct) && html`<${ModelDirs} />`}
-  ${m && html`<${MachineNodeMaintenance} key=${m.id} m=${m} />`}`;
+  ${m && html`<${MachineNodeMaintenance} key=${m.node_id || m.id} m=${m} onChange=${onChange} />`}`;
 }
 
-function MachineNodeMaintenance({ m }) {
+function MachineNodeMaintenance({ m, onChange }) {
   const base = '/api/machines/' + encodeURIComponent(m.id) + '/node';
   const [info, setInfo] = useState(null), [pairing, setPairing] = useState(false);
   const load = () => get(base).then(r => { if (r.ok) setInfo(r); }).catch(() => {});
@@ -213,8 +271,8 @@ function MachineNodeMaintenance({ m }) {
       ${info?.linked ? html`<span class="mono">${info.url}</span>` : html`<span class="muted">${t('machines.node.not_paired')}</span>`}
       <button class="btn sm ghost" onClick=${() => setPairing(true)}>${info?.linked ? t('machines.node.repair') : t('machines.pair.ok')}</button>
     </${Line}>
-    ${pairing && html`<${PairDialog} start=${{ address: (info?.url || m.host + ':2511').replace(/^https?:\/\//, ''), name: m.name }} onClose=${ok => { setPairing(false); if (ok) load(); }} />`}
-  </${Group}>${info?.linked && html`<${LoomUpdates} key=${info.url} node=${true} endpoint=${base + '/update'} />`}`;
+    ${pairing && html`<${PairDialog} start=${{ address: (info?.url || nodeAddress(m)).replace(/^https?:\/\//, ''), name: m.name, machine_id: m.id }} onClose=${ok => { setPairing(false); if (ok) { load(); onChange?.(); } }} />`}
+  </${Group}>`;
 }
 
 // Agents détectés sur cette machine : deux choix seulement ici. « Gérer »

@@ -1,4 +1,38 @@
-# Engine node (Linux)
+# Add a machine with Loom Node
+
+1. In Loom, open **Machines › Add a machine**. On the other Linux machine,
+   run the copyable command as its normal user:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh -s -- --node --listen lan
+   ```
+
+   This installs one Loom Node user service, without sudo. It installs no
+   engines, models or agents. macOS and Windows nodes are not available yet.
+2. Enter the address and pairing code printed by the installer, or choose the
+   node from Loom's live network discovery list and enter its code. Codes expire
+   after ten minutes and work once. Both machines must be able to reach the
+   selected listener on port **2511**.
+3. Loom opens the paired machine and displays its detected **engine, harness,
+   terminal and observe** modules. Use that page to manage what runs there.
+   Module availability is read-only; the node currently has no module-toggle API.
+
+Existing SSH machines show **Connected over SSH (old method)**. Select
+**Install Loom Node over SSH** to install, start and pair automatically using
+that saved connection. **Pair manually** opens the same code dialog. Migration
+keeps the machine ID, name, favourite folders, agent installation choices and
+terminal history. Existing harness launchers switch to the Node bridge.
+Progress and errors appear in place; a failed migration leaves the SSH record
+intact. The installed remote service may remain running and can be retried.
+Already-open SSH terminals continue using their existing process until closed;
+new terminals use the node's advertised terminal module.
+
+Cards show **Update available** when the node is behind the latest release on
+this main Loom's channel. **Update node** and the running version appear at the
+top-right of its page. A node service update restarts its user service and stops
+its owned engines, agents and terminals; Loom asks before applying it.
+
+## Node runtime
 
 Use **one main Loom** for discussions, Brain, projects, providers and harnesses.
 On a paired machine, `loom node` serves engine management, inference and
@@ -83,7 +117,17 @@ root. `init` refuses an existing full Loom configuration. Repeating `init` keeps
 credentials and configuration. It creates only engine directories and state;
 there are no memory, conversation or workspace directories.
 
-The node listens on **127.0.0.1:2511** by default. Both its protected control API
+Without an explicit listener, a **non-TTY** installer defaults to
+**127.0.0.1:2511** (or preserves an existing saved listener). On a TTY it asks:
+“Make this node reachable from your other machines on the local network? [Y/n]”.
+Accepting, or passing `--listen lan`, selects the primary private IPv4 address
+from `ip route get 1.1.1.1`, then falls back to `hostname -I`. Only RFC1918 and
+CGNAT/Tailscale **100.64.0.0/10** addresses are selected automatically; no public
+or wildcard address is selected. No private address means an explicit error.
+`--listen local` selects loopback; `--listen ADDR:PORT` selects an explicit
+listener. Each choice persists across reinstallations.
+
+A foreground `loom node serve` defaults to **127.0.0.1:2511** unless configured. Both its protected control API
 and `/v1` use this listener. The internal llama.cpp OpenAI front defaults to
 loopback 2512 (native backend 12512). Existing explicit engine configuration is
 retained. No engine/model starts just because the node listener starts.
@@ -97,6 +141,25 @@ loom node serve --listen 192.168.1.20:2511
 Use a VPN, SSH tunnel or HTTPS reverse proxy outside a trusted private network.
 Tokens over plain HTTP are visible to that network. The client refuses public
 plain-HTTP links. The node does not change firewall rules.
+
+### Change the listener later
+
+Use the installed node binary (and `--home DIR` for a custom data root):
+
+```sh
+~/.local/lib/loom-node/loom node listen lan
+~/.local/lib/loom-node/loom node listen 192.168.1.20:2511
+~/.local/lib/loom-node/loom node listen local
+```
+
+This rewrites the existing user unit, persists the listener and restarts
+`loom-node.service`. A failed listener change restores the previous unit and
+listener. No sudo or firewall changes are performed.
+
+After a started release installation or update, the installer prints the
+address, a fresh pairing code and its UTC expiry. If already paired it prints
+`already paired with <loom>` and creates no new code. `--no-start` and
+`--no-service` do not claim a running node or print a ready-to-pair block.
 
 ## Connect the main Loom
 
@@ -118,7 +181,7 @@ window), across source ports and code replacements. Service restarts do not
 print the first-start code again. Keep that short-lived log/code private.
 
 The main Loom backend now supports pairing without SSH or copying a machine
-token. UI integration is separate. Its authenticated, origin-protected
+token. The Machines stepper uses its authenticated backend API. Its authenticated, origin-protected
 `POST /api/machines/pair` accepts:
 
 ```json
@@ -150,8 +213,10 @@ The main stores the credentials in the existing machine maintenance secret
 record, encrypted when the vault is enabled/unlocked, and returns only
 `{"ok":true,"machine":{…}}`. The machine includes `node_id`, `modules` and
 `handshake`, with its usual ID/name/host fields. A new entry uses the node's name;
-an existing matching machine retains its SSH configuration, harnesses and
-folders. Pairing does not change the active inference engine.
+an existing matching machine retains its ID, name, harness choices and
+folders while switching SSH launchers to the Node bridge. For manual migration,
+include `"machine_id":"existing-id"` in the pairing request: it selects that
+record even when the new node listener differs from the old SSH host. Pairing does not change the active inference engine.
 
 Errors use `{"ok":false,"error_code":"…","error":"…"}`: `502 unreachable`,
 `401 invalid_code` (invalid/expired/consumed), `429 rate_limited`,
@@ -188,7 +253,7 @@ address explicitly when using TLS.
 The existing **Connect its Loom node** address + token flow remains available.
 The token is in `node.token` under the node's data root; retrieve it privately
 on that machine, never put it in a URL, public configuration or shared log.
-SSH registration and node linking are independent: both can offer harnesses;
+Existing SSH machines remain editable while awaiting migration;
 the terminal module also opens real PTYs without SSH.
 
 All other management routes, including ping/info, require
@@ -375,7 +440,7 @@ Individual failures return HTTP 502 with `{"error":"…"}`. Aggregate collection
 runs concurrently, with five-second remote deadlines and a six-second overall
 collection deadline; failures remain beside successful samples. Remote and
 aggregate requests require an unlocked vault when encrypted. No observation
-starts inference, installs tools, signs in or exports context. UI is separate.
+starts inference, installs tools, signs in or exports context. The Machines page polls these observations.
 
 ## Optional user service
 
@@ -406,8 +471,8 @@ For updates, select a release that retains node support; the updater checks the
 verified binary’s `node capabilities` before replacing the current executable.
 
 Stop the service before replacing its binary manually or backing up its state.
-Node application updates are available in the main Loom under Settings →
-Machines → the connected node → Engine node updates. They use official release
+Node application updates are available from **Update node** at the top-right
+of its Machines page. They use official release
 assets, checksum/size verification and a retained rollback binary, just like
 Loom's update flow. Only the node binary is replaced; the main Loom's version and
 service stay independent. Confirmation warns that restarting `loom-node` stops
@@ -479,13 +544,12 @@ removing old services.
 
 ## Maintenance for each connected machine
 
-Pairing saves the same maintenance link used by the **Machines** page. As a
-fallback, open a machine and configure its engine-node address and management
-token under **Engine node management**. The same page can check and
+Pairing saves the same maintenance link used by the **Machines** page.
+Use **Pair again** to repair the link with a fresh pairing code. The same page can check and
 apply a Loom release for that node even when a different engine serves current
 discussions. Linking an engine through a matching machine address remembers its
 maintenance access automatically. The token is stored with local secrets,
-never returned in machine JSON or saved in browser storage. Removing the SSH
+never returned in machine JSON or saved in browser storage. Removing the
 machine removes its saved maintenance credential; it does not uninstall the
 remote node or remove its data.
 
@@ -529,3 +593,26 @@ startup are rejected. Direct inference links have no lifecycle/startup endpoint.
 These settings do not create arbitrary service units or deploy a node. Older
 nodes need an update before exposing their engine policy. Unit and real boot
 behavior require acceptance on the actual target machine.
+
+## SSH migration API
+
+- `POST /api/machines/{id}/node/migrate` explicitly installs the official release
+  on an existing Linux SSH machine using its saved user, host, port and SSH key.
+  It starts the node, obtains a fresh code privately over SSH and pairs without
+  forcing another main's association. The request has a fifteen-minute deadline.
+- `GET /api/machines/{id}/node/migrate` returns the current `phase`:
+  `installing`, `pairing`, or an empty string when no request is active. Both
+  routes require main Loom authentication and an unlocked vault when enabled.
+- A successful POST returns `{ok:true,machine:{…}}`; failures return
+  `{ok:false,error:"…"}`. Pairing codes and node credentials never reach the UI.
+  Contending migrations receive 409. Unsupported existing custom launchers or
+  missing harness-module support reject the merge before changing any record.
+- Machine JSON, protected maintenance credentials and replacement harness
+  launchers commit in one store transaction, with retries on concurrent edits.
+  Installation choices and terminal history retain their original machine ID.
+  If pairing succeeded but the local save failed, run the migration again or
+  generate a fresh code on the node and pair manually.
+- `GET /api/machines/{id}/node/update` and its `/apply` route forward the main's
+  release channel per request. They leave the node's saved channel unchanged.
+  Release updates atomically replace `~/.local/lib/loom-node/loom`, preserve
+  `loom.previous`, verify checksums/node capability, and restart the user service.

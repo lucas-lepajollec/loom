@@ -29,10 +29,12 @@ type updateInfo struct {
 
 // checkForUpdate interroge GitHub et compare à la version courante. Réutilisé
 // par `loom update` (CLI) et par l'endpoint web /api/update.
-func checkForUpdate() (updateInfo, error) {
+func checkForUpdate() (updateInfo, error) { return checkForUpdateChannel(updateChannel()) }
+
+func checkForUpdateChannel(channel string) (updateInfo, error) {
 	can, reason := updateCapability()
-	info := updateInfo{Current: Version, CanApply: can, ApplyReason: reason, Channel: updateChannel()}
-	rel, err := fetchLatestRelease()
+	info := updateInfo{Current: Version, CanApply: can, ApplyReason: reason, Channel: channel}
+	rel, err := platform.FetchRelease(channel)
 	if err != nil {
 		return info, err
 	}
@@ -55,6 +57,10 @@ var loomInstalledUpdate string // guarded by loomUpdateMu, until this process re
 func applyUpdate() (string, error) { return applyUpdateVersion("") }
 
 func applyUpdateVersion(expected string) (string, error) {
+	return applyUpdateChannel(expected, updateChannel())
+}
+
+func applyUpdateChannel(expected, channel string) (string, error) {
 	if !loomUpdateMu.TryLock() {
 		return "", fmt.Errorf("an update is already running")
 	}
@@ -68,7 +74,7 @@ func applyUpdateVersion(expected string) (string, error) {
 	}
 	if err := checkUpdateWritable(exe); err != nil {
 		if !isEngineWorker() && canUseSystemUpdater(exe) {
-			version, err := runSystemUpdater(expected, updateChannel())
+			version, err := runSystemUpdater(expected, channel)
 			if err == nil {
 				loomInstalledUpdate = version
 			}
@@ -76,7 +82,7 @@ func applyUpdateVersion(expected string) (string, error) {
 		}
 		return "", err
 	}
-	rel, err := fetchLatestRelease()
+	rel, err := platform.FetchRelease(channel)
 	if err != nil {
 		return "", fmt.Errorf("could not contact GitHub: %w", err)
 	}
@@ -90,7 +96,7 @@ func applyUpdateVersion(expected string) (string, error) {
 	return version, err
 }
 
-func updateExecutable() (string, error) {
+var updateExecutable = func() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", err
@@ -228,7 +234,13 @@ func cmdUpdate(args []string) error {
 		return err
 	}
 	fmt.Printf("✓ loom updated to %s\n", newVer)
-	printRestartHint()
+	if isEngineWorker() {
+		if out, err := exec.Command("systemctl", "--user", "restart", "loom-node").CombinedOutput(); err != nil {
+			return fmt.Errorf("node updated; restart failed: %w: %s", err, strings.TrimSpace(string(out)))
+		}
+	} else {
+		printRestartHint()
+	}
 	return nil
 }
 
@@ -237,7 +249,7 @@ func handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodGet) {
 		return
 	}
-	info, err := checkForUpdate()
+	info, err := checkForUpdateChannel(requestUpdateChannel(r))
 	if err != nil {
 		sendJSON(w, 502, map[string]any{"current": Version, "available": false, "channel": info.Channel, "error": "Could not check GitHub releases: " + err.Error()})
 		return
@@ -260,7 +272,7 @@ func handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Recheck that the release shown to the user is still available.
-	info, err := checkForUpdate()
+	info, err := checkForUpdateChannel(requestUpdateChannel(r))
 	if err != nil {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -269,7 +281,7 @@ func handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 409, map[string]any{"ok": false, "error": "Release changed or already installed; check again before updating."})
 		return
 	}
-	newVer, err := applyUpdateVersion(req.Version)
+	newVer, err := applyUpdateChannel(req.Version, requestUpdateChannel(r))
 	if err != nil {
 		// 500 : un client script peut tester le statut HTTP ; l'UI, elle, lit le JSON.
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
@@ -382,4 +394,15 @@ func handleUpdateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "channel": req.Channel})
+}
+
+// A paired main selects its own release channel for node checks and installs.
+// Only the node machine API accepts this per-request override; no saved setting changes.
+func requestUpdateChannel(r *http.Request) string {
+	if isEngineWorker() {
+		if channel := r.URL.Query().Get("channel"); channel == platform.ChannelStable || channel == platform.ChannelEdge {
+			return channel
+		}
+	}
+	return updateChannel()
 }
