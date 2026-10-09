@@ -1,4 +1,4 @@
-.PHONY: default help build api web dev test check-ui agents-watch clean
+.PHONY: default help build api web dev test check-ui check-ui-routes agents-watch clean
 
 DEV_HOME ?= $(CURDIR)/.project-local/runtime
 DEV_HOST ?= 127.0.0.1
@@ -45,6 +45,10 @@ test:
 check-ui:
 	@tmp=$$(mktemp -d); for f in $$(find internal/loom/ui/next/js -name '*.js'); do cp "$$f" "$$tmp/check.mjs"; node --check "$$tmp/check.mjs" || { echo "$$f"; rm -rf "$$tmp"; exit 1; }; done; rm -rf "$$tmp"
 	node --test internal/loom/ui/tests/*.test.mjs
+
+check-ui-routes: build
+	npm ci --prefix tools/tests/ui-routes --no-audit --no-fund
+	node tools/tests/ui-routes/crawl.mjs bin/loom
 
 clean:
 	rm -rf bin/
