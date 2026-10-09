@@ -34,6 +34,14 @@ jobs:
       - name: Vet Go packages
         run: go vet ./...
 
+      - name: Cross-compile check (Windows, macOS)
+        # Platform files (splash, tray) only build on their OS: catch them here,
+        # not in the release or development build.
+        run: |
+          GOOS=windows GOARCH=amd64 go vet ./internal/loom/platform/ ./cmd/loom
+          GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/loom
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./cmd/loom
+
       - name: Check reachable Go vulnerabilities
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.8.0

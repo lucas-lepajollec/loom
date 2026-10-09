@@ -53,6 +53,7 @@ var (
 	pSelectObject       = g32s.NewProc("SelectObject")
 	pSetTextColor       = g32s.NewProc("SetTextColor")
 	pSetBkMode          = g32s.NewProc("SetBkMode")
+	pSetPixelV          = g32s.NewProc("SetPixelV")
 	pCreateRoundRectRgn = g32s.NewProc("CreateRoundRectRgn")
 
 	pGetModuleHandleW = k32s.NewProc("GetModuleHandleW")
@@ -220,31 +221,31 @@ func paintSplash(hdc uintptr) {
 	pFillRect.Call(hdc, uintptr(unsafe.Pointer(&full)), bg)
 	pDeleteObject.Call(bg)
 
-	// Motif de tissage Loom (sys_brand_icon.go) mis à l'échelle.
-	white, _, _ := pCreateSolidBrush.Call(colWhite)
+	// Le tissage Loom (sys_brand_icon.go, grille 256), pixel par pixel avec un
+	// antialiasing 4x4 : mêmes bouts arrondis que l'icône et le logo.
 	const logo = 58
 	ox, oy := int32(40), int32((splashH-logo)/2)
-	scale := float64(logo) / 24.0
-	for _, s := range loomSegments {
-		var r rect
-		if s.y1 == s.y2 { // fil horizontal
-			r = rect{
-				left:   ox + int32(math.Round(s.x1*scale)),
-				top:    oy + int32(math.Round((s.y1-0.85)*scale)),
-				right:  ox + int32(math.Round(s.x2*scale)),
-				bottom: oy + int32(math.Round((s.y1+0.85)*scale)),
+	const sub = 4
+	for py := int32(0); py < logo; py++ {
+		for px := int32(0); px < logo; px++ {
+			cov := 0.0
+			for sy := 0; sy < sub; sy++ {
+				for sx := 0; sx < sub; sx++ {
+					x := (float64(px) + (float64(sx)+0.5)/sub) * 256 / logo
+					y := (float64(py) + (float64(sy)+0.5)/sub) * 256 / logo
+					for _, w := range loomWeave {
+						if w.inside(x, y) {
+							cov += 1.0 / (sub * sub)
+							break
+						}
+					}
+				}
 			}
-		} else { // fil vertical
-			r = rect{
-				left:   ox + int32(math.Round((s.x1-0.85)*scale)),
-				top:    oy + int32(math.Round(s.y1*scale)),
-				right:  ox + int32(math.Round((s.x1+0.85)*scale)),
-				bottom: oy + int32(math.Round(s.y2*scale)),
+			if cov > 0 {
+				pSetPixelV.Call(hdc, uintptr(ox+px), uintptr(oy+py), uintptr(blendColorRef(colBrand, colWhite, cov)))
 			}
 		}
-		pFillRect.Call(hdc, uintptr(unsafe.Pointer(&r)), white)
 	}
-	pDeleteObject.Call(white)
 
 	// Textes (blanc, fond transparent).
 	const transparent = 1
@@ -280,4 +281,14 @@ func drawText(hdc uintptr, s string, height, weight int32, r rect) {
 		uintptr(unsafe.Pointer(&rc)), dtLeft|dtSingleline|dtVcenter|dtNoclip)
 	pSelectObject.Call(hdc, old)
 	pDeleteObject.Call(font)
+}
+
+// blendColorRef mélange deux COLORREF (0x00BBGGRR) selon la couverture t.
+func blendColorRef(a, b uint32, t float64) uint32 {
+	var out uint32
+	for shift := uint(0); shift < 24; shift += 8 {
+		ca, cb := float64((a>>shift)&0xff), float64((b>>shift)&0xff)
+		out |= uint32(math.Round(ca+(cb-ca)*t)) << shift
+	}
+	return out
 }

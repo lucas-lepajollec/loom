@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPiProviderSinkOnlyTouchesLoomProvider(t *testing.T) {
@@ -63,5 +65,47 @@ func TestCodexLoomModelEnv(t *testing.T) {
 	provider := cfg["model_providers"].(map[string]any)["loom"].(map[string]any)
 	if provider["wire_api"] != "responses" || !strings.HasSuffix(provider["base_url"].(string), "/v1") || strings.Contains(env[0], "LOOM_API_KEY=") {
 		t.Fatalf("%v", provider)
+	}
+}
+
+// Pi hides a provider whose "$LOOM_KEY_…" reference is unset, so the catalog
+// probe must receive every projected key, not only the chat-time one.
+func TestPiProbeReceivesProjectedProviderKeys(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell stand-in")
+	}
+	jarvisTestSetup(t)
+	home, _ := os.UserHomeDir()
+	bin := filepath.Join(home, ".local", "bin")
+	out := filepath.Join(t.TempDir(), "env")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "pi"), []byte("#!/bin/sh\nenv > "+out+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := CloudProvider{ID: "p1", Name: "Fixture", Model: "m", Endpoint: "https://fixture.invalid/v1"}
+	if err := putStoreJSON(bkProviders, p.ID, p); err != nil {
+		t.Fatal(err)
+	}
+	workspaceSessions.keys[p.ID] = "fixture-key"
+	if err := putStoreJSON(bkState, modelSinkState, map[string]bool{"pi": true}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := startNativeAgent(acpAgent{ID: "pi"}, RuntimeSession{ACPState: ACPState{Workdir: t.TempDir()}}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	var env []byte
+	for i := 0; i < 100 && len(env) == 0; i++ {
+		time.Sleep(20 * time.Millisecond)
+		env, _ = os.ReadFile(out)
+	}
+	if !strings.Contains(string(env), providerKeyEnv(p.ID)+"=fixture-key") || !strings.Contains(string(env), "LOOM_API_KEY=") {
+		t.Fatalf("probe env lacks projected keys:\n%s", env)
 	}
 }

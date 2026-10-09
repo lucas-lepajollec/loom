@@ -194,6 +194,10 @@ func startNativeAgent(a acpAgent, s RuntimeSession, probe bool) (*agentstdio.Cli
 		args = []string{"pi", "--mode", "rpc"}
 		if probe {
 			args = append(args, "--no-session")
+			// Pi hides a provider whose key reference is unset: the catalog read
+			// needs every projected key, or Loom's cloud models never show up.
+			_ = syncModelSinks()
+			env = append(env, acpLaunchEnv("pi", "")...)
 		} else {
 			_ = syncModelSinks()
 			// Existing Pi model sink uses provider IDs; expose only the selected key.
