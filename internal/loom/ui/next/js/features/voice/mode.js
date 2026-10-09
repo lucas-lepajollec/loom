@@ -109,7 +109,8 @@ function Orb({ levels, state }) {
 
 export function VoiceMode({ discussionId, onClose }) {
   const [phase, setPhase] = useState('starting'); // starting | listening | thinking | speaking | error | insecure | unavailable
-  const [error, setError] = useState('');
+  const [error, setErrorRaw] = useState('');
+  const setError = m => setErrorRaw(/^jarvis_no_model/.test(m || '') ? t('vm.no_model') : m);
   const [lines, setLines] = useState([]); // {who:'me'|'jarvis', text, live?}
   const [ending, setEnding] = useState(false);
   const levels = useRef({ me: 0, them: 0, state: 'idle' });

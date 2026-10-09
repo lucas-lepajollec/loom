@@ -3030,6 +3030,7 @@ export default {
   "voice.why.en-cpu-small": "Streaming English recognition and a light English voice.",
   "voice.why.multi-cpu": "Recognizes about ten European languages (text appears when you stop speaking); the Kokoro voice is more natural but slow: about 2 s before each sentence even on a recent CPU.",
   "voice.why.fr-gpu": "The most accurate recognition (Parakeet, multilingual) and the Kokoro voice, for an NVIDIA GPU.",
+  "vm.no_model": "No model available for Jarvis: load a local model or connect a cloud provider in Models.",
   "vm.open": "Talk to Jarvis",
   "vm.title": "Voice mode",
   "vm.close": "Close and return to the discussion",

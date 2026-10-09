@@ -3030,6 +3030,7 @@ export default {
   "voice.why.en-cpu-small": "Reconnaissance de l'anglais en continu et voix anglaise légère.",
   "voice.why.multi-cpu": "Reconnaît une dizaine de langues européennes (le texte apparaît quand tu t'arrêtes de parler) ; voix Kokoro plus naturelle mais lente : environ 2 s avant chaque phrase même sur un processeur récent.",
   "voice.why.fr-gpu": "La reconnaissance la plus précise (Parakeet, multilingue) et la voix Kokoro, pour une carte graphique NVIDIA.",
+  "vm.no_model": "Aucun modèle disponible pour Jarvis : charge un modèle local ou connecte un fournisseur cloud dans Modèles.",
   "vm.open": "Parler à Jarvis",
   "vm.title": "Mode vocal",
   "vm.close": "Fermer et revenir à la discussion",
