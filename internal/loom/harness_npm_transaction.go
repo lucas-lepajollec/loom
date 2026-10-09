@@ -37,6 +37,11 @@ func runHarnessNPMInstall(ctx context.Context, argv []string) (string, error) {
 		}
 	}()
 	command := append([]string{}, argv[:3]...)
+	// An installation under a version manager (nvm, volta, a private Node)
+	// belongs to that Node's npm, not to whichever npm comes first on PATH.
+	if own := filepath.Join(prefix, "bin", "npm"); runtime.GOOS != "windows" && isExecutableFile(own) {
+		command[0] = own
+	}
 	command = append(command, "--prefix", stage)
 	command = append(command, argv[3:]...)
 	output, err := runHarnessLifecycleRaw(ctx, nil, command)
@@ -149,4 +154,9 @@ func runHarnessNPMInstall(ctx context.Context, argv []string) (string, error) {
 		return rollback(err)
 	}
 	return output, nil
+}
+
+func isExecutableFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir() && info.Mode()&0111 != 0
 }
