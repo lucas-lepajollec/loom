@@ -16,6 +16,62 @@ schema snapshot and generated Go message projections live in
 new variant survives translation. The official [app-server contract](https://developers.openai.com/codex/app-server)
 and the installed Pi package's `docs/rpc.md` define the wire protocols.
 
+## Capability truth table
+
+`harness_features.go` owns the transport contract. `/api/runtimes` and each
+`/api/runtimes/{id}/probe` expose the same `features` shape, and the Session,
+Agents and composer controls filter through it. **D** means discovered from the
+current ACP handshake/session, never inferred from an agent name or a registry
+release. **N/L** means Native/Loom model sources; **R/S/I** means native resume,
+session listing and transcript import. **A/Q/F/P** means approvals, questions,
+forms/URL elicitation and displayed plans. **M/G/K/B** means per-session Loom MCP,
+global gateway entry, skills sink and Brain memory link. `—` is hidden.
+
+| Agent / primary transport | Model list; source; effort | Mode values offered | Permission policies | Filesystem / extra folders | R/S/I | A/Q/F/P | M/G/K/B | Usage / quota | Native terminal / remote |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Codex / App Server | yes; N/L; model-advertised efforts | — (no mode consumer) | ask, full | native, workspace-write, full-access / yes | yes/yes/yes | yes/yes/yes/yes | —/yes/yes/yes | yes/yes | yes / ACP on saved machine |
+| Claude Code / ACP | D; N/L; D | D: default, acceptEdits, auto, bypassPermissions, plan in the accepted snapshot | ask, edits, full | native / D | D/D/D | yes/yes/yes/yes | yes/yes/yes/yes | yes/yes | yes / ACP on saved machine |
+| Pi / RPC | yes; N/L; off, minimal, low, medium, high, xhigh | — | — (no approval RPC) | native / — | yes/yes/yes | —/extension UI/—/— | —/—/yes/D | yes/— | yes / ACP on saved machine |
+| OpenCode / HTTP | yes; N/L¹; — | — (HTTP turn has no agent/mode selector) | — (interactive native requests only) | native / — | yes/yes/yes | yes/yes/—/yes | —/yes/—/yes | yes/— | yes / ACP on saved machine |
+| Antigravity / Stream JSON | yes; N; low, medium, high, xhigh, max | accept-edits (default), plan, full | — (no reply channel) | native terminal sandbox toggle / yes | yes/—/— | —/—/—/text plan | —/yes/yes/yes | yes/yes | yes / explicit custom ACP bridge only |
+| Hermes / ACP | D; N; D | D, each ID forwarded with session/set_mode | ask, edits, full | native / D | D/D/D | yes/—/forms/ACP updates | yes/—/—/— | yes/yes | yes / ACP on saved machine |
+| OpenClaw / ACP | D; N; D | D, each ID forwarded with session/set_mode | ask, edits, full | native / D | D/D/D | yes/—/forms/ACP updates | yes/—/—/— | yes/— | — / ACP on saved machine |
+| DeepSeek Harness / ACP | yes; N; D for exact model | — | ask, edits, full | native / — | yes/yes/— | yes/—/—/— | yes/—/—/— | native context updates/— | — / custom ACP only |
+| Registry/custom ACP | D; N; D | D, each ID forwarded with session/set_mode | ask, edits, full | native / D | D/D/D | yes/—/forms when requested/ACP updates | local only/—/—/— | native updates/— | — / explicit remote launcher |
+
+Workdir works on every path (`cwd`, process directory or HTTP directory). Native
+filesystem means upstream-owned settings, not Loom confinement. No `deny`
+policy, unsupported read-only confinement or ignored native `edits` setting is
+offered. Codex `ask` maps to `on-request`, `full` to `never`; ACP `ask` waits,
+`edits` allows one-shot read/search/edit/think/fetch and asks otherwise, `full`
+selects one-shot allow options. Native rejection choices remain on approval cards.
+
+¹ Enabling OpenCode's Loom source explicitly selects its launch-scoped ACP
+adapter; the shared HTTP server continues to use native credentials. ACP fallback
+for Codex/Pi/OpenCode uses discovered modes/config options and shared ACP
+permissions, MCP and elicitation instead of advertising native transport controls.
+Native failures never silently switch transports. Antigravity's ACP bridge also
+starts in accept-edits and hides default/Cautious; its native headless denials
+cannot be answered. Model effort values remain upstream/model-dependent; missing
+observations stay unknown, and no compatibility row asserts a paid live turn.
+
+Antigravity's installed `agy` 1.3.1 embeds the customization/MCP documentation
+confirming global `~/.gemini/config/AGENTS.md`,
+`~/.gemini/config/mcp_config.json` (`mcpServers`, HTTP `url`, headers), and
+`~/.gemini/config/skills/`. Those are Antigravity paths, not a Gemini CLI offer.
+Only installed local executables appear in Brain/MCP/Skills integration lists;
+remote resource linking is not implemented and produces no per-machine duplicates.
+Gemini CLI is omitted from runtime, registry offer and integration lists.
+
+Consolidation validation uses Go 1.26.9: descriptor/consumer invariants, native
+and ACP fixtures, installed `dsh` launcher preference, resource visibility and
+UI option filtering. `make build`, `go vet ./...` and `make check-ui` pass.
+The full `go test ./internal/loom/...` is blocked by denied listening sockets in
+`TestHandleHubSearch` and `TestFetchReleaseChannels`; the preview listener test
+has the same restriction. The short suite passes with 71 socket-dependent tests
+explicitly excluded. The external npm MCP end-to-end test cannot discover tools
+here and is skipped by short mode. No paid live agent turn was performed.
+
 ### October 2026 acceptance
 
 The October 8 watch verified Codex 0.162.0 initialization and eight catalog
@@ -535,9 +591,8 @@ Authenticated API shapes for the Agents page (no UI changes in this step):
   are not imported in this step; launch arguments are taken from the registry.
 - `codex-acp`, `claude-acp`, `pi-acp`, `opencode`, and `antigravity-acp` are
   visible as `builtin:true` and excluded from adding another runtime. The same
-  rule applies if curated builtin IDs appear in a later registry. Gemini is
-  also reserved (`builtin:true`) by Loom policy: it has no Loom builtin runtime;
-  Antigravity is the Google harness. The UI must not offer Add on these rows.
+  rule applies if curated builtin IDs appear in a later registry. Gemini is reserved by Loom policy and omitted from catalogue responses;
+  Antigravity is the Google harness. The UI must not offer Add on builtin rows.
 - `POST /api/agents/catalog/add` with `{"id":"qwen-code"}` returns
   `{"ok":true,"agent":{"id":"registry-qwen-code","name":"Qwen Code","command":"npx","args":["-y","@qwen-code/qwen-code@0.25.0","--acp","--experimental-skills"],"custom":true,"registry_id":"qwen-code","registry_version":"0.25.0","registry_package":"@qwen-code/qwen-code","registry_kind":"npx"}}`
   (ordinary ACP metadata such as `docs`, `logo`, `detect` is also present).
@@ -567,25 +622,29 @@ versions described below.
 
 ## Curated ACP agents
 
-| Runtime ID | Launch | Availability | Live accepted versions |
-| --- | --- | --- | --- |
-| `hermes` | `hermes acp` | `hermes` on PATH | None |
-| `openclaw` | `openclaw acp` | `openclaw` on PATH | None |
-| `deepseek-tui` | `deepseek-tui serve --acp` | `deepseek-tui` on PATH | None |
+Hermes (`hermes acp`) and OpenClaw (`openclaw acp`) use the shared ACP client,
+including permission replies and form/URL elicitation when requested. Their
+accepted versions remain empty.
 
-All three use the shared ACP initialization, permissions and form/URL
-elicitation path. Questions supplied as elicitation schemas remain forms;
-Loom does not invent a native question protocol for these agents. The accepted
-version lists are empty, and their compatibility warning is exactly
-`not yet verified with Loom`, including before any handshake. DeepSeek's launch
-is **documented-but-unverified**: the study's CDesktop executor launches
-`deepseek-tui serve --acp`, but no DeepSeek upstream repository clone/README was
-available for this implementation. No successful live launch is claimed.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) replaces the
+community DeepSeek TUI builtin. It is a **developer preview**, launched as
+`dsh --profile acp` when installed, otherwise
+`npx -y @deepseek-ai/dsh@0.2.0-rc.2 --profile acp`. No provider credentials are
+injected. The [official ACP contract](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/acp/acp/README.md)
+supports `session/new`, `session/list`, `session/resume`, cancellation and
+`session/close`; Loom uses new/list/resume and closes its owned connection.
+Resume restores native state without transcript replay. Loom does **not** offer
+native history import, delete, fork, modes, extra folders, plans, client
+filesystem operations, native terminal resume or elicitation. Model and
+`reasoning_effort` selectors use its live config options. One-shot allow/reject
+permissions use Loom's shared ACP approval handler; stdio/HTTP MCP entries use
+its advertised transport support. Synthetic fixtures cover normal output,
+permissions and a model-option change. These establish the Loom mapping, not a
+live accepted upstream version.
 
-Synthetic shared ACP fixtures in `testdata/agents/{hermes,openclaw,deepseek-tui}`
-cover a normal turn, permission reply and form elicitation. Complete subprocess
-turn tests exercise the bidirectional reader and canonical request resolution.
-These fixtures establish Loom's shared path, not an upstream version's behavior.
+All three report `not yet verified with Loom`; `tested_versions.json` retains
+empty accepted-version arrays. DeepSeek TUI is no longer curated; a future
+registry entry may still be explicitly added as an ordinary registry agent.
 
 ## Weekly compatibility watch and accepting versions
 

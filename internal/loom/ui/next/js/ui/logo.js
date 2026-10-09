@@ -8,7 +8,7 @@ const KNOWN = new Set(['openai', 'anthropic', 'gemini', 'google', 'xai', 'mistra
   'claudecode', 'pi', 'hermesagent', 'claude', 'meta', 'nvidia', 'opencode', 'openclaw']);
 const COLOR = new Set(['antigravity', 'openclaw', 'cerebras', 'claudecode', 'claude', 'codex', 'cohere', 'deepinfra', 'deepseek', 'doubao', 'fireworks', 'gemini',
   'google', 'hunyuan', 'kimi', 'meta', 'minimax', 'mistral', 'nvidia', 'openrouter', 'qwen', 'together', 'vllm']);
-const ALIAS = { 'claude-code': 'claudecode', hermes: 'hermesagent', 'lm studio': 'lmstudio', 'together ai': 'together', glm: 'zai', 'zhipu · glm': 'zai',
+const ALIAS = { 'deepseek-harness': 'deepseek', 'claude-code': 'claudecode', hermes: 'hermesagent', 'lm studio': 'lmstudio', 'together ai': 'together', glm: 'zai', 'zhipu · glm': 'zai',
   'moonshot · kimi': 'kimi', 'x-ai': 'xai', 'z-ai': 'zai', 'moonshotai': 'kimi', 'meta-llama': 'meta' };
 
 export function logoId(name) {

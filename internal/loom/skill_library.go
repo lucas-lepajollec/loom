@@ -170,7 +170,7 @@ func home(p string) string {
 func suggestedSkillFolders(linked []SkillSource) []map[string]string {
 	h, _ := os.UserHomeDir()
 	cands := [][2]string{{filepath.Join(h, ".claude", "skills"), "Claude Code"}, {filepath.Join(h, ".agents", "skills"), "Agent Skills (Codex, Pi…)"},
-		{filepath.Join(h, ".codex", "skills"), "Codex"}, {filepath.Join(h, ".gemini", "skills"), "Gemini"}}
+		{filepath.Join(h, ".codex", "skills"), "Codex"}, {filepath.Join(h, ".gemini", "config", "skills"), "Antigravity"}}
 	out := []map[string]string{}
 	for _, c := range cands {
 		if info, err := os.Stat(c[0]); err != nil || !info.IsDir() {

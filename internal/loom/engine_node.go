@@ -504,6 +504,22 @@ func proxyEngineNode(w http.ResponseWriter, r *http.Request, n *engineNode) {
 	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": "remote engine unreachable (" + n.Hostname + ")"})
 	}
+	if proxy.ModifyResponse == nil && strings.HasPrefix(r.URL.Path, "/api/engine/") {
+		// An older remote Loom lacks newer engine controls: report it plainly.
+		proxy.ModifyResponse = func(resp *http.Response) error {
+			if resp.StatusCode != http.StatusNotFound || strings.Contains(resp.Header.Get("Content-Type"), "json") {
+				return nil
+			}
+			resp.Body.Close()
+			body, _ := json.Marshal(map[string]any{"ok": false, "error_code": "engine_outdated", "machine": n.Hostname, "error": "the engine on " + n.Hostname + " runs an older Loom; update it from Machines"})
+			resp.StatusCode, resp.Status = http.StatusConflict, "409 Conflict"
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			resp.ContentLength = int64(len(body))
+			resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+			resp.Header.Set("Content-Type", "application/json")
+			return nil
+		}
+	}
 	proxy.ServeHTTP(w, r)
 }
 

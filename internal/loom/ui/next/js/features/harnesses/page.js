@@ -1,3 +1,4 @@
+import { configOptions, protocolLabel } from './options.js';
 import { useVisibleRefresh } from '../usage/refresh.js';
 import { t, locale, tSource } from '../../core/i18n.js';
 import { SectionTabs } from '../../app/sections.js';
@@ -138,7 +139,7 @@ function Detail({ rt, models, onInspect }) {
     if (!r.ok) return toast(r.error, 'err'); toast(t("harnesses.page.modeles_de") + rt.name + t("harnesses.page.disponibles")); refreshWorkspace();
   };
   return html`<div class="h-detail anim-fade" key=${rt.id}>
-    <div class="h-head"><div style="display:flex;gap:14px;align-items:center"><${Logo} name=${rt.id} size="lg" /><div><h2>${rt.name}</h2><p>${tSource(rt.description) || ''}</p></div></div>
+    <div class="h-head"><div style="display:flex;gap:14px;align-items:center"><${Logo} name=${rt.id} size="lg" /><div><h2>${rt.name}</h2><p>${(rt.description_key ? t(rt.description_key, { command: rt.cli }) : tSource(rt.description)) || ''}</p></div></div>
       ${connectable ? html`<button class="btn" disabled=${busy} onClick=${connect}>${connected ? html`<${Icon} n="refresh" />${t("harnesses.page.actualiser")}` : t("cloud.page.connecter")}</button>` : !supported && html`<span class="tag">${t("harnesses.page.bientot")}</span>`}</div>
     ${!supported ? html`<div class="card pad soon"><${Icon} n="sparkle" /><div><b>${t("harnesses.page.adaptateur_en_preparation")}</b><p>${t("harnesses.page.loom_ne_lance_pas_encore")} ${rt.name}${t("harnesses.page.il_apparaitra_dans_le_selecteur_quand_son_adaptateur_saura_gerer")}</p></div></div>` : html`
       <div class="grid2">
@@ -304,18 +305,18 @@ function LoomResources({ rt }) {
   return html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.ressources_loom_transmises")}<${Tip} text=${t("harnesses.page.loom_garde_la_definition_de_tes_skills_et_serveurs_mcp_tu_choisis") + rt.name + t("harnesses.page.recoit_le_harness_reste_maitre_de_leur_execution")} /></h2>
       <a class="btn sm ghost" href="#/brain">${t("harnesses.page.gerer_les_ressources")}</a></div>
     <div class="grid2">
-      <div class="card pad"><div class="sec-h"><h2>${t("harnesses.page.serveurs_mcp")}</h2>${mcp.custom && html`<button class="btn sm ghost" onClick=${resetMcp}>${t("harnesses.page.tous")}</button>`}</div>
+      ${rt.features?.mcp_selection && html`<div class="card pad"><div class="sec-h"><h2>${t("harnesses.page.serveurs_mcp")}</h2>${mcp.custom && html`<button class="btn sm ghost" onClick=${resetMcp}>${t("harnesses.page.tous")}</button>`}</div>
         ${remote ? html`<p class="note">${t("harnesses.page.non_transmis_ce_harness_tourne_sur_une_autre_machine")}</p>`
           : mcp.mcp.length ? mcp.mcp.map(r => html`<div class="kv" key=${r.name}><span>${r.name}${!r.enabled && html` <span class="muted">${t("harnesses.page.desactive_dans_loom")}</span>`}</span>
               <${Switch} checked=${r.bound && r.enabled} disabled=${!r.enabled} label=${t("harnesses.page.transmettre") + r.name + t("harnesses.page.a") + rt.name} onChange=${on => setMcpBound(r.name, on)} /></div>`)
-          : html`<p class="note">${t("harnesses.page.aucun_serveur_mcp_dans_loom")}</p>`}</div>
-      <div class="card pad"><div class="sec-h"><h2>${t("harnesses.page.skills")}</h2></div>
+          : html`<p class="note">${t("harnesses.page.aucun_serveur_mcp_dans_loom")}</p>`}</div>`}
+      ${rt.features?.skills && html`<div class="card pad"><div class="sec-h"><h2>${t("harnesses.page.skills")}</h2></div>
         ${!sk.target ? html`<p class="note">${t("harnesses.page.loom_ne_connait_pas_encore_le_dossier_de_skills_de_ce_harness")}</p>`
           : !sk.target.enabled ? html`<div class="kv"><span>${t("harnesses.page.distribution_vers")} ${sk.target.dir.replace(/^\/home\/[^/]+/, '~')}</span><button class="btn sm" onClick=${enableTarget}>${t("harnesses.page.activer")}</button></div>`
           : skills.length ? skills.map(c => html`<div class="kv" key=${c.id}><span class="trunc" title=${c.description || ''}>${c.name}</span>
               <${Switch} checked=${bound(c.id)} label=${t("harnesses.page.envoyer") + c.name + t("harnesses.page.a") + rt.name} onChange=${on => setSkill(c.id, on)} /></div>`)
           : html`<p class="note">${t("harnesses.page.aucune_skill_dans_loom")}</p>`}
-        ${sk.target && sk.target.harnesses.length > 1 && sk.target.enabled && html`<p class="note" style="margin-top:8px">${t("harnesses.page.dossier_partage_avec")} ${sk.target.harnesses.filter(h => h !== rt.id).join(', ')}.</p>`}</div>
+        ${sk.target && sk.target.harnesses.length > 1 && sk.target.enabled && html`<p class="note" style="margin-top:8px">${t("harnesses.page.dossier_partage_avec")} ${sk.target.harnesses.filter(h => h !== rt.id).join(', ')}.</p>`}</div>`}
     </div></section>`;
 }
 
@@ -417,7 +418,7 @@ function AgentDiscussions({ rt, talks, canList, installs, target }) {
   const [tab, setTab] = useState('loom');
   const [native, setNative] = useState(null);
   // Où lire les sessions : chaque machine où l'agent est géré et prêt.
-  const sources = installs.filter(i => i.managed && i.installed && (i.machine !== 'local' ? i.ready : canList))
+  const sources = installs.filter(i => i.managed && i.installed && (i.machine !== 'local' ? i.ready && canList : canList))
     .map(i => ({ value: i.machine === 'local' ? 'local' : 'remote:' + i.machine + ':' + i.harness, label: i.machine === 'local' ? t('agents.this_machine') : i.machine_name }));
   const [source, setSource] = useState(null);
   const from = source || (sources[0] && sources[0].value) || 'local';
@@ -434,7 +435,7 @@ function AgentDiscussions({ rt, talks, canList, installs, target }) {
 
 const MODEL_LIMIT = 8;
 // Voie de connexion officielle de chaque agent (voir docs/agents-compat.md).
-const PROTOCOL = { 'app-server': 'App Server', 'pi-rpc': 'RPC', 'opencode-http': 'Serveur', 'agy-stream-json': 'Stream JSON', acp: 'ACP' };
+
 
 function AgentDetail({ rt, models, onEdit }) {
   const nav = useStore(app, a => a.nav);
@@ -480,7 +481,7 @@ function AgentDetail({ rt, models, onEdit }) {
     if (!r.ok) return toast(r.error, 'err');
     await refreshWorkspace(); go('harnesses');
   };
-  const cfg = (probe && probe.config) || [];
+  const cfg = configOptions(rt.features, (probe && probe.config) || []);
   const modelOpt = byCat(cfg, 'model'), effortOpt = byCat(cfg, 'thought_level');
   const list = optValues(modelOpt);
   const groups = splitEffort(list);
@@ -494,14 +495,14 @@ function AgentDetail({ rt, models, onEdit }) {
   const account = info ? (auth.connected ? [auth.method, auth.account].filter(Boolean).join(' · ') || t("harnesses.page.connecte_2") : auth.status || t('agents.account.none')) : '';
   const ver = probe && probe.agent && probe.agent.version;
   const compat = (probe && probe.compatibility) || rt.compatibility || {};
-  const canList = !!(probe && probe.capabilities && probe.capabilities.sessionCapabilities && probe.capabilities.sessionCapabilities.list);
+  const canList = !!rt.features?.history_import;
   const [tone, state] = missing ? ['', t("harnesses.page.non_installe")] : used ? ['green', t('agents.state.used')] : managed ? ['amber', t('agents.state.managed')] : ['', t('agents.state.unmanaged')];
   const launch = custom ? [custom.command, ...(custom.args || [])].join(' ') : rt.install_hint || rt.cli;
   return html`<div class="agent anim-fade">
     <div class="agent-h"><${Logo} name=${rt.logo || rt.id} size="lg" />
       <div class="grow"><div class="agent-t"><h2>${rt.name}</h2><span class=${'pill ' + tone}><i class=${'dot ' + tone}></i>${state}</span></div>
-        <p>${tSource(rt.description) || ''}</p>
-        <div class="agent-meta">${(compat.protocol || ver) && html`<span title=${compat.tested_version ? t('agents.compat.tested', { v: compat.tested_version }) : ''}>${PROTOCOL[compat.protocol] || (rt.id === 'antigravity' ? t("harnesses.page.pont_loom") : 'ACP')} ${compat.version || ver || ''}</span>`}${accountKnown && html`<span><i class=${'dot ' + (auth.connected ? 'green' : 'amber')}></i>${account}</span>`}${usage && usage.total_tokens ? html`<a href="#/usage">${fmtTok(usage.total_tokens)} tokens · 7 j</a>` : ''}</div></div>
+        <p>${(rt.description_key ? t(rt.description_key, { command: rt.cli }) : tSource(rt.description)) || ''}</p>
+        <div class="agent-meta">${(compat.protocol || ver) && html`<span title=${compat.tested_version ? t('agents.compat.tested', { v: compat.tested_version }) : ''}>${protocolLabel(rt.features || compat) || (rt.id === 'antigravity' ? t("harnesses.page.pont_loom") : 'ACP')} ${compat.version || ver || ''}</span>`}${accountKnown && html`<span><i class=${'dot ' + (auth.connected ? 'green' : 'amber')}></i>${account}</span>`}${usage && usage.total_tokens ? html`<a href="#/usage">${fmtTok(usage.total_tokens)} tokens · 7 j</a>` : ''}</div></div>
       <div class="acts">
         ${rt.custom && html`<button class="btn ghost" onClick=${() => onEdit(custom)}>${t("harnesses.page.modifier")}</button><button class="icon-btn" aria-label=${t("harnesses.page.supprimer_2")} onClick=${del}><${Icon} n="trash" /></button>`}
         ${accountKnown && !auth.connected && !missing && html`<button class="btn" onClick=${() => setAccountOpen(true)}>${t('agents.account.login')}</button>`}
@@ -522,9 +523,9 @@ function AgentDetail({ rt, models, onEdit }) {
 
     ${managed && !missing && html`<section class="sec"><div class="sec-h"><h2>${t('agents.settings')}</h2></div>
       <div class="card">
-        <${ModelSource} rt=${rt} line />
-        <div class="set-line"><div class="set-l"><span>${t('agents.resources')}</span><${Tip} text=${t("harnesses.page.loom_garde_la_definition_de_tes_skills_et_serveurs_mcp_tu_choisis") + rt.name + t("harnesses.page.recoit_le_harness_reste_maitre_de_leur_execution")} /></div>
-          <div class="set-c"><button class="btn sm ghost" onClick=${() => setResources(true)}>${t('agents.choose')}</button></div></div>
+        ${rt.features?.model_sources?.includes('loom') && html`<${ModelSource} rt=${rt} line />`}
+        ${(rt.features?.mcp_selection || rt.features?.skills) && html`<div class="set-line"><div class="set-l"><span>${t('agents.resources')}</span><${Tip} text=${t("harnesses.page.loom_garde_la_definition_de_tes_skills_et_serveurs_mcp_tu_choisis") + rt.name + t("harnesses.page.recoit_le_harness_reste_maitre_de_leur_execution")} /></div>
+          <div class="set-c"><button class="btn sm ghost" onClick=${() => setResources(true)}>${t('agents.choose')}</button></div></div>`}
         <div class="set-line"><div class="set-l"><span>${t("harnesses.page.dossier_et_autorisations")}</span><${Tip} text=${t("harnesses.page.choisis_les_par_discussion_dans_le_panneau_de_droite_demander_mod")} /></div><div class="set-c"><span class="muted">${t('agents.per_discussion')}</span></div></div>
       </div></section>`}
     ${resources && html`<${Modal} wide title=${t('agents.resources')} onClose=${() => setResources(false)}><${LoomResources} rt=${rt} /></${Modal}>`}
@@ -558,9 +559,9 @@ function Card({ rt, models, installs = [] }) {
   const state = !supported ? null : missing ? ['', t("harnesses.page.non_installe")] : acp ? (installs.some(i => i.enabled) || rt.connected ? ['green', t('agents.state.used')] : ['', t('agents.state.managed')]) : n ? ['green', t("harnesses.page.connecte_3")] : ['', t("harnesses.page.non_connecte")];
   return html`<button type="button" class=${cls('hx', (!supported || missing) && 'is-soon')} onClick=${() => go('harnesses', rt.id)}>
     <div class="hx-top"><${Logo} name=${rt.id} />
-      <span class="grow"><b>${rt.name}</b>${rt.machine ? html`<code>${t("harnesses.page.sur_3")} ${rt.machine}</code>` : rt.cli && html`<code>${acp ? 'ACP' + (rt.cli === 'npx' ? '' : ' · ' + rt.cli.split('/').pop()) : rt.cli}</code>`}</span>
+      <span class="grow"><b>${rt.name}</b>${rt.machine ? html`<code>${t("harnesses.page.sur_3")} ${rt.machine}</code>` : rt.cli && html`<code>${acp ? (protocolLabel(rt.features) || 'ACP') : rt.cli}</code>`}</span>
       ${!supported ? html`<span class="soon-pill">${t("harnesses.page.bientot_2")}</span>` : html`<span class="state"><i class=${'dot ' + state[0]}></i>${state[1]}</span>`}</div>
-    ${rt.description && html`<p>${tSource(rt.description)}</p>`}
+    ${rt.description && html`<p>${rt.description_key ? t(rt.description_key, { command: rt.cli }) : tSource(rt.description)}</p>`}
     ${supported && installs.length > 0 && html`<div class="hx-inst"><span>${t('agents.installations')}</span>${installs.map(i => html`<span class="hx-chip" key=${i.machine} title=${i.enabled ? t('agents.state.used') : t('agents.managed_only')}><i class=${'dot ' + (i.enabled ? 'green' : '')}></i>${i.machine === 'local' ? t('agents.this_machine') : i.machine_name}${!i.installed && html`<em>${t('agents.to_install')}</em>`}${i.version && html`<em>${i.version.replace(/^v/, '').split(' ')[0]}</em>`}</span>`)}</div>`}
     <div class="hx-foot">${!supported ? (rt.id === 'hermes' ? t("harnesses.page.connecte_sa_machine_avec_connecter_une_machine") : t("harnesses.page.adaptateur_en_preparation")) : missing ? t("harnesses.page.installe") + (rt.cli === 'npx' ? t("harnesses.page.node_js_et_le_cli") : rt.cli) + t("harnesses.page.pour_l_utiliser")
       : acp ? (rt.custom ? t("harnesses.page.personnalise") : '') + t("harnesses.page.dossier_outils_et_autorisations_dans_loom") : n ? n + t("harnesses.page.modele_2") + (n > 1 ? 's' : '') + t("harnesses.page.dans_le_selecteur") : t("harnesses.page.ouvre_pour_connecter_ton_compte")}</div>

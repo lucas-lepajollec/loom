@@ -82,6 +82,17 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 				}
 			}
 			attachPrimarySecondBrain(&s, agent)
+			if adapter, ok := registeredRuntimes.lookup(agent.ID); ok {
+				if acp, ok := adapter.(*acpAdapter); ok {
+					f := acp.features()
+					if s.Mode == "" || s.Mode == "default" {
+						s.Mode = f.DefaultMode
+					}
+					if !f.AdditionalDirs {
+						s.AdditionalDirs = nil
+					}
+				}
+			}
 			s.WorkspaceTarget = target
 		}
 	}

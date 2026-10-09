@@ -13,7 +13,7 @@ func TestTestedVersionsLoading(t *testing.T) {
 			t.Fatal("mutable accepted data")
 		}
 	}
-	for _, id := range []string{"hermes", "openclaw", "deepseek-tui", "missing"} {
+	for _, id := range []string{"hermes", "openclaw", "deepseek-harness", "missing"} {
 		if len(TestedVersions(id)) != 0 || LatestTestedVersion(id) != "" {
 			t.Fatal(id)
 		}

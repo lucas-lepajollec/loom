@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"time"
 )
 
@@ -43,6 +44,34 @@ func (m *runtimeSessions) configureACPLocked(s *RuntimeSession, c acpConfigurati
 		s.MCPServers = names
 	}
 	agent, _ := acpAgentFor(s.RuntimeID)
+	if adapter, ok := registeredRuntimes.lookup(s.RuntimeID); ok {
+		if acp, ok := adapter.(*acpAdapter); ok {
+			f := acp.features()
+			if c.MCPServers != nil && !f.MCPSelection {
+				var names []string
+				if json.Unmarshal(c.MCPServers, &names) != nil || len(names) > 0 {
+					return errors.New("Loom MCP selection unavailable for this transport; use its native configuration")
+				}
+			}
+			if c.Permission != nil && !slices.Contains(f.Permissions, *c.Permission) {
+				return errors.New("permission policy unavailable for this transport")
+			}
+			if c.AdditionalDirs != nil && len(*c.AdditionalDirs) > 0 && !f.AdditionalDirs {
+				return errors.New("additional directories unavailable for this transport")
+			}
+			if c.Mode != nil && (f.Protocol != "acp" || deepseekACPAgent(agent) || antigravityACPAgent(agent)) && !slices.Contains(f.Modes, *c.Mode) {
+				return errors.New("agent mode unavailable for this transport")
+			}
+			if f.Protocol != "acp" || deepseekACPAgent(agent) {
+				for id := range c.Config {
+					if !slices.Contains(f.ConfigOptions, id) {
+						return errors.New("configuration option unavailable for this transport")
+					}
+				}
+			}
+		}
+	}
+
 	if c.FilesystemPolicy != nil {
 		if _, err := harnessFilesystemMode(agent, *c.FilesystemPolicy); err != nil {
 			return err

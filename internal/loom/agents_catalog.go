@@ -64,7 +64,7 @@ type catalogAgent struct {
 	Builtin          bool                `json:"builtin"`
 }
 
-// Reserved catalogue entries remain visible but cannot create duplicate runtimes.
+// Reserved catalogue entries cannot create duplicate runtimes.
 // Gemini is reserved by product policy; it is not registered as a builtin.
 func registryBuiltin(id string) string {
 	switch id {
@@ -74,7 +74,7 @@ func registryBuiltin(id string) string {
 		return "claude-code"
 	case "pi-acp":
 		return "pi"
-	case "opencode", "hermes", "openclaw", "deepseek-tui":
+	case "opencode", "hermes", "openclaw", "deepseek-harness":
 		return id
 	case "antigravity-acp":
 		return "antigravity"
@@ -188,7 +188,7 @@ func (a registryAgent) installHint() string {
 	return "Install the agent on PATH using its upstream instructions."
 }
 func (a registryAgent) agent(platform string, lookPath func(string) (string, error)) (acpAgent, error) {
-	if registryBuiltin(a.ID) != "" {
+	if registryBuiltin(a.ID) != "" || geminiRegistryAgent(a) {
 		return acpAgent{}, errors.New("agent is reserved by Loom; use the existing runtime")
 	}
 	d, err := a.launch(platform)
@@ -302,6 +302,9 @@ func registerCatalogAgents() {
 func catalogEntries(entries []registryAgent, added []acpAgent, lookPath func(string) (string, error)) []catalogAgent {
 	out := make([]catalogAgent, 0, len(entries))
 	for _, a := range entries {
+		if geminiRegistryAgent(a) {
+			continue
+		}
 		d, _ := a.launch(registryPlatform(runtime.GOOS, runtime.GOARCH))
 		entry := catalogAgent{ID: a.ID, Name: a.Name, Version: a.Version, Description: a.Description, Repository: a.Repository, Icon: a.Icon, Distribution: d, Builtin: registryBuiltin(a.ID) != ""}
 		runtimeID := "registry-" + a.ID
@@ -411,4 +414,11 @@ func handleAgentsCatalogRemove(w http.ResponseWriter, r *http.Request) {
 	}
 	registeredRuntimes.remove("registry-" + req.ID)
 	sendJSON(w, 200, map[string]any{"ok": true})
+}
+
+func geminiRegistryAgent(a registryAgent) bool {
+	if registryBuiltin(a.ID) == "gemini" {
+		return true
+	}
+	return a.Distribution.NPX != nil && strings.HasPrefix(a.Distribution.NPX.Package, "@google/gemini-cli")
 }

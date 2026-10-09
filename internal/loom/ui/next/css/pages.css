@@ -960,3 +960,15 @@ button.mcard:hover{border-color:var(--line-strong)}
 .task-req .ico{width:13px;height:13px}
 @media (max-width:720px){.task-row{flex-wrap:wrap}.task-row .pill{order:3}.task-row>.btn{order:4;margin-left:auto}}
 .set-save{display:flex;justify-content:flex-end;margin:4px 0 24px}
+.eng-list{display:flex;flex-direction:column;gap:14px}
+.eng-list .set-group{margin:0}
+.eng-list .set-group h3{font-size:12.5px;font-weight:500;color:var(--text-3)}
+.eng-mem{margin-bottom:12px}
+.eng-mem .eng-sub{font-weight:500}
+.set-group .set-group{margin-bottom:12px}
+details.eng-recent>summary{list-style:none;cursor:pointer}
+details.eng-recent>summary::-webkit-details-marker{display:none}
+details.eng-recent>summary h3::after{content:" ›";color:var(--text-3)}
+details.eng-recent[open]>summary h3::after{content:" ⌄"}
+.eng-na{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:12px}
+.eng-na .note{margin:0}

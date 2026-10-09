@@ -28,7 +28,8 @@ func skillSinkDefs() []skillSinkTarget {
 	home, _ := os.UserHomeDir()
 	return []skillSinkTarget{
 		{ID: "claude", Name: "Claude Code", Harnesses: []string{"claude-code"}, Dir: filepath.Join(home, ".claude", "skills")},
-		{ID: "agents", Name: "Agent Skills", Harnesses: []string{"codex", "pi", "gemini"}, Dir: filepath.Join(home, ".agents", "skills")},
+		{ID: "agents", Name: "Agent Skills", Harnesses: []string{"codex", "pi"}, Dir: filepath.Join(home, ".agents", "skills")},
+		{ID: "antigravity", Name: "Antigravity", Harnesses: []string{"antigravity"}, Dir: filepath.Join(home, ".gemini", "config", "skills")},
 	}
 }
 
@@ -70,7 +71,7 @@ func syncSkillSinks() []skillSinkTarget {
 // GET: targets with state. POST {id, enabled}: toggle one target and sync.
 func handleSkillSinks(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		sendJSON(w, 200, map[string]any{"ok": true, "targets": loadSkillSinks(), "bindings": skillBindings()})
+		sendJSON(w, 200, map[string]any{"ok": true, "targets": visibleSkillSinks(loadSkillSinks()), "bindings": skillBindings()})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -101,5 +102,22 @@ func handleSkillSinks(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "targets": syncSkillSinks()})
+	sendJSON(w, 200, map[string]any{"ok": true, "targets": visibleSkillSinks(syncSkillSinks())})
+}
+
+func visibleSkillSinks(list []skillSinkTarget) []skillSinkTarget {
+	out := []skillSinkTarget{}
+	for _, target := range list {
+		hs := []string{}
+		for _, id := range target.Harnesses {
+			if localHarnessUsable(id) {
+				hs = append(hs, id)
+			}
+		}
+		if len(hs) > 0 {
+			target.Harnesses = hs
+			out = append(out, target)
+		}
+	}
+	return out
 }

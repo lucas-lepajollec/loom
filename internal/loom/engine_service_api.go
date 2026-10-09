@@ -32,6 +32,12 @@ func forwardEngineServiceControl(w http.ResponseWriter, r *http.Request) bool {
 			req.Header.Set("Content-Type", "application/json")
 			if resp, err := nodeClient.Do(req); err == nil {
 				defer resp.Body.Close()
+				// An engine process older than this interface has no control
+				// endpoint: say so instead of passing its plain-text 404 on.
+				if resp.StatusCode == http.StatusNotFound && !strings.Contains(resp.Header.Get("Content-Type"), "json") {
+					sendJSON(w, http.StatusConflict, map[string]any{"ok": false, "error_code": "engine_outdated", "error": "the engine process is older than this Loom; restart or update it"})
+					return true
+				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(resp.StatusCode)
 				_, _ = io.Copy(w, resp.Body)

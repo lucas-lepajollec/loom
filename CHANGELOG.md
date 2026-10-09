@@ -21,6 +21,18 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   verify and replace the release installer's user-owned binary and restart the
   node user service. `loom node update` also restarts that service.
 
+- Agent controls now follow one transport capability contract exposed in runtime
+  descriptors and probes. Hide ignored native modes/permissions, unsupported
+  filesystem options, native-history imports and per-session MCP bindings.
+  Antigravity defaults to accept-edits; default/Cautious is no longer offered.
+  OpenCode Loom sources explicitly switch from native HTTP to ACP.
+- Replace curated DeepSeek TUI with official DeepSeek Harness developer preview,
+  pinned to @deepseek-ai/dsh@0.2.0-rc.2, preferring installed dsh. Map its native
+  resume and model options without inventing forms, modes or transcript replay.
+- Remove Gemini CLI from catalogue and resource offers. Verified Antigravity
+  global rules, MCP and skills paths replace those integrations. Brain/MCP/Skills
+  lists show usable local agents without remote duplicates; agent descriptions
+  are translated and cards display their actual transport.
 - Phase 4a backend: live Tasks snapshots/SSE and bounded domain events derive
   from discussion sessions. Harness turns and pending ACP approvals continue
   with every browser closed. Opt-in ntfy, signed webhooks and payload-free Web

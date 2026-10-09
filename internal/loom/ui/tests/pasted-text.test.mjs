@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import htm from '../next/vendor/htm.mjs';
+import { configOptions, modeOptions } from '../next/js/features/harnesses/options.js';
 import { french } from './i18n-fixture.mjs';
 import { attachPaste, pastedMessage, splitPastedMessage, PASTE_THRESHOLD, MAX_MESSAGE_BYTES } from '../next/js/features/chat/pasted-text.js';
 
@@ -35,7 +36,7 @@ function composer(mode = 'thread', accepted = false) {
   const states = [], refs = [], calls = [], notices = [];
   let stateIndex = 0, refIndex = 0, tree;
   const env = { t: french, html: htm.bind((type, props, ...children) => ({ type, props: props || {}, children })),
-    TextEncoder, setTimeout: f => f(), attachPaste, pastedMessage, downloadPaste() {}, MAX_MESSAGE_BYTES,
+    configOptions, modeOptions, TextEncoder, setTimeout: f => f(), attachPaste, pastedMessage, downloadPaste() {}, MAX_MESSAGE_BYTES,
     runtimeCaps: () => [], currentExec: () => ({ name: 'Fixture' }), slashEntries: () => [],
     chat: { get: () => ({ mode, busy: false, session: { runtime_id: 'pi', workdir: '/fixture' } }) },
     app: { get: () => ({ status: { health: true } }) },

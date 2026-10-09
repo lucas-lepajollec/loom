@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -33,6 +34,11 @@ type acpClient struct {
 }
 
 func startACPClient(command string, args []string, cwd string, env ...string) (*acpClient, error) {
+	if command == "npx" && slices.Contains(args, "@deepseek-ai/dsh@0.2.0-rc.2") {
+		if path, err := lifecycleLookPath("dsh"); err == nil {
+			command, args = path, []string{"--profile", "acp"}
+		}
+	}
 	argv, err := harnessNativeArgv(append([]string{command}, args...))
 	if err != nil {
 		return nil, errors.New("could not find the ACP launcher")

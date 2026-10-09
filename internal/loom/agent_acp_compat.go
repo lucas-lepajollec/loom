@@ -32,9 +32,9 @@ func acpCompatibility(a acpAgent, info map[string]any, caps []string) *agent.Com
 	case "hermes":
 		packageName = "hermes-agent"
 		tested = harness.TestedVersions("hermes")
-	case "deepseek-tui":
-		packageName = "deepseek-tui"
-		tested = harness.TestedVersions("deepseek-tui")
+	case "deepseek-harness":
+		packageName, pin = "@deepseek-ai/dsh", "0.2.0-rc.2"
+		tested = harness.TestedVersions("deepseek-harness")
 	case "openclaw":
 		packageName = "openclaw"
 		tested = harness.TestedVersions("openclaw")
@@ -63,7 +63,15 @@ func acpCompatibility(a acpAgent, info map[string]any, caps []string) *agent.Com
 			r.Warning = fmt.Sprintf("%s handshake version %s has not been tested; ACP compatibility is unverified", a.Name, version)
 		}
 	}
-	if a.ID == "hermes" || a.ID == "openclaw" || a.ID == "deepseek-tui" {
+	if deepseekACPAgent(a) {
+		r.AdapterPackage = "@deepseek-ai/dsh"
+		r.TestedVersions = harness.TestedVersions("deepseek-harness")
+		r.TestedVersion, r.TestedVersionSource = harness.LatestTestedVersion("deepseek-harness"), "loom"
+		if len(r.TestedVersions) == 0 {
+			r.Warning = "not yet verified with Loom"
+		}
+	}
+	if a.ID == "hermes" || a.ID == "openclaw" {
 		if len(harness.TestedVersions(a.ID)) == 0 {
 			r.Warning = "not yet verified with Loom"
 		}

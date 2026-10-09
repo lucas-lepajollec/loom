@@ -1,3 +1,4 @@
+import { protocolLabel } from '../harnesses/options.js';
 import { t, getLang } from '../../core/i18n.js';
 // Sélecteur d'exécution : qui répond au prochain message. Trois onglets (Local,
 // Cloud, Harness), une recherche, et la même discussion quel que soit le choix.
@@ -91,7 +92,7 @@ export function Picker() {
       const m = g.variants.find(v => /-medium$/.test(v.model)) || g.variants[0];
       const rt = ((workspace && workspace.runtimes) || []).find(r => r.id === m.runtime_id) || {};
       const acp = (rt.capabilities || []).includes('workdir');
-      return { id: g.key, title: g.name, sub: g.variants.length > 1 ? t("chat.picker.reflexion_reglable") : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: rt.machine ? m.provider_name + t("chat.picker.sur") + rt.machine : m.provider_name, logo: m.runtime_id, via: m.via || '', cli: acp ? 'ACP' : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model && chat.get().session.runtime_id === v.runtime_id), run: () => chooseRemote(m) };
+      return { id: g.key, title: g.name, sub: g.variants.length > 1 ? t("chat.picker.reflexion_reglable") : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: rt.machine ? m.provider_name + t("chat.picker.sur") + rt.machine : m.provider_name, logo: m.runtime_id, via: m.via || '', cli: acp ? protocolLabel(rt.features || rt.compatibility) : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model && chat.get().session.runtime_id === v.runtime_id), run: () => chooseRemote(m) };
     });
     return { local, cloud, harness };
   }, [status, workspace, models, presets, route, cur.kind, cur.name, getLang()]);

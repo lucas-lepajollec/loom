@@ -1,3 +1,4 @@
+import { configOptions, modeOptions } from '../harnesses/options.js';
 import { t } from '../../core/i18n.js';
 // Composeur : zone de saisie, pièces jointes, outils de la discussion, jauge de
 // contexte, envoi/arrêt. S'adapte au mode (local natif ou discussion commune).
@@ -43,6 +44,7 @@ async function upload(file) {
 export function Composer() {
   const c = useStore(chat, s => ({ busy: s.busy, mode: s.mode, ctx: s.ctxUsed, session: s.session, context: s.context, notice: s.notice, harness: s.harness }));
   const status = useStore(app, s => s.status);
+  const runtimes = useStore(app, s => s.workspace?.runtimes || []);
   const [text, setText] = useState('');
   const [files, setFiles] = useState([]);
   const [tools, setTools] = useState({ internet: toolOn('internet'), mcp: toolOn('mcp') });
@@ -110,7 +112,8 @@ export function Composer() {
   const probe = rtId && typeof probes[rtId] === 'object' ? probes[rtId] : {};
   const h = (!native && c.harness) || {};
   const commands = (h.commands || []).length ? h.commands : (probe.commands || []);
-  const harness = { config: (h.config || []).length ? h.config : (probe.config || []), modes: (h.modes || []).length ? h.modes : (probe.modes || []), mode: h.mode || probe.mode || '' };
+  const features = runtimes.find(r => r.id === rtId)?.features || probe.features;
+  const harness = { features, config: configOptions(features, (h.config || []).length ? h.config : probe.config), modes: modeOptions(features, (h.modes || []).length ? h.modes : probe.modes), mode: h.mode || probe.mode || '' };
   const entries = slashEntries({ commands, session: !native && c.session, harness, rtId });
   // Commande tapée mais non annoncée par le harness (ex. /usage, propre au terminal de Claude Code).
   const typed = /^\/(\S+)/.exec(text.trim());
