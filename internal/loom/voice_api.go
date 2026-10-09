@@ -62,7 +62,11 @@ func voiceNodeAware(local http.HandlerFunc) http.HandlerFunc {
 		}
 		access, err := nodeMachineAccessForModule(machine, "voice")
 		if err != nil {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
+			body := map[string]any{"ok": false, "error": err.Error()}
+			if code, _, ok := strings.Cut(err.Error(), ":"); ok && strings.HasPrefix(code, "jarvis_") {
+				body["code"] = code
+			}
+			sendJSON(w, 409, body)
 			return
 		}
 		if r.Method == http.MethodPost && voiceInstallPath(r.URL.Path) {

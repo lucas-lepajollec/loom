@@ -191,7 +191,9 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 		// Pi reads Loom's models and cloud providers from its own file: bring
 		// it up to date before Pi starts (a provider added since is listed).
 		if agent.ID == "pi" && !agent.Remote {
-			_ = syncModelSinks()
+			if err := syncModelSinks(); err != nil {
+				return nil, err
+			}
 		}
 		processDir := s.Workdir
 		if agent.Remote {

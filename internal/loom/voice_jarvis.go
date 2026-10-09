@@ -134,47 +134,62 @@ func jarvisRoutes() []ModelChoice {
 	return routes
 }
 
-// resolveJarvisModel never strands the voice mode: the discussion's model,
-// then the chosen fallback, then the model loaded in the engine, then the first
-// ready cloud route, then any local model. It fails only when Loom has none.
-func resolveJarvisModel(settings jarvisSettings, discussion RuntimeSession, routes []ModelChoice, loaded string) (ModelChoice, error) {
-	usable := func(c ModelChoice) bool { return c.Kind == "local" || c.Kind == "cloud" }
+// A Loom discussion owns its route. Only harness/absent discussions use the
+// configured fallback; catalog order and engine residency never choose a model.
+func resolveJarvisModel(settings jarvisSettings, discussion RuntimeSession, routes []ModelChoice, _ string) (ModelChoice, error) {
+	settings.defaults()
 	byID := func(id string) (ModelChoice, bool) {
 		for _, c := range routes {
-			if id != "" && c.ID == id && usable(c) {
+			if id != "" && c.ID == id && (c.Kind == "local" || c.Kind == "cloud") {
 				return c, true
 			}
 		}
 		return ModelChoice{}, false
 	}
-	if settings.Model == "discussion" {
-		for _, c := range routes {
-			if (discussion.RuntimeID == "llama.cpp" && c.Kind == "local" && discussion.Model != "" && (c.Model == discussion.Model || sameModelPath(c.Model, discussion.Model))) ||
-				(discussion.RuntimeID == "openai-compatible" && c.Kind == "cloud" && c.ProviderID == discussion.ProviderID && c.Model == discussion.Model && c.Endpoint == discussion.Endpoint) {
-				return c, nil
-			}
+	if settings.Model != "discussion" {
+		if c, ok := byID(settings.Model); ok {
+			return c, nil
 		}
-	} else if c, ok := byID(settings.Model); ok {
-		return c, nil
+		return ModelChoice{}, errors.New("jarvis_model_unavailable: selected Jarvis model is unavailable; select a local or cloud model in the Jarvis profile")
+	}
+	for _, c := range routes {
+		if (discussion.RuntimeID == "llama.cpp" && c.Kind == "local" && discussion.Model != "" && (c.Model == discussion.Model || sameModelPath(c.Model, discussion.Model))) ||
+			(discussion.RuntimeID == "openai-compatible" && c.Kind == "cloud" && c.ProviderID == discussion.ProviderID && c.Model == discussion.Model && c.Endpoint == discussion.Endpoint) {
+			// Unloaded library models are valid: /v1 uses the normal engine service
+			// queue and router load path at inference time, including idle wakeup.
+			return c, nil
+		}
+	}
+	if discussion.RuntimeID == "llama.cpp" {
+		if discussion.Model == "" {
+			return ModelChoice{}, errors.New("jarvis_model_not_loaded: no local model selected; select a model in Local, load it in the engine, then retry")
+		}
+		return ModelChoice{}, fmt.Errorf("jarvis_model_not_loaded: Load %s in the engine, then retry", discussion.Model)
+	}
+	if discussion.RuntimeID == "openai-compatible" {
+		return ModelChoice{}, fmt.Errorf("jarvis_model_unavailable: reconnect the discussion's cloud provider for %s, then retry", discussion.Model)
+	}
+	if settings.Fallback == "" {
+		return ModelChoice{}, errors.New("jarvis_no_fallback: this discussion has no Loom local/cloud route; configure a fallback model in the Jarvis profile, then retry")
 	}
 	if c, ok := byID(settings.Fallback); ok {
 		return c, nil
 	}
-	if loaded != "" {
-		for _, c := range routes {
-			if c.Kind == "local" && (c.Model == loaded || sameModelPath(c.Model, loaded)) {
-				return c, nil
-			}
-		}
+	return ModelChoice{}, errors.New("jarvis_model_unavailable: configured fallback is unavailable; select a fallback in the Jarvis profile, then retry")
+}
+
+func jarvisSearchEnabled(s *jarvisSession, discussion RuntimeSession) bool {
+	if !internetEnabled() {
+		return false
 	}
-	for _, kind := range []string{"cloud", "local"} {
-		for _, c := range routes {
-			if c.Kind == kind && (kind == "local" || c.Ready) {
-				return c, nil
-			}
-		}
+	switch discussion.RuntimeID {
+	case "llama.cpp":
+		return s.Internet
+	case "openai-compatible":
+		return true // same server flag as cloud discussion turns
+	default:
+		return false // Jarvis never drives a harness, even via a Loom model
 	}
-	return ModelChoice{}, errors.New("jarvis_no_model: no local or cloud model is available for Jarvis; load a local model or connect a cloud provider")
 }
 
 // Voice sessions never own a persistent discussion or a harness binding.
@@ -183,6 +198,7 @@ type jarvisSession struct {
 	Grant                   controlGrant
 	Model                   ModelChoice
 	Profile                 jarvisSettings
+	Internet                bool
 	Engine                  *engineNode
 	Turns                   []Message
 	LastUsed                time.Time
@@ -293,6 +309,9 @@ func jarvisMessages(s *jarvisSession, discussion RuntimeSession, text string) ([
 	profile := s.Profile
 	profile.defaults()
 	system := profile.speechPrompt()
+	if jarvisSearchEnabled(s, discussion) {
+		system = strings.Replace(system, "You have no tools and cannot perform actions.", "You can search the web with web_search. For current facts, search before answering. Give a short spoken summary of the results; do not read tool events, raw results or URLs aloud. You cannot perform other actions.", 1)
+	}
 	if profile.Context != "none" {
 		indexes, err := theBrain().MemoryIndex(brain.MemoryIndexRequest{ProjectID: discussion.ProjectID})
 		if err != nil {
@@ -324,7 +343,7 @@ func jarvisPolicy(in policy.Input) error {
 	}
 	return errors.New("policy denied capability: " + in.Subject)
 }
-func jarvisCompletion(ctx context.Context, s *jarvisSession, discussion RuntimeSession, messages []Message, emit func(string) bool) (string, error) {
+func jarvisCompletion(ctx context.Context, s *jarvisSession, discussion RuntimeSession, messages []Message, emit func(string) bool, status func(string) bool) (string, error) {
 	c := s.Model
 	route := RuntimeSession{ID: s.DiscussionID, ProjectID: discussion.ProjectID, RuntimeID: "llama.cpp", ProviderID: c.ProviderID, Endpoint: c.Endpoint, Model: c.Model}
 	p := CloudProvider{Endpoint: fmt.Sprintf("http://127.0.0.1:%d/v1", LLMPort()), Model: c.EngineValue}
@@ -376,7 +395,22 @@ func jarvisCompletion(ctx context.Context, s *jarvisSession, discussion RuntimeS
 		return "", errors.New("Jarvis model credential unavailable")
 	}
 	adapter := cloudRuntimeAdapter{provider: p, key: key, client: http.DefaultClient}
-	return (openai.Adapter{Provider: adapter, Credentials: adapter, Client: adapter}).Run(ctx, openai.Turn{Messages: messages, MaxTokens: s.Profile.maxTokens()}, func(e openai.Event) bool { return ctx.Err() == nil && (e.Content == "" || emit(e.Content)) })
+	turn := openai.Turn{Messages: messages, MaxTokens: s.Profile.maxTokens()}
+	if jarvisSearchEnabled(s, discussion) {
+		turn.Tools = cloudWebSearch{}
+	}
+	return (openai.Adapter{Provider: adapter, Credentials: adapter, Client: adapter}).Run(ctx, turn, func(e openai.Event) bool {
+		if ctx.Err() != nil {
+			return false
+		}
+		if e.Tool != nil && status != nil {
+			if e.Tool.Done {
+				return status("thinking")
+			}
+			return status("searching")
+		}
+		return e.Content == "" || emit(e.Content)
+	})
 }
 
 func registerJarvisRoutes(api func(string, http.HandlerFunc)) {
@@ -439,6 +473,7 @@ func handleJarvis(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/api/voice/jarvis/session" {
 		var req struct {
 			DiscussionID string `json:"discussion_id"`
+			Internet     bool   `json:"internet"`
 		}
 		if !workspaceDecode(w, r, &req) {
 			return
@@ -466,7 +501,7 @@ func handleJarvis(w http.ResponseWriter, r *http.Request) {
 			voiceAPIError(w, errors.New("too many voice sessions"))
 			return
 		}
-		jarvis.sessions[id] = &jarvisSession{ID: id, Owner: owner, Grant: grant, DiscussionID: req.DiscussionID, Model: model, Profile: profile, Engine: currentEngineNode(), LastUsed: time.Now()}
+		jarvis.sessions[id] = &jarvisSession{ID: id, Owner: owner, Grant: grant, DiscussionID: req.DiscussionID, Model: model, Profile: profile, Internet: req.Internet, Engine: currentEngineNode(), LastUsed: time.Now()}
 		jarvis.mu.Unlock()
 		sendJSON(w, 200, map[string]any{"ok": true, "session_id": id, "model": map[string]string{"route": model.ID, "label": model.Name}, "voice": profile.Voice})
 		return
@@ -580,7 +615,7 @@ func handleJarvis(w http.ResponseWriter, r *http.Request) {
 				return false
 			}
 			return send(map[string]string{"type": "delta", "text": text})
-		})
+		}, func(text string) bool { return send(map[string]string{"type": "status", "text": text}) })
 	}
 	if oversized {
 		err = errors.New("voice answer exceeds limit")

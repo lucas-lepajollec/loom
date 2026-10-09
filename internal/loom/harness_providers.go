@@ -196,6 +196,13 @@ func chatSources() []CloudProvider {
 		if len(p.Models) == 0 && p.Model != "" {
 			p.Models = []string{p.Model}
 		}
+		visible := []string{}
+		for _, model := range p.Models {
+			if getStr(bkModelChoices, cloudChoiceID(p.ID, model)) != "hidden" {
+				visible = append(visible, model)
+			}
+		}
+		p.Models = visible
 		if len(p.Models) > 0 {
 			out = append(out, p)
 		}

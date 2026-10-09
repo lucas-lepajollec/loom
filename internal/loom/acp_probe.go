@@ -87,6 +87,13 @@ func probeACPAgent(ctx context.Context, agent acpAgent) (result acpProbe) {
 	if agent.Remote {
 		cwd, _ = os.UserHomeDir()
 	}
+	// Refresh the file projection after credentials are restored and before Pi
+	// starts. A cached catalog must never reflect a stale local-only file.
+	if agent.ID == "pi" && !agent.Remote {
+		if err := syncModelSinks(); err != nil {
+			return fail(err)
+		}
+	}
 	// The harness sees Loom's sources while it is probed, so they are listed.
 	c, err := startACPClient(agent.Command, acpSessionArgs(agent, agent.RemoteHome), cwd, acpLaunchEnv(agent.ID, "")...)
 	if err != nil {

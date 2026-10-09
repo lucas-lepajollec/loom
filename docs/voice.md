@@ -355,11 +355,24 @@ The profile page is built separately. Its voice flow sends the returned session
 
 With `discussion`, a Loom-held local/cloud discussion supplies its own model
 route. A harness discussion or absent discussion uses `fallback`. An empty or
-missing fallback returns an actionable error; a missing discussion model also
-returns an error. Explicit routes always use their selected model. Jarvis never
-uses harnesses, including harnesses with a Loom model association. Local requests
-use the existing engine's Chat Completions endpoint and residency/loading policy;
-cloud requests use the existing provider completion client, with no tools.
+missing fallback returns `jarvis_no_fallback`. A local discussion without a
+selected model returns `jarvis_model_not_loaded`; a library model that is merely
+not resident is used and loads through the engine's normal path. There is no
+cascade to other models: catalog order or engine residency never choose a model.
+Explicit routes always use their selected model. Jarvis never uses harnesses,
+including harnesses with a Loom model association. Local requests use the
+existing engine's Chat Completions endpoint and residency/loading policy; cloud
+requests use the existing provider completion client.
+
+Errors are `"<code>: <detail>"` with codes `jarvis_model_not_loaded`,
+`jarvis_no_fallback` and `jarvis_model_unavailable`; the UI localizes them.
+
+**Web search.** The session request accepts `"internet": true` (the
+discussion's web-search toggle). When Loom's Internet setting is on and the
+discussion is a Loom-held local chat with the toggle on, or a cloud chat, the turn
+offers the same `web_search` tool and bounds as a normal chat turn, and the turn
+stream emits `{"type":"status","text":"searching"}` while a tool runs (then
+`"thinking"`). Agent discussions never get tools: Jarvis cannot drive an agent.
 
 ### Create and stream
 
