@@ -608,6 +608,8 @@ in `tools/agents-watch/` is runnable locally:
 ```sh
 make agents-watch                         # check installed CLIs; write report only
 make agents-watch AGENTS_WATCH_ARGS=--install  # latest npm releases, temporary prefix
+make agents-watch AGENTS_WATCH_ARGS=--update-capabilities # refresh installed-agent baselines
+make agents-watch AGENTS_WATCH_ARGS='--install --update-capabilities' # refresh latest baselines
 make agents-watch AGENTS_WATCH_ARGS='--install --publish' # explicit GitHub review writes
 ```
 
@@ -620,6 +622,51 @@ credentials. They initialize Codex/Claude or read Pi state, list models where
 possible, and check the owned OpenCode loopback server. Authentication-required
 steps are explicit skips. No prompts or paid turns run.
 
+The watch captures raw capability announcements before Loom's typed projections:
+ACP `initialize` (agent capabilities, auth methods, agent info and `_meta` keys),
+plus no-account `session/new` modes/models/config options and immediate command
+notifications; Pi `get_state`, `get_commands` and `get_available_models`; Codex
+`initialize` and all `model/list` pages; OpenCode `/config/providers`, `/agent`
+and `/command`. Unsupported optional endpoints and account-required discovery
+remain explicit in snapshots. The watched ACP package is Claude ACP; registry
+refresh does not execute every catalog agent.
+
+Stable JSON snapshots live in `internal/loom/harness/capabilities/<agent>.json`.
+Keys and unordered announcement lists are sorted, duplicates removed, stable
+command/mode/config IDs become diffable object keys, and volatile session IDs, paths, timestamps, versions, current selections and counts
+are dropped. Model catalogs record the union of field shapes, efforts and flags,
+not account-dependent model identities, inventory size or prices. `_meta` records
+only extension keys, not private values. Unknown announcement fields are
+retained. Model config-option inventories use the same projection as model
+catalogs.
+The report lists added, removed and changed JSON-pointer paths (first 80); the
+full path diff and candidate JSON are artifacts. Auth-gated fields remain unknown.
+
+Missing snapshots automatically produce **baseline created**, not an attention
+item. The workflow proposes these baselines in its review PR on the first run;
+normal local runs only write candidate artifacts. `--update-capabilities` writes
+the observed snapshots into the checkout for review, including changed ones.
+It still reports detected changes and other failures; it does not accept versions.
+Use it separately from `--publish`, which writes only its isolated review tree.
+
+For a version absent from the tested list, the watch fetches GitHub releases
+between the latest tested version and the candidate, excluding the tested release.
+Sources are `openai/codex`, `earendil-works/pi`,
+`agentclientprotocol/claude-agent-acp`, and OpenCode's installed npm
+`package.json` repository (falling back to `sst/opencode` if unavailable).
+The installed npm tarball's `CHANGELOG.md` is a fallback. Reports, issues and
+PR bodies include source links and headings/bullets bounded to 80 lines per
+agent; long lines are also bounded. Network errors, missing notes or an
+incomplete bounded release range produce **release notes unavailable**, without
+failing checks or creating attention by themselves. Fetches send no credentials.
+
+Schema and capability diffs detect advertised protocol changes, including
+features for agents without a schema. Fixtures check Loom's mapped behavior;
+handshakes do not exercise turns, tools, approvals or authenticated catalogs.
+Features exposed only in an agent's own UI are surfaced through release notes,
+not tests. An upstream feature omitted from both announcements and release notes
+can still go undetected.
+
 The script regenerates the Codex schemas consumed by Loom using
 `codex app-server generate-json-schema --out …` and the OpenCode OpenAPI using
 `opencode generate`. It compares parsed JSON with committed snapshots, ignoring
@@ -631,15 +678,17 @@ uploaded as a workflow artifact and included in the job summary.
 
 With `--publish`, passing candidates open/update
 `agents-watch/<UTC-date>` from the checked HEAD in a temporary worktree. Only
-`tested_versions.json` and a successfully refreshed registry snapshot are
-included. Local publishing requires a clean checkout; the script does not commit
-local work.
-A schema change, installation/probe failure or failed fixture check opens or
-updates one exact-title issue per affected candidate:
+`tested_versions.json`, passing candidates' capability snapshots, and a
+successfully refreshed registry snapshot are included. Local publishing requires
+a clean checkout; the script does not commit local work.
+A capability change, schema change, installation/probe failure or failed fixture
+check opens or updates one exact-title issue per affected candidate:
 `Agents watch: <agent> <version> needs attention`. A registry failure also opens
 its own attention issue, even when candidate issues exist. Failed candidates
-are excluded from the version PR; passing candidates still publish when another
-agent or the registry needs attention. A failed registry refresh keeps the old
+are excluded from the version PR. A capability change alone proposes the new
+snapshot and version in the PR while also opening an attention issue with its
+path diff; the maintainer reviews the announcements before acceptance. Passing
+candidates still publish when another agent or the registry needs attention. A failed registry refresh keeps the old
 snapshot. Both review channels are attempted, including after a publication
 failure. Automation returns a failing status after publishing whenever attention
 is needed; publication errors also fail the job.
@@ -654,11 +703,12 @@ head before merging. For local publishing or a failed dispatch, run
 push a change using maintainer credentials to trigger PR CI. See GitHub's
 [workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
 
-To accept a new version, review the watch report and skips, inspect schema diffs
-and adapt mappings/fixtures when needed, then rerun the checks. Merge the review
+To accept a new version, review release notes and the watch report/skips, inspect
+capability and schema diffs and adapt mappings/fixtures when needed, then rerun the checks. Merge the review
 PR or append the verified version to the agent's array in `tested_versions.json`
-in a reviewed change. For a changed native contract, refresh its schema and
-`VERSION` provenance and regenerate Codex projections with
+in a reviewed change along with its capability snapshot (refresh locally with
+`make agents-watch AGENTS_WATCH_ARGS=--update-capabilities`). For a changed native
+contract, refresh its schema and `VERSION` provenance and regenerate Codex projections with
 `tools/generate-codex-types.py` as appropriate. Curated agents remain unverified
 until a trusted live check justifies a first entry; fixtures alone do not do so.
 

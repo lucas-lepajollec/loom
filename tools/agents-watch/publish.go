@@ -50,7 +50,8 @@ func planReview(checks []candidate, registryErr error) reviewPlan {
 	for _, c := range checks {
 		if len(c.Problems) == 0 {
 			p.Passing = append(p.Passing, c)
-		} else {
+		}
+		if len(c.Problems) > 0 || c.CapabilityChanged {
 			p.Attention = append(p.Attention, "Agents watch: "+c.ID+" "+c.Version+" needs attention")
 		}
 	}
@@ -107,6 +108,11 @@ func publishVersions(reportPath string, registry []byte, passing []candidate) er
 		return err
 	}
 	for _, c := range passing {
+		if len(c.Snapshot) > 0 {
+			if err := saveCapabilitySnapshot(filepath.Join(worktree, capabilitiesDir), c.ID, c.Snapshot); err != nil {
+				return err
+			}
+		}
 		if !versionIncluded(versions[c.ID], c.Version) {
 			versions[c.ID] = append(versions[c.ID], c.Version)
 		}
@@ -135,7 +141,11 @@ func publishVersions(reportPath string, registry []byte, passing []candidate) er
 	if _, err := git("checkout", "-B", branch); err != nil {
 		return err
 	}
-	if _, err := git("add", "internal/loom/harness/tested_versions.json", "internal/loom/harness/acp_registry_snapshot.json"); err != nil {
+	paths := []string{"add", "internal/loom/harness/tested_versions.json", "internal/loom/harness/acp_registry_snapshot.json"}
+	if _, err := os.Stat(filepath.Join(worktree, capabilitiesDir)); err == nil {
+		paths = append(paths, capabilitiesDir)
+	}
+	if _, err := git(paths...); err != nil {
 		return err
 	}
 	if _, err := git("-c", "user.name=github-actions[bot]", "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com", "commit", "-m", "Agents watch: accept checked versions "+date); err != nil {

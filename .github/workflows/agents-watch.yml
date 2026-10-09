@@ -28,7 +28,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
-      - name: Check releases and publish review
+      # Missing capability snapshots are generated as baselines in the review PR.
+      - name: Check schemas, capabilities and release notes; publish review
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: make agents-watch AGENTS_WATCH_ARGS='--install --publish --out .project-local/agents-watch'
@@ -38,7 +39,7 @@ jobs:
           if [ -f .project-local/agents-watch/report.md ]; then
             cat .project-local/agents-watch/report.md >> "$GITHUB_STEP_SUMMARY"
           fi
-      - name: Upload report and candidate schemas
+      - name: Upload report, schemas and capability snapshots
         if: always()
         uses: actions/upload-artifact@v4
         with:

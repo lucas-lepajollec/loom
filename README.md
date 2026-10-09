@@ -19,8 +19,10 @@ The backend also offers the official ACP agent catalogue with pinned add/remove
 configuration and an offline snapshot, plus curated Hermes, OpenClaw and
 DeepSeek TUI launchers. See [agent compatibility](docs/agents-compat.md) for API
 shapes, verification limits and the weekly compatibility watch. The watch
-publishes passing versions alongside attention issues and dispatches CI for
-its review PRs.
+compares native schemas and no-account capability snapshots, includes bounded
+release notes for new versions, publishes review PRs alongside attention issues,
+and dispatches CI. Refresh local snapshots with
+`make agents-watch AGENTS_WATCH_ARGS=--update-capabilities`.
 
 ## Models and engines
 

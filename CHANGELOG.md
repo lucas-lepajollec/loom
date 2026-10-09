@@ -4,6 +4,13 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- The agents watch detects changes in raw no-account capability announcements
+  for Codex, OpenCode, Pi and Claude ACP, including agents without schemas.
+  Missing snapshots become reviewable baselines; `--update-capabilities` refreshes
+  them locally. Capability diffs open attention issues and accompany version PRs.
+  Bounded release notes surface agent-only UI features; unavailable notes never
+  fail checks. No sign-in, paid turns or new dependencies.
+
 - Accept Codex CLI 0.162.0 alongside 0.159.2 with a refreshed app-server schema,
   regenerated projections and metadata/partial-answer/open-error fixtures.
   Accept OpenCode 1.18.35 and Pi 1.1.0 while retaining older versions; Pi handles
