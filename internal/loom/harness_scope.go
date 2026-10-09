@@ -76,7 +76,7 @@ func agentInstallations() []agentInstallation {
 		}
 		installed := acp.agent.available()
 		managed := harnessManaged("local", d.ID)
-		out = append(out, agentInstallation{Machine: "local", MachineName: host, Harness: d.ID, Name: d.Name, Logo: d.ID, RuntimeID: d.ID,
+		out = append(out, agentInstallation{Machine: "local", MachineName: host, Harness: d.ID, Name: d.Name, Logo: d.Logo, RuntimeID: d.ID,
 			Installed: installed, Ready: installed, Managed: managed, Enabled: managed && installed && harnessConnected(acp.agent)})
 	}
 	for _, m := range loadRemoteMachines() {

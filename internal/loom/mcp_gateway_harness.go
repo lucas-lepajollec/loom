@@ -47,7 +47,7 @@ var gatewayHarnessSpecs = []gatewayHarnessSpec{
 	{"claude-code", "Claude Code", "~/.claude.json", "mcpServers"},
 	{"codex", "Codex", "~/.codex/config.toml", ""},
 	{"opencode", "OpenCode", "~/.config/opencode/opencode.json", "mcp"},
-	{"gemini", "Gemini CLI", "~/.gemini/settings.json", "mcpServers"},
+	{"antigravity", "Antigravity", "~/.gemini/config/mcp_config.json", "mcpServers"},
 }
 
 func gatewaySpec(id string) (gatewayHarnessSpec, error) {
@@ -254,9 +254,6 @@ func (c *gatewayConfig) render(url, token string, enabled bool) ([]byte, []byte,
 		case "opencode":
 			value["type"] = "remote"
 			value["enabled"] = true
-		case "gemini":
-			delete(value, "url")
-			value["httpUrl"] = url
 		}
 		entry, _ = json.Marshal(value)
 		c.entries["loom"] = entry
@@ -334,6 +331,9 @@ func (c *gatewayConfig) write(data []byte) error {
 func gatewayInfoFromState(state gatewayState) gatewayInfo {
 	info := gatewayInfo{URL: gatewayURL(), TokenSet: state.TokenHash != "", Harnesses: []gatewayHarness{}}
 	for _, h := range gatewayHarnessSpecs {
+		if !localHarnessUsable(h.id) {
+			continue
+		}
 		registered := false
 		if c, err := openGatewayConfig(h); err == nil {
 			registered = c.owned(state)

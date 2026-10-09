@@ -15,7 +15,7 @@ import (
 )
 
 func antigravityCaps() []string {
-	return []string{"chat", "stream", "cancel", "tools", "usage", "workdir", "resume", "connect", "quota", "native-events", "raw-events"}
+	return harnessFeatureCaps(harnessFeatures(acpAgent{ID: "antigravity"}, "agy-stream-json", acpProbe{}))
 }
 
 func antigravityCompatibility(a acpAgent, version string) *agent.CompatibilityRecord {
@@ -56,7 +56,6 @@ func antigravityOptions(models []string) []map[string]any {
 
 func antigravityModes() []map[string]any {
 	return []map[string]any{
-		{"id": "default", "name": "Cautious", "description": "Native rules apply; actions requiring approval are denied in headless mode."},
 		{"id": "accept-edits", "name": "Auto edits"},
 		{"id": "plan", "name": "Plan"},
 		{"id": "full", "name": "Allow everything", "description": "Explicit launch-scoped permission bypass."},
@@ -64,7 +63,7 @@ func antigravityModes() []map[string]any {
 }
 
 func probeAntigravity(ctx context.Context, a acpAgent) acpProbe {
-	out := acpProbe{At: time.Now().UnixMilli(), Compatibility: recordAntigravityCompatibility(ctx, a), Caps: map[string]any{"loadSession": true}, Mode: "default", Modes: antigravityModes()}
+	out := acpProbe{At: time.Now().UnixMilli(), Compatibility: recordAntigravityCompatibility(ctx, a), Caps: map[string]any{"loadSession": true}, Mode: "accept-edits", Modes: antigravityModes()}
 	out.Agent = map[string]any{"name": a.Name, "version": out.Compatibility.Version}
 	catalog, err := agyRead(ctx, "models")
 	if err != nil {
@@ -138,6 +137,10 @@ func (m *runtimeSessions) runAntigravity(ctx context.Context, a acpAgent, s Runt
 		if !ok {
 			return nil, errors.New("Antigravity sandbox requires a boolean")
 		}
+	}
+	if s.Mode == "" || s.Mode == "default" {
+		s.Mode = "accept-edits"
+		state.Mode = s.Mode
 	}
 	config := antigravity.TurnConfig{ConversationID: state.NativeSessionID, Model: s.Model, Effort: effort, Mode: s.Mode, Permission: s.Permission, Sandbox: sandbox, AdditionalDirs: s.AdditionalDirs}
 	args, err := config.Args()

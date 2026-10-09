@@ -26,8 +26,8 @@ func nativeResumeCommand(harness, id string) string {
 		return "opencode --session " + id
 	case "pi":
 		return "pi --session " + id
-	case "gemini":
-		return "gemini --resume " + id
+	case "antigravity":
+		return "agy --conversation " + id
 	case "hermes":
 		return "hermes --resume " + id
 	}

@@ -14,7 +14,7 @@ import (
 
 func TestCuratedAgentsLaunchAvailabilityAndCompatibility(t *testing.T) {
 	testHome(t)
-	for _, id := range []string{"hermes", "openclaw", "deepseek-tui"} {
+	for _, id := range []string{"hermes", "openclaw", "deepseek-harness"} {
 		var a acpAgent
 		for _, candidate := range builtinACPAgents() {
 			if candidate.ID == id {
@@ -22,10 +22,14 @@ func TestCuratedAgentsLaunchAvailabilityAndCompatibility(t *testing.T) {
 			}
 		}
 		want := []string{"acp"}
-		if id == "deepseek-tui" {
-			want = []string{"serve", "--acp"}
+		if id == "deepseek-harness" {
+			want = []string{"-y", "@deepseek-ai/dsh@0.2.0-rc.2", "--profile", "acp"}
 		}
-		if a.Command != id || !reflect.DeepEqual(a.Args, want) || !reflect.DeepEqual(a.Detect, []string{id}) {
+		command, detect := id, []string{id}
+		if id == "deepseek-harness" {
+			command, detect = "npx", []string{}
+		}
+		if a.Command != command || !reflect.DeepEqual(a.Args, want) || !reflect.DeepEqual(a.Detect, detect) {
 			t.Fatal(a)
 		}
 		a.Command = filepath.Join(t.TempDir(), "missing")
@@ -44,15 +48,18 @@ func TestCuratedAgentsLaunchAvailabilityAndCompatibility(t *testing.T) {
 			}
 		}
 		d := (&acpAdapter{agent: a}).Descriptor()
-		if !hasRuntimeCapability(d, "user-input") || !hasRuntimeCapability(d, "elicitation") {
+		if hasRuntimeCapability(d, "user-input") || hasRuntimeCapability(d, "elicitation") != (id != "deepseek-harness") {
 			t.Fatal(d)
 		}
 	}
 }
 
 func TestCuratedACPFixtureTurns(t *testing.T) {
-	for _, id := range []string{"hermes", "openclaw", "deepseek-tui"} {
-		for _, name := range []string{"normal", "permission", "elicitation"} {
+	for _, id := range []string{"hermes", "openclaw", "deepseek-harness"} {
+		for _, name := range []string{"normal", "permission", "elicitation", "model", "resume"} {
+			if id == "deepseek-harness" && name == "elicitation" || id != "deepseek-harness" && (name == "model" || name == "resume") {
+				continue
+			}
 			t.Run(id+"/"+name, func(t *testing.T) {
 				testHome(t)
 				t.Setenv("LOOM_STEP2_ACP_FIXTURE", id)
@@ -63,6 +70,12 @@ func TestCuratedACPFixtureTurns(t *testing.T) {
 				defer m.shutdownACP()
 				a := acpAgent{ID: id, Name: id, Command: exe, Args: []string{"-test.run=^TestStep2ACPFixtureProcess$"}, Custom: true}
 				s := RuntimeSession{ID: "fixture", RuntimeID: id, Model: "default", ACPState: ACPState{Workdir: t.TempDir(), Permission: "ask"}}
+				if name == "resume" {
+					s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "fixture-session", id, acpContextHash([]Message{})
+				}
+				if name == "model" {
+					s.ConfigOptions = map[string]any{"model": "deepseek-v4-flash"}
+				}
 				if err := putStoreJSON(bkRuntimeSessions, s.ID, s); err != nil {
 					t.Fatal(err)
 				}
@@ -114,7 +127,7 @@ func TestCuratedACPFixtureTurns(t *testing.T) {
 				mu.Lock()
 				defer mu.Unlock()
 				want := 1
-				if name == "normal" {
+				if name == "normal" || name == "model" || name == "resume" {
 					want = 0
 				}
 				if opened != want || resolved != want {

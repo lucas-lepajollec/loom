@@ -26,7 +26,7 @@ func openCodeClient(ctx context.Context) (*opencodehttp.Client, error) {
 	return openCodeServer.Client(ctx, argv, []string{"PATH=" + lifecycleLocalPath()})
 }
 func openCodeCaps() []string {
-	return []string{"chat", "stream", "cancel", "tools", "approvals", "user-input", "plan", "usage", "workdir", "resume", "connect", "native-events", "raw-events"}
+	return harnessFeatureCaps(harnessFeatures(acpAgent{ID: "opencode"}, "opencode-http", acpProbe{}))
 }
 func openCodeCompatibility(a acpAgent, version string) *agent.CompatibilityRecord {
 	path, _ := lifecycleLookPath("opencode")

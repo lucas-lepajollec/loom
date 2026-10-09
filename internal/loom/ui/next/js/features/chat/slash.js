@@ -62,7 +62,7 @@ export function slashEntries({ commands, session, harness, rtId }) {
     }
   }
   if (modes.length > 1) add('mode', t("inspector.inspector.mode_de_l_agent"), { children: modes.map(m => ({ label: m.name || m.id, description: m.description, current: m.id === harness.mode, run: { kind: 'mode', id: m.id } })) });
-  const sessions = { description: t("chat.slash.ouvrir_une_autre_discussion_avec_ce_harness"), load: () => agentSessions(rtId, session.id) };
+  const sessions = { description: t("chat.slash.ouvrir_une_autre_discussion_avec_ce_harness"), load: () => agentSessions(rtId, session.id, !!harness?.features?.history_import) };
   for (const n of ['sessions', 'resume']) if (byName(n)) add(n, '', sessions);
   if (!byName('sessions') && !byName('resume')) add('sessions', sessions.description, sessions);
   return entries;
@@ -70,11 +70,11 @@ export function slashEntries({ commands, session, harness, rtId }) {
 
 // Autres discussions avec ce harness, les plus récentes d'abord : celles de
 // Loom et celles faites directement dans le harness (importées à l'ouverture).
-export async function agentSessions(rtId, currentId) {
+export async function agentSessions(rtId, currentId, historyImport = false) {
   const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
   const mine = ((app.get().nav && app.get().nav.conversations) || []).filter(c => c.runtime_id === rtId && c.id !== currentId);
   const loom = mine.map(c => ({ label: c.title || t("chat.slash.discussion"), description: t("chat.slash.dans_loom"), at: c.updated_at || 0, where: 'loom', run: { kind: 'open', id: c.id } }));
-  const r = await get('/api/runtimes/' + rtId + '/sessions').catch(() => null);
+  const r = historyImport ? await get('/api/runtimes/' + rtId + '/sessions').catch(() => null) : null;
   const native = (r && r.ok ? r.sessions : []).filter(x => x.imported !== currentId && !(x.imported && mine.some(c => c.id === x.imported)))
     .map(x => ({ label: x.title || t("chat.slash.session_sans_titre"), description: t("chat.slash.dans_le_harness") + home(x.cwd), at: Date.parse(x.updatedAt || '') || 0, where: 'native',
       run: x.imported ? { kind: 'open', id: x.imported } : { kind: 'import', x } }));

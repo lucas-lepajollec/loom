@@ -85,7 +85,7 @@ func brainAgentsCheckDir(t *testing.T, file, dir string) {
 }
 
 func TestBrainAgentsWritersPreserveBackupIdempotentAndRemove(t *testing.T) {
-	for _, id := range []string{"claude-code", "codex", "opencode", "gemini", "pi"} {
+	for _, id := range []string{"claude-code", "codex", "opencode", "antigravity", "pi"} {
 		t.Run(id, func(t *testing.T) {
 			s, dir := brainAgentsFixture(t)
 			var spec brainAgentSpec
@@ -170,7 +170,7 @@ func TestBrainAgentsNewFilesAndClaudeLocalProjectSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"claude-code", "codex", "opencode", "gemini", "pi"} {
+	for _, id := range []string{"claude-code", "codex", "opencode", "antigravity", "pi"} {
 		brainAgentsToggle(t, s, id, true)
 	}
 	file := filepath.Join(projectDir, ".claude", "settings.local.json")
@@ -189,7 +189,7 @@ func TestBrainAgentsNewFilesAndClaudeLocalProjectSettings(t *testing.T) {
 		t.Fatal("missing project map")
 	}
 	brainAgentsWrite(t, file, `{"autoMemoryDirectory":`+string(brainAgentsSetting(t, file)["autoMemoryDirectory"])+`,"user":true}`)
-	for _, id := range []string{"claude-code", "codex", "opencode", "gemini", "pi"} {
+	for _, id := range []string{"claude-code", "codex", "opencode", "antigravity", "pi"} {
 		brainAgentsToggle(t, s, id, false)
 	}
 	top := brainAgentsSetting(t, file)
@@ -209,7 +209,7 @@ func TestBrainAgentsNewFilesAndClaudeLocalProjectSettings(t *testing.T) {
 func TestBrainAgentsRepointSourceAndProjectChanges(t *testing.T) {
 	s, dir := brainAgentsFixture(t)
 	brainAgentsWrite(t, filepath.Join(dir, ".loom", "brain.json"), `{"foreign":{"keep":true}}`)
-	for _, id := range []string{"claude-code", "codex", "opencode", "gemini", "pi"} {
+	for _, id := range []string{"claude-code", "codex", "opencode", "antigravity", "pi"} {
 		brainAgentsToggle(t, s, id, true)
 	}
 	projectDir := t.TempDir()
@@ -286,7 +286,7 @@ func TestBrainAgentsRepointSourceAndProjectChanges(t *testing.T) {
 	}
 }
 func TestBrainAgentsRefuseChangedUnownedMalformedAndSymlinkFiles(t *testing.T) {
-	for _, id := range []string{"claude-code", "codex", "opencode", "gemini", "pi"} {
+	for _, id := range []string{"claude-code", "codex", "opencode", "antigravity", "pi"} {
 		t.Run(id, func(t *testing.T) {
 			s, _ := brainAgentsFixture(t)
 			brainAgentsToggle(t, s, id, true)
@@ -427,20 +427,10 @@ func TestBrainAgentsRemoteOnlyAndPiRemovalWithoutDocs(t *testing.T) {
 	}
 	state, _ := loadBrainAgentState()
 	info := s.brainAgentsInfo(state)
-	remote := 0
 	for _, a := range info.Agents {
 		if strings.HasPrefix(a.ID, "custom-") {
-			remote++
-			if a.Supported || a.Linked || a.File != "" || a.Note != "local only for now" {
-				t.Fatalf("remote link advertised: %+v", a)
-			}
-			if w := brainAgentsCall(s, "POST", `{"id":"`+a.ID+`","enabled":true}`); w.Code != 400 || !strings.Contains(w.Body.String(), "local only for now") {
-				t.Fatal("remote toggle accepted")
-			}
+			t.Fatalf("remote duplicate: %+v", a)
 		}
-	}
-	if remote != 2*len(remoteHarnessDefs) {
-		t.Fatal("remote/paired inventory missing")
 	}
 	brainAgentsToggle(t, s, "pi", true)
 	file := filepath.Join(os.Getenv("PI_CODING_AGENT_DIR"), "AGENTS.md")

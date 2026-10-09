@@ -7,11 +7,7 @@ import "errors"
 // are advertised. Strict read confinement is deliberately absent for Codex:
 // its workspace-write mode still allows reads outside the workspace.
 func harnessFilesystemPolicies(agent acpAgent) []string {
-	policies := []string{"native"}
-	if agent.ID == "codex" || agent.Machine != "" && usageHarnessID(agent) == "codex" {
-		policies = append(policies, "workspace-write", "full-access")
-	}
-	return policies
+	return harnessFeatures(agent, "acp", acpProbe{}).FilesystemPolicies
 }
 func harnessFilesystemMode(agent acpAgent, policy string) (string, error) {
 	if policy == "" || policy == "native" {

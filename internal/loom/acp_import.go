@@ -142,6 +142,9 @@ func importACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, 
 // Reading is separate from retaining/deduplicating a Loom import. Transfers
 // replay the live native source rather than a previously imported Loom copy.
 func readNativeACPSession(ctx context.Context, agent acpAgent, info acpSessionInfo, projectID string, fresh bool) (RuntimeSession, error) {
+	if deepseekACPAgent(agent) {
+		return RuntimeSession{}, errors.New("DeepSeek Harness has no transcript replay; native history import is unavailable")
+	}
 	var s RuntimeSession
 	if projectID != "" {
 		if _, ok := getProject(projectID); !ok {

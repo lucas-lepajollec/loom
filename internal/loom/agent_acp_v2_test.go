@@ -210,8 +210,29 @@ func TestStep2ACPFixtureProcess(t *testing.T) {
 				os.Exit(5)
 			}
 			send(map[string]any{"jsonrpc": "2.0", "id": f.ID, "result": map[string]any{"protocolVersion": 1, "agentInfo": map[string]any{"name": name, "version": "fixture"}, "agentCapabilities": map[string]any{}}})
-		case "session/new":
-			send(map[string]any{"jsonrpc": "2.0", "id": f.ID, "result": map[string]any{"sessionId": "fixture-session"}})
+		case "session/new", "session/resume":
+			if name == "deepseek-harness" {
+				var params map[string]any
+				_ = json.Unmarshal(f.Params, &params)
+				if _, present := params["additionalDirectories"]; present {
+					os.Exit(10)
+				}
+				if os.Getenv("LOOM_STEP2_ACP_CASE") == "resume" && (f.Method != "session/resume" || params["sessionId"] != "fixture-session") {
+					os.Exit(11)
+				}
+			}
+			result := map[string]any{"sessionId": "fixture-session"}
+			if name == "deepseek-harness" {
+				result["configOptions"] = []any{map[string]any{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "deepseek-v4-pro", "options": []any{map[string]any{"value": "deepseek-v4-pro", "name": "DeepSeek V4 Pro"}, map[string]any{"value": "deepseek-v4-flash", "name": "DeepSeek V4 Flash"}}}}
+			}
+			send(map[string]any{"jsonrpc": "2.0", "id": f.ID, "result": result})
+		case "session/set_config_option":
+			var params map[string]any
+			_ = json.Unmarshal(f.Params, &params)
+			if name != "deepseek-harness" || params["configId"] != "model" || params["value"] != "deepseek-v4-flash" {
+				os.Exit(9)
+			}
+			send(map[string]any{"jsonrpc": "2.0", "id": f.ID, "result": map[string]any{"configOptions": []any{map[string]any{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "deepseek-v4-flash", "options": []any{map[string]any{"value": "deepseek-v4-flash", "name": "DeepSeek V4 Flash"}}}}}})
 		case "session/prompt":
 			fixtureCase := os.Getenv("LOOM_STEP2_ACP_CASE")
 			if fixtureCase == "" {

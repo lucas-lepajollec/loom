@@ -235,7 +235,10 @@
       ]
     },
     "update_install": true,
-    "source": "https://antigravity.google/docs/cli/install/"
+    "source": "https://antigravity.google/docs/cli/install/",
+    "skills": [
+      "~/.gemini/config/skills"
+    ]
   },
   "hermes": {
     "binary": "hermes",
@@ -347,5 +350,38 @@
       "node"
     ],
     "source": "https://github.com/openclaw/openclaw#readme"
+  },
+  "deepseek-harness": {
+    "binary": "dsh",
+    "version": [
+      "dsh",
+      "--version"
+    ],
+    "install": {
+      "unix": [
+        "npm",
+        "install",
+        "-g",
+        "@deepseek-ai/dsh@0.2.0-rc.2"
+      ],
+      "windows": [
+        "npm",
+        "install",
+        "-g",
+        "@deepseek-ai/dsh@0.2.0-rc.2"
+      ]
+    },
+    "update": [
+      "npm",
+      "install",
+      "-g",
+      "@deepseek-ai/dsh@0.2.0-rc.2"
+    ],
+    "requires": [
+      "node",
+      "npm"
+    ],
+    "unverified": true,
+    "source": "https://github.com/deepseek-ai/deepseek-harness"
   }
 }

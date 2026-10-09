@@ -249,7 +249,7 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			m.closeACP(s.ID)
 			return nil, claudeACPError(agent, err, "ACP initialization incompatible or failed")
 		}
-		record := recordACPCompatibility(agent, init.AgentInfo, []string{"chat", "stream", "cancel", "approvals", "user-input", "elicitation"})
+		record := recordACPCompatibility(agent, init.AgentInfo, harnessFeatureCaps(harnessFeatures(agent, "acp", acpProbe{Caps: init.AgentCapabilities})))
 		if record.Warning != "" {
 			p.publish(DiscussionEvent{"type": "warning", "message": record.Warning, "agent_event": AgentEvent{Type: "warning", Runtime: agent.ID, Message: record.Warning, Raw: agentEvents.JSON(record)}})
 		}
@@ -274,13 +274,21 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 				adapter.negotiatedMu.Unlock()
 			}
 		}
+		load = load || deepseekACPAgent(agent)
+		if deepseekACPAgent(agent) {
+			delete(params, "additionalDirectories")
+		}
 		if load && s.NativeSessionID != "" && s.NativeRuntimeID == agent.ID && s.NativeContext == prefix {
 			params["sessionId"] = s.NativeSessionID
 			p.mu.Lock()
 			p.loading = true
 			p.mu.Unlock()
 			loadCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-			err = c.call(loadCtx, "session/load", params, &response)
+			method := "session/load"
+			if deepseekACPAgent(agent) {
+				method = "session/resume"
+			}
+			err = c.call(loadCtx, method, params, &response)
 			cancel()
 			p.mu.Lock()
 			p.loading = false
@@ -290,6 +298,10 @@ func (m *runtimeSessions) runACP(ctx context.Context, agent acpAgent, s RuntimeS
 			}
 		} else {
 			fresh = true
+		}
+		if deepseekACPAgent(agent) && err != nil {
+			m.closeACP(s.ID)
+			return nil, errors.New("DeepSeek Harness native resume failed")
 		}
 		if fresh || err != nil {
 			fresh = true

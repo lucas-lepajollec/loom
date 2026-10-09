@@ -26,7 +26,7 @@ func loadCustomACPAgents() []acpAgent {
 func registerCustomACPAgents() {
 	for _, a := range loadCustomACPAgents() {
 		a.Custom = true
-		if a.Remote && a.Machine != "" && a.ID == "custom-"+a.Machine+"-gemini" {
+		if geminiCustomAgent(a) {
 			continue
 		}
 		registeredRuntimes.upsert(&acpAdapter{agent: a})
@@ -34,6 +34,9 @@ func registerCustomACPAgents() {
 }
 
 func validCustomACPAgent(a acpAgent) (acpAgent, error) {
+	if geminiCustomAgent(a) {
+		return a, errors.New("Gemini CLI is not offered; use Antigravity")
+	}
 	a.Name = strings.TrimSpace(a.Name)
 	a.Command = strings.TrimSpace(a.Command)
 	if a.Name == "" || len([]rune(a.Name)) > 40 || a.Command == "" || len(a.Command) > 512 || strings.ContainsAny(a.Command, "\n\r\x00") {
@@ -65,7 +68,7 @@ func validCustomACPAgent(a acpAgent) (acpAgent, error) {
 
 func logoForCustom(a acpAgent) string {
 	text := strings.ToLower(a.Name + " " + a.Command + " " + strings.Join(a.Args, " "))
-	for _, known := range []string{"hermes", "claude", "codex", "gemini", "pi", "kimi", "qwen", "cursor", "goose", "opencode"} {
+	for _, known := range []string{"hermes", "claude", "codex", "antigravity", "deepseek", "pi", "kimi", "qwen", "cursor", "goose", "opencode"} {
 		if strings.Contains(text, known) {
 			return known
 		}
@@ -76,7 +79,7 @@ func logoForCustom(a acpAgent) string {
 // GET: list. POST {agent} saves (create or update). POST /delete {id}.
 func handleCustomACP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		sendJSON(w, 200, map[string]any{"ok": true, "agents": loadCustomACPAgents()})
+		sendJSON(w, 200, map[string]any{"ok": true, "agents": offeredCustomACPAgents()})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -174,4 +177,24 @@ func acpAgentFor(runtimeID string) (acpAgent, bool) {
 		return acpAgent{}, false
 	}
 	return ad.agent, true
+}
+
+// Recognize old user configurations without offering Gemini CLI as an agent.
+func geminiCustomAgent(a acpAgent) bool {
+	text := strings.ToLower(a.Name + " " + a.Command + " " + strings.Join(a.Args, " "))
+	for _, arg := range a.Args {
+		if arg == "gemini" || strings.HasPrefix(arg, "@google/gemini-cli") {
+			return true
+		}
+	}
+	return strings.Contains(text, "gemini cli") || strings.Contains(text, "gemini-cli") || path.Base(a.Command) == "gemini" || strings.HasSuffix(a.ID, "-gemini")
+}
+func offeredCustomACPAgents() []acpAgent {
+	out := []acpAgent{}
+	for _, a := range loadCustomACPAgents() {
+		if !geminiCustomAgent(a) {
+			out = append(out, a)
+		}
+	}
+	return out
 }

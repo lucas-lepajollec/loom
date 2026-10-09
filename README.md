@@ -17,7 +17,7 @@ Loom is a single Go binary with a web UI. Run local inference, connect cloud pro
 
 The backend also offers the official ACP agent catalogue with pinned add/remove
 configuration and an offline snapshot, plus curated Hermes, OpenClaw and
-DeepSeek TUI launchers. See [agent compatibility](docs/agents-compat.md) for API
+the official DeepSeek Harness developer preview. See [agent compatibility](docs/agents-compat.md) for API
 shapes, verification limits and the weekly compatibility watch. The watch
 compares native schemas and no-account capability snapshots, includes bounded
 release notes for new versions, publishes review PRs alongside attention issues,
@@ -59,7 +59,7 @@ Credentials stay with the CLI. See [native account connection](docs/agents/acp-i
 
 Save named folders and one default per execution machine in **Settings › Workspaces** or the first-run guide. New harness discussions use that default, with project folders taking precedence. The Session panel can select another saved folder or save a new one. [Workspaces and native access](docs/workspaces.md) explain the supported file protections, approvals and native account login. Harness installation, Loom connection and account sign-in are separate; the selector includes only connected harnesses. Antigravity is the built-in Google harness. Gemini CLI is no longer offered; saved discussions and native installations are preserved.
 
-Follow native tools, diffs and plans, answer permission requests and import or resume supported native sessions. **Native / Loom** model sources let supported harnesses use their own account or compatible Loom models/providers. This depends on the harness protocol: Antigravity keeps its native catalog, and Hermes uses its own machine configuration.
+Follow native tools, diffs and plans, answer permission requests and import or resume supported native sessions. Agent options come from the active transport capability descriptor; unsupported modes, policies and native-history actions are hidden. **Native / Loom** model sources let supported harnesses use their own account or compatible Loom models/providers. This depends on the harness protocol: Antigravity keeps its native catalog, and Hermes uses its own machine configuration.
 
 Projects link folders on this machine or a connected machine, with shared instructions, selected context files, skills, MCP servers and a default execution target. Only explicitly selected local context files are read for prompts. See [workspace contracts](docs/workspace-architecture.md) and [ACP integration](docs/agents/acp-implementation.md).
 
@@ -96,10 +96,10 @@ Select Brain sources for a project or expose its authenticated MCP tools to harn
 
 Native agents can also read and write shared Markdown memory outside Loom after
 an explicit `POST /api/brain/agents` opt-in. Claude Code uses native auto-memory
-settings; Codex, OpenCode, Gemini CLI and documented Pi installations receive
+settings; Codex, OpenCode, Antigravity and documented Pi installations receive
 marked global instructions. See [Agents linked to the brain](docs/brain.md#agents-linked-to-the-brain).
 
-External Claude Code, Codex, OpenCode and Gemini CLI sessions can use one `loom` MCP entry at **`/mcp/loom`** for Brain, memory and all enabled Loom MCP servers. Explicit registration and token rotation use `/api/mcp/gateway` and `/api/mcp/gateway/token`; the dedicated gateway token cannot access control APIs. Secret-free MCP definitions travel with the primary Brain in `.loom/mcp.json` and import disabled. See [gateway and portable MCP APIs](docs/brain.md#one-loom-mcp-gateway-per-harness).
+External Claude Code, Codex, OpenCode and Antigravity sessions can use one `loom` MCP entry at **`/mcp/loom`** for Brain, memory and all enabled Loom MCP servers. Explicit registration and token rotation use `/api/mcp/gateway` and `/api/mcp/gateway/token`; the dedicated gateway token cannot access control APIs. Secret-free MCP definitions travel with the primary Brain in `.loom/mcp.json` and import disabled. See [gateway and portable MCP APIs](docs/brain.md#one-loom-mcp-gateway-per-harness).
 
 <img src="docs/screenshots/brain.png" alt="Brain search, semantic indexing and distilled memory" width="1000" />
 

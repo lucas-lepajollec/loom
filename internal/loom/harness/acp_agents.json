@@ -81,17 +81,17 @@
     "docs": "https://github.com/openclaw/openclaw/blob/main/docs/cli/acp.md"
   },
   {
-    "id": "deepseek-tui",
-    "name": "DeepSeek TUI",
+    "id": "deepseek-harness",
+    "name": "DeepSeek Harness",
     "logo": "deepseek",
-    "command": "deepseek-tui",
+    "command": "npx",
     "args": [
-      "serve",
-      "--acp"
+      "-y",
+      "@deepseek-ai/dsh@0.2.0-rc.2",
+      "--profile",
+      "acp"
     ],
-    "detect": [
-      "deepseek-tui"
-    ],
-    "docs": ""
+    "detect": [],
+    "docs": "https://github.com/deepseek-ai/deepseek-harness"
   }
 ]
