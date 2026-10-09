@@ -303,10 +303,14 @@ Models › Voice page ([voice](voice.md)); verified on a real Linux CPU machine.
    is installed in one click; models are downloaded, listed, deleted and benchmarked
    (latency, real-time factor) from a Voice page next to Models. Same install
    choice as the LLM engine: this machine or a paired machine through its node.
-2. **6.2 Browser voice mode.** A Voice button in any discussion: microphone →
-   streaming STT → the same discussion turn (same memory, models, agents, policies)
-   → streamed TTS playback. Push-to-talk and hands-free (VAD endpointing), barge-in
-   (speaking stops the voice), partial transcripts shown live. No wake word: the
+2. **6.2 Browser voice mode.** A Voice button opens a dedicated full-screen
+   Jarvis conversation: microphone → streaming STT → a local/cloud Jarvis model
+   → streamed TTS playback, with bounded Brain memory and read-only recent
+   discussion context. Closing may inject the exchange as messages into the
+   originating discussion, without a model/agent reply; otherwise it writes
+   nothing there. Push-to-talk, hands-free VAD, barge-in, live transcripts and
+   a lightweight animation belong to the separately built browser view. Optional
+   HTTPS enables secure microphone origins on LAN devices. No wake word: the
    button is the activation. This is the test bench for everything below.
 3. **6.3 Jarvis profile.** One page: language, voice, STT/TTS choice per machine,
    the model or agent that answers by default (fast and cheap), persona, spoken

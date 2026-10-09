@@ -219,6 +219,7 @@ func InjectSkills(msgs []Message, caps Caps) []Message {
 // n'importe où n'est pas gêné par un system en tête, donc la normalisation est
 // sûre pour tous.
 func normalizeSystemMessages(msgs []Message) []Message {
+	msgs = modelMessages(msgs)
 	var sys []string
 	sawSystem := false
 	rest := make([]Message, 0, len(msgs))

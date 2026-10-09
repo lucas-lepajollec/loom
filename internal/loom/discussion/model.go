@@ -11,6 +11,8 @@ type HarnessEvent = runtime.HarnessEvent
 // Message is one entry in the chat history sent to llama.cpp.
 // `Content` may be nil when an assistant message only contains tool_calls.
 type Message struct {
+	Source     string     `json:"source,omitempty"`
+	SourceID   string     `json:"source_id,omitempty"`
 	Role       string     `json:"role"`
 	Content    any        `json:"content,omitempty"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`

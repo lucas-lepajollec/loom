@@ -30,6 +30,7 @@ func doctorCheck(status, detail, href string) doctor.Check {
 }
 func doctorJobs() []doctor.Job {
 	jobs := []doctor.Job{
+		{ID: "security.https", Area: "security", Run: doctorHTTPS},
 		{ID: "core.version", Area: "core", Run: func(context.Context) doctor.Check { return doctorCheck("ok", Version+"; "+updateChannel(), "") }},
 		{ID: "core.data_writable", Area: "core", Run: func(context.Context) doctor.Check {
 			if !doctor.Writable(LoomHome()) {
