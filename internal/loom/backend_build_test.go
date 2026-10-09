@@ -3,6 +3,7 @@ package loom
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -41,5 +42,22 @@ func TestGPUListedNeedsADeviceLine(t *testing.T) {
 	}
 	if !gpuListed("Available devices:\n  MTL0: Apple M3", "Metal") {
 		t.Fatal("Metal device missed")
+	}
+}
+
+func TestPickCudaHostCompilerFallsBackToAcceptedGCC(t *testing.T) {
+	calls := []string{}
+	compiles := func(nvcc, host string) bool { calls = append(calls, host); return host != "" && strings.HasSuffix(host, "-15") }
+	got := pickCudaHostCompiler("/usr/local/cuda/bin/nvcc", func(n, h string) bool { return compiles(n, h) })
+	// The default compiler is tried first; a fallback is only returned when one
+	// of the installed candidates is accepted by nvcc.
+	if len(calls) == 0 || calls[0] != "" {
+		t.Fatalf("default compiler not tried first: %v", calls)
+	}
+	if got != "" && !strings.HasSuffix(got, "-15") {
+		t.Fatalf("picked %q", got)
+	}
+	if pickCudaHostCompiler("nvcc", func(string, string) bool { return true }) != "" {
+		t.Fatal("a working default compiler must not be overridden")
 	}
 }

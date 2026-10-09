@@ -1,3 +1,4 @@
+import { toast } from '../../ui/dialog.js';
 import { Icon } from '../../ui/icons.js';
 import { shortVersion } from '../../core/version.js';
 import { html, useState, useRef, useEffect } from '../../core/lib.js';
@@ -64,12 +65,13 @@ export function LoomUpdates({ node = false, endpoint = '', compact = false } = {
   };
   // Compact (machine page): the state in one line, a small action only when
   // there is something to do; full versions in the tooltip.
+  // Compact headers never grow: progress and results go to toasts.
+  useEffect(() => { if (compact && message) toast(message); }, [compact, message]);
+  useEffect(() => { if (compact && error) toast(error, 'err'); }, [compact, error]);
   if (compact) return html`<div class="upd">
     ${info?.available
-      ? html`<button class="btn sm" disabled=${busy || !info.can_apply} title=${info.current + ' → ' + info.latest} onClick=${install}><${Icon} n="download" />${t('machines.node.update_to', { version: shortVersion(info.latest) })}</button>`
-      : info?.current && html`<span class="state" title=${info.current}><i class="dot green"></i>${t('machines.node.up_to_date', { version: shortVersion(info.current) })}</span>`}
-    ${message && html`<p class="set-note" role="status">${message}</p>`}${error && html`<p class="set-note" role="alert">${error}</p>`}
-    ${info?.available && !info.can_apply && html`<p class="set-note">${info.apply_reason}</p>`}</div>`;
+      ? html`<button class="btn sm" disabled=${busy || !info.can_apply} title=${info.can_apply ? info.current + ' → ' + info.latest : info.apply_reason || ''} onClick=${install}><${Icon} n="download" />${busy ? t('updates.installing_short') : t('machines.node.update_to', { version: shortVersion(info.latest) })}</button>`
+      : info?.current && html`<span class="state" title=${info.current}><i class="dot green"></i>${t('machines.node.up_to_date', { version: shortVersion(info.current) })}</span>`}</div>`;
   return html`<${Group} title=${t(node ? 'node.updates' : 'settings.page.mises_a_jour')}>
     ${!node && html`<${Line} label=${t('updates.channel')} tip=${t('updates.channel_tip')}><${Seg} size="sm" label=${t('updates.channel')} value=${info?.channel || 'stable'} onChange=${setChannel} options=${[{ value: 'stable', label: t('updates.stable'), disabled: busy }, { value: 'edge', label: t('updates.edge'), disabled: busy }]} /></${Line}>`}
     <${Line} label=${t('updates.source')}><a href="https://github.com/lucas-lepajollec/loom/releases" target="_blank" rel="noopener noreferrer">${t('updates.releases')}</a></${Line}>

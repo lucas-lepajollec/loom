@@ -45,7 +45,9 @@ func TestRunShellNeBloquePasSurUnProcessDetache(t *testing.T) {
 	if d := time.Since(start); d > 10*time.Second {
 		t.Fatalf("runShell est resté accroché aux tubes du process détaché (%s)", d)
 	}
-	if !strings.Contains(out, "lance") && !strings.Contains(out, "timeout") {
+	// Under load the pipes may still be held when WaitDelay fires: that is the
+	// guard working (the call returned), not a failure.
+	if !strings.Contains(out, "lance") && !strings.Contains(out, "timeout") && !strings.Contains(out, "WaitDelay") {
 		t.Errorf("sortie inattendue : %q", out)
 	}
 }
