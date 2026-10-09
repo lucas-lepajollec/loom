@@ -1,5 +1,5 @@
 // agents-watch checks candidate releases without prompts or account credentials.
-// Local runs only write report artifacts. --publish explicitly enables GitHub writes.
+// Local runs write report artifacts; --update-capabilities refreshes baselines. --publish explicitly enables GitHub writes.
 package main
 
 import (
@@ -17,18 +17,17 @@ import (
 	"strings"
 	"time"
 
-	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/acp"
-	"github.com/lucas-lepajollec/loom/internal/loom/runtime/agentstdio"
-	"github.com/lucas-lepajollec/loom/internal/loom/runtime/codexapp"
-	"github.com/lucas-lepajollec/loom/internal/loom/runtime/opencodehttp"
-	"github.com/lucas-lepajollec/loom/internal/loom/runtime/pirpc"
 )
 
 type candidate struct {
 	ID, Package, Binary, Version string
 	Probe, Schema                string
 	Problems                     []string
+	Capabilities, Notes          string
+	Snapshot                     []byte
+	CapabilityChanged            bool
+	PackageDir                   string
 }
 
 var candidates = []candidate{
@@ -73,96 +72,11 @@ func authRequired(err error) bool {
 	}
 	return false
 }
-func probe(c candidate, env []string, dir string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	if c.ID == "opencode" {
-		server := &opencodehttp.Server{}
-		defer server.Close()
-		client, err := server.Client(ctx, []string{c.Binary}, env)
-		if err != nil {
-			return "", err
-		}
-		models, err := client.Models(ctx, dir)
-		return fmt.Sprintf("health + model listing (%d models)", len(models)), err
-	}
-	args := []string{}
-	switch c.ID {
-	case "codex":
-		args = []string{"app-server"}
-	case "pi":
-		args = []string{"--mode", "rpc", "--no-session"}
-	}
-	cmd := exec.Command(c.Binary, args...)
-	cmd.Env = env
-	cmd.Dir = dir
-	if c.ID == "claude-acp" {
-		client, err := acp.NewClient(cmd)
-		if err != nil {
-			return "", err
-		}
-		defer client.Close()
-		client.Handler = func(*acp.Frame) (any, error) {
-			return nil, &acp.RPCError{Code: -32601, Message: "watch probes do not accept interactive requests"}
-		}
-		client.Notify = func(acp.Frame) {}
-		if err = client.Start(); err != nil {
-			return "", err
-		}
-		var init struct {
-			ProtocolVersion int `json:"protocolVersion"`
-		}
-		if err = client.Call(ctx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": acp.ClientCapabilities(false, false), "clientInfo": map[string]string{"name": "loom-agents-watch", "version": "1"}}, &init); err != nil {
-			return "", err
-		}
-		if init.ProtocolVersion != 1 {
-			return "", fmt.Errorf("unexpected ACP protocol %d", init.ProtocolVersion)
-		}
-		var session acp.SessionResponse
-		if err = client.Call(ctx, "session/new", map[string]any{"cwd": dir, "mcpServers": []any{}}, &session); err != nil {
-			if authRequired(err) {
-				return "initialize passed; model listing skipped (account required)", nil
-			}
-			return "", err
-		}
-		return fmt.Sprintf("initialize + session model listing (%d options)", len(session.Options())), nil
-	}
-	client, err := agentstdio.New(cmd)
-	if err != nil {
-		return "", err
-	}
-	defer client.Close()
-	sink := func(agent.AgentEvent) bool { return true }
-	broker := agent.NewRequestBroker(c.ID, sink)
-	defer broker.Cancel()
-	if c.ID == "codex" {
-		session := codexapp.New(client, broker, sink)
-		if err = client.Start(); err == nil {
-			err = session.Initialize(ctx)
-		}
-		if err != nil {
-			return "", err
-		}
-		models, err := session.Models(ctx)
-		if err != nil && authRequired(err) {
-			return "initialize passed; model listing skipped (account required)", nil
-		}
-		return fmt.Sprintf("initialize + model listing (%d models)", len(models)), err
-	}
-	session := pirpc.New(client, broker, sink)
-	if err = client.Start(); err == nil {
-		_, err = session.State(ctx)
-	}
-	if err != nil {
-		return "", err
-	}
-	models, err := session.Models(ctx)
-	return fmt.Sprintf("state + model listing (%d models)", len(models)), err
-}
 
 func main() {
 	install := flag.Bool("install", false, "install latest candidates into a temporary npm prefix")
 	publish := flag.Bool("publish", false, "open/update checked-version PR and attention issues with gh and GITHUB_TOKEN")
+	updateCapabilities := flag.Bool("update-capabilities", false, "refresh committed capability snapshots from credential-free probes")
 	outDir := flag.String("out", ".project-local/agents-watch", "report and candidate schema directory")
 	probeID := flag.String("probe", "", "internal isolated handshake probe")
 	binary := flag.String("binary", "", "internal probe executable")
@@ -172,29 +86,33 @@ func main() {
 		for _, c := range candidates {
 			if c.ID == *probeID {
 				c.Binary = *binary
-				message, err := probe(c, os.Environ(), *dir)
+				result, err := probe(c, os.Environ(), *dir)
 				failure := ""
 				if err != nil {
 					if authRequired(err) {
-						message = "skipped (account required)"
+						result.Message = "skipped (account required)"
 					} else {
 						failure = err.Error()
 					}
 				}
-				_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"message": message, "error": failure})
+				result.Error = failure
+				_ = json.NewEncoder(os.Stdout).Encode(result)
 				return
 			}
 		}
 		os.Exit(2)
 	}
-	if err := watch(*install, *publish, *outDir); err != nil {
+	if err := watch(*install, *publish, *updateCapabilities, *outDir); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
-func watch(install, publish bool, outDir string) error {
+func watch(install, publish, updateCapabilities bool, outDir string) error {
 	if _, err := os.Stat("go.mod"); err != nil {
 		return errors.New("run agents-watch from the repository root")
+	}
+	if publish && updateCapabilities {
+		return errors.New("use --update-capabilities locally; --publish writes snapshots in the review worktree")
 	}
 	if publish {
 		status, err := run(time.Second, nil, "git", "status", "--porcelain")
@@ -216,6 +134,14 @@ func watch(install, publish bool, outDir string) error {
 	// Use empty native profiles and a small env allowlist. Probes never see the
 	// publishing token, provider credentials or a developer's existing accounts.
 	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + tmp, "XDG_CONFIG_HOME=" + tmp, "XDG_DATA_HOME=" + tmp, "XDG_CACHE_HOME=" + tmp, "CI=true", "NO_COLOR=1", "TERM=dumb"}
+	versionsData, err := os.ReadFile("internal/loom/harness/tested_versions.json")
+	if err != nil {
+		return err
+	}
+	var tested map[string][]string
+	if err := json.Unmarshal(versionsData, &tested); err != nil {
+		return err
+	}
 	for i := range candidates {
 		c := &candidates[i]
 		if install {
@@ -228,6 +154,7 @@ func watch(install, publish bool, outDir string) error {
 				continue
 			}
 			c.Binary = filepath.Join(prefix, "bin", c.Binary)
+			c.PackageDir = filepath.Join(prefix, "lib/node_modules", c.Package)
 		}
 		out, err := versionOutput(c.Binary, env)
 		if err != nil {
@@ -256,13 +183,31 @@ func watch(install, publish bool, outDir string) error {
 			c.Problems = append(c.Problems, "unrecognized version output")
 			continue
 		}
-		c.Probe, err = isolatedProbe(*c, env, tmp)
+		if c.PackageDir == "" {
+			c.PackageDir = installedPackageDir(*c)
+		}
+		if !versionIncluded(tested[c.ID], c.Version) {
+			previous := ""
+			if v := tested[c.ID]; len(v) > 0 {
+				previous = v[len(v)-1]
+			}
+			c.Notes = releaseNotes(*c, previous, &http.Client{Timeout: 10 * time.Second}, "https://api.github.com")
+		}
+		result, probeErr := isolatedProbe(*c, env, tmp)
+		c.Probe, err = result.Message, probeErr
 		if err != nil {
 			if authRequired(err) {
 				c.Probe = "skipped (account required)"
 			} else {
 				c.Problems = append(c.Problems, "probe failed: "+err.Error())
 			}
+		}
+		if len(result.Capabilities) > 0 {
+			c.Capabilities, c.Snapshot, err = checkCapabilities(c.ID, result.Capabilities, capabilitiesDir, outDir, updateCapabilities && probeErr == nil)
+			if err != nil {
+				c.Problems = append(c.Problems, "capability snapshot failed: "+err.Error())
+			}
+			c.CapabilityChanged = err == nil && c.Capabilities != "" && strings.HasPrefix(c.Capabilities, "- ")
 		}
 		c.Schema, err = checkSchema(*c, env, outDir)
 		if err != nil {
@@ -290,12 +235,29 @@ func watch(install, publish bool, outDir string) error {
 	}
 	failed := registryErr != nil
 	for _, c := range candidates {
+		if c.Probe == "" {
+			c.Probe = "unavailable (probe did not complete)"
+		}
+		if c.Capabilities == "" {
+			c.Capabilities = "unavailable (probe did not complete)"
+		}
 		fmt.Fprintf(&report, "## %s %s\n\nPackage: `%s`. Probe: %s. Schema: %s.\n\n", c.ID, c.Version, c.Package, c.Probe, c.Schema)
+		if c.CapabilityChanged {
+			fmt.Fprintf(&report, "Capabilities changed (review required):\n\n%s\n\n", c.Capabilities)
+		} else {
+			fmt.Fprintf(&report, "Capabilities: %s.\n\n", c.Capabilities)
+		}
+		if c.CapabilityChanged {
+			failed = true
+		}
+		if c.Notes != "" {
+			report.WriteString(c.Notes + "\n\n")
+		}
 		for _, problem := range c.Problems {
 			fmt.Fprintf(&report, "- %s\n", problem)
 			failed = true
 		}
-		if len(c.Problems) == 0 {
+		if len(c.Problems) == 0 && !c.CapabilityChanged {
 			report.WriteString("Checks passed.\n")
 		}
 		report.WriteString("\n")
@@ -345,27 +307,25 @@ func fetchRegistry() ([]byte, error) {
 
 // OpenCode's supervisor inherits the current environment. A separate process
 // gives every transport the same empty profiles and credential-free env.
-func isolatedProbe(c candidate, env []string, dir string) (string, error) {
+func isolatedProbe(c candidate, env []string, dir string) (probeResult, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", err
+		return probeResult{}, err
 	}
 	out, err := run(time.Minute, env, exe, "--probe", c.ID, "--binary", c.Binary, "--dir", dir)
 	if err != nil {
-		return "", err
+		return probeResult{}, err
 	}
-	var result struct {
-		Message string `json:"message"`
-		Error   string `json:"error"`
-	}
-	if err := json.Unmarshal(out, &result); err != nil {
-		return "", fmt.Errorf("invalid probe response: %w", err)
+	var result probeResult
+	if err := decodeSchema(out, &result); err != nil {
+		return result, fmt.Errorf("invalid probe response: %w", err)
 	}
 	if result.Error != "" {
-		return result.Message, errors.New(result.Error)
+		return result, errors.New(result.Error)
 	}
-	return result.Message, nil
+	return result, nil
 }
+
 func generateOpenAPI(binary string, env []string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
