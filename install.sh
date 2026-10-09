@@ -9,7 +9,7 @@ set -e
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh
 #
-# Node (Linux, without sudo): add sh -s -- --node [--listen HOST:2511]
+# Node (Linux, without sudo): add sh -s -- --node [--listen lan|ADDR:PORT|local]
 # Node binaries default to ~/.local/lib/loom-node; full Loom is separate.
 # Options (via environment variables):
 #   LOOM_INSTALL_DIR   Target directory for binary (default: /usr/local/bin)
@@ -42,7 +42,7 @@ while [ "$#" -gt 0 ]; do
       esac
       shift 2 ;;
     --help)
-      echo "Usage: sh install.sh [--node [--listen HOST:PORT] [--home DIR] [--bin PATH] [--models DIR] [--no-start|--no-service]]"
+      echo "Usage: sh install.sh [--node [--listen lan|ADDR:PORT|local] [--home DIR] [--bin PATH] [--models DIR] [--no-start|--no-service]]"
       exit 0 ;;
     *) echo "Error: unknown option $1" >&2; exit 1 ;;
   esac
@@ -52,6 +52,24 @@ if [ "$MODE" = "node" ]; then
   INSTALL_DIR="${LOOM_INSTALL_DIR:-$HOME/.local/lib/loom-node}"
 else
   [ "$NODE_START" = 1 ] && [ "$NODE_SERVICE" = 1 ] && [ -z "$NODE_BIN$NODE_MODELS$NODE_HOME" ] && [ -z "$NODE_LISTEN" ] || { echo "Error: node options require --node." >&2; exit 1; }
+fi
+
+# Automatic LAN selection must never choose a public or wildcard address.
+if [ "$MODE" = node ]; then
+  if [ -z "$NODE_LISTEN" ] && [ -t 0 ]; then
+    printf 'Make this node reachable from your other machines on the local network? [Y/n] '
+    read -r reach || reach=n
+    case "$reach" in n|N|no|NO) NODE_LISTEN=127.0.0.1:2511 ;; *) NODE_LISTEN=lan ;; esac
+  fi
+  if [ "$NODE_LISTEN" = lan ]; then
+    ROUTE_ADDRESS=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1)}')
+    NODE_ADDRESS=$(printf '%s\n' "$ROUTE_ADDRESS" "$(hostname -I 2>/dev/null || true)" | awk '
+      {for(i=1;i<=NF;i++) {n=split($i,a,"."); valid=(n==4); for(j=1;j<=n;j++) if(a[j] !~ /^[0-9]+$/ || a[j]>255) valid=0;
+       if(valid && (a[1]==10 || (a[1]==172 && a[2]>=16 && a[2]<=31) || (a[1]==192 && a[2]==168) || (a[1]==100 && a[2]>=64 && a[2]<=127))) {print $i; exit}}}')
+    [ -n "$NODE_ADDRESS" ] || { echo 'Error: no private LAN address found; choose --listen ADDR:PORT or local.' >&2; exit 1; }
+    NODE_LISTEN="$NODE_ADDRESS:2511"
+  fi
+  [ "$NODE_LISTEN" != local ] || NODE_LISTEN=127.0.0.1:2511
 fi
 
 # 1. Detect OS
@@ -203,7 +221,7 @@ if [ "$MODE" = "node" ]; then
   [ "$HAD_BINARY" = 0 ] || cp "$TMP_DIR/previous" "$TARGET.previous"
   [ -z "$NODE_HOME" ] || printf '%s\n' "$NODE_HOME" > "$INSTALL_DIR/node-home"
   trap 'rm -rf "$TMP_DIR"' EXIT
-  echo "Loom engine node installed: $TARGET"
+  echo "Loom Node installed: $TARGET"
   echo "Listener: ${NODE_LISTEN:-saved listener or 127.0.0.1:2511} (choose --listen for LAN/VPN)"
   if [ "$NODE_SERVICE" = 0 ]; then
     echo "Start: $TARGET node serve --listen '${NODE_LISTEN:-127.0.0.1:2511}' (add --home if configured). Stop a foreground node before reinstalling."
@@ -211,6 +229,14 @@ if [ "$MODE" = "node" ]; then
     echo "Service: systemctl --user status loom-node"
     echo "Logs: journalctl --user -u loom-node"
     echo "For startup without a login, an administrator may need: loginctl enable-linger <user>"
+  fi
+  if [ "$NODE_SERVICE" = 1 ] && [ "$NODE_START" = 1 ]; then
+    echo ""
+    echo "=========================================================================="
+    set -- node pair --if-unpaired
+    [ -z "$NODE_HOME" ] || set -- "$@" --home "$NODE_HOME"
+    "$TARGET" "$@"
+    echo "=========================================================================="
   fi
   exit 0
 fi

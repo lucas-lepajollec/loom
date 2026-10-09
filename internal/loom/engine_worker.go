@@ -38,17 +38,25 @@ func cmdNode(args []string) error {
 		return errors.New("run loom node as the engine user, without sudo")
 	}
 	if len(args) == 0 {
-		return errors.New("usage: loom node init|serve|pair|install|update|capabilities [--home DIR] [--listen HOST:PORT] [--bin PATH] [--models DIR]")
+		return errors.New("usage: loom node init|serve|pair|listen|install|update|capabilities [--home DIR] [--listen lan|HOST:PORT|local] [--bin PATH] [--models DIR]")
 	}
 	action := args[0]
 	if action == "capabilities" && len(args) == 1 {
 		fmt.Println("engine-node-v1")
 		return nil
 	}
+	if action == "listen" {
+		if len(args) < 2 || strings.HasPrefix(args[1], "-") {
+			return errors.New("usage: loom node listen lan|ADDR:PORT|local [--home DIR]")
+		}
+		args = append([]string{action, "--listen", args[1]}, args[2:]...)
+	}
 	flags := flag.NewFlagSet("loom node", flag.ContinueOnError)
 	home := flags.String("home", defaultLoomHome()+"-node", "separate engine data root")
 	listen := flags.String("listen", defaultNodeListen, "control and inference listener")
 	bin := flags.String("bin", "", "existing llama-server binary (init only)")
+	jsonOutput := flags.Bool("json", false, "print pairing details as JSON")
+	ifUnpaired := flags.Bool("if-unpaired", false, "issue a code only when unpaired")
 	check := flags.Bool("check", false, "check node update without installing")
 	noObserve := flags.Bool("no-observe", false, "disable node observe module (init only)")
 	noTerminal := flags.Bool("no-terminal", false, "disable node terminal module (init only)")
@@ -60,7 +68,7 @@ func cmdNode(args []string) error {
 	if flags.NArg() != 0 {
 		return errors.New("unexpected node arguments")
 	}
-	if action != "init" && action != "serve" && action != "pair" && action != "install" && action != "update" {
+	if action != "init" && action != "serve" && action != "pair" && action != "install" && action != "listen" && action != "update" {
 		return errors.New("unknown node action")
 	}
 	if action != "update" && *check {
@@ -84,14 +92,6 @@ func cmdNode(args []string) error {
 	}
 	if abs == filepath.Clean(defaultLoomHome()) || abs == filepath.Clean(readEtcDefault()) {
 		return errors.New("node data must be separate from the main Loom installation")
-	}
-	_, port, err := net.SplitHostPort(*listen)
-	if err != nil {
-		return fmt.Errorf("invalid node listener: %w", err)
-	}
-	n, err := strconv.Atoi(port)
-	if err != nil || n < 1 || n > 65535 {
-		return errors.New("invalid node port")
 	}
 	if err := os.Setenv("LOOM_HOME", abs); err != nil {
 		return err
@@ -118,6 +118,14 @@ func cmdNode(args []string) error {
 			*listen = saved
 		}
 	}
+	resolved, err := resolveNodeListener(*listen)
+	if err != nil {
+		return err
+	}
+	*listen = resolved
+	if action != "pair" && (*jsonOutput || *ifUnpaired) {
+		return errors.New("--json and --if-unpaired apply only to node pair")
+	}
 	switch action {
 	case "init":
 		if err := initEngineWorker(*bin, *models); err != nil {
@@ -139,12 +147,10 @@ func cmdNode(args []string) error {
 		return nil
 	case "install":
 		return installEngineWorker(abs, *listen)
+	case "listen":
+		return changeNodeListener(abs, *listen)
 	case "pair":
-		code, err := issueNodePairCode(false, time.Now())
-		if err == nil {
-			printNodePairCode(code)
-		}
-		return err
+		return printNodePairDetails(*listen, *ifUnpaired, *jsonOutput)
 	case "update":
 		if *check {
 			return cmdUpdate([]string{"--check"})

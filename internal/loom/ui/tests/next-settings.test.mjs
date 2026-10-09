@@ -468,3 +468,96 @@ test('machine agents: managing is separate from using, enabling asks for consent
   assert.equal(h.confirmations.length, 1);
   assert.equal(h.posts.length, 1, 'using an agent without consent posts nothing');
 });
+
+const nodeMachines = fs.readFileSync(new URL('../next/js/features/settings/machines.js', import.meta.url), 'utf8');
+const nodeMachineEnv = { setInterval: () => 1, clearInterval: () => {}, refreshEngineNode: async () => {}, refreshWorkspace: async () => {}, copyText: async () => true, MachineDialog: 'MachineDialog', ModelDirs: 'ModelDirs', DirectEngineForm: 'DirectEngineForm', LoomUpdates: 'LoomUpdates' };
+
+test('Machines has one Add a machine card and keeps SSH edit off the add path', async () => {
+  const h = harness(nodeMachines, 'MachinesSettings', nodeMachineEnv);
+  h.data['/api/machines'] = { ok: true, machines: [{ id: 'legacy', name: 'Old GPU', host: '192.168.1.20', user: 'gpu' }], offers: {} };
+  h.data['/api/machines/local'] = { hostname: 'This machine', os: 'Linux' };
+  h.data['/api/machines/metrics'] = { metrics: {} };
+  h.data['/api/agents/installations'] = { installations: [] };
+  h.data['/api/terminals'] = { terminals: [] };
+  const tree = await h.ready({ route: {} });
+  const adds = nodes(tree, 'button').filter(n => n.props.class === 'mcard add');
+  assert.equal(adds.length, 1);
+  assert.match(textOf(adds[0]), /Ajouter une machine/);
+  adds[0].props.onClick();
+  const opened = h.render();
+  assert.ok(flatten(opened).some(n => n.type?.name === 'PairDialog'));
+  assert.equal(nodes(opened, 'MachineDialog').length, 0);
+  assert.ok(flatten(opened).some(n => n.type?.name === 'MachineMigration'));
+});
+
+test('Node stepper copies the installer, accepts a discovered URL, pairs and displays modules', async () => {
+  let copied, closed;
+  const h = harness(nodeMachines, 'PairDialog', { ...nodeMachineEnv, copyText: async text => { copied = text; return true; } });
+  let tree = h.render({ start: {}, onClose: result => { closed = result; } });
+  assert.match(textOf(tree), /Linux/);
+  await button(tree, 'Copier').props.onClick();
+  assert.equal(copied, 'curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh -s -- --node --listen lan');
+  button(tree, 'Continuer').props.onClick();
+  tree = h.render();
+  const discovery = flatten(tree).find(n => n.type?.name === 'Discovered');
+  discovery.props.onPair({ address: 'http://192.168.1.20:2511', port: 2511 });
+  tree = h.render();
+  assert.equal(nodes(tree, 'input')[0].props.value, 'http://192.168.1.20:2511');
+  nodes(tree, 'input')[1].props.onInput({ target: { value: 'k7qm4xpa' } });
+  h.env.post = async (...args) => { h.posts.push(args); return { ok: true, machine: { id: 'paired', name: 'GPU', modules: ['engine', 'terminal', 'observe'] } }; };
+  await button(h.render(), 'Appairer').props.onClick();
+  tree = h.render();
+  assert.equal(h.posts[0][1].code, 'K7QM4XPA');
+  assert.match(textOf(tree), /Machine appairée/);
+  assert.equal(closed, undefined);
+  const modules = flatten(tree).find(n => n.type?.name === 'NodeModules');
+  assert.deepEqual(Array.from(modules.props.modules), ['engine', 'terminal', 'observe']);
+  button(tree, 'Ouvrir la machine').props.onClick();
+  assert.equal(closed.id, 'paired');
+});
+
+test('discovery uses the advertised full address once and node modules are read-only', async () => {
+  let selected;
+  const h = harness(nodeMachines, 'Discovered', nodeMachineEnv);
+  h.data['/api/machines/discover'] = { nodes: [{ id: 'node', name: 'GPU', address: 'http://192.168.1.20:2511', port: 2511, version: '0.1.4' }] };
+  const tree = await h.ready({ onPair: n => { selected = n; } });
+  button(tree, 'Appairer').props.onClick();
+  assert.equal(selected.address, 'http://192.168.1.20:2511');
+  assert.ok(!textOf(tree).includes('2511:2511'));
+  const mods = harness(nodeMachines, 'NodeModules').render({ modules: ['engine', 'terminal'] });
+  assert.match(textOf(mods), /Non annoncé/);
+  assert.equal(nodes(mods, 'Switch').length, 0);
+});
+
+test('SSH migration shows progress and exact failures; manual pairing targets the same id', async () => {
+  let complete, tick, changed = 0;
+  const h = harness(nodeMachines, 'MachineMigration', { ...nodeMachineEnv, setInterval: fn => { tick = fn; return 1; }, post: (...args) => { h.posts.push(args); return new Promise(resolve => { complete = resolve; }); } });
+  const m = { id: 'ssh-gpu', name: 'GPU', host: '192.168.1.20', user: 'gpu' };
+  let tree = h.render({ m, onChange: () => changed++ });
+  assert.match(textOf(tree), /Connectée en SSH \(ancienne méthode\)/);
+  const pending = button(tree, 'Installer Loom Node via SSH').props.onClick();
+  assert.match(textOf(h.render()), /Installation et démarrage/);
+  h.data['/api/machines/ssh-gpu/node/migrate'] = { ok: true, phase: 'pairing' };
+  tick(); await settle();
+  assert.match(textOf(h.render()), /Appairage et conservation/);
+  complete({ ok: false, error: 'ssh: connection refused exactly' }); await pending;
+  tree = h.render();
+  assert.match(textOf(tree), /ssh: connection refused exactly/);
+  assert.equal(changed, 0);
+  button(tree, 'Appairer manuellement').props.onClick({ preventDefault() {}, stopPropagation() {} });
+  const dialog = flatten(h.render()).find(n => n.type?.name === 'PairDialog');
+  assert.equal(dialog.props.start.address, '192.168.1.20:2511');
+  assert.equal(dialog.props.start.machine_id, m.id);
+});
+
+test('node update header checks on mount and applies the displayed node version', async () => {
+  const endpoint = '/api/machines/gpu/node/update';
+  const h = harness(updates, 'LoomUpdates');
+  h.data[endpoint] = { current: '0.1.4', latest: '0.2.0', available: true, can_apply: true };
+  const tree = await h.ready({ node: true, compact: true, endpoint });
+  const install = button(tree, 'Mettre à jour le nœud 0.1.4');
+  assert.ok(install);
+  await install.props.onClick();
+  assert.equal(h.posts[0][0], endpoint + '/apply');
+  assert.equal(h.posts[0][1].version, '0.2.0');
+});

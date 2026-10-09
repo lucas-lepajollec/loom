@@ -4,6 +4,23 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Machines now has one **Add a machine** stepper: install Loom Node, choose its
+  discovered/addressed listener and enter the pairing code, then see its modules.
+  SSH is retired from adding machines; existing SSH machines stay editable and
+  can migrate automatically or pair manually while retaining their identity,
+  folders, agent choices and terminal history. Migration saves transport,
+  protected credentials and harness launchers atomically and reports progress/errors.
+- The Linux Node installer supports `--listen lan|ADDR:PORT|local`, asks about
+  LAN reachability on a TTY, and prints its address, fresh ten-minute pairing
+  code and expiry after startup (or its existing paired Loom). Automatic LAN
+  selection uses private addresses only; non-TTY installs retain loopback by
+  default. `loom node listen lan|ADDR:PORT|local` persists changes and restarts
+  the user service. Checksums, user-only installation and rollback remain.
+- Paired machine cards show node updates on the main Loom's release channel;
+  **Update node** and its version appear in the machine page header. Updates
+  verify and replace the release installer's user-owned binary and restart the
+  node user service. `loom node update` also restarts that service.
+
 - Agent controls now follow one transport capability contract exposed in runtime
   descriptors and probes. Hide ignored native modes/permissions, unsupported
   filesystem options, native-history imports and per-session MCP bindings.

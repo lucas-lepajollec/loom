@@ -211,6 +211,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/machines/metrics", handleMachinesMetrics)
 	api("/api/machines/{id}/startup", handleMachineStartup)
 	api("/api/machines/{id}/node/startup", handleMachineNodeStartup)
+	api("/api/machines/{id}/node/migrate", handleMachineNodeMigrate)
 	api("/api/machines/{id}/node", handleMachineNode)
 	api("/api/machines/{id}/node/update", handleMachineNodeUpdate)
 	api("/api/machines/{id}/node/update/apply", handleMachineNodeUpdate)

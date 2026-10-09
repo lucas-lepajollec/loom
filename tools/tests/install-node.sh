@@ -37,7 +37,7 @@ printf '%s\n' "$*" >> "$FIXTURE_SYSTEMD_LOG"
 case "$2" in
  is-active) [ -f "$FIXTURE_ACTIVE" ] ;;
  stop) rm -f "$FIXTURE_ACTIVE" ;;
- start|enable) touch "$FIXTURE_ACTIVE" ;;
+ start|enable|restart) touch "$FIXTURE_ACTIVE" ;;
  daemon-reload) [ "${FIXTURE_FAIL_UNIT:-0}" = 0 ] ;;
  *) exit 1 ;;
 esac
@@ -55,12 +55,19 @@ sh "$ROOT/install.sh" --node --listen 127.0.0.1:2622 --home "$TMP/data" --models
 [ ! -e "$XDG_CONFIG_HOME/systemd/user/loom-ui.service" ]
 [ -f "$TMP/data/node.token" ]
 grep -F '127.0.0.1:2622' "$XDG_CONFIG_HOME/systemd/user/loom-node.service" >/dev/null
+grep -F 'Node address: http://127.0.0.1:2622' "$TMP/install.log" >/dev/null
+grep -E 'Pairing code: [0-9A-Z]{4}-[0-9A-Z]{4}' "$TMP/install.log" >/dev/null
+grep -E 'Expires: [0-9]{4}-' "$TMP/install.log" >/dev/null
+grep -F 'In Loom: Machines › Add a machine, or let Loom find it on the network' "$TMP/install.log" >/dev/null
 cp "$TMP/data/node.token" "$TMP/token-before"
 # Repeat without home/listen flags: retain custom home, listener and credentials.
 sh "$ROOT/install.sh" --node > "$TMP/reinstall.log"
 cmp "$TMP/token-before" "$TMP/data/node.token"
 grep -F '127.0.0.1:2622' "$XDG_CONFIG_HOME/systemd/user/loom-node.service" >/dev/null
 [ -f "$TMP/installed/loom.previous" ]
+first_code=$(sed -n 's/.*Pairing code: \([A-Z0-9-]*\).*/\1/p' "$TMP/install.log")
+next_code=$(sed -n 's/.*Pairing code: \([A-Z0-9-]*\).*/\1/p' "$TMP/reinstall.log")
+[ -n "$next_code" ] && [ "$first_code" != "$next_code" ]
 # Invalid release must not stop or replace the working installation.
 printf '#!/bin/sh\nexit 1\n' > "$TMP/old-release"
 chmod +x "$TMP/old-release"
@@ -95,4 +102,82 @@ cp "$FIXTURE_SYSTEMD_LOG" "$TMP/log-before"
 sh "$ROOT/install.sh" --node --no-service --home "$TMP/portable-data" > "$TMP/portable.log"
 cmp "$TMP/log-before" "$FIXTURE_SYSTEMD_LOG"
 [ -x "$TMP/portable/loom" ]
-echo 'PASS: node installer, repeat, old release refusal, checksum, rollback, portable mode.'
+# LAN detection: primary private route first, fallback ignores public addresses.
+cat > "$TMP/bin/ip" <<'SH'
+#!/bin/sh
+printf '%s\n' "1.1.1.1 via 192.168.1.1 src ${FIXTURE_ROUTE_IP:-192.168.1.42}"
+SH
+cat > "$TMP/bin/hostname" <<'SH'
+#!/bin/sh
+if [ "$1" = '-I' ]; then printf '%s\n' "${FIXTURE_HOST_IPS:-203.0.113.9 100.64.2.3}"; else echo fixture-node; fi
+SH
+chmod +x "$TMP/bin/ip" "$TMP/bin/hostname"
+# A new non-TTY installation defaults to loopback in the release layout.
+unset LOOM_INSTALL_DIR
+sh "$ROOT/install.sh" --node --home "$TMP/default-data" > "$TMP/default.log"
+[ -x "$HOME/.local/lib/loom-node/loom" ]
+grep -F 'Node address: http://127.0.0.1:2511' "$TMP/default.log" >/dev/null
+sh "$ROOT/install.sh" --node --listen lan > "$TMP/lan.log"
+grep -F 'Node address: http://192.168.1.42:2511' "$TMP/lan.log" >/dev/null
+export FIXTURE_ROUTE_IP=203.0.113.8
+sh "$ROOT/install.sh" --node --listen lan > "$TMP/cgnat.log"
+grep -F 'Node address: http://100.64.2.3:2511' "$TMP/cgnat.log" >/dev/null
+export FIXTURE_HOST_IPS='203.0.113.9 172.32.0.1 100.128.1.2'
+cp "$FIXTURE_SYSTEMD_LOG" "$TMP/log-before"
+if sh "$ROOT/install.sh" --node --listen lan > "$TMP/public.log" 2>&1; then echo 'Selected public LAN address' >&2; exit 1; fi
+cmp "$TMP/log-before" "$FIXTURE_SYSTEMD_LOG"
+unset FIXTURE_ROUTE_IP FIXTURE_HOST_IPS
+# Change later with the installed binary: persists and restarts the user unit.
+"$HOME/.local/lib/loom-node/loom" node listen lan --home "$TMP/default-data" > "$TMP/listen-lan.log"
+grep -F 'Node address: http://192.168.1.42:2511' "$TMP/listen-lan.log" >/dev/null
+"$HOME/.local/lib/loom-node/loom" node listen local --home "$TMP/default-data" > "$TMP/listen.log"
+grep -F -- '--user restart loom-node' "$FIXTURE_SYSTEMD_LOG" >/dev/null
+sh "$ROOT/install.sh" --node > "$TMP/local.log"
+grep -F 'Node address: http://127.0.0.1:2511' "$TMP/local.log" >/dev/null
+# Exercise the interactive default through a TTY, when Python is available.
+if command -v python3 >/dev/null 2>&1; then
+  export FIXTURE_INSTALL_SCRIPT="$ROOT/install.sh" FIXTURE_TTY_LOG="$TMP/tty.log"
+  python3 - <<'PYTTY'
+import os, pty, subprocess
+for answer, address in [(b'\n', '192.168.1.42'), (b'n\n', '127.0.0.1')]:
+    master, slave = pty.openpty()
+    p = subprocess.Popen(['sh', os.environ['FIXTURE_INSTALL_SCRIPT'], '--node'], stdin=slave, stdout=slave, stderr=slave)
+    os.close(slave)
+    os.write(master, answer)
+    output = bytearray()
+    while True:
+        try:
+            chunk = os.read(master, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        output.extend(chunk)
+    os.close(master)
+    assert p.wait(timeout=30) == 0, output.decode()
+    text = output.decode()
+    assert 'Make this node reachable from your other machines on the local network? [Y/n]' in text
+    assert 'Node address: http://' + address + ':2511' in text
+    with open(os.environ['FIXTURE_TTY_LOG'], 'a') as f:
+        f.write(text)
+PYTTY
+fi
+# Paired CLI fixture: installer requests --if-unpaired and prints its result,
+# never invokes an explicit code replacement. Real pairing state is covered in Go.
+cat > "$TMP/paired-candidate" <<'SH'
+#!/bin/sh
+if [ "$1 $2 $3" = 'node pair --if-unpaired' ]; then
+ echo 'Node address: http://192.168.1.42:2511'
+ echo 'already paired with Fixture Loom'
+ echo 'In Loom: Machines › Add a machine, or let Loom find it on the network'
+ exit 0
+fi
+exec "$FIXTURE_REAL_BINARY" "$@"
+SH
+chmod +x "$TMP/paired-candidate"
+export FIXTURE_REAL_BINARY="$TMP/candidate" FIXTURE_ARTIFACT="$TMP/paired-candidate"
+sha256sum "$FIXTURE_ARTIFACT" | awk '{print $1 "  loom-linux"}' > "$TMP/sums"
+sh "$ROOT/install.sh" --node > "$TMP/paired.log"
+grep -F 'already paired with Fixture Loom' "$TMP/paired.log" >/dev/null
+if grep -F 'Pairing code:' "$TMP/paired.log" >/dev/null; then echo 'Issued a paired node code' >&2; exit 1; fi
+echo 'PASS: node installer, summary, LAN/TTY/local, reinstall, paired, checksums, rollback, portable mode.'

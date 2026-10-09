@@ -67,8 +67,8 @@ func TestMachinesPairStorageReuseAndSecretIsolation(t *testing.T) {
 		t.Fatal("browser received secrets")
 	}
 	got := result.Machine
-	if got.ID != m.ID || got.User != m.User || got.Port != m.Port || got.Folders[0] != m.Folders[0] || got.Harnesses[0] != m.Harnesses[0] || got.NodeID == "" || got.Handshake != 1 || !hasEngineModule(got.Modules) {
-		t.Fatal("existing SSH registration lost or handshake missing")
+	if got.ID != m.ID || got.User != "" || got.Port != 0 || got.Folders[0] != m.Folders[0] || got.Harnesses[0] != m.Harnesses[0] || got.NodeID == "" || got.Handshake != 1 || !hasEngineModule(got.Modules) {
+		t.Fatal("existing machine data lost or node transport/handshake missing")
 	}
 	n := savedMachineNode(got)
 	if n == nil || n.WebKey != token || n.APIKey != readAPIKey() || n.URL != "https://192.168.1.20:2511" || n.V1 != n.URL {

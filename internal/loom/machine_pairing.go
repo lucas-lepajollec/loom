@@ -16,8 +16,12 @@ import (
 )
 
 // Keep exactly the existing maintenance credential record/encryption, without
-// selecting an engine or replacing any SSH harnesses/folders on the machine.
+// selecting an engine. SSH migrations retain identity and replace launch transport.
 func savePairedMachine(m RemoteMachine, n *engineNode) (RemoteMachine, error) {
+	return savePairedMachineMode(m, n, false)
+}
+
+func savePairedMachineMode(m RemoteMachine, n *engineNode, migrate bool) (RemoteMachine, error) {
 	linkJSON, err := json.Marshal(n)
 	if err != nil {
 		return m, err
@@ -73,11 +77,63 @@ func savePairedMachine(m RemoteMachine, n *engineNode) (RemoteMachine, error) {
 		}
 		if index >= 0 {
 			result = machines[index]
+			if create && result.User != "" {
+				migrate = true
+			}
 			result.NodeID, result.Modules, result.Handshake = n.NodeID, n.Modules, n.Handshake
 			machines[index] = result
 		} else {
 			result.NodeID, result.Modules, result.Handshake = n.NodeID, n.Modules, n.Handshake
 			machines = append(machines, result)
+		}
+		if migrate && index < 0 {
+			return m, errors.New("machine removed during migration")
+		}
+		var agents []acpAgent
+		var agentRaw, agentEncoded []byte
+		if migrate {
+			for i, other := range machines {
+				if i != index && other.NodeID == n.NodeID {
+					return m, errors.New("node is already linked to a different machine")
+				}
+			}
+			result.User, result.Port = "", 0
+			u, _ := url.Parse(n.URL)
+			result.Host, result.Hostname = u.Hostname(), n.Hostname
+			machines[index] = result
+			agentRaw, err = getBytesErr(bkState, acpCustomState)
+			if err != nil {
+				return m, err
+			}
+			if len(agentRaw) != 0 {
+				plain, err := decodeMemContent(agentRaw)
+				if err != nil {
+					return m, err
+				}
+				if err := json.Unmarshal(plain, &agents); err != nil {
+					return m, err
+				}
+			}
+			for i, agent := range agents {
+				if agent.Machine != result.ID {
+					continue
+				}
+				harness := strings.TrimPrefix(agent.ID, "custom-"+result.ID+"-")
+				replacement, err := nodeAgent(result, harness)
+				if err != nil {
+					return m, err
+				}
+				agents[i].Command, agents[i].Args, agents[i].Detect = replacement.Command, replacement.Args, nil
+				agents[i].RemoteHome = result.Home
+			}
+			plain, err := json.Marshal(agents)
+			if err != nil {
+				return m, err
+			}
+			agentEncoded, err = encodeMemContent(plain)
+			if err != nil {
+				return m, err
+			}
 		}
 		plain, err := json.Marshal(machines)
 		if err != nil {
@@ -89,9 +145,14 @@ func savePairedMachine(m RemoteMachine, n *engineNode) (RemoteMachine, error) {
 		}
 		changed := false
 		err = store.Update(dbPath(), bkState, func(b *bolt.Bucket) error {
-			if !bytes.Equal(raw, b.Get([]byte(remoteMachinesState))) {
+			if !bytes.Equal(raw, b.Get([]byte(remoteMachinesState))) || migrate && !bytes.Equal(agentRaw, b.Get([]byte(acpCustomState))) {
 				changed = true
 				return nil
+			}
+			if migrate {
+				if err := b.Put([]byte(acpCustomState), agentEncoded); err != nil {
+					return err
+				}
 			}
 			if err := b.Put([]byte(machineNodePrefix+result.ID), link); err != nil {
 				return err
@@ -102,6 +163,13 @@ func savePairedMachine(m RemoteMachine, n *engineNode) (RemoteMachine, error) {
 			return m, err
 		}
 		if !changed {
+			if migrate {
+				for _, agent := range agents {
+					if agent.Machine == result.ID {
+						registeredRuntimes.upsert(&acpAdapter{agent: agent})
+					}
+				}
+			}
 			return result, nil
 		}
 	}
@@ -113,13 +181,33 @@ func handleMachinesPair(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodPost) || !usageVaultAccess(w) {
 		return
 	}
-	var req struct {
-		Address string `json:"address"`
-		Code    string `json:"code"`
-		Force   bool   `json:"force,omitempty"`
-	}
+	var req machinePairInput
 	if !workspaceDecode(w, r, &req) {
 		return
+	}
+	handleMachinePairInput(w, r, req)
+}
+
+type machinePairInput struct {
+	Address   string `json:"address"`
+	Code      string `json:"code"`
+	Force     bool   `json:"force,omitempty"`
+	MachineID string `json:"machine_id,omitempty"`
+}
+
+func handleMachinePairInput(w http.ResponseWriter, r *http.Request, req machinePairInput) {
+	var target RemoteMachine
+	if req.MachineID != "" {
+		for _, m := range loadRemoteMachines() {
+			if m.ID == req.MachineID {
+				target = m
+				break
+			}
+		}
+		if target.ID == "" {
+			sendJSON(w, 404, map[string]any{"ok": false, "error": "machine not found"})
+			return
+		}
 	}
 	base, u, err := cleanNodeURL(req.Address)
 	if err != nil {
@@ -195,12 +283,15 @@ func handleMachinesPair(w http.ResponseWriter, r *http.Request) {
 		NodeID: exchange.Node.ID, Hostname: exchange.Node.Name, Version: exchange.Node.Version,
 		Role: exchange.Node.Role, Modules: exchange.Node.Modules, Handshake: exchange.Node.Handshake, LinkedAt: time.Now().UnixMilli()}
 	m := RemoteMachine{Name: n.Hostname, Host: u.Hostname(), Hostname: n.Hostname, NodeID: n.NodeID, Modules: n.Modules, Handshake: n.Handshake}
-	m, err = savePairedMachine(m, n)
+	if target.ID != "" {
+		m = target
+	}
+	m, err = savePairedMachineMode(m, n, target.ID != "")
 	if err != nil {
-		sendJSON(w, 500, map[string]any{"ok": false, "error": "machine maintenance link could not be saved; run loom node pair to retry"})
+		sendJSON(w, 500, map[string]any{"ok": false, "error": "machine maintenance link could not be saved: " + err.Error() + "; run loom node pair to retry"})
 		return
 	}
-	if hasNodeModule(m.Modules, "harness") {
+	if target.ID == "" && hasNodeModule(m.Modules, "harness") {
 		if checked, checkErr := refreshNodeMachine(r.Context(), m); checkErr == nil {
 			machines := loadRemoteMachines()
 			for i := range machines {
