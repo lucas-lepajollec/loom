@@ -1,5 +1,8 @@
 <div align="center">
-  <img src="cmd/loom/icon.png" alt="Loom logo" width="96" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/loom-mark-light.svg" />
+    <img src="docs/brand/loom-mark.svg" alt="Loom logo" width="96" />
+  </picture>
   <h1>Loom</h1>
   <p><strong>A local AI control station for models, coding agents and shared discussions.</strong></p>
   <p><a href="LICENSE">MIT license</a> · <a href="docs/ROADMAP.md">Roadmap</a> · <a href="CONTRIBUTING.md">Contributing</a></p>

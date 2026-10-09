@@ -19,7 +19,7 @@ self.addEventListener('push', function(e){
     tag: data.tag || 'loom-turn',
     renotify: true,
     // Icône = le logo de la marque Loom, en data-URI.
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230d0d0d'/><g fill='none' stroke='%23f4f1ea' stroke-width='1.35' stroke-linecap='round'><path d='M3 5.5h10M3 8h10M3 10.5h10'/><path d='M5.5 3v10M8 3v10M10.5 3v10'/></g></svg>"
+    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect x='8.5' y='8.5' width='239' height='239' rx='55.5' fill='%230d0d0d'/><path transform='translate(42.67 42.67) scale(.6667)' fill='%23f4f1ea' d='t'/></svg>"
   }));
 });
 
