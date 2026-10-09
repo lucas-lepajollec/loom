@@ -49,3 +49,17 @@ func TestDiscussionTitleIgnoresAttachedFiles(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestCloudToolsOnlyRunEnabledTools(t *testing.T) {
+	ctx := t.Context()
+	if _, err := (cloudTools{web: false, mcp: false}).Execute(ctx, "web_search", map[string]any{"query": "x"}); err == nil {
+		t.Fatal("disabled web_search ran")
+	}
+	if _, err := (cloudTools{web: true}).Execute(ctx, "mcp__srv__tool", nil); err == nil {
+		t.Fatal("MCP tool ran while MCP is off")
+	}
+	defs := (cloudTools{web: true}).Definitions().([]Tool)
+	if len(defs) != 1 || defs[0].Function.Name != "web_search" {
+		t.Fatalf("definitions: %+v", defs)
+	}
+}

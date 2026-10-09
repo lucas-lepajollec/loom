@@ -4,6 +4,8 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Cloud discussions can use the MCP servers declared in Brain (composer Tools ›
+  MCP tools, per discussion), alongside web search, through the same tool loop.
 - Composer parity: cloud and agent discussions accept attached files (cloud:
   text files inlined in <loom-file> blocks within a 112 KiB message; agents:
   read from Loom's upload folder on this machine) and cloud discussions get

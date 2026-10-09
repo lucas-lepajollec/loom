@@ -106,7 +106,9 @@ type RuntimeSession[Usage, Stats any] struct {
 	ContinuedFrom  string        `json:"continued_from,omitempty"`
 	// WebSearch is this discussion's web-search switch for cloud turns (nil:
 	// follow the global Internet setting alone, as before).
-	WebSearch        *bool              `json:"web_search,omitempty"`
+	WebSearch *bool `json:"web_search,omitempty"`
+	// MCPTools offers Brain's MCP servers to cloud turns (nil: off).
+	MCPTools         *bool              `json:"mcp_tools,omitempty"`
 	PortableMessages []Message          `json:"portable_messages,omitempty"`
 	Compactions      []CompactionRecord `json:"compactions,omitempty"`
 

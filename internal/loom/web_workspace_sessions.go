@@ -117,6 +117,7 @@ func handleRuntimeSessionSend(w http.ResponseWriter, r *http.Request) {
 		ContextRevision string   `json:"context_revision"`
 		Files           []string `json:"files"`
 		WebSearch       *bool    `json:"web_search"`
+		MCPTools        *bool    `json:"mcp_tools"`
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
@@ -135,8 +136,8 @@ func handleRuntimeSessionSend(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	if req.WebSearch != nil {
-		if err := workspaceSessions.setWebSearch(req.ID, *req.WebSearch); err != nil {
+	if req.WebSearch != nil || req.MCPTools != nil {
+		if err := workspaceSessions.setTools(req.ID, req.WebSearch, req.MCPTools); err != nil {
 			sendJSON(w, 409, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}

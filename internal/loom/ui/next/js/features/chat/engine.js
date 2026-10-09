@@ -323,7 +323,7 @@ async function sendThread(text, opts = {}) {
       }
       chat.set({ context: preview.preview.context });
       if (preview.preview.omitted > 0 && attempt === 0) toast(t('chat.engine.older_omitted', { n: preview.preview.omitted }));
-      r = await post('/api/runtime/sessions/send', { id: s.id, ...p, files: opts.files || [], web_search: opts.internet === undefined ? undefined : !!opts.internet, context_revision: preview.preview.context.revision });
+      r = await post('/api/runtime/sessions/send', { id: s.id, ...p, files: opts.files || [], web_search: opts.internet === undefined ? undefined : !!opts.internet, mcp_tools: opts.mcp === undefined ? undefined : !!opts.mcp, context_revision: preview.preview.context.revision });
       if (r.ok || r.code !== 'context_changed' || ep !== epoch) break;
     }
   }

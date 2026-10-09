@@ -433,7 +433,7 @@ export default {
   "chat.engine.selection_changed": "L’exécuteur a changé dans un autre onglet. Rouvre cette discussion avant d’envoyer ; ton brouillon est conservé.",
   "chat.tools.web_off": "Recherche web désactivée pour tout Loom. Active-la dans Réglages › Internet.",
   "chat.tools.web_tip": "Le modèle peut chercher sur le web pendant ses réponses. Le fournisseur de recherche se choisit dans Réglages › Internet.",
-  "chat.tools.mcp_tip": "Les serveurs MCP déclarés dans Brain › Outils, utilisables par le modèle local.",
+  "chat.tools.mcp_tip": "Les serveurs MCP déclarés dans Brain › Outils : le modèle peut les appeler pendant sa réponse. En cloud, leurs résultats partent chez le fournisseur.",
   "chat.tools.settings": "Réglages de recherche",
   "search.cloud_where": "Recherche web : dans « Outils » du champ de saisie",
   "chat.composer.attach_agent": "Joindre : l'agent lit le fichier sur cette machine",
