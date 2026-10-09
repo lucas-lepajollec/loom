@@ -57,7 +57,7 @@ export function Composer() {
   const kind = native ? 'native' : c.session ? runtimeKind(c.session.runtime_id) : '';
   const remote = !native && c.session && runtimeCaps(c.session.runtime_id).includes('remote');
   const canAttach = native || kind === 'local' || kind === 'cloud' || (kind === 'harness' && !remote);
-  const toolList = native ? ['internet', 'mcp'] : kind === 'cloud' || kind === 'local' ? ['internet'] : [];
+  const toolList = native || kind === 'cloud' || kind === 'local' ? ['internet', 'mcp'] : [];
   const [webOn, setWebOn] = useState(null);
   useEffect(() => { get('/api/internet').then(r => setWebOn(r && r.ok !== false ? !!r.enabled : false)).catch(() => setWebOn(false)); }, []);
   const activeTools = toolList.filter(n => tools[n] && (n !== 'internet' || webOn !== false));

@@ -65,8 +65,8 @@ func (a cloudRuntimeAdapter) Run(ctx context.Context, turn RuntimeTurn, emit Cha
 		return nil, err
 	}
 	cloudTurn := openai.Turn{Messages: modelMessages(turn.Messages), MaxTokens: turn.MaxTokens}
-	if turn.Caps.Internet {
-		cloudTurn.Tools = cloudWebSearch{}
+	if turn.Caps.Internet || turn.Caps.MCP {
+		cloudTurn.Tools = cloudTools{web: turn.Caps.Internet, mcp: turn.Caps.MCP}
 	}
 	answer, err := (openai.Adapter{Provider: a, Credentials: a, Client: a}).Run(ctx,
 		cloudTurn, func(e openai.Event) bool {
@@ -76,7 +76,7 @@ func (a cloudRuntimeAdapter) Run(ctx context.Context, turn RuntimeTurn, emit Cha
 				if e.Tool.Done {
 					kind, status = "tool_end", "completed"
 				}
-				event.ACPEvent = DiscussionEvent{"type": kind, "tool": map[string]any{"id": e.Tool.ID, "title": e.Tool.Name, "kind": "search", "status": status, "input": e.Tool.Arguments, "output": e.Tool.Result}}
+				event.ACPEvent = DiscussionEvent{"type": kind, "tool": map[string]any{"id": e.Tool.ID, "title": e.Tool.Name, "kind": map[bool]string{true: "search", false: "other"}[e.Tool.Name == "web_search"], "status": status, "input": e.Tool.Arguments, "output": e.Tool.Result}}
 			}
 			if e.Usage != nil {
 				u := runtimeUsageFromOpenAI(*e.Usage)

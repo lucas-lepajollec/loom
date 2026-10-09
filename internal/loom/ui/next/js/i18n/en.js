@@ -433,7 +433,7 @@ export default {
   "chat.engine.selection_changed": "The execution choice changed in another tab. Reopen this discussion before sending; your draft is preserved.",
   "chat.tools.web_off": "Web search is off for all of Loom. Turn it on in Settings › Internet.",
   "chat.tools.web_tip": "The model can search the web while answering. The search provider is chosen in Settings › Internet.",
-  "chat.tools.mcp_tip": "MCP servers declared in Brain › Tools, usable by the local model.",
+  "chat.tools.mcp_tip": "MCP servers declared in Brain › Tools: the model can call them while answering. With a cloud model, their results go to the provider.",
   "chat.tools.settings": "Search settings",
   "search.cloud_where": "Web search: in the composer's \"Tools\"",
   "chat.composer.attach_agent": "Attach: the agent reads the file on this machine",

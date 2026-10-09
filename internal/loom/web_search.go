@@ -143,6 +143,33 @@ func handleSearchTest(w http.ResponseWriter, r *http.Request) {
 // filesystem, private memory, MCP or arbitrary URL fetches through this seam.
 type cloudWebSearch struct{}
 
+// cloudTools is a cloud turn's toolbox: web_search and/or the MCP servers
+// declared in Brain, as the discussion's Tools menu chose.
+type cloudTools struct{ web, mcp bool }
+
+func (c cloudTools) Definitions() any {
+	defs := []Tool{}
+	if c.web {
+		defs = append(defs, webSearchTool())
+	}
+	if c.mcp {
+		defs = append(defs, mcpTools()...)
+	}
+	return defs
+}
+func (c cloudTools) Execute(ctx context.Context, name string, args map[string]any) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	switch {
+	case c.web && name == "web_search":
+		return cloudWebSearch{}.Execute(ctx, name, args)
+	case c.mcp && isMCPTool(name):
+		return capWebOutput(mcpCall(name, args)), nil
+	}
+	return "", errors.New("tool not enabled for this discussion: " + name)
+}
+
 func (cloudWebSearch) Definitions() any { return []Tool{webSearchTool()} }
 
 type cloudSearchSource struct {

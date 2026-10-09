@@ -197,8 +197,8 @@ func (m *runtimeSessions) createContext(ctx context.Context, projectID, provider
 	return s, putStoreJSON(bkRuntimeSessions, s.ID, s)
 }
 
-// setWebSearch records the discussion's web-search switch (cloud turns).
-func (m *runtimeSessions) setWebSearch(id string, on bool) error {
+// setTools records the discussion's Tools choices (cloud turns); nil keeps one.
+func (m *runtimeSessions) setTools(id string, web, mcp *bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s, ok := m.getLocked(id)
@@ -208,10 +208,16 @@ func (m *runtimeSessions) setWebSearch(id string, on bool) error {
 	if m.runs[id] != nil {
 		return errors.New("wait for the current answer before changing web search")
 	}
-	if s.WebSearch != nil && *s.WebSearch == on {
+	same := func(a, b *bool) bool { return b == nil || (a != nil && *a == *b) }
+	if same(s.WebSearch, web) && same(s.MCPTools, mcp) {
 		return nil
 	}
-	s.WebSearch = &on
+	if web != nil {
+		s.WebSearch = web
+	}
+	if mcp != nil {
+		s.MCPTools = mcp
+	}
 	return putStoreJSON(bkRuntimeSessions, id, s)
 }
 
@@ -454,6 +460,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 		if run.session.WebSearch != nil {
 			caps.Internet = caps.Internet && *run.session.WebSearch
 		}
+		caps.MCP = run.session.MCPTools != nil && *run.session.MCPTools
 	}
 	var err error
 	if loomTranscript(run.session) && compactEnabled() {
