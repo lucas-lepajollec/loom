@@ -72,7 +72,7 @@ func jarvisCreate(t *testing.T, discussionID string) string {
 }
 func TestJarvisModelResolution(t *testing.T) {
 	local := ModelChoice{ID: "local:fixture", Kind: "local", Model: "fixture.gguf"}
-	cloud := ModelChoice{ID: "cloud:fixture", Kind: "cloud", ProviderID: "p", Endpoint: "https://fixture.invalid/v1", Model: "m"}
+	cloud := ModelChoice{ID: "cloud:fixture", Kind: "cloud", ProviderID: "p", Endpoint: "https://fixture.invalid/v1", Model: "m", Ready: true}
 	harness := ModelChoice{ID: "codex:m", Kind: "harness", RuntimeID: "codex", Model: "m"}
 	for _, tc := range []struct {
 		s        RuntimeSession
@@ -84,11 +84,14 @@ func TestJarvisModelResolution(t *testing.T) {
 		{RuntimeSession{RuntimeID: "openai-compatible", ProviderID: "p", Endpoint: cloud.Endpoint, Model: "m"}, jarvisSettings{"discussion", local.ID}, cloud.ID, false},
 		{RuntimeSession{RuntimeID: "codex", Model: "m"}, jarvisSettings{"discussion", local.ID}, local.ID, false},
 		{RuntimeSession{}, jarvisSettings{"discussion", cloud.ID}, cloud.ID, false},
-		{RuntimeSession{RuntimeID: "codex"}, jarvisSettings{"discussion", ""}, "", true},
-		{RuntimeSession{}, jarvisSettings{harness.ID, ""}, "", true},
+		// No usable discussion route and no fallback: a ready cloud route, never a dead end.
+		{RuntimeSession{RuntimeID: "codex"}, jarvisSettings{"discussion", ""}, cloud.ID, false},
+		{RuntimeSession{}, jarvisSettings{harness.ID, ""}, cloud.ID, false},
+		// A local discussion whose model path moved still gets an answer.
+		{RuntimeSession{RuntimeID: "llama.cpp", Model: "/old/path/gone.gguf"}, jarvisSettings{"discussion", ""}, cloud.ID, false},
 	} {
 		routes := []ModelChoice{local, cloud}
-		c, err := resolveJarvisModel(tc.settings, tc.s, routes)
+		c, err := resolveJarvisModel(tc.settings, tc.s, routes, "")
 		if (err != nil) != tc.fail || c.ID != tc.want {
 			t.Fatalf("resolution: %+v %v", c, err)
 		}
