@@ -173,7 +173,9 @@ function Library() {
   </div>`;
 }
 
-export function EngineRuntime() {
+// Moteur en direct, puis sa gestion et son accès réseau : `management` et
+// `access` reçoivent les réglages fournis par la page (mémoire, clés…).
+export function EngineRuntime({ management, access }) {
   const status = useStore(app, s => s.status);
   const [srv, setSrv] = useState(null);
   const [lc, setLc] = useState(null);
@@ -208,27 +210,34 @@ export function EngineRuntime() {
       ${status && status.load_error && html`<div class="alert red" style="margin-top:10px"><${Icon} n="alert" /><span>${status.load_error}</span></div>`}
     </section>
 
-    <section class="set-group"><h3>${t("local.page.api_compatible_openai")}</h3>
+    <section class="set-group"><h3>${t('engine.page.management')}</h3>
+      ${management}
+      <div class="card">
+        <div class="set-line"><div class="set-l"><span>${t("local.page.slots_paralleles")}</span><${Tip} text=${t("local.page.requetes_traitees_en_meme_temps_le_contexte_est_partage_entre_les")} />${slots[0] ? html`<span class="muted" style="font-size:12px;margin-left:8px">${Math.round(slots[0].ctx / 1024)}${t("local.page.k_de_contexte_par_slot")}</span>` : ''}</div>
+          <div class="set-c">${srv?.np_supported === false ? html`<a class="btn sm ghost" href="#/engine">${t("node.vllm_parameters")}</a>` : html`<input class="input sm num" type="number" min="1" max="32" value=${np} onInput=${e => setNp(e.target.value)} />
+            <button class="btn sm" onClick=${async () => { const r = await post('/api/server', { np: +np }); if (!r.ok) toast(r.error, 'err'); else toast(t("local.page.rechargement_avec") + np + ' slots…'); }}>${t("local.page.appliquer")}</button>`}</div></div>
+      </div>
+    </section>
+
+    <section class="set-group"><h3>${t('engine.page.access')}</h3>
       <div class="card">
         <div class="set-line"><div class="set-l"><span>${t('engine.api.address')}</span>${srv && html`<span class=${'tag ' + (srv.lan ? 'amber' : 'green')}>${srv.lan ? t("local.page.reseau_local_2") : t("local.page.cette_machine")}</span>`}</div>
           <div class="set-c"><code class="mono">${srv ? srv.url : '…'}</code><button class="icon-btn" aria-label=${t("local.page.copier_l_url")} onClick=${() => copy(srv.url)}><${Icon} n="copy" /></button></div></div>
         <div class="set-line"><div class="set-l"><span>${t("local.page.cle_api")}</span></div><div class="set-c">${srv && srv.key_required ? html`<span class="state"><i class="dot green"></i>${t("local.page.exigee")}</span>` : html`<span class="muted">${t("local.page.aucune")}</span>`}</div></div>
         <div class="set-line"><div class="set-l"><span>${t("local.page.expose_sur_le_reseau")}</span><${Tip} text=${t("local.page.allume_un_autre_appareil_du_reseau_local_peut_utiliser_ce_serveur")} /></div>
           <div class="set-c">${srv?.node_managed ? html`<span class="muted">${t("node.network_managed")}</span>` : html`<${Switch} checked=${srv && srv.lan} label=${t("local.page.reseau_local")} onChange=${async on => { const r = await post('/api/network', { exposed: on }); if (r.ok === false) toast(r.error, 'err'); load(); }} />`}</div></div>
-        <div class="set-line"><div class="set-l"><span>${t("local.page.slots_paralleles")}</span><${Tip} text=${t("local.page.requetes_traitees_en_meme_temps_le_contexte_est_partage_entre_les")} />${slots[0] ? html`<span class="muted" style="font-size:12px;margin-left:8px">${Math.round(slots[0].ctx / 1024)}${t("local.page.k_de_contexte_par_slot")}</span>` : ''}</div>
-          <div class="set-c">${srv?.np_supported === false ? html`<a class="btn sm ghost" href="#/engine">${t("node.vllm_parameters")}</a>` : html`<input class="input sm num" type="number" min="1" max="32" value=${np} onInput=${e => setNp(e.target.value)} />
-            <button class="btn sm" onClick=${async () => { const r = await post('/api/server', { np: +np }); if (!r.ok) toast(r.error, 'err'); else toast(t("local.page.rechargement_avec") + np + ' slots…'); }}>${t("local.page.appliquer")}</button>`}</div></div>
         ${slots.some(x => x.busy) && html`<div class="set-line stack"><div class="slots">${slots.map(x => html`<div class=${cls('slot', x.busy && 'busy')}><span class="mono">#${x.id}</span>
           <div class="meter"><i style=${`width:${x.busy && x.ctx ? Math.min(100, (x.prompt + x.tokens) * 100 / x.ctx) : 0}%;background:var(--blue)`}></i></div>
           <span class="mono">${x.busy ? (x.toks || 0).toFixed(1) + ' tok/s' : t('local.page.free')}</span></div>`)}</div></div>`}
         <details class="set-line curl-line"><summary>${t("local.page.exemple_curl")}</summary><pre class="mono">${curl}</pre><button class="btn sm" onClick=${() => copy(curl)}>${t("local.page.copier")}</button></details>
       </div>
+      ${access}
     </section>
 
-    <section class="set-group"><h3>${t("local.page.requetes_recentes")}</h3>
+    <details class="set-group eng-recent"><summary><h3>${t("local.page.requetes_recentes")}</h3></summary>
       <div class="card">${srv && srv.recent && srv.recent.length ? html`<div class="req-list">${srv.recent.slice(0, 12).map(r => html`<div class="req"><span class="mono">${t("local.page.slot")} ${r.slot}</span><span class="mono muted">${r.prompt || 0} → ${r.tokens || 0}</span></div>`)}</div>`
         : html`<p class="set-note">${t("local.page.aucune_requete_depuis_le_demarrage_les_applications_connectees_a")}</p>`}</div>
-    </section>
+    </details>
     ${log !== null && html`<${Drawer} title=${t("local.page.journal_du_moteur")} onClose=${() => setLog(null)}><pre class="log mono">${log || t("local.page.journal_vide")}</pre></${Drawer}>`}
   </div>`;
 }

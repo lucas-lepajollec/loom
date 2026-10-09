@@ -188,7 +188,7 @@ export function DirectEngineForm({ start, onDone }) {
 
 // Où tourne le moteur : sur cette machine, celui d'un autre Loom (Réglages ›
 // Machines) ou un serveur d'inférence lié directement par son adresse.
-function EngineLocation() {
+export function EngineLocation() {
   const node = useStore(app, a => a.engineNode);
   const [direct, setDirect] = useState(false);
   const unlink = async () => {
@@ -216,10 +216,17 @@ export function Engine() {
   if (!lc) return html`<div class="skeleton" style="height:220px"></div>`;
   // Compiled, linked or official binary: whichever the engine actually uses.
   const lcBin = lc.config_bin || lc.bin || (lc.prebuilt && lc.prebuilt.bin) || '';
+  // Pas installé : une seule ligne avec les façons de l'installer.
+  if (!lcBin) return html`<${Group} title=${node ? t("settings.page.llama_cpp_de_cette_machine") : 'llama.cpp'}>
+      <${Line} label=${t('settings.page.etat')}><span class="state">${t('settings.page.non_installe')}</span></${Line}>
+      ${lc.reco && html`<div class="set-note">${({ 'linux-cuda': t('welcome.reco.linux-cuda'), 'linux-hip': t('welcome.reco.linux-hip') })[lc.reco.code] || lc.reco.why}</div>`}
+      <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/prebuilt', {}, t("settings.page.telechargement_lance"))}>${t("settings.page.binaire_officiel")}</button>
+        <button class="btn" onClick=${() => run('/api/llamacpp/install', { dir: '' }, t("settings.page.compilation_lancee"))}>${t("settings.page.compiler_llama_cpp")}</button>
+        <button class="btn ghost" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button></div>
+      <${Job} />
+    </${Group}>`;
   return html`
-    <${EngineLocation} />
-    <${VLLMEngine} />
-    <${Group} title=${node ? t("settings.page.llama_cpp_de_cette_machine") : t("settings.page.moteur_actuel")}>
+    <${Group} title=${node ? t("settings.page.llama_cpp_de_cette_machine") : 'llama.cpp'}>
       <${Line} label="${t("settings.page.llama_cpp")}"><span class="mono">${lc.commit || lc.prebuilt && lc.prebuilt.tag || '—'}</span>${lc.behind > 0 && html`<span class="tag amber">${lc.behind} ${t("settings.page.commits_de_retard")}</span>`}</${Line}>
       <${Line} label="${t("settings.page.acceleration")}"><span class="tag blue">${(lc.plan && lc.plan.backend || '—').toUpperCase()}</span></${Line}>
       <${GpuDevices} bin=${lcBin} />
@@ -231,12 +238,7 @@ export function Engine() {
         <button class="btn ghost" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button>
       </div>
       <${Job} />
-    </${Group}>
-    ${!lc.installed && !(lc.prebuilt && lc.prebuilt.bin) && html`<${Group} title="${t("settings.page.installer_llama_cpp")}">
-      <div class="set-note">${lc.reco && (({ 'linux-cuda': t('welcome.reco.linux-cuda'), 'linux-hip': t('welcome.reco.linux-hip') })[lc.reco.code] || lc.reco.why)}</div>
-      <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/install', { dir: '' }, t("settings.page.compilation_lancee"))}>${t("settings.page.compiler_llama_cpp")}</button><button class="btn" onClick=${() => run('/api/llamacpp/prebuilt', {}, t("settings.page.telechargement_lance"))}>${t("settings.page.binaire_officiel")}</button></div>
-    </${Group}>`}
-    <${ModelDirs} />`;
+    </${Group}>`;
 }
 
 // Dossiers de modèles du moteur (sur la machine qui le possède : les requêtes

@@ -473,3 +473,6 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .insp-body .prow:not(.stack) .prow-c{justify-content:flex-end}
 .insp-body .prow.stack .prow-c,.prow.stack .prow-c{flex:none;max-width:none;width:100%}
 .insp-body .prow.stack .select,.insp-body .prow.stack .textarea{width:100%;max-width:none;flex:none}
+/* Liste de ListPick dans un Popover : elle suit le Popover, pas son ancien conteneur. */
+.lpick-pop{padding:4px;z-index:170}
+.lpick-pop .lpick-list{position:static;max-height:none;padding:0;box-shadow:none;background:transparent;border-radius:0;overflow:visible}
