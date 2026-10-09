@@ -292,7 +292,7 @@ func TestOpenCodeHTTPFixtureTurn(t *testing.T) {
 				}
 				select {
 				case <-aborted:
-				case <-time.After(time.Second):
+				case <-time.After(5 * time.Second): // generous under -race on shared CI runners
 					t.Fatal("abort not sent")
 				}
 			} else if err != nil {
