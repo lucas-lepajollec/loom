@@ -9,6 +9,7 @@ import { TabNav } from '../ui/tabnav.js';
 export const GROUPS = [
   { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [['local', () => t('local.page.local')], ['cloud', () => t('app.routes.cloud')], ['engine', () => t('engine.page.title')]] },
   { id: 'agents', icon: 'terminal', get label() { return t('app.groups.agents'); }, tabs: [['harnesses', () => t('app.routes.harnesses')]] },
+  { id: 'tasks', icon: 'pulse', get label() { return t('tasks.title'); }, tabs: [['tasks', () => t('tasks.title')]] },
   { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')], ['workspaces', () => t('workspaces.title')], ['terminals', () => t('app.routes.terminaux')], ['environment', () => t('app.routes.environnement')]] },
   { id: 'brain', icon: 'brain', get label() { return t('resources.page.brain'); }, tabs: [['brain', () => t('resources.page.brain')], ['resources']] },
   { id: 'activity', icon: 'chart', get label() { return t('app.groups.activity'); }, tabs: [['usage', () => t('app.routes.usage')], ['bench', () => t('app.routes.bench')]] },

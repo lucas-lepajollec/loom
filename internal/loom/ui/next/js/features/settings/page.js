@@ -1,3 +1,4 @@
+import { NotificationSettings } from './notifications.js';
 import { t, locale, getLang, setLang, tSource } from '../../core/i18n.js';
 // Réglages : Général, Moteur, Internet, Sécurité, À propos. Une ligne par
 // réglage, l'explication en ⓘ, jamais en paragraphe sous chaque option.
@@ -19,7 +20,7 @@ import { LoomUpdates } from './updates.js';
 import { StartupSettings } from './startup.js';
 import { VLLMEngine } from './vllm.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['startup', t('startup.title'), 'power'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'pulse'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 function usePref() {
@@ -535,7 +536,7 @@ export function SettingsPage({ route }) {
   const selected = sections.find(s => s[0] === route.sub);
   const sec = selected ? selected[0] : 'general';
   const detail = !mobile || !!selected;
-  const View = { general: General, internet: Internet, startup: StartupSettings, security: Security, about: About }[sec];
+  const View = { general: General, internet: Internet, startup: StartupSettings, notifications: NotificationSettings, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
     <div class="page-head settings-head"><div>
       ${mobile && selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}
