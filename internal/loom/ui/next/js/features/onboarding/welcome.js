@@ -51,7 +51,7 @@ function finish(next) {
 function Hello({ onNext }) {
   const lang = getLang();
   return html`<div class="wl-body">
-    <span class="wl-mark"><svg viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="4.5" fill="currentColor"></rect><g fill="none" stroke="var(--bg)" stroke-width="1.3" stroke-linecap="round"><path d="M4 6.2h8M4 9.8h8M6.2 4v8M9.8 4v8"></path></g></svg></span>
+    <span class="wl-mark"><svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="t"></path></svg></span>
     <h1>${t('welcome.hello.title')}</h1>
     <p class="wl-lead">${t('welcome.hello.lead')}</p>
     <div class="wl-langs" role="radiogroup" aria-label="Langue / Language">

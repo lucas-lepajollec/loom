@@ -3,8 +3,8 @@ package platform
 // sys_brand_icon.go — l'icône de la marque Loom, rendue à la volée.
 //
 // RÉPLIQUE EXACTE du favicon et du logo de l'UI web : carré à coins arrondis NOIR
-// + tissage Loom écru (3 fils horizontaux, 3 fils verticaux entrecroisés avec
-// extrémités arrondies sur grille 24x24). Une seule source pour tous les usages —
+// + tissage Loom écru (deux fils de chaîne, deux de trame, dessus-dessous ; le
+// logo maître est docs/brand/loom-mark.svg). Une seule source pour tous les usages —
 // zone de notification Windows, barre de menus macOS, icône du .exe — pour
 // garantir une cohérence visuelle parfaite.
 //
@@ -28,33 +28,65 @@ var (
 	brandClear = color.RGBA{0, 0, 0, 0}
 )
 
-type lineSeg struct {
-	x1, y1, x2, y2 float64
+// weavePiece : un morceau de fil du tissage Loom sur la grille 256 du logo
+// (docs/brand/loom-mark.svg). Deux fils de chaîne et deux de trame passent
+// dessus-dessous ; un bout arrondi est une extrémité libre, un bout droit
+// s'arrête au ras d'un fil qui passe par-dessus.
+type weavePiece struct {
+	x0, y0, x1, y1                   float64
+	horizontal, roundStart, roundEnd bool
 }
 
-// loomSegments : les 6 fils du tissage Loom sur une grille 24x24 (3 horizontaux, 3 verticaux).
-var loomSegments = []lineSeg{
-	{5.0, 8.5, 19.0, 8.5},
-	{5.0, 12.0, 19.0, 12.0},
-	{5.0, 15.5, 19.0, 15.5},
-	{8.5, 5.0, 8.5, 19.0},
-	{12.0, 5.0, 12.0, 19.0},
-	{15.5, 5.0, 15.5, 19.0},
+// loomWeave : même géométrie que le SVG maître (épaisseur 40, rayon 20, jour 12).
+var loomWeave = []weavePiece{
+	{20, 64, 52, 104, true, true, false}, {116, 64, 236, 104, true, false, true},
+	{20, 152, 140, 192, true, true, false}, {204, 152, 236, 192, true, false, true},
+	{64, 20, 104, 140, false, true, false}, {64, 204, 104, 236, false, false, true},
+	{152, 20, 192, 52, false, true, false}, {152, 116, 192, 236, false, false, true},
 }
 
-func segDist(px, py, x1, y1, x2, y2 float64) float64 {
-	dx, dy := x2-x1, y2-y1
-	l2 := dx*dx + dy*dy
-	if l2 == 0 {
-		return math.Hypot(px-x1, py-y1)
+// inside teste un point de la grille 256 contre un morceau : rectangle, plus un
+// demi-disque à chaque bout arrondi.
+func (w weavePiece) inside(x, y float64) bool {
+	const r = 20.0
+	if w.horizontal {
+		cy := (w.y0 + w.y1) / 2
+		if y < w.y0 || y > w.y1 {
+			return false
+		}
+		a, b := w.x0, w.x1
+		if w.roundStart {
+			a += r
+			if x < a {
+				return math.Hypot(x-a, y-cy) <= r
+			}
+		}
+		if w.roundEnd {
+			b -= r
+			if x > b {
+				return math.Hypot(x-b, y-cy) <= r
+			}
+		}
+		return x >= a && x <= b
 	}
-	t := ((px-x1)*dx + (py-y1)*dy) / l2
-	if t < 0 {
-		t = 0
-	} else if t > 1 {
-		t = 1
+	cx := (w.x0 + w.x1) / 2
+	if x < w.x0 || x > w.x1 {
+		return false
 	}
-	return math.Hypot(px-(x1+t*dx), py-(y1+t*dy))
+	a, b := w.y0, w.y1
+	if w.roundStart {
+		a += r
+		if y < a {
+			return math.Hypot(x-cx, y-a) <= r
+		}
+	}
+	if w.roundEnd {
+		b -= r
+		if y > b {
+			return math.Hypot(x-cx, y-b) <= r
+		}
+	}
+	return y >= a && y <= b
 }
 
 // brandIconImage dessine l'icône à la taille n. bg peint le carré arrondi, fg le
@@ -62,7 +94,6 @@ func segDist(px, py, x1, y1, x2, y2 float64) float64 {
 // « template » de macOS.
 func brandIconImage(n int, bg, fg color.RGBA) *image.RGBA {
 	const r = 5.2 // rayon des coins sur grille 24
-	const strokeR = 0.82
 	outside := func(gx, gy float64) bool {
 		if gx < 0.8 || gx > 23.2 || gy < 0.8 || gy > 23.2 {
 			return true
@@ -71,15 +102,18 @@ func brandIconImage(n int, bg, fg color.RGBA) *image.RGBA {
 			dx, dy := gx-cx, gy-cy
 			return dx*dx+dy*dy > r*r
 		}
+		// Les arcs partent du bord de la tuile (marge m) pour lui être tangents.
+		const m = 0.8
+		lo, hi := m+r, 24-m-r
 		switch {
-		case gx < r && gy < r:
-			return corner(r, r)
-		case gx > 24-r && gy < r:
-			return corner(24-r, r)
-		case gx < r && gy > 24-r:
-			return corner(r, 24-r)
-		case gx > 24-r && gy > 24-r:
-			return corner(24-r, 24-r)
+		case gx < lo && gy < lo:
+			return corner(lo, lo)
+		case gx > hi && gy < lo:
+			return corner(hi, lo)
+		case gx < lo && gy > hi:
+			return corner(lo, hi)
+		case gx > hi && gy > hi:
+			return corner(hi, hi)
 		}
 		return false
 	}
@@ -88,7 +122,7 @@ func brandIconImage(n int, bg, fg color.RGBA) *image.RGBA {
 	scale := float64(n) / 24.0
 
 	// Supersampling 4x4 pour un antialiasing net et doux à toute échelle
-	const sub = 4
+	const sub = 6
 	const subW = 1.0 / float64(sub*sub)
 
 	for py := 0; py < n; py++ {
@@ -102,15 +136,13 @@ func brandIconImage(n int, bg, fg color.RGBA) *image.RGBA {
 					gy := (float64(py) + (float64(sy)+0.5)/sub) / scale
 					if !outside(gx, gy) {
 						bgCov += subW
-						minD := 1e9
-						for _, s := range loomSegments {
-							d := segDist(gx, gy, s.x1, s.y1, s.x2, s.y2)
-							if d < minD {
-								minD = d
+						// Le logo (grille 256) occupe le centre de la tuile, de 4 à 20.
+						mx, my := (gx-4)*16, (gy-4)*16
+						for _, w := range loomWeave {
+							if w.inside(mx, my) {
+								fgCov += subW
+								break
 							}
-						}
-						if minD <= strokeR {
-							fgCov += subW
 						}
 					}
 				}
