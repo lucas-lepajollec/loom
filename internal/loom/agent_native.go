@@ -71,7 +71,9 @@ func nativeAgentProtocol(a acpAgent) string {
 		argv, err := harnessNativeArgv([]string{path, "--help"})
 		if err == nil {
 			// Some CLIs (OpenCode, agy) print their help on stderr.
-			out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
+			cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+			cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
+			out, err := cmd.CombinedOutput()
 			needle := "app-server"
 			if a.ID == "antigravity" {
 				needle = "--input-format"
@@ -145,7 +147,9 @@ func recordAgentCompatibility(ctx context.Context, a acpAgent, protocol string, 
 	if err == nil {
 		c, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		out, err := exec.CommandContext(c, argv[0], argv[1:]...).Output()
+		cmd := exec.CommandContext(c, argv[0], argv[1:]...)
+		cmd.Env = append(os.Environ(), "PATH="+lifecycleLocalPath())
+		out, err := cmd.Output()
 		if err == nil {
 			version = boundedBytes(strings.TrimSpace(string(out)), 200)
 		}

@@ -58,6 +58,14 @@ custom launcher. Harnesses can run locally or on paired Loom Node machines (and 
 with installation and update controls where the lifecycle catalog supports them.
 
 Installation, native account sign-in and connecting a harness to Loom are separate.
+Agents' **On your machines** table checks, installs and updates local, paired
+Node and existing SSH installations. Updates follow the detected npm, native
+installer or Homebrew channel; unknown installations require manual updates.
+Missing launchers with known installations offer **Repair**. npm updates preserve the installation
+prefix and verify a staged replacement before promotion, with rollback on
+failure. Antigravity offers **Check and update** through `agy update`; unknown
+versions never imply **up to date**. See [agent lifecycle](docs/agents-compat.md#installation-and-update-lifecycle).
+
 Account setup stays in the Harnesses page. Codex offers ChatGPT device-code login;
 Claude Code and Antigravity expose their native browser sign-in links and accept
 the returned code directly in Loom. Other native flows keep a terminal fallback.

@@ -175,13 +175,16 @@ Windows OpenSSH targets use encoded PowerShell commands and a Windows probe.
 - `GET /api/harness/lifecycle?target=local&id=codex` checks without installing.
   `target` defaults to `local`; otherwise it is a saved remote machine ID.
   The response is `{ok, state, log}`; `state` contains `installed`, `version`,
-  `latest`, `update_available`, `requires_missing`, `auto`, `last_auto`,
+  `latest`, `update_available`, `channel`, `can_update`, `can_repair`,
+  `repair_path` when recoverable, `requires_missing`, `auto`, `last_auto`,
   `unverified`, and any probe `errors`. Unknown versions are empty strings;
   they never trigger updates. Logs retain at most 32 KiB.
 - `POST /api/harness/lifecycle` accepts `{target,id,action}` where action is
-  `check`, `install` or `update`. Each pair has one action at a time (409 for
+  `check`, `install`, `update` or `repair`. Each pair has one action at a time (409 for
   contention), a 15-minute timeout, and cancellation of its owned process tree.
-  Remote install/update refreshes and saves the machine description and its
+  Paired machines dispatch through the authenticated Node harness lifecycle
+  endpoint with controller `node.install`/`node.update` policy enforcement;
+  recipes execute as the Node user and return their logs. Remote install/update refreshes and saves the machine description and its
   existing links; local actions invalidate inspection and refresh ACP probes.
   Linking still uses `POST /api/machines` with `{machine,harnesses}` or the
   local built-in/custom ACP registry; installation does not grant transcript
@@ -208,11 +211,20 @@ The requested `@mariozechner/pi-coding-agent` package is retained with
 `unverified: true` because current Pi docs name a different npm package.
 Hermes compares its version with GitHub's latest release; its source installer
 tracks main and upstream still owns source updates. Antigravity has no verified
-read-only latest-version source in this catalog, so only manual lifecycle
-updates run for it. Upstream installers, package permissions and supported OS
+read-only latest-version source in this catalog, so its manual **Check and
+update** action uses `agy update`, compares before/after versions, and never
+claims currency from a read-only check. Upstream installers, package permissions and supported OS
 versions remain upstream's responsibility; Loom never adds sudo or changes
-native global permissions. On Unix, npm install/update probes the global prefix;
-if it is not writable, an explicit per-command `--prefix ~/.local` is used.
+native global permissions. Updates classify the resolved executable as npm, native, Homebrew or unknown.
+Native installations use their own updater, Homebrew uses its formula/cask, and
+unknown channels refuse. Repair discovers known missing launchers and verifies
+the candidate before relinking/remembering it under the install policy.
+Local/Node native updates snapshot the selected executable and launcher until
+version verification succeeds. On Unix, local/Node npm install/update resolves the existing executable's prefix
+first. With no existing installation it probes the global prefix and falls back
+to an explicit per-command `--prefix ~/.local` when it is not writable. Local/Node
+npm replacements are staged and version-verified, with rollback on failed
+promotion. Existing unwritable installations fail without moving the agent.
 No npm configuration file is modified. Installation, version inspection and ACP
 launches prefer user-installed binaries. SSH probes the target's own prefix.
 OpenCode's Unix catalog update uses the same npm path as its installation.

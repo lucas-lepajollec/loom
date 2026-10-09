@@ -19,6 +19,13 @@ func writeLlamaServer(t *testing.T, p string) {
 func TestEngineKindFullVsServer(t *testing.T) {
 	testHome(t)
 	root := t.TempDir()
+	// A stray .git above the temporary directory (seen in sandboxes) makes any
+	// folder look like a checkout; this test cannot be meaningful there.
+	for dir := filepath.Dir(root); dir != filepath.Dir(dir); dir = filepath.Dir(dir) {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			t.Skipf("unrelated .git above the temporary directory: %s", dir)
+		}
+	}
 
 	repo := filepath.Join(root, "llama.cpp")
 	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {

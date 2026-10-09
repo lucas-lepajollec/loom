@@ -13,6 +13,22 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
   engine without exposing sherpa listener ports. Missing catalog hashes block
   installation; real speech/GPU/platform acceptance and the Voice UI remain
   separate. Contracts are in [voice](docs/voice.md).
+- Agent updates follow the resolved installation channel: npm with its existing
+  prefix, native self-updaters or Homebrew. Unknown channels refuse updates.
+  Local and paired Node native updates verify versions and restore the selected
+  executable/launcher on failure. Machine rows show the channel and offer
+  **Repair** for known installations whose launcher is missing, including Codex
+  standalone installs and user npm prefixes outside Loom's PATH.
+
+- Agent npm installs/updates preserve the existing executable's prefix, verify
+  a staged replacement and roll back failed promotion/version checks while
+  retaining npm output. Successful updates refresh protocol, compatibility and
+  feature probes. Paired Node machines support checks, installs and updates
+  through their harness module with controller policy enforcement; existing SSH
+  machines remain supported. Antigravity uses `agy update` with a **Check and
+  update** action and before/after version reporting. Machine rows show unknown
+  versions without claiming **up to date**, and expose per-machine install/update
+  actions and logs.
 
 - Phase 4b backend: central allow/confirm/deny capability policy with one-time
   legacy-setting migration, canonical Tasks/phone confirmations, bounded audit
