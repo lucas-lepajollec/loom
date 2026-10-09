@@ -1,0 +1,105 @@
+{
+  "initialize": {
+    "codexHome": "\u003cpath\u003e"
+  },
+  "model/list": {
+    "models": {
+      "/additionalSpeedTiers/*": [
+        "fast"
+      ],
+      "/availabilityNux": [
+        "null"
+      ],
+      "/availabilityNux/message": [
+        "string"
+      ],
+      "/availableAccessPrograms": [
+        "null"
+      ],
+      "/defaultReasoningEffort": [
+        "low",
+        "medium"
+      ],
+      "/defaultServiceTier": [
+        "null",
+        "priority"
+      ],
+      "/description": [
+        "string"
+      ],
+      "/displayName": [
+        "string"
+      ],
+      "/hidden": [
+        false
+      ],
+      "/id": [
+        "string"
+      ],
+      "/inputModalities/*": [
+        "image",
+        "text"
+      ],
+      "/isDefault": [
+        false,
+        true
+      ],
+      "/model": [
+        "string"
+      ],
+      "/modelSpecialty": [
+        "null"
+      ],
+      "/multiAgentVersion": [
+        "null",
+        "v1",
+        "v2"
+      ],
+      "/serviceTiers/*/description": [
+        "string"
+      ],
+      "/serviceTiers/*/id": [
+        "string"
+      ],
+      "/serviceTiers/*/name": [
+        "string"
+      ],
+      "/supportedReasoningEfforts/*/description": [
+        "string"
+      ],
+      "/supportedReasoningEfforts/*/reasoningEffort": [
+        "high",
+        "low",
+        "max",
+        "medium",
+        "ultra",
+        "xhigh"
+      ],
+      "/supportsPersonality": [
+        false
+      ],
+      "/upgrade": [
+        "null",
+        "string"
+      ],
+      "/upgradeInfo": [
+        "null"
+      ],
+      "/upgradeInfo/migrationMarkdown": [
+        "string"
+      ],
+      "/upgradeInfo/model": [
+        "string"
+      ],
+      "/upgradeInfo/modelLink": [
+        "null"
+      ],
+      "/upgradeInfo/retirementAt": [
+        "null"
+      ],
+      "/upgradeInfo/upgradeCopy": [
+        "null"
+      ]
+    }
+  }
+}
