@@ -151,9 +151,10 @@ func handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		var message struct {
-			Type string `json:"type"`
-			ID   string `json:"id"`
-			Text string `json:"text"`
+			Type  string               `json:"type"`
+			ID    string               `json:"id"`
+			Text  string               `json:"text"`
+			Voice jarvisVoiceOverrides `json:"voice"`
 		}
 		if err := json.Unmarshal(data, &message); err != nil {
 			_ = send(map[string]any{"type": "error", "error": "invalid JSON control frame"})
@@ -195,11 +196,11 @@ func handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 			current := generation
 			speechWG.Add(1)
 			outMu.Unlock()
-			go func(id, text string) {
+			go func(id, text string, voice jarvisVoiceOverrides) {
 				defer speechWG.Done()
 				defer stop()
 				started := false
-				_, _, err := voiceSynthesize(speechCtx, text, func(e voiceWorkerEvent) error {
+				_, _, err := voiceSynthesizeWithVoice(speechCtx, text, voice, func(e voiceWorkerEvent) error {
 					outMu.Lock()
 					defer outMu.Unlock()
 					if current != generation {
@@ -236,7 +237,7 @@ func handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 				} else {
 					_ = sendLocked(map[string]any{"type": "audio_end", "id": id})
 				}
-			}(message.ID, message.Text)
+			}(message.ID, message.Text, message.Voice)
 		case "ping":
 			_ = send(map[string]any{"type": "pong"})
 		default:

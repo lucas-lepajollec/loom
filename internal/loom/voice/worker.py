@@ -577,18 +577,32 @@ class Engine:
             cfg = SherpaOnnxGenerationConfig()
             cfg.sid, cfg.speed, cfg.silence_scale = sid, req['speed'], 0.2
             callback_type = C.CFUNCTYPE(C.c_int32, C.POINTER(C.c_float), C.c_int32, C.c_float, C.c_void_p)
+            callback_errors = []
             def callback(samples, n, progress, arg):
-                pcm = array.array('h', (max(-32768, min(32767, int(samples[i] * 32767))) for i in range(n)))
-                if sys.byteorder != 'little':
-                    pcm.byteswap()
-                emit({'audio': base64.b64encode(pcm.tobytes()).decode()})
-                return 1
+                try:
+                    # The native callback arrives after each sentence batch,
+                    # not during the ONNX run for a single sentence. Bound the
+                    # transport chunks and flush each before generation resumes.
+                    for start in range(0, n, 3200):
+                        pcm = array.array('h', (max(-32768, min(32767, int(samples[i] * 32767))) for i in range(start, min(start + 3200, n))))
+                        if sys.byteorder != 'little':
+                            pcm.byteswap()
+                        emit({'audio': base64.b64encode(pcm.tobytes()).decode()})
+                    return 1
+                except Exception as e:
+                    # ctypes otherwise swallows exceptions raised by callbacks.
+                    callback_errors.append(e)
+                    return 0
             cb = callback_type(callback)
             audio = self.api['OfflineTtsGenerateWithConfig'](self.engine, req['text'].encode(), C.byref(cfg), C.cast(cb, C.c_void_p), None)
             if not audio:
                 raise ValueError('sherpa returned no audio')
-            emit({'sample_rate': audio.contents.sample_rate, 'samples': audio.contents.n})
-            self.api['DestroyOfflineTtsGeneratedAudio'](audio)
+            try:
+                if callback_errors:
+                    raise callback_errors[0]
+                emit({'sample_rate': audio.contents.sample_rate, 'samples': audio.contents.n})
+            finally:
+                self.api['DestroyOfflineTtsGeneratedAudio'](audio)
             return
         key = req['session']
         if op == 'close':

@@ -4,6 +4,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Jarvis 6.3 backend profile: saved name, language, bounded personality, spoken
+  length with 160/400/900-token caps, French formality, context selection and
+  request-scoped TTS model/speaker/speed overrides. Legacy model/fallback saves
+  preserve profile fields. Idle voice config changes restart resident workers;
+  regression tests verify thread counts in startup/native STT and TTS configs.
+  Callback PCM is flushed in bounded chunks; documented native sentence-batch
+  latency and verified first-audio benchmark timing remain honest about the
+  single-sentence synthesis limit. Profile JSON and the separately built UI's
+  speech contract are in [voice](docs/voice.md).
+
 - Jarvis 6.2 backend: bounded, authenticated in-memory voice conversations,
   local/cloud model selection with harness fallback, read-only Brain/discussion
   context, cancellable SSE answers and provider policy refusal. Optional closing
