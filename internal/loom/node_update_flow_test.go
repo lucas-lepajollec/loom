@@ -9,13 +9,21 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestNodeReleaseInstallerLayoutUpdateAndServiceRestart(t *testing.T) {
 	testHome(t)
+	t.Setenv("HOME", t.TempDir())
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux user service fixture")
+	}
+	oldSchedule := scheduleUpdateRestart
+	var restart func()
+	scheduleUpdateRestart = func(run func()) { restart = run }
+	t.Cleanup(func() { scheduleUpdateRestart = oldSchedule })
 	t.Setenv("LOOM_UI_SERVICE", "loom-node")
 	dir := filepath.Join(t.TempDir(), ".local", "lib", "loom-node")
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -117,24 +125,24 @@ func TestNodeReleaseInstallerLayoutUpdateAndServiceRestart(t *testing.T) {
 	if string(installed) != string(content) || string(previous) != "previous installed node" {
 		t.Fatal("release layout update or rollback binary failed")
 	}
-	deadline := time.Now().Add(4 * time.Second)
-	for time.Now().Before(deadline) {
-		raw, _ := os.ReadFile(log)
-		if strings.Contains(string(raw), "--user restart loom-node") {
-			if _, err := os.Stat(runningVersion); err != nil {
-				time.Sleep(20 * time.Millisecond)
-				continue
-			}
-			req := httptest.NewRequest("GET", base+"/ping", nil)
-			req.SetPathValue("id", m.ID)
-			w := httptest.NewRecorder()
-			handleMachineNodeUpdate(w, req)
-			if w.Code != 200 || !strings.Contains(w.Body.String(), `"version":"99.0.0-dev.1"`) {
-				t.Fatalf("running node: %d %s", w.Code, w.Body.String())
-			}
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
+	if restart == nil {
+		t.Fatal("node restart was not scheduled")
 	}
-	t.Fatal("node user service did not restart")
+	if _, err := os.Stat(runningVersion); !os.IsNotExist(err) {
+		t.Fatal("restart ran before the response")
+	}
+	// Run the scheduled operation to completion. The old test treated file
+	// existence as completion even though shell redirection creates it empty.
+	restart()
+	raw, err := os.ReadFile(log)
+	if err != nil || !strings.Contains(string(raw), "--user restart loom-node") {
+		t.Fatal("node user service did not restart", err)
+	}
+	req = httptest.NewRequest("GET", base+"/ping", nil)
+	req.SetPathValue("id", m.ID)
+	w = httptest.NewRecorder()
+	handleMachineNodeUpdate(w, req)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"version":"99.0.0-dev.1"`) {
+		t.Fatalf("running node: %d %s", w.Code, w.Body.String())
+	}
 }

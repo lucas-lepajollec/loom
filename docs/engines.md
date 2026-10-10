@@ -253,3 +253,46 @@ unreported tokens are not estimated. `last_error` is a bounded error code from
 the latest completed request, cleared by success. Key lists never return hashes
 or secrets. `endpoint` is the OpenAI base URL clients should use, including `/v1`
 (and the node's public origin for a Loom node).
+
+## Repairing llama.cpp acceleration
+
+**Engine → Acceleration** reports devices observed from the configured
+`llama-server --list-devices`, or **none** when enumeration succeeds without
+GPU devices. A failed or missing binary is **unknown**, with the failure shown
+alongside it. **Planned build backend** describes the compiler plan separately.
+For an unhealthy source installation, **Rebuild** requests a clean build through
+`POST /api/llamacpp/update` with `{"clean":true}`. Official binaries use the
+release download/update action instead of the source update route.
+
+An ordinary source update checks the binary and CMake cache even when Git has
+no new commits. A missing binary, missing planned CUDA/ROCm/Metal/Vulkan device,
+failed device probe, or mismatched/relocated CMake cache triggers a clean build.
+Successful GPU repairs report **rebuilt to restore GPU support**. A healthy
+current checkout stays **already up to date**. Completed jobs refresh the
+acceleration display. Builds are verified before Loom reports success; an
+incremental build failing verification gets one clean retry.
+
+These checks apply to the web update job, CLI `loom llamacpp update`, existing
+CLI/web source installs and custom forks in `backends/<name>`. CLI
+`--dir`/`--no-switch` and custom per-model engine selection retain their scope.
+For official releases, a same-version install verifies the selected release
+variant and reinstalls an unhealthy binary. Opt-in automatic source/release
+checks also recognize repairs, retaining their existing idle-only application
+policy. Device observations bypass saved lists so replacement of a binary at
+the same path cannot preserve an old acceleration claim.
+
+`GET /api/llamacpp`, source `POST /api/llamacpp/check`, and
+`POST /api/llamacpp/prebuilt/check` include an additive `health` object:
+`{healthy,observed,devices,error?}`. `observed:false` means the device command
+could not complete, rather than a proven absence of acceleration. Check routes
+include unhealthy binaries in `needs_rebuild`/`update` advice. Sampling/preset,
+model, discussion and inference API contracts are unchanged.
+
+vLLM installation/update verifies that its environment can import vLLM and
+PyTorch and enumerate a GPU using the expected CUDA or ROCm build. Same-version
+automatic checks also report a broken environment in `auto_update.last_error`;
+the Engine page displays it. These probes load no model and generate no tokens.
+vLLM reports environment failures for explicit repair; it does not silently
+reinstall a multi-gigabyte environment. A directly linked inference server
+continues to own its installation; Loom can observe endpoint health but cannot
+inspect its remote binary, CMake cache or Python environment.

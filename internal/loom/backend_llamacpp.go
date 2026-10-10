@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -167,26 +168,34 @@ func llamacppInstall(args []string) error {
 	}
 	ensureAccelerator() // best-effort : installe le toolkit GPU si une carte est détectée
 
-	// Dépôt déjà présent ? On bascule sur update plutôt que de re-cloner.
-	if isDir(filepath.Join(repo, ".git")) {
-		if !force {
-			fmt.Printf("%s repo already present in %s\n", yellow("[info]"), repo)
-			fmt.Printf("       → %s to update it, or --force to start from scratch\n", bold("loom llamacpp update"))
+	var plan buildPlan
+	if backend == "" {
+		plan = detectBuildPlan()
+	} else {
+		plan = buildPlanFor(backend)
+	}
+	existing := isDir(filepath.Join(repo, ".git"))
+	if existing && !force {
+		health := llamaBuildHealth(context.Background(), llamaServerBin(repo), repo, plan)
+		if health.Healthy {
+			fmt.Printf("%s repo already present and healthy in %s\n", green("[ok]"), repo)
 			return nil
 		}
-		fmt.Printf("%s --force: removing %s\n", yellow("[info]"), repo)
-		if err := os.RemoveAll(repo); err != nil {
+		fmt.Printf("Engine needs repair: %s\n", health.Error)
+	} else {
+		if existing {
+			fmt.Printf("%s --force: removing %s\n", yellow("[info]"), repo)
+			if err := os.RemoveAll(repo); err != nil {
+				return err
+			}
+		}
+		if err := os.MkdirAll(filepath.Dir(repo), 0755); err != nil {
 			return err
 		}
-	}
-
-	if err := os.MkdirAll(filepath.Dir(repo), 0o755); err != nil {
-		return err
-	}
-
-	fmt.Printf("%s cloning llama.cpp into %s\n", cyan("▶"), repo)
-	if err := runStep("git clone", "", "git", "clone", "--depth=1", llamacppRepoURL, repo); err != nil {
-		return err
+		fmt.Printf("%s cloning llama.cpp into %s\n", cyan("▶"), repo)
+		if err := runStep("git clone", "", "git", "clone", "--depth=1", llamacppRepoURL, repo); err != nil {
+			return err
+		}
 	}
 	if ref != "" {
 		// --depth=1 ne récupère que HEAD ; on approfondit pour atteindre le ref.
@@ -196,12 +205,17 @@ func llamacppInstall(args []string) error {
 		}
 	}
 
-	plan := buildPlanFor(backend)
 	if backend != "" {
 		fmt.Printf("%s forced backend: %s\n", yellow("[info]"), bold(backend))
 	}
 	printPlan(plan, repo)
 
+	if existing && samePath(ReadConfig()["BIN"], llamaServerBin(repo)) && serviceIsActive() {
+		if err := serviceAction("stop"); err != nil {
+			return err
+		}
+		defer func() { _ = serviceAction("start") }()
+	}
 	if err := buildLlamacpp(repo, plan, true); err != nil {
 		return err
 	}
@@ -209,6 +223,9 @@ func llamacppInstall(args []string) error {
 	bin := llamaServerBin(repo)
 	if bin == "" {
 		return fmt.Errorf("build complete but binary not found under %s", filepath.Join(repo, "build"))
+	}
+	if existing && !force {
+		fmt.Printf("%s %s\n", green("✓"), engineRepairMessage(plan.backend))
 	}
 	fmt.Printf("\n%s binary compiled: %s\n", green("✓"), bin)
 
@@ -285,7 +302,14 @@ func llamacppUpdate(args []string) error {
 	// Déjà à jour ? On s'arrête (sauf --clean / --force qui forcent un rebuild).
 	localRev := gitOutput(repo, "rev-parse", "HEAD")
 	remoteRev := gitOutput(repo, "rev-parse", "origin/"+branch)
-	if localRev != "" && localRev == remoteRev && !clean && !force && llamaServerBin(repo) != "" {
+	plan := detectBuildPlan()
+	health := llamaBuildHealth(context.Background(), llamaServerBin(repo), repo, plan)
+	repair := !health.Healthy
+	if repair {
+		fmt.Printf("Engine needs repair: %s\n", health.Error)
+		clean = true
+	}
+	if localRev != "" && localRev == remoteRev && !clean && !force && !repair {
 		fmt.Printf("%s already up to date (%s) — nothing to do\n", green("[ok]"), oldCommit)
 		fmt.Printf("       (use %s to force a rebuild)\n", dim("--force"))
 		return nil
@@ -296,7 +320,7 @@ func llamacppUpdate(args []string) error {
 		if err := runStep("git checkout", repo, "git", "checkout", ref); err != nil {
 			return err
 		}
-	} else {
+	} else if localRev != remoteRev {
 		if err := runStep("git pull --ff-only", repo, "git", "pull", "--ff-only", "origin", branch); err != nil {
 			return fmt.Errorf("git pull failed (local changes? try resolving manually): %w", err)
 		}
@@ -313,7 +337,6 @@ func llamacppUpdate(args []string) error {
 		}
 	}
 
-	plan := detectBuildPlan()
 	printPlan(plan, repo)
 
 	if err := buildLlamacpp(repo, plan, clean); err != nil {
@@ -331,7 +354,11 @@ func llamacppUpdate(args []string) error {
 		return fmt.Errorf("build succeeded but failed to write BIN in config.env: %w", err)
 	}
 
-	fmt.Printf("\n%s updated: %s → %s\n", green("✓"), oldCommit, newCommit)
+	if repair {
+		fmt.Printf("\n%s %s (%s)\n", green("✓"), engineRepairMessage(plan.backend), newCommit)
+	} else {
+		fmt.Printf("\n%s updated: %s → %s\n", green("✓"), oldCommit, newCommit)
+	}
 
 	if noRestart {
 		fmt.Printf("%s --no-restart: remember to run %s\n", dim("[info]"), bold("loom restart"))
@@ -461,7 +488,8 @@ func installCustomBackend(url, name, ref string, phase func(string)) (string, er
 
 	plan := detectBuildPlan()
 	phase(fmt.Sprintf("building (backend=%s)…", plan.backend))
-	if err := buildLlamacpp(dir, plan, false); err != nil {
+	health := llamaBuildHealth(context.Background(), llamaServerBin(dir), dir, plan)
+	if err := buildLlamacpp(dir, plan, !health.Healthy); err != nil {
 		return "", err
 	}
 	bin := llamaServerBin(dir)

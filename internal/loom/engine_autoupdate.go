@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -60,13 +61,19 @@ func engineFree() bool {
 func engineUpdateAvailable() (kind, from, to string, err error) {
 	bin := strings.TrimSpace(ReadConfig()["BIN"])
 	if pb := prebuiltServerBin(); pb != "" && bin == pb {
-		tag, _, err := fetchLlamaLatest()
+		tag, assets, err := fetchLlamaLatest()
 		if err != nil {
 			return "prebuilt", "", "", err
 		}
 		cur, _ := prebuiltVersion()
 		if cur == tag {
-			return "prebuilt", cur, "", nil
+			_, _, label, _, err := pickPrebuilt(assets)
+			if err != nil {
+				return "prebuilt", cur, "", err
+			}
+			if llamaBuildHealth(context.Background(), pb, "", buildPlan{backend: prebuiltBackend(label)}).Healthy {
+				return "prebuilt", cur, "", nil
+			}
 		}
 		return "prebuilt", cur, tag, nil
 	}
@@ -83,7 +90,7 @@ func engineUpdateAvailable() (kind, from, to string, err error) {
 	}
 	behind, _ := strconv.Atoi(gitOutput(repo, "rev-list", "--count", "HEAD..origin/"+branch))
 	from = gitOutput(repo, "rev-parse", "--short", "HEAD")
-	if behind == 0 {
+	if behind == 0 && llamaBuildHealth(context.Background(), llamaServerBin(repo), repo, detectBuildPlan()).Healthy {
 		return "source", from, "", nil
 	}
 	return "source", from, gitOutput(repo, "rev-parse", "--short", "origin/"+branch), nil

@@ -1,5 +1,9 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "engine.build_backend": "Backend de compilation prévu",
+  "engine.health": "État du moteur",
+  "engine.rebuild": "Recompiler",
+
   "machines.add.title": "Ajouter une machine",
   "machines.add.note": "Installer Loom Node et saisir son code",
   "machines.add.install": "Installer Loom Node sur la machine",

@@ -45,7 +45,7 @@ and dispatches CI. Refresh local snapshots with
 
 ## Models and engines
 
-Install, compile or update **llama.cpp** from Loom, or link an existing binary. Router mode keeps the engine running while models load through its API. Browse and download GGUF models from Hugging Face, save presets and tune per-model parameters with an advisory VRAM estimate.
+Install, compile or update **llama.cpp** from Loom, or link an existing binary. Engine updates also repair unhealthy builds at the current commit; the Engine page shows observed acceleration and offers **Rebuild** for unhealthy source installations. See [engine repairs](docs/engines.md#repairing-llamacpp-acceleration). Router mode keeps the engine running while models load through its API. Browse and download GGUF models from Hugging Face, save presets and tune per-model parameters with an advisory VRAM estimate.
 
 <img src="docs/screenshots/local.png" alt="Local GGUF library, presets and model parameters" width="1000" />
 

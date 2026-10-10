@@ -142,9 +142,10 @@ function PushNotifications() {
   </${Line}>`;
 }
 
-function Job() {
+function Job({ onDone } = {}) {
   const [j, setJ] = useState(null);
   useEffect(() => { const localT = setInterval(async () => { try { setJ(await get('/api/llamacpp/job')); } catch (_) {} }, 1200); get('/api/llamacpp/job').then(setJ); return () => clearInterval(localT); }, []);
+  useEffect(() => { if (j?.exists && !j.running && j.ended_at && onDone) onDone(); }, [j?.running, j?.ended_at]);
   if (!j || !j.exists) return null;
   const lines = (j.lines || []).slice(-14).join('\n');
   return html`<div class=${cls('job', j.running && 'run', j.error && 'err')}>
@@ -229,7 +230,7 @@ export function Engine() {
   const node = useStore(app, a => a.engineNode);
   const [lc, setLc] = useState(null);
   const load = async () => { setLc(await get('/api/llamacpp')); };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [node?.url, node?.direct]);
   const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || t("settings.page.echec_2"), 'err'); if (ok) toast(ok); setTimeout(load, 800); };
   const link = async () => { const bin = await prompt(t("settings.page.lier_un_llama_server_existant"), { message: t("settings.page.chemin_complet_du_binaire_llama_server_deja_installe_sur_cette_ma"), placeholder: t("settings.page.chemin_vers_llama_server"), ok: t("settings.page.lier") }); if (bin) run('/api/llamacpp/use', { mode: 'exist', bin }, t("settings.page.moteur_lie")); };
   if (!lc) return html`<div class="skeleton" style="height:220px"></div>`;
@@ -242,21 +243,28 @@ export function Engine() {
       <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/prebuilt', {}, t("settings.page.telechargement_lance"))}>${t("settings.page.binaire_officiel")}</button>
         <button class="btn" onClick=${() => run('/api/llamacpp/install', { dir: '' }, t("settings.page.compilation_lancee"))}>${t("settings.page.compiler_llama_cpp")}</button>
         <button class="btn ghost" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button></div>
-      <${Job} />
+      <${Job} onDone=${load} />
     </${Group}>`;
+  const health = lc.health;
+  const acceleration = health?.observed ? (health.devices || []).map(d => d.id).join(', ') || t('settings.page.none') : t('settings.page.inconnu');
+  const updateURL = lc.update_kind === 'prebuilt' ? '/api/llamacpp/prebuilt' : '/api/llamacpp/update';
+  const checkURL = lc.update_kind === 'prebuilt' ? '/api/llamacpp/prebuilt/check' : '/api/llamacpp/check';
   return html`
     <${Group} title=${node ? t("settings.page.llama_cpp_de_cette_machine") : 'llama.cpp'}>
       <${Line} label="${t("settings.page.llama_cpp")}"><span class="mono">${lc.commit || lc.prebuilt && lc.prebuilt.tag || '—'}</span>${lc.behind > 0 && html`<span class="tag amber">${lc.behind} ${t("settings.page.commits_de_retard")}</span>`}</${Line}>
-      <${Line} label="${t("settings.page.acceleration")}"><span class="tag blue">${(lc.plan && lc.plan.backend || '—').toUpperCase()}</span></${Line}>
+      <${Line} label="${t("settings.page.acceleration")}"><span class="tag blue">${acceleration}</span></${Line}>
+      <${Line} label=${t('engine.build_backend')}><span class="tag">${(lc.plan?.backend || '—').toUpperCase()}</span></${Line}>
+      ${health?.error && html`<${Line} label=${t('engine.health')}><span class="state err">${tSource(health.error)}</span></${Line}>`}
       <${GpuDevices} bin=${lcBin} />
       <${Line} label="${t("settings.page.binaire")}" stack><code class="mono path">${lcBin || t('settings.page.none')}</code></${Line}>
       <${EngineAuto} />
       <div class="set-actions">
-        ${lc.can_update && html`<button class="btn" onClick=${() => run('/api/llamacpp/update', { clean: false }, t("settings.page.mise_a_jour_lancee"))}><${Icon} n="refresh" />${t("settings.page.mettre_a_jour")}</button>`}
-        <button class="btn ghost" onClick=${() => run('/api/llamacpp/check', {}, t("settings.page.verification"))}>${t("settings.page.verifier")}</button>
+        ${lc.can_update && html`<button class="btn" onClick=${() => run(updateURL, { clean: false }, t("settings.page.mise_a_jour_lancee"))}><${Icon} n="refresh" />${t("settings.page.mettre_a_jour")}</button>`}
+        ${lc.can_update && lc.update_kind === 'git' && health?.healthy === false && html`<button class="btn" onClick=${() => run('/api/llamacpp/update', { clean: true }, t('settings.page.compilation_lancee'))}><${Icon} n="refresh" />${t('engine.rebuild')}</button>`}
+        <button class="btn ghost" onClick=${() => run(checkURL, {}, t("settings.page.verification"))}>${t("settings.page.verifier")}</button>
         <button class="btn ghost" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button>
       </div>
-      <${Job} />
+      <${Job} onDone=${load} />
     </${Group}>`;
 }
 

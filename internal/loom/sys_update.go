@@ -294,6 +294,15 @@ func handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, 200, map[string]any{"ok": true, "version": newVer, "restart": msg, "restarting": restarting})
 }
 
+// Queue after the response has time to reach the client. Tests capture this
+// callback and execute it to completion without timers or partial-file reads.
+var scheduleUpdateRestart = func(run func()) {
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		run()
+	}()
+}
+
 // restartAfterUpdate relance le service d'UI (uiServiceName, « loom-ui » : il sert
 // l'interface, le chat et le tunnel) juste après une MAJ déclenchée depuis l'UI, pour
 // éviter le SSH manuel. Conditions : Linux/systemd + service actif. On NE touche PAS à
@@ -315,10 +324,9 @@ func restartAfterUpdate() (bool, string) {
 		if runtime.GOOS != "linux" || exec.Command("systemctl", "--user", "is-active", "--quiet", "loom-node").Run() != nil {
 			return false, ""
 		}
-		go func() {
-			time.Sleep(1500 * time.Millisecond)
+		scheduleUpdateRestart(func() {
 			_ = exec.Command("systemctl", "--user", "restart", "loom-node").Run()
-		}()
+		})
 		return true, "Engine node restart scheduled; its owned engines will stop."
 	}
 	if runtime.GOOS != "linux" || !uiServiceActive() {
@@ -327,8 +335,7 @@ func restartAfterUpdate() (bool, string) {
 	if os.Geteuid() != 0 && exec.Command("sudo", "-n", "-l", "systemctl", "restart", uiServiceName()).Run() != nil {
 		return false, ""
 	}
-	go func() {
-		time.Sleep(1500 * time.Millisecond) // laisser la réponse HTTP atteindre le client
+	scheduleUpdateRestart(func() {
 		// Le service tourne sous un utilisateur non privilégié (pas root) : systemctl brut
 		// échouerait alors (polkit). On repli sur « sudo -n systemctl » comme
 		// uiServiceCtl, les sudoers /etc/sudoers.d/loom-ui autorisant le restart.
@@ -346,7 +353,7 @@ func restartAfterUpdate() (bool, string) {
 			bin, args = "sudo", append([]string{"-n", "systemctl"}, args...)
 		}
 		_ = exec.Command(bin, args...).Run()
-	}()
+	})
 	return true, "Service " + uiServiceName() + " restart scheduled — the page will verify the new version before reloading."
 }
 
