@@ -109,7 +109,7 @@ export function CloudPage() {
   const ready = providers.filter(p => p.ready).length, warn = providers.length - ready;
   const match = e => !q || (e.name + ' ' + e.hint).toLowerCase().includes(q.toLowerCase());
   const keep = (e, p) => match(e) && (filter === 'all' || (filter === 'on' ? p && p.ready : p && !p.ready));
-  const connected = [...byEntry].map(([e, p]) => [e, p]).concat(custom.map(p => [{ name: p.name, hint: p.endpoint.replace(/^https?:\/\//, ''), custom: false }, p]));
+  const connected = [...byEntry].map(([e, p]) => [e, p]).concat(custom.map(p => [{ name: p.name, hint: String(p.endpoint || '').replace(/^https?:\/\//, ''), custom: false }, p]));
   const opened = providers.find(p => p.id === open);
   const tile = (e, p) => html`<${Tile} key=${(p && p.id) || e.name} e=${e} p=${p} onOpen=${() => setOpen(p.id)} onConnect=${() => setDlg({ entry: e })} />`;
   return html`<div class="view page"><div class="page-in wide">

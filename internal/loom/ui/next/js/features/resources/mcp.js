@@ -104,7 +104,7 @@ function ServerCard({ s: sv, onToggle, onTest, onEdit, onDelete }) {
 export function Mcp({ q = '' }) {
   const [list, setList] = useState(null);
   const [dlg, setDlg] = useState(null);
-  const load = async () => { const r = await get('/api/mcp'); setList(r.servers || []); };
+  const load = () => get('/api/mcp').then(r => setList(r.servers || [])).catch(() => {});
   useEffect(() => { load(); }, []);
   const toggle = async (s, on) => { const r = await post('/api/mcp/toggle', { name: s.name, on }); if (r.ok === false) toast(r.error, 'err'); load(); };
   const del = async s => { if (!await confirm(t("resources.page.retirer_le_serveur"), '« ' + s.name + t("resources.page.et_ses_outils_seront_retires"), { ok: t("resources.page.retirer"), danger: true })) return; await post('/api/mcp/delete', { name: s.name }); load(); };

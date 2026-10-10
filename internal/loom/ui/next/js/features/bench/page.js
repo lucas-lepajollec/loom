@@ -7,6 +7,7 @@ import { Empty } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
 import { toast, confirm, Modal } from '../../ui/dialog.js';
 import { get, post, request } from '../../core/api.js';
+import { validData } from '../../core/shape.js';
 import { app, refreshLibrary } from '../../core/state.js';
 import { vendorOf } from '../chat/picker.js';
 import { useVisibleRefresh } from '../usage/refresh.js';
@@ -92,6 +93,7 @@ export function BenchPage() {
       const response = await request('/api/bench/queue/cancel', { method: 'POST', headers: { 'X-Loom-Bench-Job': job.id } });
       const r = await response.json();
       if (!r.ok) return toast(r.error, 'err');
+      if (!response.ok || !validData(r, '/api/bench/queue')) throw new Error(t('access.unavailable'));
       setJob(r.job || null);
     } catch (e) { toast(e.message, 'err'); }
   };

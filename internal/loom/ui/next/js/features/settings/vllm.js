@@ -79,8 +79,8 @@ function Search({ onDownload, busy }) {
 // (installation, mises à jour). Un seul module, plusieurs vues.
 const vstore = { x: null, lib: null, cache: '', dl: null, subs: new Set(), timer: null };
 const vemit = () => vstore.subs.forEach(f => f());
-async function vload() { try { vstore.x = await get('/api/engines/vllm'); } catch (_) { vstore.x = null; } vemit(); }
-async function vloadLib() { try { const r = await get('/api/engines/vllm/models'); vstore.lib = r.models || []; vstore.cache = r.cache || ''; } catch (_) { vstore.lib = []; } vemit(); }
+async function vload() { try { vstore.x = await get('/api/engines/vllm'); } catch (_) {} vemit(); }
+async function vloadLib() { try { const r = await get('/api/engines/vllm/models'); vstore.lib = r.models || []; vstore.cache = r.cache || ''; } catch (_) {} vemit(); }
 async function vloadDl() { try { vstore.dl = (await get('/api/engines/vllm/download')).download; } catch (_) {} vemit(); }
 const dlActive = dl => dl && !dl.finished && !dl.canceled && !dl.error;
 function vtick() {

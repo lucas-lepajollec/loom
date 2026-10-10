@@ -11,6 +11,8 @@ import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { get, post } from '../../core/api.js';
+import { visibleConnection } from '../../core/poll.js';
+import { validShape } from '../../core/shape.js';
 
 // Rééchantillonne le micro en PCM16 16 kHz par blocs de ~100 ms et mesure le niveau.
 const WORKLET = `
@@ -127,22 +129,26 @@ export function VoiceMode({ discussionId, internet = false, onClose }) {
 
   useEffect(() => {
     if (!window.isSecureContext || !navigator.mediaDevices) { setState('insecure'); return; }
-    let closed = false;
+    let closed = false, stopConnection;
     const r = rt.current;
     r.queue = []; r.speaking = false; r.turnAbort = null; r.speechId = 0;
     const start = async () => {
       // Session Jarvis + vérifs du moteur vocal.
       const v = await get('/api/voice').catch(() => null);
+      if (closed) return;
       if (!v || !v.engine || !v.engine.installed || !(v.config && v.config.stt && v.config.tts)) { setState('unavailable'); return; }
       if (!v.service || !v.service.running) await post('/api/voice/service', { action: 'start' }).catch(() => {});
       const s = await post('/api/voice/jarvis/session', { discussion_id: discussionId || '', internet }).catch(e => ({ ok: false, error: e.message }));
       if (s.ok === false) throw new Error(s.error || t('vm.failed'));
+      if (closed) return;
       r.session = s.session_id;
       // Micro.
       r.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+      if (closed) { r.stream.getTracks().forEach(tr => tr.stop()); return; }
       r.ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
       const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-      await r.ac.audioWorklet.addModule(url); URL.revokeObjectURL(url);
+      try { await r.ac.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+      if (closed) return;
       const src = r.ac.createMediaStreamSource(r.stream);
       r.node = new AudioWorkletNode(r.ac, 'loom-pcm16');
       src.connect(r.node);
@@ -157,19 +163,32 @@ export function VoiceMode({ discussionId, internet = false, onClose }) {
       }, 50);
       // Flux voix.
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      r.ws = new WebSocket(proto + '//' + location.host + '/api/voice/stream');
-      r.ws.binaryType = 'arraybuffer';
+      if (closed) return;
+      stopConnection = visibleConnection(owner => {
+        const socket = new WebSocket(proto + '//' + location.host + '/api/voice/stream');
+        r.ws = socket; socket.binaryType = 'arraybuffer';
+        socket.onopen = () => { if (owner.alive()) { r.ac.resume().catch(() => {}); setError(''); setState('listening'); } };
+        socket.onmessage = ev => {
+          if (!owner.alive()) return;
+          if (typeof ev.data !== 'string') { play(ev.data); return; }
+          let message;
+          try { message = JSON.parse(ev.data); } catch (_) { return; }
+          if (validShape(message, { type: '', text: '', error: '', sample_rate: 0 })) onMessage(message);
+        };
+        socket.onclose = () => { if (owner.alive()) { setError(t('vm.lost')); setState('error'); owner.retry(); } };
+        socket.onerror = () => {};
+        return () => {
+          socket.onopen = null; socket.onmessage = null; socket.onclose = null; socket.close();
+          stopVoice(); r.ac.suspend().catch(() => {});
+        };
+      });
       r.node.port.onmessage = ev => {
         levels.current.me = r.speaking ? ev.data.peak * 0.4 : ev.data.peak;
-        if (r.ws.readyState === 1) r.ws.send(ev.data.pcm);
+        if (r.ws?.readyState === 1) r.ws.send(ev.data.pcm);
       };
-      r.ws.onmessage = ev => typeof ev.data === 'string' ? onMessage(JSON.parse(ev.data)) : play(ev.data);
-      r.ws.onclose = () => { if (!closed) { setError(t('vm.lost')); setState('error'); } };
-      r.ws.onerror = () => {};
-      setState('listening');
     };
     const play = buf => {
-      if (!r.rate || !r.ac) return;
+      if (!r.rate || r.rate < 8000 || r.rate > 96000 || !r.ac || !(buf instanceof ArrayBuffer) || !buf.byteLength || buf.byteLength % 2) return;
       const pcm = new Int16Array(buf), f = new Float32Array(pcm.length);
       for (let i = 0; i < pcm.length; i++) f[i] = pcm[i] / 0x8000;
       const ab = r.ac.createBuffer(1, f.length, r.rate); ab.copyToChannel(f, 0);
@@ -226,6 +245,7 @@ export function VoiceMode({ discussionId, internet = false, onClose }) {
             const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
             if (!data) continue;
             const ev = JSON.parse(data);
+            if (!validShape(ev, { type: '', text: '', error: '' }) || (ev.type === 'delta' && typeof ev.text !== 'string')) continue;
             if (ev.type === 'status') {
               setState(ev.text === 'searching' ? 'searching' : 'thinking');
             } else if (ev.type === 'delta') {
@@ -252,7 +272,7 @@ export function VoiceMode({ discussionId, internet = false, onClose }) {
     return () => {
       closed = true; clearInterval(decay); clearInterval(r.meter);
       try { stopVoice(); } catch (_) {}
-      try { r.ws && r.ws.close(); } catch (_) {}
+      try { stopConnection && stopConnection(); } catch (_) {}
       try { r.stream && r.stream.getTracks().forEach(tr => tr.stop()); } catch (_) {}
       try { r.ac && r.ac.close(); } catch (_) {}
     };

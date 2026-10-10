@@ -1,3 +1,4 @@
+import { validData, shapePatch } from '../next/js/core/shape.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -6,7 +7,7 @@ const read = file => fs.readFileSync(new URL('../next/js/core/' + file, import.m
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function api() {
   const timers = new Map(), listeners = new Map(); let seq = 0, calls = 0, canceled = 0;
-  const env = { AbortController, TextDecoder, t: x => x, localStorage: { getItem: () => null, removeItem() {} },
+  const env = { validData, shapePatch, AbortController, TextDecoder, t: x => x, localStorage: { getItem: () => null, removeItem() {} },
     document: { hidden: false, addEventListener: (n, f) => listeners.set(n, f) }, window: { addEventListener: (n, f) => listeners.set(n, f) },
     setTimeout: (f, ms) => { timers.set(++seq, { f, ms }); return seq; }, clearTimeout: id => timers.delete(id),
     fetch: async (_url, opts) => {
@@ -49,7 +50,7 @@ test('a browser that ignores transport abort cannot hold a UI request forever', 
 test('a throttled animation frame cannot hold store notifications indefinitely', () => {
   let frame, fallback, notifications = 0;
   const source = read('lib.js').slice(read('lib.js').indexOf('export function createStore'), read('lib.js').indexOf('export function useStore'));
-  const env = { requestAnimationFrame: f => { frame = f; return 1; }, cancelAnimationFrame() {}, setTimeout: f => { fallback = f; return 2; }, clearTimeout() {} };
+  const env = { shapePatch, requestAnimationFrame: f => { frame = f; return 1; }, cancelAnimationFrame() {}, setTimeout: f => { fallback = f; return 2; }, clearTimeout() {} };
   vm.runInNewContext(source.replace('export ', '') + '\nglobalThis.store = createStore({executor:"old"});', env);
   env.store.subscribe(() => notifications++); env.store.set({executor: 'new'}); env.store.set({loading: false});
   assert.equal(notifications, 0); fallback(); assert.equal(notifications, 1); frame(); assert.equal(notifications, 1);

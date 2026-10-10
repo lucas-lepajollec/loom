@@ -4,15 +4,18 @@ import { t } from './i18n.js';
 import { createStore } from './lib.js';
 import { get } from './api.js';
 import { visibleRefresh, singleFlight } from './poll.js';
+import { validShape, validData } from './shape.js';
 
+const observation = url => value => value === null || validData(value, url);
 export const app = createStore({
   route: parseRoute(),
   theme: localStorage.getItem('loom-theme') || 'dark',
   sideOpen: false, palette: false, inspector: innerWidth > 1100 && localStorage.getItem('loom.next.insp') !== '0',
   status: null, serverInfo: null, gpus: [], ram: null, engineNode: null,
   workspace: null, presets: [], models: [],
-  nav: { conversations: [], projects: [], active: '' },
-});
+  nav: { conversations: [], projects: [], active: '' }, unavailable: {},
+}, { models: v => validData(v, '/api/models'), presets: v => validData(v, '/api/presets'), gpus: v => validData(v, '/api/vram'), status: observation('/api/status'), serverInfo: observation('/api/ping'), ram: observation('/api/ram'), engineNode: value => value === null || typeof value?.remote === 'boolean' && validData(value, '/api/engine/node'),
+  workspace: observation('/api/workspace'), nav: { conversations: [], projects: [], active: '' }, unavailable: {}, voiceMode: value => value === null || validShape(value, { discussion: '', internet: false }), welcome: false, newPreset: false });
 
 // ---------- routes : #/section/sous-section/id ----------
 export function parseRoute() {
@@ -51,46 +54,45 @@ export function setTheme(localT) {
 
 // ---------- sondages ----------
 // Moteur sur une autre machine (Loom lié) : lu au démarrage et après un changement.
-export async function refreshEngineNode() {
-  try { const r = await get('/api/engine/node'); app.set({ engineNode: r.ok && r.remote ? r : null }); } catch (_) {}
+// Failure state is separate from retained observations. Reads never prompt for
+// sign-in or reload the page; explicit user actions still use the auth flow.
+function unavailable(key, failed) {
+  if (app.get().unavailable[key] !== failed) app.set({ unavailable: { ...app.get().unavailable, [key]: failed } });
 }
-
-export const refreshStatus = singleFlight(async () => {
-  // /status belongs to the engine and may be forwarded to another machine.
-  // /ping always identifies this control plane, including after an update.
-  await Promise.allSettled([
-    get('/api/status', { timeout: 6000, retryAuth: false }).then(status => observe('status', status)),
-    get('/api/ping', { timeout: 6000, retryAuth: false }).then(serverInfo => observe('serverInfo', serverInfo)),
-  ]);
-});
-function observe(key, value) {
-  if (value?.ok === false) return;
-  if (JSON.stringify(app.get()[key]) !== JSON.stringify(value)) app.set({ [key]: value });
+async function read(key, url, shape, project = v => v) {
+  try {
+    const value = await get(url, { timeout: 6000, retryAuth: false });
+    if (!validShape(value, shape) || !validData(value, url)) throw new Error('Invalid observation');
+    const next = project(value);
+    if (!['history', 'sessions'].includes(key) && JSON.stringify(app.get()[key]) !== JSON.stringify(next)) app.set({ [key]: next });
+    unavailable(key, false);
+    return value;
+  } catch (_) { unavailable(key, true); return null; }
 }
+export const refreshEngineNode = singleFlight(() => read('engineNode', '/api/engine/node', r => typeof r?.remote === 'boolean', r => r.remote ? r : null));
+export const refreshStatus = singleFlight(() => Promise.allSettled([
+  read('status', '/api/status', {}), read('serverInfo', '/api/ping', {}),
+]));
 export const refreshHardware = singleFlight(async () => {
-  if (document.hidden) return;
-  try { const gpus = await get('/api/vram', { timeout: 6000, retryAuth: false }); if (Array.isArray(gpus)) observe('gpus', gpus); } catch (_) {}
+  if (!document.hidden) await read('gpus', '/api/vram', []);
 });
-export const refreshWorkspace = singleFlight(async () => {
-  try { const w = await get('/api/workspace'); if (w.ok) app.set({ workspace: w }); return w; } catch (_) { return null; }
+export const refreshWorkspace = singleFlight(() => read('workspace', '/api/workspace', {}));
+export const refreshLibrary = singleFlight(() => Promise.allSettled([
+  read('models', '/api/models', []), read('presets', '/api/presets', []),
+]));
+let historySnapshot = null, sessionSnapshot = null;
+export const refreshNav = singleFlight(async () => {
+  await Promise.allSettled([
+    read('history', '/api/chat/history', {}).then(r => { if (r) historySnapshot = r; }),
+    read('sessions', '/api/runtime/sessions', r => Array.isArray(r?.sessions)).then(r => { if (r) sessionSnapshot = r; }),
+  ]);
+  if (!historySnapshot && !sessionSnapshot) return;
+  const hist = historySnapshot || {}, sessions = sessionSnapshot?.sessions || [];
+  const imported = new Set(sessions.flatMap(s => [s.source_archive, s.native_archive]).filter(Boolean));
+  const conversations = [...sessions.filter(s => s.message_count > 0).map(s => ({ ...s, workspace: true })), ...(hist.conversations || []).filter(c => !imported.has(c.id) && c.turns > 0)];
+  const bound = sessions.find(s => s.native_archive === hist.active && s.runtime_id === 'llama.cpp');
+  app.set({ nav: { conversations, projects: hist.projects || [], active: bound ? bound.id : hist.active || '', projectId: hist.project_id || '' } });
 });
-export const refreshLibrary = singleFlight(async () => {
-  try {
-    const [models, presets] = await Promise.all([get('/api/models'), get('/api/presets')]);
-    app.set({ models: models || [], presets: presets || [] });
-  } catch (_) {}
-});
-export async function refreshNav() {
-  try {
-    const [hist, unified] = await Promise.all([get('/api/chat/history'), get('/api/runtime/sessions')]);
-    const sessions = unified.ok ? unified.sessions : [];
-    const imported = new Set(sessions.flatMap(s => [s.source_archive, s.native_archive]).filter(Boolean));
-    // Une discussion n'apparaît qu'après son premier message.
-    const conversations = [...sessions.filter(s => s.message_count > 0).map(s => ({ ...s, workspace: true })), ...((hist && hist.conversations) || []).filter(c => !imported.has(c.id) && c.turns > 0)];
-    const bound = sessions.find(s => s.native_archive === hist.active && s.runtime_id === 'llama.cpp');
-    app.set({ nav: { conversations, projects: hist.projects || [], active: bound ? bound.id : hist.active || '', projectId: hist.project_id || '' } });
-  } catch (_) {}
-}
 
 // Nature d'un runtime (local, cloud, harness) d'après le registre du serveur.
 export function runtimeKind(id) {
@@ -114,12 +116,12 @@ export function engineState(s) {
 let stopPolling;
 export function startPolling() {
   if (stopPolling) return stopPolling;
-  refreshEngineNode(); refreshWorkspace(); refreshNav(); refreshLibrary();
+
   // A suspended initial load must recover without forcing a page reload.
-  const stops = [visibleRefresh(refreshStatus, 4000), visibleRefresh(refreshHardware, 4000), visibleRefresh(async () => { await refreshWorkspace(); await refreshNav(); }, 30000)];
+  const stops = [visibleRefresh(refreshStatus, 4000), visibleRefresh(refreshHardware, 4000), visibleRefresh(() => Promise.allSettled([refreshEngineNode(), refreshWorkspace(), refreshNav(), refreshLibrary()]), 30000)];
   stopPolling = () => { stops.forEach(stop => stop()); stopPolling = null; };
   return stopPolling;
 }
 
 // Shared lists (agents, models, providers) follow any change made elsewhere.
-if (typeof window !== 'undefined') window.addEventListener('loom:changed', () => { refreshWorkspace(); refreshNav(); });
+if (typeof window !== 'undefined') window.addEventListener('loom:changed', () => { refreshWorkspace(); refreshNav(); refreshLibrary(); refreshEngineNode(); });

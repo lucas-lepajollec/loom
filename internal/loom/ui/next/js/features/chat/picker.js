@@ -64,7 +64,7 @@ function Row({ title, sub, right, active, loaded, nested, onPick }) {
 
 export function Picker() {
   const [anchor, setAnchor] = useState(null);
-  const { status, workspace, models, presets } = useStore(app, s => ({ status: s.status, workspace: s.workspace, models: s.models, presets: s.presets }));
+  const { status, workspace, models, presets, unavailable } = useStore(app, s => ({ status: s.status, workspace: s.workspace, models: s.models, presets: s.presets, unavailable: s.unavailable }));
   const route = useStore(chat, executionKey);
   const cur = currentExec();
   const [tab, setTab] = useState(cur.kind);
@@ -78,10 +78,11 @@ export function Picker() {
   };
   const close = () => setAnchor(null);
   const wsModels = (workspace && workspace.models) || [];
-  const visible = new Map(wsModels.filter(m => m.kind === 'local').flatMap(m => [[m.model, m.enabled], [m.engine_value || m.model, m.enabled]]));
   const match = localT => !q || String(localT).toLowerCase().includes(q.toLowerCase());
 
   const lists = useMemo(() => {
+    if (!anchor) return { local: [], cloud: [], harness: [] };
+    const visible = new Map(wsModels.filter(m => m.kind === 'local').flatMap(m => [[m.model, m.enabled], [m.engine_value || m.model, m.enabled]]));
     const weights = (models || []).filter(m => !/mmproj/i.test(m.name) && visible.get(m.path || m.value) !== false);
     const local = [
       ...(presets || []).map((p, i) => ({ id: 'p' + p.id, title: p.name || p.id, sub: 'preset' + (p.model ? ' · ' + baseName(p.model) : ''), active: cur.kind === 'local' && status && status.preset_id === p.id, loaded: status && status.preset_id === p.id && status.health, run: () => chooseLocal({ presetIndex: i + 1, name: p.name, model: p.model }) })),
@@ -95,7 +96,7 @@ export function Picker() {
       return { id: g.key, title: g.name, sub: g.variants.length > 1 ? t("chat.picker.reflexion_reglable") : m.model && m.model !== g.name && m.model !== 'default' ? m.model : '', group: rt.machine ? m.provider_name + t("chat.picker.sur") + rt.machine : m.provider_name, logo: m.runtime_id, via: m.via || '', cli: acp ? protocolLabel(rt.features || rt.compatibility) : rt.cli || '', vendorKey: m.model + ' ' + g.name, active: cur.kind === 'harness' && g.variants.some(v => chat.get().session && v.model === chat.get().session.model && chat.get().session.runtime_id === v.runtime_id), run: () => chooseRemote(m) };
     });
     return { local, cloud, harness };
-  }, [status, workspace, models, presets, route, cur.kind, cur.name, getLang()]);
+  }, [anchor, status, workspace, models, presets, route, cur.kind, cur.name, getLang()]);
 
   const shown = lists[tab].filter(r => match(r.title + ' ' + r.sub));
   const [tag] = EXEC_TAG[cur.kind];
@@ -114,6 +115,7 @@ export function Picker() {
           { value: 'harness', label: t("chat.picker.harness"), count: lists.harness.length }]} />
       </div>
       <div class="pick-list" key=${tab}>
+        ${(tab === 'local' ? unavailable.models || unavailable.presets : unavailable.workspace) && html`<div class="alert amber" role="status">${t('access.unavailable')}</div>`}
         ${!shown.length ? html`<div class="pick-empty">${q ? t("chat.picker.aucun_resultat_pour") + q + ' ».' : emptyText}</div>`
           : tab === 'local' ? shown.map(r => html`<${Row} key=${r.id} ...${r} onPick=${() => { close(); r.run(); }} />`)
           : grouped(shown).map(g => html`<div class="pick-g" key=${g.name}>

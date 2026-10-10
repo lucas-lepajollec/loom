@@ -4,6 +4,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- UI retains valid shared data when APIs fail or return malformed collections,
+  reports unavailable catalogs, and keeps Cloud/agent discussions usable when
+  the engine is unreachable. Picker builds lists when opened. Mobile resume
+  refreshes observations and reconnects task, terminal and voice transports.
+  Route checks now cover degraded responses, recovery and WebKit on iPhone
+  viewports; see [UI data boundaries](docs/ui-data-boundaries.md).
 - Harness recovery now restores only explicitly successful capability checks;
   models-only and empty probes cannot restore degraded approvals. Conflicting
   checks retain the failure.

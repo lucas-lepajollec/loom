@@ -1,3 +1,4 @@
+import { validData, shapePatch } from '../next/js/core/shape.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -6,7 +7,7 @@ const source = fs.readFileSync(new URL('../next/js/core/api.js', import.meta.url
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function slowBody() {
   let timer, reads = 0;
-  const env = { AbortController, t: x => x, localStorage: { getItem:()=>null, removeItem(){} },
+  const env = { validData, AbortController, t: x => x, localStorage: { getItem:()=>null, removeItem(){} },
     setTimeout: cb => {timer=cb;return 1;}, clearTimeout(){},
     fetch: async (_url, opts) => {reads++;return { status:200, json:()=> new Promise((_resolve, reject) => {
       opts.signal.addEventListener('abort',()=>reject(Object.assign(new Error('aborted'),{name:'AbortError'})),{once:true});

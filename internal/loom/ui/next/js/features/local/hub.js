@@ -47,7 +47,7 @@ function Detail({ id, onBack }) {
   const [showAll, setShowAll] = useState(false);
   const models = useStore(app, s => s.models);
   const downloads = useDownloads();
-  useEffect(() => { get('/api/hub/model?id=' + encodeURIComponent(id)).then(r => r.ok ? setD(r) : (toast(r.error || t("local.hub.fiche_indisponible"), 'err'), onBack())); }, [id]);
+  useEffect(() => { get('/api/hub/model?id=' + encodeURIComponent(id)).then(r => r.ok ? setD(r) : (toast(r.error || t("local.hub.fiche_indisponible"), 'err'), onBack())).catch(() => toast(t('local.hub.fiche_indisponible'), 'err')); }, [id]);
   const local = new Set((models || []).map(m => m.name.toLowerCase()));
   const readme = useMemo(() => d && d.readme ? md(d.readme.replace(/^---[\s\S]*?---\n/, '')) : '', [d, getLang()]);
   if (!d) return html`<div class="hub-detail"><div class="skeleton" style="height:90px"></div><div class="skeleton" style="height:260px;margin-top:16px"></div></div>`;

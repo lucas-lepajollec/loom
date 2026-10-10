@@ -80,5 +80,5 @@ jobs:
       - name: Crawl every UI route for render crashes
         run: |
           npm ci --prefix tools/tests/ui-routes --no-audit --no-fund
-          npx --prefix tools/tests/ui-routes playwright install --with-deps chromium
+          npx --prefix tools/tests/ui-routes playwright install --with-deps chromium webkit
           node tools/tests/ui-routes/crawl.mjs bin/loom

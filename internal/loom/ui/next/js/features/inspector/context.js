@@ -11,7 +11,7 @@ import { chat, open } from '../chat/engine.js';
 function Preview({ onClose }) {
   const [data, setData] = useState(null);
   const s = chat.get().session;
-  useEffect(() => { get('/api/runtime/sessions/preview?id=' + encodeURIComponent(s.id)).then(r => r.ok ? setData(r) : (toast(r.error, 'err'), onClose())); }, []);
+  useEffect(() => { get('/api/runtime/sessions/preview?id=' + encodeURIComponent(s.id)).then(r => r.ok ? setData(r) : (toast(r.error, 'err'), onClose())).catch(e => toast(e.message, 'err')); }, []);
   const p = data && data.preview;
   return html`<${Modal} wide title="${t("inspector.context.texte_prepare_pour_le_modele")}" sub="${t("inspector.context.verification_locale_aucun_envoi")}" onClose=${onClose}>
     ${!p ? html`<div class="skeleton" style="height:120px"></div>` : html`

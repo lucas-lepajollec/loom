@@ -10,6 +10,7 @@ import { Empty, Tip } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
+import { visibleConnection } from '../../core/poll.js';
 import { PreviewPanel } from '../previews/panel.js';
 import { app, go } from '../../core/state.js';
 
@@ -55,7 +56,7 @@ export function TermView({ t: localT, onExit }) {
   const box = useRef();
   const [state, setState] = useState('connexion');
   useEffect(() => {
-    let term, fit, ws, ro, alive = true;
+    let term, fit, ws, ro, stopConnection, alive = true;
     (async () => {
       const w = await loadXterm();
       if (!alive) return;
@@ -68,22 +69,30 @@ export function TermView({ t: localT, onExit }) {
       term.open(box.current);
       fit.fit();
       if (!localT.running) { setState('finished'); }
-      const tk = await post('/api/terminals/ticket', { id: localT.id });
-      if (!alive) return;
-      if (!tk.ok) { setState('introuvable'); return; }
-      ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/terminals/ws?ticket=' + encodeURIComponent(tk.ticket));
-      ws.binaryType = 'arraybuffer';
-      const size = () => { try { fit.fit(); if (ws.readyState === 1) ws.send(JSON.stringify({ resize: [term.cols, term.rows] })); } catch (_) {} };
-      ws.onopen = () => { setState(localT.running ? 'ouvert' : 'finished'); size(); term.focus(); };
-      ws.onmessage = e => {
-        if (typeof e.data === 'string') { if (e.data.includes('"exit"')) { setState('finished'); onExit && onExit(); } return; }
-        term.write(new Uint8Array(e.data));
-      };
-      ws.onclose = () => alive && setState(s => s === 'ouvert' ? 'disconnected' : s);
-      term.onData(d => { if (ws.readyState === 1) ws.send(d); });
+      const size = () => { try { fit.fit(); if (ws?.readyState === 1) ws.send(JSON.stringify({ resize: [term.cols, term.rows] })); } catch (_) {} };
+      // Reattach the existing terminal, never open a shell or replay input.
+      stopConnection = visibleConnection(async owner => {
+        setState('connexion');
+        const tk = await post('/api/terminals/ticket', { id: localT.id }, { signal: owner.signal, retryAuth: false });
+        if (!owner.alive()) return;
+        if (!tk.ok || typeof tk.ticket !== 'string') { setState('disconnected'); owner.retry(); return; }
+        const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/terminals/ws?ticket=' + encodeURIComponent(tk.ticket));
+        ws = socket; socket.binaryType = 'arraybuffer';
+        let exited = false;
+        socket.onopen = () => { if (owner.alive()) { term.reset(); setState(localT.running ? 'ouvert' : 'finished'); size(); term.focus(); } };
+        socket.onmessage = e => {
+          if (!owner.alive()) return;
+          if (typeof e.data === 'string') { if (e.data.includes('"exit"')) { exited = true; setState('finished'); onExit && onExit(); } return; }
+          term.write(new Uint8Array(e.data));
+        };
+        socket.onclose = () => { if (owner.alive() && !exited) { setState('disconnected'); owner.retry(); } };
+        socket.onerror = () => {};
+        return () => { socket.onopen = null; socket.onmessage = null; socket.onclose = null; socket.close(); };
+      });
+      term.onData(d => { if (ws?.readyState === 1) ws.send(d); });
       ro = new ResizeObserver(size); ro.observe(box.current);
     })().catch(() => setState('erreur'));
-    return () => { alive = false; ro && ro.disconnect(); ws && ws.close(); term && term.dispose(); };
+    return () => { alive = false; ro && ro.disconnect(); stopConnection && stopConnection(); term && term.dispose(); };
   }, [localT.id]);
   return html`<div class="term-view">
     <div class="term-head"><b>${localT.title}</b><span class="muted mono trunc">${localT.target === 'local' ? t("terminals.page.cette_machine") : localT.target} · ${home(localT.dir) || '~'}${localT.command ? ' · ' + localT.command : ''}</span>

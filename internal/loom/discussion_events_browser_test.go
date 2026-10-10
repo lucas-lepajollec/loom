@@ -17,6 +17,12 @@ func TestDiscussionEventRenderer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// engine.js validates store writes with the real shared contracts.
+	shape, err := os.ReadFile("ui/next/js/core/shape.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine = append(append(shape, '\n'), engine...)
 	script := `
 const vm = require('node:vm'), assert = require('node:assert/strict');
 const source = process.argv[2].replace(/^import .*;$/gm, '').replace(/^export /gm, '');
@@ -28,7 +34,7 @@ const ctx = vm.createContext({
  post:async url=> { if (url.endsWith('/preview')) return {ok:true,preview:{context:{revision:'r'}}}; vm.runInContext("onEvent({type:'turn_done',session:{id:'s',status:'complete'}})",ctx); return {ok:true}; },
 });
 vm.runInContext(source,ctx);
-const emit = e => { ctx.event = e; vm.runInContext('onEvent(event)',ctx); };
+const emit = e => { ctx.__ev = e; vm.runInContext('onEvent(__ev)',ctx); };
 const state = () => vm.runInContext('chat.get()',ctx);
 const rt = {runtime_id:'openai-compatible',model:'cloud'};
 emit({reset:true,replay:false});

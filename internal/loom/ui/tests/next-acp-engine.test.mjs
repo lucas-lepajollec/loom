@@ -1,3 +1,4 @@
+import { chatShape, validShape, eventShape } from '../next/js/core/shape.js';
 import { french } from './i18n-fixture.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -5,10 +6,10 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 function reducer() {
-  const source = fs.readFileSync(new URL('../next/js/features/chat/engine.js', import.meta.url), 'utf8')
+  const source = fs.readFileSync(process.env.LOOM_ENGINE_BASELINE || new URL('../next/js/features/chat/engine.js', import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '').replace(/^export /gm, '');
   const context = vm.createContext({
-    t: french,
+    chatShape, validShape, eventShape, t: french,
     createStore: state => ({ get: () => state, set: patch => Object.assign(state, patch) }),
     document: { addEventListener() {} }, refreshNav() {}, toast() {},
     setTimeout, Date, Map, Set,
@@ -63,4 +64,25 @@ test('ACP plan, approvals and session state survive event reduction', () => {
   assert.equal(c.store.get().harness.workdir, '/work');
   assert.equal(c.store.get().harness.permission, 'edits');
   assert.equal(c.store.get().harness.mode, 'default');
+});
+
+test('malformed canonical events cannot corrupt harness lists or request forms', () => {
+  const c = reducer(), previous = c.store.get().harness, items = c.store.get().items;
+  c.event({ type: 'commands', commands: { ok: false, error: 'unavailable' } });
+  assert.equal(c.store.get().harness, previous);
+  c.event({ type: 'request.opened', request: { kind: 'elicitation', schema: { required: {} } } });
+  assert.equal(c.store.get().items, items);
+  c.event({ type: 'plan', entries: [null] });
+  assert.equal(c.store.get().items, items);
+});
+
+test('native discussion events retain string attachments and harness file events require paths', () => {
+  const c = reducer();
+  c.event({ type: 'turn_start', text: 'attached', files: ['private.txt'] });
+  assert.equal(c.store.get().items[0]?.files[0], 'private.txt');
+  const previous = c.store.get().harness;
+  c.event({ type: 'files', files: [{}] });
+  assert.equal(c.store.get().harness, previous);
+  c.event({ type: 'files', files: [{ path: 'work/file' }] });
+  assert.equal(c.store.get().harness.files[0].path, 'work/file');
 });

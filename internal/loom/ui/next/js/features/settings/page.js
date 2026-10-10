@@ -30,7 +30,7 @@ const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['inte
 
 function usePref() {
   const [p, setP] = useState(null);
-  useEffect(() => { get('/api/prefs').then(r => setP(r.prefs || {})); }, []);
+  useEffect(() => { get('/api/prefs').then(r => setP(r.prefs || {})).catch(() => {}); }, []);
   const set = (k, v) => { const n = { ...p, [k]: v }; setP(n); post('/api/prefs', { [k]: v }); try { localStorage.setItem('loom-' + k.replace('_', '-'), v); } catch (_) {} };
   return [p, set];
 }
@@ -40,7 +40,7 @@ function General() {
   const [p, setPref] = usePref();
   const [sys, setSys] = useState(null);
   const [agent, setAgent] = useState(null);
-  useEffect(() => { get('/api/sysprompt').then(r => setSys(r.text || '')); get('/api/agent').then(setAgent); }, []);
+  useEffect(() => { get('/api/sysprompt').then(r => setSys(r.text || '')).catch(() => {}); get('/api/agent').then(setAgent).catch(() => {}); }, []);
   const saveSys = async () => { await post('/api/sysprompt', { text: sys }); toast(t("settings.page.prompt_systeme_enregistre")); };
   return html`
     <${Group} title="${t("settings.page.apparence")}">
@@ -144,7 +144,7 @@ function PushNotifications() {
 
 function Job({ onDone } = {}) {
   const [j, setJ] = useState(null);
-  useEffect(() => { const localT = setInterval(async () => { try { setJ(await get('/api/llamacpp/job')); } catch (_) {} }, 1200); get('/api/llamacpp/job').then(setJ); return () => clearInterval(localT); }, []);
+  useEffect(() => { const localT = setInterval(async () => { try { setJ(await get('/api/llamacpp/job')); } catch (_) {} }, 1200); get('/api/llamacpp/job').then(setJ).catch(() => {}); return () => clearInterval(localT); }, []);
   useEffect(() => { if (j?.exists && !j.running && j.ended_at && onDone) onDone(); }, [j?.running, j?.ended_at]);
   if (!j || !j.exists) return null;
   const lines = (j.lines || []).slice(-14).join('\n');
@@ -229,7 +229,7 @@ export function EngineLocation() {
 export function Engine() {
   const node = useStore(app, a => a.engineNode);
   const [lc, setLc] = useState(null);
-  const load = async () => { setLc(await get('/api/llamacpp')); };
+  const load = () => get('/api/llamacpp').then(setLc).catch(() => {});
   useEffect(() => { load(); }, [node?.url, node?.direct]);
   const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || t("settings.page.echec_2"), 'err'); if (ok) toast(ok); setTimeout(load, 800); };
   const link = async () => { const bin = await prompt(t("settings.page.lier_un_llama_server_existant"), { message: t("settings.page.chemin_complet_du_binaire_llama_server_deja_installe_sur_cette_ma"), placeholder: t("settings.page.chemin_vers_llama_server"), ok: t("settings.page.lier") }); if (bin) run('/api/llamacpp/use', { mode: 'exist', bin }, t("settings.page.moteur_lie")); };
@@ -343,7 +343,7 @@ function GpuDevices({ bin }) {
 
 function Internet() {
   const [n, setN] = useState(null);
-  const load = async () => setN(await get('/api/internet'));
+  const load = () => get('/api/internet').then(setN).catch(() => {});
   useEffect(() => { load(); }, []);
   if (!n) return html`<div class="skeleton" style="height:140px"></div>`;
   const save = async body => { const r = await post('/api/internet', body); if (r.ok === false) toast(r.error, 'err'); load(); };
@@ -538,7 +538,7 @@ function Security() {
 function About() {
   const { status, serverInfo, engineNode } = useStore(app, s => ({ status: s.status, serverInfo: s.serverInfo, engineNode: s.engineNode }));
   const [paths, setPaths] = useState(null);
-  useEffect(() => { get('/api/paths').then(setPaths); }, []);
+  useEffect(() => { get('/api/paths').then(setPaths).catch(() => {}); }, []);
   const remote = !!engineNode;
   const engineName = remote && (engineNode.name || engineNode.hostname || (status && status.hostname)) || '';
   return html`
