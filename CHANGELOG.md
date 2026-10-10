@@ -4,6 +4,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Native Codex/Pi, OpenCode and Antigravity share one answer accumulator with
+  protocol-specific replacement semantics and stable unfinished-item closing;
+  all 43 native fixtures retain byte-identical canonical output. Builtin ACP,
+  inspection and SSH/Node recipes now share one harness identity/launcher
+  catalog, with a complete family/transport matrix and unchanged defaults.
+
 - UI retains valid shared data when APIs fail or return malformed collections,
   reports unavailable catalogs, and keeps Cloud/agent discussions usable when
   the engine is unreachable. Picker builds lists when opened. Mobile resume

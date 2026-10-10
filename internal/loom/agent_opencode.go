@@ -129,27 +129,13 @@ func (m *runtimeSessions) runOpenCode(ctx context.Context, a acpAgent, s Runtime
 		state.NativeSessionID = ""
 	}
 	var mu sync.Mutex
-	answer := ""
+	answer := agent.NewAnswerAccumulator(agent.ReplaceItem)
 	var usage RuntimeUsage
-	parts := map[string]string{}
-	order := []string{}
 	projection := newAgentProjection()
 	sink := func(e agent.AgentEvent) bool {
 		mu.Lock()
 		defer mu.Unlock()
-		if e.Type == "content.delta" && e.Stream == "assistant_text" {
-			if _, ok := parts[e.ItemID]; !ok {
-				order = append(order, e.ItemID)
-			}
-			if e.Replace {
-				parts[e.ItemID] = ""
-			}
-			parts[e.ItemID] += e.Delta
-			answer = ""
-			for _, id := range order {
-				answer += parts[id]
-			}
-		}
+		snapshot := answer.Apply(e)
 		if e.Type == "turn.completed" {
 			for _, closed := range projection.closeItems(e) {
 				row := projection.event(closed)
@@ -158,10 +144,7 @@ func (m *runtimeSessions) runOpenCode(ctx context.Context, a acpAgent, s Runtime
 		}
 		row := projection.event(e)
 		event := StreamEvent{ACPEvent: row, AgentEvent: &e}
-		if e.Type == "content.delta" && e.Stream == "assistant_text" {
-			copy := answer
-			event.AssistantSnapshot = &copy
-		}
+		event.AssistantSnapshot = snapshot
 		if e.Type == "usage.spent" && e.Usage != nil && e.Usage.Input != nil && e.Usage.Output != nil {
 			u := e.Usage
 			usage.Input += *u.Input
@@ -223,7 +206,7 @@ func (m *runtimeSessions) runOpenCode(ctx context.Context, a acpAgent, s Runtime
 		}
 	}
 	mu.Lock()
-	result := answer
+	result := answer.Text()
 	mu.Unlock()
 	history := append(append([]Message{}, turn.Messages...), Message{Role: "assistant", Content: result})
 	state.NativeContext = acpContextHash(history)

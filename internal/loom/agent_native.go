@@ -373,32 +373,13 @@ func (m *runtimeSessions) runNativeAgent(ctx context.Context, a acpAgent, s Runt
 			}
 		}
 	}
-	answer := ""
-	answerParts := map[string]string{}
-	answerOrder := []string{}
+	answer := agent.NewAnswerAccumulator(agent.ReplaceItemAndChildren)
 	var usage RuntimeUsage
 	projection := newAgentProjection()
 	emitEvent := func(e agent.AgentEvent) bool {
 		emitMu.Lock()
 		defer emitMu.Unlock()
-		if e.Type == "content.delta" && e.Stream == "assistant_text" {
-			if _, ok := answerParts[e.ItemID]; !ok {
-				answerOrder = append(answerOrder, e.ItemID)
-			}
-			if e.Replace {
-				for _, id := range answerOrder {
-					if strings.HasPrefix(id, e.ItemID+":") {
-						answerParts[id] = ""
-					}
-				}
-				answerParts[e.ItemID] = ""
-			}
-			answerParts[e.ItemID] += e.Delta
-			answer = ""
-			for _, id := range answerOrder {
-				answer += answerParts[id]
-			}
-		}
+		snapshot := answer.Apply(e)
 		if e.Type == "turn.completed" {
 			for _, closed := range projection.closeItems(e) {
 				row := projection.event(closed)
@@ -407,10 +388,7 @@ func (m *runtimeSessions) runNativeAgent(ctx context.Context, a acpAgent, s Runt
 		}
 		display := projection.event(e)
 		event := StreamEvent{ACPEvent: display, AgentEvent: &e}
-		if e.Type == "content.delta" && e.Stream == "assistant_text" {
-			snapshot := answer
-			event.AssistantSnapshot = &snapshot
-		}
+		event.AssistantSnapshot = snapshot
 		if e.Usage != nil && e.Usage.Input != nil && e.Usage.Output != nil && e.Usage.Total != nil {
 			u := e.Usage
 			if a.ID == "codex" {
@@ -545,10 +523,10 @@ func (m *runtimeSessions) runNativeAgent(ctx context.Context, a acpAgent, s Runt
 	}
 	// Reuse native state after interruption too: the CLI owns its transcript. A
 	// real route/context change still starts a fresh, explicit text handoff.
-	history := append(append([]Message{}, turn.Messages...), Message{Role: "assistant", Content: answer})
+	history := append(append([]Message{}, turn.Messages...), Message{Role: "assistant", Content: answer.Text()})
 	state.NativeContext = acpContextHash(history)
 	publishState()
-	return []Message{{Role: "assistant", Content: answer}}, err
+	return []Message{{Role: "assistant", Content: answer.Text()}}, err
 }
 func handleRuntimeCompatibility(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodGet) || !usageVaultAccess(w) {

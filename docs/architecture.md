@@ -162,9 +162,18 @@ type SkillSink  interface { ProjectSkills(ctx, []Skill) (LoadedReport, error) }
   and tested (`chat`, `stream`, `cancel`, `usage`, `native-events`,
   `reasoning-summary`, `approvals`, `skills`, `mcp`, `resume`).
 
+Native Codex/Pi, OpenCode and Antigravity answers use the existing `runtime`
+package's `AnswerAccumulator`. Explicit replacement policies retain item/child,
+item-only and whole-answer semantics. `CloseItems` closes projected unfinished
+tools before the unchanged terminal event. Usage, display projection, locking,
+launch, authentication and lifecycle stay at the adapter boundary. Immutable
+pre-extraction goldens compare all 43 native fixture files byte-for-byte.
+
 ### Harness lifecycle API
 
-The embedded `harness/inspect.json` describes binary/version commands, Unix and
+The embedded `harness/catalog.json` shares each family's identity/launcher
+across builtin ACP, inspection/lifecycle and SSH/Node recipes. Its `inspect`
+field describes binary/version commands, Unix and
 Windows install argv, update argv, prerequisites and optional npm/GitHub latest
 version sources. An HTTPS `.sh`/`.ps1` argument denotes an official installer:
 Loom downloads it to a temporary file and executes its interpreter. Local
@@ -779,7 +788,9 @@ page = new `features/x/page.js` + one entry in `app/routes.js`. No build step.
   interfaces) is the target layout. Today registration is owned by
   `workspace_runtime.go` through `registerRuntime`; the leaf registry has no
   global `runtime.Register` function. Existing ACP launchers are declared in
-  `internal/loom/harness/acp_agents.json`. Test with a fake CLI; the Harnesses
+  `internal/loom/harness/catalog.json` (identity, launcher, inspect and explicit
+  remote eligibility). Extend the family matrix, including unsupported consumers;
+  never infer an executable default from a preview/template. Test with a fake CLI; the Harnesses
   page, picker and Usage read descriptors.
 - **An engine**: `engine/<id>/` implementing `Engine`; register; declare
   capabilities; provide `ParamSpec` JSON is the target. Today `engine.go` exposes

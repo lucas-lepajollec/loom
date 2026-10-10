@@ -3,7 +3,18 @@
 The ACP protocol package and Loom session integration implement NDJSON
 JSON-RPC v1 from the vendored
 [`acp-schema/schema.json`](acp-schema/schema.json). The embedded registry is
-[`internal/loom/harness/acp_agents.json`](../../internal/loom/harness/acp_agents.json).
+[`internal/loom/harness/catalog.json`](../../internal/loom/harness/catalog.json).
+Each family has one identity/launcher record, with optional `inspect` metadata
+and explicit `remote` eligibility. Builtin ACP, inspection/lifecycle and SSH/Node
+recipes project this same record; remote argv and prerequisites derive from the
+local launcher. `launcher.self` resolves only Loom's existing `agy-acp` bridge.
+A null consumer field means unsupported. The `custom-acp` record is a template
+without a default command, inspection or remote recipe; saved user launchers and
+the external ACP registry remain separate configuration.
+The remote set remains Hermes, Claude Code, Codex, Pi, OpenCode and OpenClaw;
+Antigravity and DeepSeek have no builtin remote recipe. DeepSeek remains an
+unverified developer preview with its existing local pin. See the
+[Mission G evidence](mission-g-reuse.md) for the complete family matrix.
 Codex, Claude Code, Pi and OpenCode use the common harness registry.
 Local Codex prefers app-server, Pi prefers RPC and OpenCode prefers its native
 HTTP/SSE server; their ACP paths remain fallbacks. Claude uses ACP.

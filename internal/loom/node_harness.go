@@ -114,7 +114,7 @@ func nodeHarnessCommand(m RemoteMachine, harness, cwd string) (*exec.Cmd, error)
 				return nil, fmt.Errorf("node harness requires %s", need)
 			}
 		}
-		launch := remoteLaunch(d.ID, d.Launch)
+		launch := d.Launch
 		if len(launch) == 0 {
 			return nil, errors.New("unknown launcher")
 		}

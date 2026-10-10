@@ -3,7 +3,6 @@ package loom
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
@@ -197,27 +196,5 @@ func (p *agentProjection) event(e agent.AgentEvent) DiscussionEvent {
 // An upstream may fail/interrupt without completing every tool item. Close
 // those display rows explicitly, preserving the provider's terminal frame.
 func (p *agentProjection) closeItems(end AgentEvent) []AgentEvent {
-	ids := []string{}
-	for id, tool := range p.tools {
-		status, _ := tool["status"].(string)
-		if status != "completed" && status != "failed" && status != "interrupted" {
-			ids = append(ids, id)
-		}
-	}
-	sort.Strings(ids)
-	events := []AgentEvent{}
-	for _, id := range ids {
-		tool := p.tools[id]
-		kind := "tool_call"
-		switch tool["kind"] {
-		case "execute":
-			kind = "command_execution"
-		case "edit":
-			kind = "file_change"
-		case "search":
-			kind = "web_search"
-		}
-		events = append(events, AgentEvent{Type: "item.completed", Runtime: end.Runtime, ThreadID: end.ThreadID, TurnID: end.TurnID, ItemID: id, ItemType: kind, Status: "interrupted", Error: "turn ended before the item completed", Payload: agent.JSON(tool), Raw: end.Raw})
-	}
-	return events
+	return agent.CloseItems(p.tools, end)
 }

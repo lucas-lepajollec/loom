@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/lucas-lepajollec/loom/internal/loom/capability"
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"net/http"
 	"os"
 	"os/exec"
@@ -49,35 +50,9 @@ type RemoteMachine struct {
 
 const remoteMachinesState = "remote_machines"
 
-// remoteHarnessDefs: harnesses Loom knows how to launch in ACP mode on another
-// machine. `needs` are the remote commands that must exist; `launch` is run
-// there (a leading "npx" reuses the same pinned adapters as local agents).
-var remoteHarnessDefs = []struct {
-	ID, Name, Logo string
-	Needs          []string
-	Launch         []string
-}{
-	{"hermes", "Hermes", "hermes", []string{"hermes"}, []string{"hermes", "acp"}},
-	{"claude-code", "Claude Code", "claudecode", []string{"claude", "npx"}, nil},
-	{"codex", "Codex", "codex", []string{"codex", "npx"}, nil},
-	{"pi", "Pi", "pi", []string{"pi", "npx"}, nil},
-	{"opencode", "OpenCode", "opencode", []string{"opencode"}, []string{"opencode", "acp"}},
-	{"openclaw", "OpenClaw", "openclaw", []string{"openclaw"}, []string{"openclaw", "acp"}},
-}
-
-// remoteLaunch returns the ACP command for a harness id, reusing the local
-// definition (pinned adapter versions) when Loom has one.
-func remoteLaunch(id string, fixed []string) []string {
-	if fixed != nil {
-		return fixed
-	}
-	for _, a := range builtinACPAgents() {
-		if a.ID == id {
-			return append([]string{a.Command}, a.Args...)
-		}
-	}
-	return nil
-}
+// The six supported remote recipes share local identity, argv and pins.
+// SSH quoting and Node transport remain separate consumers of this metadata.
+var remoteHarnessDefs = harness.RemoteRecipes()
 
 // remoteProbeScript prints one line "LOOM-MACHINE {json}" describing the
 // machine. POSIX sh, no dependency; the user can run it by hand and Loom runs
@@ -320,7 +295,7 @@ func remoteAgent(m RemoteMachine, harness string, key string) (acpAgent, error) 
 		if d.ID != harness {
 			continue
 		}
-		launch := remoteLaunch(d.ID, d.Launch)
+		launch := d.Launch
 		if launch == nil {
 			return acpAgent{}, errors.New("unknown launcher")
 		}

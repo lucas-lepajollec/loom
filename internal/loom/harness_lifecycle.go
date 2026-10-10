@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	"io"
 	"net/http"
@@ -25,10 +26,7 @@ const harnessAutoInterval = 6 * time.Hour
 const harnessActionTimeout = 15 * time.Minute
 const harnessLogLimit = 32 << 10
 
-type harnessLatestSpec struct {
-	NPM    string `json:"npm,omitempty"`
-	GitHub string `json:"github,omitempty"`
-}
+type harnessLatestSpec = harness.LatestSpec
 
 type harnessAutoResult struct {
 	At   int64  `json:"at"`
