@@ -1011,3 +1011,13 @@ details.vx-lib[open]>summary h3::after{content:" ⌄"}
 .mc-title h2,.mc-title p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mc-title>.btn,.mc-title>.upd,.mc-title>.icon-btn{flex:none}
 @media (max-width:640px){.mc-title{flex-wrap:wrap}}
+/* Labels are also present on the stacked phone rows; desktop keeps its header. */
+.scope-control{display:flex;align-items:center;justify-content:center;gap:12px}
+.scope-control>span{display:none}
+
+/* Keep the refresh action next to the desktop actions; the phone grid places it
+   beside the title. */
+.agent-h>.mono-tile{order:1}
+.agent-h>.object-copy{order:2}
+.agent-h>.object-refresh{order:3}
+.agent-h>.object-actions{order:4}

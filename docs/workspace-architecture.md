@@ -36,7 +36,14 @@ Settings starts on a section index, then opens one section with a back link to
 `#/settings`; desktop keeps its side navigation. Hidden mobile sections are not
 mounted. Anchored model menus follow the visual viewport, resize and content
 changes. Bench and Usage use labeled metric blocks below 900px, preserving the
-native usage values rather than hiding columns. Responsive overrides load after
+native usage values rather than hiding columns. Agent identity headers use a common phone grid: logo, name and refresh,
+then state, full-width description/metadata and actions. The same visible
+Manage/Use controls stack on Agents and Machines. Local model metrics and
+Environment tables retain their labels and data in stacked rows. Shared buttons,
+segments, page tabs, key/value rows, dialogs and popovers wrap within the phone
+width, using existing Mono tokens. See the [mobile layout audit](mobile-layout-audit.md)
+for source inventory, free regressions and the pending browser acceptance.
+Responsive overrides load after
 the desktop styles in `ui/next/css/mobile.css` and reuse the same theme tokens.
 
 ## Discussion and execution state

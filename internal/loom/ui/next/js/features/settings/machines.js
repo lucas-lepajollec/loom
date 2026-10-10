@@ -302,8 +302,8 @@ function HarnessesSection({ m, onChange }) {
       ${installed.map(i => html`<div class="ag-row" key=${i.harness}>
         <span class="ag-name"><${Logo} name=${i.logo || i.harness} size="sm" /><b>${i.name}</b>${i.version && html`<em class="mono">${i.version.split(' ')[0]}</em>`}
           ${i.managed && html`<a class="btn sm ghost" href=${'#/harnesses/' + i.runtime_id}>${t('agents.open')}</a>`}</span>
-        <${Switch} label=${t('agents.manage')} checked=${i.managed} disabled=${busy === i.harness} onChange=${v => change(i, { managed: v })} />
-        <${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${busy === i.harness || !i.ready} onChange=${v => change(i, { enabled: v })} />
+        <div class="scope-control"><span>${t('agents.manage')}</span><${Switch} label=${t('agents.manage')} checked=${i.managed} disabled=${busy === i.harness} onChange=${v => change(i, { managed: v })} /></div>
+        <div class="scope-control"><span>${t('agents.use')}</span><${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${busy === i.harness || !i.ready} onChange=${v => change(i, { enabled: v })} /></div>
       </div>`)}
       ${!installed.length && html`<div class="set-note">${t('agents.none_here')}</div>`}
       ${absent.length > 0 && html`<div class="set-note">${t('agents.not_installed')} ${absent.map(i => i.name).join(', ')}. <a href="#/harnesses">${t('agents.install_from_agents')}</a></div>`}

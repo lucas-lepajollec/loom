@@ -61,9 +61,9 @@ function Services({ machines }) {
       : html`<div class="card env-table" style="margin-top:14px"><table>
         <thead><tr><th>${t("environment.page.service")}</th><th>${t("environment.page.sur")}</th>${matrix && froms.map(f => html`<th class="c">${t("environment.page.depuis")} ${f.name}</th>`)}<th></th></tr></thead>
         <tbody>${list.map(s => html`<tr key=${s.id}>
-          <td><b>${s.name}</b><div class="mono muted">${s.url}</div></td>
-          <td class="muted">${where(s.machine)}</td>
-          ${matrix && froms.map(f => { const c = cell(s, f.id); return html`<td class="c" title=${c && (c.error || (c.status ? 'HTTP ' + c.status : ''))}>${!c ? '—' : c.ok ? html`<span class="state"><i class="dot green"></i>${c.latency_ms} ${t("environment.page.ms")}</span>` : html`<span class="state err"><i class="dot red"></i>${c.status ? c.status : t('common.no_lower')}</span>`}</td>`; })}
+          <td data-label=${t("environment.page.service")}><b>${s.name}</b><div class="mono muted">${s.url}</div></td>
+          <td class="muted" data-label=${t("environment.page.sur")}>${where(s.machine)}</td>
+          ${matrix && froms.map(f => { const c = cell(s, f.id); return html`<td class="c" data-label=${t("environment.page.depuis") + " " + f.name} title=${c && (c.error || (c.status ? 'HTTP ' + c.status : ''))}>${!c ? '—' : c.ok ? html`<span class="state"><i class="dot green"></i>${c.latency_ms} ${t("environment.page.ms")}</span>` : html`<span class="state err"><i class="dot red"></i>${c.status ? c.status : t('common.no_lower')}</span>`}</td>`; })}
           <td class="actions"><button class="btn sm ghost" onClick=${() => setDlg({ service: s })}>${t("environment.page.modifier")}</button><button class="icon-btn" aria-label=${t("environment.page.retirer") + s.name} onClick=${() => del(s)}><${Icon} n="close" /></button></td>
         </tr>`)}</tbody></table></div>`}
     ${dlg && html`<${ServiceDialog} service=${dlg.service} machines=${machines} onClose=${ok => { setDlg(null); if (ok) { load(); setMatrix(null); } }} />`}
@@ -83,9 +83,9 @@ function DockerMachine({ machine }) {
       : x.error ? html`<p class="note err">${x.error}</p>`
       : !(x.containers || []).length ? html`<p class="note">${t("environment.page.aucun_conteneur")}</p>`
       : html`<div class="card env-table"><table><thead><tr><th>${t("environment.page.conteneur")}</th><th>${t("environment.page.image")}</th><th>${t("environment.page.etat")}</th><th>${t("environment.page.ports")}</th></tr></thead>
-        <tbody>${x.containers.map(c => html`<tr key=${c.name}><td><b>${c.name}</b></td><td class="mono muted">${c.image}</td>
-          <td><span class="state"><i class=${'dot ' + (c.state === 'running' ? 'green' : c.state === 'exited' ? '' : 'amber')}></i>${c.status || c.state}</span></td>
-          <td class="mono muted">${c.ports || ''}</td></tr>`)}</tbody></table></div>`}
+        <tbody>${x.containers.map(c => html`<tr key=${c.name}><td data-label=${t("environment.page.conteneur")}><b>${c.name}</b></td><td class="mono muted" data-label=${t("environment.page.image")}>${c.image}</td>
+          <td data-label=${t("environment.page.etat")}><span class="state"><i class=${'dot ' + (c.state === 'running' ? 'green' : c.state === 'exited' ? '' : 'amber')}></i>${c.status || c.state}</span></td>
+          <td class="mono muted" data-label=${t("environment.page.ports")}>${c.ports || ''}</td></tr>`)}</tbody></table></div>`}
   </section>`;
 }
 
@@ -145,9 +145,9 @@ function Proxmox() {
       : html`<div class="env-nodes">${nodes.map(n => html`<div class="card pad env-node" key=${n.name}><span class="state"><i class=${'dot ' + (n.status === 'online' ? 'green' : 'red')}></i><b>${n.name}</b></span>
             <small class="muted">${n.cpu != null ? Math.round(n.cpu * 100) + ' % CPU · ' : ''}${bytes(n.mem)} / ${bytes(n.maxmem)}${n.uptime ? ' · ' + uptime(n.uptime) : ''}</small></div>`)}</div>
         <div class="card env-table" style="margin-top:12px"><table><thead><tr><th>ID</th><th>${t("environment.page.nom")}</th><th>${t("environment.page.type")}</th><th>${t("environment.page.n_ud")}</th><th>${t("environment.page.etat")}</th><th>${t("environment.page.memoire")}</th></tr></thead>
-          <tbody>${guests.map(g => html`<tr key=${g.vmid}><td class="mono">${g.vmid}</td><td><b>${g.name}</b></td><td class="muted">${g.type === 'lxc' ? t("environment.page.conteneur") : 'VM'}</td><td class="muted">${g.node}</td>
-            <td><span class="state"><i class=${'dot ' + (g.status === 'running' ? 'green' : '')}></i>${g.status === 'running' ? t("environment.page.allume") : g.status === 'stopped' ? t("environment.page.eteint") : g.status}</span></td>
-            <td class="muted">${g.status === 'running' ? bytes(g.mem) + ' / ' : ''}${bytes(g.maxmem)}</td></tr>`)}</tbody></table></div>`}
+          <tbody>${guests.map(g => html`<tr key=${g.vmid}><td class="mono" data-label="ID">${g.vmid}</td><td data-label=${t("environment.page.nom")}><b>${g.name}</b></td><td class="muted" data-label=${t("environment.page.type")}>${g.type === 'lxc' ? t("environment.page.conteneur") : 'VM'}</td><td class="muted" data-label=${t("environment.page.n_ud")}>${g.node}</td>
+            <td data-label=${t("environment.page.etat")}><span class="state"><i class=${'dot ' + (g.status === 'running' ? 'green' : '')}></i>${g.status === 'running' ? t("environment.page.allume") : g.status === 'stopped' ? t("environment.page.eteint") : g.status}</span></td>
+            <td class="muted" data-label=${t("environment.page.memoire")}>${g.status === 'running' ? bytes(g.mem) + ' / ' : ''}${bytes(g.maxmem)}</td></tr>`)}</tbody></table></div>`}
   </div>`;
 }
 
