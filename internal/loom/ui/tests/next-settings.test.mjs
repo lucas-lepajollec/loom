@@ -33,7 +33,7 @@ function harness(source, view, overrides = {}) {
     '/api/mem/snapshots': { ok: true, snapshots: [] },
   };
   const env = {
-    t: french, locale: () => 'fr-FR', getLang: () => 'fr',
+    t: french, tSource: s => s, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu', shortVersion: v => String(v || ''),
     Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
@@ -561,4 +561,31 @@ test('node update header checks on mount and applies the displayed node version'
   await install.props.onClick();
   assert.equal(h.posts[0][0], endpoint + '/apply');
   assert.equal(h.posts[0][1].version, '0.2.0');
+});
+
+test('engine shows observed acceleration and rebuilds an unhealthy source engine', async () => {
+  const h = harness(settings, 'Engine');
+  h.data['/api/llamacpp'] = { config_bin: '/fixture/build/bin/llama-server', commit: 'same', plan: { backend: 'cuda' }, can_update: true, update_kind: 'git', health: { healthy: false, observed: true, devices: [], error: 'No CUDA device' } };
+  const tree = await h.ready();
+  const acceleration = flatten(tree).find(n => n.props?.label === 'Accélération');
+  assert.equal(textOf(acceleration), 'aucun');
+  assert.ok(textOf(tree).includes('No CUDA device'));
+  await button(tree, 'Recompiler').props.onClick();
+  assert.equal(h.posts[0][0], '/api/llamacpp/update');
+  assert.equal(h.posts[0][1].clean, true);
+  h.data['/api/llamacpp'].health = { healthy: true, observed: true, devices: [{ id: 'Vulkan0', name: 'Real GPU' }] };
+  const healthy = await h.ready();
+  assert.ok(textOf(healthy).includes('Vulkan0'));
+  assert.ok(!button(healthy, 'Recompiler'));
+});
+
+test('engine reports unknown probes and uses release updates for official binaries', async () => {
+  const h = harness(settings, 'Engine');
+  h.data['/api/llamacpp'] = { config_bin: '/fixture/llama-server', can_update: true, update_kind: 'prebuilt', plan: { backend: 'cuda' }, health: { healthy: false, observed: false, devices: [], error: 'Device probe failed' } };
+  const tree = await h.ready();
+  const acceleration = flatten(tree).find(n => n.props?.label === 'Accélération');
+  assert.equal(textOf(acceleration), 'Inconnu');
+  await button(tree, 'Mettre à jour').props.onClick();
+  assert.equal(h.posts[0][0], '/api/llamacpp/prebuilt');
+  assert.ok(!button(tree, 'Recompiler'));
 });

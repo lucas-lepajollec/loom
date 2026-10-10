@@ -167,7 +167,7 @@ export function VllmEngine() {
       <div class="eh-acts">${(x.running || x.job === 'start') && html`<button class="btn" onClick=${() => v.act({ action: 'stop' })}>${t('settings.page.arreter')}</button>`}
         <a class="btn ghost" href="#/engine">${t('vllm.eng.settings')}</a></div>
     </div>
-    ${x.error && html`<div class="alert red"><${Icon} n="alert" /><span>${x.error}</span></div>`}
+    ${(x.error || x.auto_update?.last_error) && html`<div class="alert red"><${Icon} n="alert" /><span>${x.error || x.auto_update?.last_error}</span></div>`}
     ${!x.running && !x.job && html`<p class="note">${t('vllm.eng.hint')}</p>`}
     ${x.log && html`<div class="card pad"><div class="sec-h"><h2>${t('settings.page.journal_vllm')}</h2></div><pre class="log mono vl-log">${x.log.split('\n').slice(-120).join('\n')}</pre></div>`}
   </div>`;

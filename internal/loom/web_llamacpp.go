@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -159,6 +158,9 @@ func handleLlamacpp(w http.ResponseWriter, r *http.Request) {
 	cfgBin := strings.TrimSpace(ReadConfig()["BIN"])
 	kind := engineKind(cfgBin)
 	repo := engineRepo(cfgBin)
+	if repo != "" && isDir(filepath.Join(repo, ".git")) {
+		kind = "full" // A missing binary is still a repairable source installation.
+	}
 
 	out := map[string]any{
 		"kind":             kind,
@@ -206,6 +208,18 @@ func handleLlamacpp(w http.ResponseWriter, r *http.Request) {
 		"arch":    plan.cudaArch,
 		"jobs":    plan.jobs,
 	}
+	bin := prebuiltResolveBin(cfgBin)
+	if bin == "" {
+		bin = compiled
+	}
+	healthPlan := plan
+	if kind == "server" {
+		healthPlan = buildPlan{backend: "cpu"}
+		if plan.backend != "cpu" {
+			healthPlan.backend = "gpu"
+		}
+	}
+	out["health"] = llamaBuildHealth(r.Context(), bin, repo, healthPlan)
 	reco := recommendedMode(plan.backend)
 	out["reco"] = reco
 	if why, _ := reco["why"].(string); why != "" {
@@ -264,7 +278,9 @@ func handleLlamacppCheck(w http.ResponseWriter, r *http.Request) {
 	if b := gitOutput(repo, "rev-list", "--count", "HEAD..origin/"+branch); b != "" {
 		behind, _ = strconv.Atoi(b)
 	}
+	health := llamaBuildHealth(r.Context(), llamaServerBin(repo), repo, detectBuildPlan())
 	sendJSON(w, 200, map[string]any{
+		"health":        health,
 		"ok":            true,
 		"behind":        behind,
 		"local":         gitOutput(repo, "rev-parse", "--short", "HEAD"),
@@ -273,7 +289,7 @@ func handleLlamacppCheck(w http.ResponseWriter, r *http.Request) {
 		"remote_msg":    gitOutput(repo, "log", "-1", "--format=%s", "origin/"+branch),
 		"branch":        branch,
 		"has_binary":    llamaServerBin(repo) != "",
-		"needs_rebuild": behind > 0 || llamaServerBin(repo) == "",
+		"needs_rebuild": behind > 0 || !health.Healthy,
 	})
 }
 
@@ -360,13 +376,15 @@ func handleLlamacppPrebuiltCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cur, _ := prebuiltVersion()
+	health := llamaBuildHealth(r.Context(), prebuiltServerBin(), "", buildPlan{backend: prebuiltBackend(label)})
 	sendJSON(w, 200, map[string]any{
+		"health":  health,
 		"ok":      true,
 		"latest":  tag,
 		"current": cur,
 		"variant": label,
 		"size_mb": main.Size / 1_000_000,
-		"update":  cur != tag || prebuiltServerBin() == "",
+		"update":  cur != tag || !health.Healthy,
 	})
 }
 
@@ -551,7 +569,7 @@ func lcRunInstall(force bool, dir string) {
 		if !force {
 			// Dépôt déjà là : on bascule sur une mise à jour (même intention).
 			lcPhase("repository already present — switching to update")
-			lcRunUpdate(false)
+			lcRunUpdateRepo(repo, false)
 			return
 		}
 		lcPhase("removing existing repository (--force)…")
@@ -578,6 +596,14 @@ func lcRunInstall(force bool, dir string) {
 }
 
 func lcRunUpdate(clean bool) {
+	repo := engineRepo(strings.TrimSpace(ReadConfig()["BIN"]))
+	if repo == "" {
+		repo = llamacppRepoDir()
+	}
+	lcRunUpdateRepo(repo, clean)
+}
+
+func lcRunUpdateRepo(repo string, clean bool) {
 	lcPhase("checking tools (git, cmake, compiler)…")
 	if err := requireTools("git", "cmake"); err != nil {
 		lcFail(err)
@@ -589,10 +615,6 @@ func lcRunUpdate(clean bool) {
 	}
 	ensureAccelerator()
 
-	repo := engineRepo(strings.TrimSpace(ReadConfig()["BIN"]))
-	if repo == "" {
-		repo = llamacppRepoDir()
-	}
 	if !isDir(filepath.Join(repo, ".git")) {
 		lcFail(fmt.Errorf("no linked llama.cpp repository (%s) — add llama.cpp, or update the official binary", repo))
 		return
@@ -615,7 +637,14 @@ func lcRunUpdate(clean bool) {
 	}
 	localRev := gitOutput(repo, "rev-parse", "HEAD")
 	remoteRev := gitOutput(repo, "rev-parse", "origin/"+branch)
-	if localRev != "" && localRev == remoteRev && !clean && llamaServerBin(repo) != "" {
+	plan := detectBuildPlan()
+	health := llamaBuildHealth(context.Background(), llamaServerBin(repo), repo, plan)
+	repair := !health.Healthy
+	if repair {
+		lcAppend("engine needs repair: " + health.Error)
+		clean = true
+	}
+	if localRev != "" && localRev == remoteRev && !clean && !repair {
 		lcDone("already up to date (" + oldCommit + ") — nothing to do")
 		return
 	}
@@ -641,7 +670,7 @@ func lcRunUpdate(clean bool) {
 		}
 	}
 
-	ok := lcBuildAndSwitch(repo, clean)
+	ok := lcBuildAndSwitchPlan(repo, plan, clean)
 	if svcWasUp {
 		lcPhase("restarting service…")
 		if err := serviceAction("start"); err != nil {
@@ -651,7 +680,9 @@ func lcRunUpdate(clean bool) {
 	if !ok {
 		return
 	}
-	if oldCommit == newCommit {
+	if repair {
+		lcDone(engineRepairMessage(plan.backend) + " (" + newCommit + ")")
+	} else if oldCommit == newCommit {
 		lcDone("recompiled (" + newCommit + ")")
 	} else {
 		lcDone("updated: " + oldCommit + " → " + newCommit)
@@ -661,7 +692,10 @@ func lcRunUpdate(clean bool) {
 // lcBuildAndSwitch détecte le plan, compile llama-server et pointe BIN dessus.
 // Renvoie false (job en échec) si une étape casse.
 func lcBuildAndSwitch(repo string, clean bool) bool {
-	plan := detectBuildPlan()
+	return lcBuildAndSwitchPlan(repo, detectBuildPlan(), clean)
+}
+
+func lcBuildAndSwitchPlan(repo string, plan buildPlan, clean bool) bool {
 	lcAppend(fmt.Sprintf("build plan: backend=%s arch=%s jobs=%d", plan.backend, plan.cudaArch, plan.jobs))
 	lcPhase("configuring CMake…")
 	if err := buildLlamacpp(repo, plan, clean); err != nil {
@@ -675,15 +709,6 @@ func lcBuildAndSwitch(repo string, clean bool) bool {
 		return false
 	}
 	lcAppend("binary compiled: " + bin)
-	if err := verifyGPUBuild(bin, plan.backend); err != nil {
-		if !clean {
-			// A reused build/ can still lose the accelerator: retry once from scratch.
-			lcAppend(err.Error() + " — retrying with a clean build")
-			return lcBuildAndSwitch(repo, true)
-		}
-		lcFail(err)
-		return false
-	}
 	if err := SetConfigKey("BIN", bin); err != nil {
 		lcFail(fmt.Errorf("build succeeded but failed to write BIN: %w", err))
 		return false
@@ -698,17 +723,9 @@ func lcBuildAndSwitch(repo string, clean bool) bool {
 // verifyGPUBuild asks the new llama-server which devices it can use. A GPU plan
 // that yields no device of that kind is a failed build, never a success.
 func verifyGPUBuild(bin, backend string) error {
-	tag := map[string]string{"cuda": "CUDA", "hip": "ROCm", "vulkan": "Vulkan", "metal": "Metal"}[backend]
-	if tag == "" {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	cmd := hideCmd(exec.CommandContext(ctx, bin, "--list-devices"))
-	cmd.Env = libraryPathEnv(filepath.Dir(bin))
-	out, _ := cmd.CombinedOutput()
-	if !gpuListed(string(out), tag) {
-		return fmt.Errorf("the engine was built without %s support (no %s device listed)", tag, tag)
+	h := llamaBuildHealth(context.Background(), bin, "", buildPlan{backend: backend})
+	if !h.Healthy {
+		return fmt.Errorf("%s", h.Error)
 	}
 	return nil
 }

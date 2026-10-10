@@ -197,7 +197,7 @@ export function EngineRuntime({ management, access }) {
     <section class="set-group"><h3>${t('engine.page.running')}</h3>
       <div class="card">
         <div class="eng-top"><i class=${'dot ' + st.tone}></i><div class="grow"><b>${state}</b>
-            <span class="mono muted">${lc ? ['llama.cpp ' + (lc.commit || ''), lc.plan && lc.plan.backend ? lc.plan.backend.toUpperCase() : lc.kind, srv ? srv.url : ''].filter(Boolean).join(' · ') : '…'}</span></div>
+            <span class="mono muted">${lc ? ['llama.cpp ' + (lc.commit || ''), lc.health?.observed ? (lc.health.devices || []).map(d => d.id).join(', ') || t('settings.page.none') : t('settings.page.inconnu'), srv ? srv.url : ''].filter(Boolean).join(' · ') : '…'}</span></div>
           <button class="icon-btn" aria-label=${t("local.page.journal")} title=${t("local.page.journal_du_moteur")} onClick=${async () => { const r = await get('/api/service/log?n=200'); setLog(r.log || ''); }}><${Icon} n="file" /></button>
           ${running ? html`<button class="btn sm" onClick=${() => act('restart')}><${Icon} n="refresh" />${t("local.page.redemarrer")}</button><button class="btn sm" onClick=${() => act('stop')}>${t("local.page.arreter")}</button>`
             : html`<button class="btn sm primary" onClick=${() => act('start')}><${Icon} n="play" />${t("local.page.demarrer")}</button>`}</div>

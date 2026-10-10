@@ -625,3 +625,16 @@ controls, WAV tests and PCM/TTS WebSocket traffic use the paired machine token.
 and refresh/re-pair the saved link after changing modules. Voice selection is
 independent of the LLM engine link. See [voice](voice.md) for runtime prerequisites,
 verified catalog setup and API shapes.
+
+### Engine repair versus node release update
+
+After selecting a paired node as the engine, **Engine → Update/Rebuild** uses
+`/api/llamacpp/*`, proxied to that node's shared engine handlers. Device and
+CMake observations therefore belong to the engine machine. The same repair
+checks apply on a full remote Loom and on a headless node, including when the
+worker also has a direct local vLLM link.
+
+`/api/engine/node/update*` and `/api/machines/{id}/node/update*` update the
+**Loom Node release binary**, not llama.cpp. A node release update alone does
+not rebuild llama.cpp; update/rebuild the engine separately. See
+[engine repairs](engines.md#repairing-llamacpp-acceleration).

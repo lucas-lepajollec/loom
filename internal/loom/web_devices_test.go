@@ -83,3 +83,10 @@ func TestHasZeroMemory(t *testing.T) {
 		t.Error("lecture à 0 Mio non détectée")
 	}
 }
+
+func TestParseListDevicesWithoutMemory(t *testing.T) {
+	devs := parseListDevices("Available devices:\n  MTL0: Apple M3\n  ROCm0: AMD GPU (8192 MiB, 7000 MiB free)\n")
+	if len(devs) != 2 || devs[0]["name"] != "Apple M3" || devs[0]["total_mib"] != 0 {
+		t.Fatal(devs)
+	}
+}

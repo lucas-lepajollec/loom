@@ -125,7 +125,10 @@ func vllmAutoTick(now time.Time, check func(context.Context) (string, error)) {
 	}
 	from := vllmVersion()
 	if from == "" || strings.Split(from, "+")[0] == to {
-		a.Pending = ""
+		a.Pending, a.LastError = "", ""
+		if err := vllmEnvironmentHealth(context.Background()); err != nil {
+			a.LastError = err.Error()
+		}
 		_ = putStoreJSON(bkState, vllmAutoState, a)
 		vllmAutoMu.Unlock()
 		return

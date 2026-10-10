@@ -15,6 +15,7 @@ import (
 	"archive/zip"
 	"compress/bzip2"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -458,9 +459,13 @@ func prebuiltInstall(logf, phasef func(string)) (string, error) {
 	// bibliothèques introuvables au lancement) : le marqueur de format force alors
 	// une ré-extraction propre au lieu d'un « déjà à jour » trompeur.
 	if cur := prebuiltServerBin(); curTag == tag && prebuiltVersionFormat() == prebuiltFormat && cur != "" {
-		logf("already up to date (" + tag + ")")
-		prebuiltPrune(cur, logf) // ménage des versions laissées par les installs précédentes
-		return cur, nil
+		h := llamaBuildHealth(context.Background(), cur, "", buildPlan{backend: prebuiltBackend(label)})
+		if h.Healthy {
+			logf("already up to date (" + tag + ")")
+			prebuiltPrune(cur, logf)
+			return cur, nil
+		}
+		logf("reinstalling unhealthy binary: " + h.Error)
 	}
 
 	dir := prebuiltDir()
@@ -521,6 +526,10 @@ func prebuiltInstall(logf, phasef func(string)) (string, error) {
 			logf(fmt.Sprintf("CUDA runtime linked to the binary (%d libraries)", n))
 		}
 	}
+	if err := verifyGPUBuild(bin, prebuiltBackend(label)); err != nil {
+		return "", err
+	}
+	invalidateDeviceCache(bin)
 	prebuiltPrune(bin, logf)
 	logf("binary installed: " + bin + " (release " + tag + ")")
 	return bin, nil
@@ -756,4 +765,21 @@ func applyLinks(root string, links []archiveLink) error {
 		}
 	}
 	return nil
+}
+
+// The release variant can differ from the source-build plan (e.g. Vulkan on
+// a CUDA host without a toolkit). Verify what was selected, not that plan.
+func prebuiltBackend(label string) string {
+	switch strings.SplitN(label, " ", 2)[0] {
+	case "CUDA":
+		return "cuda"
+	case "ROCm":
+		return "hip"
+	case "Metal":
+		return "metal"
+	case "Vulkan":
+		return "vulkan"
+	default:
+		return "cpu"
+	}
 }
