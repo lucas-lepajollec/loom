@@ -1,7 +1,7 @@
 // Small dependency-free lexer for native JS modules and nested html templates.
 // It ignores comments/regexes and keeps template text separate from JS values.
 export function scan(source) {
-  const tokens = [], templates = [], stringsInHTML = [];
+  const tokens = [], templates = [], stringsInHTML = [], stringTemplates = [];
   const push = (type, value, start, inHTML) => { const token = { type, value, start }; tokens.push(token); if (type === 'string' && inHTML) stringsInHTML.push(token); };
   function quoted(i, inHTML) {
     const start = i, quote = source[i++]; let value = '';
@@ -14,7 +14,7 @@ export function scan(source) {
     const start = i++; let from = i; const parts = [];
     while (i < source.length) {
       if (source[i] === '\\') { i += 2; continue; }
-      if (source[i] === '`') { parts.push({ value: source.slice(from, i), start: from }); if (isHTML) templates.push({ start, parts }); return i + 1; }
+      if (source[i] === '`') { parts.push({ value: source.slice(from, i), start: from }); if (isHTML) templates.push({ start, parts }); else stringTemplates.push({ start, parts, inHTML }); return i + 1; }
       if (source[i] === '$' && source[i + 1] === '{') {
         parts.push({ value: source.slice(from, i), start: from });
         i = code(i + 2, true, isHTML || inHTML); from = i;
@@ -51,7 +51,7 @@ export function scan(source) {
     return i;
   }
   code(0, false, false);
-  return { tokens: tokens.sort((a, b) => a.start - b.start), templates, stringsInHTML };
+  return { tokens: tokens.sort((a, b) => a.start - b.start), templates, stringsInHTML, stringTemplates };
 }
 
 // The tag/quote state survives expressions such as <${Line} title=${...}>.

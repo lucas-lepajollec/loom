@@ -9,7 +9,7 @@
   <img src="docs/screenshots/chat.png" alt="Loom discussion with an execution selector and contextual side panel" width="1200" />
 </div>
 
-Loom is a single Go binary with a web UI. Run local inference, connect cloud providers or use coding-agent harnesses in the same discussion. The interface defaults to English; French is available in Settings and the first-run guide. On phones, Settings opens a section menu with a back link; model selection, Agents, machine agent controls, model metrics and Environment tables adapt to the available screen width. The free [mobile layout audit](docs/mobile-layout-audit.md) documents checks at 390 px and 320 px and remaining browser acceptance.
+Loom is a single Go binary with a web UI. Run local inference, connect cloud providers or use coding-agent harnesses in the same discussion. The interface defaults to English; French is available in Settings and the first-run guide. On phones, Settings opens a section menu with a back link; model selection, Agents, machine agent controls, model metrics and Environment tables adapt to the available screen width. The free [UI validation guide](docs/agents/ui-validation.md) documents checks at 390 px and 320 px and remaining browser acceptance.
 
 Local speech management (Jarvis 6.1) uses sherpa-onnx 1.13.8 on this machine
 or a paired node's `voice` module. It provides verified engine/model downloads,
@@ -109,7 +109,7 @@ the snapshot for the next turn. See the [frozen snapshot contract](docs/brain.md
 
 **Brain** searches local sources with BM25 and builds cited context within a token budget. Optional semantic search uses a local CPU embedding model or a connected provider with explicit consent. Distillation extracts decisions, facts, todos and preferences on request, with links back to source messages and individual deletion.
 
-Developers can run the [free offline retrieval benchmark](docs/brain-retrieval-benchmark.md)
+Developers can run the [free offline retrieval benchmark](docs/agents/brain-retrieval.md)
 with `sh tools/brain-retrieval/run.sh`: evidence recall, final prepared-context
 presence and a fixed CI regression baseline, with zero model calls.
 
@@ -162,7 +162,7 @@ The UI also provides a **PWA** shell where the browser supports installation. HT
 
 API failures retain the last valid shared UI data and mark unavailable catalogs.
 Mobile resume refreshes observations and reconnects discussion, task, terminal
-and voice streams. See [UI data boundaries and recovery](docs/ui-data-boundaries.md)
+and voice streams. See [UI data boundaries and recovery](docs/architecture.md#ui-observation-boundaries)
 for the contracts, regression checks and browser validation limits.
 
 The unreleased Tasks/Notifications backend keeps harness work and pending approvals running with every browser closed. Opt-in ntfy actions can answer an offered choice from a phone; webhooks and secure-context Web Push observe task events. All channels default off. See [notifications](docs/notifications.md) for setup and the Tasks/Settings UI API contracts.
@@ -270,7 +270,9 @@ no interactive reply channel. See [agent compatibility](docs/agents-compat.md).
 - [Workspaces and native access](docs/workspaces.md) · [Development previews](docs/development-previews.md)
 - [Brain and context](docs/brain.md) · [MCP files](docs/mcp-files.md)
 - [Provider balances](docs/usage.md) · [Harness quotas and native usage](docs/harness-usage.md)
-- [Interface languages](docs/i18n.md)
+- [Interface languages](docs/i18n.md) · [Contributor guardrails](docs/agents/implementation-brief.md#guard-maintenance)
+- [UI validation](docs/agents/ui-validation.md) · [Offline retrieval](docs/agents/brain-retrieval.md)
+- [Dated reuse audit and delivery status](docs/audits/2026-10-reuse-audit.md#delivery-status-checked-2026-10-10)
 - [Architecture principles](docs/architecture-principles.md) · [Architecture](docs/architecture.md) · [Workspace contracts](docs/workspace-architecture.md)
 - [Product vision](docs/VISION.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
 - [Browser demo setup](demo/README.md) — a fictional simulation, without inference
@@ -280,7 +282,7 @@ no interactive reply channel. See [agent compatibility](docs/agents-compat.md).
 Builtin harness launch/inspect metadata lives in one
 [`harness/catalog.json`](internal/loom/harness/catalog.json); contributor tests
 cover every family and explicit unsupported local/remote consumers. See
-[Mission G evidence](docs/agents/mission-g-reuse.md) for the unchanged protocol
+[harness consumer matrix](docs/agents/acp-implementation.md#harness-consumer-matrix) for the unchanged protocol
 and launch baselines.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development and checks, [SUPPORT.md](SUPPORT.md) for bug reports, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. Release maintainers use [RELEASING.md](RELEASING.md).

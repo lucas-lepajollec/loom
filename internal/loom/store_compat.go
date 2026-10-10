@@ -19,7 +19,6 @@ const (
 	bkChatHist           = store.BucketChatHist
 	bkChatMeta           = store.BucketChatMeta
 	bkProjects           = store.BucketProjects
-	bkTasks              = store.BucketTasks
 	bkCapabilities       = store.BucketCapabilities
 	bkProviders          = store.BucketProviders
 	bkRuntimeSessions    = store.BucketRuntimeSessions

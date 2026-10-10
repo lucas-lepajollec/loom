@@ -170,7 +170,7 @@ observations retain the existing in-memory overlay and targeted recovery.
 source during transition. Neither accepted nor registry versions give positive
 capability evidence. Synthetic fixtures validate Loom mappings; their success
 is not evidence for an installed user's harness. See the
-[inventory and verification report](agents/mission-e-capability-evidence.md).
+[transversal inventory](agents/implementation-brief.md#transversal-inventory).
 
 ## Capability truth table
 

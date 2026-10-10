@@ -13,6 +13,10 @@ Loom is a conversation-first, local-first AI workspace. A discussion owns its po
 - **Every real bug becomes a free, deterministic regression test** (degraded API responses, offline, resume, mobile). Tests never call paid models automatically.
 - **Say what is verified.** Distinguish discovered, protocol-verified and observed-working; never present an unverified feature as working.
 - **No new layers or dependencies** unless they measurably reduce complexity.
+- **Keep the guards green.** `make check-guards` (also included in `make check-ui` and CI) checks every `harness/catalog.json` family against independent feature fixtures, inspect/lifecycle update channels, model sinks or explicit unsupported decisions and the [docs matrix](docs/agents/acp-implementation.md#contract-coverage-decisions). Extend every consumer and its omission tests together; no live agent/model is called.
+- **Respect structure budgets.** `tools/guards/structure.json` lists existing root Go files with ownership reasons. A new `internal/loom/*.go` file (tests included) requires a reviewed entry; prefer the existing leaf boundary. Authored JS has a 24 KiB byte budget; five existing larger files have individual frozen ceilings. Split or shrink before growth; do not regenerate grandfathering to bypass a failure.
+- **Translate new UI copy.** Existing French/English key, plural and variable parity tests remain mandatory. The reused UI lexer additionally checks both languages in templates, attributes, rendered expressions, notification calls and labeled objects. `tools/guards/ui-copy.json` freezes exact pre-existing literals/occurrence counts (including technical values); new copy must use `t()`. Remove stale exceptions; any new technical exception needs an explained review. This conservative source guard complements the route crawl, not browser acceptance. See [guard maintenance](docs/agents/implementation-brief.md#guard-maintenance).
+
 
 ## Development
 

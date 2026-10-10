@@ -14,9 +14,14 @@ import (
 
 // Expectations are independent of the descriptor. The source markers tie each
 // advertised path to its wire call/launch consumer; fixture tests exercise it.
-func TestHarnessFeaturePaths(t *testing.T) {
-	testHome(t)
-	for _, tt := range []struct {
+func harnessFeaturePathCases() []struct {
+	id, protocol                           string
+	permissions, modes, sources            []string
+	effort, questions, forms, mcp, history bool
+	file                                   string
+	paths                                  []string
+} {
+	return []struct {
 		id, protocol                           string
 		permissions, modes, sources            []string
 		effort, questions, forms, mcp, history bool
@@ -31,9 +36,15 @@ func TestHarnessFeaturePaths(t *testing.T) {
 		{"hermes", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native", "loom"}, false, false, true, true, false, "acp_permissions.go", []string{"session/request_permission", "session/create_elicitation"}},
 		{"openclaw", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, false, false, true, true, false, "acp_permissions.go", []string{"session/request_permission", "session/create_elicitation"}},
 		{"deepseek-harness", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native", "loom"}, true, false, false, true, false, "acp_session.go", []string{"session/resume", "session/new", "session/set_config_option"}},
+		{"custom-acp", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, false, false, true, true, false, "acp_session.go", []string{"session/new", "session/set_config_option"}},
 		{"registry-example", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, false, false, true, true, false, "acp_session.go", []string{"session/new", "session/set_config_option"}},
 		{"custom-example", "acp", []string{"ask", "edits", "full"}, []string{}, []string{"native"}, false, false, true, true, false, "acp_session.go", []string{"session/new", "session/set_config_option"}},
-	} {
+	}
+}
+
+func TestHarnessFeaturePaths(t *testing.T) {
+	testHome(t)
+	for _, tt := range harnessFeaturePathCases() {
 		t.Run(tt.id+"/"+tt.protocol, func(t *testing.T) {
 			f := harnessFeatures(acpAgent{ID: tt.id}, tt.protocol, acpProbe{})
 			if !reflect.DeepEqual(f.Permissions, tt.permissions) || !reflect.DeepEqual(f.Modes, tt.modes) || !reflect.DeepEqual(f.ModelSources, tt.sources) {

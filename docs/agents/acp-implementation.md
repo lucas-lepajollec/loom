@@ -14,7 +14,7 @@ the external ACP registry remain separate configuration.
 The remote set remains Hermes, Claude Code, Codex, Pi, OpenCode and OpenClaw;
 Antigravity and DeepSeek have no builtin remote recipe. DeepSeek remains an
 unverified developer preview with its existing local pin. See the
-[Mission G evidence](mission-g-reuse.md) for the complete family matrix.
+[harness consumer matrix](#harness-consumer-matrix) for the complete family matrix.
 Codex, Claude Code, Pi and OpenCode use the common harness registry.
 Local Codex prefers app-server, Pi prefers RPC and OpenCode prefers its native
 HTTP/SSE server; their ACP paths remain fallbacks. Claude uses ACP.
@@ -219,3 +219,65 @@ Use a writable Go/ccache directory in restricted environments. Full Go tests
 need local TCP sockets for existing `httptest` servers. Real npm-backed agent
 handshake, native account generation and macOS/Windows process teardown need
 separate acceptance on those environments.
+
+## Harness consumer matrix
+
+`harness/catalog.json` replaces `acp_agents.json`, `inspect.json` and the
+hand-written `remoteHarnessDefs` catalog. One record owns ID/name/logo/docs,
+launcher and inspect metadata. Remote eligibility is explicit; argv and
+prerequisites derive from the local launcher, without duplicated pins.
+The existing six-recipe ordering is retained. Nil consumer data is unsupported.
+The custom ACP record is non-executable documentation of user-owned launchers.
+
+| Family | Builtin ACP launch | Inspect/lifecycle | Builtin SSH/Node recipe |
+| --- | --- | --- | --- |
+| Codex | Existing pinned bridge | Existing | Existing |
+| Claude Code | Existing pinned bridge | Existing | Existing |
+| Pi | Existing pinned bridge | Existing | Existing |
+| OpenCode | Existing `opencode acp` | Existing | Existing |
+| Antigravity | Existing self `agy-acp` bridge | Existing | Unsupported |
+| DeepSeek Harness | Existing pinned developer preview | Unverified remains true | Unsupported |
+| Hermes | Existing `hermes acp` | Existing | Existing |
+| OpenClaw | Existing `openclaw acp` | Existing | Existing |
+| Custom/registry ACP | Explicit user/registry command only | No builtin spec | No builtin recipe; user-defined transport retained |
+
+`TestHarnessCatalogFamilyMatrix` independently enumerates all nine families and
+checks each consumer's supported/unsupported projection. It checks POSIX SSH,
+Windows SSH (decoding its actual PowerShell argv), Node launch and offer
+identity, and rejection of pure Node without the harness module. Missing,
+duplicate or new catalog families fail until the matrix is updated. A frozen
+pre-change `harness-catalog.json` fixture also compares builtin ACP launchers,
+all inspection fields and remote recipes byte-for-byte. Antigravity's existing
+self bridge is separately checked; no real executable path is stored in a fixture. Temporary omissions from each
+of the builtin ACP, inspect and remote recipe consumers independently failed
+`TestHarnessCatalogFamilyMatrix`; all source changes were restored before the
+final green run. This verifies regression-test sensitivity, not a claimed
+pre-existing product bug.
+
+## Contract coverage decisions
+
+`TestHarnessContractCoverage` ties these family IDs to the independent features
+truth fixtures, inspect projection, synthetic update-command channels and actual
+model-source sinks. A sink entry describes configuration support; it does not
+certify arbitrary model compatibility or override the primary transport's truth
+table. Pi's native updater remains help-probed; an absent advertised updater is
+unsupported. DeepSeek remains a pinned, unverified preview. Every unknown
+installation channel refuses mutation. No command in this check is executed.
+
+| Family ID | Primary feature fixture | Inspect | Update channels (command construction only) | Loom model sink |
+| --- | --- | --- | --- | --- |
+| `codex` | app-server | yes | native=update; npm=true; homebrew=true; unknown=refuse | env |
+| `claude-code` | acp | yes | native=update; npm=true; homebrew=true; unknown=refuse | env |
+| `pi` | pi-rpc | yes | native=; npm=true; homebrew=true; unknown=refuse | pi |
+| `opencode` | opencode-http | yes | native=upgrade; npm=true; homebrew=true; unknown=refuse | opencode |
+| `antigravity` | agy-stream-json | yes | native=update; npm=false; homebrew=true; unknown=refuse | unsupported |
+| `deepseek-harness` | acp | yes | native=; npm=true; homebrew=true; unknown=refuse | dsh |
+| `hermes` | acp | yes | native=update; npm=false; homebrew=true; unknown=refuse | hermes |
+| `openclaw` | acp | yes | native=; npm=true; homebrew=true; unknown=refuse | unsupported |
+| `custom-acp` | acp | unsupported | unsupported | unsupported |
+
+Native fallback and generic registry/custom fixtures remain in
+`harness_features_test.go`. The family matrix also checks local ACP, POSIX SSH,
+Windows SSH, authenticated Node, previews and pure Node without a harness module.
+The [compatibility truth table](../agents-compat.md#capability-truth-table) retains
+protocol-specific feature availability, separate from sink configuration.

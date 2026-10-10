@@ -10,7 +10,6 @@ import (
 
 // Historical names preserve the registry/session boundary and JSON shapes.
 type agyUsage = antigravity.Usage
-type agyResult = antigravity.Result
 type HarnessEvent = antigravity.HarnessEvent
 
 type antigravityAdapter struct {

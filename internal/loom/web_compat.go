@@ -27,9 +27,9 @@ var pwaIcons = sync.OnceValue(func() map[string][]byte {
 
 func webAssets() web.Assets                              { return web.Assets{UI: uiFS, NextFS: nextFS, Icons: pwaIcons} }
 func handleIndex(w http.ResponseWriter, r *http.Request) { webAssets().Index(w, r) }
-func handleNext(w http.ResponseWriter, r *http.Request)  { webAssets().Next(w, r) }
-func registerPWAAssets(mux *http.ServeMux)               { webAssets().RegisterPWA(mux) }
-func registerWebAssets(mux *http.ServeMux)               { webAssets().Register(mux) }
+
+func registerPWAAssets(mux *http.ServeMux) { webAssets().RegisterPWA(mux) }
+func registerWebAssets(mux *http.ServeMux) { webAssets().Register(mux) }
 func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
 	return func(path string, handler http.HandlerFunc) {
 		if path == "/api/chat" || path == "/api/discussion/events" || path == "/api/voice/stream" {

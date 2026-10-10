@@ -37,7 +37,7 @@ func (u *RuntimeUsage) UnmarshalJSON(data []byte) error {
 
 func validateCloudEndpoint(raw string) (string, error) { return openai.ValidateEndpoint(raw) }
 func localNetworkHost(host string) bool                { return openai.LocalNetworkHost(host) }
-func safeFinishReason(reason string) string            { return openai.SafeFinishReason(reason) }
+
 func estimatedCloudCost(input, output int64, inputPrice, outputPrice float64) float64 {
 	return openai.EstimateCost(input, output, inputPrice, outputPrice)
 }
