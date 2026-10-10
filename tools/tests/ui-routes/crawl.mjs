@@ -90,7 +90,12 @@ try {
     }
     try {
       for (const [form, context] of forms) {
-        for (const scenario of scenarios) {
+        // Every degraded scenario runs on the Chromium phone (the reported
+        // crashes); desktop and WebKit keep a representative sample so CI stays
+        // bounded. CRAWL_FULL=1 runs the whole matrix everywhere.
+        const sample = ['fresh', 'healthy', '502', 'engine-unreachable'];
+        const planned = process.env.CRAWL_FULL || (name === 'chromium' && form === 'phone') ? scenarios : scenarios.filter(x => sample.includes(x));
+        for (const scenario of planned) {
           for (const r of routes) {
             if (scenario === 'fresh' && r === 'machines/' + remote.id) continue;
             // Fresh browser state per route/scenario: guards, observations,
