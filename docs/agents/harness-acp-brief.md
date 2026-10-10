@@ -21,12 +21,15 @@ field name. Antigravity has no native ACP endpoint; Loom now provides its
 
 ## 1. Agent registry (data, not code)
 
-`internal/loom/harness/acp_agents.json` (embedded), one entry per agent:
+`internal/loom/harness/catalog.json` (embedded), one entry per agent:
 
 ```json
 { "id": "claude-code", "name": "Claude Code", "logo": "claudecode",
-  "command": "npx", "args": ["-y", "@agentclientprotocol/claude-agent-acp@0.88.0"],
-  "detect": ["claude"], "docs": "https://…" }
+  "docs": "https://…",
+  "launcher": { "command": "npx",
+    "args": ["-y", "@agentclientprotocol/claude-agent-acp@0.88.0"],
+    "detect": ["claude"] }, "inspect": { "binary": "claude" },
+  "remote": { "order": 2 } }
 ```
 
 Initial entries: `claude-code` (`@agentclientprotocol/claude-agent-acp`),

@@ -175,25 +175,17 @@ func (m *runtimeSessions) runAntigravity(ctx context.Context, a acpAgent, s Runt
 		}
 		prompt = "Loom portable discussion (role/content; tools are not replayed):\n" + string(raw)
 	}
-	answer := ""
+	answer := agent.NewAnswerAccumulator(agent.ReplaceAnswer)
 	projection := newAgentProjection()
 	sink := func(e agent.AgentEvent) bool {
-		if e.Type == "content.delta" && e.Stream == "assistant_text" {
-			if e.Replace {
-				answer = ""
-			}
-			answer += e.Delta
-		}
+		snapshot := answer.Apply(e)
 		if e.Type == "turn.completed" {
 			for _, closed := range projection.closeItems(e) {
 				emit(StreamEvent{ACPEvent: projection.event(closed), AgentEvent: &closed})
 			}
 		}
 		event := StreamEvent{ACPEvent: projection.event(e), AgentEvent: &e}
-		if e.Type == "content.delta" && e.Stream == "assistant_text" {
-			copy := answer
-			event.AssistantSnapshot = &copy
-		}
+		event.AssistantSnapshot = snapshot
 		if e.Type == "usage.spent" && e.Usage != nil && e.Usage.Input != nil && e.Usage.Output != nil && e.Usage.Total != nil {
 			u := e.Usage
 			usage := RuntimeUsage{Input: *u.Input, Output: *u.Output, Total: *u.Total}
@@ -226,8 +218,8 @@ func (m *runtimeSessions) runAntigravity(ctx context.Context, a acpAgent, s Runt
 			publishState()
 		}
 	})
-	history := append(append([]Message{}, turn.Messages...), Message{Role: "assistant", Content: answer})
+	history := append(append([]Message{}, turn.Messages...), Message{Role: "assistant", Content: answer.Text()})
 	state.NativeContext = acpContextHash(history)
 	publishState()
-	return []Message{{Role: "assistant", Content: answer}}, err
+	return []Message{{Role: "assistant", Content: answer.Text()}}, err
 }

@@ -62,7 +62,7 @@ they do not need their own collection coercion or render-time try/catch.
 | Raw JSON/SSE and binary requests | Composer chunked upload, Bench cancellation, Jarvis turn SSE, voice test TTS, Doctor bundle | Upload metadata and cancellation snapshots use the same shape helper; voice turn deltas and errors are checked before text publication. Existing binary error handling retained |
 
 The server-side inventory checked `workspace_runtime.go`, the runtime contracts
-and registry, `acp_registry.go`, `harness/acp_agents.json`, feature declarations,
+and registry, `acp_registry.go`, `harness/catalog.json`, feature declarations,
 probe/session/catalog routes and canonical event mappings. It includes Codex
 App Server and ACP, Pi RPC and ACP, OpenCode HTTP/SSE and ACP, Claude Code ACP,
 Antigravity native Stream JSON and ACP fallback, Hermes ACP, OpenClaw ACP,

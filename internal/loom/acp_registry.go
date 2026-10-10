@@ -2,18 +2,14 @@ package loom
 
 import (
 	"context"
-	_ "embed"
-	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	"os"
 	"strings"
 	"sync"
 	"time"
 )
-
-//go:embed harness/acp_agents.json
-var acpAgentsJSON []byte
 
 type acpAgent struct {
 	RegistryID      string   `json:"registry_id,omitempty"`
@@ -60,10 +56,32 @@ func (a acpAgent) unavailableReason() string {
 	}
 	return ""
 }
+
+// builtinCatalogAgent projects identity and launcher data without discovering
+// or starting any process. Only the existing self bridge needs os.Executable.
+func builtinCatalogAgent(r harness.Record, executable string) (acpAgent, bool) {
+	if r.Launcher == nil {
+		return acpAgent{}, false
+	}
+	l := r.Launcher
+	command := l.Command
+	if l.Self {
+		command = executable
+	}
+	if command == "" {
+		return acpAgent{}, false
+	}
+	return acpAgent{ID: r.ID, Name: r.Name, Logo: r.Logo, Docs: r.Docs, Command: command, Args: l.Args, Detect: l.Detect}, true
+}
+
 func builtinACPAgents() []acpAgent {
-	var entries []acpAgent
-	if json.Unmarshal(acpAgentsJSON, &entries) != nil {
-		panic("invalid ACP registry")
+	entries := []acpAgent{}
+	for _, r := range harness.Catalog() {
+		if r.Launcher != nil && !r.Launcher.Self {
+			if a, ok := builtinCatalogAgent(r, ""); ok {
+				entries = append(entries, a)
+			}
+		}
 	}
 	return entries
 }
@@ -71,8 +89,10 @@ func builtinACPAgents() []acpAgent {
 func registerACPAgents() {
 	// Installed agy stream-json is preferred; Loom's ACP bridge remains the fallback.
 	if executable, err := os.Executable(); err == nil {
-		registerRuntime(&acpAdapter{agent: acpAgent{ID: "antigravity", Name: "Antigravity", Logo: "antigravity", Command: executable,
-			Args: []string{"agy-acp"}, Detect: []string{"agy"}, Docs: "https://antigravity.google/"}})
+		r, _ := harness.Lookup("antigravity")
+		if entry, ok := builtinCatalogAgent(r, executable); ok {
+			registerRuntime(&acpAdapter{agent: entry})
+		}
 	}
 	for _, entry := range builtinACPAgents() {
 		registerRuntime(&acpAdapter{agent: entry})

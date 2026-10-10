@@ -277,6 +277,12 @@ no interactive reply channel. See [agent compatibility](docs/agents-compat.md).
 
 ## Contributing and license
 
+Builtin harness launch/inspect metadata lives in one
+[`harness/catalog.json`](internal/loom/harness/catalog.json); contributor tests
+cover every family and explicit unsupported local/remote consumers. See
+[Mission G evidence](docs/agents/mission-g-reuse.md) for the unchanged protocol
+and launch baselines.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development and checks, [SUPPORT.md](SUPPORT.md) for bug reports, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. Release maintainers use [RELEASING.md](RELEASING.md).
 
 Loom is licensed under the [MIT License](LICENSE). Engines, models and other dependencies retain their own licenses and terms.

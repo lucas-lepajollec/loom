@@ -3,9 +3,9 @@ package loom
 import (
 	"bufio"
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,43 +19,12 @@ import (
 
 // Harness inspection: what a harness already has on this machine (version,
 // account, MCP servers, plugins, skills, API keys present in the environment),
-// read from its own CLI and folders as described in harness/inspect.json.
+// read from its own CLI and folders as described in harness/catalog.json.
 // Read-only, except the explicit update action. Secret values are never read
 // into responses: environment variables and auth files report presence only.
 
-//go:embed harness/inspect.json
-var harnessInspectJSON []byte
-
-type inspectCmd struct {
-	Cmd       []string `json:"cmd"`
-	File      string   `json:"file"`
-	Format    string   `json:"format"`
-	Connected string   `json:"connected"`
-	Method    string   `json:"method"`
-	Account   string   `json:"account"`
-}
-
-type inspectSpec struct {
-	NativeRoots   []string            `json:"native_roots"`
-	RepairPaths   []string            `json:"repair_paths"`
-	NativeUpdate  []string            `json:"native_update"`
-	BrewNames     []string            `json:"brew_names"`
-	Install       map[string][]string `json:"install"`
-	Latest        *harnessLatestSpec  `json:"latest"`
-	Requires      []string            `json:"requires"`
-	RequiresOS    map[string][]string `json:"requires_os"`
-	UpdateInstall bool                `json:"update_install"`
-	Unverified    bool                `json:"unverified"`
-	Source        string              `json:"source"`
-	Binary        string              `json:"binary"`
-	Version       []string            `json:"version"`
-	Update        []string            `json:"update"`
-	Auth          *inspectCmd         `json:"auth"`
-	MCP           *inspectCmd         `json:"mcp"`
-	Plugins       *inspectCmd         `json:"plugins"`
-	Skills        []string            `json:"skills"`
-	Env           []string            `json:"env"`
-}
+type inspectCmd = harness.InspectCmd
+type inspectSpec = harness.InspectSpec
 
 type HarnessMCP struct {
 	Name    string `json:"name"`
@@ -101,9 +70,7 @@ var (
 
 func harnessInspectSpec(id string) (inspectSpec, bool) {
 	inspectSpecsOnce.Do(func() {
-		if json.Unmarshal(harnessInspectJSON, &inspectSpecs) != nil {
-			panic("invalid harness/inspect.json")
-		}
+		inspectSpecs = harness.Inspections()
 	})
 	s, ok := inspectSpecs[id]
 	return s, ok

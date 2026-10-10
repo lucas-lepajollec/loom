@@ -4,6 +4,11 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Native Codex/Pi, OpenCode and Antigravity share one answer accumulator with
+  protocol-specific replacement semantics and stable unfinished-item closing;
+  all 43 native fixtures retain byte-identical canonical output. Builtin ACP,
+  inspection and SSH/Node recipes now share one harness identity/launcher
+  catalog, with a complete family/transport matrix and unchanged defaults.
 - Phone layouts share wrapping headers, controls, dialogs and navigation at
   390px and 320px. Agent identity/refresh stays above its state, full-width
   description and actions; agent installations on both Agents and Machines,

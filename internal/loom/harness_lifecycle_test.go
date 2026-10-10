@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,10 +22,7 @@ import (
 )
 
 func TestHarnessLifecycleCatalog(t *testing.T) {
-	var specs map[string]inspectSpec
-	if err := json.Unmarshal(harnessInspectJSON, &specs); err != nil {
-		t.Fatal(err)
-	}
+	specs := harness.Inspections()
 	for _, id := range []string{"codex", "claude-code", "pi", "hermes", "opencode", "antigravity"} {
 		if _, ok := specs[id]; !ok {
 			t.Fatalf("missing %s", id)
