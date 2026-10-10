@@ -1,4 +1,4 @@
-import { configOptions, protocolLabel } from './options.js';
+import { capabilityEvidenceLabel, configOptions, protocolLabel } from './options.js';
 import { useVisibleRefresh } from '../usage/refresh.js';
 import { t, locale, tSource } from '../../core/i18n.js';
 import { SectionTabs } from '../../app/sections.js';
@@ -122,6 +122,16 @@ function CustomDialog({ agent, onClose }) {
   </${Modal}>`;
 }
 
+function CapabilityEvidence({ rt, compat = rt.compatibility || {} }) {
+  if (rt.kind !== 'harness') return null;
+  return html`<section class="sec"><div class="sec-h"><h2>${t('agents.evidence.title')}<${Tip} text=${t('agents.evidence.tip')} /></h2></div>
+      <div class="card pad details-kv">${[...new Set([...(rt.capabilities || []), ...(rt.degraded || []).map(d => d.capability), ...Object.keys(compat.evidence || {})])].map(id => {
+        const evidence = compat.evidence?.[id];
+        const health = (rt.degraded || []).some(d => d.capability === id) ? { ...evidence, health: 'degraded' } : evidence;
+        return html`<div class="kv"><span>${(CAPS().find(c => c[0] === id) || [id, id])[1]}</span><span class=${health?.health === 'degraded' ? 'state err' : 'muted'}>${capabilityEvidenceLabel(health, t)}</span></div>`;
+      })}</div></section>`;
+}
+
 function Detail({ rt, models, onInspect }) {
   const native = models.filter(m => m.runtime_id === rt.id);
   const groups = groupVariants(native);
@@ -142,6 +152,7 @@ function Detail({ rt, models, onInspect }) {
   return html`<div class="h-detail anim-fade" key=${rt.id}>
     <div class="h-head"><div style="display:flex;gap:14px;align-items:center"><${Logo} name=${rt.id} size="lg" /><div><h2>${rt.name}</h2><p>${(rt.description_key ? t(rt.description_key, { command: rt.cli }) : tSource(rt.description)) || ''}</p></div></div>
       ${connectable ? html`<button class="btn" disabled=${busy} onClick=${connect}>${connected ? html`<${Icon} n="refresh" />${t("harnesses.page.actualiser")}` : t("cloud.page.connecter")}</button>` : !supported && html`<span class="tag">${t("harnesses.page.bientot")}</span>`}</div>
+    <${CapabilityEvidence} rt=${rt} />
     ${!supported ? html`<div class="card pad soon"><${Icon} n="sparkle" /><div><b>${t("harnesses.page.adaptateur_en_preparation")}</b><p>${t("harnesses.page.loom_ne_lance_pas_encore")} ${rt.name}${t("harnesses.page.il_apparaitra_dans_le_selecteur_quand_son_adaptateur_saura_gerer")}</p></div></div>` : html`
       <div class="grid2">
         <div class="card pad"><div class="sec-h"><h2>${t("harnesses.page.source_du_modele")}<${Tip} text="${t("harnesses.page.natif_le_compte_du_harness_choisit_parmi_ses_modeles_les_modeles")}" /></h2></div>
@@ -504,7 +515,7 @@ function AgentDetail({ rt, models, onEdit }) {
   const accountKnown = !!info && info.installed !== false && managed && (auth.connected || !cfg.length);
   const account = info ? (auth.connected ? [auth.method, auth.account].filter(Boolean).join(' · ') || t("harnesses.page.connecte_2") : auth.status || t('agents.account.none')) : '';
   const ver = probe && probe.agent && probe.agent.version;
-  const compat = (probe && probe.compatibility) || rt.compatibility || {};
+  const compat = rt.compatibility || (probe && probe.compatibility) || {};
   const canList = !!rt.features?.history_import;
   const [tone, state] = missing ? ['', t("harnesses.page.non_installe")] : used ? ['green', t('agents.state.used')] : managed ? ['amber', t('agents.state.managed')] : ['', t('agents.state.unmanaged')];
   const launch = custom ? [custom.command, ...(custom.args || [])].join(' ') : rt.install_hint || rt.cli;
@@ -526,6 +537,7 @@ function AgentDetail({ rt, models, onEdit }) {
     ${accountOpen && html`<${HarnessAccount} rt=${rt} onClose=${() => setAccountOpen(false)} onChanged=${() => loadInfo(true)} onConnect=${reread} />`}
 
     <${AgentMachines} installs=${installs} onChanged=${() => { loadInstalls(); loadProbe(); }} />
+    <${CapabilityEvidence} rt=${rt} compat=${compat} />
     ${managed && !missing && html`<${AgentDiscussions} rt=${rt} talks=${talks} canList=${canList} installs=${installs} target=${used ? choiceFor(modelOpt && modelOpt.currentValue) : null} />`}
 
     ${groups.length > 0 && html`<section class="sec"><div class="sec-h"><h2>${t("harnesses.page.modeles")} <span class="count">${groups.length}</span></h2></div>

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/capability"
-	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/opencodehttp"
 )
@@ -57,11 +56,9 @@ func openCodeCaps() []string {
 }
 func openCodeCompatibility(a acpAgent, version string) *agent.CompatibilityRecord {
 	path, _ := lifecycleLookPath("opencode")
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: "opencode-http", AdapterVersion: agentAdapterVersion, AdapterPackage: "opencode", TestedVersion: opencodehttp.TestedVersion, TestedVersions: harness.TestedVersions("opencode"), TestedVersionSource: "loom", Capabilities: openCodeCaps()}
-	if version != "" && !harness.VersionTested("opencode", version) {
-		r.Warning = "OpenCode " + version + " differs from tested " + r.TestedVersion + "; protocol compatibility is unverified"
-	}
-	return r
+	// Preserve the historical display name and schema baseline.
+	a.Name = "OpenCode"
+	return harnessCompatibility(a, "opencode-http", path, version, openCodeCaps(), "opencode", "loom", opencodehttp.TestedVersion)
 }
 func probeOpenCode(ctx context.Context, a acpAgent) acpProbe {
 	out := acpProbe{At: time.Now().UnixMilli(), Caps: map[string]any{"loadSession": true}}
@@ -90,6 +87,7 @@ func probeOpenCode(ctx context.Context, a acpAgent) acpProbe {
 		return out
 	}
 	sort.Slice(models, func(i, j int) bool { return string(models[i]) < string(models[j]) })
+	out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: true})
 	out.NativeModels = models
 	out.Agent = map[string]any{"name": a.Name, "version": version}
 	options := []any{}

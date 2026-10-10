@@ -29,7 +29,7 @@ versions appear as **Unknown version** and never imply **up to date**.
 `{ok,state,log}`; failures also include `error`. State reports the executable
 `path`, `channel` (`npm`, `native`, `homebrew` or `unknown`), `can_repair`,
 `repair_path` when recoverable, `version`, `latest`, `update_available`, `can_update`, `check_update`,
-missing prerequisites and automatic-update settings. Mutation responses also
+missing prerequisites and automatic-check settings. Mutation responses also
 report `from_version` and, when both versions were read, `result: "updated"`
 or `"unchanged"`. Logs retain the last 32 KiB of combined installer output;
 failed npm output is preserved verbatim. Each machine/agent pair has one action
@@ -50,7 +50,7 @@ agent name or an available npm command:
   Cellar/Caskroom layout and uses `brew upgrade <formula>` (with `--cask` for
   casks).
 - **Unknown** refuses mutations: “installed outside Loom's known channels;
-  update it the way you installed it”. Automatic updates also skip it.
+  update it the way you installed it”. Automatic checks never mutate it.
 
 If the launcher is missing, Loom searches known native installations and user
 npm prefixes, including a configured npm prefix outside its service PATH.
@@ -85,8 +85,8 @@ updater failure. No update switches to npm over a native or Homebrew install.
 
 Successful mutations invalidate the agent's inspection, compatibility and
 protocol-help caches and refresh its probe before returning. The new protocol
-and version replace observations from the update window. Successful probes
-restore degraded features; independently observed failures remain visible.
+and version replace observations from the update window. Successful checks
+restore only the capabilities they exercised; independently observed failures remain visible.
 
 Paired machines use the authenticated Node harness module endpoint
 `POST /api/node/harness/lifecycle` with `{id,action}`. It runs the same embedded
@@ -105,7 +105,72 @@ after to report **already up to date** or the version transition. It makes no
 currency claim during a read-only check and does not automatically update it.
 Native self-updaters and official non-npm installers retain their own update
 semantics. See [architecture](architecture.md#harness-lifecycle-api) and
-[policy](policy.md) for automatic-update and approval contracts.
+[policy](policy.md) for lifecycle and approval contracts.
+
+## Evidence and check-only automation
+
+The existing `POST /api/harness/lifecycle/auto` preference now enables **automatic
+checks**, default off, every six hours while the harness is idle. Existing
+`auto:true` preferences migrate to that behavior without changing the saved
+setting. Checks inspect versions/latest metadata and never invoke an updater,
+including for a working harness with a newer or unlisted version. An update is
+an explicit action. `last_auto` keeps its legacy shape; successful new records
+have the same installed version in `from` and `to`. Historical update results
+remain historical. A failed/unknown version check never claims currency.
+
+After explicit install/update/repair, existing free probes run with model-sink
+synchronization and Loom provider-key projection disabled. They can initialize,
+read native catalogs or discover an eligible empty ACP session; they send no
+prompt, tool invocation, account connection, model load or permission mutation.
+Ordinary explicit catalog connections retain their opted-in source projection.
+
+Compatibility records add optional `fingerprint` and `evidence`, shared by the
+runtime descriptor, cached probe and `GET /api/runtimes/{id}/compat`:
+
+```json
+{
+  "evidence": {
+    "models": {
+      "discovered": {"check":"probe.models","at":1791626400000,"count":1},
+      "protocol_verified": {"check":"probe.models","at":1791626400000,"count":1},
+      "health":"ok"
+    }
+  }
+}
+```
+
+Each capability independently retains `discovered`, `protocol_verified` and
+`observed_working` observations. Missing observations mean unknown. Free native
+catalog checks establish discovery and protocol verification for **models**;
+ACP load/list announcements establish discovery only. They do not prove
+approvals, resume, chat or paid model access. Successful authorized normal
+sessions record chat, streamed assistant output and completed approval/question/
+form interactions when actually used. Failed or cancelled turns and locally
+cancelled requests do not establish working capabilities. Other operations
+remain unknown in this first stage. Health (`unknown`, `ok`, `degraded`) is
+separate: a current failure keeps historical success without claiming current
+health. The agent page uses existing key/value rows for these levels.
+
+The private capabilities bucket retains only opaque fingerprints, fixed check
+IDs, timestamps, counts and health. No transcript, prompt, response, request ID,
+model ID, tool data, path, account identity or raw wire log is copied into it.
+Existing vault encoding applies. Records are bounded to 512 installation keys,
+64 capabilities and four historical identity partitions per installation.
+
+Identity includes installation/runtime/machine, OS, local/SSH/Node transport,
+observed version, adapter revision, launcher argv and Native/Loom source choice;
+local executable path/size/mtime and cached remote Node identity/OS/tool
+path/version contribute to the opaque digest. A changed identity
+starts unknown and keeps bounded historical partitions. This first stage does
+not hash remote package contents or track every native configuration mutation;
+unchanged version/stat metadata is not binary attestation. Runtime-negative
+observations retain the existing in-memory overlay and targeted recovery.
+
+`tested_versions.json` remains the accepted-version input and legacy warning
+source during transition. Neither accepted nor registry versions give positive
+capability evidence. Synthetic fixtures validate Loom mappings; their success
+is not evidence for an installed user's harness. See the
+[inventory and verification report](agents/mission-e-capability-evidence.md).
 
 ## Capability truth table
 
@@ -113,8 +178,9 @@ Phase 4b projects failed feature observations through this same contract:
 descriptor capabilities are removed, corresponding feature booleans become
 false, and descriptors/probes/installations expose optional
 `degraded: [{capability, reason, since}]`. Probe and compatibility records accept
-`capability_checks: [{capability, ok, reason?}]`; a successful refresh restores
-features no longer failed. A catalog handshake failure disables catalog/history
+`capability_checks: [{capability, ok, reason?}]`; a successful check restores
+only its named capability. Empty or models-only probes cannot restore approvals.
+Conflicting results for one capability retain the failure. A catalog handshake failure disables catalog/history
 operations, not the whole installed chat protocol. Untested versions remain
 warnings unless a specific feature check fails. See [Doctor](doctor.md) for exact
 JSON and [Policy](policy.md) for approval-channel enforcement; native full mode

@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 //go:embed harness/acp_agents.json
@@ -158,6 +159,39 @@ func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallbac
 			return nil, errors.New("agent mode bypasses approvals required by policy")
 		}
 	}
+	// Capture only operation enums while the authorized session runs. Request
+	// IDs are transient correlation keys and never enter the evidence store.
+	var evidenceMu sync.Mutex
+	requests := map[string]string{}
+	observed := map[string]bool{}
+	completed := false
+	nextEmit := emit
+	emit = func(event StreamEvent) bool {
+		evidenceMu.Lock()
+		if e := event.AgentEvent; e != nil {
+			switch e.Type {
+			case "content.delta":
+				if e.Stream == "assistant_text" && e.Delta != "" {
+					observed["stream"] = true
+				}
+			case "request.opened":
+				if e.Request != nil && len(requests) < 64 {
+					requests[e.Request.ID] = e.Request.Kind
+				}
+			case "request.resolved":
+				if e.Outcome == "accepted" || e.Outcome == "declined" || e.Outcome == "answered" {
+					if name := map[string]string{"approval": "approvals", "user_input": "user-input", "elicitation": "elicitation"}[requests[e.RequestID]]; name != "" {
+						observed[name] = true
+					}
+				}
+				delete(requests, e.RequestID)
+			case "turn.completed":
+				completed = e.Status == "completed" && e.Error == ""
+			}
+		}
+		evidenceMu.Unlock()
+		return nextEmit(event)
+	}
 	var result []Message
 	var err error
 	if nativeAgentProtocol(a.agent) == "agy-stream-json" {
@@ -171,6 +205,19 @@ func (a *acpAdapter) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallbac
 	}
 	if ctx.Err() != nil {
 		err = ctx.Err()
+	}
+	evidenceMu.Lock()
+	names := []string{}
+	if err == nil && completed {
+		observed["chat"] = true
+		for name := range observed {
+			names = append(names, name)
+		}
+	}
+	evidenceMu.Unlock()
+	if len(names) > 0 {
+		r := agentCompatibility(a.agent)
+		recordSessionEvidence(a.agent, r, names, time.Now().UnixMilli())
 	}
 	return result, err
 }

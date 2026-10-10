@@ -37,3 +37,19 @@ test('agent and memory copy never offers Gemini CLI', () => {
     assert.match(dict['memory.agents.tip'], /Antigravity/);
   }
 });
+
+test('capability evidence requires relevant observations, independent of version provenance', async () => {
+  const { capabilityEvidenceLevel, capabilityEvidenceLabel } = await import('../next/js/features/harnesses/options.js');
+  assert.equal(capabilityEvidenceLevel(), 'unknown');
+  assert.equal(capabilityEvidenceLevel({ tested_version: '1.0.0', capabilities: ['approvals'] }), 'unknown');
+  assert.equal(capabilityEvidenceLevel({ discovered: { check: 'announcement' } }), 'discovered');
+  assert.equal(capabilityEvidenceLevel({ protocol_verified: { check: 'models' } }), 'protocol_verified');
+  assert.equal(capabilityEvidenceLevel({ observed_working: { check: 'session' } }), 'observed_working');
+  for (const dictionary of [en, fr]) {
+    const translate = key => dictionary[key];
+    assert.equal(capabilityEvidenceLabel({ health: 'degraded', observed_working: { at: 1 } }, translate), dictionary['agents.evidence.degraded'] + ' · ' + dictionary['agents.evidence.observed_working']);
+    assert.equal(capabilityEvidenceLabel({}, translate), dictionary['agents.evidence.unknown']);
+    assert.ok(dictionary['agents.evidence.tip']);
+    assert.doesNotMatch(dictionary['harnesses.lifecycle.mise_a_jour_automatique'], /updates|mise à jour/i);
+  }
+});

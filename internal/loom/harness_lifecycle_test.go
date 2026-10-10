@@ -210,55 +210,47 @@ func fakeHarnessLifecycle(t *testing.T) (*harnessLifecycleService, *string, *int
 	}
 	s.refresh = func(context.Context, *RemoteMachine, string) error { refreshes++; return nil }
 	s.active = func(string, string) bool { return false }
-	s.reserveAuto = func(string, string) (func(), bool) { return func() {}, true }
 	return s, &version, &updates, &refreshes
 }
 
 func TestHarnessLifecycleAutoClockAndVersions(t *testing.T) {
-	s, version, updates, refreshes := fakeHarnessLifecycle(t)
+	s, _, updates, refreshes := fakeHarnessLifecycle(t)
 	now := time.Unix(1700000000, 0)
 	s.now = func() time.Time { return now }
 	s.autoCycle(context.Background())
-	if *updates != 0 {
-		t.Fatal("auto must default to off")
+	if s.setting("local", "codex").LastAuto != nil {
+		t.Fatal("checks must default to off")
 	}
 	if err := s.setAuto("local", "codex", true); err != nil {
 		t.Fatal(err)
 	}
 	s.autoCycle(context.Background())
 	saved := s.setting("local", "codex")
-	if *updates != 1 || *refreshes != 1 || saved.LastAuto == nil || !saved.LastAuto.OK || saved.LastAuto.From != "codex-cli 1.0.0" || saved.LastAuto.To != *version || saved.LastAuto.At != now.UnixMilli() || saved.LastAuto.Log != "updated" {
+	if *updates != 0 || *refreshes != 0 || saved.LastAuto == nil || !saved.LastAuto.OK || saved.LastAuto.From != "codex-cli 1.0.0" || saved.LastAuto.To != "codex-cli 1.0.0" || saved.CheckedAt != now.UnixMilli() {
 		t.Fatalf("updates=%d refreshes=%d saved=%+v", *updates, *refreshes, saved)
 	}
-	*version = "codex-cli 1.0.0"
 	now = now.Add(harnessAutoInterval - time.Millisecond)
 	s.autoCycle(context.Background())
-	if *updates != 1 {
+	if s.setting("local", "codex").CheckedAt != saved.CheckedAt {
 		t.Fatal("ran before six hours")
 	}
 	now = now.Add(time.Millisecond)
 	s.autoCycle(context.Background())
-	if *updates != 2 {
-		t.Fatal("did not run at six hours")
-	}
-	now = now.Add(harnessAutoInterval)
-	s.autoCycle(context.Background())
-	if *updates != 2 {
-		t.Fatal("updated latest version")
+	if s.setting("local", "codex").CheckedAt != now.UnixMilli() || *updates != 0 {
+		t.Fatal("due check failed or mutated installation")
 	}
 	if err := s.setAuto("local", "codex", false); err != nil {
 		t.Fatal(err)
 	}
-	*version = "codex-cli 1.0.0"
 	now = now.Add(harnessAutoInterval)
 	s.autoCycle(context.Background())
-	if *updates != 2 || s.setting("local", "codex").LastAuto == nil {
-		t.Fatal("disable failed or erased last result")
+	if s.setting("local", "codex").CheckedAt == now.UnixMilli() || s.setting("local", "codex").LastAuto == nil {
+		t.Fatal("disable failed or erased result")
 	}
 }
 
 func TestHarnessLifecycleAutoSkipsAndFailures(t *testing.T) {
-	for _, scenario := range []string{"active", "started-during-check", "disabled-during-check", "missing", "unknown-latest", "failed-update"} {
+	for _, scenario := range []string{"active", "started-during-check", "disabled-during-check", "missing", "unknown-latest", "failed-check"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, _, updates, _ := fakeHarnessLifecycle(t)
 			if err := s.setAuto("local", "codex", true); err != nil {
@@ -287,8 +279,8 @@ func TestHarnessLifecycleAutoSkipsAndFailures(t *testing.T) {
 						return "", errors.New("offline")
 					}
 				}
-				if argv[0] == "npm" && argv[1] == "install" && scenario == "failed-update" {
-					return strings.Repeat("x", harnessLogLimit), errors.New("install failed")
+				if len(argv) == 2 && argv[1] == "--version" && scenario == "failed-check" {
+					return strings.Repeat("x", harnessLogLimit), errors.New("version check failed")
 				}
 				return original(ctx, m, argv)
 			}
@@ -296,9 +288,9 @@ func TestHarnessLifecycleAutoSkipsAndFailures(t *testing.T) {
 			if *updates != 0 {
 				t.Fatal("unexpected update")
 			}
-			if scenario == "failed-update" {
+			if scenario == "failed-check" {
 				last := s.setting("local", "codex").LastAuto
-				if last == nil || last.OK || len(last.Log) > harnessLogLimit || !strings.Contains(last.Log, "install failed") {
+				if last == nil || last.OK || len(last.Log) > harnessLogLimit || !strings.Contains(last.Log, "version check failed") {
 					t.Fatalf("%+v", last)
 				}
 			}
@@ -306,7 +298,7 @@ func TestHarnessLifecycleAutoSkipsAndFailures(t *testing.T) {
 	}
 }
 
-func TestHarnessLifecycleRunningTargetAndReservation(t *testing.T) {
+func TestHarnessLifecycleRunningTarget(t *testing.T) {
 	old := workspaceSessions
 	workspaceSessions = newRuntimeSessions()
 	defer func() { workspaceSessions = old }()
@@ -314,18 +306,7 @@ func TestHarnessLifecycleRunningTargetAndReservation(t *testing.T) {
 	if !harnessDiscussionRunning("box", "codex") || harnessDiscussionRunning("local", "codex") || harnessDiscussionRunning("box", "pi") {
 		t.Fatal("incorrect target match")
 	}
-	s := newHarnessLifecycleService()
-	if _, ok := reserveHarnessAutoUpdate(s, "box", "codex"); ok {
-		t.Fatal("reserved active harness")
-	}
-	release, ok := reserveHarnessAutoUpdate(s, "local", "codex")
-	if !ok || !s.updatingRuntime("codex") || s.updatingRuntime("custom-box-codex") {
-		t.Fatal("invalid reservation")
-	}
-	release()
-	if s.updatingRuntime("codex") {
-		t.Fatal("reservation leaked")
-	}
+
 }
 
 func TestHarnessLifecycleHTTPAndLegacy(t *testing.T) {
