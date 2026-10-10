@@ -185,6 +185,9 @@ func TestHarnessNativeFileBounds(t *testing.T) {
 }
 func TestHarnessQuotaCapabilities(t *testing.T) {
 	testHome(t)
+	if err := putStoreJSON(bkState, remoteMachinesState, []RemoteMachine{{ID: "lab", User: "fixture", Host: "test.invalid"}}); err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		agent acpAgent
 		quota bool

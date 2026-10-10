@@ -1,5 +1,7 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "machines.operation.unsupported": "Non pris en charge",
+  "environment.page.docker_transport_tip": "Lecture seule de Docker via Loom Node ou SSH. Activez-la pour chaque machine ; le module observe du Node doit être activé.",
   "agents.evidence.title": "Preuves par capacité",
   "agents.evidence.tip": "La découverte et les vérifications gratuites du protocole ne prouvent pas une session réussie. Le fonctionnement observé vient d’une utilisation normale réussie ; la dégradation reste indépendante.",
   "agents.evidence.unknown": "Inconnu",

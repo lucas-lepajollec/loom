@@ -56,18 +56,19 @@ const quiet = e => /unavailable|not available|not installed/i.test(e || '');
 function NativeRow({ h, rt, onRefresh }) {
   const [busy, setBusy] = useState(false);
   const refresh = async () => { setBusy(true); try { await onRefresh(h.runtime_id); } finally { setBusy(false); } };
-  const models = (h.by_model || []).slice().sort((a, b) => b.tokens - a.tokens);
+  const unknown = !!h.error || !!h.unsupported;
+  const models = (unknown ? [] : h.by_model || []).slice().sort((a, b) => b.tokens - a.tokens);
   const top = models.slice(0, 3), total = models.reduce((n, m) => n + m.tokens, 0) || 1;
   const machine = rt && rt.machine ? rt.machine : '';
   return html`<div class="tr">
     <span class="cell-id"><${Logo} name=${(rt && rt.logo) || h.runtime_id} size="sm" /><span class="cell-main"><b>${(rt && rt.name) || h.runtime_id}${machine && html` <small class="q-m">${machine}</small>`}</b><small>${tSource((h.source || '').replace(' · SSH machine', ''))}</small></span></span>
-    <span class="mono" data-label=${t("usage.native.sessions")}>${h.sessions || '—'}</span>
-    <span class="mono" data-label=${t("usage.page.entree_2")}>${fmtTok(h.input_tokens)}</span><span class="mono" data-label=${t("usage.page.sortie_2")}>${fmtTok(h.output_tokens)}</span><span class="mono" data-label=${t("usage.native.cache")}>${h.cache_read_tokens ? fmtTok(h.cache_read_tokens) : '—'}</span>
-    <span class="mono strong" data-label=${t("usage.native.total")}>${fmtTok(h.total_tokens)}</span>
+    <span class="mono" data-label=${t("usage.native.sessions")}>${unknown ? '—' : h.sessions || '—'}</span>
+    <span class="mono" data-label=${t("usage.page.entree_2")}>${unknown ? '—' : fmtTok(h.input_tokens)}</span><span class="mono" data-label=${t("usage.page.sortie_2")}>${unknown ? '—' : fmtTok(h.output_tokens)}</span><span class="mono" data-label=${t("usage.native.cache")}>${!unknown && h.cache_read_tokens ? fmtTok(h.cache_read_tokens) : '—'}</span>
+    <span class="mono strong" data-label=${t("usage.native.total")}>${unknown ? '—' : fmtTok(h.total_tokens)}</span>
     <span class="nm" data-label=${t("usage.native.models")}>${top.length ? top.map(m => html`<span class="nm-r" title=${t("usage.native.model_tokens", { model: m.model, tokens: fmtTok(m.tokens) })}><i style=${`width:${Math.max(4, Math.round(m.tokens / total * 100))}%`}></i><em>${m.model}</em></span>`) : html`<span class="muted">—</span>`}${models.length > 3 ? html`<small class="muted">+${models.length - 3}</small>` : ''}</span>
-    <span class="num" data-label=${t("usage.native.cost")}>${h.cost_usd != null ? html`<span title=${t("usage.page.cout_declare_par_le_harness")}>${Number(h.cost_usd).toLocaleString(locale(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}</span>` : html`<span class="muted" title=${t("usage.native.no_cost")}>—</span>`}
-      <button class="icon-btn" aria-label=${t("usage.native.reread")} title=${t("usage.native.reread")} disabled=${busy} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}</button></span>
-    ${h.error && html`<p class="note err nat-err">${h.error}</p>`}
+    <span class="num" data-label=${t("usage.native.cost")}>${!unknown && h.cost_usd != null ? html`<span title=${t("usage.page.cout_declare_par_le_harness")}>${Number(h.cost_usd).toLocaleString(locale(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}</span>` : html`<span class="muted" title=${t("usage.native.no_cost")}>—</span>`}
+      <button class="icon-btn" aria-label=${t("usage.native.reread")} title=${t("usage.native.reread")} disabled=${busy || h.unsupported} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}</button></span>
+    ${h.unsupported ? html`<span class="note nat-err muted">${t('machines.operation.unsupported')}<${Tip} text=${h.error} /></span>` : h.error && html`<p class="note err nat-err">${h.error}</p>`}
   </div>`;
 }
 
@@ -86,9 +87,9 @@ function NativeUsage({ runtimes }) {
   };
   const known = (rows || []).filter(h => runtimes.some(r => r.id === h.runtime_id));
   const active = h => h.sessions || h.total_tokens || h.error;
-  const shown = known.filter(h => !quiet(h.error) && active(h));
+  const shown = known.filter(h => h.unsupported || !quiet(h.error) && active(h));
   const idle = known.filter(h => !quiet(h.error) && !active(h));
-  const absent = known.filter(h => quiet(h.error));
+  const absent = known.filter(h => !h.unsupported && quiet(h.error));
   const name = id => (runtimes.find(r => r.id === id) || {}).name || id;
   return html`<section class="sec"><div class="sec-h"><h2>${t("usage.native.title")}<${Tip} text=${t("usage.native.tip")} /></h2>
       <${Seg} size="sm" label=${t("usage.native.period")} value=${days} onChange=${setDays} options=${[{ value: 7, label: t("usage.native.days", { n: 7 }) }, { value: 30, label: t("usage.native.days", { n: 30 }) }]} /></div>

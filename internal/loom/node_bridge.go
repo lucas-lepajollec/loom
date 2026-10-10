@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -252,7 +253,7 @@ func runNodeBridge(ctx context.Context, args []string, in io.Reader, out io.Writ
 
 func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, body io.Reader, result any) error {
 	module := "harness"
-	if path == "/api/node/observe" {
+	if path == "/api/node/observe" || strings.HasPrefix(path, "/api/node/env/") {
 		module = "observe"
 	}
 	access, err := nodeMachineAccessForModule(m.ID, module)
@@ -272,7 +273,7 @@ func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, 
 		request.Header.Set("Content-Type", "application/json")
 	}
 	client := nodeClient
-	if path == "/api/node/harness/inventory" || path == "/api/node/harness/lifecycle" {
+	if path == "/api/node/harness/inventory" || path == "/api/node/harness/lifecycle" || strings.HasPrefix(path, "/api/node/harness/usage?") {
 		copied := *nodeClient
 		copied.Timeout = 30 * time.Second
 		if path == "/api/node/harness/lifecycle" {
@@ -291,9 +292,12 @@ func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, 
 	if resp.StatusCode != 200 && path != "/api/node/harness/lifecycle" {
 		if resp.StatusCode == 409 {
 			if module == "observe" {
-				return errors.New(nodeObserveDisabled)
+				return runtimeActionError{409, nodeObserveDisabled}
 			}
-			return errors.New(nodeHarnessDisabled)
+			return runtimeActionError{409, nodeHarnessDisabled}
+		}
+		if resp.StatusCode == 404 || resp.StatusCode == 405 {
+			return runtimeActionError{501, "node operation unsupported; update or reconnect this machine"}
 		}
 		return errors.New("node machine rejected the request; check credential and directory")
 	}

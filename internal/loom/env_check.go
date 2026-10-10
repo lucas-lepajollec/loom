@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,11 +14,13 @@ import (
 )
 
 type EnvCheckResult struct {
-	From      string `json:"from"`
-	OK        bool   `json:"ok"`
-	Status    int    `json:"status"`
-	LatencyMS int64  `json:"latency_ms"`
-	Error     string `json:"error"`
+	From        string `json:"from"`
+	OK          bool   `json:"ok"`
+	Status      int    `json:"status"`
+	LatencyMS   int64  `json:"latency_ms"`
+	Error       string `json:"error"`
+	Unsupported bool   `json:"unsupported,omitempty"`
+	Transport   string `json:"transport,omitempty"`
 }
 
 func (e *environment) check(ctx context.Context, target, from string) (result EnvCheckResult) {
@@ -37,6 +40,16 @@ func (e *environment) check(ctx context.Context, target, from string) (result En
 		result.Error = err.Error()
 		return
 	}
+	if m != nil {
+		result.Transport, err = machineOperationTransport(*m, "observe", lifecycleOS(m) != "windows")
+		if err != nil {
+			result.Error = err.Error()
+			result.Unsupported = true
+			return
+		}
+	} else {
+		result.Transport = "local"
+	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	select {
@@ -51,6 +64,21 @@ func (e *environment) check(ctx context.Context, target, from string) (result En
 		return
 	}
 	if m != nil {
+		if result.Transport == "node" {
+			var remote EnvCheckResult
+			err = nodeMachineJSON(ctx, *m, http.MethodGet, "/api/node/env/check?"+url.Values{"target": {target}}.Encode(), nil, &remote)
+			if err != nil {
+				result.Error = err.Error()
+				result.Unsupported = unsupportedMachineOperation(err)
+				return
+			}
+			if remote.From != "local" || remote.Transport != "node" || remote.Status < 0 || remote.Status > 599 || (remote.Status > 0 && remote.Status < 100) || remote.OK && remote.Error != "" || !remote.OK && remote.Error == "" {
+				result.Error = "invalid node check response"
+				return
+			}
+			remote.From, remote.Transport = from, "node"
+			return remote
+		}
 		result.Status, err = e.remoteCheck(ctx, *m, t)
 	} else if t.url != "" {
 		var req *http.Request

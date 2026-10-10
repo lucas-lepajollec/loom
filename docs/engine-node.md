@@ -638,3 +638,33 @@ worker also has a direct local vLLM link.
 **Loom Node release binary**, not llama.cpp. A node release update alone does
 not rebuild llama.cpp; update/rebuild the engine separately. See
 [engine repairs](engines.md#repairing-llamacpp-acceleration).
+
+
+## Read-only machine operations (Mission H, unreleased)
+
+Machines now expose an additive `operations` object in `GET /api/machines`:
+`{ "environment.docker": { "supported": true, "unsupported": false,
+"transport": "node" }, ... }`. Eligibility comes from saved modules/transport
+and degradation, not a live hardware/account/credential probe. See the complete
+[SSH/Node operation inventory](audits/2026-10-reuse-audit.md#63-mission-h-operation-parity-unreleased).
+
+The existing machine token authenticates these new GET-only endpoints. Every
+response is `Cache-Control: no-store`; a disabled module returns 409 with
+`{ok:false,unsupported:true,error}`. Older nodes without the route are reported
+as unsupported by the main, without a silent SSH retry.
+
+| Node endpoint | Module | Response / allowed input |
+| --- | --- | --- |
+| `/api/node/env/docker` | `observe` | `{ok,containers:[{name,image,state,status,ports}],error,unsupported,transport:"node"}`; fixed `docker ps -a --format '{{json .}}'`, 10 seconds and 1 MiB capture. The main still requires per-machine Docker opt-in. |
+| `/api/node/env/check?target=host:port` or `?target=<encoded-http-url>` | `observe` | `{from,ok,status,latency_ms,error,transport:"node",unsupported?}`; same HTTP(S)/TCP target validation and five-second bound as local Environment, no HTTP redirect following. |
+| `/api/node/harness/usage?harness=hermes&reading=stats&days=7` | `harness` | `{ok,output,error,unsupported}`; fixed Hermes insights or OpenCode stats (`harness=opencode`), days 7 or 30. |
+| `/api/node/harness/usage?harness=hermes&reading=quota` | `harness` | Same response, fixed `hermes usage`. No other quota command is accepted. |
+
+Usage output has a 30-second command budget, 2 MiB capture limit and 128 KiB
+response limit. There is no browser-supplied argv, command, working directory,
+credential or environment value. The main parses observations with its existing
+usage/quota readers. Missing remote Claude/Codex/Pi logs and Node Claude quotas
+remain unsupported; failure/unsupported metrics are displayed as unknown.
+SSH remains supported for existing machines and hybrids without the corresponding
+Node module. Modules on a paired machine take precedence; unavailable credentials,
+offline nodes and degradation fail visibly rather than switching transport.

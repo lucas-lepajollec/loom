@@ -38,6 +38,8 @@ type HarnessUsage struct {
 	Source          string              `json:"source"`
 	FetchedAt       int64               `json:"fetched_at"`
 	Error           string              `json:"error"`
+	Unsupported     bool                `json:"unsupported,omitempty"`
+	Transport       string              `json:"transport,omitempty"`
 }
 
 type nativeUsageFlight struct {
@@ -107,7 +109,8 @@ func readNativeHarnessUsage(ctx context.Context, id string, days int) HarnessUsa
 	switch harness {
 	case "claude-code", "codex", "pi":
 		if a.Remote {
-			q.Error = "unavailable"
+			q.Error = "remote native logs unsupported"
+			q.Unsupported = true
 			return q
 		}
 		home, homeErr := os.UserHomeDir()
@@ -119,10 +122,9 @@ func readNativeHarnessUsage(ctx context.Context, id string, days int) HarnessUsa
 		q.Source = map[string]string{"claude-code": "Claude Code · local native logs", "codex": "Codex · local native logs", "pi": "Pi · local native logs"}[harness]
 		err = readHarnessSessionFiles(ctx, roots[harness], harness, time.Now(), days, &q)
 	case "opencode", "hermes":
-		argv := []string{"opencode", "stats", "--days", strconv.Itoa(days), "--models"}
+		argv, _ := nativeReadArgv(harness, "stats", days)
 		q.Source = "opencode stats · every native session"
 		if harness == "hermes" {
-			argv = []string{"hermes", "insights", "--days", strconv.Itoa(days)}
 			q.Source = "hermes insights · every native session"
 		}
 		var out []byte
@@ -132,12 +134,25 @@ func readNativeHarnessUsage(ctx context.Context, id string, days int) HarnessUsa
 		}
 	default:
 		q.Error = "unavailable"
+		q.Unsupported = true
 	}
 	if a.Remote {
-		q.Source += " · SSH machine"
+		m, machineErr := workspaceMachine(a.Machine)
+		if machineErr == nil {
+			q.Transport, machineErr = machineOperationTransport(m, "harness", true)
+		}
+		if machineErr != nil {
+			q.Unsupported = true
+		}
+		if q.Transport == "node" {
+			q.Source += " · Loom Node"
+		} else if q.Transport == "ssh" {
+			q.Source += " · SSH machine"
+		}
 	}
 	if err != nil {
 		q.Error = err.Error()
+		q.Unsupported = q.Unsupported || unsupportedMachineOperation(err)
 	}
 	if ctx.Err() != nil {
 		q.Error = "reading interrupted (30-second limit)"
@@ -169,6 +184,13 @@ func harnessUsageCommand(ctx context.Context, a acpAgent, argv []string) ([]byte
 		}
 		if machine == nil {
 			return nil, errors.New("machine unavailable")
+		}
+		transport, err := machineOperationTransport(*machine, "harness", true)
+		if err != nil {
+			return nil, err
+		}
+		if transport == "node" {
+			return nodeUsageCommand(ctx, *machine, usageHarnessID(a), argv)
 		}
 		key, _, err := loomSSHKey()
 		if err != nil {
