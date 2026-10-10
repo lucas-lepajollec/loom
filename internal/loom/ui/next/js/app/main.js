@@ -42,6 +42,8 @@ export function reportClientError(error, where) {
   try {
     const msg = (where ? where + ': ' : '') + String(error && error.message || error).slice(0, 300);
     console.error('[loom]', msg, error);
+    // Phones keep the screen clean: the console still has the error.
+    if (matchMedia('(max-width: 760px)').matches) return;
     if (!errorBar) {
       errorBar = document.createElement('div');
       errorBar.className = 'client-error';
@@ -51,7 +53,10 @@ export function reportClientError(error, where) {
     errorBar.textContent = '⚠ ' + msg + ' — ' + t('app.crash.dismiss');
   } catch (_) {}
 }
-window.addEventListener('error', e => { if (e.error) reportClientError(e.error); });
+// Only Loom's own scripts: browser extensions and injected wallets (e.g.
+// Brave's window.ethereum) are not Loom errors.
+const ownScript = file => { try { const u = new URL(file, location.href); return u.origin === location.origin && u.pathname.startsWith('/next/'); } catch (_) { return false; } };
+window.addEventListener('error', e => { if (e.error && ownScript(e.filename)) reportClientError(e.error); });
 window.addEventListener('unhandledrejection', e => { const r = e.reason; if (r && r.name !== 'AbortError') reportClientError(r); });
 
 function Main() {
