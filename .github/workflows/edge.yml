@@ -62,7 +62,7 @@ jobs:
         run: |
           mkdir -p dist
           CGO_ENABLED=1 GOARCH=${{ matrix.arch }} go build -trimpath -ldflags "-X github.com/lucas-lepajollec/loom/internal/loom.Version=${{ needs.version.outputs.version }}" -o dist/${{ matrix.asset }} ./cmd/loom
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-${{ matrix.arch }}-binary
           path: dist/
@@ -85,7 +85,7 @@ jobs:
           LDFLAGS="-X github.com/lucas-lepajollec/loom/internal/loom.Version=${{ needs.version.outputs.version }}"
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o dist/loom-windows.exe ./cmd/loom
           GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o dist/loom-windows-arm.exe ./cmd/loom
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-binaries
           path: dist/
@@ -115,7 +115,7 @@ jobs:
         run: |
           mkdir -p dist
           CGO_ENABLED=1 GOARCH=${{ matrix.arch }} go build -trimpath -ldflags "-X github.com/lucas-lepajollec/loom/internal/loom.Version=${{ needs.version.outputs.version }}" -o dist/${{ matrix.asset }} ./cmd/loom
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macos-${{ matrix.arch }}-binary
           path: dist/
