@@ -80,7 +80,7 @@ func isKnownBuildBackend(b string) bool {
 	return b == "metal"
 }
 
-func detectBuildPlan() buildPlan { return buildPlanFor("") }
+var detectBuildPlan = func() buildPlan { return buildPlanFor("") }
 
 // buildPlanFor construit le plan CMake. `force` vide = détection automatique de
 // l'accélérateur ; sinon on impose ce backend ("cuda"|"hip"|"vulkan"|"cpu"|
@@ -273,6 +273,15 @@ func buildLlamacpp(repo string, p buildPlan, clean bool) error {
 	if err := runBuildStep("cmake build", repo, env, "cmake", filepath.Join(repo, "build.log"), buildArgs...); err != nil {
 		return fmt.Errorf("compilation failed: %w", err)
 	}
+	bin := llamaServerBin(repo)
+	if err := verifyGPUBuild(bin, p.backend); err != nil {
+		if !clean {
+			emitBuildLine(err.Error() + " — retrying with a clean build")
+			return buildLlamacpp(repo, p, true)
+		}
+		return err
+	}
+	invalidateDeviceCache(bin)
 	return nil
 }
 

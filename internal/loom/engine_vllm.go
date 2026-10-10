@@ -167,6 +167,9 @@ func (v *vllmState) installOrUpdate(update bool) error {
 	if err == nil && !vllmInstalled() {
 		err = errors.New("vllm command not found after installation")
 	}
+	if err == nil {
+		err = vllmEnvironmentHealth(ctx)
+	}
 	v.mu.Lock()
 	if err != nil {
 		v.err = err.Error()
@@ -472,4 +475,31 @@ func vllmReasoningParser(model string) string {
 		return "glm45"
 	}
 	return ""
+}
+
+// A package version and launcher do not prove that its Python/GPU environment
+// can run. This bounded probe loads libraries and enumerates devices only.
+// It never loads a model, downloads weights or performs inference.
+func vllmEnvironmentHealth(ctx context.Context) error {
+	if !vllmInstalled() {
+		return errors.New("vLLM launcher is missing")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	script := "import vllm, torch; assert torch.cuda.is_available() and torch.cuda.device_count() > 0, 'no GPU devices available'; "
+	if vllmROCm() {
+		script += "assert torch.version.hip, 'ROCm support is unavailable'; "
+	} else {
+		script += "assert torch.version.cuda and not torch.version.hip, 'CUDA support is unavailable'; "
+	}
+	script += "print('GPU environment verified')"
+	out, err := hideCmd(exec.CommandContext(ctx, filepath.Join(vllmDir(), "bin", "python"), "-c", script)).CombinedOutput()
+	if err != nil {
+		detail := strings.TrimSpace(string(out))
+		if len(detail) > 2000 {
+			detail = detail[len(detail)-2000:]
+		}
+		return fmt.Errorf("vLLM environment is unhealthy: %w: %s", err, detail)
+	}
+	return nil
 }

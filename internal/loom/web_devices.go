@@ -26,7 +26,7 @@ import (
 )
 
 // deviceLine matche « CUDA0: NVIDIA GeForce RTX 5060 Ti (15849 MiB, 15579 MiB free) ».
-var deviceLine = regexp.MustCompile(`^\s*([A-Za-z]+\d+):\s*(.+?)\s*\((\d+)\s*MiB,\s*(\d+)\s*MiB free\)\s*$`)
+var deviceLine = regexp.MustCompile(`^\s*([A-Za-z]+\d+):\s*(.+?)(?:\s*\((\d+)\s*MiB,\s*(\d+)\s*MiB free\))?\s*$`)
 
 // parseListDevices extrait les devices de la sortie de `llama-server --list-devices`.
 func parseListDevices(out string) []map[string]any {
@@ -252,4 +252,70 @@ func handleBackendDevices(w http.ResponseWriter, r *http.Request) {
 		devPersistPut(cacheKey, devs)
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "devices": devs})
+}
+
+// Binary observations deliberately bypass device caches: an in-place rebuild
+// can change acceleration without changing its path or the repository commit.
+type llamaHealth struct {
+	Healthy  bool             `json:"healthy"`
+	Devices  []map[string]any `json:"devices"`
+	Observed bool             `json:"observed"`
+	Error    string           `json:"error,omitempty"`
+}
+
+func llamaBuildHealth(ctx context.Context, bin, repo string, plan buildPlan) llamaHealth {
+	h := llamaHealth{Devices: []map[string]any{}}
+	if !isLlamaServerPath(bin) {
+		h.Error = "llama-server binary is missing or invalid"
+		return h
+	}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	cmd := hideCmd(exec.CommandContext(ctx, bin, "--list-devices"))
+	cmd.Env = libraryPathEnv(filepath.Dir(bin))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		h.Error = "could not verify engine devices: " + err.Error()
+		return h
+	}
+	h.Observed = true
+	h.Devices = parseListDevices(string(out))
+	tag := map[string]string{"cuda": "CUDA", "hip": "ROCm", "vulkan": "Vulkan", "metal": "Metal"}[plan.backend]
+	if plan.backend == "gpu" && len(h.Devices) == 0 {
+		h.Error = "the engine lists no GPU device; GPU support is unavailable"
+	} else if tag != "" && !gpuListed(string(out), tag) {
+		h.Error = "the engine lists no " + tag + " device; GPU support is unavailable"
+	} else if repo != "" && (cacheMismatch(filepath.Join(repo, "build"), plan) || cacheStale(filepath.Join(repo, "build"), repo)) {
+		h.Error = "CMake cache does not match the current build plan or source path"
+	}
+	h.Healthy = h.Error == ""
+	return h
+}
+
+func engineRepairMessage(backend string) string {
+	if backend != "cpu" {
+		return "rebuilt to restore GPU support"
+	}
+	return "rebuilt to repair the engine"
+}
+
+func invalidateDeviceCache(bin string) {
+	devCacheMu.Lock()
+	for key := range devCache {
+		if strings.HasPrefix(key, bin+"\x00") {
+			delete(devCache, key)
+		}
+	}
+	devCacheMu.Unlock()
+	devPersistMu.Lock()
+	defer devPersistMu.Unlock()
+	m := devPersistLoad()
+	for key := range m {
+		if strings.HasPrefix(key, bin+"\x00") {
+			delete(m, key)
+		}
+	}
+	if b, err := json.MarshalIndent(m, "", "  "); err == nil {
+		_ = os.WriteFile(devPersistPath(), b, 0644)
+	}
 }

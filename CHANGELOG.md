@@ -4,6 +4,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Engine updates repair missing/CPU-only llama.cpp binaries and mismatched CMake
+  caches even at the current commit, locally and through linked Loom nodes.
+  Source installs/custom builds verify acceleration; official same-version
+  releases reinstall unhealthy binaries. Engine shows observed devices and a
+  Rebuild action; vLLM updates/checks report broken GPU environments.
+- Node release installer regression now waits for a captured restart operation
+  to finish, removing its delayed-restart/partially-written-version-file race.
+
 - Loom models for DeepSeek Harness (a Loom-owned `--patch` layer, user layers'
   providers carried over, keys only at launch) and Hermes (loom-* providers
   merged into config.yaml with comments preserved; Loom's choices added to its
