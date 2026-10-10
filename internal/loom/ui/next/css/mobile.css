@@ -154,3 +154,110 @@
   .history-row { flex-wrap: wrap; gap: 12px; }
   .history-row .grow { flex-basis: 100%; }
 }
+
+/* Shared phone content rules. Keep controls readable before letting flex/grid
+   squeeze labels; identifiers may break, ordinary prose keeps word boundaries. */
+@media(max-width:720px){
+  .page-head,.h-head{flex-wrap:wrap}
+  .page-head .acts>.btn{flex:1 1 auto}
+  .btn{max-width:100%;height:auto;min-height:32px;white-space:normal;overflow-wrap:anywhere;padding-top:4px;padding-bottom:4px}
+  .btn.sm{height:auto;min-height:28px;padding-top:3px;padding-bottom:3px}
+  .btn.lg{height:auto;min-height:40px}
+  .icon-btn,.switch,.dot,.mono-tile,.tip{flex-shrink:0}
+  .pill,.tag,.hx-chip,.state{flex-shrink:0;max-width:100%;white-space:normal;overflow-wrap:break-word}
+  .pill,.hx-chip{height:auto;min-height:24px;padding-top:2px;padding-bottom:2px}
+  .tag{height:auto;min-height:20px;padding-top:2px;padding-bottom:2px}
+  h1,h2,h3,h4,.row .t,.row .s,.cell-main,.agent-meta,.cat-name,.cat-d{min-width:0;overflow-wrap:anywhere}
+  .sec-h>h2{flex:1 1 180px;min-width:0}
+  .sec-h>.seg,.src-pick,.import-bar{max-width:100%;min-width:0}
+  .seg{flex-wrap:wrap;max-width:100%;min-width:0}
+  .seg .ind{display:none}
+  .seg button,.seg.sm button{flex:1 1 auto;min-width:0;max-width:100%;height:auto;min-height:26px;white-space:normal;overflow-wrap:anywhere;padding-top:3px;padding-bottom:3px}
+  .seg button[aria-selected="true"]{background:var(--surface-3)}
+  .tabs,.sec-tabs{flex-wrap:wrap;overflow:visible}
+  .sec-tabs{width:100%;min-width:0}
+  .sec-tabs .sec-pill{display:none}
+  .sec-tabs a{height:auto;min-height:28px;max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere;padding-top:3px;padding-bottom:3px}
+  .sec-tabs a[aria-current="page"]{background:var(--panel)}
+  .split-list{flex-wrap:wrap;max-width:100%;overflow:visible}
+  .split-item{max-width:100%;min-width:0;overflow-wrap:anywhere}
+  .tabs>button{min-width:0;max-width:100%;height:auto;min-height:38px;white-space:normal;overflow-wrap:anywhere}
+  .acts,.btn-row,.row-inline,.src-pick{max-width:100%;min-width:0;flex-wrap:wrap}
+  .toolbar>.grow{flex-basis:100%;min-width:0}
+  .toolbar .search{min-width:0;max-width:100%}
+  .row-inline>.input,.row-inline>.select,.field.inline{flex:1 1 160px;min-width:0}
+  .row-inline>.btn{flex-shrink:0}
+  .row,.link-row{min-width:0;flex-wrap:wrap}
+  .row>.grow{flex-basis:160px}
+  .row .t,.row .s{white-space:normal;overflow-wrap:anywhere}
+  .kv{flex-wrap:wrap;align-items:flex-start}
+  .kv>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+  .kv>span:first-child{flex:1 1 140px}
+  .details-kv .kv{flex-direction:column;gap:4px}
+  .details-kv .kv>span:first-child{flex:none}
+  .details-kv .kv span:last-child,.details-kv .kv code,.details-kv .kv a{max-width:100%;text-align:left}
+  .set-l{flex-wrap:wrap;overflow-wrap:anywhere}
+  .set-l>span{min-width:0}
+  .set-line:has(.set-c>:not(.switch))>.set-l{flex-basis:100%}
+  .set-c{max-width:100%;min-width:0}
+  .dialog-head>.grow{min-width:0}
+  .dialog-head>.icon-btn{flex:none}
+  .dialog-body .acts,.dialog-foot{align-items:stretch}
+  .dialog-body .acts>.btn,.dialog-foot>.btn{flex:1 1 160px}
+  .dialog-body code,.dialog-body pre,.lc-log pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+  .pop .item{max-width:100%;white-space:normal;overflow-wrap:anywhere;height:auto;min-height:32px}
+  .mx-fields{grid-template-columns:minmax(0,1fr)}
+  .hx-top{flex-wrap:wrap}
+  .hx-top>.grow{flex-basis:calc(100% - 56px);min-width:0;overflow-wrap:anywhere}
+  .hx-top>.state,.hx-top>.soon-pill{margin-left:44px}
+  .hx-chip{flex-wrap:wrap;overflow-wrap:anywhere}
+  .task-row>.grow{flex:1 1 180px}
+  .task-main b{white-space:normal;overflow-wrap:anywhere}
+  .model-chips{grid-template-columns:minmax(0,1fr)}
+  .mchip{min-width:0;max-width:100%;overflow-wrap:anywhere}
+  .mchip>b,.mchip>small{max-width:100%}
+  .mchip em{position:static}
+
+  /* Object headers share one phone grid: identity + refresh, then state,
+     description and metadata, followed by full-width actions. Desktop DOM and
+     action handlers remain the same. display:contents keeps their source order. */
+  .object-head{display:grid;grid-template-columns:42px minmax(0,1fr) 32px;gap:10px 12px;align-items:center}
+  .object-head>.mono-tile{grid-column:1;grid-row:1}
+  .object-copy,.object-title{display:contents}
+  .object-head>.object-actions{display:flex;grid-column:1/-1;grid-row:5;flex-wrap:wrap;width:100%;min-width:0;gap:8px}
+  .object-title>h2{grid-column:2;grid-row:1;min-width:0;margin:0;overflow-wrap:anywhere}
+  .object-state{grid-column:1/-1;grid-row:2;justify-self:start}
+  .object-description{grid-column:1/-1;grid-row:3;margin:0}
+  .object-meta{grid-column:1/-1;grid-row:4;min-width:0;margin:0;overflow-wrap:anywhere}
+  .object-meta>*{max-width:100%;min-width:0;overflow-wrap:anywhere}
+  .object-head>.object-refresh{grid-column:3;grid-row:1}
+  .object-actions>*{width:100%;min-width:0}
+
+  /* Labeled metric blocks reuse the Usage/Bench approach without hiding data. */
+  .am .am-row{grid-template-columns:minmax(0,1fr);gap:10px;padding:14px}
+  .am .am-head{display:none}
+  .am .am-v{display:flex;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere}
+  .am-v::before{content:attr(data-label);flex-basis:100%;font:12px/1.5 var(--font);color:var(--text-3)}
+  .scope-control{justify-content:space-between;min-width:0;gap:12px}
+  .scope-control>span{display:block;min-width:0;font-size:13px;color:var(--text-2)}
+  .am-m b{min-width:0;overflow-wrap:anywhere}
+  .ag-row{grid-template-columns:minmax(0,1fr);gap:10px;padding:14px}
+  .ag-row.ag-head{display:none}
+  .ag-name{flex-wrap:wrap}
+  .ag-name b{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
+  .ag-name em{display:inline;max-width:100%;overflow-wrap:anywhere}
+  .lib .tr{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .lib .tr.th{display:none}
+  .lib .tr>span:nth-child(2),.lib .tr>span:nth-child(3),.lib .tr>span:nth-child(4){display:flex;grid-column:auto;grid-row:auto}
+  .lib .tr .cell-id,.lib .tr>.acts{grid-column:1/-1;grid-row:auto;min-width:0}
+  .lib .tr>[data-label]{flex-direction:column;align-items:flex-start;min-width:0}
+  .lib [data-label]::before{content:attr(data-label);font:12px/1.5 var(--font);color:var(--text-3)}
+  .env-table{overflow:visible}
+  .env-table table,.env-table tbody{display:block;width:100%}
+  .env-table thead{display:none}
+  .env-table tr{display:grid;grid-template-columns:minmax(0,1fr);border-top:1px solid var(--line-soft);padding:10px 14px}
+  .env-table td{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;padding:6px 0;border:0;white-space:normal;text-align:left;overflow-wrap:anywhere}
+  .env-table td[data-label]::before{content:attr(data-label);font:12px/1.5 var(--font);color:var(--text-3)}
+  .env-table td.c,.env-table td.actions{white-space:normal;text-align:left}
+  .env-table td.actions{flex-direction:row;flex-wrap:wrap}
+}

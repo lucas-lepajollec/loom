@@ -17,7 +17,8 @@ function Thread() {
   const box = useRef(), stick = useRef(true);
   const [showDown, setShowDown] = useState(false);
   const onScroll = () => {
-    const el = box.current; const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const el = box.current; if (!el) return; // scroll events can land after an unmount
+    const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     stick.current = atEnd; setShowDown(!atEnd);
   };
   useLayoutEffect(() => { const el = box.current; if (el && stick.current) el.scrollTop = el.scrollHeight; });
@@ -29,7 +30,7 @@ function Thread() {
       : empty ? html`<div class="welcome anim-rise"><div class="welcome-mark"><${Icon} n="loom" /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
           <p>${exec.name ? html`${t("chat.view.la_discussion_part_avec")} <b>${exec.name}</b>${t("chat.view.tu_pourras_changer_de_modele_en_cours_de_route")}` : t("chat.view.choisis_un_modele_local_cloud_ou_un_harness_en_haut_pour_commence")}</p></div>`
       : html`<div class="thread-in"><${Messages} items=${items} gen=${gen} compacting=${compacting} root=${root} sessionId=${sessionId} /></div>`}
-    ${showDown && html`<button class="to-end anim-fade" aria-label="${t("chat.view.aller_en_bas")}" onClick=${() => { stick.current = true; box.current.scrollTop = box.current.scrollHeight; }}><${Icon} n="chevron" /></button>`}
+    ${showDown && html`<button class="to-end anim-fade" aria-label="${t("chat.view.aller_en_bas")}" onClick=${() => { stick.current = true; const el = box.current; if (el) el.scrollTop = el.scrollHeight; }}><${Icon} n="chevron" /></button>`}
   </div>`;
 }
 

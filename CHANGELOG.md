@@ -4,6 +4,15 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Phone layouts share wrapping headers, controls, dialogs and navigation at
+  390px and 320px. Agent identity/refresh stays above its state, full-width
+  description and actions; agent installations on both Agents and Machines,
+  local model metrics and Environment tables use labeled stacked rows.
+  The Agents route module is split by responsibility. Free route checks now
+  measure overflow, squeezed text and header overlaps, with populated fixtures
+  and a baseline screenshot mode. Browser acceptance is pending in the socket-
+  restricted implementation environment; see [mobile layout audit](docs/mobile-layout-audit.md).
+
 - UI retains valid shared data when APIs fail or return malformed collections,
   reports unavailable catalogs, and keeps Cloud/agent discussions usable when
   the engine is unreachable. Picker builds lists when opened. Mobile resume
