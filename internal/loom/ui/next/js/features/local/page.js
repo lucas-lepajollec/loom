@@ -156,9 +156,9 @@ function Library() {
           return html`<div class="tr" key=${m.path}>
             <span class="cell-id"><${Logo} name=${vendorOf(m.name) === t("local.page.autres") ? m.name : vendorOf(m.name)} />
               <span class="cell-main" ...${inspectTrigger(() => openDraft(m), t("cloud.page.inspecter") + m.name)}><b><span class="nm">${m.name.replace(/\.gguf$/i, '')}</span>${on && html`<span class=${'tag ' + (status.health ? 'green' : 'amber')}>${status.health ? t("local.page.charge") : t("local.page.chargement")}</span>`}</b><small>${m.dir.replace(/^\/home\/[^/]+/, '~')}</small></span></span>
-            <span class="mono dim">${quantOf(m.name) || '—'}</span>
-            <span class="num dim">${fmtBytes(m.size)}${m.shards > 1 ? ' · ' + m.shards + ' parts' : ''}</span>
-            <span><${Estimate} model=${m.value || m.path} /></span>
+            <span class="mono dim" data-label=${t("local.page.quant")}>${quantOf(m.name) || '—'}</span>
+            <span class="num dim" data-label=${t("local.page.fichier")}>${fmtBytes(m.size)}${m.shards > 1 ? ' · ' + m.shards + ' parts' : ''}</span>
+            <span data-label=${t("local.page.memoire_estimee")}><${Estimate} model=${m.value || m.path} /></span>
             <span class="acts">
               <button class="icon-btn" aria-label="${t("local.page.regler")}" title="${t("local.page.regler")}" onClick=${() => openDraft(m)}><${Icon} n="sliders" /></button>
               ${on ? html`<button class="btn sm" onClick=${unload}>${t("local.page.decharger")}</button>` : html`<button class="btn sm" onClick=${() => load(m)}>${t("local.page.charger")}</button>`}

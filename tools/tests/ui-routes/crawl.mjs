@@ -6,17 +6,20 @@
 // Usage : node tools/tests/ui-routes/crawl.mjs bin/loom
 import { chromium, webkit, devices } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import net from 'node:net';
+import { phoneLayoutIssues } from './layout.mjs';
+import { phoneFixtures } from './phone-fixtures.mjs';
 import { validData } from '../../../internal/loom/ui/next/js/core/shape.js';
 
 const binary = resolve(process.argv[2] || 'bin/loom');
-const port = await new Promise((ok, reject) => { const s = net.createServer().on('error', reject).listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
+const port = await new Promise((ok, reject) => { const s = net.createServer().on('error', reject).listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); }).catch(e => { console.error('UI route crawl cannot start the isolated server: ' + e.message); process.exit(1); });
 const dir = mkdtempSync(join(tmpdir(), 'loom-ui-routes-'));
 for (const d of ['home', 'data']) mkdirSync(join(dir, d));
 const env = { ...process.env, HOME: join(dir, 'home'), XDG_CONFIG_HOME: join(dir, 'home/.config'), XDG_DATA_HOME: join(dir, 'home/.local/share'), LOOM_HOME: join(dir, 'data'), LOOM_WEB_HOST: '127.0.0.1' };
+for (const key of ['PI_CODING_AGENT_DIR', 'HERMES_HOME', 'DSH_HOME', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'LOOM_NODE_HOME']) delete env[key];
 const server = spawn(binary, ['web', String(port)], { env, stdio: ['ignore', 'ignore', 'pipe'] });
 let serverLog = ''; server.stderr.on('data', d => { serverLog = (serverLog + d).slice(-4000); });
 const base = `http://127.0.0.1:${port}/`;
@@ -43,15 +46,17 @@ try {
     if (i > 100) throw new Error('Loom did not start:\n' + serverLog);
     await new Promise(r => setTimeout(r, 200));
   }
-  await fetch(base + 'api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"onboarded":"1"}' });
+  await fetch(base + 'api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarded: '1', lang: process.env.CRAWL_LANG || 'en' }) });
   const ws = await (await fetch(base + 'api/workspace')).json();
   const runtimes = (ws.runtimes || []).map(r => r.id);
-  const routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'project', 'resources', 'terminals', 'environment', 'voice', 'jarvis', 'harnesses', 'harnesses/history', ...runtimes.map(id => 'harnesses/' + id),
+  let routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'project', 'project/fixture-project', 'resources', 'terminals', 'environment', 'environment/docker', 'environment/proxmox', 'local/hub', 'voice', 'jarvis', 'harnesses', 'harnesses/history', ...runtimes.map(id => 'harnesses/' + id),
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
     'tasks', 'brain', 'brain/sources', 'brain/memory', 'brain/skills', 'brain/mcp', 'usage', 'bench',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
+  if (process.env.CRAWL_ROUTES) routes = routes.filter(r => new RegExp(process.env.CRAWL_ROUTES).test(r));
+  const fixturePhone = phoneFixtures(ws, remote);
   const fixtureSessions = ['cloud', 'agent'].map(kind => ({ id: 'fixture-' + kind, title: 'Synthetic ' + kind + ' discussion', runtime_id: kind === 'cloud' ? 'openai-compatible' : 'fixture-agent', provider_id: 'fixture', provider_name: kind === 'cloud' ? 'Fixture cloud' : 'Fixture agent', model: 'fixture-model', status: 'idle', messages: [], turns: [], message_count: 1 }));
-  const scenarios = ['fresh', 'healthy', '401', '502', 'malformed-json', 'wrong-shape', 'abort', 'offline', 'engine-unreachable'];
+  const scenarios = ['fresh', 'healthy', 'phone-layout', '401', '502', 'malformed-json', 'wrong-shape', 'abort', 'offline', 'engine-unreachable'];
   const inspect = async (page, errors, label) => {
     const st = await page.evaluate(() => ({
       crash: (document.querySelector('.page-crash pre') || {}).textContent || '',
@@ -62,6 +67,7 @@ try {
     if (st.guarded) failures.push(`${label}: PageGuard: ${st.crash.split('\n')[0]}`);
     if (st.bar) failures.push(`${label}: ${st.bar}`);
     if (st.views !== 1) failures.push(`${label}: ${st.views} views mounted`);
+    if (page.viewportSize().width <= 390) for (const issue of await page.evaluate(phoneLayoutIssues)) failures.push(`${label}: layout: ${issue}`);
     for (const e of errors.splice(0)) failures.push(`${label}: ${e}`);
   };
   const resume = page => page.evaluate(async () => {
@@ -78,9 +84,10 @@ try {
   };
   let checks = 0;
   for (const [name, engine, forms] of [
-    ['chromium', chromium, [['desktop', { viewport: { width: 1360, height: 860 } }], ['phone', devices['iPhone 15']]]],
-    ['webkit', webkit, [['phone', devices['iPhone 15']]]],
+    ['chromium', chromium, [['desktop', { viewport: { width: 1360, height: 860 } }], ['phone', { ...devices['iPhone 15'], viewport: { width: 390, height: 844 } }], ['phone-small', { ...devices['iPhone 15'], viewport: { width: 320, height: 740 } }]]],
+    ['webkit', webkit, [['phone', { ...devices['iPhone 15'], viewport: { width: 390, height: 844 } }], ['phone-small', { ...devices['iPhone 15'], viewport: { width: 320, height: 740 } }]]],
   ]) {
+    if (process.env.CRAWL_LAYOUT && name !== 'chromium') continue;
     let browser;
     try { browser = await engine.launch(); }
     catch (e) {
@@ -90,19 +97,28 @@ try {
     }
     try {
       for (const [form, context] of forms) {
+        if (process.env.CRAWL_LAYOUT && (name !== 'chromium' || form === 'desktop')) continue;
         // Every degraded scenario runs on the Chromium phone (the reported
         // crashes); desktop and WebKit keep a representative sample so CI stays
         // bounded. CRAWL_FULL=1 runs the whole matrix everywhere.
-        const sample = ['fresh', 'healthy', '502', 'engine-unreachable'];
-        const planned = process.env.CRAWL_FULL || (name === 'chromium' && form === 'phone') ? scenarios : scenarios.filter(x => sample.includes(x));
+        const sample = ['fresh', 'healthy', 'phone-layout', '502', 'engine-unreachable'];
+        const planned = process.env.CRAWL_LAYOUT ? ['phone-layout'] : !process.env.CRAWL_FULL && form === 'phone-small' ? ['fresh', 'healthy', 'phone-layout'] : process.env.CRAWL_FULL || (name === 'chromium' && form === 'phone') ? scenarios : scenarios.filter(x => sample.includes(x));
         for (const scenario of planned) {
           for (const r of routes) {
             if (scenario === 'fresh' && r === 'machines/' + remote.id) continue;
             // Fresh browser state per route/scenario: guards, observations,
             // pending requests and service workers never leak between cases.
             const ctx = await browser.newContext(context);
-            let degraded = !['fresh', 'healthy'].includes(scenario), successfulReads = 0, injected = 0;
+            let degraded = !['fresh', 'healthy', 'phone-layout'].includes(scenario), successfulReads = 0, injected = 0;
             const page = await ctx.newPage(), errors = [];
+            if (process.env.CRAWL_BASELINE_UI) await page.route('**/next/**', route => {
+              const pathname = new URL(route.request().url()).pathname.slice('/next/'.length);
+              const root = resolve(process.env.CRAWL_BASELINE_UI), file = resolve(root, pathname);
+              if (!file.startsWith(root + '/')) return route.abort();
+              const ext = file.split('.').pop(), types = { js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', svg: 'image/svg+xml', woff2: 'font/woff2' };
+              try { return route.fulfill({ body: readFileSync(file), contentType: types[ext] || 'application/octet-stream' }); }
+              catch (_) { return route.abort(); }
+            });
             page.on('pageerror', e => errors.push(e.message));
             page.on('response', async response => {
               const url = new URL(response.url());
@@ -111,8 +127,13 @@ try {
             });
             await page.route('**/api/**', async route => {
               const u = new URL(route.request().url());
+              if (/^\/api\/(chat\/send|runtime\/sessions\/send|load-model|start|restart)$/.test(u.pathname)) {
+                failures.push('Crawl attempted generation or engine startup: ' + u.pathname);
+                return route.abort();
+              }
               // Let the access shell and onboarding preference identify this
               // isolated installation. Domain APIs are faulted independently.
+              if (scenario === 'phone-layout' && !u.pathname.startsWith('/api/auth/') && u.pathname !== '/api/prefs') return fixturePhone(route);
               const boot = u.pathname.startsWith('/api/auth/') || u.pathname === '/api/prefs';
               const engineOnly = /^\/api\/(models|presets|preset|status|vram|ram|server|llamacpp|hub|backends|config|catalog|paths|naked|llama-flags|engines\/vllm|engine\/(params|service|keys|auto-update)|model-caps)(\/|$)/.test(u.pathname);
               if (degraded && !boot && (scenario !== 'engine-unreachable' || engineOnly)) {
@@ -123,10 +144,6 @@ try {
                 return route.fulfill({ status: scenario === '401' ? 401 : 502, json: { ok: false, error: 'remote engine unreachable' } });
               }
               if (scenario === 'engine-unreachable') {
-                if (/^\/api\/(chat\/send|runtime\/sessions\/send|load-model|start|restart)$/.test(u.pathname)) {
-                  failures.push('Crawl attempted generation or engine startup: ' + u.pathname);
-                  return route.abort();
-                }
                 if (u.pathname === '/api/workspace') return route.fulfill({ json: { ...ws,
                   runtimes: [...ws.runtimes, { id: 'fixture-agent', name: 'Fixture agent', kind: 'harness', implemented: true, available: true, connected: true, capabilities: ['chat', 'stream'] }],
                   providers: [{ id: 'fixture', name: 'Fixture cloud', ready: true, models: ['fixture-model'] }],
@@ -177,9 +194,49 @@ try {
                 await resume(page);
                 await page.waitForTimeout(100);
               }
+              if (scenario === 'phone-layout' && r === 'harnesses/codex') {
+                if (process.env.CRAWL_SHOTS && form === 'phone') {
+                  const out = resolve('.project-local/mission-f'); mkdirSync(out, { recursive: true });
+                  await page.screenshot({ path: join(out, process.env.CRAWL_SHOTS + '-agent-390.png'), fullPage: true });
+                }
+                await inspect(page, errors, label + ' agent');
+                await page.locator('.more-info').evaluate(el => el.open = true);
+                await inspect(page, errors, label + ' details');
+                const resource = page.locator('.agent .set-c .btn');
+                if (await resource.count()) { await resource.first().click(); await page.waitForTimeout(100); await inspect(page, errors, label + ' resources'); await page.locator('.dialog-head .icon-btn').click(); }
+                const more = page.locator('.more-models');
+                if (await more.count()) { await more.click(); await inspect(page, errors, label + ' all models'); }
+                const tip = page.locator('.agent .sec-h .tip').first();
+                if (await tip.count()) { await tip.click(); await inspect(page, errors, label + ' tooltip'); await tip.blur(); }
+                const tabs = page.locator('.agent .sec-h .seg button');
+                if (await tabs.count()) { await tabs.last().click(); await page.waitForTimeout(100); await inspect(page, errors, label + ' native discussions'); }
+                // A known disconnected account with no catalog exposes the
+                // native sign-in dialog. Inspect it without starting sign-in.
+                await page.route('**/api/runtimes/codex/probe', route => route.fulfill({ json: { ok: true, probe: { config: [] } } }));
+                await page.reload(); await page.waitForTimeout(600);
+                const accountLabel = await page.evaluate(async () => (await import('/next/js/core/i18n.js')).t('agents.account.login'));
+                const account = page.locator('.agent-h .acts .btn').filter({ hasText: accountLabel });
+                if (!await account.count()) throw new Error('Account fixture exposed no sign-in action');
+                await account.first().click(); await page.locator('.dialog').waitFor();
+                await inspect(page, errors, label + ' account'); await page.locator('.dialog-head .icon-btn').click();
+              }
+              if (scenario === 'phone-layout' && r === 'harnesses') {
+                await page.locator('.page-head .btn.primary').click(); await page.locator('.dialog').waitFor();
+                await inspect(page, errors, label + ' add agent');
+                await page.locator('.add-agents .set-c .btn').last().click();
+                await inspect(page, errors, label + ' custom agent'); await page.locator('.dialog-head .icon-btn').click();
+              }
+              if (scenario === 'phone-layout' && r === 'cloud') {
+                await page.locator('.cl-tile .btn').first().click(); await page.locator('.dialog').waitFor();
+                await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
+              }
+              if (scenario === 'phone-layout' && r === 'environment') {
+                await page.locator('.toolbar .btn.primary').click(); await page.locator('.dialog').waitFor();
+                await inspect(page, errors, label + ' service dialog'); await page.locator('.dialog-head .icon-btn').click();
+              }
               await inspect(page, errors, label + ' degraded');
-              if (!['fresh', 'healthy'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);
-              if (!['fresh', 'healthy'].includes(scenario)) {
+              if (!['fresh', 'healthy', 'phone-layout'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);
+              if (!['fresh', 'healthy', 'phone-layout'].includes(scenario)) {
                 const identity = await page.evaluate(() => { window.__crawlDocument = crypto.randomUUID(); return window.__crawlDocument; });
                 degraded = false; await ctx.setOffline(false); successfulReads = 0;
                 await resume(page);

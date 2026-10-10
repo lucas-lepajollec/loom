@@ -58,7 +58,7 @@
 .local-engine-slot{display:none}
 
 /* hub */
-.hub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:14px}
+.hub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:12px;margin-top:14px}
 .hub-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--r-lg);border:1px solid var(--line-soft);background:var(--surface);text-align:left;transition:border-color var(--fast),transform var(--mid) var(--out),background-color var(--fast)}
 .hub-card:hover{border-color:var(--line);transform:translateY(-2px)}
 .hc-top{display:flex;align-items:center;gap:11px;min-width:0}
@@ -599,7 +599,7 @@
 .env-table .c{text-align:center;white-space:nowrap}
 .env-table .actions{text-align:right;white-space:nowrap}
 .env-form{display:flex;flex-direction:column;gap:12px;margin-top:14px}
-.env-nodes{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:14px}
+.env-nodes{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr));gap:10px;margin-top:14px}
 .env-node{display:flex;flex-direction:column;gap:4px}
 .env-node b{font-weight:500}
 .env-node small{font-size:12px}
@@ -740,7 +740,7 @@
 .am-m b{font-weight:500;font-size:13.5px}
 .am-m .ico{color:var(--text-3)}
 .am-v{display:flex;align-items:center;gap:10px;font-size:13px}
-.model-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.model-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr));gap:8px}
 .mchip{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:12px 14px;border-radius:var(--r-lg);border:1px solid var(--line);background:var(--surface);text-align:left;position:relative}
 .mchip:not(:disabled):hover{border-color:var(--line-strong)}
 .mchip:disabled{cursor:default}
@@ -780,7 +780,7 @@
 .ws-checks{display:flex;flex-direction:column;gap:10px}
 .ws-checks .check{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--text)}
 /* machines : une carte par machine */
-.mcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.mcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
 .mcard{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);color:inherit;text-decoration:none;transition:border-color var(--fast)}
 .mcard:hover{border-color:var(--line-strong)}
 .mcard-h{display:flex;align-items:center;gap:12px;padding:16px 18px}
@@ -801,7 +801,7 @@
 .bench .grid-bench{grid-template-columns:minmax(0,1fr);gap:14px}
 .bench .grid-bench>.card:first-child .choice-list{flex-direction:row;flex-wrap:wrap;max-height:none}
 .bench .grid-bench>.card:first-child .choice{flex:0 1 300px;border-color:var(--line)}
-.bench .bench-g .choice-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:4px 10px;max-height:360px}
+.bench .bench-g .choice-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:4px 10px;max-height:360px}
 .bench>.card{margin-top:14px}
 .brain-role{display:flex;flex-direction:column;gap:8px;margin-top:6px}
 .brain-role .seg{align-self:flex-start}
@@ -818,7 +818,7 @@
 .mi-cont-h>.grow{min-width:0}
 .mi-cont-h b{font-size:13.5px}
 .mi-cont-h .mi-meta{margin-top:3px}
-.mi-cont-b{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft)}
+.mi-cont-b{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft)}
 .mi-cont-b .field{margin:0}
 .mi-me .mi-cont-h{align-items:flex-start}
 .mi-me .mi-cont-h b{display:inline-flex;align-items:center;gap:6px}
@@ -1011,3 +1011,13 @@ details.vx-lib[open]>summary h3::after{content:" ⌄"}
 .mc-title h2,.mc-title p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mc-title>.btn,.mc-title>.upd,.mc-title>.icon-btn{flex:none}
 @media (max-width:640px){.mc-title{flex-wrap:wrap}}
+/* Labels are also present on the stacked phone rows; desktop keeps its header. */
+.scope-control{display:flex;align-items:center;justify-content:center;gap:12px}
+.scope-control>span{display:none}
+
+/* Keep the refresh action next to the desktop actions; the phone grid places it
+   beside the title. */
+.agent-h>.mono-tile{order:1}
+.agent-h>.object-copy{order:2}
+.agent-h>.object-refresh{order:3}
+.agent-h>.object-actions{order:4}

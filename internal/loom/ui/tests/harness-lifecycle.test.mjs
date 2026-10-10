@@ -27,8 +27,8 @@ test('native updates distinguish unchanged from version transitions in both lang
 });
 
 test('machine rows offer installation on paired machines and retain lifecycle logs', () => {
-  const page = readFileSync(new URL('../next/js/features/harnesses/page.js', import.meta.url), 'utf8');
-  const row = page.slice(page.indexOf('function MachineRow'), page.indexOf('// Discussions :'));
+  const page = readFileSync(new URL('../next/js/features/harnesses/agent-machines.js', import.meta.url), 'utf8');
+  const row = page.slice(page.indexOf('function MachineRow'), page.length);
   assert.match(row, /target=\$\{i\.machine\}/);
   assert.match(row, /const list = installs;/);
   assert.match(row, /x\.check_update/);
@@ -50,8 +50,8 @@ test('channel labels and repair selection are shared by machine and lifecycle co
     assert.ok(dictionary['harnesses.lifecycle.repair']);
     assert.ok(dictionary['harnesses.lifecycle.manual_update']);
   }
-  const page = readFileSync(new URL('../next/js/features/harnesses/page.js', import.meta.url), 'utf8');
-  const row = page.slice(page.indexOf('function MachineRow'), page.indexOf('// Discussions :'));
+  const page = readFileSync(new URL('../next/js/features/harnesses/agent-machines.js', import.meta.url), 'utf8');
+  const row = page.slice(page.indexOf('function MachineRow'), page.length);
   assert.match(row, /lifecycleChannel\(x, t\)/);
   const lifecycle = readFileSync(new URL('../next/js/features/harnesses/lifecycle.js', import.meta.url), 'utf8');
   assert.match(lifecycle, /lifecycleInstallAction\(x\)/);
