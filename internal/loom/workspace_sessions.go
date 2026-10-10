@@ -429,9 +429,6 @@ func (m *runtimeSessions) validateStartLocked(s RuntimeSession, requestID string
 	if s.LastRequestID == requestID {
 		return true, nil
 	}
-	if harnessLifecycle.updatingRuntime(s.RuntimeID) {
-		return false, errors.New("an automatic harness update is in progress; wait for it to finish")
-	}
 	if m.runs[s.ID] != nil || m.nativeRunning(s) {
 		return false, errors.New("a response is already in progress")
 	}

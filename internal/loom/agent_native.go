@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/capability"
-	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/agentstdio"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/codexapp"
@@ -106,6 +105,12 @@ func nativeAgentProtocol(a acpAgent) string {
 	return "app-server"
 }
 func agentCompatibility(a acpAgent) *agent.CompatibilityRecord {
+	r := agentCompatibilityMetadata(a)
+	readAgentEvidence(a, r)
+	return r
+}
+
+func agentCompatibilityMetadata(a acpAgent) *agent.CompatibilityRecord {
 	protocol := nativeAgentProtocol(a)
 	if protocol == "" {
 		protocol = "acp"
@@ -159,12 +164,7 @@ func recordAgentCompatibility(ctx context.Context, a acpAgent, protocol string, 
 	return r
 }
 func nativeCompatibility(a acpAgent, protocol, executable, version string, caps []string) *agent.CompatibilityRecord {
-	tested := harness.LatestTestedVersion(a.ID)
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: executable, Version: version, AgentVersion: version, Protocol: protocol, AdapterVersion: agentAdapterVersion, TestedVersion: tested, TestedVersions: harness.TestedVersions(a.ID), TestedVersionSource: "loom", Capabilities: caps}
-	if version != "" && !harness.VersionTested(a.ID, version) {
-		r.Warning = fmt.Sprintf("%s %s differs from tested %s; protocol compatibility is unverified", a.Name, version, tested)
-	}
-	return r
+	return harnessCompatibility(a, protocol, executable, version, caps, "", "loom", "")
 }
 func nativeAgentCaps(id string) []string {
 	protocol := "app-server"
@@ -179,7 +179,7 @@ func nativeAgentCaps(id string) []string {
 	return harnessFeatureCaps(harnessFeatures(acpAgent{ID: id}, protocol, acpProbe{}))
 }
 
-func startNativeAgent(a acpAgent, s RuntimeSession, probe bool) (*agentstdio.Client, error) {
+func startNativeAgent(a acpAgent, s RuntimeSession, probe bool, checkOnly bool) (*agentstdio.Client, error) {
 	args := []string{a.ID, "app-server"}
 	var env []string
 	if a.ID == "codex" {
@@ -196,8 +196,10 @@ func startNativeAgent(a acpAgent, s RuntimeSession, probe bool) (*agentstdio.Cli
 			args = append(args, "--no-session")
 			// Pi hides a provider whose key reference is unset: the catalog read
 			// needs every projected key, or Loom's cloud models never show up.
-			_ = syncModelSinks()
-			env = append(env, acpLaunchEnv("pi", "")...)
+			if !checkOnly {
+				_ = syncModelSinks()
+				env = append(env, acpLaunchEnv("pi", "")...)
+			}
 		} else {
 			_ = syncModelSinks()
 			// Existing Pi model sink uses provider IDs; expose only the selected key.
@@ -244,7 +246,7 @@ func probeNativeAgent(ctx context.Context, a acpAgent) acpProbe {
 		return out
 	}
 	defer os.RemoveAll(dir)
-	c, err := startNativeAgent(a, RuntimeSession{ACPState: ACPState{Workdir: dir}}, true)
+	c, err := startNativeAgent(a, RuntimeSession{ACPState: ACPState{Workdir: dir}}, true, harnessProbeIsCheckOnly(ctx))
 	if err != nil {
 		out.Error = err.Error()
 		return out
@@ -283,6 +285,7 @@ func probeNativeAgent(ctx context.Context, a acpAgent) acpProbe {
 		}
 		return out
 	}
+	out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: true})
 	out.NativeModels = models
 	options := []any{}
 	for _, raw := range models {
@@ -354,7 +357,7 @@ func (m *runtimeSessions) runNativeAgent(ctx context.Context, a acpAgent, s Runt
 		s.NativeSessionID = ""
 		s.NativeSessionFile = ""
 	}
-	c, err := startNativeAgent(a, s, false)
+	c, err := startNativeAgent(a, s, false, false)
 	if err != nil {
 		return nil, err
 	}

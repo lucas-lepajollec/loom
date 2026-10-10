@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/capability"
-	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"github.com/lucas-lepajollec/loom/internal/loom/runtime/antigravity"
 )
@@ -21,12 +20,8 @@ func antigravityCaps() []string {
 
 func antigravityCompatibility(a acpAgent, version string) *agent.CompatibilityRecord {
 	path, _ := lifecycleLookPath("agy")
-	// Tested versions live in harness/tested_versions.json, edited by the watch.
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: antigravity.Protocol, AdapterVersion: agentAdapterVersion, AdapterPackage: "agy", TestedVersion: harness.LatestTestedVersion("antigravity"), TestedVersions: harness.TestedVersions("antigravity"), Capabilities: antigravityCaps()}
-	if version != "" && !harness.VersionTested("antigravity", version) {
-		r.Warning = "Antigravity " + version + " differs from tested " + r.TestedVersion + "; protocol compatibility is unverified"
-	}
-	return r
+	a.Name = "Antigravity"
+	return harnessCompatibility(a, antigravity.Protocol, path, version, antigravityCaps(), "agy", "", "")
 }
 
 func recordAntigravityCompatibility(ctx context.Context, a acpAgent) *agent.CompatibilityRecord {
@@ -78,6 +73,7 @@ func probeAntigravity(ctx context.Context, a acpAgent) acpProbe {
 		out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: false, Reason: "catalog_probe_failed"})
 		return out
 	}
+	out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: true})
 	out.Config = antigravityOptions(models)
 	// Preserve labels from the same native catalog without weakening ID parsing.
 	names := map[string]string{}

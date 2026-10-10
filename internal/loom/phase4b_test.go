@@ -567,7 +567,7 @@ func TestPhase4bDoctorFakesAndDegradedRecovery(t *testing.T) {
 		t.Fatal(report, err)
 	}
 	p.Error = ""
-	p.CapabilityChecks = []capability.Probe{{Capability: "models", OK: false, Reason: "catalog_incompatible"}}
+	p.CapabilityChecks = []capability.Probe{{Capability: "models", OK: false, Reason: "catalog_incompatible"}, {Capability: "resume", OK: true}}
 	observeAgentProbe(a.agent.ID, p)
 	if capabilityDisabled("agent:"+a.agent.ID, "resume") || !capabilityDisabled("agent:"+a.agent.ID, "models") {
 		t.Fatal("feature recovery failed")

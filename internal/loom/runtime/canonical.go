@@ -339,18 +339,44 @@ func ValidateAnswer(r AgentRequest, a RequestAnswer) error {
 	return nil
 }
 
+type CapabilityObservation struct {
+	Check string `json:"check"`
+	At    int64  `json:"at"`
+	Count uint64 `json:"count"`
+}
+
+// Evidence levels are independent. Historical success survives a current failure.
+type CapabilityEvidence struct {
+	Discovered       *CapabilityObservation `json:"discovered,omitempty"`
+	ProtocolVerified *CapabilityObservation `json:"protocol_verified,omitempty"`
+	ObservedWorking  *CapabilityObservation `json:"observed_working,omitempty"`
+	Health           string                 `json:"health"`
+}
+
 type CompatibilityRecord struct {
-	CapabilityChecks    []capability.Probe `json:"capability_checks,omitempty"`
-	TestedVersionSource string             `json:"tested_version_source,omitempty"`
-	Runtime             string             `json:"runtime"`
-	Executable          string             `json:"executable"`
-	Version             string             `json:"version"`
-	Protocol            string             `json:"protocol"`
-	AdapterVersion      string             `json:"adapter_version"`
-	AdapterPackage      string             `json:"adapter_package,omitempty"`
-	AgentVersion        string             `json:"agent_version,omitempty"`
-	TestedVersions      []string           `json:"tested_versions,omitempty"`
-	TestedVersion       string             `json:"tested_version"`
-	Capabilities        []string           `json:"capabilities"`
-	Warning             string             `json:"warning,omitempty"`
+	Fingerprint         string                        `json:"fingerprint,omitempty"`
+	Evidence            map[string]CapabilityEvidence `json:"evidence,omitempty"`
+	CapabilityChecks    []capability.Probe            `json:"capability_checks,omitempty"`
+	TestedVersionSource string                        `json:"tested_version_source,omitempty"`
+	Runtime             string                        `json:"runtime"`
+	Executable          string                        `json:"executable"`
+	Version             string                        `json:"version"`
+	Protocol            string                        `json:"protocol"`
+	AdapterVersion      string                        `json:"adapter_version"`
+	AdapterPackage      string                        `json:"adapter_package,omitempty"`
+	AgentVersion        string                        `json:"agent_version,omitempty"`
+	TestedVersions      []string                      `json:"tested_versions,omitempty"`
+	TestedVersion       string                        `json:"tested_version"`
+	Capabilities        []string                      `json:"capabilities"`
+	Warning             string                        `json:"warning,omitempty"`
+}
+
+// NewCompatibilityRecord constructs all native and ACP records. Version lists
+// remain provenance; they never establish per-capability session success.
+func NewCompatibilityRecord(r CompatibilityRecord) *CompatibilityRecord {
+	r.AgentVersion = r.Version
+	if r.TestedVersion == "" && len(r.TestedVersions) > 0 {
+		r.TestedVersion = r.TestedVersions[len(r.TestedVersions)-1]
+	}
+	return &r
 }

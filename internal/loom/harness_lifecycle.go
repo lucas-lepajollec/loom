@@ -74,7 +74,6 @@ type harnessLifecycleState struct {
 type harnessLifecycleService struct {
 	mu           sync.Mutex
 	busy         map[string]bool
-	updating     map[string][2]string
 	storeMu      sync.Mutex
 	run          func(context.Context, *RemoteMachine, []string) (string, error)
 	refresh      func(context.Context, *RemoteMachine, string) error
@@ -82,12 +81,11 @@ type harnessLifecycleService struct {
 	preserve     func(string) (func(bool) error, error)
 	latestGitHub func(context.Context, string) (string, error)
 	active       func(string, string) bool
-	reserveAuto  func(string, string) (func(), bool)
 	now          func() time.Time
 }
 
 func newHarnessLifecycleService() *harnessLifecycleService {
-	return &harnessLifecycleService{busy: map[string]bool{}, updating: map[string][2]string{}, run: runHarnessLifecycleCommand,
+	return &harnessLifecycleService{busy: map[string]bool{}, run: runHarnessLifecycleCommand,
 		refresh: refreshHarnessLifecycle, installation: inspectHarnessInstallation, preserve: preserveHarnessExecutable, latestGitHub: readHarnessGitHubLatest,
 		active: harnessDiscussionRunning, now: time.Now}
 }
@@ -779,9 +777,9 @@ func refreshHarnessAgentProbe(ctx context.Context, a acpAgent) error {
 	if err := invalidateHarnessAgentObservations(a); err != nil {
 		return err
 	}
-	// Successful probes restore degraded capabilities; real failures remain
+	// Successful checks restore only their named capabilities; real failures remain
 	// visible rather than clearing independent failures without evidence.
-	refreshACPProbe(ctx, a)
+	refreshACPProbe(context.WithValue(ctx, harnessCheckOnlyContextKey{}, true), a)
 	return nil
 }
 
@@ -828,13 +826,8 @@ func harnessDiscussionRunning(target, id string) bool {
 	return false
 }
 
-func harnessAutoDue(setting harnessLifecycleSetting, state harnessLifecycleState, now time.Time, active bool) bool {
-	return setting.Auto && (setting.CheckedAt == 0 || now.Sub(time.UnixMilli(setting.CheckedAt)) >= harnessAutoInterval) &&
-		state.Installed && state.CanUpdate && state.UpdateAvailable && !active
-}
-
-// A cycle holds the same pair lock as HTTP across check and update. Settings
-// are re-read before updating, so disabling auto during a check takes effect.
+// Automatic activity only reads versions. Updating the selected installation
+// always requires the explicit lifecycle action, regardless of accepted lists.
 func (s *harnessLifecycleService) autoOne(ctx context.Context, target, id string) {
 	target, m, spec, err := resolveHarnessTarget(target, id)
 	if err != nil || !s.acquire(target, id) {
@@ -849,35 +842,18 @@ func (s *harnessLifecycleService) autoOne(ctx context.Context, target, id string
 	ctx, cancel := context.WithTimeout(ctx, harnessActionTimeout)
 	defer cancel()
 	state, checkErr := s.check(ctx, target, id, m, spec)
-	setting = s.setting(target, id)
-	var result *harnessAutoResult
-	if checkErr == nil && harnessAutoDue(setting, state, now, s.active(target, id)) {
-		reserve := s.reserveAuto
-		if reserve == nil {
-			reserve = func(target, id string) (func(), bool) { return reserveHarnessAutoUpdate(s, target, id) }
-		}
-		release, allowed := reserve(target, id)
-		if !allowed {
-			return
-		}
-		after, updateErr := s.mutate(ctx, target, id, "update", m, spec)
-		release()
-		log := after.Log
-		if updateErr != nil {
-			log = tailHarnessText(log + "\n" + updateErr.Error())
-		}
-		result = &harnessAutoResult{At: s.now().UnixMilli(), From: state.Version, To: after.Version, OK: updateErr == nil, Log: log}
-	} else if checkErr != nil {
-		result = &harnessAutoResult{At: now.UnixMilli(), OK: false, Log: tailHarnessText(checkErr.Error())}
+	result := &harnessAutoResult{At: now.UnixMilli(), From: state.Version, To: state.Version, OK: checkErr == nil && len(state.Errors) == 0 && state.Version != ""}
+	if checkErr != nil {
+		result.Log = tailHarnessText(checkErr.Error())
+	} else if len(state.Errors) > 0 {
+		result.Log = tailHarnessText(strings.Join(state.Errors, "\n"))
 	}
 	s.storeMu.Lock()
 	defer s.storeMu.Unlock()
 	current := harnessLifecycleSetting{Target: target, ID: id}
 	_ = getStoreJSON(bkState, lifecycleKey(target, id), &current)
 	current.CheckedAt = now.UnixMilli()
-	if result != nil {
-		current.LastAuto = result
-	}
+	current.LastAuto = result
 	_ = putStoreJSON(bkState, lifecycleKey(target, id), current)
 }
 func tailHarnessText(text string) string {
@@ -982,33 +958,4 @@ func harnessLifecycleRuntimeTarget(runtimeID string) (string, string) {
 		}
 	}
 	return "local", runtimeID
-}
-
-func reserveHarnessAutoUpdate(s *harnessLifecycleService, target, id string) (func(), bool) {
-	workspaceSessions.mu.Lock()
-	defer workspaceSessions.mu.Unlock()
-	for _, run := range workspaceSessions.runs {
-		if harnessRuntimeMatches(run.session.RuntimeID, target, id) {
-			return nil, false
-		}
-	}
-	key := lifecycleKey(target, id)
-	s.mu.Lock()
-	s.updating[key] = [2]string{target, id}
-	s.mu.Unlock()
-	return func() {
-		s.mu.Lock()
-		delete(s.updating, key)
-		s.mu.Unlock()
-	}, true
-}
-func (s *harnessLifecycleService) updatingRuntime(runtimeID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, pair := range s.updating {
-		if harnessRuntimeMatches(runtimeID, pair[0], pair[1]) {
-			return true
-		}
-	}
-	return false
 }
