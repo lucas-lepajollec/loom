@@ -109,6 +109,10 @@ the snapshot for the next turn. See the [frozen snapshot contract](docs/brain.md
 
 **Brain** searches local sources with BM25 and builds cited context within a token budget. Optional semantic search uses a local CPU embedding model or a connected provider with explicit consent. Distillation extracts decisions, facts, todos and preferences on request, with links back to source messages and individual deletion.
 
+Developers can run the [free offline retrieval benchmark](docs/brain-retrieval-benchmark.md)
+with `sh tools/brain-retrieval/run.sh`: evidence recall, final prepared-context
+presence and a fixed CI regression baseline, with zero model calls.
+
 Memory lives as native Markdown in the primary second brain: global `Memory/`,
 project `Projects/<slug>/memory/`, each with a bounded `MEMORY.md` index. Loom
 writes verbatim discussions under `Discussions/` and consolidates paused work

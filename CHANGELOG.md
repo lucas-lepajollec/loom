@@ -14,6 +14,11 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 - Enabled harness automation now performs read-only version checks. Updates
   remain explicit; post-update free probes skip model-sink synchronization and
   provider-key projection and never generate a reply.
+- Add a free offline Brain retrieval benchmark using the real context assembler
+  and fake adapter capture, JSON evidence/token/latency reports, synthetic CI
+  baseline gates, and explicit pinned LongMemEval cache fetch/import tools.
+  Brain runtime behavior is unchanged; natural subset selection awaits download
+  and review. See `docs/brain-retrieval-benchmark.md`.
 
 - Engine updates repair missing/CPU-only llama.cpp binaries and mismatched CMake
   caches even at the current commit, locally and through linked Loom nodes.

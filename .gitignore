@@ -34,3 +34,4 @@ AGENTS.override.md
 .env.local
 .env.*.local
 tools/tests/ui-routes/node_modules/
+tools/brain-retrieval/__pycache__/
