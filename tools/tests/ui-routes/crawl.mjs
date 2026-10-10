@@ -4,15 +4,16 @@
 // lié). Échoue si une page plante, lève une erreur ou laisse deux vues
 // montées : les écrans noirs et dédoublés viennent d'un rendu interrompu.
 // Usage : node tools/tests/ui-routes/crawl.mjs bin/loom
-import { chromium, devices } from 'playwright';
+import { chromium, webkit, devices } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import net from 'node:net';
+import { validData } from '../../../internal/loom/ui/next/js/core/shape.js';
 
 const binary = resolve(process.argv[2] || 'bin/loom');
-const port = await new Promise(ok => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
+const port = await new Promise((ok, reject) => { const s = net.createServer().on('error', reject).listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
 const dir = mkdtempSync(join(tmpdir(), 'loom-ui-routes-'));
 for (const d of ['home', 'data']) mkdirSync(join(dir, d));
 const env = { ...process.env, HOME: join(dir, 'home'), XDG_CONFIG_HOME: join(dir, 'home/.config'), XDG_DATA_HOME: join(dir, 'home/.local/share'), LOOM_HOME: join(dir, 'data'), LOOM_WEB_HOST: '127.0.0.1' };
@@ -45,40 +46,161 @@ try {
   await fetch(base + 'api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"onboarded":"1"}' });
   const ws = await (await fetch(base + 'api/workspace')).json();
   const runtimes = (ws.runtimes || []).map(r => r.id);
-  const routes = ['chat', 'models', 'cloud', 'local', 'engine', 'voice', 'jarvis', 'harnesses', 'harnesses/history', ...runtimes.map(id => 'harnesses/' + id),
+  const routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'project', 'resources', 'terminals', 'environment', 'voice', 'jarvis', 'harnesses', 'harnesses/history', ...runtimes.map(id => 'harnesses/' + id),
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
     'tasks', 'brain', 'brain/sources', 'brain/memory', 'brain/skills', 'brain/mcp', 'usage', 'bench',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
-  const browser = await chromium.launch();
-  for (const [form, context] of [['desktop', { viewport: { width: 1360, height: 860 } }], ['phone', devices['iPhone 15']]]) {
-    for (const mocked of [false, true]) {
-      const ctx = await browser.newContext(context);
-      const page = await ctx.newPage();
-      const errors = [];
-      page.on('pageerror', e => errors.push(e.message));
-      if (mocked) await page.route('**/api/**', mockRemote);
-      await page.goto(base); await page.waitForTimeout(800);
-      for (const r of routes) {
-        if (!mocked && r === 'machines/' + remote.id) continue;
-        errors.length = 0;
-        await page.goto(base + '#/' + r); await page.waitForTimeout(500);
-        const st = await page.evaluate(() => ({
-          crash: (document.querySelector('.page-crash pre') || {}).textContent || '',
-          bar: (document.querySelector('.client-error') || {}).textContent || '',
-          views: document.querySelectorAll('.view').length,
-        }));
-        const label = `${form}${mocked ? '+remote' : ''} #/${r}`;
-        if (st.crash) failures.push(`${label}: page crashed: ${st.crash.split('\n')[0]}`);
-        else if (st.bar) failures.push(`${label}: ${st.bar}`);
-        else if (st.views !== 1) failures.push(`${label}: ${st.views} views mounted`);
-        for (const e of errors) failures.push(`${label}: ${e}`);
-        await page.evaluate(() => document.querySelector('.client-error')?.remove());
-      }
-      await ctx.close();
+  const fixtureSessions = ['cloud', 'agent'].map(kind => ({ id: 'fixture-' + kind, title: 'Synthetic ' + kind + ' discussion', runtime_id: kind === 'cloud' ? 'openai-compatible' : 'fixture-agent', provider_id: 'fixture', provider_name: kind === 'cloud' ? 'Fixture cloud' : 'Fixture agent', model: 'fixture-model', status: 'idle', messages: [], turns: [], message_count: 1 }));
+  const scenarios = ['fresh', 'healthy', '401', '502', 'malformed-json', 'wrong-shape', 'abort', 'offline', 'engine-unreachable'];
+  const inspect = async (page, errors, label) => {
+    const st = await page.evaluate(() => ({
+      crash: (document.querySelector('.page-crash pre') || {}).textContent || '',
+      guarded: !!document.querySelector('.page-crash'),
+      bar: (document.querySelector('.client-error') || {}).textContent || '',
+      views: document.querySelectorAll('.view').length,
+    }));
+    if (st.guarded) failures.push(`${label}: PageGuard: ${st.crash.split('\n')[0]}`);
+    if (st.bar) failures.push(`${label}: ${st.bar}`);
+    if (st.views !== 1) failures.push(`${label}: ${st.views} views mounted`);
+    for (const e of errors.splice(0)) failures.push(`${label}: ${e}`);
+  };
+  const resume = page => page.evaluate(async () => {
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('online'));
+    window.dispatchEvent(new CustomEvent('loom:changed'));
+    const s = await import('/next/js/core/state.js');
+    await Promise.allSettled([s.refreshStatus(), s.refreshWorkspace(), s.refreshLibrary(), s.refreshNav(), s.refreshEngineNode(), s.refreshHardware()]);
+  });
+  const openPicker = async page => {
+    const picker = page.locator('.exec-btn');
+    if (await picker.count() && await picker.getAttribute('aria-expanded') !== 'true') await picker.click();
+  };
+  let checks = 0;
+  for (const [name, engine, forms] of [
+    ['chromium', chromium, [['desktop', { viewport: { width: 1360, height: 860 } }], ['phone', devices['iPhone 15']]]],
+    ['webkit', webkit, [['phone', devices['iPhone 15']]]],
+  ]) {
+    let browser;
+    try { browser = await engine.launch(); }
+    catch (e) {
+      if (name !== 'webkit' || process.env.CI || !/Executable doesn't exist|Host system is missing dependencies|error while loading shared libraries|cannot open shared object file/.test(String(e))) throw e;
+      console.log(`SKIP WebKit iPhone crawl: system cannot run WebKit: ${String(e).split('\n').slice(0, 4).join(' ')}`);
+      continue;
     }
+    try {
+      for (const [form, context] of forms) {
+        for (const scenario of scenarios) {
+          for (const r of routes) {
+            if (scenario === 'fresh' && r === 'machines/' + remote.id) continue;
+            // Fresh browser state per route/scenario: guards, observations,
+            // pending requests and service workers never leak between cases.
+            const ctx = await browser.newContext(context);
+            let degraded = !['fresh', 'healthy'].includes(scenario), successfulReads = 0, injected = 0;
+            const page = await ctx.newPage(), errors = [];
+            page.on('pageerror', e => errors.push(e.message));
+            page.on('response', async response => {
+              const url = new URL(response.url());
+              if (!url.pathname.startsWith('/api/') || url.pathname.startsWith('/api/auth/') || url.pathname === '/api/prefs' || response.request().method() !== 'GET') return;
+              try { const data = await response.json(); if (response.ok() && data?.ok !== false && validData(data, url.pathname)) successfulReads++; } catch (_) {}
+            });
+            await page.route('**/api/**', async route => {
+              const u = new URL(route.request().url());
+              // Let the access shell and onboarding preference identify this
+              // isolated installation. Domain APIs are faulted independently.
+              const boot = u.pathname.startsWith('/api/auth/') || u.pathname === '/api/prefs';
+              const engineOnly = /^\/api\/(models|presets|preset|status|vram|ram|server|llamacpp|hub|backends|config|catalog|paths|naked|llama-flags|engines\/vllm|engine\/(params|service|keys|auto-update)|model-caps)(\/|$)/.test(u.pathname);
+              if (degraded && !boot && (scenario !== 'engine-unreachable' || engineOnly)) {
+                injected++;
+                if (scenario === 'abort' || scenario === 'offline') return route.abort('internetdisconnected');
+                if (scenario === 'malformed-json') return route.fulfill({ status: 200, contentType: 'application/json', body: '{broken' });
+                if (scenario === 'wrong-shape') return route.fulfill({ json: { ok: true, models: {}, presets: {}, sessions: {}, runtimes: {}, projects: {}, machines: {}, sources: {}, tasks: {}, servers: {}, installations: {} } });
+                return route.fulfill({ status: scenario === '401' ? 401 : 502, json: { ok: false, error: 'remote engine unreachable' } });
+              }
+              if (scenario === 'engine-unreachable') {
+                if (/^\/api\/(chat\/send|runtime\/sessions\/send|load-model|start|restart)$/.test(u.pathname)) {
+                  failures.push('Crawl attempted generation or engine startup: ' + u.pathname);
+                  return route.abort();
+                }
+                if (u.pathname === '/api/workspace') return route.fulfill({ json: { ...ws,
+                  runtimes: [...ws.runtimes, { id: 'fixture-agent', name: 'Fixture agent', kind: 'harness', implemented: true, available: true, connected: true, capabilities: ['chat', 'stream'] }],
+                  providers: [{ id: 'fixture', name: 'Fixture cloud', ready: true, models: ['fixture-model'] }],
+                  models: fixtureSessions.map(session => ({ id: session.id, name: session.model, model: session.model, kind: session.id.endsWith('cloud') ? 'cloud' : 'harness', runtime_id: session.runtime_id, provider_id: session.provider_id, provider_name: session.provider_name, enabled: true, ready: true })),
+                } });
+                if (u.pathname === '/api/runtime/sessions' && route.request().method() === 'GET') {
+                  const session = fixtureSessions.find(s => s.id === u.searchParams.get('id'));
+                  if (session) return route.fulfill({ json: { ok: true, session, context: {} } });
+                  if (!u.searchParams.has('id')) return route.fulfill({ json: { ok: true, sessions: fixtureSessions } });
+                }
+                if (u.pathname === '/api/discussion/events') {
+                  const session = fixtureSessions.find(s => s.id === route.request().postDataJSON()?.id);
+                  if (session) {
+                    const events = [{ reset: true, replay: true, session }, { type: 'text_delta', text: 'Synthetic retained history', seq: 1 }, { caught_up: true, session }];
+                    return route.fulfill({ contentType: 'text/event-stream', body: events.map(delta => 'data: ' + JSON.stringify({ choices: [{ delta }] }) + '\n\n').join('') });
+                  }
+                }
+              }
+              return scenario === 'fresh' ? route.continue() : mockRemote(route);
+            });
+            const label = `${name}/${form}/${scenario} #/${r}`;
+            try {
+              await page.goto(base + '#/' + r);
+              await page.waitForTimeout(600);
+              // Exercise the collection consumer that triggered the iPhone
+              // crash, and both other catalogs while the engine is unavailable.
+              if (r === 'chat') {
+                await openPicker(page);
+                for (const tab of ['cloud', 'harness']) {
+                  await page.locator('.picker .seg button').nth(tab === 'cloud' ? 1 : 2).click();
+                }
+              }
+              if (r === 'chat' && scenario === 'engine-unreachable') {
+                await page.locator('.picker .pick-search button').click();
+                for (const session of fixtureSessions) {
+                  const opened = await page.evaluate(async id => (await import('/next/js/features/chat/engine.js')).open(id), session.id);
+                  if (!opened) throw new Error('Failed to open synthetic ' + session.id);
+                  await page.waitForFunction(async () => !(await import('/next/js/features/chat/engine.js')).chat.get().loading);
+                  await page.locator('.composer textarea').fill('Retained mobile draft');
+                  await resume(page);
+                  if (await page.locator('.composer textarea').inputValue() !== 'Retained mobile draft') throw new Error('Resume lost discussion draft');
+                  if (await page.locator('.composer .send').isDisabled()) throw new Error('Engine failure disabled external discussion composer');
+                  await inspect(page, errors, label + ' ' + session.id);
+                }
+              }
+              if (scenario === 'offline') {
+                await ctx.setOffline(true);
+                await resume(page);
+                await page.waitForTimeout(100);
+              }
+              await inspect(page, errors, label + ' degraded');
+              if (!['fresh', 'healthy'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);
+              if (!['fresh', 'healthy'].includes(scenario)) {
+                const identity = await page.evaluate(() => { window.__crawlDocument = crypto.randomUUID(); return window.__crawlDocument; });
+                degraded = false; await ctx.setOffline(false); successfulReads = 0;
+                await resume(page);
+                // Pages with mount-only reads recover on navigation too. Hash
+                // navigation uses the same document, without a browser reload.
+                await page.evaluate(() => { location.hash = '#/' + (location.hash.startsWith('#/chat') ? 'cloud' : 'chat'); });
+                await page.waitForTimeout(100);
+                await page.evaluate(route => { location.hash = '#/' + route; }, r);
+                await page.waitForTimeout(600);
+                if (r === 'chat') await openPicker(page);
+                await inspect(page, errors, label + ' recovery');
+                if (await page.evaluate(() => window.__crawlDocument) !== identity) failures.push(`${label}: recovery reloaded the document`);
+                if (!successfulReads) failures.push(`${label}: recovery made no valid API reads`);
+                const unavailable = await page.evaluate(async () => (await import('/next/js/core/state.js')).app.get().unavailable);
+                for (const key of ['models', 'presets', 'workspace', 'history', 'sessions']) if (unavailable[key]) failures.push(`${label}: ${key} did not recover`);
+              }
+              checks++;
+            } catch (e) { failures.push(`${label}: ${e.stack || e}`); }
+            finally { await ctx.close(); }
+          }
+          console.log(`UI crawl ${name}/${form}/${scenario}: ${routes.length} routes checked`);
+        }
+      }
+    } finally { await browser.close(); }
   }
-  await browser.close();
-  console.log(`UI route crawl: ${routes.length} routes × desktop/phone × fresh/remote`);
+  console.log(`UI route crawl: ${routes.length} routes, ${checks} isolated checks including degraded recovery`);
 } catch (e) {
   failures.push(String(e && e.stack || e));
 } finally {

@@ -1,3 +1,4 @@
+import { chatShape, validShape, eventShape } from '../next/js/core/shape.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -20,9 +21,9 @@ test('local execution resolves engine paths and aliases without guessing from fi
 function engine({ choices = [model], selectError, openError, loadError } = {}) {
   const calls = [], notices = [];
   let session = { id: 'same-discussion', runtime_id: 'pi', provider_name: 'Pi', model: 'loom:gemma.gguf', messages: [{ role: 'user', content: 'keep' }] };
-  const appState = { workspace: { models: [] }, status: { model: 'gemma.gguf', health: true }, nav: { conversations: [] } };
+  const appState = { unavailable: {}, workspace: { models: [] }, status: { model: 'gemma.gguf', health: true }, nav: { conversations: [] } };
   const env = {
-    t: french, localChoice, createStore: state => ({ get: () => state, set: patch => Object.assign(state, patch) }),
+    chatShape, validShape, eventShape, t: french, localChoice, createStore: state => ({ get: () => state, set: patch => Object.assign(state, patch) }),
     document: { addEventListener() {} }, app: { get: () => appState },
     localStorage: { setItem() {}, removeItem() {} }, setTimeout: () => {}, Date, Map, Set,
     toast: (...args) => notices.push(args), refreshNav: async () => {},
@@ -93,9 +94,9 @@ test('picker keeps an execution label next to the same model on local and harnes
   const flatten = x => Array.isArray(x) ? x.flatMap(flatten) : x && typeof x === 'object' ? [x, ...flatten(x.children)] : [];
   const text = x => Array.isArray(x) ? x.map(text).join('') : x && typeof x === 'object' ? text(x.children) : String(x ?? '');
   let state = { mode: 'thread', session: { runtime_id: 'pi', provider_name: 'Pi', model: 'loom:gemma.gguf' } };
-  const appState = { workspace: { models: [] }, models: [{ name: 'gemma.gguf', path: model.model, value: 'gemma.gguf' }], presets: [{ id: 'preset', name: 'Gemma preset', model: 'gemma.gguf' }], status: { model: 'gemma.gguf', health: true, preset_id: 'preset' } };
+  const appState = { unavailable: {}, workspace: { models: [] }, models: [{ name: 'gemma.gguf', path: model.model, value: 'gemma.gguf' }], presets: [{ id: 'preset', name: 'Gemma preset', model: 'gemma.gguf' }], status: { model: 'gemma.gguf', health: true, preset_id: 'preset' } };
   let hook = 0;
-  const env = { html, t: french, getLang: () => 'fr', executionKey, runtimeKind: id => id === 'pi' ? 'harness' : 'local',
+  const env = { html, chatShape, validShape, eventShape, t: french, getLang: () => 'fr', executionKey, runtimeKind: id => id === 'pi' ? 'harness' : 'local',
     app: { get: () => appState }, chat: { get: () => state }, Icon: 'Icon', cls: (...v) => v.filter(Boolean).join(' '),
     baseName: p => String(p || '').split('/').pop(), useStore: (store, select) => select(store.get()), useState: v => [hook++ === 0 ? {} : hook === 2 ? 'local' : v, () => {}], useMemo: f => f(), useRef: () => ({ current: null }), Popover: 'Popover', Seg: 'Seg', fmtBytes: () => '1 GB' };
   const source = fs.readFileSync(new URL('../next/js/features/chat/picker.js', import.meta.url), 'utf8');
@@ -109,4 +110,15 @@ test('picker keeps an execution label next to the same model on local and harnes
   tree = render();
   assert.equal(label(tree), 'Local');
   assert.equal(flatten(tree).find(n => n.type?.name === 'Row' && n.props.title === 'Gemma preset').props.active, true);
+});
+
+test('closed Picker does not traverse large model or workspace catalogs', () => {
+  const untouched = new Proxy([], { get(target, key) { if (key === 'filter' || key === Symbol.iterator) throw new Error('catalog traversed while closed'); return Reflect.get(target, key); } });
+  const state = { status: null, workspace: { models: untouched }, models: untouched, presets: untouched, unavailable: {} };
+  const env = { html: () => null, t: french, getLang: () => 'fr', executionKey, runtimeKind: () => 'local',
+    app: { get: () => state }, chat: { get: () => ({ mode: 'native' }) }, Icon: 'Icon', cls: () => '', baseName: String,
+    useStore: (store, select) => select(store.get()), useState: value => [value, () => {}], useMemo: f => f(), useRef: () => ({}) };
+  const source = fs.readFileSync(process.env.LOOM_PICKER_BASELINE || new URL('../next/js/features/chat/picker.js', import.meta.url), 'utf8');
+  vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.picker = Picker;', env);
+  assert.doesNotThrow(() => env.picker());
 });

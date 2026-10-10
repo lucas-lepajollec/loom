@@ -40,7 +40,7 @@ export function DoctorSettings() {
   const [report, setReport] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const run = async () => {
     setBusy(true); setError('');
-    const r = await post('/api/doctor/run', {}, { timeout: 60000 }).catch(e => ({ ok: false, error: e.message }));
+    const r = await post('/api/doctor/run', {}, { timeout: 60000, retryAuth: false }).catch(e => ({ ok: false, error: e.message }));
     setBusy(false);
     if (r.ok === false) return setError(r.error || t('doctor.failed'));
     setReport(r);

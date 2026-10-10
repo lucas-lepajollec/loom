@@ -156,6 +156,11 @@ with function-call support can use the opt-in search tool. See [web search](docs
 
 The UI also provides a **PWA** shell where the browser supports installation. HTTPS is required outside loopback. Offline mode shows a public fallback; it does not provide offline inference or queue messages.
 
+API failures retain the last valid shared UI data and mark unavailable catalogs.
+Mobile resume refreshes observations and reconnects discussion, task, terminal
+and voice streams. See [UI data boundaries and recovery](docs/ui-data-boundaries.md)
+for the contracts, regression checks and browser validation limits.
+
 The unreleased Tasks/Notifications backend keeps harness work and pending approvals running with every browser closed. Opt-in ntfy actions can answer an offered choice from a phone; webhooks and secure-context Web Push observe task events. All channels default off. See [notifications](docs/notifications.md) for setup and the Tasks/Settings UI API contracts.
 
 The phase 4b backend adds [central capability policy](docs/policy.md), canonical confirmations and a bounded audit, plus [Loom Doctor](docs/doctor.md), degraded feature fields and opt-in redacted support bundles. These documents include the exact API contracts for the separate Settings and Doctor UI work.

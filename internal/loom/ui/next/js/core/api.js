@@ -3,6 +3,7 @@ import { t } from './i18n.js';
 // in memory only until the operator sets the first password.
 import { ask } from '../ui/dialog.js';
 import { clearObservations } from './observations.js';
+import { validData } from './shape.js';
 
 let token = '';
 try { token = localStorage.getItem('loom.key') || ''; localStorage.removeItem('loom.key'); } catch (_) {}
@@ -105,6 +106,8 @@ async function jsonRequest(url, opts) {
   try {
     const r = await request(url, { ...opts, signal: controller.signal });
     const data = await withAbort(() => r.json(), controller.signal);
+    if (opts.method !== 'POST' && (!r.ok || data?.ok === false)) throw new Error(data?.error || 'HTTP ' + r.status);
+    if (data?.ok !== false && !validData(data, url)) throw new Error('Invalid API data: ' + url.split('?')[0]);
     if (opts.method === 'POST') {
       if (data && data.ok === undefined) data.ok = r.ok;
       if (!r.ok && data) { data.ok = false; if (!data.error) data.error = 'HTTP ' + r.status; }
@@ -119,7 +122,7 @@ async function jsonRequest(url, opts) {
     clearTimeout(timer); opts.signal?.removeEventListener('abort', abort);
   }
 }
-export const get = (url, opts = {}) => jsonRequest(url, opts);
+export const get = (url, opts = {}) => jsonRequest(url, { retryAuth: false, ...opts });
 // A change to agents, machines, the engine or providers announces itself so
 // open pages reload what they show instead of waiting for a page refresh.
 const MUTATIONS = /^\/api\/(agents|harness|runtimes|machines|engine|providers|network|server|voice|chat\/settings)\b/;
@@ -154,7 +157,7 @@ export async function stream(url, body, onEvent, signal) {
   const arm = () => { clearTimeout(timer); timer = setTimeout(abort, 25000); };
   arm();
   try {
-    const r = await request(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
+    const r = await request(url, { method: 'POST', retryAuth: false, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
     if (!r.ok || !r.headers.get('Content-Type')?.includes('text/event-stream')) throw new Error('HTTP ' + r.status);
     reader = r.body.getReader();
     const dec = new TextDecoder();
@@ -173,7 +176,8 @@ export async function stream(url, body, onEvent, signal) {
           if (!data || data === '[DONE]') continue;
           let event;
           try { event = JSON.parse(data); } catch (_) { continue; }
-          onEvent(event.choices?.[0]?.delta || {});
+          const delta = event.choices?.[0]?.delta;
+          if (delta && validData(delta, '/api/discussion/events')) onEvent(delta);
         }
       }
       if (buf.length > 8 * 1024 * 1024) throw new Error('SSE frame exceeds limit');

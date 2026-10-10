@@ -34,7 +34,7 @@ export function MachineDialog({ machine, onClose }) {
   const [check, setCheck] = useState(null);
   const [chosen, setChosen] = useState(machine ? (machine.harnesses || []).map(id => id.slice(('custom-' + machine.id + '-').length)) : []);
   const [busy, setBusy] = useState('');
-  useEffect(() => { get('/api/machines').then(r => r.ok && setSetup(r.setup)); }, []);
+  useEffect(() => { get('/api/machines').then(r => r.ok && setSetup(r.setup)).catch(() => {}); }, []);
   const set = patch => { setV({ ...v, ...patch }); setCheck(null); };
   const onPaste = text => {
     setPaste(text);

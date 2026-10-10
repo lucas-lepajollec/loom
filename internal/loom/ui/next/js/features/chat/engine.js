@@ -1,5 +1,6 @@
 import { t } from '../../core/i18n.js';
 import { localChoice } from './execution.js';
+import { chatShape, validShape, eventShape } from '../../core/shape.js';
 // Un flux de discussion et un seul traitement des événements.
 import { createStore } from '../../core/lib.js';
 import { get, post, stream } from '../../core/api.js';
@@ -11,7 +12,7 @@ export const chat = createStore({
   mode: 'native', sessionId: '', session: null, context: null,
   items: [], frozen: null, busy: false, replaying: true, loading: true,
   ctxUsed: 0, compactCount: 0, gen: null, runningTask: '', notice: '',
-});
+}, chatShape);
 
 let lastSeq = 0, abort = null, epoch = 0, opening = false, turn;
 const newTurn = () => ({ reason: null, content: null, tool: null, tools: new Map(), plan: null, foot: null, tok: null, stats: null });
@@ -39,6 +40,7 @@ function liveFoot(rt) {
   bumpGen();
 }
 function onEvent(d) {
+  if (!validShape(d, eventShape)) return;
   if (typeof d.seq === 'number' && d.seq > lastSeq) lastSeq = d.seq;
   if (d.reset !== undefined) {
     lastSeq = 0; turn = newTurn();

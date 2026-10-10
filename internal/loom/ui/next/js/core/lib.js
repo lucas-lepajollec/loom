@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, use
 import htm from 'htm';
 import { language, t } from './i18n.js';
 import { selectedEqual } from './equal.js';
+import { shapePatch } from './shape.js';
 
 export function useLang() {
   const [, update] = useReducer(n => n + 1, 0);
@@ -37,8 +38,9 @@ export { render, Fragment, createContext, useState, useEffect, useLayoutEffect, 
 // Store minimal : un objet d'état, des abonnés, des mises à jour groupées par
 // frame. Les composants s'abonnent via useStore(sélecteur) et ne se redessinent
 // que si la valeur sélectionnée change.
-export function createStore(initial) {
+export function createStore(initial, schema = initial) {
   let state = initial;
+  schema = { ...initial, ...schema };
   const subs = new Set();
   let queued = false, frame, timer;
   const flush = () => {
@@ -49,7 +51,7 @@ export function createStore(initial) {
   return {
     get: () => state,
     set(patch) {
-      state = { ...state, ...(typeof patch === 'function' ? patch(state) : patch) };
+      state = { ...state, ...shapePatch(state, typeof patch === 'function' ? patch(state) : patch, schema) };
       if (!queued) {
         queued = true; frame = requestAnimationFrame(flush);
         // A suspended/throttled animation frame must not hold all UI updates.

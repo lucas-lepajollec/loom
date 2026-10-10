@@ -44,3 +44,14 @@ test('Usage transient errors retain periodic retries without overlapping request
   await timer(); assert.equal(reads, 2);
   stop();
 });
+
+test('resume while an aborted observation settles starts a fresh read immediately', async () => {
+  const listeners = new Map(); let reads = 0, finish;
+  const surface = { document: { hidden: false, addEventListener: (n, f) => listeners.set(n, f), removeEventListener() {} },
+    addEventListener: (n, f) => listeners.set(n, f), removeEventListener() {}, setTimeout: () => 1, clearTimeout() {} };
+  const stop = env.refresh(() => { reads++; return new Promise(r => { finish = r; }); }, 30000, surface);
+  surface.document.hidden = true; listeners.get('visibilitychange')();
+  surface.document.hidden = false; listeners.get('pageshow')();
+  finish(); await settle(); assert.equal(reads, 2);
+  stop(); finish(); await settle();
+});

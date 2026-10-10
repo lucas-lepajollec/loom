@@ -1,3 +1,4 @@
+import { validShape, validData } from '../next/js/core/shape.js';
 import { singleFlight } from '../next/js/core/poll.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -97,12 +98,12 @@ test('a login response arriving after modal unmount is cancelled rather than orp
 test('control-plane identity is polled independently from a linked engine status', async () => {
   const stateSource = fs.readFileSync(new URL('../next/js/core/state.js', import.meta.url), 'utf8');
   let state;
-  const env = { singleFlight, t: x => x, createStore: value => ({ get: () => state, set: patch => Object.assign(state, patch) }),
+  const env = { validShape, validData, singleFlight, t: x => x, createStore: value => ({ get: () => state, set: patch => Object.assign(state, patch) }),
     localStorage: { getItem: () => null }, location: { hash: '#/harnesses' }, innerWidth: 1200, addEventListener() {},
-    get: async url => url === '/api/status' ? { version: '0.1.4', hostname: 'engine-fixture' } : { version: '0.2.1', hostname: 'control-fixture' },
+    get: async url => url === '/api/status' ? { active: false, version: '0.1.4', hostname: 'engine-fixture' } : { version: '0.2.1', hostname: 'control-fixture' },
   };
   vm.runInNewContext(stateSource.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.refresh = refreshStatus;', env);
-  state = {};
+  state = { unavailable: {} };
   await env.refresh();
   assert.equal(state.status.version, '0.1.4');
   assert.equal(state.serverInfo.version, '0.2.1');

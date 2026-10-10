@@ -7,6 +7,7 @@ import { Icon } from '../../ui/icons.js';
 import { Popover, Tip } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
 import { request, get } from '../../core/api.js';
+import { validData } from '../../core/shape.js';
 
 import { runtimeCaps, runtimeKind, app } from '../../core/state.js';
 import { chat, send, stop, compact, compactSession, continueSession } from './engine.js';
@@ -18,6 +19,7 @@ import { attachPaste, pastedMessage, downloadPaste, MAX_MESSAGE_BYTES } from './
 // Sonde du harness par runtime (commandes « / », réglages, modes) : évite de
 // relancer l'agent avant la première réponse.
 const probes = {};
+const pendingProbes = new Set();
 
 const toolOn = n => { try { return localStorage.getItem('loom.chat.' + n) === '1'; } catch (_) { return false; } };
 const setToolOn = (n, v) => { try { localStorage.setItem('loom.chat.' + n, v ? '1' : '0'); } catch (_) {} };
@@ -34,6 +36,7 @@ async function upload(file) {
       body: JSON.stringify({ name: file.name, data: await b64(file.slice(off, end)), id, more: !last, size: id ? 0 : file.size }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) throw new Error(j.error || t("chat.composer.depot_impossible"));
+    if (!validData(j, '/api/chat/upload') || (!last && typeof j.id !== 'string') || (last && typeof j.path !== 'string')) throw new Error(t('chat.composer.depot_impossible'));
     if (j.id) id = j.id;
     if (last) path = j.path;
     off = end;
@@ -109,10 +112,10 @@ export function Composer() {
   // Liste lue par la sonde du harness ; relue tant qu'elle est vide (la sonde
   // tourne en arrière-plan au démarrage de Loom).
   const loadCommands = () => {
-    if (!rtId || probes[rtId] === 'loading' || (probes[rtId] && (probes[rtId].commands || []).length)) return;
-    probes[rtId] = 'loading';
+    if (!rtId || pendingProbes.has(rtId) || (probes[rtId] && (probes[rtId].commands || []).length)) return;
+    pendingProbes.add(rtId);
     get('/api/runtimes/' + rtId + '/probe').then(r => { probes[rtId] = (r && r.probe) || {}; bump(x => x + 1); })
-      .catch(() => { probes[rtId] = {}; });
+      .catch(() => {}).finally(() => pendingProbes.delete(rtId));
   };
   useEffect(loadCommands, [rtId]);
   useEffect(() => { if (text.startsWith('/')) loadCommands(); }, [text.startsWith('/'), rtId]);

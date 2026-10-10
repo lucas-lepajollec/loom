@@ -7,6 +7,8 @@ import { Icon } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
 import { Empty } from '../../ui/controls.js';
 import { get } from '../../core/api.js';
+import { visibleConnection } from '../../core/poll.js';
+import { validData } from '../../core/shape.js';
 import { go } from '../../core/state.js';
 import { open } from '../chat/engine.js';
 import { SectionTabs } from '../../app/sections.js';
@@ -38,20 +40,14 @@ function TaskRow({ task }) {
 export function TasksPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  useEffect(() => {
-    let es = null, stop = false, retry = null;
-    const connect = () => {
-      if (stop) return;
-      try {
-        es = new EventSource('/api/tasks/stream');
-        es.onmessage = e => { try { const d = JSON.parse(e.data); if (d.ok !== false) { setData(d); setError(''); } } catch (_) {} };
-        es.onerror = () => { es && es.close(); if (!stop) retry = setTimeout(connect, 4000); };
-      } catch (_) { retry = setTimeout(connect, 4000); }
-    };
-    get('/api/tasks').then(d => { if (d.ok === false) setError(d.error || ''); else setData(d); }).catch(e => setError(e.message));
-    connect();
-    return () => { stop = true; clearTimeout(retry); es && es.close(); };
-  }, []);
+  useEffect(() => visibleConnection(({ signal, alive, retry }) => {
+    const accept = d => { if (alive() && validData(d, '/api/tasks')) { setData(d); setError(''); } };
+    get('/api/tasks', { signal }).then(accept).catch(e => { if (alive()) setError(e.message); });
+    const es = new EventSource('/api/tasks/stream');
+    es.onmessage = e => { try { accept(JSON.parse(e.data)); } catch (_) {} };
+    es.onerror = retry;
+    return () => { es.onmessage = null; es.onerror = null; es.close(); };
+  }, 4000), []);
   const tasks = (data && data.tasks) || [];
   const waiting = tasks.filter(x => x.status.startsWith('waiting'));
   const running = tasks.filter(x => x.status === 'running');

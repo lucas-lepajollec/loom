@@ -1,3 +1,4 @@
+import { validData, shapePatch } from '../next/js/core/shape.js';
 import { french } from './i18n-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -259,7 +260,7 @@ test('vault 401 skips API authentication retry; ordinary API requests retain it'
   const source = fs.readFileSync(new URL('../next/js/core/api.js', import.meta.url), 'utf8');
   const calls = [], asks = [];
   const removed = [];
-  const env = { clearObservations() {}, t: french, localStorage: { getItem: () => 'synthetic-access', removeItem: key => removed.push(key) }, AbortController,
+  const env = { validData, clearObservations() {}, t: french, localStorage: { getItem: () => 'synthetic-access', removeItem: key => removed.push(key) }, AbortController,
     setTimeout: () => 1, clearTimeout() {},
     ask: async spec => { asks.push(spec); return 'synthetic-new-access'; },
     fetch: async (url, opts) => {
