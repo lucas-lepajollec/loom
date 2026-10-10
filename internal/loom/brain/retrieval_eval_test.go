@@ -141,3 +141,35 @@ func TestRetrievalEvidenceMetricsAndGate(t *testing.T) {
 		t.Fatal("oversized corpus silently accepted")
 	}
 }
+
+func TestRetrievalGatePackingAndTopK(t *testing.T) {
+	one, zero := 1.0, 0.0
+	for _, metric := range []string{"packed", "span1", "session10", "category-packed"} {
+		t.Run(metric, func(t *testing.T) {
+			row := retrieval.Row{ID: "gate", Type: "test", Route: "retrieval", Budget: 512,
+				Recall:   map[int]retrieval.Coverage{1: {Recall: &one}, 5: {Recall: &one}},
+				Sessions: map[int]retrieval.Coverage{10: {Recall: &one}}, Packed: retrieval.Coverage{Recall: &one}}
+			prior := retrieval.Aggregate{Cases: 1, Recall5: 1, PackedRecall: &one, SpanRecallAt: map[int]float64{1: 1}, SessionRecallAt: map[int]float64{10: 1}}
+			report := retrieval.Report{FixtureHash: "fixture", Rows: []retrieval.Row{row}, Macro: map[string]retrieval.Aggregate{"retrieval/512/test": prior}}
+			baseline := retrieval.Baseline{FixtureHash: "fixture", Tolerance: .01, Rows: map[string]retrieval.Aggregate{retrieval.Key(row): prior}, Macro: map[string]retrieval.Aggregate{"retrieval/512/test": prior}}
+			if err := retrieval.Gate(report, baseline); err != nil {
+				t.Fatal(err)
+			}
+			switch metric {
+			case "packed":
+				report.Rows[0].Packed.Recall = &zero
+			case "span1":
+				report.Rows[0].Recall[1] = retrieval.Coverage{Recall: &zero}
+			case "session10":
+				report.Rows[0].Sessions[10] = retrieval.Coverage{Recall: &zero}
+			case "category-packed":
+				actual := prior
+				actual.PackedRecall = &zero
+				report.Macro["retrieval/512/test"] = actual
+			}
+			if err := retrieval.Gate(report, baseline); err == nil {
+				t.Fatal("quality regression accepted: " + metric)
+			}
+		})
+	}
+}

@@ -4,489 +4,2188 @@
     "cloud/1500/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "cloud/1500/all": {
       "cases": 7,
-      "final_presence": 0.7142857142857143,
-      "recall5": 0.8571428571428571
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
+      "final_presence": 0.8571428571428571,
+      "packed_recall": 0.8571428571428571,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "cloud/1500/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/multi-session": {
       "cases": 1,
-      "final_presence": 0,
-      "recall5": 1
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 0.5,
-      "recall5": 0.5
+      "packed_recall": 0.5,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "cloud/1500/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "cloud/3000/all": {
       "cases": 7,
-      "final_presence": 0.8571428571428571,
-      "recall5": 0.8571428571428571
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "cloud/3000/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/multi-session": {
       "cases": 1,
-      "final_presence": 0,
-      "recall5": 1
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 1,
-      "recall5": 0.5
+      "packed_recall": 1,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "cloud/3000/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "cloud/512/all": {
       "cases": 7,
-      "final_presence": 0.7142857142857143,
-      "recall5": 0.8571428571428571
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
+      "final_presence": 0.8571428571428571,
+      "packed_recall": 0.8571428571428571,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "cloud/512/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/multi-session": {
       "cases": 1,
-      "final_presence": 0,
-      "recall5": 1
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 0.5,
-      "recall5": 0.5
+      "packed_recall": 0.5,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "cloud/512/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "harness/1500/all": {
       "cases": 7,
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
       "final_presence": 0.14285714285714285,
-      "recall5": 0.8571428571428571
+      "packed_recall": 0.8571428571428571,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "harness/1500/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/multi-session": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 0,
-      "recall5": 0.5
+      "packed_recall": 0.5,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "harness/1500/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "harness/3000/all": {
       "cases": 7,
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
       "final_presence": 0.14285714285714285,
-      "recall5": 0.8571428571428571
+      "packed_recall": 1,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "harness/3000/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/multi-session": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 0,
-      "recall5": 0.5
+      "packed_recall": 1,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "harness/3000/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "harness/512/all": {
       "cases": 7,
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
       "final_presence": 0.14285714285714285,
-      "recall5": 0.8571428571428571
+      "packed_recall": 0.8571428571428571,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "harness/512/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/multi-session": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 0,
-      "recall5": 0.5
+      "packed_recall": 0.5,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "harness/512/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "local/1500/all": {
       "cases": 7,
-      "final_presence": 0.7142857142857143,
-      "recall5": 0.8571428571428571
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
+      "final_presence": 0.8571428571428571,
+      "packed_recall": 0.8571428571428571,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "local/1500/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/multi-session": {
       "cases": 1,
-      "final_presence": 0,
-      "recall5": 1
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 0.5,
-      "recall5": 0.5
+      "packed_recall": 0.5,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "local/1500/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "local/3000/all": {
       "cases": 7,
-      "final_presence": 0.8571428571428571,
-      "recall5": 0.8571428571428571
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "local/3000/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/multi-session": {
       "cases": 1,
-      "final_presence": 0,
-      "recall5": 1
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 1,
-      "recall5": 0.5
+      "packed_recall": 1,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "local/3000/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "local/512/all": {
       "cases": 7,
-      "final_presence": 0.7142857142857143,
-      "recall5": 0.8571428571428571
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
+      "final_presence": 0.8571428571428571,
+      "packed_recall": 0.8571428571428571,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "local/512/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/multi-session": {
       "cases": 1,
-      "final_presence": 0,
-      "recall5": 1
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": 0.5,
-      "recall5": 0.5
+      "packed_recall": 0.5,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "local/512/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "retrieval/1500/all": {
       "cases": 7,
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
       "final_presence": null,
-      "recall5": 0.8571428571428571
+      "packed_recall": 0.8571428571428571,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "retrieval/1500/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/multi-session": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": null,
-      "recall5": 0.5
+      "packed_recall": 0.5,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "retrieval/1500/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "retrieval/3000/all": {
       "cases": 7,
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
       "final_presence": null,
-      "recall5": 0.8571428571428571
+      "packed_recall": 1,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "retrieval/3000/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/multi-session": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": null,
-      "recall5": 0.5
+      "packed_recall": 1,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "retrieval/3000/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/abstention": {
       "cases": 0,
       "final_presence": null,
-      "recall5": null
+      "recall5": null,
+      "runs": 1
     },
     "retrieval/512/all": {
       "cases": 7,
+      "complete_evidence_at": {
+        "1": 0.7142857142857143,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      },
       "final_presence": null,
-      "recall5": 0.8571428571428571
+      "packed_recall": 0.8571428571428571,
+      "recall5": 0.8571428571428571,
+      "runs": 8,
+      "session_recall_at": {
+        "1": 0.9285714285714286,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.7857142857142857,
+        "10": 1,
+        "20": 1,
+        "5": 0.8571428571428571
+      }
     },
     "retrieval/512/knowledge-update": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/multi-session": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/single-session-assistant": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/single-session-preference": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/single-session-user": {
       "cases": 2,
+      "complete_evidence_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      },
       "final_presence": null,
-      "recall5": 0.5
+      "packed_recall": 0.5,
+      "recall5": 0.5,
+      "runs": 2,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 0.5
+      }
     },
     "retrieval/512/temporal-reasoning": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
-      "recall5": 1
+      "packed_recall": 1,
+      "recall5": 1,
+      "runs": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     }
   },
-  "review": "Initial synthetic observations; no natural quality or timing target. Known packing/frozen-context losses retained.",
+  "review": "Mission I: shared BM25 rankings unchanged; distinct packing citations retained; duplicate-text packed/final evidence gains explicitly reviewed. Synthetic-only, no paid/model calls. All top-k and packed quality now gated; natural observations remain local.",
   "rows": {
     "cloud/1500/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -576,11 +2275,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 0,
+      "packed_recall": 0,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -670,11 +2388,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "cloud/1500/duplicate-text": {
       "cases": 1,
-      "final_presence": 0,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -684,15 +2421,15 @@
           "total": 0
         },
         "final": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -764,11 +2501,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -858,11 +2614,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -952,7 +2727,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/missing-evidence": {
       "cases": 0,
@@ -1050,7 +2837,14 @@
     },
     "cloud/1500/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -1140,11 +2934,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/1500/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -1234,11 +3047,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -1328,11 +3160,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -1422,11 +3273,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "cloud/3000/duplicate-text": {
       "cases": 1,
-      "final_presence": 0,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -1436,15 +3306,15 @@
           "total": 0
         },
         "final": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -1516,11 +3386,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -1610,11 +3499,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -1704,7 +3612,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/missing-evidence": {
       "cases": 0,
@@ -1802,7 +3722,14 @@
     },
     "cloud/3000/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -1892,11 +3819,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/3000/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -1986,11 +3932,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -2080,11 +4045,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 0,
+      "packed_recall": 0,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -2174,11 +4158,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "cloud/512/duplicate-text": {
       "cases": 1,
-      "final_presence": 0,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -2188,15 +4191,15 @@
           "total": 0
         },
         "final": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -2268,11 +4271,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -2362,11 +4384,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -2456,7 +4497,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/missing-evidence": {
       "cases": 0,
@@ -2554,7 +4607,14 @@
     },
     "cloud/512/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -2644,11 +4704,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "cloud/512/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -2738,11 +4817,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -2832,11 +4930,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 0,
+      "packed_recall": 0,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -2926,11 +5043,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "harness/1500/duplicate-text": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -2946,9 +5082,9 @@
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -3020,11 +5156,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -3114,11 +5269,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -3208,7 +5382,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/missing-evidence": {
       "cases": 0,
@@ -3306,7 +5492,14 @@
     },
     "harness/1500/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -3396,11 +5589,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/1500/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -3490,11 +5702,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -3584,11 +5815,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -3678,11 +5928,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "harness/3000/duplicate-text": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -3698,9 +5967,9 @@
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -3772,11 +6041,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -3866,11 +6154,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -3960,7 +6267,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/missing-evidence": {
       "cases": 0,
@@ -4058,7 +6377,14 @@
     },
     "harness/3000/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -4148,11 +6474,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/3000/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -4242,11 +6587,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -4336,11 +6700,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 0,
+      "packed_recall": 0,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -4430,11 +6813,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "harness/512/duplicate-text": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -4450,9 +6852,9 @@
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -4524,11 +6926,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -4618,11 +7039,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -4712,7 +7152,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/missing-evidence": {
       "cases": 0,
@@ -4810,7 +7262,14 @@
     },
     "harness/512/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -4900,11 +7359,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "harness/512/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 0,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -4994,11 +7472,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -5088,11 +7585,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 0,
+      "packed_recall": 0,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -5182,11 +7698,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "local/1500/duplicate-text": {
       "cases": 1,
-      "final_presence": 0,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -5196,15 +7731,15 @@
           "total": 0
         },
         "final": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -5276,11 +7811,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -5370,11 +7924,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -5464,7 +8037,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/missing-evidence": {
       "cases": 0,
@@ -5562,7 +8147,14 @@
     },
     "local/1500/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -5652,11 +8244,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/1500/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -5746,11 +8357,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -5840,11 +8470,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -5934,11 +8583,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "local/3000/duplicate-text": {
       "cases": 1,
-      "final_presence": 0,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -5948,15 +8616,15 @@
           "total": 0
         },
         "final": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -6028,11 +8696,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -6122,11 +8809,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -6216,7 +8922,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/missing-evidence": {
       "cases": 0,
@@ -6314,7 +9032,14 @@
     },
     "local/3000/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -6404,11 +9129,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/3000/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -6498,11 +9242,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -6592,11 +9355,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": 0,
+      "packed_recall": 0,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -6686,11 +9468,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "local/512/duplicate-text": {
       "cases": 1,
-      "final_presence": 0,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -6700,15 +9501,15 @@
           "total": 0
         },
         "final": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -6780,11 +9581,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -6874,11 +9694,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -6968,7 +9807,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/missing-evidence": {
       "cases": 0,
@@ -7066,7 +9917,14 @@
     },
     "local/512/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -7156,11 +10014,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "local/512/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": 1,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -7250,11 +10127,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -7338,11 +10234,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": null,
+      "packed_recall": 0,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -7426,11 +10341,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "retrieval/1500/duplicate-text": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -7440,9 +10374,9 @@
           "total": 0
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -7514,11 +10448,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -7602,11 +10555,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -7690,7 +10662,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/missing-evidence": {
       "cases": 0,
@@ -7782,7 +10766,14 @@
     },
     "retrieval/1500/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -7866,11 +10857,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/1500/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -7954,11 +10964,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -8042,11 +11071,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -8130,11 +11178,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "retrieval/3000/duplicate-text": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -8144,9 +11211,9 @@
           "total": 0
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -8218,11 +11285,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -8306,11 +11392,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -8394,7 +11499,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/missing-evidence": {
       "cases": 0,
@@ -8486,7 +11603,14 @@
     },
     "retrieval/3000/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -8570,11 +11694,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/3000/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -8658,11 +11801,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/as-of-history": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -8746,11 +11908,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/budget-drop": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
       "final_presence": null,
+      "packed_recall": 0,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -8834,11 +12015,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 0
+      "recall5": 0,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      }
     },
     "retrieval/512/duplicate-text": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -8848,9 +12048,9 @@
           "total": 0
         },
         "packed": {
-          "complete": false,
-          "covered": 1,
-          "recall": 0.5,
+          "complete": true,
+          "covered": 2,
+          "recall": 1,
           "total": 2
         },
         "scope_leaks": 0,
@@ -8922,11 +12122,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 0.5,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/file-replacement": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 1,
         "current_support": {
@@ -9010,11 +12229,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/frozen-context-refresh": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -9098,7 +12336,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/missing-evidence": {
       "cases": 0,
@@ -9190,7 +12440,14 @@
     },
     "retrieval/512/source-scope": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -9274,11 +12531,30 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     },
     "retrieval/512/vector-invalidation": {
       "cases": 1,
+      "complete_evidence_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
       "final_presence": null,
+      "packed_recall": 1,
       "prediction": {
         "current_rank": 0,
         "current_support": {
@@ -9362,7 +12638,19 @@
         "unsupported_packed": 0,
         "unsupported_retrieved": 0
       },
-      "recall5": 1
+      "recall5": 1,
+      "session_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "span_recall_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      }
     }
   },
   "tolerance": 0.01

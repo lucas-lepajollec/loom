@@ -112,6 +112,8 @@ the snapshot for the next turn. See the [frozen snapshot contract](docs/brain.md
 Developers can run the [free offline retrieval benchmark](docs/brain-retrieval-benchmark.md)
 with `sh tools/brain-retrieval/run.sh`: evidence recall, final prepared-context
 presence and a fixed CI regression baseline, with zero model calls.
+The [measured refinements](docs/brain-retrieval-results.md) retain distinct
+packing citations and record both synthetic and fixed natural-subset results.
 
 Memory lives as native Markdown in the primary second brain: global `Memory/`,
 project `Projects/<slug>/memory/`, each with a bounded `MEMORY.md` index. Loom

@@ -386,6 +386,12 @@ filename/heading boost, case/accent folding (French and English), no stemming,
 and a boost for quoted exact phrases. There is no graph or file watching.
 Project source selection enables discussion context retrieval; without it,
 Brain does not add text to prompts.
+Packing removes repeated text only within the same source, path and heading
+ancestry. Matching text from distinct citations retains each supporting unit,
+subject to the same token budget and source authorization. Both passage and
+topic-memory ranking share the pure BM25 scorer (`k1=1.2`, `b=0.75`), while
+keeping their separate corpora and memory policies. See the
+[measured retrieval refinements](brain-retrieval-results.md).
 Semantic indexing and distillation are opt-in additions to this same engine. The implementation
 is Go-only and supports Linux, macOS and Windows without CGO.
 
