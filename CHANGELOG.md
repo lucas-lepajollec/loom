@@ -4,6 +4,12 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Add a free offline Brain retrieval benchmark using the real context assembler
+  and fake adapter capture, JSON evidence/token/latency reports, synthetic CI
+  baseline gates, and explicit pinned LongMemEval cache fetch/import tools.
+  Brain runtime behavior is unchanged; natural subset selection awaits download
+  and review. See `docs/brain-retrieval-benchmark.md`.
+
 - Engine updates repair missing/CPU-only llama.cpp binaries and mismatched CMake
   caches even at the current commit, locally and through linked Loom nodes.
   Source installs/custom builds verify acceleration; official same-version
