@@ -41,11 +41,24 @@ func usageHarnessID(a acpAgent) string {
 	return a.ID
 }
 func harnessHasQuota(a acpAgent) bool {
-	switch usageHarnessID(a) {
-	case "hermes", "claude-code":
-		return true
+	harness := usageHarnessID(a)
+	if harness != "hermes" && harness != "claude-code" {
+		return false
 	}
-	return false
+	if a.Remote {
+		m, err := workspaceMachine(a.Machine)
+		if err != nil {
+			return false
+		}
+		transport, err := machineOperationTransport(m, "harness", true)
+		if err != nil {
+			return false
+		}
+		if transport == "node" && harness == "claude-code" {
+			return false
+		}
+	}
+	return true
 }
 func readHarnessQuota(ctx context.Context, a acpAgent) (QuotaSnapshot, error) {
 	now := time.Now()
@@ -69,7 +82,8 @@ func readHarnessQuota(ctx context.Context, a acpAgent) (QuotaSnapshot, error) {
 		q.Windows, q.Note = parseClaudeUsage(result.Result, now)
 	case "hermes":
 		q.Source = "hermes usage · native account"
-		out, err := harnessUsageCommand(ctx, a, []string{"hermes", "usage"})
+		argv, _ := nativeReadArgv("hermes", "quota", 0)
+		out, err := harnessUsageCommand(ctx, a, argv)
 		if err != nil {
 			return q, err
 		}

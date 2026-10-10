@@ -63,7 +63,7 @@ function Services({ machines }) {
         <tbody>${list.map(s => html`<tr key=${s.id}>
           <td data-label=${t("environment.page.service")}><b>${s.name}</b><div class="mono muted">${s.url}</div></td>
           <td class="muted" data-label=${t("environment.page.sur")}>${where(s.machine)}</td>
-          ${matrix && froms.map(f => { const c = cell(s, f.id); return html`<td class="c" data-label=${t("environment.page.depuis") + " " + f.name} title=${c && (c.error || (c.status ? 'HTTP ' + c.status : ''))}>${!c ? '—' : c.ok ? html`<span class="state"><i class="dot green"></i>${c.latency_ms} ${t("environment.page.ms")}</span>` : html`<span class="state err"><i class="dot red"></i>${c.status ? c.status : t('common.no_lower')}</span>`}</td>`; })}
+          ${matrix && froms.map(f => { const c = cell(s, f.id); return html`<td class="c" data-label=${t("environment.page.depuis") + " " + f.name} title=${c && (c.error || (c.status ? 'HTTP ' + c.status : ''))}>${!c ? '—' : c.unsupported ? html`<span class="muted">${t('machines.operation.unsupported')}</span>` : c.ok ? html`<span class="state"><i class="dot green"></i>${c.latency_ms} ${t("environment.page.ms")}</span>` : html`<span class="state err"><i class="dot red"></i>${c.status ? c.status : t('common.no_lower')}</span>`}</td>`; })}
           <td class="actions"><button class="btn sm ghost" onClick=${() => setDlg({ service: s })}>${t("environment.page.modifier")}</button><button class="icon-btn" aria-label=${t("environment.page.retirer") + s.name} onClick=${() => del(s)}><${Icon} n="close" /></button></td>
         </tr>`)}</tbody></table></div>`}
     ${dlg && html`<${ServiceDialog} service=${dlg.service} machines=${machines} onClose=${ok => { setDlg(null); if (ok) { load(); setMatrix(null); } }} />`}
@@ -72,15 +72,20 @@ function Services({ machines }) {
 
 function DockerMachine({ machine }) {
   const [x, setX] = useState(null);
-  const load = () => get('/api/env/docker?machine=' + encodeURIComponent(machine.id)).then(setX).catch(() => setX({ error: t("environment.page.lecture_impossible") }));
+  const load = () => {
+    const support = machine.operations?.['environment.docker'];
+    if (support?.supported === false) { setX({ ok: false, unsupported: true, error: support.error }); return; }
+    return get('/api/env/docker?machine=' + encodeURIComponent(machine.id)).then(setX).catch(e => setX({ ok: false, error: e.message || t("environment.page.lecture_impossible") }));
+  };
   useEffect(() => { load(); }, [machine.id]);
   const toggle = async on => { const r = await post('/api/env/docker', { machine: machine.id, enabled: on }); if (r.ok === false) return toast(r.error, 'err'); load(); };
   return html`<section class="sec"><div class="sec-h"><h2>${machine.name}</h2>
-      <span class="row-inline">${x && x.enabled && html`<button class="btn sm ghost" onClick=${load}><${Icon} n="refresh" />${t("environment.page.relire")}</button>`}
-      ${x && html`<${Switch} checked=${!!x.enabled} label=${t("environment.page.docker_sur") + machine.name} onChange=${toggle} />`}</span></div>
+      <span class="row-inline">${x && !x.unsupported && (x.enabled || x.error) && html`<button class="btn sm ghost" onClick=${load}><${Icon} n="refresh" />${t("environment.page.relire")}</button>`}
+      ${x && typeof x.enabled === 'boolean' && !x.unsupported && html`<${Switch} checked=${!!x.enabled} label=${t("environment.page.docker_sur") + machine.name} onChange=${toggle} />`}</span></div>
     ${!x ? html`<div class="skeleton" style="height:60px"></div>`
+      : x.unsupported ? html`<span class="muted">${t('machines.operation.unsupported')}<${Tip} text=${x.error} /></span>`
+      : x.error || x.ok === false ? html`<p class="note err">${x.error || t('environment.page.lecture_impossible')}</p>`
       : !x.enabled ? html`<p class="note">${t("environment.page.lecture_des_conteneurs_desactivee_pour_cette_machine")}</p>`
-      : x.error ? html`<p class="note err">${x.error}</p>`
       : !(x.containers || []).length ? html`<p class="note">${t("environment.page.aucun_conteneur")}</p>`
       : html`<div class="card env-table"><table><thead><tr><th>${t("environment.page.conteneur")}</th><th>${t("environment.page.image")}</th><th>${t("environment.page.etat")}</th><th>${t("environment.page.ports")}</th></tr></thead>
         <tbody>${x.containers.map(c => html`<tr key=${c.name}><td data-label=${t("environment.page.conteneur")}><b>${c.name}</b></td><td class="mono muted" data-label=${t("environment.page.image")}>${c.image}</td>
@@ -91,7 +96,7 @@ function DockerMachine({ machine }) {
 
 function Docker({ machines }) {
   if (!machines) return html`<div class="skeleton" style="height:160px;margin-top:14px"></div>`;
-  return html`<div><p class="muted" style="font-size:13.5px;margin:4px 0 0">${t("environment.page.les_conteneurs_docker_de_chaque_machine_lus_avec")} <code>${t("environment.page.docker_ps")}</code> ${t("environment.page.sur_les_machines_connectees_en_ssh_active_la_lecture_machine_par")}</p>
+  return html`<div><${Tip} text=${t("environment.page.docker_transport_tip")} />
     ${[{ id: 'local', name: t("environment.page.cette_machine") }, ...machines].map(m => html`<${DockerMachine} key=${m.id} machine=${m} />`)}</div>`;
 }
 

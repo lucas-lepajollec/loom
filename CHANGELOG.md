@@ -4,6 +4,16 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Machines expose per-operation SSH/Node eligibility. Node `observe` supports
+  read-only Environment Docker and HTTP/TCP checks; Node `harness` supports
+  Hermes/OpenCode statistics and Hermes quota reads through existing recipes
+  and parsers. Unsupported/missing-module/old-node states stay explicit,
+  Docker errors remain visible, and failed native readings show unknown metrics.
+  Node Claude quotas are not advertised; Node history selection no longer
+  requires SSH key generation. Hybrid lifecycle operations use saved SSH when
+  the Node harness module is absent; SSH support is retained.
+  See the [operation matrix](docs/audits/2026-10-reuse-audit.md#63-mission-h-operation-parity-unreleased).
+
 - Native Codex/Pi, OpenCode and Antigravity share one answer accumulator with
   protocol-specific replacement semantics and stable unfinished-item closing;
   all 43 native fixtures retain byte-identical canonical output. Builtin ACP,

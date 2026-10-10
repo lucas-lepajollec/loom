@@ -76,3 +76,16 @@ harnesses and remote JSONL sources remain explicitly unavailable.
 Parsers have synthetic fixtures in `internal/loom/testdata/harness_usage`.
 OpenCode's native model-block format was checked against its
 [upstream stats command](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/cli/cmd/stats.ts).
+
+
+## Machine transport parity (Mission H, unreleased)
+
+Hermes insights/account quotas and OpenCode statistics also use the authenticated
+Loom Node bridge when the saved machine advertises `harness`. SSH machines keep
+the existing Unix/Windows command transport; both use one fixed read recipe.
+Node accepts only these read-only commands, never arbitrary argv or Claude's
+`-p /usage` launcher. Remote native JSONL logs remain unsupported. Native usage
+rows add `transport` and `unsupported` where applicable; errors/unsupported
+readings display unknown tokens/cost instead of zero. Node Claude accounts no
+longer advertise quota reads. See [Node endpoints](engine-node.md#read-only-machine-operations-mission-h-unreleased)
+and the [operation matrix](audits/2026-10-reuse-audit.md#63-mission-h-operation-parity-unreleased).

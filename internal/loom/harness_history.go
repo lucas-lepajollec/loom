@@ -29,9 +29,13 @@ func historySource(id string) (acpAgent, error) {
 				}
 				for _, offer := range remoteOffers(m) {
 					if offer["id"] == parts[2] && offer["ready"] == true && harnessManaged(m.ID, parts[2]) {
-						key, _, err := loomSSHKey()
-						if err != nil {
-							return acpAgent{}, err
+						key := ""
+						if !usesNodeHarness(m) {
+							var err error
+							key, _, err = loomSSHKey()
+							if err != nil {
+								return acpAgent{}, err
+							}
 						}
 						return remoteAgent(m, parts[2], key)
 					}

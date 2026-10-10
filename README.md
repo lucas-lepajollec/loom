@@ -140,7 +140,7 @@ Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, loc
 
 <img src="docs/screenshots/terminals.png" alt="Local and SSH terminal sessions in Loom" width="1000" />
 
-**Environment** tracks declared services, checks reachability from Loom and connected machines, observes Docker containers per machine with opt-in, and reads Proxmox resources with a token in the OS keychain. Self-signed certificates require explicitly confirmed pinning. See the [Environment API](docs/architecture.md#environment-api-roadmap-step-6).
+**Environment** tracks declared services, checks reachability from Loom and connected machines, observes Docker containers per machine with opt-in through Loom Node or SSH, and reads Proxmox resources with a token in the OS keychain. Self-signed certificates require explicitly confirmed pinning. See the [Environment API](docs/architecture.md#environment-api-roadmap-step-6) and the [SSH/Node operation matrix](docs/audits/2026-10-reuse-audit.md#63-mission-h-operation-parity-unreleased).
 
 ## Usage, benchmarks and API
 

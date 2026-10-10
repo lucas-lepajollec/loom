@@ -31,7 +31,8 @@ func hasNodeModule(modules []string, id string) bool {
 	return false
 }
 func usesNodeHarness(m RemoteMachine) bool {
-	return m.NodeID != "" && (hasNodeModule(m.Modules, "harness") || m.User == "")
+	transport, _ := machineOperationTransport(m, "harness", true)
+	return transport == "node"
 }
 
 func probeNodeHarness(ctx context.Context) (RemoteMachine, error) {
@@ -137,7 +138,7 @@ func nodeHarnessRequest(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	if !nodeHarnessEnabled() {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": nodeHarnessDisabled})
+		sendJSON(w, 409, map[string]any{"ok": false, "unsupported": true, "error": nodeHarnessDisabled})
 		return false
 	}
 	return true
@@ -327,7 +328,7 @@ func handleNodeWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !nodeHarnessEnabled() {
-		sendJSON(w, 409, map[string]any{"ok": false, "error": nodeHarnessDisabled})
+		sendJSON(w, 409, map[string]any{"ok": false, "unsupported": true, "error": nodeHarnessDisabled})
 		return
 	}
 	var req struct {

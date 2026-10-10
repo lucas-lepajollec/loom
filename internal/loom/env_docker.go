@@ -101,9 +101,16 @@ func (e *environment) docker(w http.ResponseWriter, r *http.Request) {
 		if req.Machine == "" {
 			req.Machine = "local"
 		}
-		if _, err := e.machine(req.Machine); err != nil {
+		m, err := e.machine(req.Machine)
+		if err != nil {
 			envFailure(w, 400, err)
 			return
+		}
+		if m != nil && req.Enabled {
+			if _, err := machineOperationTransport(*m, "observe", lifecycleOS(m) != "windows"); err != nil {
+				sendJSON(w, 409, map[string]any{"ok": false, "unsupported": true, "error": err.Error()})
+				return
+			}
 		}
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -133,24 +140,69 @@ func (e *environment) docker(w http.ResponseWriter, r *http.Request) {
 		envFailure(w, 503, errors.New("environment store unavailable"))
 		return
 	}
-	result := map[string]any{"ok": true, "machine": machine, "enabled": cfg.Docker[machine], "containers": []EnvContainer{}, "error": ""}
+	result := map[string]any{"ok": true, "machine": machine, "enabled": cfg.Docker[machine], "containers": []EnvContainer{}, "error": "", "unsupported": false, "transport": "local"}
+	if m != nil {
+		transport, supportErr := machineOperationTransport(*m, "observe", lifecycleOS(m) != "windows")
+		result["transport"] = transport
+		if supportErr != nil {
+			result["ok"], result["unsupported"], result["error"] = false, true, supportErr.Error()
+			sendJSON(w, 200, result)
+			return
+		}
+	}
 	if cfg.Docker[machine] {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
-		var out []byte
-		if m == nil {
-			out, err = e.run(ctx, "docker", []string{"ps", "-a", "--format", "{{json .}}"}, "")
-		} else {
-			out, err = e.remoteCommand(ctx, *m, "exec docker ps -a --format "+shellQuote("{{json .}}")+"\n")
-		}
-		if err == nil {
-			result["containers"], err = parseEnvDocker(out)
-		}
+		result["containers"], err = e.readDocker(ctx, m)
 		if err != nil {
 			result["ok"], result["error"], result["containers"] = false, err.Error(), []EnvContainer{}
+			result["unsupported"] = unsupportedMachineOperation(err)
 		}
 	}
 	// Missing Docker, denied access and offline machines are observations, not
 	// failures of the Environment API or the other machines.
 	sendJSON(w, 200, result)
+}
+
+// Shared Docker recipe and JSON projection; transports only supply command IO.
+func (e *environment) readDocker(ctx context.Context, m *RemoteMachine) ([]EnvContainer, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	argv := []string{"ps", "-a", "--format", "{{json .}}"}
+	var out []byte
+	var err error
+	if m == nil {
+		out, err = e.run(ctx, "docker", argv, "")
+	} else {
+		transport, supportErr := machineOperationTransport(*m, "observe", lifecycleOS(m) != "windows")
+		if supportErr != nil {
+			return nil, supportErr
+		}
+		if transport == "node" {
+			var result struct {
+				OK         bool           `json:"ok"`
+				Containers []EnvContainer `json:"containers"`
+				Error      string         `json:"error"`
+			}
+			err = nodeMachineJSON(ctx, *m, http.MethodGet, "/api/node/env/docker", nil, &result)
+			if err != nil {
+				return nil, err
+			}
+			if !result.OK {
+				if result.Error == "" {
+					return nil, errors.New("node Docker observation unavailable")
+				}
+				return nil, errors.New(result.Error)
+			}
+			if result.Containers == nil || result.Error != "" {
+				return nil, errors.New("invalid node Docker response")
+			}
+			return result.Containers, nil
+		}
+		out, err = e.remoteCommand(ctx, *m, "exec docker "+strings.Join([]string{argv[0], argv[1], argv[2], shellQuote(argv[3])}, " ")+"\n")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return parseEnvDocker(out)
 }

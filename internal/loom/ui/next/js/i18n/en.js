@@ -1,5 +1,7 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "machines.operation.unsupported": "Unsupported",
+  "environment.page.docker_transport_tip": "Read-only Docker observation through Loom Node or SSH. Enable it separately for each machine; the Node observe module must be enabled.",
   "agents.evidence.title": "Capability evidence",
   "agents.evidence.tip": "Discovery and free protocol checks do not prove a successful session. Observed working records normal successful use; degraded health remains separate.",
   "agents.evidence.unknown": "Unknown",

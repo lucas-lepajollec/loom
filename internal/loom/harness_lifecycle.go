@@ -480,7 +480,7 @@ func (s *harnessLifecycleService) setAuto(target, id string, auto bool) error {
 }
 
 func (s *harnessLifecycleService) check(ctx context.Context, target, id string, m *RemoteMachine, spec inspectSpec) (state harnessLifecycleState, checkErr error) {
-	if m != nil && m.NodeID != "" {
+	if m != nil && usesNodeHarness(*m) {
 		return s.nodeAction(ctx, target, id, "check", m)
 	}
 	setting := s.setting(target, id)
@@ -573,7 +573,7 @@ func (s *harnessLifecycleService) mutate(ctx context.Context, target, id, action
 	if err := workspaceSessions.authorizePolicy(ctx, policy.Input{Subject: "node." + policyAction, MachineID: target, AgentID: id, Fallback: policy.Allow}, false); err != nil {
 		return state, err
 	}
-	if m != nil && m.NodeID != "" {
+	if m != nil && usesNodeHarness(*m) {
 		after, err := s.nodeAction(ctx, target, id, action, m)
 		if err == nil {
 			err = s.refresh(ctx, m, id)

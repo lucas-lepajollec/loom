@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"net/http"
@@ -330,10 +331,78 @@ func machineName(id string) string {
 	return ""
 }
 
+// A module selects Node when advertised; only a saved SSH user permits the
+// legacy transport. An offline/degraded Node is never silently retried via SSH.
+func machineOperationTransport(m RemoteMachine, module string, sshSupported bool) (string, error) {
+	if m.NodeID != "" && (hasNodeModule(m.Modules, module) || m.User == "") {
+		if !hasNodeModule(m.Modules, module) {
+			return "node", fmt.Errorf("node %s module is unavailable; enable it and refresh the machine link", module)
+		}
+		if capabilityDisabled("machine:"+m.ID, module) {
+			return "node", errors.New("machine capability degraded; run Doctor")
+		}
+		return "node", nil
+	}
+	if m.User != "" {
+		if sshSupported {
+			return "ssh", nil
+		}
+		return "ssh", errors.New("operation unsupported over SSH")
+	}
+	return "", errors.New("operation unsupported on this machine transport")
+}
+
+func unsupportedMachineOperation(err error) bool {
+	var action runtimeActionError
+	return errors.As(err, &action) && (action.status == 409 || action.status == 501)
+}
+
+type machineOperationSupport struct {
+	Supported   bool   `json:"supported"`
+	Unsupported bool   `json:"unsupported"`
+	Transport   string `json:"transport"`
+	Error       string `json:"error,omitempty"`
+}
+
+// Implementation eligibility, not a reachability/credential/installation probe.
+// Family-specific usage entries deliberately do not imply arbitrary log access.
+func machineOperations(m RemoteMachine) map[string]machineOperationSupport {
+	specs := map[string]struct {
+		module string
+		ssh    bool
+	}{
+		"agents.list": {"harness", true}, "agents.install": {"harness", true}, "agents.update": {"harness", true},
+		"agents.execute": {"harness", true}, "folders.browse": {"harness", false}, "workspaces.prepare": {"harness", true},
+		"terminals": {"terminal", true}, "metrics": {"observe", strings.EqualFold(m.OS, "linux")},
+		"environment.check": {"observe", lifecycleOS(&m) != "windows"}, "environment.docker": {"observe", lifecycleOS(&m) != "windows"},
+		"engine": {"engine", false}, "voice": {"voice", false},
+		"usage.hermes": {"harness", true}, "usage.opencode": {"harness", true}, "quota.hermes": {"harness", true},
+	}
+	out := map[string]machineOperationSupport{}
+	for id, spec := range specs {
+		transport, err := machineOperationTransport(m, spec.module, spec.ssh)
+		row := machineOperationSupport{Supported: err == nil, Unsupported: err != nil, Transport: transport}
+		if err != nil {
+			row.Error = err.Error()
+		}
+		out[id] = row
+	}
+	for _, id := range []string{"usage.claude-code", "usage.codex", "usage.pi", "usage.openclaw", "usage.antigravity", "usage.deepseek-harness", "usage.acp", "quota.claude-code", "quota.codex", "quota.pi", "quota.opencode", "quota.openclaw", "quota.antigravity", "quota.deepseek-harness", "quota.acp"} {
+		transport, _ := machineOperationTransport(m, "harness", true)
+		out[id] = machineOperationSupport{Unsupported: true, Transport: transport, Error: "read-only native reading unsupported on this transport"}
+	}
+	// Historical Claude SSH /usage is retained, but is not a read-only Node API.
+	if m.User != "" && !usesNodeHarness(m) {
+		out["quota.claude-code"] = machineOperationSupport{Supported: true, Transport: "ssh"}
+	}
+	return out
+}
+
 // Public capabilities are derived from saved transport identity, never requests.
 type remoteMachineInfo struct {
 	RemoteMachine
-	Capabilities []string `json:"capabilities"`
+	Capabilities []string                           `json:"capabilities"`
+	Operations   map[string]machineOperationSupport `json:"operations"`
 }
 
 // GET: machines, Loom's public key and the setup block.
@@ -346,7 +415,7 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 			if machineTerminalsSupported(m) && !capabilityDisabled("machine:"+m.ID, "terminal") {
 				caps = append(caps, "terminals")
 			}
-			list = append(list, remoteMachineInfo{projectMachineCapabilities(m), degradedCapabilities.Filter("machine:"+m.ID, caps)})
+			list = append(list, remoteMachineInfo{projectMachineCapabilities(m), degradedCapabilities.Filter("machine:"+m.ID, caps), machineOperations(m)})
 		}
 		_, pub, err := loomSSHKey()
 		// Paired nodes remain usable on a main without SSH tooling.

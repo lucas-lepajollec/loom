@@ -400,6 +400,100 @@ The fallback error text in `terminalCommand` referring to SSH is not evidence th
 4. Remove orphaned legacy UI `MachinesSection` after static-import and browser verification; keep `MachineDialog` and the canonical Settings/Machines implementation. This is a small measurable deletion, not a second Machines redesign.
 5. Remove duplicate probe/recipe code after equivalent results are proven. Retain SSH transport and migration indefinitely for unpaired/hybrid users until every operation's support matrix and policy allow retirement. No evidence supports deleting all SSH today.
 
+### 6.3 Mission H: operation parity (unreleased)
+
+The inventory below describes implemented paths, not acceptance on a real
+remote host. `GET /api/machines` now adds `operations`, keyed by operation, with
+`{supported, unsupported, transport, error?}`. This is implementation eligibility
+from the saved transport/modules and degradation state; it does not assert
+reachability, an unlocked credential, an installed CLI, native protocol features,
+or a working GPU/audio device. Existing `capabilities:["terminals"]` is retained.
+
+A paired Node advertising a module takes precedence for that operation. A hybrid
+machine may use its saved SSH user when that module is absent; Node failures,
+degradation and missing credentials never trigger an SSH retry. A pure Node
+without the module returns unsupported. Existing engines, terminals, folders and
+lifecycle owners stay in place; no universal remote-command API is introduced.
+
+| Machine operation | SSH implementation/result | Node implementation/result | Shared owner / limitations |
+| --- | --- | --- | --- |
+| Add/check/delete identity and agent inventory | `remote_machines.go`: SSH probe, cached tools/offers; supported | pairing/discovery and `node_bridge.go` inventory → `node_harness.go`; supported with `harness` | `RemoteMachine`, `remoteOffers`, `harness_scope.go`; list cached data without implying a live connection |
+| Pair/re-pair, maintenance link, forget | SSH-only machine has no Node credential: unsupported until paired | `machine_pairing.go`, `node_pairing.go`, `node_discovery.go`, `machine_node.go`: supported | One machine identity; selected machine key remains protected, independent of active engine |
+| Explicit SSH → Node migration | `machine_migration.go`: Linux SSH bootstrap supported | install/pair must succeed before replacing the saved transport; already paired is not a second migration | SSH link, folders and runtime IDs preserved; no forced migration |
+| Agent install/update/check/automation | `harness_lifecycle.go` and `_remote.go`: supported where catalog action/OS supports it; PowerShell on Windows | `_node.go` and same local lifecycle service: supported with `harness` | `harness/catalog.json` recipes; automation checks versions only; install/update remain explicit |
+| Agent execution, session list/load/import/resume | `remoteAgent`: ACP over SSH; native capabilities require handshake | `nodeAgent`/bridge: ACP WebSocket, same recipes and private owned processes; supported with `harness` | Six remote families below; generic custom SSH ACP remains user-configured. History selection now avoids SSH key generation for Node sources; native history capability is still separately required |
+| Native account/MCP/plugin/skill inspection or sign-in | Detailed local inspection is not remote inspection; unsupported through this machine API | No remote full account/config inspection route; unsupported | `harness_inspect.go`, `acp_registry.go`, registry connection/quota interfaces; inventory exposes tools/version only. No implicit sign-in or global permissions change |
+| Engine library, configuration, inference, load/unload, downloads, updates, benchmarks | SSH alone does not provide the engine control API: unsupported. Existing separately linked full Loom or direct inference endpoints remain supported according to their own contract | `engine_node.go`, `engine_routes.go`, worker routes: supported with `engine`; llama.cpp, vLLM, local benchmarks | One existing engine owner; direct servers have inference/catalog but no claimed Node maintenance; router model changes never restart the engine |
+| Node update/startup/network/execution settings | SSH alone: unsupported; Linux migration is the explicit bootstrap | `machine_node.go`, worker routes, startup/service helpers: supported after maintenance link | Same verified updater/service settings, independent of selected inference engine |
+| Saved favourite folders and workspace metadata | Supported, main-side store | Supported, same store | `machine_folders.go`, `workspace_folders.go`, `resources.Workspaces`; metadata alone is not remote filesystem access |
+| Folder browsing | Unsupported for SSH-only machines | `nodeFolders` → `/api/node/folders`: supported with `harness` | One folder UI; absolute existing paths, bounded directory entries |
+| Workspace validate/create | Unix shell or PowerShell SSH path supported | `/api/node/workspace`, same main dispatch: supported with `harness` | One workspace UI/store; remote context files are not read through local context assembly |
+| Terminal create/attach/input/resize/close/native resume | `terminal.go`/PTY/ConPTY and SSH: supported | `terminal_node.go`, `node_terminal.go`: supported with `terminal` | Same process seam, authentication, ownership, output registry and native resume rules |
+| Machine metrics | `machine_metrics_remote.go`: Linux supported, other SSH OS explicitly unsupported | `/api/node/observe`: supported with `observe` | Shared metrics projection and existing local OS/GPU readers; partial observations remain marked partial |
+| Environment HTTP/TCP checks and matrix | `env_check.go`: Unix SSH curl/bash supported; Windows shell recipe unsupported | **Added** `/api/node/env/check`: native Go HTTP/TCP via existing Environment checker, with `observe` | Same target validation, 5-second check budget, fixed worker pool, no HTTP redirect following; unsupported cell is distinct from failed reachability |
+| Environment Docker observation | `env_docker.go`: Unix SSH `docker ps` supported; Windows SSH recipe unsupported | **Added** `/api/node/env/docker`: same local Docker recipe/parser, with `observe` | Main-side per-machine opt-in, 10-second command bound, 1 MiB command output; permission/missing Docker/offline errors are observations, not empty successful lists |
+| Environment declared services / Proxmox | Supported on the main; not a remote shell operation | Same main-side service declarations / Proxmox HTTPS reader | Existing store/keyring and certificate consent; never exported to the Node |
+| Native usage totals: Hermes/OpenCode | Fixed CLI reads supported, Unix SSH or Windows launcher helpers | **Added** `/api/node/harness/usage`: Hermes `insights`, OpenCode `stats`, with `harness` | One `nativeReadArgv` recipe, existing parsers/cache; days 7/30, 30-second budget, output bounded to 128 KiB on the Node response (2 MiB command capture) |
+| Native usage totals: Claude/Codex/Pi | Remote native JSONL reading unsupported | Remote native JSONL reading unsupported | Existing local-only bounded readers remain local; unsupported readings display unknown metrics |
+| Account quotas: Hermes | Fixed `hermes usage` supported | **Added** same fixed quota read, with `harness` | Registry `QuotaReader`; no reset redemption, sign-in or generation |
+| Account quotas: Claude | Historical explicit SSH launcher retained | Unsupported and no longer advertised as a Node quota capability | `claude -p /usage` is deliberately excluded from the new read-only Node allowlist |
+| Account quotas: Codex/AGY, Pi/OpenCode/OpenClaw/DeepSeek/generic ACP | No added machine reader; unsupported unless a separate existing local/native protocol reports it | Same unsupported result | Per-turn ACP/native usage and retained Loom totals are separate observations, not remote account reads |
+| Voice settings/install/models/devices/service/test/stream/doctor | SSH alone unsupported | Existing `voice_api.go` proxy / Node voice routes: supported with `voice` | Existing voice owner/providers/policy; device/model/OS acceptance is separate from module discovery |
+
+All family implementations checked: Codex app-server and ACP, Claude Code ACP,
+Pi RPC and ACP, OpenCode HTTP/SSE and ACP, Antigravity native CLI and ACP bridge,
+DeepSeek Harness, Hermes, OpenClaw, generic/custom ACP, SSH and Node. Remote
+execution recipes already derive from the harness catalog for Codex, Claude,
+Pi, OpenCode, Hermes and OpenClaw; AGY/DeepSeek have no builtin remote execution
+recipe. Install/update retain each catalog action's own OS/support result.
+Hybrid lifecycle dispatch now follows the same module/SSH selection as agent
+execution and workspaces; transport-based quota eligibility also changed. No native
+adapter, model source, install recipe, engine implementation or private state
+format changed.
+
+Stores/consumers checked: remote machine and protected maintenance records,
+harness scope/custom ACP/runtime registry, lifecycle settings/cache, native usage
+cache and quota registry, saved workspaces/favourites, terminal registry, metrics
+cache, Environment services/provider config/keyring; Machines and its canonical
+Settings implementation, Agents and its shared installation controls, Environment,
+Usage, Terminals, Workspaces, Projects, engine/local/vLLM settings, Voice and the
+shared `core/state.js`/`core/shape.js` API boundary. Changed UI: Environment and
+Usage only, plus English/French strings. Existing Mono components/CSS are reused.
+The obsolete `MachinesSection` is inventoried but deletion belongs to the audit's
+separate §6.2 step 4; it is not required for these read-only operations.
+
+Reuse decision: the existing node client/auth/module bridge, Go `net/http` and
+`net.Dialer`, Docker JSON-lines parser and native usage parsers already supply the
+required IO. ACP SDK/TCKs govern agent sessions, not these observation endpoints;
+a new SDK, daemon, dependency or remote shell API would duplicate those owners.
+The fixed commands were checked against [Hermes CLI references](https://hermes-agent.nousresearch.com/docs/reference/cli-commands/)
+and [OpenCode stats](https://opencode.ai/v2/docs/cli/commands/).
+
+Regression evidence: before fixes, deterministic tests observed Node checks
+reporting success after SSH, unsupported Docker appearing disabled/enableable,
+Node usage never contacting the bridge, missing Node routes returning 404,
+old-node routes reported as ordinary failures, Node Claude quota advertised,
+Node history requiring SSH keygen, hybrid lifecycle ignoring saved SSH when the
+harness module is absent, degraded observation payloads accepted as success,
+and UI failures showing disabled Docker or
+zero usage. Tests use temporary homes, fake commands and recorder transports;
+no paid models, accounts, Docker daemon or listening socket are needed.
+Real SSH/Node hosts, account output, GPU/audio, Windows execution and rendered
+390/320 px browser acceptance remain separate from those fixture results.
+
+Validation in the implementation sandbox: Mission H regressions, Environment/
+harness suites and explicit SSH/Node/Windows-command/workspace fixture selections
+pass, as do `gofmt`, Go 1.26.9 `go vet ./...`, `make build`, Windows cross-build,
+`make check-ui` and the documentation link check. `go test ./...` stops on
+socket-denied `TestHandleHubSearch` and `TestFetchReleaseChannels`; broader
+selections also encounter socket-denied
+`TestMachineNodeMaintenanceDoesNotSwitchActiveEngine`,
+`TestNodeReleaseUpdateChecksCapabilityBeforeReplacingBinary` and
+`TestRemoteDiscussionChoicesUseEngineLibrary`. Playwright dependencies install
+from the local npm cache; the required route crawl after the build cannot start
+its isolated listener (`listen EPERM`). This leaves real browser/phone acceptance
+unverified, not failed layout acceptance. No Brain files or retrieval tools changed.
+
 ## 7. Ranked incremental plan
 
 Costs below are **planning estimates**, not measured effort. Difficulty and risk concern implementation; maintenance gains have explicit acceptance criteria. Every behaviour fix first gets a free deterministic failing test, demonstrated on the pre-fix checkout. No live paid-model tests are needed.
