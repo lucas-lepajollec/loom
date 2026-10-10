@@ -31,6 +31,13 @@ jobs:
       - name: Run tests
         run: go test -v -short ./...
 
+      - name: Offline Brain evidence and final-context regression gate
+        # Fixed authored fixtures only; never fetch histories/weights or call models.
+        run: |
+          unset LOOM_BRAIN_RETRIEVAL_CASES
+          python3 -m unittest discover -s tools/brain-retrieval -p 'test_*.py'
+          sh tools/brain-retrieval/run.sh
+
       - name: Vet Go packages
         run: go vet ./...
 
