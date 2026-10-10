@@ -1,0 +1,8 @@
+[
+  {"name":"advertised resume","protocol":"acp","caps":{"loadSession":true},"capability":"resume","discovered":true},
+  {"name":"models check","protocol":"app-server","checks":[{"capability":"models","ok":true}],"capability":"models","discovered":true,"verified":true},
+  {"name":"native implementation flag","protocol":"pi-rpc","caps":{"loadSession":true},"capability":"resume"},
+  {"name":"failed catalog","protocol":"opencode-http","checks":[{"capability":"models","ok":false}],"capability":"models","degraded":true},
+  {"name":"conflicting checks","protocol":"acp","checks":[{"capability":"models","ok":false},{"capability":"models","ok":true}],"capability":"models","degraded":true},
+  {"name":"untested version","protocol":"agy-stream-json","capability":"chat"}
+]

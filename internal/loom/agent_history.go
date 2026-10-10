@@ -17,7 +17,7 @@ import (
 )
 
 func nativeHistoryClient(ctx context.Context, a acpAgent, cwd string) (*codexapp.Session, func(), error) {
-	c, err := startNativeAgent(a, RuntimeSession{ACPState: ACPState{Workdir: cwd}}, true)
+	c, err := startNativeAgent(a, RuntimeSession{ACPState: ACPState{Workdir: cwd}}, true, false)
 	if err != nil {
 		return nil, func() {}, err
 	}
@@ -171,7 +171,7 @@ func readNativeAgentHistory(ctx context.Context, a acpAgent, info acpSessionInfo
 		if sessionFile == "" {
 			return nil, nil, "", errors.New("Pi native session not found")
 		}
-		c, err := startNativeAgent(a, RuntimeSession{ACPState: ACPState{Workdir: cwd}}, true)
+		c, err := startNativeAgent(a, RuntimeSession{ACPState: ACPState{Workdir: cwd}}, true, false)
 		if err != nil {
 			return nil, nil, "", err
 		}

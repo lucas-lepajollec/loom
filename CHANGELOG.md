@@ -4,6 +4,17 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Harness recovery now restores only explicitly successful capability checks;
+  models-only and empty probes cannot restore degraded approvals. Conflicting
+  checks retain the failure.
+- Agent compatibility constructors share canonical construction while keeping
+  legacy version lists and warnings. The Agents page shows per-capability
+  discovery, protocol verification and observed normal-session success, with
+  separate health and bounded private aggregate evidence, without transcripts.
+- Enabled harness automation now performs read-only version checks. Updates
+  remain explicit; post-update free probes skip model-sink synchronization and
+  provider-key projection and never generate a reply.
+
 - Engine updates repair missing/CPU-only llama.cpp binaries and mismatched CMake
   caches even at the current commit, locally and through linked Loom nodes.
   Source installs/custom builds verify acceleration; official same-version

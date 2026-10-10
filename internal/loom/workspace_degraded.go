@@ -49,7 +49,11 @@ func capabilityDisabled(owner, feature string) bool {
 }
 func observeAgentProbe(id string, p acpProbe) {
 	owner := "agent:" + id
-	if p.Error != "" && len(p.CapabilityChecks) == 0 {
+	checks := slices.Clone(p.CapabilityChecks)
+	if p.Compatibility != nil {
+		checks = append(checks, p.Compatibility.CapabilityChecks...)
+	}
+	if p.Error != "" && len(checks) == 0 {
 		// A catalog handshake failure invalidates discovered catalog/history
 		// operations, not the installed agent's chat/tool protocol.
 		for _, c := range []string{"models", "session-list", "history-import", "resume"} {
@@ -57,24 +61,16 @@ func observeAgentProbe(id string, p acpProbe) {
 		}
 		return
 	}
-	checks := slices.Clone(p.CapabilityChecks)
-	if p.Compatibility != nil {
-		checks = append(checks, p.Compatibility.CapabilityChecks...)
-	}
-	failed := map[string]bool{}
+
+	// Recovery requires a successful check of this exact capability. Conflicting
+	// results fail closed, including checks carried by compatibility records.
+	results := map[string]capability.Probe{}
 	for _, c := range checks {
-		if !c.OK {
-			failed[c.Capability] = true
+		if old, exists := results[c.Capability]; !exists || old.OK {
+			results[c.Capability] = c
 		}
 	}
-	if p.Error == "" {
-		for _, d := range degradedCapabilities.Snapshot(owner) {
-			if !failed[d.Capability] {
-				observeCapability(owner, d.Capability, true, "probe_succeeded")
-			}
-		}
-	}
-	for _, c := range checks {
+	for _, c := range results {
 		observeCapability(owner, c.Capability, c.OK, c.Reason)
 	}
 }

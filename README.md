@@ -236,7 +236,13 @@ Loom binds to loopback by default and adds no telemetry. Local model inference a
 
 External selection requires confirmation before sharing the portable transcript and selected context. A cloud provider receives that text; a remote engine receives inference requests; a harness receives context and access to its chosen working folder under its native permissions. Shared text can include earlier replies. Private reasoning, approvals and tool state do not become portable context.
 
-Network access also occurs for requested model/catalog downloads, installs, updates, account reads, service checks and enabled tools/MCP servers. Opt-in automatic updates check upstream sources. Cloud semantic indexing sends selected source text and search queries after stored consent; remote distillation requires consent before sending discussion text.
+The Agents page reports per-capability discovery, free protocol verification and
+observed success from normal sessions. Accepted versions alone never claim a
+capability works. Automatic harness activity is check-only; explicit updates
+run free probes without generating or changing model sinks. See
+[agent compatibility](docs/agents-compat.md).
+
+Network access also occurs for requested model/catalog downloads, installs, updates, account reads, service checks and enabled tools/MCP servers. Opt-in automatic harness checks read upstream versions; harness updates remain explicit. Engine update settings are separate. Cloud semantic indexing sends selected source text and search queries after stored consent; remote distillation requires consent before sending discussion text.
 
 Set an **access password** in Settings → Security and data to sign in from other devices. The browser uses an HttpOnly session cookie; no control key needs to be copied between devices. Existing control keys remain supported for automation and remote-engine links, separately from the `/v1` inference key. Network exposure requires a password or existing control key; use TLS for remote access. See [Interface access](docs/access.md) for migration, password changes and local recovery with `loom password`. The optional **vault** encrypts supported Loom stores and blocks access while locked. Cloud provider keys remain in memory unless explicitly remembered in the **OS keychain or encrypted server store**; they are not stored in provider records or browser storage. External files and native harness stores retain their own security rules. See [SECURITY.md](SECURITY.md).
 

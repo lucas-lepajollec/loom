@@ -369,7 +369,8 @@ func TestClaudeACPFullRequestAndFailureTurns(t *testing.T) {
 			events := []AgentEvent{}
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
-			_, err := m.runACP(ctx, a, s, RuntimeTurn{Messages: []Message{{Role: "user", Content: "Fixture prompt"}}}, func(e StreamEvent) bool {
+			adapter := &acpAdapter{agent: a, sessions: m, session: s}
+			_, err := adapter.Run(ctx, RuntimeTurn{Messages: []Message{{Role: "user", Content: "Fixture prompt"}}}, func(e StreamEvent) bool {
 				if e.AgentEvent != nil {
 					mu.Lock()
 					events = append(events, *e.AgentEvent)
@@ -401,6 +402,20 @@ func TestClaudeACPFullRequestAndFailureTurns(t *testing.T) {
 				}
 			} else if err != nil {
 				t.Fatal(err)
+			}
+			compat := agentCompatibility(a)
+			if row.Error != "" {
+				if compat.Evidence["chat"].ObservedWorking != nil {
+					t.Fatal("failed fixture claimed working chat")
+				}
+			} else {
+				capability := "user-input"
+				if name == "plan-approval" {
+					capability = "approvals"
+				}
+				if compat.Evidence[capability].ObservedWorking == nil {
+					t.Fatalf("successful interaction lacks evidence: %+v", compat.Evidence)
+				}
 			}
 			mu.Lock()
 			defer mu.Unlock()

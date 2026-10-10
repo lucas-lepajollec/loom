@@ -92,7 +92,7 @@ func TestPiProbeReceivesProjectedProviderKeys(t *testing.T) {
 	if err := putStoreJSON(bkState, modelSinkState, map[string]bool{"pi": true}); err != nil {
 		t.Fatal(err)
 	}
-	c, err := startNativeAgent(acpAgent{ID: "pi"}, RuntimeSession{ACPState: ACPState{Workdir: t.TempDir()}}, true)
+	c, err := startNativeAgent(acpAgent{ID: "pi"}, RuntimeSession{ACPState: ACPState{Workdir: t.TempDir()}}, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}

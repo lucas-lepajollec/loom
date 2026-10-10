@@ -152,8 +152,8 @@ A failed agent catalog handshake disables catalog/history/resume operations;
 it does not declare an installed chat protocol broken. Explicit feature checks
 from a successful native handshake followed by a catalog failure disable only
 `models`; native resume/history capabilities remain available. Explicit checks
-disable only the named feature. A successful refreshed probe restores features
-that are no longer failed. Node observations disable missing/unreachable modules
+disable only the named feature. A successful refreshed probe restores only capabilities explicitly checked
+successfully; an empty or models-only probe cannot restore approvals. Node observations disable missing/unreachable modules
 and restore them on the next successful Doctor or existing health-monitor probe.
 Engine reachability failure disables `chat`/`stream` generation while leaving
 installation/management available; the next successful Doctor probe restores

@@ -48,10 +48,7 @@ func acpCompatibility(a acpAgent, info map[string]any, caps []string) *agent.Com
 	}
 	version, _ := info["version"].(string)
 	path, _ := lifecycleLookPath(a.Command)
-	r := &agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: "acp", AdapterVersion: pin, AdapterPackage: packageName, TestedVersions: tested, TestedVersionSource: source, Capabilities: caps}
-	if len(tested) > 0 {
-		r.TestedVersion = tested[len(tested)-1]
-	}
+	r := agent.NewCompatibilityRecord(agent.CompatibilityRecord{Runtime: a.ID, Executable: path, Version: version, AgentVersion: version, Protocol: "acp", AdapterVersion: pin, AdapterPackage: packageName, TestedVersions: tested, TestedVersionSource: source, Capabilities: caps})
 	if version != "" {
 		matched := false
 		for _, v := range tested {
@@ -113,4 +110,14 @@ func (p *acpBinding) publishClaudeRPCFailure(a acpAgent, err error) {
 	if claudeACPAgent(a) && errors.As(err, &rpc) {
 		p.publish(DiscussionEvent{"type": "error", "error": rpc.Message, "agent_event": AgentEvent{Type: "error", Runtime: a.ID, Error: rpc.Message, Raw: agent.BoundedJSON(rpc.Raw)}})
 	}
+}
+
+// Native transports share version provenance and drift warnings. ACP retains
+// handshake-specific warnings and launcher-pin interpretation above.
+func harnessCompatibility(a acpAgent, protocol, executable, version string, caps []string, pkg, source, tested string) *agent.CompatibilityRecord {
+	r := agent.NewCompatibilityRecord(agent.CompatibilityRecord{Runtime: a.ID, Executable: executable, Version: version, Protocol: protocol, AdapterVersion: agentAdapterVersion, AdapterPackage: pkg, TestedVersion: tested, TestedVersions: harness.TestedVersions(a.ID), TestedVersionSource: source, Capabilities: caps})
+	if version != "" && !harness.VersionTested(a.ID, version) {
+		r.Warning = fmt.Sprintf("%s %s differs from tested %s; protocol compatibility is unverified", a.Name, version, r.TestedVersion)
+	}
+	return r
 }

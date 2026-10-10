@@ -36,6 +36,13 @@ type acpProbe struct {
 
 const acpProbeKey = "acp_probe_"
 
+type harnessCheckOnlyContextKey struct{}
+
+func harnessProbeIsCheckOnly(ctx context.Context) bool {
+	only, _ := ctx.Value(harnessCheckOnlyContextKey{}).(bool)
+	return only
+}
+
 var acpProbeMu sync.Mutex
 
 func loadACPProbe(id string) (acpProbe, bool) {
@@ -54,6 +61,9 @@ func loadACPProbe(id string) (acpProbe, bool) {
 		}
 	}
 
+	if a, found := acpAgentFor(id); found && p.Compatibility != nil {
+		readAgentEvidence(a, p.Compatibility)
+	}
 	return p, ok
 }
 
@@ -89,13 +99,17 @@ func probeACPAgent(ctx context.Context, agent acpAgent) (result acpProbe) {
 	}
 	// Refresh the file projection after credentials are restored and before Pi
 	// starts. A cached catalog must never reflect a stale local-only file.
-	if (agent.ID == "pi" || agent.ID == "hermes" || deepseekACPAgent(agent)) && !agent.Remote {
+	if (agent.ID == "pi" || agent.ID == "hermes" || deepseekACPAgent(agent)) && !agent.Remote && !harnessProbeIsCheckOnly(ctx) {
 		if err := syncModelSinks(); err != nil {
 			return fail(err)
 		}
 	}
 	// The harness sees Loom's sources while it is probed, so they are listed.
-	c, err := startACPClient(agent.Command, acpSessionArgs(agent, agent.RemoteHome), cwd, acpLaunchEnv(agent.ID, "")...)
+	var env []string
+	if !harnessProbeIsCheckOnly(ctx) {
+		env = acpLaunchEnv(agent.ID, "")
+	}
+	c, err := startACPClient(agent.Command, acpSessionArgs(agent, agent.RemoteHome), cwd, env...)
 	if err != nil {
 		return fail(err)
 	}
@@ -155,6 +169,12 @@ func probeACPAgent(ctx context.Context, agent acpAgent) (result acpProbe) {
 	if session.Modes != nil {
 		out.Modes, out.Mode = session.Modes.Available, session.Modes.Current
 	}
+	for _, option := range session.options() {
+		if option["category"] == "model" {
+			out.CapabilityChecks = append(out.CapabilityChecks, capability.Probe{Capability: "models", OK: true})
+			break
+		}
+	}
 	out.Config = withLoomModelOptions(agent, session.options())
 	// Agents announce their commands right after session/new.
 	select {
@@ -170,12 +190,16 @@ func refreshACPProbe(ctx context.Context, agent acpAgent) acpProbe {
 	defer acpProbeMu.Unlock()
 	p := probeACPAgent(ctx, agent)
 	observeAgentProbe(agent.ID, p)
+	recordProbeEvidence(agent, &p)
 	if old, ok := loadACPProbe(agent.ID); ok && p.Error != "" && len(old.Config) > 0 {
 		// Keep the last good catalog; only report the new failure.
 		old.Error, old.At = p.Error, p.At
 		old.CapabilityChecks, old.Duration = p.CapabilityChecks, p.Duration
 		if p.Compatibility != nil {
 			old.Compatibility = p.Compatibility
+		}
+		if old.Compatibility != nil {
+			readAgentEvidence(agent, old.Compatibility)
 		}
 		p = old
 	}

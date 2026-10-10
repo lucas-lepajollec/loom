@@ -193,10 +193,11 @@ Windows OpenSSH targets use encoded PowerShell commands and a Windows probe.
 - `POST /api/harness/lifecycle/auto` accepts `{target,id,auto}`. Auto is off by
   default and stored independently for each pair. After the web port is bound,
   a cancellable background cycle checks every six hours, including a startup
-  check when due. Only installed harnesses with a known newer published version
-  are updated, while no matching discussion is running; new turns wait during
-  the automatic update. `last_auto` is null or `{at,from,to,ok,log}` (milliseconds
-  since Unix epoch), retained across restarts and disabling auto. Missing latest
+  check when due. This is check-only activity while no matching discussion is
+  running; updates require an explicit action. Existing enabled preferences
+  retain their setting with this check-only meaning. `last_auto` is null or `{at,from,to,ok,log}` (milliseconds
+  since Unix epoch), retained across restarts and disabling auto. New successful
+  checks keep `from` and `to` equal to the installed version. Missing latest
   sources or failed version reads never mean that the installed version is current.
 
 Commands are sourced in the catalog from official upstream documentation:

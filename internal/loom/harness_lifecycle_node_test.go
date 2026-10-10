@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 )
 
@@ -236,9 +237,15 @@ func TestHarnessUpdateInvalidatesObservations(t *testing.T) {
 	for _, c := range []string{"models", "resume", "session-list", "history-import"} {
 		degradedCapabilities.Observe("agent:"+a.ID, c, false, "handshake_failed", time.Now())
 	}
-	observeAgentProbe(a.ID, acpProbe{})
+	observeAgentProbe(a.ID, acpProbe{CapabilityChecks: []capability.Probe{{Capability: "models", OK: true}}})
+	if len(degradedCapabilities.Snapshot("agent:"+a.ID)) != 3 {
+		t.Fatal("models probe recovered unchecked history/resume")
+	}
+	for _, c := range []string{"resume", "session-list", "history-import"} {
+		observeAgentProbe(a.ID, acpProbe{CapabilityChecks: []capability.Probe{{Capability: c, OK: true}}})
+	}
 	if len(degradedCapabilities.Snapshot("agent:"+a.ID)) != 0 {
-		t.Fatal("successful probe did not recover update-window degradation")
+		t.Fatal("targeted recovery failed")
 	}
 }
 
