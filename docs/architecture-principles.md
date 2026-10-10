@@ -39,3 +39,17 @@ that seems to conflict with them should be discussed before it is implemented.
     when a source reports them.
 
 See `workspace-architecture.md` for the discussion/runtime contracts.
+
+## Observations and verification
+
+11. Validate shared observations before publishing them. An invalid read retains
+    the last valid value and marks its source unavailable; valid empty lists stay
+    empty. Background recovery never generates, reloads an engine or redeems resets.
+12. Capability discovery, protocol verification and observed working behavior are
+    independent evidence. Recover only capabilities actually checked; failure wins
+    conflicting results. Automatic maintenance is check-only; updates and native
+    sign-in remain explicit.
+13. Reuse deterministic fixtures and existing protocol/tooling boundaries. Free
+    contract, structure and bilingual-copy guards are documented in the
+    [implementation guide](agents/implementation-brief.md); passing fixtures does
+    not certify installed accounts, GPU execution or phone rendering.

@@ -41,7 +41,7 @@ then state, full-width description/metadata and actions. The same visible
 Manage/Use controls stack on Agents and Machines. Local model metrics and
 Environment tables retain their labels and data in stacked rows. Shared buttons,
 segments, page tabs, key/value rows, dialogs and popovers wrap within the phone
-width, using existing Mono tokens. See the [mobile layout audit](mobile-layout-audit.md)
+width, using existing Mono tokens. See the [UI validation guide](agents/ui-validation.md)
 for source inventory, free regressions and the pending browser acceptance.
 Responsive overrides load after
 the desktop styles in `ui/next/css/mobile.css` and reuse the same theme tokens.

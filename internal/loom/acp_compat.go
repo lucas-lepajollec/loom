@@ -77,9 +77,9 @@ func (c *acpClient) call(ctx context.Context, method string, params, result any)
 func (c *acpClient) notification(method string, params any) error {
 	return c.Client.Notification(method, params)
 }
-func acpProcessGroup(cmd *exec.Cmd)                                 { acp.ProcessGroup(cmd) }
-func acpKillProcessGroup(cmd *exec.Cmd)                             { acp.KillProcessGroup(cmd) }
-func acpClip(text string, n int) string                             { return acp.Clip(text, n) }
+func acpProcessGroup(cmd *exec.Cmd)     { acp.ProcessGroup(cmd) }
+func acpKillProcessGroup(cmd *exec.Cmd) { acp.KillProcessGroup(cmd) }
+
 func acpCompact(value any, n int) string                            { return acp.Compact(value, n) }
 func acpCloneMap(value map[string]any) map[string]any               { return acp.CloneMap(value) }
 func (p *acpBinding) tool(update map[string]any) map[string]any     { return acp.Tool(p.tools, update) }

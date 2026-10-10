@@ -536,3 +536,7 @@ running loopback HTTP origin, `warn` when voice is installed/selected and neithe
 exists, and `skip` when voice is absent. Real mobile microphone, certificate
 trust and speech/model performance acceptance remains separate from synthetic
 backend tests.
+
+## UI suspension and verification
+
+Browser voice uses the shared [visibility/connection owner](architecture.md#visibility-and-connection-ownership): hide, offline and pagehide close the transport, cancel transient speech/turn playback and retain the existing microphone. Resume reconnects without resending a turn; old callbacks cannot publish into the new connection. Invalid JSON/PCM/error frames are rejected before publication. See [UI validation](agents/ui-validation.md) for synthetic regressions. The Brain retrieval benchmark inventories `jarvisMessages` only: its scores do not measure Jarvis assembly, real microphone/audio or STT/TTS quality.

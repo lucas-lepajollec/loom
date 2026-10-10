@@ -833,3 +833,148 @@ require this legacy metadata. Native import provenance belongs to
 `discussion.NativeImport`; Brain's `PathPrefixes` scope is enforced by lexical,
 semantic and read/pack paths.
 See [workspace continuity](workspace-architecture.md#continuity-consolidation-unreleased).
+
+## UI observation boundaries
+
+An unavailable engine must leave the discussion usable. A valid empty list is a successful observation; an HTTP error object is not an empty catalog. Retained observations may be stale and never prove reachability. Recovery never submits a message or starts an engine.
+
+### Validated observations
+
+`core/shape.js` supplies one container validator and explicit endpoint
+contracts, reused by `core/api.js`, `createStore`, shared observations and
+stream consumers. Known nested lists are checked before publication. Optional
+Go slices may be null where existing consumers already use an empty list;
+required envelopes and top-level catalogs must have their expected shape.
+Opaque tool payloads stay opaque. Only the flat elicitation form fields that
+the UI renders are checked within a request's JSON schema.
+
+HTTP errors, malformed JSON, network failure and invalid read shapes reject
+the observation. POST retains the existing error-result contract for actions.
+Background GET and discussion stream reads do not prompt for authentication
+or reload the page on 401. Explicit actions retain the authentication flow.
+Negative records inside a successful response, such as an environment check
+with `ok:false`, remain legitimate observations.
+
+Every `refresh*` in `core/state.js` uses this boundary. Models and presets,
+status and server info, and local history and runtime sessions refresh
+independently using `Promise.allSettled`. The two navigation snapshots are
+retained independently before merging. `app.unavailable` records the source
+keys `models`, `presets`, `status`, `serverInfo`, `gpus`, `engineNode`,
+`workspace`, `history` and `sessions`; a successful read clears its flag.
+Picker shows the existing unavailable alert and builds its catalog lists only
+while open. Retained values can be stale and are not a claim of reachability.
+
+### Shared observation consumers
+
+Paths in this table are relative to `internal/loom/ui/next/js`. Consumers that
+already handle rejected reads receive the fix through the common boundary;
+they do not need their own collection coercion or render-time try/catch.
+
+| Shared state or input | Implementations and consumers checked | Changes |
+| --- | --- | --- |
+| `app.models`, `presets`, `workspace` (models, runtimes, providers, projects, capabilities, sessions, profiles), `nav` (conversations, projects), status/node/hardware objects | `app/main`, `shell`, `sections`, `palette`; `chat/engine`, `picker`, `composer`, `slash`, `view`; `cloud/page`; `local/page`, `hub`, `service`; `bench/page`; `harnesses/page`, `history`, `options`; `projects/page`; `inspector/context`, `inspector`, `params`; `resources/brain`, `skills`, `memory-items`; `settings/page`, `machines`, `policy`, `doctor`; `terminals/page`; `usage/page`; `onboarding/welcome` | API and store validation, retained snapshots, independent refreshes, unavailable flags, lazy Picker |
+| `chat.items`, `frozen`, harness modes/config/files/commands, session/context and canonical events | `chat/engine`, `view`, `composer`, `messages`, `tools`, `requests`, `slash`, `picker`; `inspector/context`, `inspector`; `app/shell` | Store and event validation before reduction, including nested options and request forms |
+| Usage snapshot Map: usage, native harness rows, provider balances | `core/observations`, `usage/page` | Reject invalid shared writes and retain the previous snapshot; existing auth clearing preserved |
+| Hub download map | `local/hub` download watcher and cards/detail | Common API validates the status array; watcher already retains failures; Detail now handles rejected initial reads |
+| vLLM shared engine, library/cache and download observations | `settings/vllm`, reused by Local and settings | Common API checks shapes; failed engine/library reads retain observations |
+| Composer harness probe cache | `chat/composer`, `slash`, `harnesses/options` | Pending requests tracked separately; pending/failed reads retain controls |
+| Dialog/toast arrays; language observable | `ui/dialog`, modal/toast consumers; `core/i18n`, translated components | Shared store validation covers dialog/toast writes; language has no API collection input |
+| Page-local collections outside the shared stores | All pages under `features/`: machines/panes, harnesses/machines/lifecycle/history, workspaces/folders, environment, terminals, previews, voice/page/jarvis/mode, tasks, resources/brain/memory/memory-items/preferences/skills/mcp, usage, cloud, local, projects, inspector, bench, onboarding and settings; `app/activity`, `ui/folder` | Explicit API collection contracts apply throughout. Missing initial rejection handling repaired in settings, MachineDialog, Hub Detail, MCP and inspector context Preview. Existing page-local empty/error states remain supported |
+| Tasks SSE, terminal WebSocket, voice WebSocket | `tasks/page`, `terminals/page`, `voice/mode`; server task envelope, terminal attachment/scrollback and voice frame contracts | Shared visible connection lifecycle, stale callback gating, shape-checked Tasks frames, safe voice JSON/PCM parsing |
+| Raw JSON/SSE and binary requests | Composer chunked upload, Bench cancellation, Jarvis turn SSE, voice test TTS, Doctor bundle | Upload metadata and cancellation snapshots use the same shape helper; voice turn deltas and errors are checked before text publication. Existing binary error handling retained |
+
+The server-side inventory checked `workspace_runtime.go`, the runtime contracts
+and registry, `acp_registry.go`, `harness/catalog.json`, feature declarations,
+probe/session/catalog routes and canonical event mappings. It includes Codex
+App Server and ACP, Pi RPC and ACP, OpenCode HTTP/SSE and ACP, Claude Code ACP,
+Antigravity native Stream JSON and ACP fallback, Hermes ACP, OpenClaw ACP,
+DeepSeek Harness ACP, custom/local/SSH ACP entries, and planned descriptors.
+All use the shared workspace/session/event UI boundaries. No adapter execution
+or native account configuration changed; real harness compatibility was not
+retested by this frontend work.
+
+Engine implementations checked were owned llama.cpp single/router mode,
+installed vLLM, direct linked llama.cpp/vLLM/OpenAI-compatible servers, remote
+Loom Node forwarding and legacy worker routing (`backend_router.go`,
+`engine_routes.go`, `engine_direct.go`, `engine_node.go`, `engine_worker.go`).
+Local and configured Cloud Chat Completions use the same retained discussion
+UI. No engine handler or launch behavior changed. In particular, a node probe's
+model list, a harness model-source count, and vLLM's job string keep their
+different native contracts.
+
+### Visibility and connection ownership
+
+Visible observation polling refreshes status/hardware every four seconds and
+library/workspace/navigation/node state every thirty seconds. Visibility,
+pageshow (including bfcache) and online events trigger immediate refresh. A
+resume that arrives while an aborted read settles queues a fresh read.
+
+The existing canonical discussion journal reconnects from its event sequence.
+Tasks, terminal and voice transports now share a connection owner that closes
+on hide/offline/pagehide and reattaches on resume. Old callbacks cannot publish
+into the new connection. Terminal attachment requests a ticket for the same
+terminal ID and replaces display scrollback before server replay. Voice keeps
+its existing microphone, cancels transient speech/turn playback on suspension
+and reconnects without resending a turn. These are observation/attachment
+operations, not process creation or input replay.
+
+
+See [UI validation](agents/ui-validation.md) for deterministic failures, degraded-route scenarios and phone geometry acceptance.
+
+### Agent UI modules
+
+`features/harnesses/page.js` falls from 63,874 bytes to 4,336 bytes at the extraction commit. The largest
+extracted module is `agent-page.js` (15,868 bytes).
+
+| Module | Responsibility |
+| --- | --- |
+| `page.js` | Route, catalog selection and dialog/drawer wiring |
+| `catalog.js` | Catalog search/add UI, family cards, installation grouping |
+| `agent-page.js` | Agent observations, header/actions and agent/native preview composition |
+| `agent-machines.js` | Per-machine lifecycle, version, Manage/Use controls |
+| `discussions.js` | Loom discussions, native history, import selection/actions |
+| `models.js` | Model option helpers, default model chips and expansion |
+| `settings.js` | Model sources, MCP/skills bindings, settings/resource dialog |
+| `dialogs.js` | Add detected/custom agents, custom ACP configuration |
+| `capabilities.js` | Capability labels/evidence and existing ACP page selection |
+| `machine-state.js` | Existing native installation/account/resource inspection |
+
+`account.js`, `history.js`, `lifecycle.js`, `machines.js` (the existing connection
+dialog) remain separate and retain their behavior. Eleven extracted function
+bodies were compared byte for byte with the original, excluding the functions
+intentionally changed for layout/composition. Model expansion and settings dialog
+state moved into their respective sections; choice dispatch, feature gating,
+consent and dialog lifecycle have deterministic behavior tests. During extraction, unused imports
+(`useVisibleRefresh`, `locale`, `remoteHarnessTarget`) were removed after verifying
+there were no symbol uses. No speculative function/branch deletion was made.
+
+### Native answer assembly
+
+Three root collectors became one `runtime.AnswerAccumulator`:
+
+| Adapter | Replacement rule | Other behavior retained |
+| --- | --- | --- |
+| Codex app-server | Replace item and clear `item:` children | Final-only correction, first-item order, cumulative usage |
+| Pi RPC | Replace item and clear `item:` children | Indexed text blocks, final-only correction, per-message usage |
+| OpenCode HTTP/SSE | Replace one item | Interleaved part order, per-message usage |
+| Antigravity stream-json | Replace entire answer | Stream/final correction order, reported turn usage |
+
+`Apply` returns a copied assistant snapshot (including empty replacements),
+ignoring reasoning and tools. `Text` supplies final history/results. Pure
+`runtime.CloseItems` retains the projected tool kinds/partial output, sorted
+item IDs and native terminal raw frame. Root projection still owns display
+rows; adapters retain synchronization, usage, state publication and lifecycle.
+
+Before editing production code, the test replayed every committed native JSONL
+fixture through its real mapper (Codex also uses the session notification hook)
+and the original three collector algorithms. It captured immutable canonical
+events, display rows, each answer snapshot and final answer under
+`testdata/agents/answers/`. After extraction the same replay uses the shared
+accumulator and compares serialized JSON **byte-for-byte**. All four protocols
+already had fixtures: 15 Codex, 13 Pi, 4 OpenCode and 11 Antigravity, 43 total;
+none needed an initial protocol fixture. Explicit replacement-scope tests add
+interleaved items, prefix children, empty replacements and immutable snapshots;
+item-close tests cover completion, failure, cancellation and interruption.
+A temporary fault injection disabling child clearing produced the expected
+`TestAnswerReplacementScopes` assertion failure; the original source was restored.
+These validate Loom against synthetic fixtures, not installed harness accounts.

@@ -22,7 +22,6 @@ type DiscussionPreview = discussion.DiscussionPreview[Capability]
 
 const maxDiscussionInstructions = discussion.MaxDiscussionInstructions
 const maxPortableBytes = discussion.MaxPortableBytes
-const maxPortableMessages = discussion.MaxPortableMessages
 const maxMessageBytes = discussion.MaxMessageBytes
 
 func cloneACPState(s ACPState) ACPState                   { return discussion.CloneACPState(s) }

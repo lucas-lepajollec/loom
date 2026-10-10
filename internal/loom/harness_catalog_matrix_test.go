@@ -1,9 +1,12 @@
 package loom
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf16"
@@ -175,5 +178,139 @@ func TestHarnessCatalogFamilyMatrix(t *testing.T) {
 		if err != nil || a.Command != "fixture-acp" || !a.Custom || a.Remote != remote {
 			t.Fatal(a, err)
 		}
+	}
+}
+
+// Every dimension is required even when the explicit answer is unsupported.
+// This helper accepts snapshots so omission sensitivity needs no source mutation.
+func harnessCoverageErrors(ids []string, coverage map[string]map[string]bool) []string {
+	var errors []string
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			errors = append(errors, "duplicate family: "+id)
+		}
+		seen[id] = true
+		for _, dimension := range []string{"features", "inspect", "lifecycle", "model-source", "docs"} {
+			if !coverage[id][dimension] {
+				errors = append(errors, id+": missing "+dimension+" coverage")
+			}
+		}
+	}
+	for id := range coverage {
+		if !seen[id] {
+			errors = append(errors, "obsolete family coverage: "+id)
+		}
+	}
+	return errors
+}
+
+func TestHarnessContractCoverage(t *testing.T) {
+	testHome(t)
+	// Independent support decisions. Empty sink/native updater means unsupported,
+	// never an invented executable or provider compatibility claim.
+	contracts := []struct {
+		id, protocol, sink, native string
+		npm                        bool
+	}{
+		{"codex", "app-server", "env", "update", true},
+		{"claude-code", "acp", "env", "update", true},
+		{"pi", "pi-rpc", "pi", "", true},
+		{"opencode", "opencode-http", "opencode", "upgrade", true},
+		{"antigravity", "agy-stream-json", "", "update", false},
+		{"deepseek-harness", "acp", "dsh", "", true},
+		{"hermes", "acp", "hermes", "update", false},
+		{"openclaw", "acp", "", "", true},
+		{"custom-acp", "acp", "", "", false},
+	}
+	docs, err := os.ReadFile("../../docs/agents/acp-implementation.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coverage := map[string]map[string]bool{}
+	for _, c := range contracts {
+		coverage[c.id] = map[string]bool{}
+		for _, f := range harnessFeaturePathCases() {
+			if f.id == c.id && f.protocol == c.protocol {
+				coverage[c.id]["features"] = true
+			}
+		}
+		sink, supported := modelSinkFor(c.id)
+		if supported != (c.sink != "") || sink.Format != c.sink {
+			t.Fatalf("%s model-source support drift: %+v", c.id, sink)
+		}
+		coverage[c.id]["model-source"] = true
+		spec, inspectable := harnessInspectSpec(c.id)
+		if inspectable != (c.id != "custom-acp") {
+			t.Fatalf("%s inspect support drift", c.id)
+		}
+		coverage[c.id]["inspect"] = true
+		if inspectable {
+			service := newHarnessLifecycleService()
+			// No subprocess, network, account, real HOME or updater is ever used.
+			service.run = func(context.Context, *RemoteMachine, []string) (string, error) {
+				return "Usage: fixture (no self-updater)", nil
+			}
+			for _, channel := range []string{"native", "npm", "homebrew", "unknown"} {
+				install := harnessInstallation{Channel: channel, Path: "/fixture/" + spec.Binary, Formula: spec.BrewNames[0]}
+				cmd, err := service.installationUpdateCommand(t.Context(), nil, spec, install)
+				want := channel == "homebrew" || channel == "npm" && c.npm || channel == "native" && c.native != ""
+				if (err == nil) != want || want && len(cmd) == 0 {
+					t.Fatalf("%s/%s update-channel support drift: %v %v", c.id, channel, cmd, err)
+				}
+				if channel == "native" && want && !reflect.DeepEqual(cmd, []string{install.Path, c.native}) {
+					t.Fatalf("%s native updater drift: %v", c.id, cmd)
+				}
+			}
+		}
+		coverage[c.id]["lifecycle"] = true
+		source := c.sink
+		if source == "" {
+			source = "unsupported"
+		}
+		lifecycle := "native=" + c.native + "; npm=" + strconv.FormatBool(c.npm) + "; homebrew=true; unknown=refuse"
+		inspect := "yes"
+		if !inspectable {
+			inspect, lifecycle = "unsupported", "unsupported"
+		}
+		row := "| `" + c.id + "` | " + c.protocol + " | " + inspect + " | " + lifecycle + " | " + source + " |"
+		coverage[c.id]["docs"] = strings.Contains(string(docs), row)
+	}
+	ids := []string{}
+	for _, record := range harness.Catalog() {
+		ids = append(ids, record.ID)
+	}
+	if errors := harnessCoverageErrors(ids, coverage); len(errors) != 0 {
+		t.Fatal(errors)
+	}
+}
+
+func TestHarnessContractCoverageRejectsOmissions(t *testing.T) {
+	dimensions := []string{"features", "inspect", "lifecycle", "model-source", "docs"}
+	complete := map[string]map[string]bool{"fixture": {}}
+	for _, dimension := range dimensions {
+		complete["fixture"][dimension] = true
+	}
+	if errors := harnessCoverageErrors([]string{"fixture"}, complete); len(errors) != 0 {
+		t.Fatal(errors)
+	}
+	for _, dimension := range dimensions {
+		t.Run(dimension, func(t *testing.T) {
+			delete(complete["fixture"], dimension)
+			errors := harnessCoverageErrors([]string{"fixture"}, complete)
+			if len(errors) != 1 || !strings.Contains(errors[0], dimension) {
+				t.Fatal("omission did not fire", errors)
+			}
+			complete["fixture"][dimension] = true
+		})
+	}
+	if len(harnessCoverageErrors([]string{"fixture", "new-family"}, complete)) != len(dimensions) {
+		t.Fatal("new family escaped coverage")
+	}
+	if len(harnessCoverageErrors([]string{"fixture", "fixture"}, complete)) != 1 {
+		t.Fatal("duplicate family escaped coverage")
+	}
+	if len(harnessCoverageErrors(nil, complete)) != 1 {
+		t.Fatal("obsolete family escaped coverage")
 	}
 }

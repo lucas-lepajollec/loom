@@ -952,3 +952,7 @@ entries or foreign markers are refused. Source/project changes re-point links
 immediately, with reconciliation every three minutes. Removing the primary
 clears owned entries but retains opt-in. Conflicts return an error after the
 source/project change is saved. Native trust and access rules still apply.
+
+## Retrieval verification
+
+The [offline retrieval guide](agents/brain-retrieval.md) exercises production ingestion, lexical search, packing and final discussion preparation with authored fixtures and a fake adapter. It makes no completion, embedding, consolidation or judge call. Strict byte-span evidence, scope leakage and final-message presence are gated; latency is informational. Natural LongMemEval content stays in ignored cache until licence/content review and fixed selection are complete. These scores do not measure speech, native wire prompts or paid model quality.

@@ -4,6 +4,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+- Contributor cleanup: canonical UI/agent/retrieval guides replace duplicated
+  mission instructions; the October reuse audit records delivery status separately
+  from its original proposals. Remove proven unused Go compatibility wrappers and
+  aliases without changing runtime behavior. `make check-guards`, included in UI
+  checks/CI, adds family contract coverage, root Go ownership/JS size budgets and
+  new bilingual UI-copy checks with deterministic rejection tests.
+
+
 - Native Codex/Pi, OpenCode and Antigravity share one answer accumulator with
   protocol-specific replacement semantics and stable unfinished-item closing;
   all 43 native fixtures retain byte-identical canonical output. Builtin ACP,

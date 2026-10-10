@@ -12,6 +12,41 @@ Read repository guidance and architecture documents before analysis: `AGENTS.md`
 
 The inventory in §8 covers every current agent family and transport, engine path, relevant store and UI consumer of the audited contracts. It is a contract and reuse audit, not a claim that every line in 966 files was independently security-reviewed.
 
+## Delivery status checked 2026-10-10
+
+This is a **dated audit of `68c5bc4`**, not the current architecture or a fresh
+acceptance report. Original measurements, external references and proposals
+below are retained as historical evidence; “proposed” commands may now have
+maintained equivalents. Use [architecture](../architecture.md), the
+[implementation guide](../agents/implementation-brief.md), [UI validation](../agents/ui-validation.md)
+and [retrieval guide](../agents/brain-retrieval.md) for current contracts.
+The following delivery observations come from the local merge history through
+`5985560`; merge status does not establish live account/device acceptance.
+
+| Audit rank | Status in this checkout | Review / durable reference |
+| --- | --- | --- |
+| 1 | Delivered: capability-specific recovery | #118; [compatibility](../agents-compat.md#capability-truth-table) |
+| 2 | First evidence stage delivered; later operation observations/attestation pending | #118; [evidence](../agents-compat.md#evidence-and-check-only-automation) |
+| 3 | Offline authored baseline delivered; natural corpus/review pending | #116; [retrieval](../agents/brain-retrieval.md) |
+| 4 | Delivered: one native answer accumulator, 43 fixture baselines | #120; [architecture](../architecture.md#native-answer-assembly) |
+| 5 | Delivered: shared identity/launch/inspect/remote metadata | #120; [consumer matrix](../agents/acp-implementation.md#harness-consumer-matrix) |
+| 6 | Agent module split/layout delivered; unused machine view deletion awaits crawl proof | #121; [UI validation](../agents/ui-validation.md) |
+| 7 | Not delivered: ACP SDK/TCK trial | Separate future spike; no SDK/TCK certification |
+| 8 | Recipe metadata shared; Environment/usage operation parity still pending | #120 covers recipes only; SSH retained |
+| 9 | Not delivered: residency leaf extraction | Existing state machine retained |
+| 10 | Not delivered: scoring/temporal refinement | Benchmark first; no changed retrieval behavior |
+| 11 | Not delivered: installer/vLLM leaf work | Extract only proved shared operations |
+
+| PR in requested #115–#121 range | Local evidence |
+| --- | --- |
+| #115 | Merged `69cdca9`: UI observation validation and mobile recovery; cross-cutting prerequisite, not a ranked extraction |
+| #116 | Merged `5224d9b`: free Brain baseline (rank 3) |
+| #117 | No merge/PR metadata in this checkout; remote lookup unavailable. Status unverified; do not infer delivery |
+| #118 | Merged `c6e2672`: recovery/evidence/check-only automation (ranks 1–2) |
+| #119 | Merged `bc4500b`: error bar scope; separate UI correction |
+| #120 | Merged `5985560`: answer/catalog reuse (ranks 4–5, recipe part of 8) |
+| #121 | Merged `422e8b8`: phone layout and agent page split (rank 6 partial) |
+
 ## 2. Measured structure and extraction opportunities
 
 ### 2.1 Concentration

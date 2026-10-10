@@ -74,7 +74,9 @@ jobs:
       - name: Check isolated node installation and rollback
         run: LOOM_TEST_BINARY="$PWD/bin/loom" sh tools/tests/install-node.sh
 
-      - name: Check UI modules and tests
+      # check-ui includes offline contract/structure/i18n guards and their
+      # deliberate omission/growth/untranslated-copy failure fixtures.
+      - name: Check UI modules, tests and repository guardrails
         run: make check-ui
 
       - name: Crawl every UI route for render crashes
