@@ -122,6 +122,10 @@ try {
             });
             await page.route('**/api/**', async route => {
               const u = new URL(route.request().url());
+              if (/^\/api\/(agents|harness|harness-history|runtimes)(\/|$)|^\/api\/(brain\/agents|skills\/targets|usage\/native)(\/|$)/.test(u.pathname)) {
+                failures.push(`Removed integration requested by #/${r}: ${u.pathname}`);
+                return route.abort();
+              }
               if (/^\/api\/(chat\/send|runtime\/sessions\/send|load-model|start|restart)$/.test(u.pathname)) {
                 failures.push('Crawl attempted generation or engine startup: ' + u.pathname);
                 return route.abort();

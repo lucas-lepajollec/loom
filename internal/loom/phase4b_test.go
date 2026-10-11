@@ -144,8 +144,10 @@ func TestPhase4bObservedSpendAndEngineRecovery(t *testing.T) {
 	if c := doctorEngine(t.Context()); c.Status != "warn" || !capabilityDisabled(currentEngineCapabilityOwner(), "chat") {
 		t.Fatal(c)
 	}
-	if hasRuntimeCapability((llamaRuntimeAdapter{}).Descriptor(), "chat") {
-		t.Fatal("engine descriptor retained failed feature")
+	for _, descriptor := range runtimeCatalog() {
+		if descriptor.ID == "llama.cpp" && hasRuntimeCapability(descriptor, "chat") {
+			t.Fatal("engine catalog retained failed feature")
+		}
 	}
 	online = true
 	if c := doctorEngine(t.Context()); c.Status != "ok" || capabilityDisabled(currentEngineCapabilityOwner(), "chat") {

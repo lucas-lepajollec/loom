@@ -59,10 +59,6 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 	if choice.Kind == "cloud" {
 		s.RuntimeID = "openai-compatible"
 	}
-	s.RuntimeID = "llama.cpp"
-	if choice.Kind == "cloud" {
-		s.RuntimeID = "openai-compatible"
-	}
 	s.ReasoningEffort = ""
 	s.ProviderID = choice.ProviderID
 	s.ProviderName = choice.ProviderName

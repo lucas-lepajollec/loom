@@ -53,6 +53,7 @@ var (
 	engineNodeMu    sync.Mutex
 	engineNodeCache *engineNode
 	engineNodeRead  bool
+	engineNodePath  string
 )
 
 // currentEngineNode returns the linked remote engine, or nil when the engine
@@ -60,6 +61,13 @@ var (
 func currentEngineNode() *engineNode {
 	engineNodeMu.Lock()
 	defer engineNodeMu.Unlock()
+	if path := dbPath(); engineNodePath != path {
+		engineNodePath = path
+		engineNodeCache, engineNodeRead = nil, false
+		engineModelsCache.Lock()
+		engineModelsCache.body, engineModelsCache.at = nil, time.Time{}
+		engineModelsCache.Unlock()
+	}
 	if !engineNodeRead {
 		var n engineNode
 		if getStoreJSON(bkState, engineNodeState, &n) && n.URL != "" {
@@ -80,6 +88,7 @@ func setEngineNode(n *engineNode) error {
 		err = putStoreJSON(bkState, engineNodeState, n)
 	}
 	if err == nil {
+		engineNodePath = dbPath()
 		engineNodeCache, engineNodeRead = n, true
 		engineModelsCache.Lock()
 		engineModelsCache.body, engineModelsCache.at = nil, time.Time{}

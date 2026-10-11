@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -55,6 +57,89 @@ func TestRetirementCatalogAndLegacyDiscussion(t *testing.T) {
 	saved, ok := m.get(legacy.ID)
 	if !ok || len(saved.Messages) != 2 || saved.Messages[1].Content != "retained answer" || saved.RuntimeID != "pi" {
 		t.Fatal("legacy transcript changed")
+	}
+}
+
+func TestRetiredDiscussionSelectsLocalCloudWithoutLosingHistory(t *testing.T) {
+	continuityBase(t)
+	if err := SetConfigKey("MODEL", "fixture.gguf"); err != nil {
+		t.Fatal(err)
+	}
+	m := newRuntimeSessions()
+	legacy := RuntimeSession{
+		ID: "retired-history", RuntimeID: "pi", Model: "old-model", Status: "idle",
+		Messages: []Message{{Role: "user", Content: "retained question"}, {Role: "assistant", Content: "retained answer"}},
+		Turns:    []RuntimeTurnRecord{{RuntimeID: "pi", ACPEvents: []DiscussionEvent{{"type": "plan", "text": "historical plan"}}}},
+		ACPState: ACPState{NativeSessionID: "old-session", NativeRuntimeID: "pi", NativeContext: "private runtime state", FilesystemPolicy: "full", Mode: "native-mode"},
+	}
+	if err := putStoreJSON(bkRuntimeSessions, legacy.ID, legacy); err != nil {
+		t.Fatal(err)
+	}
+	localID := ""
+	for _, choice := range modelCatalog(nil) {
+		if choice.Kind == "local" {
+			localID = choice.ID
+			break
+		}
+	}
+	local, err := m.selectModel(legacy.ID, localID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if local.RuntimeID != "llama.cpp" || local.NativeSessionID != "" || local.NativeRuntimeID != "" || local.NativeContext != "" || local.FilesystemPolicy != "" || local.Mode != "" {
+		t.Fatal("retired runtime state transferred to Local")
+	}
+	provider, err := m.saveProvider(CloudProvider{Name: "Fixture", Endpoint: "https://provider.example/v1", Model: "fixture-cloud"}, "synthetic-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cloudID := cloudChoiceID(provider.ID, provider.Model)
+	if _, err := m.selectModel(legacy.ID, cloudID, false); err == nil {
+		t.Fatal("external sharing accepted without consent")
+	}
+	cloud, err := m.selectModel(legacy.ID, cloudID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cloud.RuntimeID != "openai-compatible" || cloud.ID != legacy.ID || !reflect.DeepEqual(cloud.Messages, legacy.Messages) || !reflect.DeepEqual(cloud.Turns, legacy.Turns) || len(m.list()) != 1 {
+		t.Fatal("Local/Cloud selection lost or forked legacy history")
+	}
+}
+
+func TestRuntimeRegistrationDoesNotReadEngineState(t *testing.T) {
+	testHome(t)
+	registry := newRuntimeRegistry()
+	if err := registry.register(llamaRuntimeAdapter{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dbPath()); !os.IsNotExist(err) {
+		t.Fatal("runtime registration accessed the data store", err)
+	}
+}
+
+func TestEngineNodeCacheFollowsDataHome(t *testing.T) {
+	first := testHome(t)
+	second := t.TempDir()
+	node := &engineNode{URL: "https://node.example", V1: "https://node.example", WebKey: "synthetic-machine-key"}
+	if err := setEngineNode(node); err != nil {
+		t.Fatal(err)
+	}
+	engineModelsCache.Lock()
+	engineModelsCache.body = []byte(`{"data":[{"id":"old-model"}]}`)
+	engineModelsCache.Unlock()
+	t.Setenv("LOOM_HOME", second)
+	if currentEngineNode() != nil {
+		t.Fatal("engine from another data home was reused")
+	}
+	engineModelsCache.Lock()
+	stale := engineModelsCache.body != nil
+	engineModelsCache.Unlock()
+	if stale {
+		t.Fatal("engine model catalog from another data home was reused")
+	}
+	t.Setenv("LOOM_HOME", first)
+	if restored := currentEngineNode(); restored == nil || restored.URL != node.URL {
+		t.Fatal("original engine link was lost")
 	}
 }
 

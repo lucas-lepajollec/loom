@@ -328,6 +328,18 @@ func TestMarkdownConsolidationUpdateDeleteAndProjectScope(t *testing.T) {
 
 func TestMarkdownConsolidationResidentModelRoutes(t *testing.T) {
 	continuityBase(t)
+	oldTransport := http.DefaultTransport
+	http.DefaultTransport = brainFakeModelTransport{http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/props" {
+			t.Error("unexpected router inspection", r.URL.Path)
+		}
+		w.Write([]byte(`{"role":"router"}`))
+	})}
+	llamaOwner.InvalidateRouterMode()
+	t.Cleanup(func() {
+		http.DefaultTransport = oldTransport
+		llamaOwner.InvalidateRouterMode()
+	})
 	oldLoaded, oldNode, oldClient := memoryLoadedModel, currentEngineNode(), nodeClient
 	t.Cleanup(func() { memoryLoadedModel = oldLoaded; nodeClient = oldClient; setEngineNode(oldNode) })
 	setEngineNode(nil)

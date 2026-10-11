@@ -1,11 +1,9 @@
-// Mémoire du Brain : des fichiers Markdown dans le second cerveau, au format
-// de la mémoire automatique de Claude Code (un index MEMORY.md, un fichier par
-// souvenir). Les agents les lisent et les écrivent eux-mêmes ; Loom les met à
-// jour après chaque discussion et les affiche ici.
+// Mémoire du Brain : un index MEMORY.md et un fichier Markdown par souvenir.
+// Loom consolide les discussions avec le modèle explicitement sélectionné.
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Tip, Switch } from '../../ui/controls.js';
+import { Tip } from '../../ui/controls.js';
 import { ListPick } from '../../ui/listpick.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
@@ -82,33 +80,9 @@ function Consolidation() {
         <div class="grow"><div class="bs-name">${t('memory.cons.model')}</div><div class="bs-sub"><span>${st && st.last_run ? t('memory.cons.last', { when: ago(st.last_run), n: ops.length }) : t('memory.cons.never')}</span>${st && st.last_error && html`<span class="bs-state err" title=${st.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>
         <div class="es-pick"><${ListPick} label=${t('memory.cons.model')} value=${value(cfg.model)} onChange=${v => save('model', v)} options=${options(false)} /></div></div>
       ${value(cfg.model) === 'discussion' && html`<div class="bs-row"><span class="mono-tile"><${Icon} n="terminal" /></span>
-        <div class="grow"><div class="bs-name">${t('memory.cons.agents')}</div><div class="bs-sub"><span>${t('memory.cons.agents_note')}</span></div></div>
-        <div class="es-pick"><${ListPick} label=${t('memory.cons.agents')} value=${value(cfg.fallback) === 'discussion' ? 'off' : value(cfg.fallback)} onChange=${v => save('fallback', v)} options=${options(true)} /></div></div>`}
+        <div class="grow"><div class="bs-name">${t('memory.cons.archives')}</div><div class="bs-sub"><span>${t('memory.cons.archives_note')}</span></div></div>
+        <div class="es-pick"><${ListPick} label=${t('memory.cons.archives')} value=${value(cfg.fallback) === 'discussion' ? 'off' : value(cfg.fallback)} onChange=${v => save('fallback', v)} options=${options(true)} /></div></div>`}
     </div></section>`;
-}
-
-// Agents reliés au cerveau : chacun lit et écrit la mémoire par ses propres
-// mécanismes officiels (réglage de Claude Code, fichier AGENTS.md…), même lancé
-// sans Loom.
-function LinkedAgents() {
-  const [d, setD] = useState(null);
-  const [busy, setBusy] = useState('');
-  const load = () => get('/api/brain/agents').then(r => setD(r.ok === false ? null : r)).catch(() => setD(null));
-  useEffect(() => { load(); }, []);
-  if (!d) return null;
-  const toggle = async (a, enabled) => {
-    setBusy(a.id);
-    const r = await post('/api/brain/agents', { id: a.id, enabled }).catch(e => ({ ok: false, error: e.message }));
-    setBusy('');
-    if (r.ok === false || r.error) return toast(r.error, 'err');
-    setD(r);
-  };
-  return html`<section class="sec"><div class="sec-h"><h2>${t('memory.agents.title')}<${Tip} text=${t('memory.agents.tip')} /></h2></div>
-    <div class="card bs-list">${(d.agents || []).filter(a => a.supported || !a.id.startsWith('custom-node-')).map(a => html`<div class="bs-row" key=${a.id}>
-      <span class="mono-tile"><${Icon} n="terminal" /></span>
-      <div class="grow"><div class="bs-name">${a.name}</div><div class="bs-sub">${a.supported ? html`<span class="mono trunc" title=${a.file}>${home(a.file)}</span>${a.linked && html`<span class="bs-state"><i class="dot green"></i>${t('memory.agents.linked')}</span>`}` : html`<span>${a.note || t('mcp.gw.unsupported')}</span>`}</div></div>
-      <${Switch} checked=${!!a.linked} disabled=${!a.supported || busy === a.id} label=${a.name} onChange=${on => toggle(a, on)} /></div>`)}</div>
-  </section>`;
 }
 
 export function MemoryItems({ q = '' }) {
@@ -135,7 +109,6 @@ export function MemoryItems({ q = '' }) {
           <button type="button" class="mcard add" onClick=${() => setEdit({})}><${Icon} n="plus" /><span>${t('memory.add')}</span><small>${t('memory.add_note')}</small></button></div>`}
     </section>
     <${Consolidation} />
-    <${LinkedAgents} />
     ${edit && html`<${MemoryEditor} scope=${scope} item=${edit.file ? edit : null} onClose=${ok => { setEdit(null); if (ok) load(); }} />`}
   </div>`;
 }

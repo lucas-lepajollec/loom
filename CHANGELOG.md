@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [Unreleased]
 
 - Retire coding harness integrations, native protocols/installers/accounts,
   quotas, remote agent imports and related interface screens.
@@ -9,12 +9,20 @@
   and events; require Local/Cloud selection to continue retired discussions.
 - Keep MCP clients independent: manual gateway configuration, dedicated token
   rotation, hashed token persistence and no native configuration writes.
+- Isolate cached configuration by database path, including databases with
+  matching file timestamps and sizes. Scope engine links and model observations
+  to the active data root; register runtimes without reading engine state.
+- Remove retired agent linking calls from Brain memory; retain explicit
+  archive consolidation choices and align Local/Cloud, skills and machine copy.
 - See [migration notes](docs/harness-retirement.md) before upgrading.
 
 
 Notable changes to Loom are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and releases use [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## Earlier development notes
+
+These notes record work before harness retirement. Native integration entries
+are superseded by the current Unreleased scope and are retained as history.
 
 - Native Codex/Pi, OpenCode and Antigravity share one answer accumulator with
   protocol-specific replacement semantics and stable unfinished-item closing;

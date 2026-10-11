@@ -33,4 +33,10 @@ func localChatRuntime() RuntimeAdapter {
 	return adapter
 }
 
-func runtimeCatalog() []RuntimeDescriptor { return registeredRuntimes.catalog() }
+func runtimeCatalog() []RuntimeDescriptor {
+	catalog := registeredRuntimes.catalog()
+	for i, descriptor := range catalog {
+		catalog[i] = degradedDescriptor(descriptor)
+	}
+	return catalog
+}
