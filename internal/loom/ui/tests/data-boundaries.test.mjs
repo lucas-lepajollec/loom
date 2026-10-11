@@ -86,22 +86,17 @@ test('read boundary rejects HTTP, JSON and collection failures in every catalog 
   const h = harness();
   for (const [url, body] of [
     ['/api/models', [null]], ['/api/presets', {}], ['/api/vram', {}],
-    ['/api/models/download/status', {}], ['/api/agents/catalog', {}], ['/api/backends/custom', {}],
+    ['/api/models/download/status', {}], ['/api/backends/custom', {}],
     ['/api/machines', { ok: true, machines: {} }], ['/api/machines', { ok: true, offers: { fixture: {} } }],
-    ['/api/agents/installations', { ok: true, installations: {} }], ['/api/voice/models', { models: {} }],
     ['/api/voice/models', { models: [{ id: 'tts', languages: {} }] }],
     ['/api/hub/search', { models: {} }], ['/api/hub/model', { files: {} }],
     ['/api/brain/sources', { sources: {} }], ['/api/brain/memory', { items: {} }],
-    ['/api/skills/targets', { targets: {} }], ['/api/mcp', { servers: {} }],
-    ['/api/usage', { quotas: {} }], ['/api/usage/native', { harnesses: {} }],
+    ['/api/usage', { quotas: {} }],
     ['/api/tasks', { tasks: {} }], ['/api/terminals', { terminals: {} }],
     ['/api/engines/vllm/models', { models: {} }], ['/api/bench/queue', { job: { rows: {} } }],
-    ['/api/runtimes/codex/probe', { probe: { config: [{ options: {} }] } }],
-    ['/api/runtimes/pi/probe', { probe: { features: { model_sources: {} } } }],
     ['/api/mcp/sources', { sources: [{ servers: {} }] }],
     ['/api/brain/sources', { sources: [{ include: {} }] }],
     ['/api/brain/search', { hits: [{ heading: {}, highlights: [] }] }],
-    ['/api/skills/targets', { targets: [{ harnesses: null }] }],
     ['/api/startup', { engines: { vllm_models: {} } }],
     ['/api/policy', { rules: [{ conditions: { command_prefixes: {} } }] }],
     ['/api/providers/models', { models: null }], ['/api/fs/dirs', { ok: true }],
@@ -136,29 +131,12 @@ test('usage observation writes reject invalid lists and retain a successful snap
   const env = {}, helper = new URL('shape.js', root);
   if (fs.existsSync(helper)) vm.runInNewContext(plain(fs.readFileSync(helper, 'utf8')), env);
   vm.runInNewContext(plain(read('observations.js')) + '\nglobalThis.observation = {remember,recall};', env);
-  const rows = [{ runtime_id: 'codex' }]; env.observation.remember('native:7', rows);
-  env.observation.remember('native:7', { ok: false, error: 'offline' });
-  assert.equal(env.observation.recall('native:7'), rows);
+  const rows = [{ provider_id: 'fixture' }]; env.observation.remember('balances', rows);
+  env.observation.remember('balances', { ok: false, error: 'offline' });
+  assert.equal(env.observation.recall('balances'), rows);
 });
 
-test('the Composer retains cached harness controls during a failed command refresh', async () => {
-  const source = fs.readFileSync(process.env.LOOM_COMPOSER_BASELINE || new URL('../next/js/features/chat/composer.js', import.meta.url), 'utf8');
-  const effects = [], env = {};
-  for (const match of source.matchAll(/^import \{([^}]+)\}/gm)) for (const symbol of match[1].split(',')) env[symbol.trim()] = symbol.trim();
-  const state = { mode: 'thread', session: { runtime_id: 'pi' }, harness: {} };
-  Object.assign(env, { t: x => x, html: () => null, cls: () => '', Set,
-    chat: { get: () => state }, app: { get: () => ({}) }, useStore: (store, select) => select(store.get()),
-    useState: v => [v, () => {}], useRef: v => ({ current: v }), useEffect: f => effects.push(f),
-    currentExec: () => ({}), runtimeKind: () => 'harness', runtimeCaps: () => [], slashEntries: () => [],
-    configOptions: () => [], modeOptions: () => [], localStorage: { getItem: () => null },
-    get: async () => { throw new Error('offline'); },
-  });
-  vm.runInNewContext(plain(source) + '\nglobalThis.view = Composer; globalThis.cache = probes;', env);
-  const previous = { commands: [], modes: [{ id: 'plan' }] };
-  env.cache.pi = previous; env.view(); effects.forEach(f => f());
-  assert.equal(env.cache.pi, previous, 'pending refresh must not erase the previous observation');
-  await new Promise(r => setImmediate(r)); assert.equal(env.cache.pi, previous);
-});
+
 
 test('raw upload responses cannot publish an object as an attachment path', async () => {
   const { validData } = await import('../next/js/core/shape.js');

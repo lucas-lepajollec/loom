@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/lucas-lepajollec/loom/internal/loom/capability"
-	"github.com/lucas-lepajollec/loom/internal/loom/harness"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,12 +15,8 @@ import (
 	"time"
 )
 
-// Remote machines: another computer reachable over SSH where harnesses run
-// (for example Hermes in a container). Loom connects with its own key, reads
-// what is installed there with a small script, and registers each chosen
-// harness as a remote ACP agent (custom-<machine>-<harness>). Nothing is
-// installed during linking besides Loom's public key, added by the user.
-// Explicit lifecycle actions can subsequently install or update harnesses.
+// SSH machines provide terminals, workspaces and environment observations.
+// Linking never installs software or registers an executor.
 
 type RemoteTool struct {
 	ID      string `json:"id"`
@@ -43,16 +38,12 @@ type RemoteMachine struct {
 	Home      string                `json:"home,omitempty"`
 	OS        string                `json:"os,omitempty"`
 	Tools     []RemoteTool          `json:"tools,omitempty"`
-	Harnesses []string              `json:"harnesses,omitempty"` // registered harness ids on this machine
+	Harnesses []string              `json:"harnesses,omitempty"` // historical metadata only, never registered
 	Folders   []string              `json:"folders,omitempty"`   // favourite work folders there (suggestions)
 	CheckedAt int64                 `json:"checked_at,omitempty"`
 }
 
 const remoteMachinesState = "remote_machines"
-
-// The six supported remote recipes share local identity, argv and pins.
-// SSH quoting and Node transport remain separate consumers of this metadata.
-var remoteHarnessDefs = harness.RemoteRecipes()
 
 // remoteProbeScript prints one line "LOOM-MACHINE {json}" describing the
 // machine. POSIX sh, no dependency; the user can run it by hand and Loom runs
@@ -78,7 +69,7 @@ func afterRemoteMarker(out string) string {
 
 const remoteProbeScript = remotePathPreamble + `T=""; command -v timeout >/dev/null 2>&1 && T="timeout 5"
 j=""
-for t in hermes claude codex pi opencode openclaw agy npm npx node; do
+for t in ssh git python3; do
   p=$(command -v "$t" 2>/dev/null) || continue
   v=$($T "$p" --version </dev/null 2>/dev/null | head -n 1 | tr -d '"\\' | cut -c1-60)
   j="$j{\"id\":\"$t\",\"path\":\"$p\",\"version\":\"$v\"},"
@@ -147,7 +138,7 @@ func validRemoteMachine(m RemoteMachine) (RemoteMachine, error) {
 		return m, errors.New("name too long (40 characters)")
 	}
 	if m.ID == "" {
-		m.ID = strings.Trim(acpCustomIDRe.ReplaceAllString(strings.ToLower(m.Name), "-"), "-")
+		m.ID = strings.Trim(machineIDRe.ReplaceAllString(strings.ToLower(m.Name), "-"), "-")
 		if m.ID == "" {
 			m.ID = "machine"
 		}
@@ -203,7 +194,7 @@ func parseRemoteProbe(out string) (RemoteMachine, error) {
 
 // checkRemoteMachine connects with Loom's key and runs the description script.
 func checkRemoteMachine(ctx context.Context, m RemoteMachine) (RemoteMachine, error) {
-	if usesNodeHarness(m) {
+	if usesNodeTransport(m) {
 		return refreshNodeMachine(ctx, m)
 	}
 	key, _, err := loomSSHKey()
@@ -253,74 +244,6 @@ func lastLine(s string) string {
 	return strings.TrimSpace(lines[len(lines)-1])
 }
 
-// remoteOffers lists the harnesses that can run on a checked machine.
-func remoteOffers(m RemoteMachine) []map[string]any {
-	have := map[string]RemoteTool{}
-	for _, t := range m.Tools {
-		have[t.ID] = t
-	}
-	out := []map[string]any{}
-	for _, d := range remoteHarnessDefs {
-		ok := true
-		for _, n := range d.Needs {
-			if _, found := have[n]; !found {
-				ok = false
-			}
-		}
-		if m.NodeID != "" && m.User == "" && !hasNodeModule(m.Modules, "harness") {
-			ok = false
-		}
-		version := have[d.Needs[0]].Version
-		_, installed := have[d.Needs[0]]
-		missing := ""
-		if installed && !ok {
-			missing = "Node.js (npx) required on the machine for the ACP adapter"
-		}
-		if m.NodeID != "" && m.User == "" && !hasNodeModule(m.Modules, "harness") {
-			missing = nodeHarnessDisabled
-		}
-		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "logo": d.Logo, "installed": installed, "ready": ok, "version": version, "missing": missing})
-	}
-	return out
-}
-
-// remoteAgent builds the ACP agent for one harness on a machine. The remote
-// command runs through `sh -lc` with the folders where the tools were found
-// added to PATH, so npx and node resolve like in the user's terminal.
-func remoteAgent(m RemoteMachine, harness string, key string) (acpAgent, error) {
-	if usesNodeHarness(m) {
-		return nodeAgent(m, harness)
-	}
-	for _, d := range remoteHarnessDefs {
-		if d.ID != harness {
-			continue
-		}
-		launch := d.Launch
-		if launch == nil {
-			return acpAgent{}, errors.New("unknown launcher")
-		}
-		dirs := remoteToolDirs(m)
-		parts := []string{}
-		for _, p := range launch {
-			parts = append(parts, shellQuote(p))
-		}
-		script := "exec " + strings.Join(parts, " ")
-		if len(dirs) > 0 {
-			script = "PATH=" + shellQuote(strings.Join(dirs, ":")) + ":\"$PATH\" " + script
-		}
-		args := sshArgs(m, key, "sh", "-c", shellQuote(script))
-		if lifecycleOS(&m) == "windows" {
-			args = windowsRemoteLifecycleCommand(m, key, launch)[1:]
-		}
-		a := acpAgent{
-			ID: "custom-" + m.ID + "-" + d.ID, Name: d.Name, Logo: d.Logo, Command: "ssh",
-			Args: args, Remote: true, Custom: true, Machine: m.ID, RemoteHome: m.Home,
-		}
-		return a, nil
-	}
-	return acpAgent{}, errors.New("harness not supported remotely")
-}
-
 func machineName(id string) string {
 	for _, m := range loadRemoteMachines() {
 		if m.ID == id {
@@ -337,7 +260,7 @@ type remoteMachineInfo struct {
 }
 
 // GET: machines, Loom's public key and the setup block.
-// POST {machine, harnesses}: check, save the machine and (re)register its harnesses.
+// POST {machine}: check and save the SSH machine.
 func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		list := []remoteMachineInfo{}
@@ -358,11 +281,7 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 		if pub != "" {
 			setup = remoteSetupBlock(pub)
 		}
-		offers := map[string]any{}
-		for _, m := range list {
-			offers[m.ID] = remoteOffers(m.RemoteMachine)
-		}
-		sendJSON(w, 200, map[string]any{"ok": true, "machines": list, "offers": offers, "key": pub, "setup": setup, "script": remoteProbeScript})
+		sendJSON(w, 200, map[string]any{"ok": true, "machines": list, "key": pub, "setup": setup, "script": remoteProbeScript})
 		return
 	}
 	if !workspaceMethod(w, r, http.MethodPost) {
@@ -370,7 +289,6 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Machine   RemoteMachine `json:"machine"`
-		Harnesses []string      `json:"harnesses"`
 		CheckOnly bool          `json:"check_only"`
 	}
 	if !workspaceDecode(w, r, &req) {
@@ -380,7 +298,7 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 	// Transport identity and module claims come from saved state, not the browser.
 	for _, saved := range loadRemoteMachines() {
 		if saved.ID == m.ID {
-			if usesNodeHarness(saved) {
+			if usesNodeTransport(saved) {
 				if m.Name != "" {
 					saved.Name = m.Name
 				}
@@ -395,7 +313,7 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var err error
-	if !usesNodeHarness(m) {
+	if !usesNodeTransport(m) {
 		m, err = validRemoteMachine(m)
 	}
 	if err != nil {
@@ -408,81 +326,36 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.CheckOnly {
-		sendJSON(w, 200, map[string]any{"ok": true, "machine": m, "offers": remoteOffers(m)})
+		sendJSON(w, 200, map[string]any{"ok": true, "machine": m})
 		return
 	}
-	key := ""
-	if !usesNodeHarness(m) {
-		key, _, _ = loomSSHKey()
-	}
-	agents := []acpAgent{}
-	for _, h := range req.Harnesses {
-		a, err := remoteAgent(m, h, key)
-		if err != nil {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
-			return
-		}
-		agents = append(agents, a)
-	}
-	m.Harnesses = []string{}
-	for _, a := range agents {
-		m.Harnesses = append(m.Harnesses, a.ID)
-	}
-	if err := saveRemoteMachine(m, agents); err != nil {
+	if err := saveRemoteMachine(m); err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	for _, a := range agents {
-		go refreshACPProbe(context.Background(), a)
-	}
+
 	sendJSON(w, 200, map[string]any{"ok": true, "machine": m})
 }
 
-// saveRemoteMachine stores the machine and replaces its harnesses in the
-// custom agents list and the live registry.
-func saveRemoteMachine(m RemoteMachine, agents []acpAgent) error {
-	m.Harnesses = nil
-	for _, a := range agents {
-		m.Harnesses = append(m.Harnesses, a.ID)
-	}
-	machines := []RemoteMachine{}
+// saveRemoteMachine stores machine identity and preserves node association.
+func saveRemoteMachine(m RemoteMachine) error {
+	machines := loadRemoteMachines()
 	replaced := false
-	for _, old := range loadRemoteMachines() {
+	for i, old := range machines {
 		if old.ID == m.ID {
 			m.NodeID, m.Modules, m.Handshake = old.NodeID, old.Modules, old.Handshake
 			if m.Folders == nil {
-				m.Folders = old.Folders // re-checking a machine keeps its folders
+				m.Folders = old.Folders
 			}
-			old, replaced = m, true
+			machines[i] = m
+			replaced = true
+			break
 		}
-		machines = append(machines, old)
 	}
 	if !replaced {
 		machines = append(machines, m)
 	}
-	kept := []acpAgent{}
-	removed := []string{}
-	for _, a := range loadCustomACPAgents() {
-		if a.Machine == m.ID {
-			removed = append(removed, a.ID)
-			continue
-		}
-		kept = append(kept, a)
-	}
-	kept = append(kept, agents...)
-	if err := putStoreJSON(bkState, acpCustomState, kept); err != nil {
-		return err
-	}
-	if err := putStoreJSON(bkState, remoteMachinesState, machines); err != nil {
-		return err
-	}
-	for _, id := range removed {
-		registeredRuntimes.remove(id)
-	}
-	for _, a := range agents {
-		registeredRuntimes.upsert(&acpAdapter{agent: a})
-	}
-	return nil
+	return putStoreJSON(bkState, remoteMachinesState, machines)
 }
 
 func handleRemoteMachineDelete(w http.ResponseWriter, r *http.Request) {
@@ -506,18 +379,6 @@ func handleRemoteMachineDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	if !found {
 		sendJSON(w, 404, map[string]any{"ok": false, "error": "machine not found"})
-		return
-	}
-	kept := []acpAgent{}
-	for _, a := range loadCustomACPAgents() {
-		if a.Machine == req.ID {
-			registeredRuntimes.remove(a.ID)
-			continue
-		}
-		kept = append(kept, a)
-	}
-	if err := putStoreJSON(bkState, acpCustomState, kept); err != nil {
-		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 	if err := putStoreJSON(bkState, remoteMachinesState, machines); err != nil {

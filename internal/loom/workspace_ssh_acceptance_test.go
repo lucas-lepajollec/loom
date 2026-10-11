@@ -68,7 +68,7 @@ func TestRemoteWorkspaceSSHAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	machine := RemoteMachine{ID: "fixture-box", Name: "Synthetic SSH", Host: "127.0.0.1", Port: port, User: "fixture", Home: "/home/fixture", OS: "linux"}
-	if err := saveRemoteMachine(machine, nil); err != nil {
+	if err := saveRemoteMachine(machine); err != nil {
 		t.Fatal(err)
 	}
 	folder, err := saveWorkspace(context.Background(), resources.Workspace{Name: "SSH project", Target: machine.ID, Path: "/home/fixture/app/new", Default: true}, true)

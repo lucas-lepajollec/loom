@@ -54,7 +54,6 @@ and Brain reports `skip/vault_locked` until unlock.
 | `brain.primary_writable` | Primary Brain source configuration and writable directory metadata; never reads Brain note contents. |
 | `engine.reachable` | Read-only health/models and optional properties. `engine_unreachable`, `engine_unreachable_or_unloaded`, `engine_outdated`, `engine_reachable`. A router with no loaded model can be healthy through `/v1/models`. Local build mismatch compares reported build info with the selected installed prebuilt version; linked node version compares with this Loom. Unreported engine build versions are not invented. |
 | `machine.<id>` | Each paired machine's node info, modules, handshake and Loom version: `machine_unreachable_or_incompatible`, `node_outdated`, `node_reachable_version_match`. |
-| `agent.<id>` | Each connected/enabled agent's executable, cached handshake and tested version: `agent_not_installed`, `handshake_not_observed`, `handshake_failed`, `capability_probe_failed`, `agent_version_unknown`, `agent_version_untested`, `agent_installed_handshake_cached`. Native cached records identify their actual executable, not an unused ACP launcher. |
 | `mcp.<server>` | Ping an already-connected MCP session only: `mcp_disabled`, `mcp_not_observed`, `mcp_unreachable`, `mcp_reachable`. No connection launch or tool call. |
 | `notifications.ntfy`, `.webhook`, `.push` | Enabled flag and last delivery error: `channel_disabled`, `notification_delivery_failed`, `no_delivery_error_observed`. No test delivery. |
 | `security.password` | Whether a browser access password is configured. |
@@ -127,51 +126,12 @@ member, including the manifest.
 
 ## Feature-level degraded mode: exact UI fields
 
-Runtime descriptors (`GET /api/runtimes`), agent probes
-(`GET /api/runtimes/{id}/probe` → `probe`), agent installations
-(`GET /api/agents/installations` → `installations`), machine records and node
-info responses can include:
-
-```json
-{"degraded":[{"capability":"resume","reason":"handshake_failed","since":1791540000000}]}
-```
-
-The field is optional when empty. `since` is Unix milliseconds and stays stable
-across repeated failures. Failed capabilities are removed from descriptor
-`capabilities`, their corresponding `features` booleans become false, and
-machine `modules` exclude failed modules. `/api/engine/node` additionally returns
-`degraded` for the selected engine (including `[]` when empty).
-
-Cached probes/compatibility records may carry explicit feature observations:
-
-```json
-{"capability_checks":[{"capability":"models","ok":false,"reason":"catalog_incompatible"}]}
-```
-
-A failed agent catalog handshake disables catalog/history/resume operations;
-it does not declare an installed chat protocol broken. Explicit feature checks
-from a successful native handshake followed by a catalog failure disable only
-`models`; native resume/history capabilities remain available. Explicit checks
-disable only the named feature. A successful refreshed probe restores only capabilities explicitly checked
-successfully; an empty or models-only probe cannot restore approvals. Node observations disable missing/unreachable modules
-and restore them on the next successful Doctor or existing health-monitor probe.
-Engine reachability failure disables `chat`/`stream` generation while leaving
-installation/management available; the next successful Doctor probe restores
-them. A merely untested version is a compatibility warning, not evidence of a
-specific broken feature. State is bounded and process-local; cached agent checks
-can be reapplied by Doctor after restart.
-
-Transitions publish through the existing event bus:
-
-```json
-{"id":12,"at":1791540000000,"type":"capability.degraded","title":"","status":"degraded","owner":"agent:codex","capability":"resume","reason":"handshake_failed"}
-```
-
-Restoration changes `type` to `capability.restored` and `status` to `restored`.
-Owners are `agent:<runtime_id>`, `machine:<machine_id>`, `engine:local`, or an
-opaque `engine:<destination_digest>` for a linked engine (no URL). Notification
-rules accept both types and exclude them by default. Existing Events/Tasks SSE
-and notification settings remain the delivery surface; no parallel bus exists.
+The Local/Cloud descriptors in `/api/workspace`, machine records and node info
+may include `degraded:[{capability,reason,since}]`. Observations remove failed
+capabilities only, preserving working features and stable failure timestamps.
+Engine reachability uses `engine:local` or an opaque destination digest; machine
+observations use `machine:<id>`. Transitions publish `capability.degraded` and
+`capability.restored` events. Health checks never start models or generation.
 
 Voice checks (`voice.installed`, `voice.version`, `voice.models`,
 `voice.service`) observe the selected local/paired voice machine without starting

@@ -203,14 +203,10 @@ function Model({ m, onNext, onBack }) {
 function Tools({ onNext, onBack }) {
   const ws = useStore(app, x => x.workspace);
   useEffect(() => { refreshWorkspace(); }, []);
-  const harnesses = ((ws && ws.runtimes) || []).filter(r => r.kind === 'harness' && !r.custom && r.id !== 'loom-fake-acp');
-  const found = harnesses.filter(r => r.available), missing = harnesses.filter(r => !r.available);
   return html`<div class="wl-body">
     <h2>${t('welcome.tools.title')}</h2>
     <p class="wl-lead">${t('welcome.tools.lead')}</p>
     <div class="card rows">
-      ${found.map(r => html`<div class="row"><${Logo} name=${r.logo || r.id} size="sm" /><div class="grow"><div class="t">${r.name}</div><div class="s">${t('welcome.tools.found')}</div></div><span class="tag green">${t('welcome.tools.ready')}</span></div>`)}
-      ${missing.length ? html`<div class="row"><span class="mx-ico"><${Icon} n="plug" /></span><div class="grow"><div class="t">${t('welcome.tools.others')}</div><div class="s">${missing.map(r => r.name).join(', ')}</div></div><button class="btn sm ghost" onClick=${() => finish(() => go('harnesses'))}>${t('welcome.tools.install')}</button></div>` : ''}
       <div class="row"><span class="mx-ico"><${Icon} n="cloud" /></span><div class="grow"><div class="t">${t('welcome.tools.cloud')}</div><div class="s">${t('welcome.tools.cloud_text')}</div></div><button class="btn sm ghost" onClick=${() => finish(() => go('cloud'))}>${t('welcome.tools.connect')}</button></div>
       <div class="row"><span class="mx-ico"><${Icon} n="server" /></span><div class="grow"><div class="t">${t('welcome.tools.machines')}</div><div class="s">${t('welcome.tools.machines_text')}</div></div><button class="btn sm ghost" onClick=${() => finish(() => go('machines'))}>${t('welcome.tools.add')}</button></div>
     </div>

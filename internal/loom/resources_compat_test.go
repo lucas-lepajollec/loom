@@ -14,7 +14,6 @@ func TestResourceCompatibilityWireShapes(t *testing.T) {
 		{SkillSource{ID: "loom", Path: "skills", Label: "Loom", Builtin: true, Writable: true}, `{"id":"loom","path":"skills","label":"Loom","builtin":true,"writable":true,"count":0}`},
 		{MCPSourceStatus{MCPSource: MCPSource{Path: "source", Label: "External"}, Servers: []MCPSourceServer{}}, `{"path":"source","label":"External","servers":[]}`},
 		{MCPFileStatus{Path: "mcp.json"}, `{"path":"mcp.json","mtime":null}`},
-		{skillSinkTarget{ID: "claude", Name: "Claude", Dir: "skills"}, `{"id":"claude","name":"Claude","harnesses":null,"dir":"skills","enabled":false,"written":null}`},
 		{MCPServerStatus{Name: "remote", Transport: "http", Tools: []string{}, Disabled: []string{}}, `{"name":"remote","transport":"http","enabled":false,"connected":false,"tools":[],"disabled":[]}`},
 		{Tool{Type: "function", Function: ToolFunction{Name: "test", Description: "desc"}}, `{"type":"function","function":{"name":"test","description":"desc","parameters":null}}`},
 		{MemHit{File: "notes.md", Title: "Notes", Snippet: "Body"}, `{"File":"notes.md","Title":"Notes","Snippet":"Body"}`},

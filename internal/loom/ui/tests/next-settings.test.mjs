@@ -358,7 +358,7 @@ test('reconnect accepts only the new running version, with bounded failures', as
   assert.equal(await env.wait('0.1.2', async () => { throw new Error('should not read'); }, async () => {}, () => false), false);
 });
 
-const machines = fs.readFileSync(new URL('../next/js/features/harnesses/machines.js', import.meta.url), 'utf8');
+const machines = fs.readFileSync(new URL('../next/js/features/machines/edit.js', import.meta.url), 'utf8');
 test('SSH machine can finish with no harnesses, including editing a machine without a harness list', async () => {
   for (const editing of [false, true]) {
     let closed;
@@ -389,7 +389,7 @@ test('SSH machine can finish with no harnesses, including editing a machine with
     assert.equal(save.props.disabled, false);
     await save.props.onClick();
     assert.equal(h.posts.at(-1)[0], '/api/machines');
-    assert.deepEqual(Array.from(h.posts.at(-1)[1].harnesses), []);
+    assert.equal('harnesses' in h.posts.at(-1)[1], false);
     assert.equal(closed.id, editing ? 'gpu' : '');
   }
 });
@@ -451,24 +451,7 @@ test('mobile Settings opens its index, follows section links and returns without
 });
 
 
-test('machine agents: managing is separate from using, enabling asks for consent', async () => {
-  const source = fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8') + fs.readFileSync(new URL('../next/js/features/settings/machines.js', import.meta.url), 'utf8');
-  const h = harness(source, 'HarnessesSection', { state: { workspace: { runtimes: [] } }, refreshWorkspace: async () => {} });
-  h.data['/api/agents/installations'] = { ok: true, installations: [
-    { machine: 'fixture-remote', machine_name: 'Synthetic remote', harness: 'codex', name: 'Codex', runtime_id: 'custom-fixture-remote-codex', installed: true, ready: true, managed: false, enabled: false },
-    { machine: 'other', harness: 'pi', name: 'Pi', installed: true, ready: true, managed: true, enabled: true },
-  ] };
-  const tree = await h.ready({ m: { id: 'fixture-remote', name: 'Synthetic remote' }, onChange: () => {} });
-  const switches = flatten(tree).filter(n => n.type === 'Switch');
-  assert.equal(switches.length, 2, 'only this machine is listed, with manage and use');
-  assert.equal(switches[0].props.checked, false);
-  await switches[0].props.onChange(true);
-  assert.equal(JSON.stringify(h.posts.at(-1).slice(0, 2)), JSON.stringify(['/api/agents/installations', { machine: 'fixture-remote', harness: 'codex', managed: true, consent: false }]));
-  h.env.accept = false;
-  await switches[1].props.onChange(true);
-  assert.equal(h.confirmations.length, 1);
-  assert.equal(h.posts.length, 1, 'using an agent without consent posts nothing');
-});
+
 
 const nodeMachines = fs.readFileSync(new URL('../next/js/features/settings/machines.js', import.meta.url), 'utf8');
 const nodeMachineEnv = { setInterval: () => 1, clearInterval: () => {}, refreshEngineNode: async () => {}, refreshWorkspace: async () => {}, copyText: async () => true, MachineDialog: 'MachineDialog', ModelDirs: 'ModelDirs', DirectEngineForm: 'DirectEngineForm', LoomUpdates: 'LoomUpdates' };

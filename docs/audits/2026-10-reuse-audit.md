@@ -1,5 +1,10 @@
 # Mission C — Loom reuse and architecture audit
 
+> Historical audit evidence: coding harnesses and their integration fixtures
+> described below were retired by the unreleased Local/Cloud transition.
+> See the harness-retirement migration notes for the current scope.
+
+
 **Résumé français.** Audit documentaire et de code du 10 octobre 2026, sans modification du produit. La racine `internal/loom` concentre **76,1 % des lignes Go hors tests** ; plusieurs extractions utiles existent déjà. Les priorités sont de remplacer les listes de versions « testées » par des preuves par capacité, de réduire trois collecteurs de réponses natives et plusieurs catalogues de harnesses, puis de mesurer la qualité de récupération de Brain gratuitement. Le SDK ACP mérite un essai limité ; llama-swap, Letta, Mem0 et Graphiti apportent surtout des idées et des scénarios de test, sans justifier un second superviseur ou moteur de mémoire. SSH reste nécessaire : Environment et certaines lectures Usage ne passent pas encore par Loom Node. Builds Linux/Windows, vet et contrôles UI réussis ; suite Go complète bloquée par les sockets du sandbox, crawl bloqué par Playwright non installable. Aucun appel de modèle, aucune installation de harness, aucun commit.
 
 ## 1. Scope, method and confidence

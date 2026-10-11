@@ -40,7 +40,6 @@ func handleProviderSave(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := workspaceSessions.saveProvider(CloudProvider{ID: req.ID, Name: req.Name, Endpoint: req.Endpoint, Model: req.Model, Models: req.Models, UsageMode: req.UsageMode, Remember: remember}, req.Key)
 	if err == nil || errors.Is(err, errNoKeychain) {
-		resyncHarnessSources() // Pi/OpenCode list Loom's providers
 	}
 	if errors.Is(err, errNoKeychain) {
 		// Saved and usable; only the "remember" part failed.
@@ -67,7 +66,6 @@ func handleProviderDisconnect(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 409, policyErrorEnvelope(err))
 		return
 	}
-	resyncHarnessSources()
 	sendJSON(w, 200, map[string]any{"ok": true})
 }
 func handleRuntimeSessions(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +209,6 @@ func handleRuntimeSessionConfigure(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		acpConfiguration
 		ID           string `json:"id"`
 		Title        string `json:"title"`
 		ProjectID    string `json:"project_id"`
@@ -222,22 +219,7 @@ func handleRuntimeSessionConfigure(w http.ResponseWriter, r *http.Request) {
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	if req.present() && req.Revision == "" {
-		current, ok := workspaceSessions.get(req.ID)
-		if !ok {
-			sendJSON(w, 404, map[string]any{"ok": false, "error": "discussion not found"})
-			return
-		}
-		// Harness patches preserve discussion text/context. Unchanged legacy
-		// fields are harmless; portable edits require the existing revision.
-		if req.Title != "" && req.Title != current.Title || req.ProjectID != "" && req.ProjectID != current.ProjectID || req.Instructions != "" && req.Instructions != current.Instructions {
-			sendJSON(w, 409, map[string]any{"ok": false, "error": "context_revision required"})
-			return
-		}
-		req.Title, req.ProjectID, req.Instructions = current.Title, current.ProjectID, current.Instructions
-		req.Revision = discussionContext(current).Revision
-	}
-	s, err := workspaceSessions.configureDiscussion(req.ID, req.Title, req.ProjectID, req.Instructions, req.Revision, req.Consent, req.acpConfiguration)
+	s, err := workspaceSessions.configureDiscussion(req.ID, req.Title, req.ProjectID, req.Instructions, req.Revision, req.Consent)
 	if err != nil {
 		sendJSON(w, 409, policyErrorEnvelope(err))
 		return
@@ -304,36 +286,4 @@ func handleModelChoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true})
-}
-func handleHarnessProfileSave(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, http.MethodPost) {
-		return
-	}
-	var p HarnessProfile
-	if !workspaceDecode(w, r, &p) {
-		return
-	}
-	saved, err := saveHarnessProfile(p)
-	if err != nil {
-		sendJSON(w, 400, policyErrorEnvelope(err))
-		return
-	}
-	sendJSON(w, 200, map[string]any{"ok": true, "profile": saved})
-}
-func handleRuntimeSessionImport(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, http.MethodPost) {
-		return
-	}
-	var req struct {
-		ID string `json:"id"`
-	}
-	if !workspaceDecode(w, r, &req) {
-		return
-	}
-	s, err := workspaceSessions.importArchive(req.ID)
-	if err != nil {
-		sendJSON(w, 400, policyErrorEnvelope(err))
-		return
-	}
-	sendJSON(w, 200, map[string]any{"ok": true, "session": clientSession(s)})
 }

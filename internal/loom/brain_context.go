@@ -124,17 +124,6 @@ func primarySecondBrainParts() []contextPart {
 	return parts
 }
 
-func attachPrimarySecondBrain(s *RuntimeSession, agent acpAgent) {
-	if s == nil || agent.Remote {
-		return
-	}
-	_, dir, err := primarySecondBrain()
-	if err != nil || dir == "" || dir == s.Workdir || hasName(s.AdditionalDirs, dir) || len(s.AdditionalDirs) >= 16 {
-		return
-	}
-	s.AdditionalDirs = append(s.AdditionalDirs, dir)
-}
-
 // projectBrainContext returns the Brain passages for a project and query, and
 // the citations, or "" when the project uses no Brain source.
 func projectBrainContext(p ChatProject, query string) (string, []string) {

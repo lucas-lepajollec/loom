@@ -62,7 +62,6 @@ func skillHomeSwitch(t *testing.T, body string) (skillsHomeStatus, []string, []s
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	skillSinkJobs.Wait()
 	return result.skillsHomeStatus, result.Copied, result.Conflicts
 }
 
@@ -132,7 +131,7 @@ func TestSkillsHomeRejectsEscapes(t *testing.T) {
 	}
 }
 
-func TestSkillsHomeCopyConflictsAndRepointSinks(t *testing.T) {
+func TestSkillsHomeCopyPreservesConflicts(t *testing.T) {
 	home := testHome(t)
 	t.Setenv("HOME", t.TempDir())
 	dir := skillHomePrimary(t)
@@ -143,38 +142,9 @@ func TestSkillsHomeCopyConflictsAndRepointSinks(t *testing.T) {
 	skillHomeFile(t, old, "review/scripts/run.sh", "run")
 	skillHomeFile(t, dir, "skills/conflict/SKILL.md", "---\nname: conflict\n---\nkeep target")
 	_ = putStr(bkState, "skills_migrated", "1")
-	targets := loadSkillSinks()
-	targets[0].Enabled = true
-	if err := saveSkillSinks(targets); err != nil {
-		t.Fatal(err)
-	}
-	syncSkillSinks()
-	// A replaced link must not be touched, even though its name is in our manifest.
-	foreign := filepath.Join(targets[0].Dir, "foreign")
-	if err := os.Remove(foreign); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(foreign, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	// Older installations only recorded the names.
-	targets = loadSkillSinks()
-	targets[0].Links = nil
-	if err := saveSkillSinks(targets); err != nil {
-		t.Fatal(err)
-	}
 	status, copied, conflicts := skillHomeSwitch(t, `{"mode":"brain"}`)
 	if status.Fallback || status.Dir != filepath.Join(dir, "skills") || status.Count != 3 || !reflect.DeepEqual(copied, []string{"foreign", "review"}) || !reflect.DeepEqual(conflicts, []string{"conflict"}) {
 		t.Fatalf("switch: %+v %v %v", status, copied, conflicts)
-	}
-	for _, name := range []string{"review", "conflict"} {
-		link := filepath.Join(targets[0].Dir, name)
-		if target, err := os.Readlink(link); err != nil || target != filepath.Join(dir, "skills", name) {
-			t.Fatalf("link %s: %q %v", name, target, err)
-		}
-	}
-	if info, err := os.Stat(foreign); err != nil || !info.IsDir() {
-		t.Fatalf("foreign replacement changed: %v", err)
 	}
 	for _, check := range [][3]string{{old, "review/SKILL.md", "old instructions"}, {dir, "skills/conflict/SKILL.md", "keep target"}, {dir, "skills/review/scripts/run.sh", "run"}} {
 		b, err := os.ReadFile(filepath.Join(check[0], check[1]))
@@ -189,12 +159,6 @@ func TestSkillsHomeCopyConflictsAndRepointSinks(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(old, "new")); !os.IsNotExist(err) {
 		t.Fatal("switch back copied a skill")
-	}
-	if target, err := os.Readlink(filepath.Join(targets[0].Dir, "review")); err != nil || target != filepath.Join(old, "review") {
-		t.Fatalf("back link: %q %v", target, err)
-	}
-	if _, err := os.Lstat(filepath.Join(targets[0].Dir, "new")); !os.IsNotExist(err) {
-		t.Fatal("old manifest link retained")
 	}
 }
 

@@ -1,6 +1,34 @@
 package store
 
-import "testing"
+import (
+	"os"
+	"testing"
+	"time"
+)
+
+func TestCacheSeparatesDatabasesWithMatchingStamps(t *testing.T) {
+	first, second := testDB(t), testDB(t)
+	for path, value := range map[string]string{first: "on", second: "no"} {
+		if err := PutStr(path, BucketConfig, "MEM_ENCRYPTED", value); err != nil {
+			t.Fatal(err)
+		}
+		stamp := time.Unix(1700000000, 0)
+		if err := os.Chtimes(path, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	firstTime, firstSize := dbStamp(first)
+	secondTime, secondSize := dbStamp(second)
+	if firstSize != secondSize || !firstTime.Equal(secondTime) {
+		t.Fatal("fixture databases must have matching stamps")
+	}
+	if got := CachedKV(first, BucketConfig)["MEM_ENCRYPTED"]; got != "on" {
+		t.Fatal(got)
+	}
+	if got := CachedKV(second, BucketConfig)["MEM_ENCRYPTED"]; got != "no" {
+		t.Fatalf("configuration leaked between databases: %q", got)
+	}
+}
 
 // Le cache de lecture ne doit jamais servir une valeur périmée après une
 // écriture de ce process : un « loom edit » suivi d'un « loom restart » doit

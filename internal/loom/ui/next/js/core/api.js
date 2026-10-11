@@ -125,7 +125,7 @@ async function jsonRequest(url, opts) {
 export const get = (url, opts = {}) => jsonRequest(url, { retryAuth: false, ...opts });
 // A change to agents, machines, the engine or providers announces itself so
 // open pages reload what they show instead of waiting for a page refresh.
-const MUTATIONS = /^\/api\/(agents|harness|runtimes|machines|engine|providers|network|server|voice|chat\/settings)\b/;
+const MUTATIONS = /^\/api\/(machines|engine|providers|network|server|voice|chat\/settings)\b/;
 let mutated = 0;
 export const post = async (url, body, opts = {}) => {
   let r;

@@ -35,7 +35,7 @@ test('last Usage section labels all metrics and distinguishes historical cloud p
   assert.match(text(tree), /—/);
 });
 
-test('Usage keeps last quotas visible while a remounted page refreshes, including a failed request', async () => {
+test('Usage keeps last model usage visible while a remounted page refreshes, including a failed request', async () => {
   clearObservations();
   const html = htm.bind((type, props, ...children) => ({ type, props: props || {}, children }));
   const flat = x => Array.isArray(x) ? x.flatMap(flat) : x && typeof x === 'object' ? [x, ...flat(x.children)] : [];
@@ -46,7 +46,7 @@ test('Usage keeps last quotas visible while a remounted page refreshes, includin
     useStore:() => ({runtimes:[{id:'fixture', available:true, capabilities:['quota']}]}),
     useVisibleRefresh:task=>polls.push(task),
     useState:initial=> {const i=cursor++; if (!(i in slots)) slots[i]=initial; return [slots[i],v=>slots[i]=v];},
-    get:async()=>({ok:true,models:[],quotas:[{runtime_id:'fixture',windows:[{remaining_percent:42}]}]}) };
+    get:async()=>({ok:true,models:[{kind:'cloud', name:'Cached model', usage:{prompt_tokens:42}, reported_turns:1}],quotas:[]}) };
   const source = fs.readFileSync(new URL('../next/js/features/usage/page.js', import.meta.url), 'utf8');
   vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.page=UsagePage;',env);
   const render=()=>{cursor=0;polls.length=0;return env.page();};
@@ -54,10 +54,10 @@ test('Usage keeps last quotas visible while a remounted page refreshes, includin
   slots.length=0; // Navigate away and return: component state is gone, memory snapshot survives.
   env.get=()=>new Promise((_resolve,fail)=>{reject=fail;});
   let tree=render();const pending=polls[0](()=>true);tree=render();
-  assert.equal(flat(tree).find(n=>n.type?.name==='Quota').props.q.windows[0].remaining_percent,42);
+  assert.ok(flat(tree).some(n => n.children?.includes('Cached model')));
   assert.ok(flat(tree).some(n=>n.props.role==='status'));
   reject(new Error('offline'));await assert.rejects(pending);tree=render();
-  assert.equal(flat(tree).find(n=>n.type?.name==='Quota').props.q.windows[0].remaining_percent,42);
+  assert.ok(flat(tree).some(n => n.children?.includes('Cached model')));
   assert.ok(!flat(tree).some(n=>n.props.role==='status'));
   clearObservations(); assert.equal(recall('usage'),null);
 });

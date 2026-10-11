@@ -7,7 +7,7 @@ import (
 
 const chatDefaultChoiceKey = "chat.default_choice"
 
-// Local library choices can load on demand; cloud/harness choices need a live
+// Local library choices can load on demand; cloud choices need a live
 // connection. Hidden choices are not initial selector choices.
 func availableInitialChoice(id string, choices []ModelChoice) *ModelChoice {
 	for _, c := range choices {

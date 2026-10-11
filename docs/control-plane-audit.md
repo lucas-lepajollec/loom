@@ -1,5 +1,10 @@
 # Control plane audit — 2026-10-03
 
+> Historical audit evidence: coding harnesses and their integration fixtures
+> described below were retired by the unreleased Local/Cloud transition.
+> See the harness-retirement migration notes for the current scope.
+
+
 This is a source audit and remediation record for the changes following
 v0.1.4, starting at `0ae7f23`. It covers the Go control plane, embedded UI,
 engine-only worker, execution adapters, Brain, storage, installers and CI.

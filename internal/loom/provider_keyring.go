@@ -5,8 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
-
-	"github.com/zalando/go-keyring"
+ keyring "github.com/zalando/go-keyring"
 )
 
 // Remembered keys use the OS keychain where available, or the sealed service

@@ -4,8 +4,9 @@ import { validData } from './shape.js';
 const snapshots = new Map();
 export const recall = key => snapshots.get(key) ?? null;
 export const remember = (key, value) => {
-  const url = key === 'usage' ? '/api/usage' : key === 'balances' ? '/api/usage/providers' : '/api/usage/native';
-  const data = key === 'usage' ? value : { [key === 'balances' ? 'providers' : 'harnesses']: value };
+  if (key !== 'usage' && key !== 'balances') return recall(key);
+  const url = key === 'usage' ? '/api/usage' : '/api/usage/providers';
+  const data = key === 'usage' ? value : { providers: value };
   if (validData(data, url)) snapshots.set(key, value);
   return recall(key);
 };

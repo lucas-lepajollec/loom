@@ -3,8 +3,7 @@ package loom
 import (
 	"os"
 	"testing"
-
-	"github.com/zalando/go-keyring"
+ keyring "github.com/zalando/go-keyring"
 )
 
 // Tests never touch the real OS keychain: CI machines have none, and a

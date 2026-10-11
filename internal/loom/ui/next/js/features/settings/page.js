@@ -7,7 +7,6 @@ import { t, locale, getLang, setLang, tSource } from '../../core/i18n.js';
 // Réglages : Général, Moteur, Internet, Sécurité, À propos. Une ligne par
 // réglage, l'explication en ⓘ, jamais en paragraphe sous chaque option.
 import { openWelcome } from '../onboarding/welcome.js';
-import { HarnessHistory } from '../harnesses/history.js';
 import { SearchSettings } from './search.js';
 import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
@@ -71,7 +70,7 @@ function DefaultChoice() {
   const [v, setV] = useState(null);
   useEffect(() => { get('/api/chat/settings').then(r => setV(r.default_choice || '')).catch(() => setV('')); }, []);
   if (v === null) return null;
-  const kinds = { local: t('settings.default.local'), cloud: t('settings.default.cloud'), harness: t('settings.default.agents') };
+  const kinds = { local: t('settings.default.local'), cloud: t('settings.default.cloud') };
   const options = [{ value: '', label: t('settings.default.none') }, ...((ws && ws.models) || []).filter(m => m.enabled !== false && kinds[m.kind] && (m.kind === 'local' || m.ready)).map(m => ({ value: m.id, label: m.name, note: m.provider_name || '', group: kinds[m.kind] }))];
   const save = async x => { const r = await post('/api/chat/settings', { default_choice: x }).catch(e => ({ ok: false, error: e.message })); if (r.ok === false) return toast(r.error, 'err'); setV(x); toast(t('settings.default.saved')); };
   return html`<${Line} label=${t('settings.default.label')} tip=${t('settings.default.tip')}><div class="set-pick"><${ListPick} label=${t('settings.default.label')} value=${v} onChange=${save} options=${options} /></div></${Line}>`;
@@ -560,7 +559,6 @@ export function SettingsPage({ route }) {
     change(); media.addEventListener('change', change);
     return () => media.removeEventListener('change', change);
   }, []);
-  if (route.sub === 'harness-history') return html`<${HarnessHistory} />`;
   const sections = SECTIONS();
   const selected = sections.find(s => s[0] === route.sub);
   const sec = selected ? selected[0] : 'general';

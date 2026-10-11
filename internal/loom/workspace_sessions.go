@@ -33,8 +33,7 @@ type runtimeSessions struct {
 	health         domainHealth
 	notify         *notificationService
 	shutdownOnce   sync.Once
-	acpMu          sync.Mutex
-	acp            map[string]*acpBinding
+	interactionMu  sync.Mutex
 	requests       map[string]*agent.RequestBroker
 	providerMu     sync.Mutex
 	nativeMu       sync.Mutex
@@ -47,7 +46,7 @@ type runtimeSessions struct {
 }
 
 func newRuntimeSessions() *runtimeSessions {
-	return &runtimeSessions{events: events.New(512), preparing: map[string]bool{}, acp: map[string]*acpBinding{}, keys: map[string]string{}, balances: newProviderBalanceCache(nil), runs: map[string]*runtimeRun{}, subscribers: map[string]map[*discussionSubscriber]bool{}}
+	return &runtimeSessions{events: events.New(512), preparing: map[string]bool{}, keys: map[string]string{}, balances: newProviderBalanceCache(nil), runs: map[string]*runtimeRun{}, subscribers: map[string]map[*discussionSubscriber]bool{}}
 }
 
 var workspaceSessions = newRuntimeSessions()
@@ -325,35 +324,10 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 		getStoreJSON(bkProviders, s.ProviderID, &provider)
 		provider.ID, provider.Endpoint, provider.Model = s.ProviderID, s.Endpoint, s.Model
 		adapter = cloudRuntimeAdapter{provider: provider, key: key}
-	} else if registered, exists := registeredRuntimes.lookup(s.RuntimeID); exists && hasRuntimeCapability(registered.Descriptor(), "chat") {
-		if acp, ok := registered.(*acpAdapter); ok {
-			if !acp.agent.available() {
-				return errors.New("CLI or ACP launcher unavailable")
-			}
-			check := acpDirectory
-			if acp.agent.Remote {
-				check = remoteWorkdir
-			}
-			if s.Workdir == "" {
-				dir, extra := projectFolders(s.ProjectID, acp.agent)
-				if dir == "" && acp.agent.Remote {
-					dir = acp.agent.RemoteHome
-				}
-				s.Workdir = dir
-				if len(s.AdditionalDirs) == 0 {
-					s.AdditionalDirs = extra
-				}
-			}
-			attachPrimarySecondBrain(&s, acp.agent)
-			if _, err := check(s.Workdir); err != nil {
-				return err
-			}
-			adapter = &acpAdapter{agent: acp.agent, sessions: m, session: cloneRuntimeSession(s)}
-		} else {
-			adapter = registered
-		}
+	} else if a, ok := registeredRuntimes.lookup(s.RuntimeID); ok && (a.Descriptor().Kind == "local" || a.Descriptor().Kind == "cloud") {
+		adapter = a
 	} else {
-		return errors.New("this adapter cannot execute a discussion yet")
+		return errors.New("this executor has been retired; select a Local or Cloud model")
 	}
 
 	m.mu.Lock()
@@ -402,10 +376,6 @@ func (m *runtimeSessions) startPrepared(id, requestID, text string, prepare func
 		return errors.New("could not save: storage unavailable or locked")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	if adapter.Descriptor().Kind == "harness" {
-		cancel()
-		ctx, cancel = context.WithCancel(context.Background())
-	}
 	theBrain().cancelMemoryConsolidation()
 	run := &runtimeRun{session: s, cancel: cancel, providerKey: key}
 	m.runs[id] = run
@@ -535,7 +505,7 @@ func (m *runtimeSessions) generate(ctx context.Context, run *runtimeRun, adapter
 			if event.ACPEvent != nil {
 				e := event.ACPEvent
 				if e["type"] == "usage" {
-					run.session.ACPUsage = acpCloneMap(e)
+					run.session.ACPUsage = cloneEventMap(e)
 				}
 				if e["type"] == "commands" {
 					b, _ := json.Marshal(e["commands"])
@@ -739,7 +709,7 @@ func (m *runtimeSessions) remove(id string) error {
 	if m.nativeRunning(s) {
 		return errors.New("stop the local response before deleting the discussion")
 	}
-	m.closeACP(id)
+	m.cancelPolicyRequests(id)
 	return putBytes(bkRuntimeSessions, id, nil)
 }
 

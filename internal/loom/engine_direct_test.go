@@ -77,7 +77,7 @@ func TestDirectEngineVLLMAndLlamaCpp(t *testing.T) {
 	if rec.Code != 200 || currentEngineNode().Model != "a.gguf" {
 		t.Fatalf("choix du modèle: %d %s", rec.Code, rec.Body.String())
 	}
-	if got := loomLocalModels(); len(got) != 2 {
+	if got := engineModelValues(); len(got) != 2 {
 		t.Fatalf("modèles pour les harnesses: %v", got)
 	}
 }

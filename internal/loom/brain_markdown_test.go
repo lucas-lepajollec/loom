@@ -41,7 +41,7 @@ type memoryContextAdapter struct {
 }
 
 func (a memoryContextAdapter) Descriptor() RuntimeDescriptor {
-	return RuntimeDescriptor{ID: a.id, Name: "Context fixture", Kind: "harness", Implemented: true, Capabilities: []string{"chat"}}
+	return RuntimeDescriptor{ID: a.id, Name: "Context fixture", Kind: "local", Implemented: true, Capabilities: []string{"chat"}}
 }
 func (a memoryContextAdapter) Run(_ context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
 	a.run(turn, emit)

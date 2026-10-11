@@ -10,16 +10,15 @@ import { toast } from '../../ui/dialog.js';
 import { Icon } from '../../ui/icons.js';
 import { Group } from './kit.js';
 
-const AREAS = ['core', 'engine', 'voice', 'machines', 'agents', 'brain', 'notifications', 'security'];
+const AREAS = ['core', 'engine', 'voice', 'machines', 'brain', 'notifications', 'security'];
 const TONE = { ok: 'green', warn: 'amber', fail: 'red', skip: '' };
-const AREA_LABEL = () => ({ core: t('doctor.area.core'), engine: t('doctor.area.engine'), voice: t('doctor.area.voice'), machines: t('doctor.area.machines'), agents: t('doctor.area.agents'), brain: t('doctor.area.brain'), notifications: t('doctor.area.notifications'), security: t('doctor.area.security') });
+const AREA_LABEL = () => ({ core: t('doctor.area.core'), engine: t('doctor.area.engine'), voice: t('doctor.area.voice'), machines: t('doctor.area.machines'), brain: t('doctor.area.brain'), notifications: t('doctor.area.notifications'), security: t('doctor.area.security') });
 const fmtBytes = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' Go' : (n / 1e6).toFixed(0) + ' Mo';
 
 // Titre lisible : les vérifications par entité réutilisent le nom connu.
 function title(check, names) {
   const [kind, ...rest] = check.id.split('.');
   const id = rest.join('.');
-  if (kind === 'agent') return t('doctor.t.agent', { name: names.agents[id] || id });
   if (kind === 'machine') return t('doctor.t.machine', { name: names.machines[id] || id });
   if (kind === 'mcp') return t('doctor.t.mcp', { name: id });
   const key = 'doctor.t.' + check.id;
@@ -58,7 +57,7 @@ export function DoctorSettings() {
     } catch (e) { toast(e.message, 'err'); }
     setBusy(false);
   };
-  const names = { agents: Object.fromEntries(((ws && ws.runtimes) || []).map(r => [r.id, r.name])), machines: {} };
+  const names = { machines: {} };
   ((ws && ws.machines) || []).forEach(m => { names.machines[m.id] = m.name; });
   const checks = (report && report.checks) || [];
   const count = s => checks.filter(c => c.status === s).length;

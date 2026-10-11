@@ -94,11 +94,12 @@ export const refreshNav = singleFlight(async () => {
   app.set({ nav: { conversations, projects: hist.projects || [], active: bound ? bound.id : hist.active || '', projectId: hist.project_id || '' } });
 });
 
-// Nature d'un runtime (local, cloud, harness) d'après le registre du serveur.
+// Nature d'un runtime (local, cloud ou archive) d'après le registre du serveur.
 export function runtimeKind(id) {
   if (!id || id === 'llama.cpp') return 'local';
+  if (id === 'openai-compatible') return 'cloud';
   const r = ((app.get().workspace && app.get().workspace.runtimes) || []).find(x => x.id === id);
-  return r && r.kind === 'harness' ? 'harness' : 'cloud';
+  return r?.kind === 'cloud' ? 'cloud' : 'retired';
 }
 
 export const runtimeCaps = id => ((((app.get().workspace && app.get().workspace.runtimes) || []).find(x => x.id === id)) || {}).capabilities || [];

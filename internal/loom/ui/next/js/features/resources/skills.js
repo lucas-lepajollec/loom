@@ -76,21 +76,7 @@ function SkillsHome({ h, onChanged }) {
 
 // Agents : chaque famille lit ses skills dans un dossier à elle ; Loom y place
 // un lien vers chaque skill (pas de copie). Les autres passent par la passerelle MCP.
-function Distribution({ count }) {
-  const [targets, setTargets] = useState(null);
-  useEffect(() => { get('/api/skills/targets').then(r => setTargets(r.targets || [])).catch(() => setTargets([])); }, [count]);
-  const toggle = async (localT, on) => {
-    const r = await post('/api/skills/targets', { id: localT.id, enabled: on });
-    if (!r.ok) return toast(r.error || t("resources.page.impossible"), 'err');
-    setTargets(r.targets || []);
-  };
-  if (!targets || !targets.length) return null;
-  return html`<section class="sec"><div class="sec-h"><h2>${t('skills.dist.title')}<${Tip} text=${t('skills.dist.tip')} /></h2></div>
-    <div class="card bs-list">${targets.map(localT => html`<div class="bs-row" key=${localT.id}>
-      <span class="dist-logos">${localT.harnesses.map(h => html`<${Logo} name=${h} size="sm" />`)}</span>
-      <div class="grow"><div class="bs-name">${localT.name}</div><div class="bs-sub"><span class="mono trunc">${home(localT.dir)}</span>${localT.enabled && html`<span class="bs-state"><i class="dot green"></i>${t('skills.dist.linked', { n: localT.written.length })}</span>`}${localT.error && html`<span class="bs-state err" title=${localT.error}>${t("resources.page.attention")}</span>`}</div></div>
-      <${Switch} checked=${localT.enabled} label=${t("resources.page.distribuer_a") + localT.name} onChange=${on => toggle(localT, on)} /></div>`)}</div></section>`;
-}
+
 
 function SkillCard({ s: sk, used, onOpen, onDelete }) {
   const [anchor, setAnchor] = useState(null);
@@ -100,7 +86,7 @@ function SkillCard({ s: sk, used, onOpen, onDelete }) {
       <button class="icon-btn" aria-label=${t('brain.src.actions')} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button></div>
     <p class="mcard-d">${sk.description || t("resources.page.instructions_reutilisables")}</p>
     <div class="ws-card-f"><span class="muted">${used ? t('skills.used', { n: used }) : t('resources.page.aucun_projet')}</span></div>
-    ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[{ icon: sk.read_only ? 'eye' : 'edit', label: sk.read_only ? t("resources.page.voir") : t("harnesses.machines.modifier"), run: onOpen }, ...(sk.read_only ? [] : ['-', { icon: 'trash', label: t("resources.page.supprimer"), danger: true, run: onDelete }])]} />`}
+    ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[{ icon: sk.read_only ? 'eye' : 'edit', label: sk.read_only ? t("resources.page.voir") : t("machines.edit.modifier"), run: onOpen }, ...(sk.read_only ? [] : ['-', { icon: 'trash', label: t("resources.page.supprimer"), danger: true, run: onDelete }])]} />`}
   </div>`;
 }
 
@@ -156,7 +142,6 @@ export function Skills({ q = '' }) {
       <div class="mcards">${shown.map(s => html`<${SkillCard} key=${s.id} s=${s} used=${projects.filter(p => (p.capability_ids || []).includes(s.id)).length} onOpen=${() => setDlg({ skill: s })} onDelete=${() => del(s)} />`)}
         <button type="button" class="mcard add" onClick=${() => setDlg({})}><${Icon} n="plus" /><span>${t("resources.page.nouvelle_skill")}</span><small>${t('skills.card.add_note')}</small></button></div>
     </section>
-    <${Distribution} count=${skills.length} />
     <${LinkedFolders} onChange=${loadHome} />
     ${dlg && html`<${SkillEditor} skill=${dlg.skill} onClose=${() => { setDlg(null); loadHome(); }} />`}
   </div>`;

@@ -130,22 +130,3 @@ func TestUnifiedImportPreservesArchiveAndDropsNonportableState(t *testing.T) {
 		t.Fatal("reimport forked discussion")
 	}
 }
-
-func TestHarnessProfilesDoNotPretendToExecute(t *testing.T) {
-	testHome(t)
-	p, err := saveHarnessProfile(HarnessProfile{Name: "Code review", RuntimeID: "codex", ModelIDs: []string{}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.ID == "" || len(harnessProfiles()) != 1 {
-		t.Fatal("profile missing")
-	}
-	for _, r := range runtimeCatalog() {
-		if r.Kind == "harness" && hasRuntimeCapability(r, "chat") && !r.Implemented {
-			t.Fatal("unimplemented harness advertised as executable")
-		}
-	}
-	if _, err := saveHarnessProfile(HarnessProfile{Name: "Bad", RuntimeID: "codex", ModelIDs: []string{"unknown"}}); err == nil {
-		t.Fatal("unknown model accepted")
-	}
-}

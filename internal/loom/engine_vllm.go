@@ -226,7 +226,7 @@ func (v *vllmState) start(ctx context.Context, model string, values map[string]s
 		return err
 	}
 	cmd.Stderr = cmd.Stdout
-	acpProcessGroup(cmd)
+	ownedProcessGroup(cmd)
 	v.mu.Lock()
 	if err := ctx.Err(); err != nil {
 		v.mu.Unlock()
@@ -303,7 +303,7 @@ func (v *vllmState) stop() {
 		select {
 		case <-done:
 		case <-time.After(10 * time.Second):
-			acpKillProcessGroup(cmd)
+			killOwnedProcessGroup(cmd)
 			<-done
 		}
 	}

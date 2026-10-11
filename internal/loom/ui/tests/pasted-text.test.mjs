@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import htm from '../next/vendor/htm.mjs';
-import { configOptions, modeOptions } from '../next/js/features/harnesses/options.js';
 import { french } from './i18n-fixture.mjs';
 import { attachPaste, pastedMessage, splitPastedMessage, PASTE_THRESHOLD, MAX_MESSAGE_BYTES } from '../next/js/features/chat/pasted-text.js';
 
@@ -36,9 +35,9 @@ function composer(mode = 'thread', accepted = false) {
   const states = [], refs = [], calls = [], notices = [];
   let stateIndex = 0, refIndex = 0, tree;
   const env = { t: french, html: htm.bind((type, props, ...children) => ({ type, props: props || {}, children })),
-    configOptions, modeOptions, TextEncoder, setTimeout: f => f(), attachPaste, pastedMessage, downloadPaste() {}, MAX_MESSAGE_BYTES,
-    runtimeCaps: () => [], runtimeKind: () => 'harness', get: async () => ({}), Tip: 'Tip', currentExec: () => ({ name: 'Fixture' }), slashEntries: () => [],
-    chat: { get: () => ({ mode, busy: false, session: { runtime_id: 'pi', workdir: '/fixture' } }) },
+    TextEncoder, setTimeout: f => f(), attachPaste, pastedMessage, downloadPaste() {}, MAX_MESSAGE_BYTES,
+    runtimeCaps: () => [], runtimeKind: () => 'cloud', get: async () => ({}), Tip: 'Tip', currentExec: () => ({ name: 'Fixture' }), slashEntries: () => [],
+    chat: { get: () => ({ mode, busy: false, session: { runtime_id: 'openai-compatible', workdir: '/fixture' } }) },
     app: { get: () => ({ status: { health: true } }) },
     useStore: (store, select) => select(store.get()), useEffect() {},
     useState: init => { const i = stateIndex++; if (!(i in states)) states[i] = init; return [states[i], value => { states[i] = typeof value === 'function' ? value(states[i]) : value; }]; },
@@ -59,7 +58,7 @@ function composer(mode = 'thread', accepted = false) {
   return { env, states, calls, notices, paste, submit };
 }
 
-test('local, cloud and harness sends include pasted text, and a refused send preserves the draft and TXT', async () => {
+test('local and cloud sends include pasted text, and a refused send preserves the draft and TXT', async () => {
   for (const mode of ['native', 'thread']) {
     const f = composer(mode);
     f.states[0] = 'Please read';

@@ -104,7 +104,7 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 		p.MCPServers = old.MCPServers
 	}
 	if p.MCPServers != nil {
-		if err := validateACPMCPSelection(*p.MCPServers); err != nil {
+		if err := validateMCPSelection(*p.MCPServers); err != nil {
 			return p, err
 		}
 	}
@@ -183,9 +183,6 @@ func saveProjectContext(p ChatProject) (ChatProject, error) {
 	p.CreatedAt = old.CreatedAt
 	if err := putStoreJSON(bkProjects, p.ID, p); err != nil {
 		return p, err
-	}
-	if err := theBrain().syncBrainAgents(); err != nil {
-		return p, fmt.Errorf("project saved; agent links: %w", err)
 	}
 	return p, nil
 }

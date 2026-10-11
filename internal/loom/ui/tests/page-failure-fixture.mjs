@@ -9,7 +9,7 @@ process.on('unhandledRejection', e => failures.push(e.message));
 const cases = [
   ['features/settings/page.js', ['General', 'Job', 'Engine', 'Internet', 'About']],
   ['features/resources/mcp.js', ['Mcp']],
-  ['features/harnesses/machines.js', ['MachineDialog']],
+  ['features/machines/edit.js', ['MachineDialog']],
   ['features/local/hub.js', ['Detail']],
   ['features/inspector/context.js', ['Preview']],
 ];

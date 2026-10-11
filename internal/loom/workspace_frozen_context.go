@@ -16,21 +16,6 @@ import (
 // Static configuration and portable rewrites invalidate a snapshot. Mutable
 // memory, queries and native-reported settings never enter this hash.
 func frozenContextRevision(s RuntimeSession) string {
-	if registered, ok := registeredRuntimes.lookup(s.RuntimeID); ok {
-		if acp, ok := registered.(*acpAdapter); ok {
-			if s.Workdir == "" {
-				dir, extra := projectFolders(s.ProjectID, acp.agent)
-				if dir == "" && acp.agent.Remote {
-					dir = acp.agent.RemoteHome
-				}
-				s.Workdir = dir
-				if len(s.AdditionalDirs) == 0 {
-					s.AdditionalDirs = extra
-				}
-			}
-			attachPrimarySecondBrain(&s, acp.agent)
-		}
-	}
 	// Upgrade old class-based snapshots once; subsequent file edits stay frozen.
 	tuple := []any{"markdown-memory-v1", s.ID, s.ProjectID, s.Instructions, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.FilesystemPolicy, s.MCPServers, s.ContinuedFrom, len(s.Compactions), discussion.PortableRevision(s.FrozenSnapshot, s.PortableMessages)}
 	if p, ok := getProject(s.ProjectID); ok {
@@ -144,7 +129,7 @@ func (m *runtimeSessions) refreshContext(id string) (RuntimeSession, error) {
 	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
 		return s, err
 	}
-	m.closeACP(id)
+	m.cancelPolicyRequests(id)
 	if s.NativeArchive != "" {
 		if a, ok := loadArchive(s.NativeArchive); ok {
 			a.FrozenSnapshot = discussion.FrozenSnapshot{}

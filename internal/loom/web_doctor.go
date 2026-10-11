@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"github.com/lucas-lepajollec/loom/internal/loom/doctor"
 )
 
@@ -136,66 +135,6 @@ func doctorJobs() []doctor.Job {
 				return doctorCheck("warn", "node_outdated", "#/machines/"+url.PathEscape(m.ID))
 			}
 			return doctorCheck("ok", "node_reachable_version_match", "")
-		}})
-	}
-	for _, adapter := range registeredRuntimes.Adapters() {
-		a, ok := adapter.(*acpAdapter)
-		if !ok || !harnessConnected(a.agent) {
-			continue
-		}
-		identity := a.agent
-		jobs = append(jobs, doctor.Job{ID: "agent." + identity.ID, Area: "agents", Run: func(ctx context.Context) doctor.Check {
-			href := "#/harnesses/" + url.PathEscape(identity.ID)
-			p, exists := cachedAgentProbe(identity.ID)
-			compat := p.Compatibility
-			if compat == nil {
-				var c runtimeCompatibilityRecord
-				if getStoreJSON(bkState, "agent_compat_"+identity.ID, &c) {
-					compat = &c
-				}
-			}
-			if !identity.Remote {
-				binaries := append([]string{}, identity.Detect...)
-				binaries = append(binaries, identity.Command)
-				// A cached native handshake identifies the actual executable;
-				// requiring its unused ACP launcher would report a false failure.
-				if compat != nil && compat.Protocol != "acp" && compat.Executable != "" {
-					binaries = []string{compat.Executable}
-				}
-				for _, binary := range binaries {
-					if _, err := lifecycleLookPath(binary); err != nil {
-						return doctorCheck("fail", "agent_not_installed", href)
-					}
-				}
-			}
-			if !exists {
-				return doctorCheck("skip", "handshake_not_observed", href)
-			}
-			if doctorObservationAllowed(ctx) {
-				p.Compatibility = compat
-				observeAgentProbe(identity.ID, p)
-			}
-			if p.Error != "" && len(p.CapabilityChecks) == 0 {
-				return doctorCheck("fail", "handshake_failed", href)
-			}
-			checks := append([]capability.Probe{}, p.CapabilityChecks...)
-			if compat != nil {
-				checks = append(checks, compat.CapabilityChecks...)
-			}
-			if len(checks) > 0 {
-				for _, c := range checks {
-					if !c.OK {
-						return doctorCheck("warn", "capability_probe_failed", href)
-					}
-				}
-			}
-			if compat == nil || compat.Version == "" {
-				return doctorCheck("warn", "agent_version_unknown", href)
-			}
-			if compat.Warning != "" {
-				return doctorCheck("warn", "agent_version_untested", href)
-			}
-			return doctorCheck("ok", "agent_installed_handshake_cached", "")
 		}})
 	}
 	servers, err := LoadMCPConfig()

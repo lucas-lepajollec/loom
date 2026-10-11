@@ -22,6 +22,6 @@ export function SharedPreferences() {
     ${error ? html`<p class="note err" role="alert">${error}</p><button class="btn" onClick=${() => setRetry(n => n + 1)}>${t('access.retry')}</button>` : !selected ? html`<div class="skeleton" style="height:80px"></div>` : html`
       <label class="field"><span>${t('brain.preferences.page')}</span><select class="select" value=${selected.page} onChange=${e => setSelected({ ...selected, page: e.target.value })}><option value="">—</option>${pages.map(p => html`<option value=${p.name}>${p.name}</option>`)}</select></label>
       <label class="check"><input type="checkbox" checked=${selected.external} disabled=${!selected.page} onChange=${e => setSelected({ ...selected, external: e.target.checked })} /><span>${t('brain.preferences.external')}</span></label>
-      <div class="btn-row"><button class="btn primary" onClick=${save}>${t('resources.memory.enregistrer')}</button><button class="btn ghost" onClick=${() => setRetry(n => n + 1)}>${t('harnesses.page.actualiser')}</button></div>`}
+      <div class="btn-row"><button class="btn primary" onClick=${save}>${t('resources.memory.enregistrer')}</button><button class="btn ghost" onClick=${() => setRetry(n => n + 1)}>${t('common.refresh')}</button></div>`}
   </div></section>`;
 }

@@ -31,11 +31,6 @@ func TestComposeTurnTextPerRoute(t *testing.T) {
 	if err != nil || len(got) > maxMessageBytes || !strings.Contains(got, "truncated=") {
 		t.Fatalf("cloud truncation: %v len=%d", err, len(got))
 	}
-	agent := RuntimeSession{RuntimeID: "pi"}
-	got, err = composeTurnText(agent, "", []string{"notes.md"})
-	if err != nil || !strings.HasPrefix(got, "Read the attached file.") || !strings.Contains(got, `path="`+filepath.Join(dir, "notes.md")+`"`) || strings.Contains(got, "hello") {
-		t.Fatalf("agent paths: %v\n%s", err, got)
-	}
 	if _, err := composeTurnText(cloud, "x", []string{"missing.txt"}); err == nil {
 		t.Fatal("missing upload accepted")
 	}

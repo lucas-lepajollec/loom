@@ -83,9 +83,6 @@ func evaluatePolicy(in policy.Input, dry bool) policy.Result {
 }
 func sessionPolicyInput(s RuntimeSession, subject string, fallback policy.Decision) policy.Input {
 	machine := "local"
-	if a, ok := acpAgentFor(s.RuntimeID); ok && a.Machine != "" {
-		machine = a.Machine
-	}
 	in := policy.Input{Subject: subject, ProjectID: s.ProjectID, DiscussionID: s.ID, AgentID: s.RuntimeID, MachineID: machine, ProviderID: s.ProviderID, Endpoint: s.Endpoint, Model: s.Model, Workdir: s.Workdir, LegacyPermission: s.Permission, Fallback: fallback}
 	if subject == "data.send_provider" {
 		in.Operation = "select"
@@ -143,7 +140,7 @@ func (m *runtimeSessions) confirmPolicy(ctx context.Context, in policy.Input, op
 		m.taskEventLocked(s, events.TaskStarted, nil)
 	}
 	m.mu.Unlock()
-	m.acpMu.Lock()
+	m.interactionMu.Lock()
 	b := m.requests[id]
 	owned := b == nil
 	if owned {
@@ -180,14 +177,14 @@ func (m *runtimeSessions) confirmPolicy(ctx context.Context, in policy.Input, op
 		}
 		m.requests[id] = b
 	}
-	m.acpMu.Unlock()
+	m.interactionMu.Unlock()
 	finalStatus := "cancelled"
 	defer func() {
 		if owned {
 			b.Cancel()
-			m.acpMu.Lock()
+			m.interactionMu.Lock()
 			delete(m.requests, id)
-			m.acpMu.Unlock()
+			m.interactionMu.Unlock()
 		}
 		if standalone {
 			m.mu.Lock()
@@ -357,18 +354,6 @@ func agentToolSubject(kind string) string {
 	default:
 		return "agent.tool"
 	}
-}
-func (p *acpBinding) policyInput(subject string, fallback policy.Decision) policy.Input {
-	p.mu.Lock()
-	state := cloneACPState(p.state)
-	p.mu.Unlock()
-	s := RuntimeSession{ID: p.id, RuntimeID: p.agentID, ACPState: state}
-	if p.manager != nil {
-		if saved, ok := p.manager.get(p.id); ok {
-			s.ProjectID, s.ProviderID, s.Endpoint, s.Model = saved.ProjectID, saved.ProviderID, saved.Endpoint, saved.Model
-		}
-	}
-	return sessionPolicyInput(s, subject, fallback)
 }
 
 type policyContextKey struct{}

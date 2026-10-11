@@ -13,15 +13,14 @@
    node from Loom's live network discovery list and enter its code. Codes expire
    after ten minutes and work once. Both machines must be able to reach the
    selected listener on port **2511**.
-3. Loom opens the paired machine and displays its detected **engine, harness,
+3. Loom opens the paired machine and displays its detected **engine,
    voice, terminal and observe** modules. Use that page to manage what runs there.
    Module availability is read-only; the node currently has no module-toggle API.
 
 Existing SSH machines show **Connected over SSH (old method)**. Select
 **Install Loom Node over SSH** to install, start and pair automatically using
 that saved connection. **Pair manually** opens the same code dialog. Migration
-keeps the machine ID, name, favourite folders, agent installation choices and
-terminal history. Existing harness launchers switch to the Node bridge.
+keeps the machine ID, name, favourite folders, terminal history.
 Progress and errors appear in place; a failed migration leaves the SSH record
 intact. The installed remote service may remain running and can be retried.
 Already-open SSH terminals continue using their existing process until closed;
@@ -34,12 +33,11 @@ its owned engines, agents and terminals; Loom asks before applying it.
 
 ## Node runtime
 
-Use **one main Loom** for discussions, Brain, projects, providers and harnesses.
+Use **one main Loom** for discussions, Brain, projects, providers.
 On a paired machine, `loom node` serves engine management, inference and
-optional harness and terminal transports. It is a mode of the same release binary, sharing existing engine handlers and
+optional terminal, voice and observation modules. It is a mode of the same release binary, sharing existing engine handlers and
 native argument construction. It does not start the interface, Brain, MCP
-servers, provider keyring reads or harness update jobs. Harness inventory is probed only
-when requested; agents and terminals start only for explicit Loom requests.
+servers, provider keyring reads or harness update jobs. Inventory is available through the authenticated node inventory endpoint.
 
 The binary still contains the main application's code and embedded assets;
 this first implementation reduces running services and state, not binary size.
@@ -200,7 +198,7 @@ server**, consumes the code and records the main's ID, name and `paired_at`
 (Unix milliseconds) on the node:
 
 ```json
-{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine","voice","harness","terminal","observe"],"handshake":1}}
+{"machine_token":"private","inference_key":"private","node":{"id":"persistent-node-id","name":"GPU machine","version":"loom-version","role":"engine-node","modules":["engine","voice","terminal","observe"],"handshake":1}}
 ```
 
 **Plain LAN HTTP exposes both credentials once in this exchange response to
@@ -213,8 +211,7 @@ The main stores the credentials in the existing machine maintenance secret
 record, encrypted when the vault is enabled/unlocked, and returns only
 `{"ok":true,"machine":{…}}`. The machine includes `node_id`, `modules` and
 `handshake`, with its usual ID/name/host fields. A new entry uses the node's name;
-an existing matching machine retains its ID, name, harness choices and
-folders while switching SSH launchers to the Node bridge. For manual migration,
+an existing matching machine retains its ID, name, folders while switching SSH launchers to the Node bridge. For manual migration,
 include `"machine_id":"existing-id"` in the pairing request: it selects that
 record even when the new node listener differs from the old SSH host. Pairing does not change the active inference engine.
 
@@ -261,93 +258,14 @@ All other management routes, including ping/info, require
 are not accepted by a node. `node.token` must be a regular private file (0600).
 The management token and inference key are distinct random 256-bit credentials.
 Authenticated `GET /api/node/info` retains its existing fields and adds `id`,
-`name`, `handshake:1` and `modules:["engine","voice","harness","terminal","observe"]` by default. Unknown handshake majors are
+`name`, `handshake:1` and `modules:["engine","voice","terminal","observe"]` by default. Unknown handshake majors are
 refused with an update message. Missing handshake fields remain accepted only
-for legacy token links. Disabled voice, harness, terminal and observe modules are omitted.
+for legacy token links. Disabled voice, terminal and observe modules are omitted.
 Direct API clients need the inference key for `/v1`, not the management token.
 
 The main Loom strips browser cookies/origin headers and substitutes the machine
-credential when forwarding engine actions. Conversations stay on the main Loom; a selected node harness executes on the
-paired machine through the authenticated ACP transport below. The node strips client credentials/cookies before
+credential when forwarding engine actions. Conversations stay on the main Loom; The node strips client credentials/cookies before
 forwarding inference to its local native engine and uses that engine's key.
-
-## Run agents on a paired machine
-
-Pair by code as above; SSH is not required for harnesses. Nodes advertise
-`modules:["engine","voice","harness","terminal","observe"]` with `handshake:1` by default, including existing
-nodes after updating. To disable harness execution while retaining read-only observation, initialize with:
-
-```sh
-loom node init --no-harness
-# Restore the harness module explicitly, using the same node home:
-loom node init --no-harness=false
-```
-
-The persisted node state flag is `node_harness_disabled` (true disables it).
-Repeating init without either flag preserves the choice. Refresh/re-pair the
-main's saved link after changing advertised modules. Disabling the module also
-rejects subsequent inventory, ACP and folder/workspace requests with HTTP 409
-and `{"ok":false,"error":"node harness module is disabled"}`.
-
-Install and sign in to the native tools on the node as its OS user. The module
-uses the same probe, tool directories on PATH, prerequisites and pinned ACP
-launchers as SSH machines: Codex, Claude Code, Pi, OpenCode, OpenClaw and Hermes.
-This does not add support for harnesses absent from `remoteHarnessDefs`.
-It does not install tools, perform native sign-in or change native permissions.
-
-Pairing tries to read inventory; a failed probe does not undo a successful pair.
-To refresh it, use the existing main API `POST /api/machines` with
-`{"machine":{"id":"node-machine-id"},"check_only":true}`; omit `check_only`
-and supply `harnesses` to save the refreshed inventory and chosen connections.
-`GET /api/agents/installations` includes the node's detected agents with the
-existing machine/family/runtime IDs. Remote installations remain unmanaged and
-disabled until selected. `POST /api/agents/installations` with
-`{"machine":"node-machine-id","harness":"hermes","enabled":true}` enables
-one. Discussion configuration still requires explicit confirmation before
-sharing transcript/context with the external executor. Backend APIs are ready;
-new node-specific UI controls are separate work.
-
-The node accepts only its machine token in `Authorization: Bearer …` on these
-routes; inference credentials, browser cookies and URL credentials do not grant
-access. Redirects are refused by the main. Use the same trusted LAN/VPN or HTTPS
-boundary as for engine control; this module does not configure TLS.
-
-| Node route | Response / behavior |
-| --- | --- |
-| `GET /api/node/harness/inventory` | `{"ok":true,"os":"Linux","home":"/home/agent","hostname":"worker","tools":[{"id":"hermes","path":"/home/agent/.local/bin/hermes","version":"…"}]}`; versions are optional. |
-| `GET /api/node/harness/acp?harness=hermes&cwd=/absolute/folder` | WebSocket upgrade; binary frames carry unmodified stdin/stdout bytes, including partial or multiple newline-delimited JSON messages. Token is only in the handshake header. |
-| `GET /api/node/folders?path=/absolute/folder` | `{"ok":true,"path":"/absolute/folder","parent":"/absolute","folders":["/absolute/folder/subdir"]}`; directory paths only, sorted by name. An empty path selects the node user's home. |
-| `POST /api/node/workspace` with `{"path":"/absolute/folder"}` | Explicitly creates a workspace directory (including parents); returns `{"ok":true,"path":"/absolute/folder"}`. |
-
-ACP accepts only a known harness ID and an absolute existing directory; empty
-cwd selects the node user's home. The default limit is eight concurrent agent
-processes, including probes; contention returns HTTP 429 with
-`{"ok":false,"error":"node agent process limit reached"}`. Closing either
-transport direction kills/reaps the owned process group and releases its slot.
-Node shutdown also kills its owned agent groups. Stderr is drained continuously,
-with only the first 32 KiB per agent written to the node log.
-
-The hidden main-side command is `loom node-bridge <machine-id> <harness> <cwd>`.
-It reads the saved maintenance URL/token from local secret state and bridges its
-stdio to the WebSocket; no token appears in arguments or URLs. `nodeAgent`
-records `@loom-workdir` as its last argument. `runACP` replaces that placeholder
-with the session's remote `Workdir` before launching the child; probes replace
-it with `RemoteHome`. The local child still starts in the main user's home.
-The ACP client and protocol implementation are unchanged.
-
-For encrypted state, the main's vault unlock key remains in its process. The
-launch wrapper reads only the selected machine access and writes a private,
-encrypted, temporary launch record using a fresh independent key. The bridge
-receives the record path/key through its environment, consumes/removes the
-record, and clears those environment variables. The parent also removes the
-record on failure/close. No vault key, inference key or provider key is passed
-to the node or its agents. A manually invoked bridge cannot read locked state.
-
-Main-side `GET /api/machines/folders?machine=ID&path=/absolute/folder` proxies the
-node picker response above. Without `path`, the existing `{"ok":true,"folders":
-[…]}` favourite-folder response remains unchanged. Workspace validation and
-explicit creation also use the node, without SSH. Terminal transport is an
-independent module, described below.
 
 ## Terminals on a paired machine
 
@@ -374,7 +292,7 @@ resize control message. The main sends keystrokes as binary so JSON typed into
 a shell stays input. A completed process sends text
 `{"exit":true,"exit_code":7}` (with its actual exit code). Closing the connection
 or stopping the node kills the owned process group and reaps the shell. Each
-node allows eight concurrent terminals independently of harness slots;
+node allows eight concurrent terminals independently of engine work;
 contention returns HTTP 429 with `node terminal process limit reached`.
 
 On the main, `POST /api/terminals` with
@@ -532,15 +450,7 @@ service configuration, not through the native engine's network toggle.
 
 No UI/auth-session, discussion, Brain/MCP, cloud/provider, harness lifecycle,
 project or environment routes are registered. The main `/api/terminals` routes
-are absent; node terminals use only `/api/node/terminal/ws`. The optional harness
-module exposes only inventory, ACP transport and directory/workspace control;
-the independent terminal module exposes PTY transport, and the optional
-observe module exposes read-only machine metrics.
-Unknown paths return 404. Native Windows/macOS node mode is explicitly
-unsupported in this initial Linux implementation; direct inference-server links
-remain available there. Migration from a previous full Loom is manual and
-separate: back up data and link existing models/binaries before stopping or
-removing old services.
+are absent; node terminals use only `/api/node/terminal/ws`. There is no harness module. Inventory and directory/workspace controls are generic authenticated node APIs.
 
 ## Maintenance for each connected machine
 
@@ -606,8 +516,8 @@ behavior require acceptance on the actual target machine.
 - A successful POST returns `{ok:true,machine:{…}}`; failures return
   `{ok:false,error:"…"}`. Pairing codes and node credentials never reach the UI.
   Contending migrations receive 409. Unsupported existing custom launchers or
-  missing harness-module support reject the merge before changing any record.
-- Machine JSON, protected maintenance credentials and replacement harness
+  missing engine-module support reject the merge before changing any record.
+- Machine JSON, protected maintenance credentials and replacement node
   launchers commit in one store transaction, with retries on concurrent edits.
   Installation choices and terminal history retain their original machine ID.
   If pairing succeeded but the local save failed, run the migration again or

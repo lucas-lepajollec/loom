@@ -12,7 +12,7 @@ func handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		"ok": true, "chat": map[string]string{"default_choice": ReadConfig()[chatDefaultChoiceKey]}, "runtimes": runtimeCatalog(), "projects": listProjects(),
 		"capabilities": listCapabilities(), "active_project": conv.currentProject(),
 		"providers": workspaceSessions.providers(), "sessions": workspaceSessions.list(),
-		"models": modelCatalog(workspaceSessions.providers()), "harness_profiles": harnessProfiles(),
+		"models": modelCatalog(workspaceSessions.providers()),
 	})
 }
 
@@ -45,7 +45,6 @@ func handleCapabilitySave(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	syncSkillSinksAsync() // skills distributed to harnesses follow Loom's copy
 	sendJSON(w, 200, map[string]any{"ok": true, "capability": saved})
 }
 
@@ -65,6 +64,5 @@ func handleCapabilityDelete(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	syncSkillSinksAsync()
 	sendJSON(w, 200, map[string]any{"ok": true})
 }

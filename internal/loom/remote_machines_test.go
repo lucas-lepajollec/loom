@@ -24,25 +24,6 @@ func TestRemoteProbeScriptRunsAndParses(t *testing.T) {
 	}
 }
 
-func TestRemoteAgentCommand(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	m := RemoteMachine{ID: "box", Host: "10.0.0.2", User: "root", Port: 2222, Home: "/root",
-		Tools: []RemoteTool{{ID: "hermes", Path: "/usr/local/bin/hermes"}, {ID: "npx", Path: "/root/.nvm/versions/node/v24/bin/npx"}}}
-	a, err := remoteAgent(m, "hermes", "/k")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := strings.Join(a.Args, " ")
-	want := "-T -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i /k -p 2222 root@10.0.0.2 sh -c 'PATH=/usr/local/bin:/root/.nvm/versions/node/v24/bin:\"$PATH\" exec hermes acp'"
-	if a.ID != "custom-box-hermes" || !a.Remote || a.RemoteHome != "/root" || got != want {
-		t.Fatalf("%s\n%s", a.ID, got)
-	}
-	cc, err := remoteAgent(m, "claude-code", "")
-	if err != nil || !strings.Contains(strings.Join(cc.Args, " "), "exec npx -y @agentclientprotocol/claude-agent-acp@") {
-		t.Fatalf("%v %v", err, cc.Args)
-	}
-}
-
 func TestRemoteMachineValidation(t *testing.T) {
 	for _, bad := range []RemoteMachine{{Host: "-oProxyCommand=x", User: "a"}, {Host: "h", User: "a b"}, {Host: "h", User: "a", Port: 70000}} {
 		if _, err := validRemoteMachine(bad); err == nil {
@@ -55,42 +36,9 @@ func TestRemoteMachineValidation(t *testing.T) {
 	}
 }
 
-func TestOffersNeedNpxForAdapters(t *testing.T) {
-	offers := remoteOffers(RemoteMachine{Tools: []RemoteTool{{ID: "claude", Path: "/x/claude"}, {ID: "hermes", Path: "/x/hermes"}}})
-	for _, o := range offers {
-		switch o["id"] {
-		case "hermes":
-			if o["ready"] != true {
-				t.Fatal("hermes devrait être prêt")
-			}
-		case "claude-code":
-			if o["ready"] != false || o["installed"] != true || o["missing"] == "" {
-				t.Fatalf("claude sans npx: %+v", o)
-			}
-		}
-	}
-}
-
-func TestLegacyModelAPIBecomesModelOption(t *testing.T) {
-	var r acpSessionResponse
-	if err := jsonUnmarshalString(`{"sessionId":"s","models":{"currentModelId":"a:x","availableModels":[{"modelId":"a:x","name":"X"},{"modelId":"b:y","name":"Y"}]}}`, &r); err != nil {
-		t.Fatal(err)
-	}
-	o := acpModelOption(r.options())
-	if o == nil || o["currentValue"] != "a:x" || o[acpLegacyModelKey] != true || !acpConfigValueAllowed(o, "b:y") {
-		t.Fatalf("%+v", o)
-	}
-	p := &acpBinding{}
-	p.applySessionResponse(r)
-	p.applyConfig([]map[string]any{{"id": "effort", "category": "thought_level"}})
-	if acpModelOption(p.state.AvailableConfigOptions) == nil {
-		t.Fatal("option modèle perdue après une mise à jour")
-	}
-}
-
 func jsonUnmarshalString(s string, v any) error { return json.Unmarshal([]byte(s), v) }
 
-func TestRemoteMachineWithoutHarnessesPersistsAndRemainsEditable(t *testing.T) {
+func TestRemoteMachinePersistsAndRemainsEditable(t *testing.T) {
 	home := testHome(t)
 	t.Setenv("HOME", home)
 	bin := filepath.Join(home, "fixture-bin")
@@ -115,9 +63,9 @@ printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux
 			t.Fatal(err)
 		}
 	}
-	for pass, body := range []string{
-		`{"machine":{"id":"gpu","name":"GPU","host":"fixture","user":"fixture"},"harnesses":[]}`,
-		`{"machine":{"id":"gpu","name":"GPU renamed","host":"fixture","user":"fixture"},"harnesses":[]}`,
+	for _, body := range []string{
+		`{"machine":{"id":"gpu","name":"GPU","host":"fixture","user":"fixture"}}`,
+		`{"machine":{"id":"gpu","name":"GPU renamed","host":"fixture","user":"fixture"}}`,
 	} {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/api/machines", strings.NewReader(body))
@@ -129,33 +77,6 @@ printf '%s\n' 'LOOM-MACHINE {"hostname":"GPU","home":"/home/fixture","os":"Linux
 		machines := loadRemoteMachines()
 		if len(machines) != 1 || machines[0].ID != "gpu" || len(machines[0].Harnesses) != 0 || machines[0].Home != "/home/fixture" {
 			t.Fatal("machine missing or harnesses added")
-		}
-		if len(loadCustomACPAgents()) != 0 {
-			t.Fatal("registered an unselected harness")
-		}
-		listed := func() bool {
-			for _, source := range harnessHistorySources() {
-				if source.ID == "remote:gpu:codex" {
-					return true
-				}
-			}
-			return false
-		}
-		// The choice to manage survives editing the machine (second pass).
-		if pass == 0 && listed() {
-			t.Fatal("an agent of another machine serves history before the user manages it")
-		}
-		if _, err := historySource("remote:gpu:codex"); pass == 0 && err == nil {
-			t.Fatal("an unmanaged remote agent opened as a history source")
-		}
-		if err := setHarnessManaged("gpu", "codex", true); err != nil || listed() {
-			t.Fatalf("unprobed remote history must remain hidden: %v", err)
-		}
-		if _, err := historySource("remote:gpu:codex"); err != nil {
-			t.Fatal(err)
-		}
-		if len(loadCustomACPAgents()) != 0 {
-			t.Fatal("reading a source registered it")
 		}
 	}
 }

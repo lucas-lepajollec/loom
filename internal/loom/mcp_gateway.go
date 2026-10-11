@@ -101,14 +101,6 @@ func requireGatewayAuth(next http.HandlerFunc) http.HandlerFunc {
 				webAuthUnavailable(w)
 				return
 			}
-			if ctx, ok := gatewayPolicyContext(r); ok {
-				next(w, r.WithContext(ctx))
-				return
-			}
-			if sessionGatewayAuthorized(r) {
-				next(w, r)
-				return
-			}
 			if state.TokenHash != "" && checkBearer(r, state.TokenHash) {
 				next(w, r)
 				return

@@ -3,7 +3,7 @@ package loom
 import (
 	"context"
 	"encoding/json"
-	"errors"
+
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"io"
 	"net/http"
@@ -232,31 +232,7 @@ func TestWorkspaceAutoCompactionOnOffAndUnknown(t *testing.T) {
 		})
 	}
 }
-func TestWorkspaceACPCompactAdvertisedAndUnsupported(t *testing.T) {
-	continuityBase(t)
-	a := fakeACPAdapter(t)
-	isolateRuntimeRegistry(t, a)
-	m := workspaceSessions
-	s := createACPSession(t, m, a, "edits")
-	if _, _, err := m.compactNow(t.Context(), s.ID); !errors.Is(err, errCompactUnsupported) {
-		t.Fatal("unadvertised command accepted", err)
-	}
-	if err := m.start(s.ID, "request-first", "fixture"); err != nil {
-		t.Fatal(err)
-	}
-	first := waitACPTurn(t, m, s.ID)
-	if !offersCompact(first) || clientSession(first).Context.Source != "agent" || clientSession(first).Context.Used != 24 {
-		t.Fatal("ACP state not projected")
-	}
-	got, _, err := m.compactNow(t.Context(), s.ID)
-	if err != nil || got.ID != s.ID {
-		t.Fatal(err)
-	}
-	last := waitACPTurn(t, m, s.ID)
-	if last.NativeSessionID != first.NativeSessionID || last.Messages[len(last.Messages)-1].Content != "Context compacted" || clientSession(last).Context.Used != 8 {
-		t.Fatal("compact was not an exact prompt turn", last.Messages, last.NativeSessionID, first.NativeSessionID)
-	}
-}
+
 func TestWorkspaceCompactAndContinueRefuseBusy(t *testing.T) {
 	m, s := compactFixture(t)
 	m.runs[s.ID] = &runtimeRun{session: s, cancel: func() {}}

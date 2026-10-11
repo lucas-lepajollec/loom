@@ -3,7 +3,6 @@ package loom
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
@@ -80,24 +79,7 @@ func writeLoomSkill(c Capability, dir string) (string, error) {
 
 func resourceLibrary() resources.Library {
 	links := map[string]string{}
-	for _, target := range loadSkillSinks() {
-		for name, source := range target.Links {
-			links[filepath.Join(target.Dir, name)] = source
-		}
-	}
 	return resources.Library{Root: loomSkillsDir(), OpenRoot: openOwnedSkillsRoot, ManagedLinks: links, NewID: newSessionID}
-}
-
-func skillBound(b map[string]map[string]bool, skillID, target string) bool {
-	return resources.SkillBound(b, skillID, target)
-}
-
-func harnessMCPBinding(id string) *[]string { return resourceBindings().HarnessMCPBinding(id) }
-
-func skillBindings() map[string]map[string]bool { return resourceBindings().SkillBindings() }
-
-func setHarnessMCPBinding(id string, names *[]string) error {
-	return resourceBindings().SetHarnessMCPBinding(id, names, validateACPMCPSelection)
 }
 
 type resourceStateStore struct{}
@@ -108,20 +90,5 @@ func (resourceStateStore) GetJSON(key string, value any) bool {
 func (resourceStateStore) PutJSON(key string, value any) error {
 	return putStoreJSON(bkState, key, value)
 }
-func resourceBindings() resources.Bindings { return resources.Bindings{Store: resourceStateStore{}} }
-
-type skillSinkTarget = resources.SkillSinkTarget
-
-func hasName(list []string, s string) bool { return resources.HasName(list, s) }
-
-func isLinkInto(p string, skills []Capability) bool { return resources.IsLinkInto(p, skills) }
-
-func skillSinkCurrent(dest, src string) bool { return resources.SkillSinkCurrent(dest, src) }
-
-func placeSkill(src, dest string) error { return resources.PlaceSkill(src, dest) }
 
 func copySkillDir(src, dest string) error { return resources.CopySkillDir(src, dest) }
-
-func adoptedMCP(m HarnessMCP) (MCPServerConfig, error) {
-	return resources.AdoptHarnessMCP(m.Command, m.URL, m.Args, m.EnvNames)
-}

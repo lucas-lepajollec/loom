@@ -21,7 +21,7 @@ func (testAccountAdapter) Connect(context.Context, bool) (any, error) { return n
 func (testAccountAdapter) Quota(context.Context) (int, error)         { return 0, nil }
 
 func TestRegistryValidation(t *testing.T) {
-	reg := NewRegistry[string, bool, string, int]()
+	reg := NewRegistry[string, bool, string]()
 	for _, tc := range []struct {
 		name string
 		a    RuntimeAdapter[string, bool, string]
@@ -32,8 +32,8 @@ func TestRegistryValidation(t *testing.T) {
 		{"whitespace", testAdapter{RuntimeDescriptor{ID: " id"}}, "invalid runtime ID"},
 		{"path", testAdapter{RuntimeDescriptor{ID: "bad/id"}}, "invalid runtime ID"},
 		{"planned", testAdapter{RuntimeDescriptor{ID: "planned", Capabilities: []string{"chat"}}}, "a planned runtime cannot declare capabilities"},
-		{"connect", testAdapter{RuntimeDescriptor{ID: "connect", Implemented: true, Capabilities: []string{"connect"}}}, "connect capability without Connectable interface"},
-		{"quota", testAdapter{RuntimeDescriptor{ID: "quota", Implemented: true, Capabilities: []string{"quota"}}}, "quota capability without QuotaReader interface"},
+		{"connect", testAdapter{RuntimeDescriptor{ID: "connect", Implemented: true, Capabilities: []string{"connect"}}}, "native account capabilities are retired"},
+		{"quota", testAdapter{RuntimeDescriptor{ID: "quota", Implemented: true, Capabilities: []string{"quota"}}}, "native account capabilities are retired"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := reg.Register(tc.a); err == nil || err.Error() != tc.want {
@@ -41,7 +41,7 @@ func TestRegistryValidation(t *testing.T) {
 			}
 		})
 	}
-	account := testAccountAdapter{testAdapter{RuntimeDescriptor{ID: "account", Implemented: true, Capabilities: []string{"connect", "quota"}}}}
+	account := testAccountAdapter{testAdapter{RuntimeDescriptor{ID: "account", Implemented: true, Capabilities: []string{"chat"}}}}
 	if err := reg.Register(account); err != nil {
 		t.Fatal(err)
 	}
@@ -49,18 +49,11 @@ func TestRegistryValidation(t *testing.T) {
 		t.Fatalf("duplicate error = %v", err)
 	}
 	// A quota method with a different result type must not satisfy this registry.
-	other := NewRegistry[string, bool, string, string]()
-	if err := other.Register(account); err == nil || err.Error() != "quota capability without QuotaReader interface" {
-		t.Fatalf("mismatched quota accepted: %v", err)
-	}
-	if HasRuntimeCapability(RuntimeDescriptor{Capabilities: []string{"chat"}}, "chat") {
-		t.Fatal("planned descriptor advertised a capability")
-	}
 }
 
 func TestRegistryOwnersAndMutations(t *testing.T) {
-	reg := NewRegistry[string, bool, string, int]()
-	other := NewRegistry[string, bool, string, int]()
+	reg := NewRegistry[string, bool, string]()
+	other := NewRegistry[string, bool, string]()
 	first := testAdapter{RuntimeDescriptor{ID: "z", Implemented: true, Capabilities: []string{"chat"}}}
 	if err := reg.Register(first); err != nil {
 		t.Fatal(err)
@@ -95,7 +88,7 @@ func TestRegistryOwnersAndMutations(t *testing.T) {
 }
 
 func TestRegistryConcurrentAccess(t *testing.T) {
-	reg := NewRegistry[string, bool, string, int]()
+	reg := NewRegistry[string, bool, string]()
 	var workers sync.WaitGroup
 	for _, id := range []string{"a", "b", "c", "d"} {
 		workers.Go(func() {

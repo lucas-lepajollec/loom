@@ -1,5 +1,10 @@
 # Mobile layout audit — Mission F / rank 6
 
+> Historical audit evidence: coding harnesses and their integration fixtures
+> described below were retired by the unreleased Local/Cloud transition.
+> See the harness-retirement migration notes for the current scope.
+
+
 Status: implementation and socket-free regressions verified, browser acceptance
 pending. The implementation sandbox denies loopback listeners (`EPERM`) and
 Chromium startup (`sandbox_host_linux.cc`, shutdown operation not permitted).

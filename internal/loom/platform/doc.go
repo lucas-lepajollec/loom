@@ -24,7 +24,7 @@
 //     serviceName, ensureLoomEngineBind et sortie CLI ; helpers privés du service.
 //   - sys_network.go et ses tests : configuration moteur, clé API, LLMPort,
 //     localIP, état firewallInert et présentation CLI/HTTP.
-//   - sys_tray_{windows,darwin,other}.go : workspaceSessions.shutdownACP et,
+//   - sys_tray_{windows,darwin,other}.go : workspaceSessions.shutdownRuntimes et,
 //     sous Windows, svcStop ; la variante sans tray reste avec ses homologues.
 //   - sys_restart_{windows,other}.go : sessions ACP et relance de l'application ;
 //     la variante sans relance reste avec son homologue Windows.

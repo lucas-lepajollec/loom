@@ -157,20 +157,3 @@ func ReadMCPSource(source MCPSource) ([]LinkedMCPServer, error) {
 	}
 	return result, nil
 }
-
-// AdoptHarnessMCP copies a reported launch definition without native credentials.
-func AdoptHarnessMCP(command, url string, args, envNames []string) (MCPServerConfig, error) {
-	if url != "" {
-		return AdoptedMCPDefinition(MCPServerConfig{URL: url}, false)
-	}
-	if command == "" {
-		return MCPServerConfig{}, fmt.Errorf("incomplete definition: this harness does not specify how to launch this server")
-	}
-	env := map[string]string{}
-	for _, n := range envNames {
-		if n != "PATH" && n != "HOME" {
-			env[n] = ""
-		}
-	}
-	return AdoptedMCPDefinition(MCPServerConfig{Command: command, Args: args, Env: env}, false)
-}

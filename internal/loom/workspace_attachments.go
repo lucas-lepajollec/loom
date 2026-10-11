@@ -33,16 +33,6 @@ func composeTurnText(s RuntimeSession, text string, names []string) (string, err
 	}
 	var b strings.Builder
 	b.WriteString(text)
-	if s.RuntimeID != "openai-compatible" && s.RuntimeID != "llama.cpp" {
-		if a, ok := acpAgentFor(s.RuntimeID); ok && a.Remote {
-			return "", errors.New("attaching files to an agent on another machine is not available yet")
-		}
-		b.WriteString("\n\nAttached files (read them from these paths):")
-		for _, f := range files {
-			fmt.Fprintf(&b, "\n<loom-file name=%q path=%q size=\"%d\" />", f.Name, filepath.Join(dir, f.Name), f.Size)
-		}
-		return b.String(), nil
-	}
 	budget := maxMessageBytes - len(text) - 512
 	for _, f := range files {
 		data, err := os.ReadFile(filepath.Join(dir, f.Name))

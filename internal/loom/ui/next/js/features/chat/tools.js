@@ -1,5 +1,5 @@
 import { t } from '../../core/i18n.js';
-// Rendu des actions d'un harness (contrat docs/agents/harness-acp-brief.md §5) :
+// Rendu des actions et événements historiques :
 // lectures et recherches condensées, commandes avec sortie, modifications avec
 // diff, plan, demandes d'autorisation. Le texte des outils est affiché brut.
 import { html, useState, useMemo, cls } from '../../core/lib.js';
@@ -9,7 +9,7 @@ import { toast } from '../../ui/dialog.js';
 import { chat } from './engine.js';
 
 const KIND = () => ({
-  read: ['file', t("chat.tools.lecture")], search: ['search', t("chat.tools.recherche")], fetch: ['globe', 'Web'], execute: ['terminal', t("harnesses.page.commande")],
+  read: ['file', t("chat.tools.lecture")], search: ['search', t("chat.tools.recherche")], fetch: ['globe', 'Web'], execute: ['terminal', t("common.command")],
   edit: ['edit', t("chat.tools.modification")], delete: ['trash', t("chat.tools.suppression")], move: ['file', t("chat.tools.deplacement")], think: ['brain', t("chat.tools.reflexion")], other: ['tool', t("chat.tools.outil")],
 });
 export const QUIET = new Set(['read', 'search', 'fetch', 'think']);

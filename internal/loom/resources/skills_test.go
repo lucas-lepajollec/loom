@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -13,75 +11,5 @@ func TestSkillFrontMatterParsing(t *testing.T) {
 	}
 	if _, body := ParseSkillMarkdown("Sans en-tête"); body != "Sans en-tête" {
 		t.Fatal(body)
-	}
-}
-
-func TestLibraryAndSinkKeepBindingsAndForeignFolders(t *testing.T) {
-	root := t.TempDir()
-	lib := Library{Root: root, NewID: func() string { return "1234" }}
-	dir, err := lib.WriteSkill(Capability{Name: "Revue de code", Description: "Relire", Instructions: "Cherche les bugs."}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := SkillSource{ID: "loom", Path: root, Label: "Loom", Writable: true}
-	skills := lib.ScanSkills([]SkillSource{source})
-	if len(skills) != 1 || skills[0].ID != "1234" || skills[0].Name != "Revue de code" || skills[0].Dir != dir {
-		t.Fatalf("library: %+v", skills)
-	}
-	target := t.TempDir()
-	foreign := filepath.Join(target, "mine")
-	if err := os.MkdirAll(foreign, 0755); err != nil {
-		t.Fatal(err)
-	}
-	list := []SkillSinkTarget{{ID: "claude", Dir: target, Enabled: true}}
-	list = lib.SyncSkillSinks(list, skills, map[string]map[string]bool{}, func(s string) string { return s })
-	if len(list[0].Written) != 1 {
-		t.Fatalf("sink: %+v", list)
-	}
-	list = lib.SyncSkillSinks(list, skills, map[string]map[string]bool{"1234": {"claude": false}}, func(s string) string { return s })
-	if len(list[0].Written) != 0 {
-		t.Fatalf("excluded skill retained: %+v", list)
-	}
-	if _, err := os.Stat(foreign); err != nil {
-		t.Fatal("foreign folder changed", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil {
-		t.Fatal("source changed", err)
-	}
-}
-
-func TestLibraryRejectsSymlinkEscapesAndPreservesReplacedLinks(t *testing.T) {
-	root, outside := t.TempDir(), t.TempDir()
-	lib := Library{Root: root, NewID: func() string { return "id" }}
-	escaped := filepath.Join(root, "escape")
-	if err := os.Symlink(outside, escaped); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := lib.WriteSkill(Capability{Name: "Escape", ID: "id", Instructions: "text"}, escaped); err == nil {
-		t.Fatal("write escaped library")
-	}
-	if entries, err := os.ReadDir(outside); err != nil || len(entries) != 0 {
-		t.Fatalf("outside changed: %v %v", entries, err)
-	}
-	oldDir, err := lib.WriteSkill(Capability{Name: "Review", ID: "id", Instructions: "old"}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	target := t.TempDir()
-	skills := []Capability{{ID: "id", Dir: oldDir}}
-	list := []SkillSinkTarget{{ID: "claude", Dir: target, Enabled: true}}
-	list = lib.SyncSkillSinks(list, skills, nil, func(s string) string { return s })
-	link := filepath.Join(target, "review")
-	if err := os.Remove(link); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(outside, link); err != nil {
-		t.Fatal(err)
-	}
-	lib.Root = t.TempDir()
-	skills[0].Dir = filepath.Join(lib.Root, "review")
-	list = lib.SyncSkillSinks(list, skills, nil, func(s string) string { return s })
-	if dest, err := os.Readlink(link); err != nil || dest != outside || list[0].Error == "" {
-		t.Fatalf("replaced link touched: %q %v %+v", dest, err, list)
 	}
 }

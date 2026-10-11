@@ -334,12 +334,10 @@ func handleSkillsHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Upgrade older name-only manifests while their original links are known.
-	syncSkillSinks()
 	if err = putStoreJSON(bkState, skillsHomeState, req); err != nil {
 		brainResponse(w, nil, err)
 		return
 	}
-	syncSkillSinksAsync()
 	if e, err := theBrain().get(); err == nil {
 		_ = e.Refresh(r.Context())
 	}

@@ -97,7 +97,7 @@ func View(path, bucket string, fn func(b *bolt.Bucket) error) error {
 
 // Update exécute une écriture, en créant le bucket au besoin.
 func Update(path, bucket string, fn func(b *bolt.Bucket) error) error {
-	cacheBust(bucket)
+	cacheBust(path, bucket)
 	return withDB(path, func(d *bolt.DB) error {
 		return d.Update(func(tx *bolt.Tx) error {
 			b, err := tx.CreateBucketIfNotExists([]byte(bucket))
@@ -208,15 +208,20 @@ type kvCache struct {
 	size  int64
 }
 
+type kvCacheKey struct {
+	path   string
+	bucket string
+}
+
 var (
 	cacheMu sync.Mutex
-	caches  = map[string]kvCache{}
+	caches  = map[kvCacheKey]kvCache{}
 )
 
 // cacheBust vide le cache d'un bucket après une écriture locale.
-func cacheBust(bucket string) {
+func cacheBust(path, bucket string) {
 	cacheMu.Lock()
-	delete(caches, bucket)
+	delete(caches, kvCacheKey{path, bucket})
 	cacheMu.Unlock()
 }
 
@@ -233,16 +238,17 @@ func dbStamp(path string) (time.Time, int64) {
 // CachedKV renvoie tout le contenu d'un bucket, depuis le cache quand il est
 // encore valable. La carte renvoyée appartient à l'appelant (copie).
 func CachedKV(path, bucket string) map[string]string {
+	key := kvCacheKey{path, bucket}
 	mtime, size := dbStamp(path)
 	cacheMu.Lock()
-	c, ok := caches[bucket]
+	c, ok := caches[key]
 	fresh := ok && c.size == size && c.mtime.Equal(mtime) && time.Since(c.when) < cacheMaxAge
 	cacheMu.Unlock()
 	if !fresh {
 		kv := AllKV(path, bucket)
 		c = kvCache{kv: kv, when: time.Now(), mtime: mtime, size: size}
 		cacheMu.Lock()
-		caches[bucket] = c
+		caches[key] = c
 		cacheMu.Unlock()
 	}
 	out := make(map[string]string, len(c.kv))
@@ -269,7 +275,7 @@ func AllKV(path, bucket string) map[string]string {
 // C'est ce qu'exige l'application d'un preset : à aucun instant la config ne
 // doit être un mélange de l'ancienne et de la nouvelle.
 func ReplaceKV(path, bucket string, m map[string]string) error {
-	cacheBust(bucket)
+	cacheBust(path, bucket)
 	return withDB(path, func(d *bolt.DB) error {
 		return d.Update(func(tx *bolt.Tx) error {
 			if err := tx.DeleteBucket([]byte(bucket)); err != nil && !errors.Is(err, bolterrors.ErrBucketNotFound) {

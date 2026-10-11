@@ -13,16 +13,13 @@ import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshWorkspace, refreshEngineNode, refreshStatus, refreshLibrary } from '../../core/state.js';
 import { copyText } from '../../ui/clipboard.js';
-import { MachineDialog } from '../harnesses/machines.js';
-import { Lifecycle } from '../harnesses/lifecycle.js';
+import { MachineDialog } from '../machines/edit.js';
 import { openTerminalWith } from '../terminals/page.js';
 import { Line, Group } from './kit.js';
 import { LoomUpdates } from './updates.js';
 import { ModelDirs, DirectEngineForm } from './page.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
-const NAMES = { hermes: 'Hermes', 'claude-code': 'Claude Code', codex: 'Codex', pi: 'Pi', opencode: 'OpenCode', antigravity: 'Antigravity' };
-const LOCAL_HARNESSES = ['claude-code', 'codex', 'pi', 'opencode', 'hermes', 'antigravity'];
 
 // Lien vers cette page depuis les endroits qui en ont besoin.
 export const MachinesLink = ({ label }) => html`<a class="btn sm ghost" href="#/machines"><${Icon} n="server" />${label || t("settings.machines.gerer_les_machines")}</a>`;
@@ -56,7 +53,7 @@ function PairDialog({ start, onClose }) {
         ${step === 2 && html`<button class="btn ghost" disabled=${busy} onClick=${() => setStep(1)}>${t('machines.add.back')}</button>`}
         <button class="btn primary" disabled=${busy || (step === 2 && (!v.address.trim() || v.code.replace('-', '').length !== 8))} onClick=${() => step === 1 ? setStep(2) : pair(false)}>${busy ? t('settings.machines.verification') : t(step === 1 ? 'machines.add.next' : 'machines.pair.ok')}</button>`}>
     <div class="mx-steps"><div class="mx-step"><span class="mx-n">${step}</span><div class="mx-body"><b>${title}</b>
-      ${step === 1 ? html`<p class="note">${t('machines.add.linux')}</p><div class="mx-code"><pre>${NODE_INSTALL}</pre><button class="btn sm" onClick=${async () => { const ok = await copyText(NODE_INSTALL); toast(t(ok ? 'harnesses.machines.bloc_copie' : 'harnesses.machines.copie_refusee_selectionne_le_texte'), ok ? '' : 'err'); }}><${Icon} n="copy" />${t('harnesses.machines.copier')}</button></div><p class="note">${t('machines.add.installs')}</p>`
+      ${step === 1 ? html`<p class="note">${t('machines.add.linux')}</p><div class="mx-code"><pre>${NODE_INSTALL}</pre><button class="btn sm" onClick=${async () => { const ok = await copyText(NODE_INSTALL); toast(t(ok ? 'machines.edit.bloc_copie' : 'machines.edit.copie_refusee_selectionne_le_texte'), ok ? '' : 'err'); }}><${Icon} n="copy" />${t('machines.edit.copier')}</button></div><p class="note">${t('machines.add.installs')}</p>`
       : step === 2 ? html`<${Discovered} onPair=${n => setV(old => ({ ...old, address: n.address }))} />
         <label class="field"><span>${t('machines.pair.address')}</span><input class="input mono" value=${v.address} placeholder="192.168.1.20:2511" onInput=${e => setV({ ...v, address: e.target.value })} /></label>
         <label class="field"><span>${t('machines.pair.code')}</span><input class="input mono pair-code" value=${v.code} placeholder="K7QM-4XPA" autocomplete="one-time-code" onInput=${e => setV({ ...v, code: fmt(e.target.value) })} /></label>
@@ -67,7 +64,7 @@ function PairDialog({ start, onClose }) {
 }
 
 function NodeModules({ modules = [] }) {
-  return html`<div class="mx-offers">${['engine', 'harness', 'terminal', 'observe'].map(id => html`<div class="mx-offer" key=${id}><span class="grow">${t(({ engine: 'machines.module.engine', harness: 'machines.module.harness', terminal: 'machines.module.terminal', observe: 'machines.module.observe' })[id])}</span><span class="state">${t(modules.includes(id) ? 'machines.module.enabled' : 'machines.module.disabled')}</span></div>`)}</div>`;
+  return html`<div class="mx-offers">${['engine', 'terminal', 'observe'].map(id => html`<div class="mx-offer" key=${id}><span class="grow">${t(({ engine: 'machines.module.engine', terminal: 'machines.module.terminal', observe: 'machines.module.observe' })[id])}</span><span class="state">${t(modules.includes(id) ? 'machines.module.enabled' : 'machines.module.disabled')}</span></div>`)}</div>`;
 }
 
 function MachineMigration({ m, onChange, compact = false }) {
@@ -158,12 +155,11 @@ export function MachinesSettings({ route }) {
     get('/api/machines').then(r => setData(r.ok ? r : { machines: [], offers: {} })).catch(() => setData({ machines: [], offers: {} })),
     get('/api/machines/local').then(setLocal).catch(() => setLocal(null)),
   ]);
-  const [installs, setInstalls] = useState([]);
   const [terminals, setTerminals] = useState([]);
   const node = useStore(app, x => x.engineNode);
   // Le moteur tourne sur cette machine, sauf s'il est lié ailleurs.
   const engineAt = node && node.machine_id ? node.machine_id : node && (node.direct || node.remote) ? '' : 'local';
-  useEffect(() => { load(); get('/api/agents/installations').then(r => setInstalls(r.installations || [])).catch(() => {}); get('/api/terminals').then(r => setTerminals(r.terminals || [])).catch(() => {}); }, []);
+  useEffect(() => { load(); get('/api/terminals').then(r => setTerminals(r.terminals || [])).catch(() => {}); }, []);
   const id = route && route.id;
   if (!data) return html`<div class="skeleton" style="height:240px"></div>`;
   if (id) {
@@ -174,18 +170,14 @@ export function MachinesSettings({ route }) {
   }
   // Une carte par machine : ce qui y tourne pour Loom, d'un coup d'œil.
   const card = (id, name, sub, icon, machine = null) => {
-    const mine = installs.filter(i => i.machine === id && i.installed);
-    const used = mine.filter(i => i.enabled).length, managed = mine.filter(i => i.managed).length;
     const terms = terminals.filter(x => x.target === id).length;
     return html`<div class="mcard" key=${id}>
       <a class="mcard-h" href=${'#/machines/' + encodeURIComponent(id)}><span class="mx-ico"><${Icon} n=${icon} /></span><span class="grow"><b>${name}${machine?.node_id && html`<${NodeUpdateBadge} m=${machine} />`}</b><small class="mono">${sub}</small></span><${Icon} n="right" /></a>
       <${Meters} m=${metrics[id]} />
       <div class="mcard-s">
-        <div><span>${t('app.groups.agents')}</span><b>${mine.length ? t('machines.card.agents', { used, managed }) : '—'}</b></div>
         <div><span>${t('engine.page.title')}</span><b>${id === engineAt ? t('machines.card.engine_here') : '—'}</b></div>
         <div><span>${t('app.routes.terminaux')}</span><b>${terms || '—'}</b></div>
       </div>
-      ${mine.length > 0 && html`<div class="mcard-a">${mine.map(i => html`<span class=${'mcard-chip' + (i.enabled ? ' on' : '')} key=${i.harness} title=${i.name}><${Logo} name=${i.logo || i.harness} size="sm" /></span>`)}</div>`}
       ${machine?.user && html`<${MachineMigration} m=${machine} onChange=${load} compact=${true} />`}
     </div>`;
   };
@@ -220,7 +212,6 @@ function MachineDetail({ m, local, offers, onChange, onEdit }) {
         ${!isLocal && html`${m.user && html`<button class="btn sm ghost" onClick=${onEdit}>${t("settings.machines.modifier")}</button>`}<button class="icon-btn" aria-label=${t("settings.machines.retirer") + m.name} onClick=${remove}><${Icon} n="trash" /></button>`}</div></div>
     ${m?.user && html`<${MachineMigration} m=${m} onChange=${onChange} />`}
     ${m?.node_id && html`<${NodeModules} modules=${m.modules} />`}
-    <${HarnessesSection} m=${m} onChange=${onChange} />
     <${EngineSection} m=${m} onChange=${onChange} />
     <${FoldersSection} target=${target} m=${m} />
     <${TerminalsSection} target=${target} name=${name} m=${m} />`;
@@ -279,36 +270,7 @@ function MachineNodeMaintenance({ m, onChange }) {
 // (Loom suit l'agent : compte, versions, import de discussions) et « Utiliser
 // dans Loom » (il peut mener des discussions). Tout le reste est sur la page
 // Agents.
-function HarnessesSection({ m, onChange }) {
-  const machine = m ? m.id : 'local';
-  const [list, setList] = useState(null);
-  const [busy, setBusy] = useState('');
-  const load = () => get('/api/agents/installations').then(r => setList((r.installations || []).filter(i => i.machine === machine))).catch(() => setList([]));
-  useEffect(() => { load(); }, [machine]);
-  const change = async (i, patch) => {
-    if (patch.enabled && !await confirm(t('agents.enable_title', { name: i.name }), t('agents.enable_note', { name: i.name, machine: i.machine_name }), { ok: t('agents.enable_ok') })) return;
-    setBusy(i.harness);
-    const r = await post('/api/agents/installations', { machine, harness: i.harness, ...patch, consent: !!patch.enabled }).catch(e => ({ ok: false, error: e.message }));
-    setBusy('');
-    if (!r.ok) return toast(r.error || t('agents.change_failed'), 'err');
-    setList((r.installations || []).filter(x => x.machine === machine));
-    await refreshWorkspace(); onChange && onChange();
-  };
-  if (!list) return html`<${Group} title=${t('app.groups.agents')}><div class="set-note"><span class="spinner"></span> ${t('settings.machines.lecture_des_harnesses_de_cette_machine')}</div></${Group}>`;
-  const installed = list.filter(i => i.installed), absent = list.filter(i => !i.installed);
-  return html`<section class="set-group anim-rise"><h3>${t('app.groups.agents')}<${Tip} text=${t('agents.machine_tip')} /></h3>
-    <div class="card">
-      ${installed.length ? html`<div class="ag-row ag-head"><span></span><span>${t('agents.manage')}</span><span>${t('agents.use')}</span></div>` : ''}
-      ${installed.map(i => html`<div class="ag-row" key=${i.harness}>
-        <span class="ag-name"><${Logo} name=${i.logo || i.harness} size="sm" /><b>${i.name}</b>${i.version && html`<em class="mono">${i.version.split(' ')[0]}</em>`}
-          ${i.managed && html`<a class="btn sm ghost" href=${'#/harnesses/' + i.runtime_id}>${t('agents.open')}</a>`}</span>
-        <div class="scope-control"><span>${t('agents.manage')}</span><${Switch} label=${t('agents.manage')} checked=${i.managed} disabled=${busy === i.harness} onChange=${v => change(i, { managed: v })} /></div>
-        <div class="scope-control"><span>${t('agents.use')}</span><${Switch} label=${t('agents.use')} checked=${i.enabled} disabled=${busy === i.harness || !i.ready} onChange=${v => change(i, { enabled: v })} /></div>
-      </div>`)}
-      ${!installed.length && html`<div class="set-note">${t('agents.none_here')}</div>`}
-      ${absent.length > 0 && html`<div class="set-note">${t('agents.not_installed')} ${absent.map(i => i.name).join(', ')}. <a href="#/harnesses">${t('agents.install_from_agents')}</a></div>`}
-    </div></section>`;
-}
+
 
 // Dossiers de travail favoris : proposés pour un harness, un terminal…
 function FoldersSection({ target, m }) {

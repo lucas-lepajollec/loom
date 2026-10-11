@@ -28,7 +28,7 @@ func nodeTerminalFixture(t *testing.T, limit int) (*nodeTerminalServer, http.Han
 	server := newNodeTerminalServer(limit)
 	t.Cleanup(server.stop)
 	token := "terminal-machine-fixture"
-	return server, newEngineWorkerMuxModules(token, newNodeHarnessServer(8), server), token
+	return server, newEngineWorkerMuxModules(token, server), token
 }
 
 func requireTerminalPTY(t *testing.T) {
@@ -52,11 +52,11 @@ func TestNodeTerminalAuthValidationLimitAndDisabled(t *testing.T) {
 	server, mux, token := nodeTerminalFixture(t, 1)
 	path := "/api/node/terminal/ws"
 	for _, credential := range []string{"", "inference-key"} {
-		if w := nodeHarnessGet(mux, path, credential); w.Code != 401 {
+		if w := nodeTestGet(mux, path, credential); w.Code != 401 {
 			t.Fatal(w.Code)
 		}
 	}
-	if w := nodeHarnessGet(mux, path+"?token="+token, ""); w.Code != 401 {
+	if w := nodeTestGet(mux, path+"?token="+token, ""); w.Code != 401 {
 		t.Fatal("URL token accepted")
 	}
 	r := httptest.NewRequest("GET", path, nil)
@@ -88,12 +88,12 @@ func TestNodeTerminalAuthValidationLimitAndDisabled(t *testing.T) {
 			{"cwd": {dir}, "rows": {"501"}}, {"cwd": {dir}, "rows": {"-1"}},
 			{"cwd": {dir}, "cols": {"no"}},
 		} {
-			if w := nodeHarnessGet(mux, path+"?"+q.Encode(), token); w.Code != 400 {
+			if w := nodeTestGet(mux, path+"?"+q.Encode(), token); w.Code != 400 {
 				t.Fatal(q, w.Code, w.Body.String())
 			}
 		}
 		server.slots <- struct{}{}
-		w = nodeHarnessGet(mux, path+"?cwd="+url.QueryEscape(dir), token)
+		w = nodeTestGet(mux, path+"?cwd="+url.QueryEscape(dir), token)
 		<-server.slots
 		if w.Code != 429 {
 			t.Fatal(w.Code, w.Body.String())
@@ -110,12 +110,12 @@ func TestNodeTerminalAuthValidationLimitAndDisabled(t *testing.T) {
 	if hasNodeModule(descriptor.Modules, "terminal") {
 		t.Fatal("disabled module advertised")
 	}
-	if w := nodeHarnessGet(mux, path, token); w.Code != 409 || !strings.Contains(w.Body.String(), nodeTerminalDisabled) {
+	if w := nodeTestGet(mux, path, token); w.Code != 409 || !strings.Contains(w.Body.String(), nodeTerminalDisabled) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	// Terminal and harness opt-outs are independent.
-	if !nodeHarnessEnabled() {
-		t.Fatal("terminal opt-out disabled harness")
+	if !hasNodeModule(nodeModules(), "engine") {
+		t.Fatal("terminal opt-out disabled engine")
 	}
 }
 
@@ -506,3 +506,5 @@ func TestNodeTerminalInitOptOut(t *testing.T) {
 		}
 	}
 }
+
+func nodeTestGet(mux http.Handler,path,token string)*httptest.ResponseRecorder{r:=httptest.NewRequest("GET",path,nil);if token!=""{r.Header.Set("Authorization","Bearer "+token)};w:=httptest.NewRecorder();mux.ServeHTTP(w,r);return w}
