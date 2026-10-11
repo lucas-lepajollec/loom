@@ -10,9 +10,6 @@ import { go, refreshWorkspace } from '../../core/state.js';
 import { copyText } from '../../ui/clipboard.js';
 import { openTerminalWith } from '../terminals/page.js';
 
-
-
-
 // Ligne « LOOM-MACHINE {…} » collée depuis le terminal de la machine.
 export function parseMachineLine(text) {
   const i = String(text || '').indexOf(t("machines.edit.loom_machine"));
@@ -81,11 +78,3 @@ export function MachineDialog({ machine, onClose }) {
     </div>
   </${Modal}>`;
 }
-
-
-
-
-
-// Harnesses d'une machine connectée : installer, mettre à jour, puis les
-// ajouter à Loom (ils apparaissent alors dans le sélecteur).
-
