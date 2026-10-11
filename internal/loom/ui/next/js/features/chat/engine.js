@@ -8,7 +8,6 @@ import { toast, confirm } from '../../ui/dialog.js';
 import { refreshNav, refreshWorkspace, go, app } from '../../core/state.js';
 
 export const chat = createStore({
-  harness: { mode: '', modes: [], config: [], files: [], usage: null, commands: [], permission: 'ask', workdir: '' },
   mode: 'native', sessionId: '', session: null, context: null,
   items: [], frozen: null, busy: false, replaying: true, loading: true,
   ctxUsed: 0, compactCount: 0, gen: null, runningTask: '', notice: '',
@@ -27,9 +26,7 @@ function push(item) {
   chat.set({ items: list }); return item;
 }
 function touch() { chat.set({ items: items().slice() }); }
-const emptyHarness = () => ({ mode: '', modes: [], config: [], files: [], usage: null, commands: [], permission: 'ask', workdir: '' });
 function applySession(s, context) {
-  chat.set({ harness: { mode: s.mode || '', modes: s.available_modes || [], config: s.available_config_options || [], files: s.changed_files || [], usage: s.harness_usage || null, commands: s.commands || [], permission: s.permission || 'ask', workdir: s.workdir || '' } });
   chat.set({ session: s, context: context || chat.get().context, notice: '', busy: s.status === 'running' });
 }
 function liveFoot(rt) {
@@ -44,7 +41,7 @@ function onEvent(d) {
   if (typeof d.seq === 'number' && d.seq > lastSeq) lastSeq = d.seq;
   if (d.reset !== undefined) {
     lastSeq = 0; turn = newTurn();
-    chat.set({ harness: emptyHarness(), items: [], busy: false, gen: null, ctxUsed: 0, compactCount: 0, replaying: !!d.replay, loading: !!d.replay });
+    chat.set({ items: [], busy: false, gen: null, ctxUsed: 0, compactCount: 0, replaying: !!d.replay, loading: !!d.replay });
     refreshNav();
   }
   if (d.session) applySession(d.session, d.context);
@@ -120,15 +117,10 @@ function onEvent(d) {
       return;
     }
     case 'mode':
-      chat.set({ harness: { ...chat.get().harness, mode: d.current, ...(d.modes ? { modes: d.modes } : {}) } }); return;
     case 'config':
-      chat.set({ harness: { ...chat.get().harness, config: d.options || [] } }); return;
     case 'files':
-      chat.set({ harness: { ...chat.get().harness, files: d.files || [] } }); return;
     case 'commands':
-      chat.set({ harness: { ...chat.get().harness, commands: d.commands || [] } }); return;
     case 'usage':
-      if (d.context || d.cost) chat.set({ harness: { ...chat.get().harness, usage: { context: d.context, cost: d.cost } } });
       if (d.metrics) {
         turn.stats = d.metrics;
         if (d.metrics.prompt_tokens_total) chat.set({ ctxUsed: d.metrics.prompt_tokens_total + (d.metrics.gen_tokens || 0) });
@@ -205,7 +197,7 @@ globalThis.addEventListener?.('online', () => { if (abort) abort.abort(); });
 
 function restartNative(replay) {
   lastSeq = 0; turn = newTurn();
-  chat.set({ harness: emptyHarness(), mode: 'native', items: [], busy: false, gen: null, replaying: replay, loading: replay });
+  chat.set({ mode: 'native', items: [], busy: false, gen: null, replaying: replay, loading: replay });
   if (abort) abort.abort();
 }
 
@@ -373,7 +365,7 @@ export async function continueSession(projectName) {
 export async function chooseRemote(choice, { quiet = false } = {}) {
   const st = chat.get();
   if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
-  const dest = choice.kind === 'harness' ? choice.provider_name : choice.endpoint || choice.provider_name;
+  const dest = choice.endpoint || choice.provider_name;
   // quiet : choix par défaut d'une discussion neuve, déjà consenti dans les réglages.
   const ok = quiet || await confirm(t("chat.engine.continuer_avec") + choice.name,
     t("chat.engine.le_texte_de_la_discussion_et_le_contexte_du_projet_instructions_e") + dest + t("chat.engine.les_autres_fichiers_les_outils_et_la_memoire_privee_ne_sont_pas_t"), { ok: t("chat.engine.continuer") });

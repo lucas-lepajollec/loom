@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +26,7 @@ type phoneFixture struct {
 }
 
 func (a *phoneFixture) Descriptor() RuntimeDescriptor {
-	return RuntimeDescriptor{ID: "phone-fixture", Name: "Phone fixture", Kind: "harness", Implemented: true, Capabilities: []string{"chat"}}
+	return RuntimeDescriptor{ID: "phone-fixture", Name: "Phone fixture", Kind: "local", Implemented: true, Capabilities: []string{"chat"}}
 }
 func (a *phoneFixture) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
 	_, hasDeadline := ctx.Deadline()
@@ -39,9 +39,9 @@ func (a *phoneFixture) Run(ctx context.Context, turn RuntimeTurn, emit ChatCallb
 	broker := agent.NewRequestBroker("phone-fixture", func(e AgentEvent) bool {
 		return emit(StreamEvent{AgentEvent: &e, ACPEvent: DiscussionEvent{"type": e.Type, "agent_event": e, "request": e.Request, "request_id": e.RequestID}})
 	})
-	a.m.acpMu.Lock()
+	a.m.interactionMu.Lock()
 	a.m.requests = map[string]*agent.RequestBroker{a.id: broker}
-	a.m.acpMu.Unlock()
+	a.m.interactionMu.Unlock()
 	defer broker.Cancel()
 	request := agent.AgentRequest{ID: "pi:phone", Kind: "user_input", Questions: []agent.InputQuestion{{ID: "target", Question: "PRIVATE_QUESTION choose a target", Options: []agent.RequestOption{{ID: "a", Label: "First"}, {ID: "b", Label: "Second"}}}}}
 	answer, err := broker.Ask(ctx, AgentEvent{Type: "request.opened", Runtime: "phone-fixture", Request: &request})
@@ -62,7 +62,7 @@ func TestBackgroundTurnPhoneNotificationAnswerAndPersistence(t *testing.T) {
 	m := newRuntimeSessions()
 	old := workspaceSessions
 	workspaceSessions = m
-	t.Cleanup(func() { m.shutdownACP(); drainPhase4Jobs(); workspaceSessions = old })
+	t.Cleanup(func() { m.shutdownRuntimes(); drainPhase4Jobs(); workspaceSessions = old })
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
@@ -127,8 +127,8 @@ func TestBackgroundTurnPhoneNotificationAnswerAndPersistence(t *testing.T) {
 	if err := m.start(session.ID, "background-phone-turn", "Run background work"); err != nil {
 		t.Fatal(err)
 	}
-	if hasDeadline := <-fixture.deadline; hasDeadline {
-		t.Fatal("harness still has cloud's three minute timeout")
+	if hasDeadline := <-fixture.deadline; !hasDeadline {
+		t.Fatal("model execution must retain its timeout")
 	}
 	disconnect()
 	<-subDone
@@ -360,53 +360,6 @@ func TestNotificationPendingNeverReturnsActionTokens(t *testing.T) {
 	}
 	if _, err := publicPushDial(context.Background(), "tcp", "127.0.0.1:12345"); err == nil {
 		t.Fatal("local push dial accepted")
-	}
-}
-
-func TestACPApprovalWithoutTabsAnsweredByCapability(t *testing.T) {
-	testHome(t)
-	m := newRuntimeSessions()
-	a := fakeACPAdapter(t)
-	isolateRuntimeRegistry(t, a)
-	session := createACPSession(t, m, a, "ask")
-	if err := m.start(session.ID, "phone-approval-turn", "fixture"); err != nil {
-		t.Fatal(err)
-	}
-	var request agent.AgentRequest
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		s, _ := m.get(session.ID)
-		if len(s.PendingRequests) > 0 {
-			request = s.PendingRequests[0]
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	if request.ID == "" {
-		t.Fatal("no persisted approval without subscribers")
-	}
-	s := m.notifications(nil)
-	cfg := notify.Default()
-	cfg.PublicBaseURL = "https://loom.test"
-	message := s.message(cfg, events.Event{Type: events.TaskWaiting, DiscussionID: session.ID, TaskID: "fixture", RequestID: request.ID, Title: "Fixture", Status: "waiting_approval"})
-	if len(message.Actions) != len(request.Options) || message.Actions[0].Action != "http" {
-		t.Fatal("approval options lost", message.Actions)
-	}
-	req := httptest.NewRequest("POST", message.Actions[0].URL, nil)
-	u, _ := url.Parse(message.Actions[0].URL)
-	req.SetPathValue("token", strings.TrimPrefix(u.Path, "/api/notify/answer/"))
-	w := httptest.NewRecorder()
-	s.handleAnswer(w, req)
-	if w.Code != 200 {
-		t.Fatal(w.Code, w.Body.String())
-	}
-	finished := waitACPTurn(t, m, session.ID)
-	if len(finished.PendingRequests) != 0 || len(finished.Messages) < 2 {
-		t.Fatal("ACP result missing", finished)
-	}
-	var stored RuntimeSession
-	if !getStoreJSON(bkRuntimeSessions, session.ID, &stored) || stored.Status != "complete" {
-		t.Fatal("ACP result not persisted")
 	}
 }
 
@@ -642,7 +595,6 @@ func TestTasksStreamSnapshotsAndDisconnect(t *testing.T) {
 // These fixtures replace application globals. Drain the existing asynchronous
 // Brain work before restoring them, just as testHome does before removing data.
 func drainPhase4Jobs() {
-	skillSinkJobs.Wait()
 	brainSvcMu.Lock()
 	b := brainSvc
 	brainSvcMu.Unlock()

@@ -40,22 +40,15 @@ func cmdWeb(args []string) error {
 	defer ln.Close()
 	webBound.host, webBound.port = host, port
 	// Only once the port is ours: these write to Loom's data.
-	registerCustomACPAgents()
-	registerCatalogAgents()
-	migrateHarnessConnections()
 	loadRememberedProviderKeys()
 	go func() {
-		_ = syncModelSinks()
-		probeMissingACPAgents()
 	}()
 	go engineAutoLoop()
 	go vllmAutoLoop()
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	defer stopLifecycle()
-	go officialAgentsCatalog.refresh(lifecycleCtx, time.Now())
 	go startConfiguredEngine(lifecycleCtx)
 	go voiceLifecycle(lifecycleCtx)
-	go harnessLifecycle.autoLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
 	if err := webHTTPS.start(lifecycleCtx, mux, host); err != nil {
 		fmt.Printf("[loom web] HTTPS unavailable: %v\n", err)
@@ -109,7 +102,6 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	// La clé de pilotage n'est plus stockée en clair (juste son empreinte) : on
 	// convertit une ancienne valeur en clair une fois pour toutes.
 	migrateWebKeyToHash()
-	migrateHarnessConnections()
 	mux := http.NewServeMux()
 	var brainCtx context.Context
 	if len(lifecycle) > 0 {
@@ -121,6 +113,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	registerBrainRoutes(mux, brainCtx)
 	registerWebAssets(mux)
 	registerWebLogin(mux)
+	registerRetiredIntegrations(mux)
 	api := policyAPI(webAPI(mux))
 	api("/api/policy", handlePolicy)
 	api("/api/policy/evaluate", handlePolicyEvaluate)
@@ -132,73 +125,35 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/tasks", handleTasks)
 	api("/api/tasks/stream", handleTasksStream)
 	api("/api/events", handleDomainEvents)
-	registerEngineControlRoutes(func(path string, h http.HandlerFunc) {
-		if path == "/api/models/delete" || path == "/api/preset/save" || path == "/api/preset/delete" {
-			h = resyncModelSinks(h)
-		}
-		api(path, h)
-	})
+	registerEngineControlRoutes(api)
 	registerVoiceRoutes(api, false)
 	registerJarvisRoutes(api)
 	api("/api/https", handleHTTPS)
 	newEnvironment().register(api)
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)
+	api("/api/workspace/sessions/{id}/requests/{request_id}", handleDiscussionRequest)
 	api("/api/chat/settings", handleChatSettings)
 	api("/api/workspaces", handleWorkspaces)
-	api("/api/runtimes/{id}/disconnect", handleHarnessDisconnect)
-	api("/api/runtimes/{id}/login", handleHarnessLogin)
-	api("/api/runtimes/{id}/account", handleHarnessAccount)
 	api("/api/usage", handleUsage)
-	api("/api/usage/native", handleNativeUsage)
-	api("/api/usage/native/refresh", handleNativeUsageRefresh)
 	api("/api/usage/providers", handleProviderBalances)
 	api("/api/usage/providers/refresh", handleProviderBalanceRefresh)
-	api("/api/usage/refresh", handleUsageRefresh)
 	api("/api/usage/price", handleUsagePrice)
-	api("/api/workspace/antigravity/connect", handleAgyConnect)
-	api("/api/workspace/codex/connect", handleCodexConnect)
-	api("/api/runtimes", handleACPRuntimes)
-	api("/api/runtime/sessions/approval", handleACPApproval)
-	api("/api/workspace/sessions/{id}/requests/{request_id}", handleAgentRequest)
-	api("/api/runtimes/{id}/compat", handleRuntimeCompatibility)
-	api("/api/runtime/sessions/files", handleACPFiles)
-	api("/api/runtime/sessions/diff", handleACPDiff)
 	api("/api/runtime/sessions/tool", handleRuntimeSessionTool)
-	api("/api/fs/dirs", handleACPDirs)
-	api("/api/runtimes/{id}/connect", handleRuntimeConnect)
-	api("/api/runtimes/{id}/probe", handleACPProbe)
-	api("/api/runtimes/{id}/inspect", handleHarnessInspect) // ce que le harness possède déjà (MCP, skills, compte…)
-	api("/api/runtimes/{id}/update", handleHarnessUpdate)
-	api("/api/runtimes/{id}/mcp/adopt", handleHarnessMCPAdopt) // copier un MCP du harness dans Loom
-	api("/api/harness/bindings", handleHarnessBindings)
 	api("/api/internet/search", handleSearchSettings)
 	api("/api/internet/search/test", handleSearchTest)
-	api("/api/harness/lifecycle", handleHarnessLifecycle)
-	api("/api/harness/lifecycle/auto", handleHarnessLifecycleAuto)
-	api("/api/harness/model-source", handleModelSink)          // modèles Loom proposés dans un harness ouvert (Pi)        // MCP Loom transmis à chaque harness
-	api("/api/skills/binding", handleSkillBinding)             // une skill vers un dossier de skills      // mise à jour du CLI du harness
-	api("/api/runtimes/{id}/sessions", handleACPSessions)      // sessions natives d’un harness ACP
-	api("/api/runtimes/{id}/sessions/import", handleACPImport) // importer une session native dans Loom // modèles et réglages annoncés par un harness ACP
-	api("/api/runtimes/{id}/quota", handleRuntimeQuota)
 	api("/api/startup", handleStartup)
-	api("/api/harness-history", handleHarnessHistory)
-	api("/api/agents/installations", handleAgentInstallations)
-	api("/api/harness-history/transfer", handleHarnessTransfer)
 	api("/api/providers", handleProviders)
 	api("/api/providers/save", handleProviderSave)
 	api("/api/providers/models", handleProviderModels)
 	api("/api/providers/disconnect", handleProviderDisconnect)
 	api("/api/discussion/events", handleDiscussionEvents)
 	api("/api/runtime/sessions", handleRuntimeSessions)
-	api("/api/runtime/sessions/terminal", handleRuntimeSessionTerminal)
 	api("/api/runtime/sessions/select", handleRuntimeSessionSelect)
-	api("/api/runtime/sessions/import", handleRuntimeSessionImport)
 	api("/api/runtime/sessions/local", handleRuntimeSessionLocal)
 	api("/api/runtime/sessions/configure", handleRuntimeSessionConfigure)
 	api("/api/runtime/sessions/preview", handleRuntimeSessionPreview)
 	api("/api/workspace/models/visibility", handleModelChoice)
-	api("/api/workspace/harnesses/save", handleHarnessProfileSave)
 	api("/api/runtime/sessions/create", handleRuntimeSessionCreate)
 	api("/api/runtime/sessions/send", handleRuntimeSessionSend)
 	api("/api/runtime/sessions/stop", handleRuntimeSessionStop)
@@ -211,14 +166,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/projects/info", handleProjectInfo)
 	api("/api/capabilities/save", handleCapabilitySave)
 	api("/api/capabilities/delete", handleCapabilityDelete)
-	api("/api/skills/targets", handleSkillSinks)
 	api("/api/skills/home", handleSkillsHome)
-	api("/api/skills/sources", handleSkillSources) // distribution des skills aux harnesses
-	api("/api/agents/catalog", handleAgentsCatalog)
-	api("/api/agents/catalog/add", handleAgentsCatalogAdd)
-	api("/api/agents/catalog/remove", handleAgentsCatalogRemove)
-	api("/api/harness/custom", handleCustomACP)
-	api("/api/harness/custom/delete", handleCustomACPDelete)
+	api("/api/skills/sources", handleSkillSources) // sources de skills liées
 	api("/api/machines", handleRemoteMachines)
 	api("/api/machines/pair", handleMachinesPair)
 	api("/api/machines/discover", handleMachinesDiscover)
@@ -332,13 +281,4 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/push/subscribe", handlePushSubscribe)     // enregistre un abonnement
 	api("/api/push/unsubscribe", handlePushUnsubscribe) // retire un abonnement
 	return mux
-}
-
-// resyncModelSinks refreshes the "loom" provider of harnesses (Pi) after the
-// local library changes, so they list the same models as Loom.
-func resyncModelSinks(h http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		h(w, r)
-		go syncModelSinks()
-	}
 }

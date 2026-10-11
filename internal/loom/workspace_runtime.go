@@ -1,8 +1,6 @@
 package loom
 
 import (
-	"context"
-	"errors"
 	"os"
 )
 
@@ -17,23 +15,12 @@ func registerRuntime(adapter RuntimeAdapter) {
 }
 
 func init() {
-	// Registration inspects harness descriptors and saved machine names. Node
-	// and privileged-update entry points must not open the main application DB
-	// or probe harnesses before Main selects their isolated execution context.
+	// Worker and privileged-update entry points use an isolated context.
 	if len(os.Args) > 1 && (os.Args[1] == "node" || os.Args[1] == "system-update") {
 		return
 	}
 	registerRuntime(llamaRuntimeAdapter{})
 	registerRuntime(cloudRuntimeAdapter{})
-	registerACPAgents()
-}
-
-// Planned entries describe direction and can never execute or connect.
-type plannedRuntimeAdapter struct{ descriptor RuntimeDescriptor }
-
-func (a plannedRuntimeAdapter) Descriptor() RuntimeDescriptor { return a.descriptor }
-func (plannedRuntimeAdapter) Run(context.Context, RuntimeTurn, ChatCallback) ([]Message, error) {
-	return nil, errors.New("runtime adapter planned")
 }
 
 // The registry replaces the former standalone local adapter global. Existing

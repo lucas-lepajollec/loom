@@ -11,7 +11,6 @@ func testHome(t *testing.T) string {
 	t.Setenv("LOOM_HOME", home)
 	firewallInert = true
 	t.Cleanup(func() {
-		skillSinkJobs.Wait()
 		brainSvcMu.Lock()
 		b := brainSvc
 		brainSvcMu.Unlock()

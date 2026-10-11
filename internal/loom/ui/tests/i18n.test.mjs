@@ -106,12 +106,9 @@ test('language defaults, storage fallback, interpolation, plurals and document l
   assert.equal(r.t('n_models', { n: 2 }), '2 models');
   assert.equal(r.t('n_models'), '{n} models');
   assert.equal(r.t('missing.key'), 'missing.key');
-  assert.equal(r.t('runtime.copy.acp_custom', { command: '<ssh>' }), 'Custom ACP harness launched by <ssh>.');
-  assert.equal(r.tSource('Custom ACP harness launched by ssh.'), 'Custom ACP harness launched by ssh.');
   assert.equal(r.tSource('An unknown native description'), 'An unknown native description');
   assert.equal(r.tSource(en['inspector.catalog.gpu-layers.tip']), en['inspector.catalog.gpu-layers.tip']);
   await r.setLang('fr');
-  assert.equal(r.tSource('Custom ACP harness launched by ssh.'), 'Harness ACP personnalisé, lancé par ssh.');
   assert.equal(r.tSource('building (backend=CUDA)…'), 'compilation (backend=CUDA)…');
   assert.equal(r.tSource(en['inspector.catalog.gpu-layers.tip']), fr['inspector.catalog.gpu-layers.tip']);
   assert.equal(r.tSource('An unknown native description'), 'An unknown native description');

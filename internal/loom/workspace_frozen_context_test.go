@@ -186,60 +186,6 @@ func TestFrozenContextRefreshEndpoint(t *testing.T) {
 	}
 }
 
-func TestACPProjectFrozenContextReusesProcessAfterMemoryEdit(t *testing.T) {
-	testHome(t)
-	a := fakeACPAdapter(t)
-	isolateRuntimeRegistry(t, a)
-	m := newRuntimeSessions()
-	s := createACPSession(t, m, a, "edits")
-	p, err := createProject("ACP project")
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.ProjectID = p.ID
-	if err = putStoreJSON(bkRuntimeSessions, s.ID, s); err != nil {
-		t.Fatal(err)
-	}
-	rememberContextItem(t, "semantic", "project:"+p.ID, "Prior project decision")
-	if err = m.start(s.ID, "frozen-acp-first", "first project query"); err != nil {
-		t.Fatal(err)
-	}
-	first := waitACPTurn(t, m, s.ID)
-	transcriptJobs.Wait()
-	m.acpMu.Lock()
-	process := m.acp[s.ID]
-	m.acpMu.Unlock()
-	rememberContextItem(t, "semantic", "project:"+p.ID, "__loom_inspect_portable quartz detail")
-	preview := prepareDiscussion(first, "__loom_inspect_portable")
-	if preview.Context.Extras != "" || msgText(preview.Messages[len(preview.Messages)-1]) != "__loom_inspect_portable" {
-		t.Fatal("ACP received per-message extras")
-	}
-	if acpContextHash(preview.Messages[:len(preview.Messages)-1]) != first.NativeContext {
-		t.Fatal("memory edit changed ACP prefix")
-	}
-	if err = m.start(s.ID, "frozen-acp-second", "__loom_inspect_portable"); err != nil {
-		t.Fatal(err)
-	}
-	second := waitACPTurn(t, m, s.ID)
-	m.acpMu.Lock()
-	same := m.acp[s.ID] == process
-	m.acpMu.Unlock()
-	if !same || second.NativeSessionID != first.NativeSessionID {
-		t.Fatal("ACP process/session restarted")
-	}
-	select {
-	case <-process.client.done:
-		t.Fatal("reused process was closed")
-	default:
-	}
-	if second.Messages[len(second.Messages)-1].Content != "__loom_inspect_portable" {
-		t.Fatal("portable history was re-sent", second.Messages[len(second.Messages)-1].Content)
-	}
-	if first.FrozenContext != second.FrozenContext || first.FrozenRevision != second.FrozenRevision {
-		t.Fatal("memory edit/query changed snapshot")
-	}
-}
-
 func TestNativeFrozenContextExtrasStayOutOfArchive(t *testing.T) {
 	testHome(t)
 	old := workspaceSessions

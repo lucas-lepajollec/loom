@@ -52,7 +52,7 @@ export function ProjectPage({ route }) {
     await refreshWorkspace(); refreshNav(); go('chat');
   };
   const models = (ws.models || []).filter(m => m.enabled);
-  const groups = [['local', t('app.routes.local')], ['cloud', t('app.routes.cloud')], ['harness', t('app.routes.harnesses')]];
+  const groups = [['local', t('app.routes.local')], ['cloud', t('app.routes.cloud')]];
 
   return html`<div class="view page"><div class="page-in project-simple">
     <div class="page-head"><div><h1>${p.name}</h1><p>${t('project.simple.subtitle')}</p></div>

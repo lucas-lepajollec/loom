@@ -134,10 +134,10 @@ func TestMachineMetricsLocalRouteAndCollector(t *testing.T) {
 	}
 }
 func TestNodeObserveAuthDisabledAndModules(t *testing.T) {
-	_, mux, token := nodeHarnessFixture(t, 8)
+	_, mux, token := nodeTerminalFixture(t, 8)
 	seedLocalMetrics(t)
 	for _, credential := range []string{"", "inference-key"} {
-		if w := nodeHarnessGet(mux, "/api/node/observe", credential); w.Code != 401 {
+		if w := nodeTestGet(mux, "/api/node/observe", credential); w.Code != 401 {
 			t.Fatal(w.Code)
 		}
 	}
@@ -148,7 +148,7 @@ func TestNodeObserveAuthDisabledAndModules(t *testing.T) {
 	if w.Code != 401 {
 		t.Fatal("URL/cookie credential accepted", w.Code)
 	}
-	if w := nodeHarnessGet(mux, "/api/node/observe", token); w.Code != 200 || !strings.Contains(w.Body.String(), `"cpu":65`) {
+	if w := nodeTestGet(mux, "/api/node/observe", token); w.Code != 200 || !strings.Contains(w.Body.String(), `"cpu":65`) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	if !hasNodeModule(nodeModules(), "observe") {
@@ -160,7 +160,7 @@ func TestNodeObserveAuthDisabledAndModules(t *testing.T) {
 	if hasNodeModule(nodeModules(), "observe") {
 		t.Fatal("disabled observe advertised")
 	}
-	if w := nodeHarnessGet(mux, "/api/node/observe", token); w.Code != 409 || !strings.Contains(w.Body.String(), nodeObserveDisabled) {
+	if w := nodeTestGet(mux, "/api/node/observe", token); w.Code != 409 || !strings.Contains(w.Body.String(), nodeObserveDisabled) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 }
@@ -176,7 +176,7 @@ func TestNodeObserveInitOptOut(t *testing.T) {
 			t.Fatal(err)
 		}
 		enabled := strings.HasSuffix(args[len(args)-1], "=false")
-		if nodeObserveEnabled() != enabled || nodeHarnessEnabled() {
+		if nodeObserveEnabled() != enabled || hasNodeModule(nodeModules(), "harness") {
 			t.Fatal("module choices not retained", args)
 		}
 	}

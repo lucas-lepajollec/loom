@@ -30,11 +30,6 @@ func Main() {
 		return
 	}
 
-	if len(os.Args) > 1 && os.Args[1] == "node-bridge" {
-		mustExit(cmdNodeBridge(os.Args[2:]))
-		return
-	}
-
 	// Rattache la console du terminal parent si on est lancé depuis un shell
 	// (Windows : binaire GUI). Retourne false au double-clic (aucune console) →
 	// on bascule alors sur l'expérience « application ». Hors Windows : toujours
@@ -48,21 +43,10 @@ func Main() {
 	cleanupOldBinary()
 
 	// ACP bridge for Antigravity, launched by Loom as a harness process.
-	if len(os.Args) > 1 && os.Args[1] == "agy-acp" {
-		runAgyACP(os.Stdin, os.Stdout)
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "loom-fake-acp" {
-		if os.Getenv("LOOM_DEV_FAKE_ACP") != "1" {
-			return
-		}
-		runFakeACP(os.Stdin, os.Stdout)
-		return
-	}
 	// Run as root (sudo loom …): never leave the user's data owned by root.
 	adoptUserLoomHome()
-	workspaceSessions.installACPShutdown()
-	defer workspaceSessions.shutdownACP()
+	workspaceSessions.installRuntimeShutdown()
+	defer workspaceSessions.shutdownRuntimes()
 	args := os.Args[1:]
 	noArgs := len(args) == 0
 	cmd := "help"
@@ -218,7 +202,7 @@ Env:
 func mustExit(err error) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "[err]", err)
-		workspaceSessions.shutdownACP()
+		workspaceSessions.shutdownRuntimes()
 		os.Exit(1)
 	}
 }

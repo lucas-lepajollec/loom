@@ -6,10 +6,10 @@ Thank you for contributing. Search existing issues and pull requests first, open
 
 ### Prerequisites
 
-- Go 1.26.8 or later
+- Go 1.26.9 or later
 - GNU Make
 - Node for `make check-ui` (no UI build step)
-- An engine or harness for real execution checks; Loom can install llama.cpp or link an existing server
+- An engine or cloud provider for real execution checks; Loom can install llama.cpp or link an existing server
 - Git, CMake and a C/C++ toolchain if compiling llama.cpp; macOS native menu-bar builds also need a C toolchain
 
 ### Build from source
@@ -28,7 +28,7 @@ This embeds the web UI (`internal/loom/ui/next`, no build step) and outputs the 
 ./bin/loom web 2510
 ```
 
-Access the UI at `http://127.0.0.1:2510`. Use the first-run guide to install or link an engine, or use cloud providers/harnesses. Settings › Engines manages engines; `./bin/loom edit` can configure `BIN` for an existing `llama-server`. Read the [architecture principles](docs/architecture-principles.md) before runtime changes.
+Access the UI at `http://127.0.0.1:2510`. Use the first-run guide to install or link an engine, or use cloud providers. Settings › Engines manages engines; `./bin/loom edit` can configure `BIN` for an existing `llama-server`. Read the [architecture principles](docs/architecture-principles.md) before runtime changes.
 
 ### Test uncommitted changes from a phone
 
@@ -54,7 +54,7 @@ After source changes, stop the foreground process with Ctrl-C, rerun the same
 are rebuilt; this command does not provide automatic hot reload. Development
 data persists across restarts. `DEV_HOME`, `DEV_PORT` and `DEV_HOST` can be
 overridden. Keep development data and engine ports separate from production;
-native harness accounts and processes still belong to the same OS user.
+external tools and processes still belong to the same OS user.
 
 `LOOM_WEB_HOST` overrides the listener address for one foreground Loom process,
 without writing its saved network setting. A non-loopback address still requires

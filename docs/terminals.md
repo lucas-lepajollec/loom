@@ -3,16 +3,11 @@
 Loom opens real shells on this machine, a saved SSH machine or a paired node
 with the `terminal` module, optionally in a chosen folder and with a command to
 run. Open them from Terminals, a project,
-a harness discussion or a machine. A terminal survives closing its browser tab
+a discussion or a machine. A terminal survives closing its browser tab
 and replays up to 256 KiB of recent output when reattached. It ends when its shell
 exits, when explicitly closed or when Loom exits; sessions do not survive a Loom
 restart. At most 16 terminals may run at once on the main; each node permits eight
-concurrent terminals independently of its harness limit. **Resume in a terminal**
-reopens
-a supported harness’s native session on its original machine and in its working
-folder: Claude Code, Codex, OpenCode, Pi and Hermes have known resume
-commands; Antigravity does not currently have one in Loom. The discussion must
-already have a native session ID.
+concurrent terminals. There is no native agent-session resume integration.
 
 Paired nodes use their saved machine credential only in a WebSocket handshake
 header. Browser reconnection reattaches through the existing ticket and leaves
@@ -23,7 +18,7 @@ for the route, independent module opt-out and authentication boundary.
 ## Platforms and shells
 
 - Linux/macOS: a native PTY starts `$SHELL` (or `/bin/sh`) with `-l`, or `-lc`
-  for a supplied command. For Unix SSH targets, an empty command lets sshd start one login shell; a selected non-home folder is supplied as its first quoted `cd` input. Command sessions use the remote command shell once, with the user-installed harness PATH. Loom does not add another login shell or change startup files.
+  for a supplied command. For Unix SSH targets, an empty command lets sshd start one login shell; a selected non-home folder is supplied as its first quoted `cd` input. Command sessions use the remote command shell once, with standard user installation directories on PATH. Loom does not add another login shell or change startup files.
 - Windows 10 version 1809 and later, including Windows 11: native ConPTY with
   input/output pipes and resizing. Loom checks the ConPTY exports in kernel32;
   older systems report terminal support as unavailable with a French error.

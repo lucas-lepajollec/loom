@@ -62,7 +62,7 @@ type UsagePrice = discussion.UsagePrice
 type ModelUsageSummary = discussion.ModelUsageSummary[RuntimeUsage]
 
 func accumulateDiscussionUsage(rows map[string]*ModelUsageSummary, sessions []RuntimeSession) {
-	discussion.AccumulateTurnUsage(rows, sessions, harnessRuntime, cloudChoiceID, discussion.UsageOps[RuntimeUsage]{
+	discussion.AccumulateTurnUsage(rows, sessions, legacyRuntime, cloudChoiceID, discussion.UsageOps[RuntimeUsage]{
 		Valid: func(u RuntimeUsage) bool { return u.Input >= 0 && u.Output >= 0 && u.Total >= 0 },
 		Add: func(total *RuntimeUsage, u RuntimeUsage) {
 			total.Input += u.Input
@@ -74,10 +74,10 @@ func accumulateDiscussionUsage(rows map[string]*ModelUsageSummary, sessions []Ru
 	})
 }
 func accumulateDiscussionCosts(rows map[string]*ModelUsageSummary, sessions []RuntimeSession) {
-	discussion.AccumulateHarnessCost(rows, sessions, harnessRuntime)
+	discussion.AccumulateHarnessCost(rows, sessions, legacyRuntime)
 }
 func discussionUsageSummaries(rows map[string]*ModelUsageSummary) []ModelUsageSummary {
-	return discussion.UsageSummaries(rows, harnessRuntime, func(u RuntimeUsage, p UsagePrice) float64 {
+	return discussion.UsageSummaries(rows, legacyRuntime, func(u RuntimeUsage, p UsagePrice) float64 {
 		return estimatedCloudCost(u.Input, u.Output, p.Input, p.Output)
 	})
 }

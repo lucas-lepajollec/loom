@@ -42,7 +42,7 @@ function engine({ choices = [model], selectError, openError, loadError } = {}) {
   };
   const source = fs.readFileSync(new URL('../next/js/features/chat/engine.js', import.meta.url), 'utf8');
   vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.choose = chooseLocal; globalThis.store = chat;', env);
-  env.store.set({ mode: 'thread', sessionId: session.id, session, items: [{ k: 'user', text: 'keep' }], harness: { mode: 'agent', config: [{ id: 'pi-mode' }] } });
+  env.store.set({ mode: 'thread', sessionId: session.id, session, items: [{ k: 'user', text: 'keep' }] });
   return { env, calls, notices };
 }
 
@@ -55,8 +55,6 @@ test('Pi plus Gemma to direct Gemma changes runtime before engine loading and re
   assert.equal(state.session.runtime_id, 'llama.cpp');
   assert.equal(state.session.messages[0].content, 'keep');
   assert.equal(state.frozen[0].text, 'keep');
-  assert.equal(state.harness.mode, '');
-  assert.equal(state.harness.config.length, 0);
   assert.equal(h.calls[0][0], '/api/runtime/sessions/select');
   assert.equal(h.calls[0][1].choice_id, model.id);
   assert.equal(h.calls.at(-1)[0], '/api/load-model');
@@ -96,7 +94,7 @@ test('picker keeps an execution label next to the same model on local and harnes
   let state = { mode: 'thread', session: { runtime_id: 'pi', provider_name: 'Pi', model: 'loom:gemma.gguf' } };
   const appState = { unavailable: {}, workspace: { models: [] }, models: [{ name: 'gemma.gguf', path: model.model, value: 'gemma.gguf' }], presets: [{ id: 'preset', name: 'Gemma preset', model: 'gemma.gguf' }], status: { model: 'gemma.gguf', health: true, preset_id: 'preset' } };
   let hook = 0;
-  const env = { html, chatShape, validShape, eventShape, t: french, getLang: () => 'fr', executionKey, runtimeKind: id => id === 'pi' ? 'harness' : 'local',
+  const env = { html, chatShape, validShape, eventShape, t: french, getLang: () => 'fr', executionKey, runtimeKind: id => id === 'pi' ? 'retired' : 'local',
     app: { get: () => appState }, chat: { get: () => state }, Icon: 'Icon', cls: (...v) => v.filter(Boolean).join(' '),
     baseName: p => String(p || '').split('/').pop(), useStore: (store, select) => select(store.get()), useState: v => [hook++ === 0 ? {} : hook === 2 ? 'local' : v, () => {}], useMemo: f => f(), useRef: () => ({ current: null }), Popover: 'Popover', Seg: 'Seg', fmtBytes: () => '1 GB' };
   const source = fs.readFileSync(new URL('../next/js/features/chat/picker.js', import.meta.url), 'utf8');
@@ -104,7 +102,7 @@ test('picker keeps an execution label next to the same model on local and harnes
   const render = () => { hook = 0; return env.picker(); };
   const label = tree => text(flatten(tree).find(n => n.props.class === 'exec-route'));
   let tree = render();
-  assert.equal(label(tree), 'Pi');
+  assert.equal(label(tree), 'Archive');
   assert.equal(flatten(tree).find(n => n.type?.name === 'Row' && n.props.title === 'Gemma preset').props.active, false, 'a loaded engine preset is not the selected harness execution');
   state = { mode: 'native', session: { runtime_id: 'llama.cpp', model: 'gemma.gguf' } };
   tree = render();

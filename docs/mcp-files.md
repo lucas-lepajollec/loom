@@ -90,7 +90,6 @@ and the existing 128 KiB request limit.
 | `POST /api/mcp/sources/adopt` | `{source,name,with_env?}`; returns `{ok,name,env_to_fill}` without credential values |
 
 Existing `/api/mcp`, `/api/mcp/save`, `/api/mcp/delete`, `/api/mcp/toggle`,
-`/api/mcp/tool`, `/api/mcp/test` and harness adoption remain available. The existing
+`/api/mcp/tool`, `/api/mcp/test` remain available. The existing
 owned-server editing API retains its configuration fields; the linked-source
-listing is a separate metadata-only view. Harness adoption still omits environment
-values and starts disabled.
+listing is a separate metadata-only view. Linked-source adoption omits environment values and starts disabled.

@@ -169,7 +169,7 @@ func TestRemoteTerminalCommand(t *testing.T) {
 	testHome(t)
 	t.Setenv("HOME", t.TempDir())
 	m := RemoteMachine{ID: "box", Name: "box", Host: "10.0.0.2", User: "root", Port: 22, Home: "/root"}
-	if err := saveRemoteMachine(m, nil); err != nil {
+	if err := saveRemoteMachine(m); err != nil {
 		t.Fatal(err)
 	}
 	argv, _, err := terminalCommand("box", "/srv/app it's", "hermes")

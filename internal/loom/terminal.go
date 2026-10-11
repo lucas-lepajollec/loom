@@ -442,7 +442,7 @@ func handleTerminals(w http.ResponseWriter, r *http.Request) {
 	// Retries of one user action must not start another process. Entries are
 	// bounded and expire; closing a terminal does not replay its command.
 	if req.RequestID != "" {
-		if !nativeSessionIDPattern.MatchString(req.RequestID) {
+		if !requestIDPattern.MatchString(req.RequestID) {
 			sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid terminal request ID"})
 			return
 		}

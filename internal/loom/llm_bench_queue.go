@@ -251,13 +251,6 @@ func benchRowsFromPicks(picks []benchPick) ([]benchJobRow, error) {
 			}
 			seen[choiceID] = true
 			row := benchJobRow{ChoiceID: choiceID, Kind: "cloud", Name: strings.TrimSpace(p.Name), Status: "pending", Measurement: "api_stream"}
-			if choice, agent, ok := benchHarnessChoice(choiceID); ok {
-				if reason := benchHarnessReason(choice, agent); reason != "" {
-					return nil, fmt.Errorf("native model-only benchmark unavailable: %s", reason)
-				}
-				row.Kind, row.Model, row.Provider, row.RuntimeID, row.Measurement = "account", choice.Model, choice.ProviderName, agent.ID, "native_cli"
-				row.Name = choice.Name
-			}
 			if provider, ok := benchCloudProvider(choiceID); ok {
 				row.Model, row.Provider = provider.Model, provider.Name
 			}
@@ -429,8 +422,6 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 		var err error
 		if j.Rows[i].Kind == "cloud" {
 			res, preview, err = runCloudBenchTest(ctx, t, j.Rows[i].ChoiceID)
-		} else if j.Rows[i].Kind == "account" {
-			res, preview, err = runAccountBenchTest(ctx, t, j.Rows[i].ChoiceID)
 		} else if j.engine != nil && !j.engine.Direct {
 			res, preview, err = runNodeBenchTest(ctx, t, j.Rows[i], *j.engine)
 		} else if j.engine != nil && j.engine.Direct {

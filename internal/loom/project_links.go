@@ -121,41 +121,16 @@ func machineByID(id string) *RemoteMachine {
 	return nil
 }
 
-// projectFolders gives a harness its project's folders when they live on the
-// harness's machine: the main one and, for local harnesses, the extra ones.
-func projectFolders(projectID string, agent acpAgent) (string, []string) {
-	if projectID == "" {
-		return "", nil
-	}
+// projectWorkdir is the local project folder used by terminals and previews.
+func projectWorkdir(projectID string) string {
 	p, ok := getProject(projectID)
-	if !ok || p.Directory == "" {
-		return "", nil
-	}
-	if agent.Remote {
-		if p.Machine != "" && p.Machine == agent.Machine {
-			return p.Directory, nil
-		}
-		return "", nil
-	}
-	if p.Machine != "" {
-		return "", nil
+	if !ok || p.Machine != "" || p.Directory == "" {
+		return ""
 	}
 	if info, err := os.Stat(p.Directory); err != nil || !info.IsDir() {
-		return "", nil
+		return ""
 	}
-	extra := []string{}
-	for _, d := range p.ExtraDirs {
-		if info, err := os.Stat(d); err == nil && info.IsDir() {
-			extra = append(extra, d)
-		}
-	}
-	return p.Directory, extra
-}
-
-// projectWorkdir is the project folder of this machine (terminals, previews).
-func projectWorkdir(projectID string) string {
-	dir, _ := projectFolders(projectID, acpAgent{})
-	return dir
+	return p.Directory
 }
 
 type projectRepo struct {

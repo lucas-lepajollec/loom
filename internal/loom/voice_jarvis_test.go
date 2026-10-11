@@ -255,7 +255,7 @@ func TestJarvisInjectionNativeWorkspaceAndIdempotence(t *testing.T) {
 					t.Fatal(w.Code, w.Body.String())
 				}
 			}
-			if jarvis.sessions[sid] != nil || conv.Generating || len(workspaceSessions.runs) != 0 || len(workspaceSessions.acp) != 0 {
+			if jarvis.sessions[sid] != nil || conv.Generating || len(workspaceSessions.runs) != 0 || len(workspaceSessions.requests) != 0 {
 				t.Fatal("injection triggered execution")
 			}
 			var messages []Message

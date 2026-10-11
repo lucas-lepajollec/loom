@@ -13,7 +13,7 @@ Run `loom web 2510` (or the desktop app). The process must remain running;
 the browser can be closed. Indexing runs at startup and every three minutes.
 `POST /api/brain/reindex` also refreshes synchronously. Changes to source
 definitions take effect immediately; new file content appears on the next
-refresh. No harness settings are changed automatically.
+refresh. Loom does not modify external client settings.
 
 The **Brain** page has three direct sections: second brains, Skills and MCP
 servers. The first connects canonical knowledge sources and exposes search and
@@ -36,8 +36,7 @@ credentials are rejected; use the host's credential helper or SSH keys. Loom
 does not automatically commit or push changes.
 
 One source can be the writable primary second brain. Loom direct models receive
-bounded `brain_write` and `brain_edit` tools, local ACP harnesses receive that
-directory as an additional workspace root, and harnesses using Loom's
+bounded `brain_write` and `brain_edit` tools, external clients using Loom's
 authenticated Brain MCP receive the same two write tools. Writes are confined
 to relative Markdown paths, refuse symlink escapes, cap each page at 1 MiB and
 refresh the index. The primary is the only source Loom asks agents to maintain
@@ -196,14 +195,9 @@ copies; 423 for a locked vault). Unsupported methods return 405 with
 `{"error":"method not allowed"}` and `Allow: GET, POST`. Authentication and
 JSON body/content-type rules match the other browser/control endpoints.
 
-Switches resync opted-in native harness sinks asynchronously. Their manifests
-retain the exact link targets so old managed links can be replaced without
-touching user replacements. Harnesses read the canonical folders through links
-(the existing marked-copy fallback still applies on Windows). The active
-skills folder is excluded from note indexing, including cached entries;
-other notes and linked skills remain unchanged.
+Switches affect Loom’s own library and context only.
 
-## MCP for harnesses
+## MCP for external clients
 
 The same engine is available at `http://127.0.0.1:2510/mcp/brain` using
 Streamable HTTP and the Go MCP SDK. It exposes the read-only `brain_search`,
@@ -215,13 +209,13 @@ match their HTTP equivalents; MCP `heading` and `sources` are JSON arrays.
 Tool errors use MCP's error results.
 
 `list_skills {}` returns `[{"name":"review","title":"Review","description":"Find bugs"}]`
-for the owned library and linked skills available to Loom's harness distribution.
+for the owned library and linked skills available to Loom discussions.
 Names are folder names; collisions are qualified as `<source-id>:<folder>`.
 `read_skill {"name":"review"}` returns `{"text":"complete SKILL.md text","files":["SKILL.md","scripts/check.sh"]}`.
 File paths are relative to that skill, sorted, limited to 200 regular files;
 symlinks are skipped, and `SKILL.md` is limited to 1 MiB. Both tools are read-only
 and check vault availability on every invocation. They expose instructions,
-not permissions, and let harnesses without native skills folders read the same
+not permissions, and let external MCP clients read the same
 library. These tools never change sources, bindings or native configuration.
 The control key, when set, must be passed
 as a Bearer header on every HTTP request. This endpoint does not manage source
@@ -255,7 +249,7 @@ bearer_token_env_var = "LOOM_CONTROL_KEY"
 
 This uses Codex's documented HTTP transport and environment-backed Bearer
 authentication; see [official OpenAI MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
-Omit `bearer_token_env_var` when no control key is set. A harness on another
+Omit `bearer_token_env_var` when no control key is set. An external client on another
 machine needs a reachable Loom address; `127.0.0.1` always means its own
 machine. Existing Loom network/control-key requirements still apply.
 
@@ -265,98 +259,21 @@ Example personal tool call:
 {"query":"travel preferences","budget_tokens":800,"sources":["personal-notes"],"personal":true}
 ```
 
-## One Loom MCP gateway per harness
+## Loom MCP gateway
 
-`/mcp/loom` is a stateless Streamable HTTP gateway. It shares the existing
-Brain and memory tool registration with `/mcp/brain`, including `memory_index`,
-`memory_read`, `memory_write` and `memory_delete`. It also proxies every enabled
-Loom MCP server through the same client pool used by Loom chat. Hidden tools
-(`disabledTools`) remain hidden. Arguments and MCP results, including content,
-structured content and `isError`, pass through without flattening or truncation;
-proxied calls have a 60-second timeout. Discovery skips unavailable upstreams
-and logs their names without upstream error text or credentials.
+`/mcp/loom` exposes Brain tools and enabled Loom MCP servers to manually
+configured clients. Control authentication is required for setup. A dedicated
+gateway token authorizes MCP only, not dashboard or inference APIs.
 
-Upstream tool names use `<server>__<tool>`, sanitized to ASCII letters, digits,
-underscores and hyphens, with a 64-character maximum. Lossy sanitization and
-truncation append a deterministic identity suffix so an unavailable upstream
-cannot redirect a cached name to another server. Remaining collisions receive
-a deterministic suffix in sorted server/tool order. `loom_gateway_status` is
-read-only and returns `{upstreams:[{name,enabled,connected,tools,error?}]}`;
-`tools` counts visible tools and unavailable upstreams report
-`error:"upstream unavailable"`. Disabled upstreams are listed without connecting.
-Both MCP endpoints retain origin protection, the 128 KiB request-body limit,
-no-store responses and normal Brain/vault availability checks.
+- `GET /api/mcp/gateway`: `{url, token_set}`; never reveals the token.
+- `POST /api/mcp/gateway/token {"rotate":true}`: creates a random token and
+  returns it once with `Cache-Control: no-store`; only its hash is persisted.
+- Existing external configurations are not modified during rotation. Update
+  clients manually. Old ownership metadata is retained inertly for migration.
 
-Registration is explicit, through authenticated control APIs. The gateway token
-is separate from the control key, stored only as a hash in Loom's store, and
-accepted only at `/mcp/loom` and `/mcp/brain`. Registration generates a token if
-none exists. Plaintext appears only in the private harness configurations,
-process memory and the authenticated token-rotation response. Existing owned
-configurations let Loom recover the token after restart. If a token exists but
-no owned configuration retains it after restart, rotate it before registering.
-The token is never written to the Brain folder or Markdown.
-
-| Method / path | Input | Success output |
-| --- | --- | --- |
-| `GET /api/mcp/gateway` | — | `{url,token_set,harnesses:[{id,name,supported,registered,file}]}` |
-| `POST /api/mcp/gateway` | `{harness,enabled}` | Same gateway object after registration/removal. |
-| `POST /api/mcp/gateway/token` | `{rotate:true}` | `{ok:true,url,token,token_set:true}`; return the new plaintext token once and rewrite every registered entry. |
-| `GET /api/mcp/portable` | — | `{servers:[{name,config}]}`; only entries present in the primary Brain sidecar and absent locally, with secret markers. |
-| `POST /api/mcp/portable/import` | `{names:["server-name"]}` | `{ok:true,imported:["server-name"]}`; import all selected entries disabled with empty secret values. |
-
-These control routes require the existing browser/control-key authentication;
-the gateway token grants no control API access. POST uses the normal strict
-JSON decoder and 128 KiB limit. Invalid requests, foreign/edited entries and
-missing primary Brains return 400 with `{ok:false,error}`; locked vaults return
-423. Authentication and method errors retain the normal control API shapes.
-Gateway responses never contain a token except for token rotation.
-
-Harness IDs and the sole owned entry are:
-
-| Harness ID | User file | Entry |
-| --- | --- | --- |
-| `claude-code` | `~/.claude.json` | `mcpServers.loom = {"type":"http","url":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
-| `codex` | `~/.codex/config.toml` | `[mcp_servers.loom]` with `url` and `http_headers = { "Authorization" = "Bearer TOKEN" }` |
-| `opencode` | `~/.config/opencode/opencode.json` | `mcp.loom = {"type":"remote","url":URL,"headers":{"Authorization":"Bearer TOKEN"},"enabled":true}` |
-| `antigravity` | `~/.gemini/config/mcp_config.json` | `mcpServers.loom = {"url":URL,"headers":{"Authorization":"Bearer TOKEN"}}` |
-
-Codex's static HTTP header key is documented in the
-[configuration reference](https://developers.openai.com/codex/config-reference/).
-No environment export is needed. Its owned block is delimited by
-`# loom-gateway begin` / `# loom-gateway end`; all other TOML text is preserved.
-JSON editing preserves unrelated keys and entries, including large settings
-files, but may normalize whitespace. Existing files get a private
-`<file>.loom-backup` before their first change, only when that backup is absent.
-Writes use an atomic replacement confined to the user's home. Loom refuses to
-replace an existing `loom` entry it did not create, or one edited outside Loom.
-Remove an edited entry manually and unregister it before rotating. Rotation
-prepares every change first and rolls applied files back if a write fails.
-
-`url` uses the running Loom listener's host and port, substituting `127.0.0.1`
-for all-interface binds. Loom must remain running; restart the external harness
-to load configuration changes. Loom restarts a retained ACP adapter on its next
-turn when the owned gateway entry changes. A loopback URL targets the same machine as the
-harness. No native sign-in, global permissions or other MCP entries are changed.
-A registered ACP harness receives no individual MCP servers when it inherits
-all globally enabled selections: the harness reads its native `loom` entry.
-An explicit project/session selection, including an empty selection, keeps the
-existing per-session ACP behavior; explicit harness bindings also remain
-per-session. The native gateway entry stays available in that harness.
-
-The portable sidecar is `<primary>/.loom/mcp.json`, with the existing
-`{"mcpServers":{"name":CONFIG}}` definition format. `CONFIG` contains `enabled`
-and optional `type`, `command`, `args`, `env`, `url`, `headers` and
-`disabledTools`, as in Loom's local MCP file. Every env/header **value** is
-replaced by `"${secret}"`; keys remain available to identify missing credentials.
-Keep credentials in env/headers rather than commands, arguments or URLs.
-Definitions are exported on changes, primary-source updates and Brain refresh;
-a fresh installation retains sidecar entries missing locally so they can be
-imported. Explicit local deletion removes that definition's previous export.
-The 4 MiB sidecar is read and atomically written through `os.Root` confinement.
-Malformed/unavailable sidecars are logged without credential contents and do not
-prevent saving local definitions. Imports never overwrite local entries, never
-enable a server and never connect to it; fill the empty env/header values and
-explicitly enable it afterward.
+Keep tokens private and use a reachable protected endpoint. Loom must remain
+running. Portable definitions in the primary brain remain secret-free and are
+imported disabled. See [MCP files](mcp-files.md).
 
 ## Index limits and V1 scope
 
@@ -681,7 +598,7 @@ Existing Loom configuration supports `brain.consolidation_model`:
 
 | Value | Behavior |
 | --- | --- |
-| `discussion` (default) | Loom-held Local/Cloud discussion's own route; harnesses use `brain.consolidation_fallback` |
+| `discussion` (default) | Loom-held Local/Cloud discussion's own route; archived retired discussions may use an explicitly configured fallback |
 | `{"provider_id":"saved-id","model":"exact-model"}` (JSON string value) | Connected provider/model pair |
 | `local-loaded` | An already-loaded local model; never load or restart an engine |
 | `off` | Disable all consolidation, including on demand |
@@ -819,7 +736,7 @@ Continuity has an **always-on deterministic layer**. At every workspace or nativ
 Loom turn end, an asynchronous worker builds a discussion handoff without model
 calls, network access or an installed engine. Bursts coalesce per discussion.
 It uses the discussion title, first user message and last two requests (300
-characters each), the latest ACP plan and its statuses, up to 20 deduplicated
+characters each), the latest retained plan and its statuses, up to 20 deduplicated
 reported edit/write/create targets, cumulative command count and last five
 command titles, and failures from the latest turn. Paths are relative to the
 workspace when possible. Reported write targets are not verified file diffs.
@@ -916,39 +833,3 @@ The model response schema is exactly:
 
 Fact class accepts `semantic`, `procedural` or `reflex`; arrays may be empty.
 Summary, rendered state and each fact fit 8 KiB, with up to 32 entries per array.
-
-## Agents linked to the brain
-
-Explicit local opt-in links agents to the writable primary brain's Markdown
-memory: `Memory/MEMORY.md` plus topic files globally, and
-`Projects/<slug>/memory/MEMORY.md` plus topic files per project. Native sessions
-can use these files outside Loom, without its server running.
-
-[Claude Code](https://code.claude.com/docs/en/memory) uses `autoMemoryDirectory`
-in `~/.claude/settings.json` and local projects' `.claude/settings.local.json`;
-Loom adds local ignore rules and never edits repository `settings.json` or
-`AGENTS.md`. [Codex](https://developers.openai.com/codex/guides/agents-md)
-(`$CODEX_HOME/AGENTS.md`, default `~/.codex/AGENTS.md`),
-[OpenCode](https://opencode.ai/docs/rules/) (`~/.config/opencode/AGENTS.md`),
-Antigravity (`~/.gemini/config/AGENTS.md`, verified in the installed agy documentation) and Pi (only with installed documentation identifying
-its global instructions file) receive one short marked block. It explains
-session-start reads, Claude-format frontmatter, Why/How guidance, index updates
-and avoiding secrets/duplicates. `.loom/brain.json` preserves other metadata
-and records `agent_projects:{"project-id":{slug,directory,memory}}`, with stable
-project-ID slugs and brain-relative memory paths.
-
-`GET /api/brain/agents` and successful POSTs return
-`{memory_dir,agents:[{id,name,supported,linked,file,note}]}`.
-POST takes `{"id":"codex","enabled":true}` (or `false`); the toggle is consent.
-Local IDs are `claude-code`, `codex`, `opencode`, `gemini`, `pi`. `file` is the
-global native config/instructions path; `memory_dir` is the absolute global
-folder, or `""` without an available primary. Remote/paired installation runtime
-IDs report `supported:false,note:"local only for now"`. Existing Brain auth,
-strict JSON, no-store and `{ok:false,error}` error rules apply.
-
-One-time `.loom-backup` files and ownership checks preserve user text/keys.
-Unlink restores previous Claude settings and retains memory/backups; edited
-entries or foreign markers are refused. Source/project changes re-point links
-immediately, with reconciliation every three minutes. Removing the primary
-clears owned entries but retains opt-in. Conflicts return an error after the
-source/project change is saved. Native trust and access rules still apply.

@@ -1,6 +1,6 @@
 # Security policy
 
-Loom is a local-first AI workspace that controls inference engines, cloud connections, coding-agent harnesses and terminals, and exposes an OpenAI-compatible API. By default, it binds exclusively to the loopback interface (`127.0.0.1`). Reports concerning unauthorized remote execution, unintended process elevation, LAN authorization bypasses, or path traversal in model/preset management are treated with highest priority.
+Loom is a local-first AI workspace that controls inference engines, cloud connections and terminals, and exposes an OpenAI-compatible API. By default, it binds exclusively to the loopback interface (`127.0.0.1`). Reports concerning unauthorized remote execution, unintended process elevation, LAN authorization bypasses, or path traversal in model/preset management are treated with highest priority.
 
 ## Supported versions
 

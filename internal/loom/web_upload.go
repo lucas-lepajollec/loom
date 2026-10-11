@@ -288,7 +288,7 @@ func handleChatFile(w http.ResponseWriter, r *http.Request) {
 	defer root.Close()
 	// Use one confined file handle for stat and every read, including ranges.
 	// Resolving a symlink and then reopening by its name leaves a swap window.
-	f, err := acpOpenRead(root, rel)
+	f, err := confinedOpenRead(root, rel)
 	if err != nil {
 		code := 403
 		if errors.Is(err, os.ErrNotExist) {

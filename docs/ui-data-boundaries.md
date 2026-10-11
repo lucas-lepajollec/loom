@@ -1,5 +1,10 @@
 # UI data boundaries and mobile recovery
 
+> Historical audit evidence: coding harnesses and their integration fixtures
+> described below were retired by the unreleased Local/Cloud transition.
+> See the harness-retirement migration notes for the current scope.
+
+
 An unavailable engine must leave the discussion UI usable. The UI retains the
 last valid shared observation and records that its source is unavailable. A
 valid empty list is a successful observation; a JSON error object is not an

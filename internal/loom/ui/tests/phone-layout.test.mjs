@@ -5,27 +5,6 @@ import vm from 'node:vm';
 import htm from '../next/vendor/htm.mjs';
 import { phoneLayoutIssues } from '../../../../tools/tests/ui-routes/layout.mjs';
 
-// Semantic phone-table regression, socket-free. The same controls must retain
-// their visible labels and version when the desktop header is removed.
-const harnessRoot = new URL('../next/js/features/harnesses/', import.meta.url);
-const rowFile = fs.existsSync(new URL('agent-machines.js', harnessRoot)) ? 'agent-machines.js' : 'page.js';
-test('machine controls have visible labels independent of the table header', () => {
-  const source = fs.readFileSync(process.env.LOOM_HARNESS_BASELINE || new URL(rowFile, harnessRoot), 'utf8');
-  const state = [false, '', null];
-  const env = { html: htm.bind((tag, props, ...children) => ({ tag, props: props || {}, children: children.flat(Infinity) })),
-    useState: () => [state.shift(), () => {}], useEffect() {}, t: key => key,
-    lifecycleVersion: s => s, lifecycleCurrent: () => false, Icon() {}, Switch() {}, Lifecycle() {}, get() {}, post() {}, confirm() {}, toast() {}, refreshWorkspace() {},
-  };
-  vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.row = MachineRow;', env);
-  const row = env.row({ i: { machine: 'local', name: 'Codex', installed: true, managed: true, ready: true, version: '1.2.3' }, onChanged() {} });
-  const flat = node => Array.isArray(node) ? node.flatMap(flat) : node && typeof node === 'object' ? [node, ...(node.children || []).flatMap(flat)] : [];
-  const nodes = flat(row);
-  for (const key of ['agents.manage', 'agents.use']) {
-    assert.ok(nodes.some(n => n.tag === 'span' && n.children.includes(key)), key + ' needs a visible mobile label');
-  }
-  assert.ok(nodes.some(n => n.props['data-label'] === 'harnesses.lifecycle.version'), 'version is labeled on phones');
-});
-
 // Exercise the actual browser detector against deterministic DOM geometry.
 function geometry({ width = 390, squeezed = false, overflow = false, overlap = false } = {}) {
   const rect = (left, top, w, h) => ({ left, top, width: w, height: h, right: left + w, bottom: top + h });

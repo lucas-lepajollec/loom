@@ -5,22 +5,20 @@ import "github.com/lucas-lepajollec/loom/internal/loom/runtime"
 // Compatibility during the leaf-first migration: runtime owns the contracts and
 // registry state; Loom supplies the existing chat and usage types and owns the
 // adapter boundaries, startup registration and HTTP actions.
-type runtimeCompatibilityRecord = runtime.CompatibilityRecord
 type AgentEvent = runtime.AgentEvent
+type HarnessEvent = runtime.HarnessEvent
 type RuntimeDescriptor = runtime.RuntimeDescriptor
 type RuntimeTurn = runtime.RuntimeTurn[Message, Caps]
 type RuntimeAdapter = runtime.RuntimeAdapter[Message, Caps, StreamEvent]
-type Connectable = runtime.Connectable
-type QuotaReader = runtime.QuotaReader[QuotaSnapshot]
 
-// Historical unexported methods remain available to all callers, including ACP.
+// Historical unexported methods remain available to all callers, including historical event readers.
 // The embedded owner contains the only registry map, insertion order and lock.
 type runtimeRegistry struct {
-	*runtime.Registry[Message, Caps, StreamEvent, QuotaSnapshot]
+	*runtime.Registry[Message, Caps, StreamEvent]
 }
 
 func newRuntimeRegistry() *runtimeRegistry {
-	return &runtimeRegistry{runtime.NewRegistry[Message, Caps, StreamEvent, QuotaSnapshot]()}
+	return &runtimeRegistry{runtime.NewRegistry[Message, Caps, StreamEvent]()}
 }
 func (reg *runtimeRegistry) register(adapter RuntimeAdapter) error   { return reg.Register(adapter) }
 func (reg *runtimeRegistry) upsert(adapter RuntimeAdapter)           { reg.Upsert(adapter) }

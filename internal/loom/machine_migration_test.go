@@ -23,10 +23,6 @@ func migrationFixture(t *testing.T) (RemoteMachine, *http.ServeMux) {
 	if err := putStoreJSON(bkState, remoteMachinesState, []RemoteMachine{m}); err != nil {
 		t.Fatal(err)
 	}
-	agents := []acpAgent{{ID: m.Harnesses[0], Machine: m.ID, Command: "ssh", Name: "Personal Codex", Args: []string{"old-ssh"}, Remote: true, Custom: true, Docs: "keep docs"}, {ID: "unrelated", Command: "custom-command"}}
-	if err := putStoreJSON(bkState, acpCustomState, agents); err != nil {
-		t.Fatal(err)
-	}
 	dir := filepath.Join(LoomHome(), "ssh")
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
@@ -42,18 +38,8 @@ func migrationRequest(m RemoteMachine) *http.Request {
 	r.SetPathValue("id", m.ID)
 	return r
 }
-func TestSSHNodeMigrationMergesIdentityAndAgentTransport(t *testing.T) {
+func TestSSHNodeMigrationPreservesIdentityAndTerminalHistory(t *testing.T) {
 	m, _ := migrationFixture(t)
-	if err := setHarnessManaged(m.ID, "codex", true); err != nil {
-		t.Fatal(err)
-	}
-	if err := setHarnessManaged(m.ID, "claude-code", false); err != nil {
-		t.Fatal(err)
-	}
-	installation, err := getBytesErr(bkState, harnessScopeKey)
-	if err != nil {
-		t.Fatal(err)
-	}
 	history := &Terminal{TerminalInfo: TerminalInfo{ID: "migration-history", Target: m.ID, Title: "Existing SSH terminal"}, scroll: []byte("retained terminal output")}
 	terminals.Lock()
 	terminals.byID[history.ID] = history
@@ -86,16 +72,8 @@ func TestSSHNodeMigrationMergesIdentityAndAgentTransport(t *testing.T) {
 	if got.ID != m.ID || got.Name != m.Name || got.User != "" || got.Port != 0 || got.NodeID == "" || !reflect.DeepEqual(got.Folders, m.Folders) || !reflect.DeepEqual(got.Harnesses, m.Harnesses) || got.Home != m.Home {
 		t.Fatalf("merge: %+v", got)
 	}
-	agents := loadCustomACPAgents()
-	if len(agents) != 2 || agents[0].ID != m.Harnesses[0] || agents[0].Name != "Personal Codex" || agents[0].Docs != "keep docs" || agents[0].Command == "ssh" || !reflect.DeepEqual(agents[0].Args, []string{"node-bridge", m.ID, "codex", nodeBridgeCwd}) || agents[1].Command != "custom-command" {
-		t.Fatalf("agents: %+v", agents)
-	}
 	if savedMachineNode(got) == nil || len(loadRemoteMachines()) != 1 {
 		t.Fatal("missing link or duplicate machine")
-	}
-	saved, _ := getBytesErr(bkState, harnessScopeKey)
-	if string(saved) != string(installation) {
-		t.Fatal("installation choices changed")
 	}
 	terminals.Lock()
 	retained := terminals.byID[history.ID]
@@ -108,16 +86,10 @@ func TestSSHNodeMigrationMergesIdentityAndAgentTransport(t *testing.T) {
 	}
 }
 func TestSSHNodeMigrationFailuresKeepOriginalRecord(t *testing.T) {
-	for _, stage := range []string{"ssh", "output", "pair", "merge"} {
+	for _, stage := range []string{"ssh", "output", "pair"} {
 		t.Run(stage, func(t *testing.T) {
 			m, _ := migrationFixture(t)
-			if stage == "merge" {
-				agents := loadCustomACPAgents()
-				agents[0].ID = "unsupported-custom-agent"
-				_ = putStoreJSON(bkState, acpCustomState, agents)
-			}
 			before, _ := getBytesErr(bkState, remoteMachinesState)
-			beforeAgents, _ := getBytesErr(bkState, acpCustomState)
 			code := pairTestCode(t, false, time.Now())
 			if stage == "pair" {
 				code = "0000-0000"
@@ -140,8 +112,7 @@ func TestSSHNodeMigrationFailuresKeepOriginalRecord(t *testing.T) {
 				t.Fatal("lost exact error")
 			}
 			after, _ := getBytesErr(bkState, remoteMachinesState)
-			afterAgents, _ := getBytesErr(bkState, acpCustomState)
-			if string(before) != string(after) || string(beforeAgents) != string(afterAgents) || savedMachineNode(m) != nil {
+			if string(before) != string(after) || savedMachineNode(m) != nil {
 				t.Fatal("half-migrated record")
 			}
 			machineMigrations.Lock()

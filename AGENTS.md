@@ -1,38 +1,52 @@
 # Loom agent guide
 
-This file is public repository guidance for maintainers and AI agents. Inspect the current branch, working tree, code, configuration and documentation before changing anything. Preserve unrelated work.
+Public guidance: inspect branch, working tree, code and documentation before
+editing; preserve unrelated changes. Local notes belong in ignored
+`AGENTS.override.md` or `.project-local/`. Never commit credentials, private
+machine paths, model files or local state.
 
 ## Product boundaries
 
-Loom is a conversation-first, local-first AI workspace. A discussion owns its portable transcript and project context independently of the model or harness chosen for a turn. Do not split discussions into local/cloud products. Local and Cloud own model libraries, providers and selector visibility; Harnesses owns adapter configurations and model associations. The common path supports llama.cpp, vLLM, linked inference engines, configured Chat Completions providers and ACP harnesses (Codex, Claude Code, Pi, OpenCode and Hermes). Antigravity prefers its native CLI stream/account catalog, with Loom’s ACP bridge as fallback. Terminals support local PTY/ConPTY and SSH, including native harness-session resume where supported. Harness model sources are Native or Loom only where the native protocol supports them. Pass only the selected credentials through supported launch configuration; do not export provider keys to Antigravity, change native global permissions or claim arbitrary-model compatibility. Read `docs/architecture-principles.md` and `docs/architecture.md` before changing runtime or product structure; agents continuing implementation follow `docs/agents/implementation-brief.md`. The visual design of `ui/next` (CSS, tokens, layout of existing screens) is owned by the design owner: reuse existing components, do not restyle, and see `docs/workspace-architecture.md`. Loom owns one external `llama-server` without reimplementing it; a router-capable engine is started once and models load through its API (`backend_router.go`), never by restarting the engine. External selection requires explicit confirmation before sharing transcript/context. Runtime-private memory, approvals and tool state are not portable. Catalog/connection/quota actions dispatch through the registry in `workspace_runtime.go` and optional `Connectable`/`QuotaReader` interfaces. Native sign-in and catalog connection remain explicit. The visible Usage page automatically refreshes read-only observations for connected accounts; planned descriptors have empty capabilities. Do not build a parallel memory engine. Telemetry and unmanaged process killing remain out of bounds.
+Loom is a local-first workspace for Local and Cloud discussions, engines,
+projects, Brain, skills, MCP, terminals, machines and voice. Coding harness
+integration is retired. Do not restore native agent installation, account
+login, model catalogs, sessions, quotas, ACP or other agent protocols. Existing
+transcripts and display events remain readable for migration; they cannot
+launch a retired executor. See [migration](docs/harness-retirement.md).
 
-## Working method (mandatory)
+Loom controls external engines without reimplementing inference. Keep engine
+and model state separate; llama.cpp router model changes use its API rather
+than restart the server. Remote nodes expose only engine, terminal, observe and
+optional voice modules. Cloud providers use explicit credentials and consent.
+MCP clients are configured manually; Loom never writes native client settings.
+Brain source files remain authoritative; indexes are derived data. Preserve
+current voice/Jarvis, policy, notifications and memory behavior within this scope.
 
-- **Transversal by default.** Before changing a shared contract (agents, Brain, engines, machines, UI data stores), inventory every implementation: all agent families and transports (Codex, Claude Code, Pi, OpenCode, Antigravity, DeepSeek Harness, Hermes, OpenClaw, generic ACP, remote/node), not only the one named in the request. Change only those that need it and state which were checked.
-- **Reuse before building.** Check official protocols, SDKs, test kits and mature open-source projects first (e.g. ACP TCK, coder/acp-go-sdk, llama-swap, Letta, Mem0, LongMemEval). Do not re-implement without a written reason.
-- **Every real bug becomes a free, deterministic regression test** (degraded API responses, offline, resume, mobile). Tests never call paid models automatically.
-- **Say what is verified.** Distinguish discovered, protocol-verified and observed-working; never present an unverified feature as working.
-- **No new layers or dependencies** unless they measurably reduce complexity.
+## Working method
+
+- Inventory local/cloud, engine/node and UI callers before changing contracts.
+- Reuse existing packages and official protocols before adding dependencies.
+- Test regressions with deterministic fixtures and no paid model calls.
+- Distinguish implemented, verified and actually observed behavior.
+- Preserve the current Loom design and responsive components; no alternate chat.
+- Keep secrets server-side, enforce auth/origin protection and preserve policy
+  checks for tools, terminals, external sharing and sensitive operations.
 
 ## Development
 
-Preserve the original discussion/composer and complete local parameters. The one original sidebar adapts to local, cloud or harness state; unsupported harness profiles remain non-executable previews. Do not reintroduce a second simplified chat or a redundant header. Common local discussions bind to the existing Conversation pipeline through workspace_native.go. External portability remains text-only. Usage snapshots distinguish account windows, retained Loom token counts and manual-price estimates; missing data is unknown, not zero. Refresh never starts generation or redeems resets.
+Use Go 1.26.9 or newer compatible toolchain and Node for UI tests.
+`make build` embeds `internal/loom/ui/next`; `make check-ui` checks modules and
+runs free UI regressions. `go test -short ./...` covers Go behavior. Validate
+changed docs with `python3 tools/check-doc-links.py`.
 
-- Builds require Go 1.26.8+; UI checks also require Node. Real execution needs an installed or linked engine or harness. Loom can install llama.cpp and, on supported Linux CUDA/ROCm systems, vLLM.
-- Build the binary with `make build` (embeds `internal/loom/ui/next` and compiles `bin/loom`). Check the UI with `make check-ui`.
-- Run the web dashboard in development with `make web` or `./bin/loom web 2510`.
-- For isolated checkout/phone checks, use `make dev` (port 2594, `.project-local/runtime`). `make dev DEV_HOST=<LAN-IP>` requires a dev access password; stop/rerun to rebuild and reload the browser. See `CONTRIBUTING.md`.
-- Run validation tests with `make test` or `go test -short ./...`.
-- UI regression tests: `node --test internal/loom/ui/tests/*.test.mjs` (Node is also required by `make check-ui`).
-- Reasoning families are a UI projection of discovered native IDs, not invented runtime models. Keep per-response provenance in the display journal and out of model-visible context; unknown historical metrics stay unknown. AGY average output-token throughput is not llama.cpp decode throughput. Never reconstruct hidden reasoning or claim a file diff from a reported write target.
-- The default interface is `internal/loom/ui/next/`: native ES modules with vendored Preact + htm, no build step, served at `/` (and `/next/`). Edit its files directly and rebuild the binary; styles live in `ui/next/css/`, the conversation engine in `ui/next/js/features/chat/engine.js`. Model output is rendered through `features/chat/md.js`, which escapes raw HTML.
+`make dev` uses isolated `.project-local/runtime`, port2594. LAN phone testing
+requires an access password; see [contributing](CONTRIBUTING.md). Rebuild after
+UI changes. Never overwrite production data to test a checkout.
 
-## Repository expectations
+PWA caches only the public offline fallback and listed brand icons, never
+conversations, credentials, API/SSE traffic or queued sends. External context
+sharing requires confirmation. Unknown usage stays unknown; refresh cannot
+start generation. Model output escapes raw HTML.
 
-- PWA caching is restricted to the public offline fallback and listed brand icons. Never cache conversation HTML/JSON, credentials, API/SSE traffic or queued sends. Installing on a non-loopback host requires a secure browser context; LAN HTTP is a preview, not an installability guarantee.
-- Update tests, `README.md`, focused docs and `CHANGELOG.md` when public workflows, API endpoints or CLI flags change.
-- Never commit model files (`*.gguf`), local database state, `.env` values, private machine paths or logs.
-- Follow `CONTRIBUTING.md` for pull requests and `SECURITY.md` for vulnerabilities.
-- GitHub is the public review surface; follow the maintainer’s review and release process.
-
-Local machine notes belong in ignored `AGENTS.override.md` and `.project-local/`, never in this public file.
+Update focused docs and CHANGELOG for changed public contracts. Follow
+CONTRIBUTING and SECURITY, plus the maintainer's public review/release process.

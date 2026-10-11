@@ -25,17 +25,12 @@ let serverLog = ''; server.stderr.on('data', d => { serverLog = (serverLog + d).
 const base = `http://127.0.0.1:${port}/`;
 const stop = () => { server.kill('SIGTERM'); rmSync(dir, { recursive: true, force: true }); };
 
-const remote = { id: 'remote-box', name: 'remote-box', host: '192.0.2.10', os: 'linux', kind: 'node', version: '0.1.4', modules: ['engine', 'harness', 'terminal', 'observe'] };
+const remote = { id: 'remote-box', name: 'remote-box', host: '192.0.2.10', os: 'linux', kind: 'node', version: '0.1.4', modules: ['engine', 'terminal', 'observe'] };
 const mockRemote = async route => {
   const u = new URL(route.request().url());
   if (u.pathname === '/api/machines') return route.fulfill({ json: { ok: true, machines: [remote], offers: { [remote.id]: [] } } });
   if (u.pathname === '/api/engine/node') return route.fulfill({ json: { ok: true, remote: true, machine_id: remote.id, hostname: remote.name, url: 'http://192.0.2.10:2510', version: '0.1.4' } });
   if (u.pathname === '/api/machines/metrics') return route.fulfill({ json: { ok: true, metrics: { [remote.id]: { cpu: null } } } });
-  if (u.pathname === '/api/agents/installations') {
-    const res = await route.fetch(); const json = await res.json();
-    json.installations = [...(json.installations || []), { machine: remote.id, machine_name: remote.name, harness: 'codex', name: 'Codex', installed: true, managed: true, version: 'codex-cli 0.150.0' }, { machine: remote.id, machine_name: remote.name, harness: 'opencode', name: 'OpenCode', installed: true, version: '1.18.0' }];
-    return route.fulfill({ json });
-  }
   return route.continue();
 };
 
@@ -49,13 +44,13 @@ try {
   await fetch(base + 'api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarded: '1', lang: process.env.CRAWL_LANG || 'en' }) });
   const ws = await (await fetch(base + 'api/workspace')).json();
   const runtimes = (ws.runtimes || []).map(r => r.id);
-  let routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'project', 'project/fixture-project', 'resources', 'terminals', 'environment', 'environment/docker', 'environment/proxmox', 'local/hub', 'voice', 'jarvis', 'harnesses', 'harnesses/history', ...runtimes.map(id => 'harnesses/' + id),
+  let routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'project', 'project/fixture-project', 'resources', 'terminals', 'environment', 'environment/docker', 'environment/proxmox', 'local/hub', 'voice', 'jarvis',
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
     'tasks', 'brain', 'brain/sources', 'brain/memory', 'brain/skills', 'brain/mcp', 'usage', 'bench',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
   if (process.env.CRAWL_ROUTES) routes = routes.filter(r => new RegExp(process.env.CRAWL_ROUTES).test(r));
   const fixturePhone = phoneFixtures(ws, remote);
-  const fixtureSessions = ['cloud', 'agent'].map(kind => ({ id: 'fixture-' + kind, title: 'Synthetic ' + kind + ' discussion', runtime_id: kind === 'cloud' ? 'openai-compatible' : 'fixture-agent', provider_id: 'fixture', provider_name: kind === 'cloud' ? 'Fixture cloud' : 'Fixture agent', model: 'fixture-model', status: 'idle', messages: [], turns: [], message_count: 1 }));
+  const fixtureSessions = ['cloud'].map(kind => ({ id: 'fixture-' + kind, title: 'Synthetic ' + kind + ' discussion', runtime_id: kind === 'cloud' ? 'openai-compatible' : 'fixture-agent', provider_id: 'fixture', provider_name: kind === 'cloud' ? 'Fixture cloud' : 'Fixture agent', model: 'fixture-model', status: 'idle', messages: [], turns: [], message_count: 1 }));
   const scenarios = ['fresh', 'healthy', 'phone-layout', '401', '502', 'malformed-json', 'wrong-shape', 'abort', 'offline', 'engine-unreachable'];
   const inspect = async (page, errors, label) => {
     const st = await page.evaluate(() => ({
@@ -102,7 +97,7 @@ try {
         // crashes); desktop and WebKit keep a representative sample so CI stays
         // bounded. CRAWL_FULL=1 runs the whole matrix everywhere.
         const sample = ['fresh', 'healthy', 'phone-layout', '502', 'engine-unreachable'];
-        const planned = process.env.CRAWL_LAYOUT ? ['phone-layout'] : !process.env.CRAWL_FULL && form === 'phone-small' ? ['fresh', 'healthy', 'phone-layout'] : process.env.CRAWL_FULL || (name === 'chromium' && form === 'phone') ? scenarios : scenarios.filter(x => sample.includes(x));
+        const planned = process.env.CRAWL_SCENARIOS ? process.env.CRAWL_SCENARIOS.split(',') : process.env.CRAWL_LAYOUT ? ['phone-layout'] : !process.env.CRAWL_FULL && form === 'phone-small' ? ['fresh', 'healthy', 'phone-layout'] : process.env.CRAWL_FULL || (name === 'chromium' && form === 'phone') ? scenarios : scenarios.filter(x => sample.includes(x));
         for (const scenario of planned) {
           for (const r of routes) {
             if (scenario === 'fresh' && r === 'machines/' + remote.id) continue;
@@ -145,9 +140,9 @@ try {
               }
               if (scenario === 'engine-unreachable') {
                 if (u.pathname === '/api/workspace') return route.fulfill({ json: { ...ws,
-                  runtimes: [...ws.runtimes, { id: 'fixture-agent', name: 'Fixture agent', kind: 'harness', implemented: true, available: true, connected: true, capabilities: ['chat', 'stream'] }],
+                  runtimes: ws.runtimes,
                   providers: [{ id: 'fixture', name: 'Fixture cloud', ready: true, models: ['fixture-model'] }],
-                  models: fixtureSessions.map(session => ({ id: session.id, name: session.model, model: session.model, kind: session.id.endsWith('cloud') ? 'cloud' : 'harness', runtime_id: session.runtime_id, provider_id: session.provider_id, provider_name: session.provider_name, enabled: true, ready: true })),
+                  models: fixtureSessions.map(session => ({ id: session.id, name: session.model, model: session.model, kind: 'cloud', runtime_id: session.runtime_id, provider_id: session.provider_id, provider_name: session.provider_name, enabled: true, ready: true })),
                 } });
                 if (u.pathname === '/api/runtime/sessions' && route.request().method() === 'GET') {
                   const session = fixtureSessions.find(s => s.id === u.searchParams.get('id'));
@@ -172,9 +167,7 @@ try {
               // crash, and both other catalogs while the engine is unavailable.
               if (r === 'chat') {
                 await openPicker(page);
-                for (const tab of ['cloud', 'harness']) {
-                  await page.locator('.picker .seg button').nth(tab === 'cloud' ? 1 : 2).click();
-                }
+                await page.locator('.picker .seg button').nth(1).click();
               }
               if (r === 'chat' && scenario === 'engine-unreachable') {
                 await page.locator('.picker .pick-search button').click();
@@ -194,40 +187,8 @@ try {
                 await resume(page);
                 await page.waitForTimeout(100);
               }
-              if (scenario === 'phone-layout' && r === 'harnesses/codex') {
-                if (process.env.CRAWL_SHOTS && form === 'phone') {
-                  const out = resolve('.project-local/mission-f'); mkdirSync(out, { recursive: true });
-                  await page.screenshot({ path: join(out, process.env.CRAWL_SHOTS + '-agent-390.png'), fullPage: true });
-                }
-                await inspect(page, errors, label + ' agent');
-                await page.locator('.more-info').evaluate(el => el.open = true);
-                await inspect(page, errors, label + ' details');
-                const resource = page.locator('.agent .set-c .btn');
-                if (await resource.count()) { await resource.first().click(); await page.waitForTimeout(100); await inspect(page, errors, label + ' resources'); await page.locator('.dialog-head .icon-btn').click(); }
-                const more = page.locator('.more-models');
-                if (await more.count()) { await more.click(); await inspect(page, errors, label + ' all models'); }
-                const tip = page.locator('.agent .sec-h .tip').first();
-                if (await tip.count()) { await tip.click(); await inspect(page, errors, label + ' tooltip'); await tip.blur(); }
-                const tabs = page.locator('.agent .sec-h .seg button');
-                if (await tabs.count()) { await tabs.last().click(); await page.waitForTimeout(100); await inspect(page, errors, label + ' native discussions'); }
-                // A known disconnected account with no catalog exposes the
-                // native sign-in dialog. Inspect it without starting sign-in.
-                await page.route('**/api/runtimes/codex/probe', route => route.fulfill({ json: { ok: true, probe: { config: [] } } }));
-                await page.reload(); await page.waitForTimeout(600);
-                const accountLabel = await page.evaluate(async () => (await import('/next/js/core/i18n.js')).t('agents.account.login'));
-                const account = page.locator('.agent-h .acts .btn').filter({ hasText: accountLabel });
-                if (!await account.count()) throw new Error('Account fixture exposed no sign-in action');
-                await account.first().click(); await page.locator('.dialog').waitFor();
-                await inspect(page, errors, label + ' account'); await page.locator('.dialog-head .icon-btn').click();
-              }
-              if (scenario === 'phone-layout' && r === 'harnesses') {
-                await page.locator('.page-head .btn.primary').click(); await page.locator('.dialog').waitFor();
-                await inspect(page, errors, label + ' add agent');
-                await page.locator('.add-agents .set-c .btn').last().click();
-                await inspect(page, errors, label + ' custom agent'); await page.locator('.dialog-head .icon-btn').click();
-              }
               if (scenario === 'phone-layout' && r === 'cloud') {
-                await page.locator('.cl-tile .btn').first().click(); await page.locator('.dialog').waitFor();
+                await page.locator('.cl-tile:not(.on) .btn').first().click(); await page.locator('.dialog').waitFor();
                 await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
               }
               if (scenario === 'phone-layout' && r === 'environment') {

@@ -13,7 +13,7 @@ import { Inspector } from '../inspector/inspector.js';
 function Thread() {
   const { items, gen, loading, compacting } = useStore(chat, s => s.frozen ? { items: s.frozen, gen: null, loading: false, compacting: false } : { items: s.items, gen: s.gen, loading: s.loading, compacting: s.compacting });
   useStore(app, s => s.status && s.status.model + '|' + s.status.health);
-  const { root, sessionId } = useStore(chat, s => ({ root: (s.harness && s.harness.workdir) || '', sessionId: s.sessionId }));
+  const { root, sessionId } = useStore(chat, s => ({ root: s.session?.workdir || '', sessionId: s.sessionId }));
   const box = useRef(), stick = useRef(true);
   const [showDown, setShowDown] = useState(false);
   const onScroll = () => {

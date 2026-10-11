@@ -10,7 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +22,6 @@ import (
 	"github.com/lucas-lepajollec/loom/internal/loom/notify"
 	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	agent "github.com/lucas-lepajollec/loom/internal/loom/runtime"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func isolatePhase4b(t *testing.T) *runtimeSessions {
@@ -34,7 +33,7 @@ func isolatePhase4b(t *testing.T) *runtimeSessions {
 	degradedCapabilities = &capability.State{}
 	policyAudit = &policy.Audit{Capacity: 512}
 	t.Cleanup(func() {
-		m.shutdownACP()
+		m.shutdownRuntimes()
 		workspaceSessions, degradedCapabilities, policyAudit = old, oldState, oldAudit
 	})
 	return m
@@ -74,7 +73,7 @@ func TestPhase4bLegacyConsentRequestRetryAndShutdown(t *testing.T) {
 		t.Fatal("explicit consent left a reusable grant", err)
 	}
 	done := make(chan struct{})
-	go func() { m.shutdownACP(); close(done) }()
+	go func() { m.shutdownRuntimes(); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(time.Second):
@@ -113,31 +112,7 @@ func TestPhase4bNativePolicyRecheckedOnAnswer(t *testing.T) {
 		t.Fatal("persistent grant bypassed central policy", answer, err)
 	}
 }
-func TestPhase4bMCPPolicyAndScopedCredentials(t *testing.T) {
-	m := isolatePhase4b(t)
-	savePolicyRules(t, policy.Rule{ID: "deny-tool", Scope: "project", ScopeID: "project", Subject: "mcp.tool:server/echo", Decision: policy.Deny})
-	s := RuntimeSession{ID: "session", RuntimeID: "fixture", ProjectID: "project"}
-	m.runs[s.ID] = &runtimeRun{session: s, cancel: func() {}}
-	r := httptest.NewRequest("POST", "/mcp/loom", nil)
-	r.Header.Set("Authorization", "Bearer "+scopedGatewayToken(s.ID))
-	ctx, ok := gatewayPolicyContext(r)
-	if !ok {
-		t.Fatal("launch-scoped token rejected")
-	}
-	called := false
-	gate := gatewayPolicyMiddleware(map[string]string{"echo": "mcp.tool:server/echo"})(func(context.Context, string, mcp.Request) (mcp.Result, error) {
-		called = true
-		return &mcp.CallToolResult{}, nil
-	})
-	result, err := gate(ctx, "tools/call", &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: "echo", Arguments: json.RawMessage(`{}`)}})
-	if err != nil || called || !result.(*mcp.CallToolResult).IsError {
-		t.Fatal("denied MCP call reached upstream", err)
-	}
-	delete(m.runs, s.ID)
-	if _, ok := gatewayPolicyContext(r); ok {
-		t.Fatal("ended run retained scoped authorization")
-	}
-}
+
 func TestPhase4bObservedSpendAndEngineRecovery(t *testing.T) {
 	m := isolatePhase4b(t)
 	limit, observed := 10.0, 11.0
@@ -148,10 +123,6 @@ func TestPhase4bObservedSpendAndEngineRecovery(t *testing.T) {
 	p := CloudProvider{ID: "p", Endpoint: identity.Endpoint, Model: "model"}
 	if err := authorizeProviderTurn(t.Context(), p); err == nil {
 		t.Fatal("known monthly cap not enforced")
-	}
-	harness := &acpAdapter{agent: acpAgent{ID: "fixture"}, sessions: m, session: RuntimeSession{ID: "session", RuntimeID: "fixture", ProviderID: p.ID, Endpoint: p.Endpoint}}
-	if _, err := harness.Run(t.Context(), RuntimeTurn{}, func(StreamEvent) bool { return true }); err == nil || !strings.Contains(err.Error(), "spend.provider") {
-		t.Fatal("harness source bypassed the observed provider cap", err)
 	}
 	m.keys["p"] = "rotated"
 	if err := authorizeProviderTurn(t.Context(), p); err != nil {
@@ -211,19 +182,7 @@ func TestPhase4bMemoryProviderSelectionDenied(t *testing.T) {
 		t.Fatal("denied destination was saved", w.Body.String())
 	}
 }
-func TestPhase4bDegradedConfigOptionsPreserveDiscovery(t *testing.T) {
-	isolatePhase4b(t)
-	f := agent.HarnessFeatures{Models: true, Effort: true, ConfigOptions: []string{"model", "reasoning_effort"}}
-	d := RuntimeDescriptor{ID: "fixture", Kind: "harness", Capabilities: []string{"models", "reasoning-effort"}, Features: &f}
-	observeCapability("agent:fixture", "models", false, "catalog_failed")
-	if got := degradedDescriptor(d); got.Features.Models || len(got.Features.ConfigOptions) != 1 || got.Features.ConfigOptions[0] != "reasoning_effort" {
-		t.Fatal(got)
-	}
-	observeCapability("agent:fixture", "models", true, "probe_succeeded")
-	if got := degradedDescriptor(d); !got.Features.Models || len(got.Features.ConfigOptions) != 2 || got.Features.ConfigOptions[0] != "model" {
-		t.Fatal("degradation mutated the native discovery options", got.Features)
-	}
-}
+
 func TestPhase4bEngineConfirmationBindsDestination(t *testing.T) {
 	m := isolatePhase4b(t)
 	oldNode, oldClient := currentEngineNode(), http.DefaultClient
@@ -407,76 +366,7 @@ func TestPhase4bMigrationAndAPI(t *testing.T) {
 		t.Fatal("corrupt policy failed open")
 	}
 }
-func TestPhase4bConfirmACPAnsweredFromPhone(t *testing.T) {
-	m := isolatePhase4b(t)
-	a := fakeACPAdapter(t)
-	isolateRuntimeRegistry(t, a)
-	s := createACPSession(t, m, a, "full")
-	savePolicyRules(t, policy.Rule{ID: "confirm-write", Scope: "agent", ScopeID: a.agent.ID, Subject: "agent.file_write", Decision: policy.Confirm})
-	if err := m.start(s.ID, "policy-confirm-turn", "PRIVATE_PROMPT"); err != nil {
-		t.Fatal(err)
-	}
-	answered := map[string]bool{}
-	count := 0
-	deadline := time.Now().Add(6 * time.Second)
-	for time.Now().Before(deadline) {
-		current, _ := m.get(s.ID)
-		if current.Status != "running" {
-			if current.Status != "complete" {
-				t.Fatal(current.Error)
-			}
-			break
-		}
-		for _, req := range current.PendingRequests {
-			if answered[req.ID] {
-				continue
-			}
-			answered[req.ID] = true
-			count++
-			cfg := notify.Default()
-			cfg.PublicBaseURL = "https://loom.test"
-			svc := m.notifications(nil)
-			msg := svc.message(cfg, events.Event{Type: events.TaskWaiting, DiscussionID: s.ID, RequestID: req.ID, Status: "waiting_approval"})
-			if len(msg.Actions) == 0 {
-				t.Fatal("missing phone answer")
-			}
-			u, _ := url.Parse(msg.Actions[0].URL)
-			answer := httptest.NewRequest("POST", msg.Actions[0].URL, nil)
-			answer.SetPathValue("token", strings.TrimPrefix(u.Path, "/api/notify/answer/"))
-			w := httptest.NewRecorder()
-			svc.handleAnswer(w, answer)
-			if w.Code != 200 {
-				t.Fatal(w.Code, w.Body.String())
-			}
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	finished := waitACPTurn(t, m, s.ID)
-	if count == 0 || len(finished.PendingRequests) != 0 {
-		t.Fatal("policy did not confirm")
-	}
-	if data, err := os.ReadFile(filepath.Join(s.Workdir, "loom-fake-acp.txt")); err != nil || string(data) != "fixture\n" {
-		t.Fatal("approved write missing", err)
-	}
-	raw, _ := json.Marshal(policyAudit.Snapshot())
-	if bytes.Contains(raw, []byte("PRIVATE_PROMPT")) || bytes.Contains(raw, []byte(s.Workdir)) {
-		t.Fatal("audit leaked context")
-	}
-}
-func TestPhase4bDenyOverridesFullACP(t *testing.T) {
-	m := isolatePhase4b(t)
-	a := fakeACPAdapter(t)
-	isolateRuntimeRegistry(t, a)
-	s := createACPSession(t, m, a, "full")
-	savePolicyRules(t, policy.Rule{ID: "deny-write", Scope: "global", Subject: "agent.file_write", Decision: policy.Deny})
-	if err := m.start(s.ID, "policy-deny-turn", "fixture"); err != nil {
-		t.Fatal(err)
-	}
-	waitACPTurn(t, m, s.ID)
-	if _, err := os.Stat(filepath.Join(s.Workdir, "loom-fake-acp.txt")); !os.IsNotExist(err) {
-		t.Fatal("denied tool wrote a file", err)
-	}
-}
+
 func TestPhase4bStandaloneCanonicalTask(t *testing.T) {
 	m := isolatePhase4b(t)
 	savePolicyRules(t, policy.Rule{ID: "terminal-confirm", Scope: "machine", ScopeID: "local", Subject: "node.terminal", Decision: policy.Confirm})
@@ -516,103 +406,12 @@ func TestPhase4bStandaloneCanonicalTask(t *testing.T) {
 		t.Fatal(task)
 	}
 }
-func TestPhase4bDoctorFakesAndDegradedRecovery(t *testing.T) {
-	m := isolatePhase4b(t)
-	a := fakeACPAdapter(t)
-	a.agent.Custom = true
-	isolateRuntimeRegistry(t, a)
-	oldClient := nodeClient
-	t.Cleanup(func() { nodeClient = oldClient })
-	online := true
-	nodeClient = &http.Client{Transport: phase4Transport{http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !online {
-			w.WriteHeader(503)
-			return
-		}
-		if r.URL.Path == "/api/node/info" {
-			sendJSON(w, 200, map[string]any{"ok": true, "role": "engine-node", "version": Version, "id": "node", "handshake": nodeHandshake, "modules": []string{"terminal", "engine"}})
-			return
-		}
-		sendJSON(w, 200, map[string]any{"status": "ok"})
-	})}}
-	machine := RemoteMachine{ID: "doctor-machine", NodeID: "node", Modules: []string{"engine", "terminal"}}
-	if err := putStoreJSON(bkState, remoteMachinesState, []RemoteMachine{machine}); err != nil {
-		t.Fatal(err)
-	}
-	if err := putStoreJSON(bkState, machineNodePrefix+machine.ID, engineNode{URL: "https://node.test", WebKey: "secret", Role: "engine-node"}); err != nil {
-		t.Fatal(err)
-	}
-	p := acpProbe{At: time.Now().UnixMilli(), Error: "PRIVATE_FAILED_PROBE", Compatibility: &runtimeCompatibilityRecord{Runtime: a.agent.ID, Version: "new", Warning: "untested"}}
-	if err := putStoreJSON(bkState, acpProbeKey+a.agent.ID, p); err != nil {
-		t.Fatal(err)
-	}
-	report, err := runDoctor(context.Background(), "agent."+a.agent.ID)
-	if err != nil || len(report.Checks) != 1 || report.Checks[0].Detail != "handshake_failed" {
-		t.Fatal(report, err)
-	}
-	if !capabilityDisabled("agent:"+a.agent.ID, "resume") {
-		t.Fatal("failed probe not projected")
-	}
-	if !hasRuntimeCapability(a.Descriptor(), "chat") || hasRuntimeCapability(a.Descriptor(), "resume") {
-		t.Fatal("whole agent degraded or resume retained")
-	}
-	online = false
-	report, err = runDoctor(context.Background(), "machine."+machine.ID)
-	if err != nil || report.Checks[0].Status != "fail" || !capabilityDisabled("machine:"+machine.ID, "terminal") {
-		t.Fatal(report, err)
-	}
-	online = true
-	report, err = runDoctor(context.Background(), "machine."+machine.ID)
-	if err != nil || report.Checks[0].Status != "ok" || capabilityDisabled("machine:"+machine.ID, "terminal") {
-		t.Fatal(report, err)
-	}
-	p.Error = ""
-	p.CapabilityChecks = []capability.Probe{{Capability: "models", OK: false, Reason: "catalog_incompatible"}, {Capability: "resume", OK: true}}
-	observeAgentProbe(a.agent.ID, p)
-	if capabilityDisabled("agent:"+a.agent.ID, "resume") || !capabilityDisabled("agent:"+a.agent.ID, "models") {
-		t.Fatal("feature recovery failed")
-	}
-	before, _, _ := m.events.Snapshot(0)
-	observeAgentProbe(a.agent.ID, p)
-	after, _, _ := m.events.Snapshot(0)
-	if len(before) != len(after) {
-		t.Fatal("repeated failed probe churned events")
-	}
-	p.CapabilityChecks = nil
-	observeAgentProbe(a.agent.ID, p)
-	p.Error = "catalog request failed"
-	p.CapabilityChecks = []capability.Probe{{Capability: "models", OK: false, Reason: "catalog_probe_failed"}}
-	observeAgentProbe(a.agent.ID, p)
-	if capabilityDisabled("agent:"+a.agent.ID, "resume") || !capabilityDisabled("agent:"+a.agent.ID, "models") {
-		t.Fatal("catalog-only failure disabled another feature")
-	}
-	p.Error, p.CapabilityChecks = "", nil
-	observeAgentProbe(a.agent.ID, p)
-	list, _, _ := m.events.Snapshot(0)
-	restored := false
-	for _, e := range list {
-		restored = restored || e.Type == events.CapabilityRestored
-	}
-	if !restored {
-		t.Fatal("no restoration event")
-	}
-	if notify.Default().Rules.Allows(events.Event{Type: events.CapabilityDegraded}, time.Now()) {
-		t.Fatal("degraded notifications on by default")
-	}
-}
+
 func TestPhase4bBundleBoundaryAndRedaction(t *testing.T) {
 	m := isolatePhase4b(t)
-	a := fakeACPAdapter(t)
-	isolateRuntimeRegistry(t, a)
 	secret := "KNOWN_BUNDLE_SECRET_123"
 	m.keys["provider"] = secret
 	if err := SetConfigKey("API_KEY", secret); err != nil {
-		t.Fatal(err)
-	}
-	if err := putStoreJSON(bkState, "agent_compat_"+a.agent.ID, runtimeCompatibilityRecord{Runtime: a.agent.ID, Version: secret, Executable: "/home/private/bin/agent", Warning: "PRIVATE_PROMPT"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := putStoreJSON(bkState, acpProbeKey+a.agent.ID, acpProbe{At: time.Now().UnixMilli(), Error: "PRIVATE_PROMPT " + secret}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(LoomHome(), serviceName()+".log"), []byte("PRIVATE_DISCUSSION "+secret+"\n"), 0600); err != nil {

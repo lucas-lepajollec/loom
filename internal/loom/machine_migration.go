@@ -38,10 +38,10 @@ var runNodeMigrationSSH = func(ctx context.Context, m RemoteMachine, key string)
 	// Install the node build matching this Loom: its flags and protocol are the
 	// ones this interface expects (a development build installs the edge build).
 	cmd.Stdin = strings.NewReader("LOOM_NODE_VERSION=" + nodeReleaseForThisLoom() + "\nexport LOOM_NODE_VERSION\n" + remoteNodeInstallScript)
-	var out, stderr harnessTail
+	var out, stderr commandTail
 	cmd.Stdout, cmd.Stderr = &out, &stderr
-	acpProcessGroup(cmd)
-	cmd.Cancel = func() error { acpKillProcessGroup(cmd); return nil }
+	ownedProcessGroup(cmd)
+	cmd.Cancel = func() error { killOwnedProcessGroup(cmd); return nil }
 	cmd.WaitDelay = time.Second
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("SSH node installation: %w: %s", err, strings.TrimSpace(stderr.String()))

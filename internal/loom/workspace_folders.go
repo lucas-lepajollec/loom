@@ -67,26 +67,6 @@ func workspaceList(target string) []resources.Workspace {
 	return out
 }
 
-func workspaceTarget(agent acpAgent) string {
-	if !agent.Remote {
-		return "local"
-	}
-	return agent.Machine
-}
-
-func defaultWorkspace(agent acpAgent) (resources.Workspace, error) {
-	target := workspaceTarget(agent)
-	if target == "" {
-		return resources.Workspace{}, errors.New("choose a working folder for this custom remote harness")
-	}
-	for _, w := range workspaceList(target) {
-		if w.Default {
-			return w, nil
-		}
-	}
-	return resources.Workspace{}, errors.New("choose a default workspace for this machine")
-}
-
 func prepareWorkspace(ctx context.Context, w resources.Workspace, create bool) (string, error) {
 	if w.Target == "local" {
 		if create {
@@ -97,7 +77,7 @@ func prepareWorkspace(ctx context.Context, w resources.Workspace, create bool) (
 				return "", errors.New("workspace directory could not be created")
 			}
 		}
-		return acpDirectory(w.Path)
+		return localWorkdir(w.Path)
 	}
 	m, err := workspaceMachine(w.Target)
 	if err != nil {
@@ -107,7 +87,7 @@ func prepareWorkspace(ctx context.Context, w resources.Workspace, create bool) (
 	if err != nil {
 		return "", err
 	}
-	if usesNodeHarness(m) {
+	if usesNodeTransport(m) {
 		if create {
 			body, _ := json.Marshal(map[string]string{"path": dir})
 			var result struct {

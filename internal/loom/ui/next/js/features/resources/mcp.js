@@ -43,33 +43,22 @@ function Gateway() {
   const [g, setG] = useState(null);
   const [busy, setBusy] = useState('');
   const [anchor, setAnchor] = useState(null);
+  const [token, setToken] = useState('');
   const load = () => get('/api/mcp/gateway').then(r => setG(r.ok === false ? { error: r.error } : r)).catch(e => setG({ error: e.message }));
   useEffect(() => { load(); }, []);
-  const toggle = async (h, enabled) => {
-    if (enabled && !await confirm(t('mcp.gw.add_title', { name: h.name }), t('mcp.gw.add_text', { file: home(h.file) }), { ok: t('mcp.gw.add_ok') })) return;
-    setBusy(h.id);
-    const r = await post('/api/mcp/gateway', { harness: h.id, enabled }).catch(e => ({ ok: false, error: e.message }));
-    setBusy('');
-    if (r.ok === false || r.error) toast(r.error || t('resources.page.impossible'), 'err');
-    load();
-  };
   const rotate = async () => {
     if (!await confirm(t('mcp.gw.rotate'), t('mcp.gw.rotate_text'), { ok: t('mcp.gw.rotate') })) return;
     const r = await post('/api/mcp/gateway/token', { rotate: true }).catch(e => ({ ok: false, error: e.message }));
     if (r.ok === false || r.error) return toast(r.error, 'err');
-    toast(t('mcp.gw.rotated')); load();
+    setToken(r.token); toast(t('mcp.gw.rotated')); load();
   };
   if (!g) return html`<div class="skeleton" style="height:120px"></div>`;
   if (g.error) return html`<p class="note err">${g.error}</p>`;
-  const list = g.harnesses || [];
   return html`<section class="sec"><div class="sec-h"><h2>${t('mcp.gw.title')}<${Tip} text=${t('mcp.gw.tip')} /></h2><span class="grow"></span>
       <button class="icon-btn" aria-label=${t('brain.src.actions')} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
       ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[{ icon: 'key', label: t('mcp.gw.rotate'), run: rotate }]} />`}</div>
-    <div class="card bs-list">${list.map(h => html`<div class="bs-row" key=${h.id}>
-      <${Logo} name=${h.id} />
-      <div class="grow"><div class="bs-name">${h.name}</div><div class="bs-sub">${h.supported ? html`<span class="mono trunc">${home(h.file)}</span>${h.registered && html`<span class="bs-state"><i class="dot green"></i>${t('mcp.gw.on')}</span>`}` : html`<span>${t('mcp.gw.unsupported')}</span>`}</div></div>
-      <${Switch} checked=${!!h.registered} disabled=${!h.supported || busy === h.id} label=${t('mcp.gw.title') + ' · ' + h.name} onChange=${on => toggle(h, on)} /></div>`)}
-      <div class="bs-row mcp-url"><span class="grow"><span class="muted">${t('mcp.gw.url')}</span> <code class="mono">${g.url}</code></span></div></div>
+    <div class="card bs-list">      <div class="bs-row mcp-url"><span class="grow"><span class="muted">${t('mcp.gw.url')}</span> <code class="mono">${g.url}</code></span></div>
+      ${token && html`<div class="bs-row"><label class="field"><span>${t('mcp.gw.token')}</span><input class="input mono" readonly value=${token} onFocus=${e => e.currentTarget.select()} /></label></div>`}</div>
   </section>`;
 }
 

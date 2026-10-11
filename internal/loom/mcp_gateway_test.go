@@ -34,232 +34,7 @@ func gatewayTestRead(t *testing.T, path string) []byte {
 	}
 	return data
 }
-func TestGatewayHarnessWriters(t *testing.T) {
-	for _, h := range gatewayHarnessSpecs {
-		t.Run(h.id, func(t *testing.T) {
-			gatewayTestHome(t)
-			path := expandHome(h.file)
-			original := `{"keep":{"number":9007199254740993},"` + h.key + `":{"other":{"command":"owned-by-user"}}}`
-			if h.id == "codex" {
-				original = "model = \"user-model\"\n\n[mcp_servers.other]\ncommand = \"user-server\"\n"
-			}
-			writeMCPTestFile(t, path, original)
-			if err := setGatewayHarness(h.id, true); err != nil {
-				t.Fatal(err)
-			}
-			first := gatewayTestRead(t, path)
-			if !gatewayRegistered(h.id) {
-				t.Fatal("registration missing")
-			}
-			if !bytes.Equal(gatewayTestRead(t, path+".loom-backup"), []byte(original)) {
-				t.Fatal("backup changed")
-			}
-			if err := setGatewayHarness(h.id, true); err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(first, gatewayTestRead(t, path)) {
-				t.Fatal("writer not idempotent")
-			}
-			c, err := openGatewayConfig(h)
-			if err != nil {
-				t.Fatal(err)
-			}
-			oldToken := c.token()
-			c.root.Close()
-			if oldToken == "" {
-				t.Fatal("header token missing")
-			}
-			if h.id == "codex" {
-				if strings.Count(string(first), gatewayBegin) != 1 || strings.Count(string(first), gatewayEnd) != 1 || !bytes.HasPrefix(first, []byte(original)) || !bytes.Contains(first, []byte("http_headers = { \"Authorization\" = \"Bearer ")) {
-					t.Fatal("TOML edit", string(first))
-				}
-			} else {
-				var doc map[string]json.RawMessage
-				if err := json.Unmarshal(first, &doc); err != nil {
-					t.Fatal(err)
-				}
-				if !bytes.Contains(doc["keep"], []byte("9007199254740993")) {
-					t.Fatal("other key lost precision")
-				}
-				var entries map[string]map[string]any
-				if err := json.Unmarshal(doc[h.key], &entries); err != nil {
-					t.Fatal(err)
-				}
-				if entries["other"]["command"] != "owned-by-user" {
-					t.Fatal("foreign entry changed")
-				}
-				entry := entries["loom"]
-				switch h.id {
-				case "claude-code":
-					if entry["type"] != "http" || entry["url"] != gatewayURL() {
-						t.Fatal(entry)
-					}
-				case "opencode":
-					if entry["type"] != "remote" || entry["enabled"] != true {
-						t.Fatal(entry)
-					}
-				case "antigravity":
-					if entry["url"] != gatewayURL() {
-						t.Fatal(entry)
-					}
-				}
-			}
-			token, err := rotateGatewayToken()
-			if err != nil || token == oldToken {
-				t.Fatal("rotation", err)
-			}
-			c, err = openGatewayConfig(h)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if c.token() != token {
-				t.Fatal("registered header not rotated")
-			}
-			c.root.Close()
-			if bytes.Contains(getBytes(bkState, gatewayStateKey), []byte(token)) {
-				t.Fatal("plaintext token in store")
-			}
-			if !bytes.Equal(gatewayTestRead(t, path+".loom-backup"), []byte(original)) {
-				t.Fatal("backup overwritten")
-			}
-			if err := setGatewayHarness(h.id, false); err != nil {
-				t.Fatal(err)
-			}
-			removed := gatewayTestRead(t, path)
-			if gatewayRegistered(h.id) {
-				t.Fatal("still registered")
-			}
-			if h.id == "codex" && !bytes.Equal(removed, []byte(original)) {
-				t.Fatal("TOML removal touched other blocks")
-			}
-			if h.id != "codex" {
-				var doc map[string]json.RawMessage
-				_ = json.Unmarshal(removed, &doc)
-				var entries map[string]json.RawMessage
-				_ = json.Unmarshal(doc[h.key], &entries)
-				if len(entries) != 1 || entries["other"] == nil || doc["keep"] == nil {
-					t.Fatal("JSON removal touched other entries")
-				}
-			}
-			if err := setGatewayHarness(h.id, false); err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(removed, gatewayTestRead(t, path)) {
-				t.Fatal("removal not idempotent")
-			}
-		})
-	}
-}
-func TestGatewayOwnershipAndConfinement(t *testing.T) {
-	for _, h := range gatewayHarnessSpecs {
-		t.Run(h.id, func(t *testing.T) {
-			gatewayTestHome(t)
-			original := `{"` + h.key + `":{"loom":{"command":"user-owned"}}}`
-			if h.id == "codex" {
-				original = "[mcp_servers.\"loom\"]\ncommand = \"user-owned\"\n"
-			}
-			path := expandHome(h.file)
-			writeMCPTestFile(t, path, original)
-			for _, enabled := range []bool{true, false} {
-				if err := setGatewayHarness(h.id, enabled); err == nil {
-					t.Fatal("foreign loom entry changed")
-				}
-			}
-			if string(gatewayTestRead(t, path)) != original {
-				t.Fatal("foreign config changed")
-			}
-			if _, err := os.Stat(path + ".loom-backup"); !os.IsNotExist(err) {
-				t.Fatal("foreign backup created")
-			}
-			if err := os.Remove(path); err != nil {
-				t.Fatal(err)
-			}
-			if err := setGatewayHarness(h.id, true); err != nil {
-				t.Fatal(err)
-			}
-			changed := append(gatewayTestRead(t, path), []byte(" ")...)
-			if h.id == "codex" {
-				changed = bytes.ReplaceAll(changed, []byte("http_headers"), []byte("env_http_headers"))
-			} else {
-				changed = bytes.ReplaceAll(changed, []byte("Bearer loom-gateway-"), []byte("Bearer edited-"))
-			}
-			writeMCPTestFile(t, path, string(changed))
-			if gatewayRegistered(h.id) {
-				t.Fatal("edited entry considered registered")
-			}
-			if _, err := rotateGatewayToken(); err == nil {
-				t.Fatal("rotation overwrote user edit")
-			}
-			if !bytes.Equal(changed, gatewayTestRead(t, path)) {
-				t.Fatal("rotation changed edited entry")
-			}
-		})
-	}
-	t.Run("symlink", func(t *testing.T) {
-		gatewayTestHome(t)
-		outside := t.TempDir()
-		if err := os.Symlink(outside, filepath.Join(os.Getenv("HOME"), ".gemini")); err != nil {
-			t.Skip(err)
-		}
-		if err := setGatewayHarness("antigravity", true); err == nil {
-			t.Fatal("escaped home")
-		}
-		if entries, _ := os.ReadDir(outside); len(entries) != 0 {
-			t.Fatal("wrote outside harness home")
-		}
-	})
-}
-func TestGatewayTokenReuseRotationAndURLs(t *testing.T) {
-	gatewayTestHome(t)
-	token, err := rotateGatewayToken()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, h := range gatewayHarnessSpecs {
-		if err := setGatewayHarness(h.id, true); err != nil {
-			t.Fatal(err)
-		}
-		c, err := openGatewayConfig(h)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if c.token() != token {
-			t.Fatal("did not reuse dedicated token")
-		}
-		c.root.Close()
-	}
-	// Restart can recover the token from an owned config; the store holds hashes.
-	gatewayToken.home, gatewayToken.token = "", ""
-	if err := setGatewayHarness("codex", true); err != nil {
-		t.Fatal("restart", err)
-	}
-	beforeRevision := gatewayRevision("codex")
-	rotated, err := rotateGatewayToken()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if beforeRevision == "" || beforeRevision == gatewayRevision("codex") {
-		t.Fatal("rotation did not change ACP launch revision")
-	}
-	for _, h := range gatewayHarnessSpecs {
-		c, err := openGatewayConfig(h)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if c.token() != rotated {
-			t.Fatal("rotation skipped", h.id)
-		}
-		c.root.Close()
-	}
-	oldHost, oldPort := webBound.host, webBound.port
-	defer func() { webBound.host, webBound.port = oldHost, oldPort }()
-	for host, want := range map[string]string{"0.0.0.0": "127.0.0.1", "::": "127.0.0.1", "192.0.2.1": "192.0.2.1", "::1": "[::1]"} {
-		webBound.host, webBound.port = host, 2594
-		if gatewayURL() != "http://"+want+":2594/mcp/loom" {
-			t.Fatal(gatewayURL())
-		}
-	}
-}
+
 func TestGatewayToolNaming(t *testing.T) {
 	upstream := []tools.MCPGatewayTool{}
 	for _, pair := range [][2]string{{"a b", "read"}, {"a.b", "read"}, {"a_b", "read"}, {strings.Repeat("x", 100), "first"}, {strings.Repeat("x", 100), "second"}, {"🧠", "🧠"}, {"a", "b.c/d"}} {
@@ -431,40 +206,7 @@ func TestGatewayAuthScopeOriginAndLimit(t *testing.T) {
 		t.Fatal("new token rejected", w.Code)
 	}
 }
-func TestGatewayACPDuplicateAvoidance(t *testing.T) {
-	gatewayTestHome(t)
-	if err := SetMCPServer("selected", MCPServerConfig{Command: "test", Enabled: true}); err != nil {
-		t.Fatal(err)
-	}
-	if err := setGatewayHarness("codex", true); err != nil {
-		t.Fatal(err)
-	}
-	s := RuntimeSession{RuntimeID: "codex"}
-	defs, err := acpSessionMCPDefinitions(s)
-	if err != nil || len(defs) != 0 {
-		t.Fatal("global duplicates", defs, err)
-	}
-	selected := []string{"selected"}
-	s.MCPServers = &selected
-	defs, err = acpSessionMCPDefinitions(s)
-	if err != nil || len(defs) != 1 {
-		t.Fatal("explicit session selection lost", defs, err)
-	}
-	project, err := saveProjectContext(ChatProject{Name: "Gateway project", MCPServers: &selected})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.ProjectID, s.MCPServers = project.ID, nil
-	defs, err = acpSessionMCPDefinitions(s)
-	if err != nil || len(defs) != 1 {
-		t.Fatal("explicit project selection lost", defs, err)
-	}
-	s.ProjectID, s.RuntimeID = "", "unregistered"
-	defs, err = acpSessionMCPDefinitions(s)
-	if err != nil || len(defs) != 1 {
-		t.Fatal("unregistered inheritance changed", defs, err)
-	}
-}
+
 func TestPortableMCPExportImportAndConfinement(t *testing.T) {
 	gatewayTestHome(t)
 	dir := t.TempDir()
@@ -568,38 +310,9 @@ func TestGatewayNamingSurvivesUnavailableUpstream(t *testing.T) {
 		t.Fatal("name changed when upstream unavailable", both, reverse)
 	}
 }
-func TestGatewayTOMLMarkersAndTableBoundaries(t *testing.T) {
-	for _, text := range []string{gatewayBegin + "\n", gatewayEnd + "\n", gatewayBegin + "\n" + gatewayBegin + "\n" + gatewayEnd + "\n", gatewayBegin + "\n" + gatewayEnd + "\n" + gatewayEnd + "\n"} {
-		if _, _, err := gatewayTOMLBlock(text); err == nil {
-			t.Fatal("invalid markers accepted", text)
-		}
-	}
-	gatewayTestHome(t)
-	h, _ := gatewaySpec("codex")
-	if err := setGatewayHarness(h.id, true); err != nil {
-		t.Fatal(err)
-	}
-	path := expandHome(h.file)
-	original := gatewayTestRead(t, path)
-	modified := append(original, []byte("required = true\n")...)
-	writeMCPTestFile(t, path, string(modified))
-	if err := setGatewayHarness(h.id, false); err == nil {
-		t.Fatal("unmarked table extension edited")
-	}
-	if !bytes.Equal(modified, gatewayTestRead(t, path)) {
-		t.Fatal("unmarked table extension changed")
-	}
-	writeMCPTestFile(t, path, string(original)+"\n[features]\nuser_setting = true\n")
-	if err := setGatewayHarness(h.id, false); err != nil {
-		t.Fatal(err)
-	}
-	if string(gatewayTestRead(t, path)) != "\n[features]\nuser_setting = true\n" {
-		t.Fatal("later table changed")
-	}
-}
+
 func TestGatewayHTTPShapes(t *testing.T) {
 	gatewayTestHome(t)
-	fakeAgentCLIs(t)
 	if err := storeWebKey("control"); err != nil {
 		t.Fatal(err)
 	}
@@ -621,8 +334,7 @@ func TestGatewayHTTPShapes(t *testing.T) {
 		method, path, body string
 		fields             []string
 	}{
-		{"GET", "/api/mcp/gateway", "", []string{"url", "token_set", "harnesses"}},
-		{"POST", "/api/mcp/gateway", `{"harness":"codex","enabled":true}`, []string{"url", "token_set", "harnesses"}},
+		{"GET", "/api/mcp/gateway", "", []string{"url", "token_set"}},
 		{"POST", "/api/mcp/gateway/token", `{"rotate":true}`, []string{"ok", "url", "token", "token_set"}},
 	} {
 		w := call(tc.method, tc.path, tc.body)

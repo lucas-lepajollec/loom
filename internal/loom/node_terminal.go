@@ -67,7 +67,7 @@ func (s *nodeTerminalServer) ws(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 501, map[string]any{"ok": false, "error": "node PTY unavailable"})
 		return
 	}
-	cwd, err := nodeHarnessDirectory(r.URL.Query().Get("cwd"))
+	cwd, err := nodeDirectory(r.URL.Query().Get("cwd"))
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return

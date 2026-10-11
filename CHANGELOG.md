@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Retire coding harness integrations, native protocols/installers/accounts,
+  quotas, remote agent imports and related interface screens.
+- Keep Local/Cloud discussions, engines/nodes, Brain, skills/MCP, terminals,
+  machines, voice and generic policy controls. Preserve historical transcripts
+  and events; require Local/Cloud selection to continue retired discussions.
+- Keep MCP clients independent: manual gateway configuration, dedicated token
+  rotation, hashed token persistence and no native configuration writes.
+- See [migration notes](docs/harness-retirement.md) before upgrading.
+
+
 Notable changes to Loom are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and releases use [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
@@ -745,7 +757,7 @@ First public release.
 - Local and SSH terminals that replay recent output while Loom runs. Linux/macOS use PTY; Windows 10 1809+ uses native ConPTY with resizing, Unicode arguments/environment and owned process-tree cleanup. Connected Windows OpenSSH machines use interactive PowerShell. See [terminals](docs/terminals.md).
 - vLLM installation in a Loom-managed Python environment on supported Linux NVIDIA CUDA / AMD ROCm hardware, with validated per-model parameters, Hugging Face safetensors library/search, advisory VRAM sizing, resumable downloads and idle upgrades. Settings › Engines exposes library, model settings, version, update and auto-update controls. See [engines](docs/engines.md).
 - Direct links to running llama-server, vLLM or OpenAI-compatible servers, and remote management of another Loom's engine. llama.cpp installation, compilation, binary updates and opt-in idle automatic updates remain available.
-- Usage page with retained Loom token counts, manual-price estimates, native harness activity over 7 or 30 days, and explicitly refreshed Codex/Claude Code/Antigravity/Hermes subscription quotas. Unknown metrics stay unknown and refresh never redeems resets. See [native usage](docs/harness-usage.md).
+- Usage page with retained Loom token counts, manual-price estimates, native harness activity over 7 or 30 days, and explicitly refreshed Codex/Claude Code/Antigravity/Hermes subscription quotas. Unknown metrics stay unknown and refresh never redeems resets. See [historical integration notes](docs/harness-retirement.md).
 - Read-only cloud provider balances and key limits for connected OpenRouter, DeepSeek, Moonshot/Kimi and SiliconFlow accounts, displayed in Usage. Protected readers use bounded concurrent requests, five-minute session caching and sanitized errors; unsupported providers expose no balance capability. See [provider balances](docs/usage.md).
 - Bench tests for local and cloud models, including local prefill/decode throughput, streamed cloud timing, reported token rates and cancellation. Cloud benchmarks require sharing consent.
 - First-run guide for language, hardware, engine setup, a first llama.cpp model sized to the machine, harnesses, providers and machines; reopen it in Settings › About. English is the default UI language, with French available and saved through browser/shared preferences.

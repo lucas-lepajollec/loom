@@ -335,7 +335,7 @@ func TestMarkdownConsolidationResidentModelRoutes(t *testing.T) {
 	memoryLoadedModel = func() string { return "resident.gguf" }
 	session := RuntimeSession{RuntimeID: "llama.cpp", Model: "resident.gguf"}
 	endpoint, _, model, err := memoryDestination(session)
-	if err != nil || endpoint != llamaBackendURL().String()+"/v1/chat/completions" || model != "loom" {
+	if err != nil || endpoint != llamaBackendURL().String()+"/v1/chat/completions" || model != "resident.gguf" {
 		t.Fatal(endpoint, model, err)
 	}
 	session.Model = "unloaded.gguf"

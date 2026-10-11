@@ -15,29 +15,7 @@ import { recall, remember } from '../../core/observations.js';
 const when = s => s ? new Date(s * 1000).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : t("usage.page.non_communique");
 const ago = s => { if (!s) return ''; const m = Math.round((Date.now() / 1000 - s) / 60); return m < 1 ? t("usage.page.a_l_instant") : m < 60 ? t("usage.page.ago_min", { n: m }) : t("usage.page.ago_h", { n: Math.round(m / 60) }); };
 
-function Quota({ q, rt, onRefresh }) {
-  const [busy, setBusy] = useState(false);
-  const readable = rt && rt.implemented && (rt.capabilities || []).includes('quota');
-  const refresh = async () => {
-    setBusy(true);
-    try { const r = await post('/api/runtimes/' + encodeURIComponent(q.runtime_id) + '/quota', {}, { timeout: 65000 }); if (!r.ok && r.status !== 429) toast(r.error, 'err'); onRefresh(); }
-    catch (e) { toast(e.message, 'err'); }
-    finally { setBusy(false); }
-  };
-  const resets = typeof q.reset_credits === 'number' ? q.reset_credits : q.reset_credits && q.reset_credits.available_count != null ? q.reset_credits.available_count : null;
-  return html`<div class="card pad quota">
-    <div class="q-h"><b>${(rt && rt.name) || q.name || q.runtime_id}</b>${rt && rt.machine && html`<small class="q-m">${rt.machine}</small>`}<span class="muted">${q.fetched_at ? ago(q.fetched_at) : ''}</span>
-      ${readable && html`<button class="icon-btn" aria-label="${t("usage.page.lire_le_compte")}" title="${t("usage.page.lire_le_compte_sans_generation")}" disabled=${busy} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}</button>`}</div>
-    ${q.error && html`<p class="note err">${q.error}</p>`}
-    ${(q.windows || []).length ? q.windows.map(w => { const known = typeof w.remaining_percent === 'number'; const used = known ? 100 - Math.max(0, Math.min(100, w.remaining_percent)) : 0;
-      return html`<div class="qw"><div class="qw-h"><span>${w.group && w.group !== q.name && w.name ? w.group + ' · ' + w.name : w.name || w.group}</span><b class="mono">${known ? Math.round(w.remaining_percent) + t("usage.page.restant") : '—'}</b></div>
-        ${known && html`<div class="meter"><i style=${`width:${used}%;background:${used > 85 ? 'var(--amber)' : 'var(--text)'}`}></i></div>`}
-        <small class="muted">${t("usage.page.reset")} ${when(w.reset_at)}</small></div>`; })
-      : html`<p class="note">${readable ? (q.fetched_at ? t("usage.page.le_compte_ne_communique_pas_de_quota") : t("usage.page.lis_ton_compte_pour_voir_quotas_et_resets_aucune_generation_aucun")) : t("usage.page.lecture_des_quotas_pas_encore_integree_pour_ce_harness")}</p>`}
-    ${q.credits != null && html`<div class="kv"><span>${t("usage.page.credits_ia")}</span><span class="mono">${q.credits}</span></div>`}
-    ${resets != null ? html`<div class="kv"><span>${t("usage.page.resets_disponibles")}</span><span class="mono">${resets}</span></div>` : ''}
-  </div>`;
-}
+
 
 function Price({ m, onSaved }) {
   const [open, setOpen] = useState(false);
@@ -53,53 +31,9 @@ function Price({ m, onSaved }) {
 // Usage natif : toutes les sessions du harness, dans Loom et en dehors, lues
 // dans ses journaux ou ses statistiques. Aucun prix n'est reconstruit.
 const quiet = e => /unavailable|not available|not installed/i.test(e || '');
-function NativeRow({ h, rt, onRefresh }) {
-  const [busy, setBusy] = useState(false);
-  const refresh = async () => { setBusy(true); try { await onRefresh(h.runtime_id); } finally { setBusy(false); } };
-  const models = (h.by_model || []).slice().sort((a, b) => b.tokens - a.tokens);
-  const top = models.slice(0, 3), total = models.reduce((n, m) => n + m.tokens, 0) || 1;
-  const machine = rt && rt.machine ? rt.machine : '';
-  return html`<div class="tr">
-    <span class="cell-id"><${Logo} name=${(rt && rt.logo) || h.runtime_id} size="sm" /><span class="cell-main"><b>${(rt && rt.name) || h.runtime_id}${machine && html` <small class="q-m">${machine}</small>`}</b><small>${tSource((h.source || '').replace(' · SSH machine', ''))}</small></span></span>
-    <span class="mono" data-label=${t("usage.native.sessions")}>${h.sessions || '—'}</span>
-    <span class="mono" data-label=${t("usage.page.entree_2")}>${fmtTok(h.input_tokens)}</span><span class="mono" data-label=${t("usage.page.sortie_2")}>${fmtTok(h.output_tokens)}</span><span class="mono" data-label=${t("usage.native.cache")}>${h.cache_read_tokens ? fmtTok(h.cache_read_tokens) : '—'}</span>
-    <span class="mono strong" data-label=${t("usage.native.total")}>${fmtTok(h.total_tokens)}</span>
-    <span class="nm" data-label=${t("usage.native.models")}>${top.length ? top.map(m => html`<span class="nm-r" title=${t("usage.native.model_tokens", { model: m.model, tokens: fmtTok(m.tokens) })}><i style=${`width:${Math.max(4, Math.round(m.tokens / total * 100))}%`}></i><em>${m.model}</em></span>`) : html`<span class="muted">—</span>`}${models.length > 3 ? html`<small class="muted">+${models.length - 3}</small>` : ''}</span>
-    <span class="num" data-label=${t("usage.native.cost")}>${h.cost_usd != null ? html`<span title=${t("usage.page.cout_declare_par_le_harness")}>${Number(h.cost_usd).toLocaleString(locale(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}</span>` : html`<span class="muted" title=${t("usage.native.no_cost")}>—</span>`}
-      <button class="icon-btn" aria-label=${t("usage.native.reread")} title=${t("usage.native.reread")} disabled=${busy} onClick=${refresh}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`}</button></span>
-    ${h.error && html`<p class="note err nat-err">${h.error}</p>`}
-  </div>`;
-}
 
-function NativeUsage({ runtimes }) {
-  const [days, setDays] = useState(7);
-  const [rows, setRows] = useState(recall('native:7'));
-  useEffect(() => { setRows(recall('native:' + days)); }, [days]);
-  useVisibleRefresh(async alive => {
-    const r = await get('/api/usage/native?days=' + days, { retryAuth: false, timeout: 65000 });
-    if (alive() && r.ok !== false) setRows(remember('native:' + days, r.harnesses || []));
-  }, 30000, days);
-  const refresh = async id => {
-    const r = await post('/api/usage/native/refresh', { runtime_id: id, days }).catch(e => ({ ok: false, error: e.message }));
-    if (!r.ok) return toast(r.error, 'err');
-    setRows(list => remember('native:' + days, (list || []).map(h => h.runtime_id === id ? r.harness : h)));
-  };
-  const known = (rows || []).filter(h => runtimes.some(r => r.id === h.runtime_id));
-  const active = h => h.sessions || h.total_tokens || h.error;
-  const shown = known.filter(h => !quiet(h.error) && active(h));
-  const idle = known.filter(h => !quiet(h.error) && !active(h));
-  const absent = known.filter(h => quiet(h.error));
-  const name = id => (runtimes.find(r => r.id === id) || {}).name || id;
-  return html`<section class="sec"><div class="sec-h"><h2>${t("usage.native.title")}<${Tip} text=${t("usage.native.tip")} /></h2>
-      <${Seg} size="sm" label=${t("usage.native.period")} value=${days} onChange=${setDays} options=${[{ value: 7, label: t("usage.native.days", { n: 7 }) }, { value: 30, label: t("usage.native.days", { n: 30 }) }]} /></div>
-    ${rows === null ? html`<div class="skeleton" style="height:160px"></div>` : shown.length ? html`<div class="card table native-t">
-      <div class="tr th"><span>${t("usage.native.harness")}</span><span>${t("usage.native.sessions")}</span><span>${t("usage.page.entree_2")}</span><span>${t("usage.page.sortie_2")}</span><span>${t("usage.native.cache")}</span><span>${t("usage.native.total")}</span><span>${t("usage.native.models")}</span><span>${t("usage.native.cost")}</span></div>
-      ${shown.map(h => html`<${NativeRow} key=${h.runtime_id} h=${h} rt=${runtimes.find(r => r.id === h.runtime_id)} onRefresh=${refresh} />`)}</div>`
-      : html`<div class="card"><${Empty} icon="chart" title=${t("usage.native.empty_title")} text=${t("usage.native.empty_text")} /></div>`}
-    ${idle.length ? html`<p class="note">${t("usage.native.idle", { list: idle.map(h => name(h.runtime_id)).join(', ') })}</p>` : ''}
-    ${absent.length ? html`<p class="note">${t("usage.native.absent", { list: absent.map(h => name(h.runtime_id) + (/not installed/i.test(h.error) ? t("usage.native.not_installed") : '')).join(', ') })}</p>` : ''}
-  </section>`;
-}
+
+
 
 // Soldes des fournisseurs cloud qui les exposent (OpenRouter, DeepSeek…),
 // lus avec leur propre clé, sans génération. Un montant absent reste « — ».
@@ -149,22 +83,6 @@ export function UsagePage() {
     try { const r = await get('/api/usage', { retryAuth: false }); if (alive()) accept(r); }
     finally { if (alive()) setLoading(false); }
   }, 4000);
-  const quotas = (d ? d.quotas || [] : []).filter(q => { const rt = runtimes.find(r => r.id === q.runtime_id) || {}; return rt.available !== false && (rt.capabilities || []).includes('quota'); });
-  const quotaIDs = runtimes.filter(rt => rt.available !== false && rt.connected === true && rt.implemented && (rt.capabilities || []).includes('quota')).map(rt => rt.id);
-  useVisibleRefresh(async alive => {
-    if (!quotaIDs.length) return;
-    setReading(true);
-    try {
-      await Promise.all(quotaIDs.map(id => post('/api/runtimes/' + encodeURIComponent(id) + '/quota', {}, { retryAuth: false, timeout: 65000 }).catch(() => null)));
-      if (alive()) { const r = await get('/api/usage', { retryAuth: false }); if (alive()) accept(r); }
-    } finally { if (alive()) setReading(false); }
-  }, 30000, quotaIDs.join('|'));
-  const [reading, setReading] = useState(false);
-  const readAll = async () => {
-    setReading(true);
-    await Promise.all(quotas.map(q => post('/api/runtimes/' + encodeURIComponent(q.runtime_id) + '/quota', {}, { timeout: 65000 }).catch(() => null)));
-    setReading(false); load();
-  };
   const models = d ? d.models || [] : [];
   const fmtMoney = (v, cur) => Number(v).toLocaleString(locale(), { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 3 });
   const money = m => m.estimated_cost != null ? fmtMoney(m.estimated_cost, m.price && m.price.currency) : '—';
@@ -173,10 +91,8 @@ export function UsagePage() {
   return html`<div class="view page"><div class="page-in">
     <${SectionTabs} /><div class="page-head"><div><h1>${t("usage.page.usage")}</h1><p>${t("usage.page.quotas_de_tes_abonnements_et_consommation_dans_loom_une_donnee_ab")}</p></div></div>
     ${!d ? html`<div class="skeleton" style="height:200px"></div>` : html`
-      <section class="sec" aria-busy=${String(loading || reading)}><div class="sec-h"><h2>${t("usage.page.abonnements")}</h2>${(loading || reading) && html`<span class="muted" role="status"><span class="spinner"></span> ${t('usage.refreshing')}</span>`}${quotas.length > 1 && html`<button class="btn sm" disabled=${reading} onClick=${readAll}>${reading ? html`<span class="spinner"></span>` : html`<${Icon} n="refresh" />`} ${t("usage.page.read_all")}</button>`}</div>
-        <div class="grid3 stagger quotas">${quotas.map(q => html`<${Quota} key=${q.runtime_id} q=${q} rt=${runtimes.find(r => r.id === q.runtime_id)} onRefresh=${load} />`)}</div></section>
+      ${loading && html`<p class="note" role="status"><span class="spinner"></span> ${t('usage.refreshing')}</p>`}
       <${Balances} />
-      <${NativeUsage} runtimes=${runtimes} />
       <section class="sec"><div class="sec-h"><h2>${t("usage.page.in_loom")}<${Tip} text="${t("usage.page.tokens_rapportes_par_les_runtimes_dans_tes_discussions_loom_le_co")}" /></h2></div>
         ${models.length ? html`<div class="card table usage-t">
           <div class="tr th"><span>${t("usage.page.modele")}</span><span>${t("usage.page.entree_2")}</span><span>${t("usage.page.sortie_2")}</span><span>${t("usage.page.prix_m_tokens")}</span><span>${t("usage.page.estimation")}</span></div>

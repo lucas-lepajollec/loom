@@ -1,17 +1,12 @@
 # Cloud provider balances
 
-Loom observes provider account balances independently of retained Loom token
-counts, manual-price estimates and [native harness usage](harness-usage.md).
-No discussion, context or generation request is sent. The visible Usage page reads retained Loom snapshots every four seconds and
-refreshes connected harness quotas, native usage and provider balances every
-30 seconds. It refreshes immediately on opening/resuming the page and pauses
-while hidden. Requests never overlap within a poller. Manual refresh remains
-available. Native account sign-in/catalog connection remains explicit.
-
-A slow quota read does not lock out cached snapshots or other accounts. Reads
-for each harness are throttled to once per 30 seconds and in-flight reads cannot
-be duplicated. Failures preserve previous observations with an error marker;
-unknown or unsupported metrics are never replaced with invented zeros.
+Loom observes retained Local/Cloud model token counts, manual-price estimates
+and supported cloud-provider balances. The visible page reads retained snapshots
+every four seconds and provider balances every30seconds. It refreshes on
+opening/resume, pauses while hidden and retains the last valid snapshot while
+loading or after failure. Requests do not overlap. Refresh never sends a
+discussion, consumes a reset or starts generation. Missing metrics stay unknown.
+Native coding-account subscriptions and outside-Loom usage are no longer polled.
 
 ## HTTP API
 

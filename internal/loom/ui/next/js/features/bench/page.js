@@ -58,7 +58,6 @@ export function BenchPage() {
     ...weights.map(m => ({ key: 'm:' + m.path, name: m.name.replace(/\.gguf$/i, ''), sub: fmtBytes(m.size), logo: vendorOf(m.name), supported: true, v: { model: m.path, name: m.name } }))];
   const external = benchChoices(catalog, t);
   const cloud = external.filter(i => i.kind === 'cloud');
-  const accounts = external.filter(i => i.kind === 'harness');
   const all = [...local, ...external];
   const chosen = all.filter(i => i.supported && pick[i.key]);
   const busy = job && (job.status === 'running' || job.status === 'cancel' && !job.finished);
@@ -122,7 +121,6 @@ export function BenchPage() {
           <div class="sec-h"><h2>${t("bench.page.modeles")}</h2></div>
           ${group('Local', local, t("bench.page.aucun_modele_dans_la_bibliotheque"))}
           ${group('Cloud', cloud, t("bench.page.aucun_modele_cloud_visible_connecte_un_fournisseur_dans_cloud"))}
-          ${group(t('bench.accounts'), accounts, t('bench.accounts_empty'))}
           <p class="note">${t('bench.account_boundary')}</p><p class="note">${t('bench.selection_limit')}</p>
         </div>
       </div>

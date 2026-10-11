@@ -75,7 +75,7 @@ func handleMachineFolders(w http.ResponseWriter, r *http.Request) {
 				sendJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
 				return
 			}
-			if !usesNodeHarness(m) {
+			if !usesNodeTransport(m) {
 				sendJSON(w, 400, map[string]any{"ok": false, "error": "directory browsing requires a node harness module"})
 				return
 			}

@@ -16,22 +16,18 @@ const models = [
   { id: 'offline', name: 'Disconnected', kind: 'cloud', provider_name: 'Offline', supported: false, reason: 'provider_disconnected' },
 ];
 
-test('Bench includes hidden cloud models, uses native IDs and rejects unsupported or redirected harness modes', () => {
+test('Bench includes hidden cloud models, uses cloud IDs and excludes retired harness modes', () => {
   const choices = helpers.choices(models, french);
-  assert.equal(choices.length, 4);
+  assert.equal(choices.length, 2);
   assert.equal(choices[0].supported, true);
-  assert.equal(choices[1].v.choice_id, 'native');
-  assert.match(choices[1].sub, /sans outils/);
-  assert.equal(choices[2].supported, false);
-  assert.match(choices[2].sub, /ne garantit pas/);
-  assert.equal(choices[3].supported, false);
-  assert.match(choices[3].sub, /Reconnecte/);
+  assert.equal(choices[0].v.choice_id, 'cloud-hidden');
+  assert.equal(choices[1].supported, false);
+  assert.match(choices[1].sub, /Reconnecte/);
 });
 
 test('Bench labels native engine timing separately from API and native account rates', () => {
   assert.match(helpers.method({ kind: 'local', result: { prompt_per_second: 100 } }, french), /timings natifs/);
   assert.match(helpers.method({ kind: 'local', result: {} }, french), /durée de requête/);
-  assert.match(helpers.method({ kind: 'account' }, french), /Compte natif/);
   assert.match(helpers.method({ kind: 'cloud' }, french), /API cloud/);
 });
 
@@ -51,7 +47,7 @@ test('Bench launches only supported selected models with external consent and re
     benchChoices: helpers.choices, benchMethod: helpers.method, toast: () => {},
     confirm: async (...args) => { consents.push(args); return true; },
     get: async path => path.startsWith('/api/bench/catalog') ? { ok: true, models } : { ok: true, job: null },
-    post: async (path, body) => { posts.push({ path, body }); return { ok: true, job: { status: 'done', id: 'fixture', rows: [{ status: 'ok', kind: 'account', name: 'Native model', preview: 'Short', output: 'Full fixture response', result: {} }] } }; },
+    post: async (path, body) => { posts.push({ path, body }); return { ok: true, job: { status: 'done', id: 'fixture', rows: [{ status: 'ok', kind: 'cloud', name: 'API model', preview: 'Short', output: 'Full fixture response', result: {} }] } }; },
     request: async (path, options) => { cancellations.push({ path, options }); return { json: async () => ({ ok: true, job: { id: 'active-fixture', status: 'cancel', rows: [] } }) }; },
   };
   const page = fs.readFileSync(new URL('../next/js/features/bench/page.js', import.meta.url), 'utf8');
@@ -59,19 +55,19 @@ test('Bench launches only supported selected models with external consent and re
   const render = () => { cursor = 0; polls.length = 0; tree = env.page(); return tree; };
   render(); await polls[1](() => true); render();
   const picks = flatten(tree).filter(x => typeof x.type === 'function' && x.type.name === 'Pick');
-  assert.equal(picks.length, 2, 'only testable models are selectable');
+  assert.equal(picks.length, 1, 'only testable models are selectable');
   assert.ok(!picks.some(x => x.props.i.key === 'agy'), 'an adapter without a model-only mode is shown once, not as a checkbox');
   assert.ok(flatten(tree).some(x => x.props?.class === 'choice off'));
-  picks.find(x => x.props.i.key === 'native').props.onChange(true);
+  picks.find(x => x.props.i.key === 'cloud-hidden').props.onChange(true);
   render();
   const run = flatten(tree).find(x => x.type === 'button' && text(x).startsWith('Lancer'));
   assert.equal(run.props.disabled, false);
   await run.props.onClick(); render();
   assert.equal(consents.length, 1);
-  assert.match(consents[0][1], /quotas d’abonnement/);
+  assert.match(consents[0][1], /API/);
   assert.equal(posts[0].body.consent, true);
   assert.equal(posts[0].body.models.length, 1);
-  assert.equal(posts[0].body.models[0].choice_id, 'native');
+  assert.equal(posts[0].body.models[0].choice_id, 'cloud-hidden');
   assert.match(text(tree), /Full fixture response/);
   assert.deepEqual(flatten(tree).filter(x => x.props['data-label']).map(x => x.props['data-label']),
     ['Premier token', 'Prefill', 'Débit de sortie', 'Durée'], 'mobile metrics retain their labels when the table header is hidden');

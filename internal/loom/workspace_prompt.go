@@ -158,9 +158,6 @@ func assembleDiscussionContextParts(s RuntimeSession, query string, notes bool) 
 	for _, part := range primarySecondBrainParts() {
 		appendContextPart(&c, part)
 	}
-	if text := memoryProtocol(s); text != "" && c.Problem == "" {
-		add("memory_protocol", "Loom memory", s.ID, "how to keep memory current", text)
-	}
 	if s.Instructions != "" {
 		add("discussion_instructions", "Discussion instructions", s.ID, "discussion instructions", "Discussion instructions:\n"+s.Instructions)
 	}
@@ -169,7 +166,7 @@ func assembleDiscussionContextParts(s RuntimeSession, query string, notes bool) 
 	return c
 }
 
-func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions, revision string, consent bool, harness ...acpConfiguration) (RuntimeSession, error) {
+func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions, revision string, consent bool) (RuntimeSession, error) {
 	m.mu.Lock()
 	s, ok := m.getLocked(id)
 	if !ok {
@@ -214,20 +211,15 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 			return s, err
 		}
 	}
-	if len(harness) > 0 && harness[0].present() {
-		if err := m.configureACPLocked(&s, harness[0], consent); err != nil {
-			return s, err
-		}
-	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	current, ok := m.getLocked(id)
 	if !ok || !reflect.DeepEqual(current, original) || m.runs[id] != nil || m.nativeRunning(current) {
-		m.closeACP(id)
+		m.cancelPolicyRequests(id)
 		return s, errors.New("the discussion changed during configuration; try again")
 	}
 	if s.ProjectID != projectID || s.Instructions != instructions {
-		m.closeACP(id)
+		m.cancelPolicyRequests(id)
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
 	}
 	// Only an actual rename freezes the title; harness/context edits keep the
@@ -246,7 +238,7 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 	}
 	s.UpdatedAt = time.Now().UnixMilli()
 	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
-		m.closeACP(id)
+		m.cancelPolicyRequests(id)
 		return s, err
 	}
 	m.publishLocked(id, DiscussionEvent{"session": cloneRuntimeSession(s), "context": turnContext(s, nextContext)})
@@ -303,7 +295,7 @@ func (m *runtimeSessions) rewindLast(id string) (RuntimeSession, string, error) 
 		}
 	}
 	s.Turns = kept
-	m.closeACP(id)
+	m.cancelPolicyRequests(id)
 	s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
 	s.Status, s.Error = "idle", ""
 	s.UpdatedAt = time.Now().UnixMilli()
@@ -332,19 +324,4 @@ func handleRuntimeSessionRewind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "text": text, "session": clientSession(s), "context": discussionContext(s)})
-}
-
-// Native agents read the same files; gateway tools provide access when file
-// tools are unavailable. Background consolidation is Loom's own responsibility.
-// memoryProtocol is for agents that can act on memory (files or the loom MCP
-// tools); Loom-held chats have no such tools and Pi has no MCP.
-func memoryProtocol(s RuntimeSession) string {
-	registered, ok := registeredRuntimes.lookup(s.RuntimeID)
-	if !ok {
-		return ""
-	}
-	if _, acp := registered.(*acpAdapter); !acp || s.RuntimeID == "pi" || strings.HasSuffix(s.RuntimeID, "-pi") {
-		return ""
-	}
-	return "Memory is stored as Markdown in the second brain. Read MEMORY.md indexes above at session start, then relevant topic files on demand using file access or memory_read. Use memory_write and memory_delete to keep indexes consistent. Types: user, feedback, project, reference. Feedback/project memories include **Why:** and **How to apply:**. Prefer updating existing files to near-duplicates. Never store secrets or facts derivable from code/git. Use search_discussions for verbatim recall."
 }

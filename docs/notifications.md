@@ -6,11 +6,11 @@ and phone action contracts. `capability.degraded` and `capability.restored` are
 accepted notification rule types, excluded from the default rule list. Their
 feature/reason and backend UI shapes are described in [Doctor](doctor.md).
 
-Loom executes workspace and harness turns on the server, independently of SSE
+Loom executes Local/Cloud turns on the server, independently of SSE
 subscribers. Closing every tab does not stop a turn or cancel an approval.
 Harness turns have no cloud request timeout. Pending requests and completed
 results use the existing discussion session records; there is no separate task
-store. Stop, harness exit and server shutdown still cancel execution. A daemon
+store. Stop, model timeout and server shutdown still cancel execution. A daemon
 restart marks unfinished work interrupted; this slice does not resume processes
 or durable checkpoints after a restart.
 
@@ -43,7 +43,7 @@ in `last_errors`; delivery is best effort, with no persistent retry queue.
    address may work on your Wi-Fi but not on cellular; HTTP/LAN settings return
    `public_url_warning`. Loom derives an omitted base URL from the request Host
    on save. Behind a TLS proxy, enter the HTTPS URL explicitly.
-4. Use the ntfy test endpoint, then close all Loom tabs and run a harness that
+4. Use the ntfy test endpoint, then close all Loom tabs and run a model/tool turn that
    asks for approval or a choice. The notification click link opens
    `<public_base_url>/#/chat/<discussion_id>`.
 
@@ -235,11 +235,8 @@ Unsubscribe accepts `{"endpoint":"https://push-service/..."}` at
 
 ## Acceptance
 
-Automated fixtures cover native and harness background completion, a fake ACP
-approval with no subscribers, a cookie-free notification action followed by a
-persisted result, and a cancelled browser subscription before a question opens.
-They check unlimited harness lifetime, token binding/tamper/replay/expiry,
-coalescing, signatures, payloads, secure-context reporting, stable sealed VAPID
-keys, and worker deep links. A literal hour-long run on an installed harness,
-actual iPhone delivery and TLS-proxy/push-service interoperability remain
-real-platform acceptance checks; accelerated fixtures do not certify them.
+Free fixtures cover background model completion, generic pending questions,
+phone response binding/replay/expiry, refusal for secrets and multi-choice forms,
+webhook sanitization, key separation and task links. No real model, subscription
+or push service is used automatically. Physical-device push delivery remains a
+separate opt-in check. Coding-agent lifetime and protocol guarantees are retired.

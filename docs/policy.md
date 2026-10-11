@@ -24,7 +24,7 @@ Conditions:
 
 | JSON field | Meaning |
 | --- | --- |
-| `inside_workdir` | Require a structured path inside the real workdir. Symlink escapes, unresolved roots and missing path metadata do not qualify. Existing ACP filesystem confinement still applies. |
+| `inside_workdir` | Require a structured path inside the real workdir. Symlink escapes, unresolved roots and missing path metadata do not qualify. This condition does not create an OS sandbox. |
 | `command_prefixes` | Any listed prefix must match a simple command at a word boundary. Compound shell commands, substitutions, pipes and redirects do not qualify. This is a conservative match, not a shell sandbox. |
 | `max_cost` | Observed monthly spend ceiling, in the provider's reported currency. At/above the ceiling the matching rule denies. Missing usage skips this condition; it never becomes zero. |
 | `provider_id`, `agent_id`, `endpoint`, `model`, `discussion_id` | Exact destination bindings. |
@@ -32,7 +32,7 @@ Conditions:
 | `legacy_permission` | `ask`, `edits` or `full`; used by migrated defaults to follow existing discussion settings. |
 
 The first unlocked access saves one vault-protected version-1 policy record.
-Migration adds conditional rules for existing ACP permission settings, exact
+Migration adds conditional rules for retained legacy permission metadata, exact
 discussion route grants and saved consolidation consents. It does not move or
 export credentials. The document's server-owned `migrated` marker prevents
 repeating migration after edits. Rules are limited to 512; route migration is
@@ -42,10 +42,8 @@ Without a matching explicit rule, existing behavior remains:
 
 | Boundary / subject | Default |
 | --- | --- |
-| ACP `agent.command`, `agent.file_write`, `agent.file_read`, `agent.search`, `agent.think`, `agent.fetch`, `agent.tool` | `ask` confirms; `edits` auto-allows one-shot read/search/edit/think/fetch; `full` auto-allows offered one-shot approvals. Deletes/moves still ask under edits. Native sandbox escalation and Claude plan transitions always retain explicit confirmation. |
 | Native tool approval | Keep the upstream's offered interaction; a launch's full permission does not auto-answer a new native request. |
 | `agent.permission_full`, `agent.filesystem_full` | Fresh explicit consent when enabling full permission or filesystem access. |
-| ACP filesystem reads/writes already allowed by the client contract | Allow within the existing scoped filesystem boundary. Explicit rules can restrict them. |
 | `data.send_provider` | Fresh destination/context selection confirms; already-consented turn sends allow. Every Loom-owned cloud, external engine, Brain model and compaction send is checked again before sending. |
 | `notification.summary` | Allow only on the existing opt-in summary delivery path. Summaries remain omitted when the setting is off. |
 | `memory.consolidate` | Allow on an explicitly selected provider pair or an already-selected, consented consolidation destination. Missing/disconnected destinations and nonresident local models retain their existing no-generation behavior. |
@@ -64,18 +62,11 @@ An engine turn binds its destination, model and credential before confirmation.
 Switching the linked engine while an approval waits does not redirect that
 turn's transcript; subsequent turns use the newly selected engine.
 
-Restrictive tool policies keep the native approval channel enabled. A native
-protocol without a reply channel, or an opaque bypass mode that suppresses
-requests, is refused with a visible reason when it cannot enforce that policy.
-Persistent approval answers are reduced to one-shot choices under a restrictive
-tool policy. Loom does not change native global permissions or claim control of
-tools the native protocol never exposes. Native account/catalog connection and
-sign-in remain explicit.
-
-Loom's per-run ACP gateway tokens bind calls to a live discussion and expire
-with that run. A manually/global configured native gateway token has no trusted
-discussion/agent identity, so only global/local-machine rules can apply there;
-caller-supplied arguments never establish an agent or project scope.
+Local/cloud tools and terminals retain their policy checks. A workspace is not
+an OS sandbox. MCP gateway tokens configured manually have no trusted discussion
+identity, so only global/local-machine rules apply; caller arguments cannot
+establish a project, agent or discussion scope. Native coding permissions and
+account policies have been removed.
 
 ## Exact Settings › Policy API
 
@@ -199,7 +190,7 @@ POST /api/workspace/sessions/{session_id}/requests/{request_id}
 ```
 
 The response is `{"ok":true}`. `deny` declines and `cancel` cancels. Pending
-ACP tool approvals retain their offered native options/request method. Task
+Generic tool approvals retain their offered options. Task
 waiting events reuse the existing single-use phone action tokens; summaries of
 policy requests are excluded to prevent recursive summary approvals. A deny
 saved while an approval is pending wins when the answer is delivered.

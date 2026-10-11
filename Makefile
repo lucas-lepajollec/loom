@@ -1,4 +1,4 @@
-.PHONY: default help build api web dev test check-ui check-ui-routes agents-watch clean
+.PHONY: default help build api web dev test check-ui check-ui-routes clean
 
 DEV_HOME ?= $(CURDIR)/.project-local/runtime
 DEV_HOST ?= 127.0.0.1
@@ -16,7 +16,6 @@ help:
 	  '                Set DEV_HOST to a LAN IP for phone testing (auth required)' \
 	  'make test       Run the full Go test suite (go test ./...)' \
 	  'make check-ui   Syntax-check ES modules and run Node UI tests' \
-	  'make agents-watch  Check installed agent contracts; AGENTS_WATCH_ARGS=--install for latest' \
 	  'make clean      Remove bin/' \
 	  'make help       Show this target list'
 
@@ -52,8 +51,3 @@ check-ui-routes: build
 
 clean:
 	rm -rf bin/
-
-# Local runs write reports only; --publish explicitly enables GitHub review writes.
-AGENTS_WATCH_ARGS ?=
-agents-watch:
-	go run ./tools/agents-watch $(AGENTS_WATCH_ARGS)

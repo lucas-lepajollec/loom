@@ -28,7 +28,7 @@ func isEngineWorker() bool { return os.Getenv("LOOM_UI_SERVICE") == "loom-node" 
 
 const defaultNodeListen = "127.0.0.1:2511"
 
-// node runs before dotenv, owner adoption and ACP shutdown registration. Its
+// node runs before dotenv, owner adoption and runtime shutdown registration. Its
 // data root deliberately ignores LOOM_HOME and /etc/default/loom.
 func cmdNode(args []string) error {
 	if runtime.GOOS != "linux" {
@@ -61,7 +61,7 @@ func cmdNode(args []string) error {
 	noObserve := flags.Bool("no-observe", false, "disable node observe module (init only)")
 	noTerminal := flags.Bool("no-terminal", false, "disable node terminal module (init only)")
 	noVoice := flags.Bool("no-voice", false, "disable node voice module (init only)")
-	noHarness := flags.Bool("no-harness", false, "disable node harness module (init only)")
+	noHarness := flags.Bool("no-harness", false, "deprecated compatibility flag; harnesses are always absent")
 	models := flags.String("models", "", "existing model directory (init only)")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -144,7 +144,7 @@ func cmdNode(args []string) error {
 			}
 		}
 		if explicitHarness {
-			if err := putBool(bkState, nodeHarnessDisabledKey, *noHarness); err != nil {
+			if err := putBool(bkState, "node_harness_disabled", true); err != nil {
 				return err
 			}
 		}
@@ -303,12 +303,9 @@ func nodeAuth(hash string, next http.HandlerFunc) http.HandlerFunc {
 }
 
 func newEngineWorkerMux(token string) *http.ServeMux {
-	return newEngineWorkerMuxHarness(token, newNodeHarnessServer(8))
+	return newEngineWorkerMuxModules(token, newNodeTerminalServer(defaultNodeTerminalLimit))
 }
-func newEngineWorkerMuxHarness(token string, harness *nodeHarnessServer) *http.ServeMux {
-	return newEngineWorkerMuxModules(token, harness, newNodeTerminalServer(defaultNodeTerminalLimit))
-}
-func newEngineWorkerMuxModules(token string, harness *nodeHarnessServer, terminal *nodeTerminalServer) *http.ServeMux {
+func newEngineWorkerMuxModules(token string, terminal *nodeTerminalServer) *http.ServeMux {
 	mux := http.NewServeMux()
 	hash := ""
 	if token != "" {
@@ -331,9 +328,7 @@ func newEngineWorkerMuxModules(token string, harness *nodeHarnessServer, termina
 	registerVoiceRoutes(api, true)
 	api("/api/node/terminal/ws", terminal.ws)
 	api("/api/node/observe", handleNodeObserve)
-	api("/api/node/harness/inventory", harness.inventory)
-	api("/api/node/harness/lifecycle", harness.lifecycleAction)
-	api("/api/node/harness/acp", harness.acp)
+	api("/api/node/inventory", handleNodeInventory)
 	api("/api/node/folders", handleNodeFolders)
 	api("/api/node/workspace", handleNodeWorkspace)
 	api("/api/ping", handlePing)
@@ -485,14 +480,11 @@ func serveEngineWorker(addr string) error {
 	defer stop()
 	go startConfiguredEngine(ctx)
 	go voiceLifecycle(ctx)
-	harness := newNodeHarnessServer(8)
-	defer harness.stop()
 	terminal := newNodeTerminalServer(defaultNodeTerminalLimit)
 	defer terminal.stop()
-	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: newEngineWorkerMuxModules(token, harness, terminal), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: newEngineWorkerMuxModules(token, terminal), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	go func() {
 		<-ctx.Done()
-		harness.stop()
 		terminal.stop()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

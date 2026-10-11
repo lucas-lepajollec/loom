@@ -170,7 +170,7 @@ func runShell(parent context.Context, command string, timeoutSec int) string {
 	}
 	// Bound retained output while the child runs, rather than only after exit.
 	// A noisy command must not allocate memory for minutes before truncation.
-	var stdout, stderr harnessTail
+	var stdout, stderr commandTail
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	// ⚠️ WaitDelay borne l'attente APRÈS la fin (ou la mise à mort) du process.

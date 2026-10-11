@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"github.com/lucas-lepajollec/loom/internal/loom/diagnostics"
 )
 
@@ -20,7 +19,7 @@ func diagnosticSources(ctx context.Context) ([]diagnostics.Source, diagnostics.R
 		return nil, diagnostics.Redactor{}, err
 	}
 	home, _ := os.UserHomeDir()
-	r := diagnostics.Redactor{Homes: []string{home, LoomHome()}, Secrets: []string{sessionGatewayToken, readAPIKey()}}
+	r := diagnostics.Redactor{Homes: []string{home, LoomHome()}, Secrets: []string{readAPIKey()}}
 	if token, err := readNodeToken(); err == nil {
 		r.Secrets = append(r.Secrets, token)
 	}
@@ -36,32 +35,6 @@ func diagnosticSources(ctx context.Context) ([]diagnostics.Source, diagnostics.R
 	workspaceSessions.mu.Unlock()
 	if n := currentEngineNode(); n != nil {
 		r.Secrets = append(r.Secrets, n.WebKey, n.APIKey)
-	}
-	compatibility := []runtimeCompatibilityRecord{}
-	failed := []map[string]any{}
-	for _, adapter := range registeredRuntimes.Adapters() {
-		a, ok := adapter.(*acpAdapter)
-		if !ok {
-			continue
-		}
-		var c runtimeCompatibilityRecord
-		if getStoreJSON(bkState, "agent_compat_"+a.agent.ID, &c) {
-			compatibility = append(compatibility, c)
-		}
-		if p, ok := cachedAgentProbe(a.agent.ID); ok {
-			if p.Error != "" && len(p.CapabilityChecks) == 0 {
-				failed = append(failed, map[string]any{"runtime": a.agent.ID, "at": p.At, "duration_seconds": p.Duration, "reason": "handshake_failed"})
-			}
-			checks := append([]capability.Probe{}, p.CapabilityChecks...)
-			if p.Compatibility != nil {
-				checks = append(checks, p.Compatibility.CapabilityChecks...)
-			}
-			for _, check := range checks {
-				if !check.OK {
-					failed = append(failed, map[string]any{"runtime": a.agent.ID, "at": p.At, "capability": check.Capability, "reason": check.Reason})
-				}
-			}
-		}
 	}
 	for _, m := range loadRemoteMachines() {
 		r.Homes = append(r.Homes, m.Home)
@@ -105,8 +78,6 @@ func diagnosticSources(ctx context.Context) ([]diagnostics.Source, diagnostics.R
 	sources := []diagnostics.Source{
 		{Name: "versions.json", Value: map[string]any{"loom": Version, "channel": updateChannel(), "os": runtime.GOOS, "arch": runtime.GOARCH, "go": runtime.Version()}},
 		{Name: "doctor.json", Value: report},
-		{Name: "compatibility.json", Value: compatibility},
-		{Name: "failed-probes.json", Value: failed},
 		{Name: "config.json", Value: map[string]any{"config": config, "providers": providers, "mcp": servers}},
 		{Name: "events.json", Value: types},
 	}
@@ -120,20 +91,6 @@ func diagnosticSources(ctx context.Context) ([]diagnostics.Source, diagnostics.R
 		data := diagnosticLogTail(filepath.Join(LoomHome(), name))
 		sources = append(sources, diagnostics.Source{Name: log.archive, Log: data, IsLog: true})
 	}
-	// Lifecycle logs describe installs/updates only, but still receive the
-	// same content omission as engine/node logs.
-	var logs strings.Builder
-	for key := range allKV(bkState) {
-		if !strings.HasPrefix(key, harnessLifecyclePrefix) || logs.Len() >= diagnostics.MaxSourceBytes {
-			continue
-		}
-		var setting harnessLifecycleSetting
-		if getStoreJSON(bkState, key, &setting) && setting.LastAuto != nil {
-			logs.WriteString(setting.LastAuto.Log)
-			logs.WriteByte('\n')
-		}
-	}
-	sources = append(sources, diagnostics.Source{Name: "logs/agents.log", Log: logs.String(), IsLog: true})
 	return sources, r, nil
 }
 func diagnosticLogTail(path string) string {

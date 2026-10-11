@@ -291,7 +291,7 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .insp-head .seg{flex:0 1 auto}
 .insp-head{justify-content:space-between}
 
-/* ===== actions d'un harness ===== */
+/* ===== actions et historique ===== */
 .tc-line{display:flex;align-items:center;gap:8px;min-height:26px;font-size:13px;color:var(--text-3)}
 .tc-line .ico{width:14px;height:14px;flex:none}
 .tc-line .t{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -341,7 +341,7 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .ap-tool code{font:12.5px var(--mono);white-space:pre-wrap;word-break:break-all}
 .approval.done .ap-tool{font-size:12.5px;color:var(--text-3)}
 .ap-acts{display:flex;gap:6px;flex-wrap:wrap}
-/* panneau session d'un harness */
+/* état historique */
 .hs-sec{display:flex;flex-direction:column;gap:8px}
 .hs-h{display:flex;align-items:center;font-size:12px;font-weight:500;color:var(--text-3)}
 .hs-h .count{margin-left:6px;font:400 12px var(--font);color:var(--text-4)}
@@ -368,16 +368,6 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .work-b{display:flex;flex-direction:column;gap:12px;margin:8px 0 4px;padding-left:14px;border-left:1px solid var(--line);animation:in-fade var(--mid) var(--ease)}
 .work-b .msg-ai .md{color:var(--text-2);font-size:14px}
 .tc-st.muted{font-size:12px;color:var(--text-3)}
-/* commandes « / » d'un harness */
-.composer-wrap{position:relative}
-.slash{position:absolute;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 48px));bottom:calc(100% - 4px);z-index:20;padding:4px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--raised);box-shadow:var(--shadow-pop)}
-.slash-row{display:flex;align-items:baseline;gap:10px;width:100%;min-height:32px;padding:6px 10px;border-radius:6px;text-align:left}
-.slash-row b{font:500 12.5px var(--mono);color:var(--text);white-space:nowrap}
-.slash-row span{font-size:12.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.slash-row.on{background:var(--surface-3)}
-.composer-tip{font-size:12px;color:var(--text-4)}
-.slash{max-height:320px;overflow-y:auto}
-.slash-row em{font:12px var(--mono);font-style:normal;color:var(--text-3);white-space:nowrap}
 /* panneau latéral hors discussion : même panneau que la discussion */
 .drawer-scrim{background:rgba(0,0,0,.35)}
 .drawer-panel{position:absolute;top:8px;right:8px;bottom:8px;width:var(--insp-w);max-width:calc(100vw - 16px);margin:0;animation:in-right var(--slow) var(--out)}

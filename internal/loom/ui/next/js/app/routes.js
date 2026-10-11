@@ -5,7 +5,6 @@ import { t } from '../core/i18n.js';
 import { ChatView } from '../features/chat/view.js';
 import { LocalPage } from '../features/local/page.js';
 import { CloudPage } from '../features/cloud/page.js';
-import { HarnessesPage } from '../features/harnesses/page.js';
 import { ResourcesPage } from '../features/resources/page.js';
 import { UsagePage } from '../features/usage/page.js';
 import { BenchPage } from '../features/bench/page.js';
@@ -24,7 +23,6 @@ export const ROUTES = [
   { id: 'chat', page: ChatView },
   { id: 'local', page: LocalPage },
   { id: 'cloud', page: CloudPage },
-  { id: 'harnesses', page: HarnessesPage },
   { id: 'tasks', page: TasksPage },
   { id: 'voice', page: VoicePage },
   { id: 'jarvis', page: JarvisPage },

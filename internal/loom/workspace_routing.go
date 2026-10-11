@@ -44,13 +44,10 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 	original := s
 	s = cloneRuntimeSession(s)
 	m.mu.Unlock()
-	if choice.Kind == "cloud" || choice.Kind == "harness" {
+	if choice.Kind == "cloud" {
 		in := sessionPolicyInput(s, "data.send_provider", policy.Confirm)
 		in.ProviderID, in.Endpoint, in.Model, in.AgentID = choice.ProviderID, choice.Endpoint, choice.Model, choice.RuntimeID
 		in.MachineID = "local"
-		if agent, ok := acpAgentFor(choice.RuntimeID); ok && agent.Machine != "" {
-			in.MachineID = agent.Machine
-		}
 		// Existing grants match only this discussion and destination.
 		in.DiscussionID = s.ID
 		if err := m.authorizePolicy(ctx, in, consent); err != nil {
@@ -62,104 +59,17 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 	if choice.Kind == "cloud" {
 		s.RuntimeID = "openai-compatible"
 	}
-	if choice.Kind == "harness" {
-		if !choice.Ready {
-			return s, errors.New("harness CLI unavailable")
-		}
-		s.RuntimeID = choice.RuntimeID
-		if agent, ok := acpAgentFor(s.RuntimeID); ok {
-			target := workspaceTarget(agent)
-			priorTarget := s.WorkspaceTarget
-			if priorTarget == "" {
-				if previous, found := acpAgentFor(previousRuntime); found {
-					priorTarget = workspaceTarget(previous)
-				}
-			}
-			if s.Workdir == "" || (priorTarget != "" && priorTarget != target) {
-				s.Workdir, s.WorkspaceID = "", ""
-				s.AdditionalDirs = nil
-				if dir, extra := projectFolders(s.ProjectID, agent); dir != "" {
-					s.Workdir, s.AdditionalDirs = dir, extra
-				} else if target != "" {
-					workspace, err := defaultWorkspace(agent)
-					if err != nil {
-						return s, err
-					}
-					dir, err := prepareWorkspace(ctx, workspace, workspace.Managed)
-					if err != nil {
-						return s, err
-					}
-					s.Workdir, s.WorkspaceID = dir, workspace.ID
-				}
-			}
-			attachPrimarySecondBrain(&s, agent)
-			if adapter, ok := registeredRuntimes.lookup(agent.ID); ok {
-				if acp, ok := adapter.(*acpAdapter); ok {
-					f := acp.features()
-					if s.Mode == "" || s.Mode == "default" {
-						s.Mode = f.DefaultMode
-					}
-					if !f.AdditionalDirs {
-						s.AdditionalDirs = nil
-					}
-				}
-			}
-			s.WorkspaceTarget = target
-		}
+	s.RuntimeID = "llama.cpp"
+	if choice.Kind == "cloud" {
+		s.RuntimeID = "openai-compatible"
 	}
 	s.ReasoningEffort = ""
-	if choice.RuntimeID == "codex" && len(choice.ReasoningEfforts) > 0 {
-		s.ReasoningEffort = choice.DefaultEffort
-		if len(effort) > 0 && effort[0] != "" {
-			s.ReasoningEffort = effort[0]
-		}
-		valid := false
-		for _, e := range choice.ReasoningEfforts {
-			if e == s.ReasoningEffort {
-				valid = true
-			}
-		}
-		if !valid {
-			return s, errors.New("reasoning level not supported by this Codex model")
-		}
-	}
 	s.ProviderID = choice.ProviderID
 	s.ProviderName = choice.ProviderName
 	s.Endpoint = choice.Endpoint
 	s.Model = choice.Model
 	if err := ctx.Err(); err != nil {
 		return s, err
-	}
-	// Same agent, model offered by its live session: switch in place. The
-	// native session, its context, modes and options are kept.
-	live := false
-	if choice.Kind == "harness" && previousRuntime == s.RuntimeID && previousModel != s.Model {
-		option := acpModelOption(s.AvailableConfigOptions)
-		if optionID, _ := option["id"].(string); optionID != "" && acpConfigValueAllowed(option, s.Model) {
-			m.acpMu.Lock()
-			p := m.acp[id]
-			m.acpMu.Unlock()
-			if p != nil {
-				configureCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-				err := p.configure(configureCtx, "", map[string]any{optionID: s.Model})
-				cancel()
-				if err == nil {
-					live = true
-					p.mu.Lock()
-					s.AvailableConfigOptions = cloneACPState(p.state).AvailableConfigOptions
-					p.mu.Unlock()
-				}
-			} else if s.NativeSessionID != "" {
-				// Applied when the native session is reopened.
-				live = true
-			}
-			if live {
-				if s.ConfigOptions == nil {
-					s.ConfigOptions = map[string]any{}
-				}
-				s.ConfigOptions[optionID] = s.Model
-			}
-		}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -170,8 +80,8 @@ func (m *runtimeSessions) selectModelContext(ctx context.Context, id, choiceID s
 	if choice.Kind == "cloud" && m.keys[choice.ProviderID] == "" {
 		return s, errors.New("provider disconnected while preparing the executor")
 	}
-	if !live && (previousRuntime != s.RuntimeID || previousModel != s.Model) {
-		m.closeACP(id)
+	if previousRuntime != s.RuntimeID || previousModel != s.Model {
+		m.cancelPolicyRequests(id)
 		if previousRuntime != s.RuntimeID {
 			s.FilesystemPolicy = ""
 		}

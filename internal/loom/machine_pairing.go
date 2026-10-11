@@ -89,8 +89,6 @@ func savePairedMachineMode(m RemoteMachine, n *engineNode, migrate bool) (Remote
 		if migrate && index < 0 {
 			return m, errors.New("machine removed during migration")
 		}
-		var agents []acpAgent
-		var agentRaw, agentEncoded []byte
 		if migrate {
 			for i, other := range machines {
 				if i != index && other.NodeID == n.NodeID {
@@ -101,40 +99,8 @@ func savePairedMachineMode(m RemoteMachine, n *engineNode, migrate bool) (Remote
 			u, _ := url.Parse(n.URL)
 			result.Host, result.Hostname = u.Hostname(), n.Hostname
 			machines[index] = result
-			agentRaw, err = getBytesErr(bkState, acpCustomState)
-			if err != nil {
-				return m, err
-			}
-			if len(agentRaw) != 0 {
-				plain, err := decodeMemContent(agentRaw)
-				if err != nil {
-					return m, err
-				}
-				if err := json.Unmarshal(plain, &agents); err != nil {
-					return m, err
-				}
-			}
-			for i, agent := range agents {
-				if agent.Machine != result.ID {
-					continue
-				}
-				harness := strings.TrimPrefix(agent.ID, "custom-"+result.ID+"-")
-				replacement, err := nodeAgent(result, harness)
-				if err != nil {
-					return m, err
-				}
-				agents[i].Command, agents[i].Args, agents[i].Detect = replacement.Command, replacement.Args, nil
-				agents[i].RemoteHome = result.Home
-			}
-			plain, err := json.Marshal(agents)
-			if err != nil {
-				return m, err
-			}
-			agentEncoded, err = encodeMemContent(plain)
-			if err != nil {
-				return m, err
-			}
 		}
+
 		plain, err := json.Marshal(machines)
 		if err != nil {
 			return m, err
@@ -145,14 +111,9 @@ func savePairedMachineMode(m RemoteMachine, n *engineNode, migrate bool) (Remote
 		}
 		changed := false
 		err = store.Update(dbPath(), bkState, func(b *bolt.Bucket) error {
-			if !bytes.Equal(raw, b.Get([]byte(remoteMachinesState))) || migrate && !bytes.Equal(agentRaw, b.Get([]byte(acpCustomState))) {
+			if !bytes.Equal(raw, b.Get([]byte(remoteMachinesState))) {
 				changed = true
 				return nil
-			}
-			if migrate {
-				if err := b.Put([]byte(acpCustomState), agentEncoded); err != nil {
-					return err
-				}
 			}
 			if err := b.Put([]byte(machineNodePrefix+result.ID), link); err != nil {
 				return err
@@ -163,13 +124,6 @@ func savePairedMachineMode(m RemoteMachine, n *engineNode, migrate bool) (Remote
 			return m, err
 		}
 		if !changed {
-			if migrate {
-				for _, agent := range agents {
-					if agent.Machine == result.ID {
-						registeredRuntimes.upsert(&acpAdapter{agent: agent})
-					}
-				}
-			}
 			return result, nil
 		}
 	}
@@ -291,7 +245,7 @@ func handleMachinePairInput(w http.ResponseWriter, r *http.Request, req machineP
 		sendJSON(w, 500, map[string]any{"ok": false, "error": "machine maintenance link could not be saved: " + err.Error() + "; run loom node pair to retry"})
 		return
 	}
-	if target.ID == "" && hasNodeModule(m.Modules, "harness") {
+	if target.ID == "" {
 		if checked, checkErr := refreshNodeMachine(r.Context(), m); checkErr == nil {
 			machines := loadRemoteMachines()
 			for i := range machines {

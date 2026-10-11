@@ -81,7 +81,7 @@ func (m *runtimeSessions) continueDiscussion(id, projectName string) (RuntimeSes
 				return next, err
 			}
 		}
-		m.closeACP(id)
+		m.cancelPolicyRequests(id)
 		old.NativeSessionID, old.NativeRuntimeID, old.NativeContext = "", "", ""
 		if err := putStoreJSON(bkRuntimeSessions, id, old); err != nil {
 			return next, err
