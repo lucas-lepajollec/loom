@@ -17,6 +17,17 @@ func (m *runtimeSessions) cancelPolicyRequests(id string) {
 	}
 }
 func (m *runtimeSessions) shutdownRuntimes() {
+	c := &m.policyConsents
+	c.mu.Lock()
+	c.closed = true
+	pending := make([]*policyConsentRequest, 0, len(c.pending))
+	for _, request := range c.pending {
+		pending = append(pending, request)
+	}
+	c.mu.Unlock()
+	for _, request := range pending {
+		request.cancel()
+	}
 	m.mu.Lock()
 	for _, run := range m.runs {
 		if run.cancel != nil {
@@ -31,6 +42,8 @@ func (m *runtimeSessions) shutdownRuntimes() {
 	for _, b := range brokers {
 		b.Cancel()
 	}
+	// No legacy worker may still write its policy journal after shutdown returns.
+	m.policyWorkers.Wait()
 }
 func (m *runtimeSessions) answerRequest(id, requestID string, answer agent.RequestAnswer) error {
 	if _, ok := m.get(id); !ok {

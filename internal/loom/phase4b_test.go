@@ -79,6 +79,15 @@ func TestPhase4bLegacyConsentRequestRetryAndShutdown(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("shutdown left a consent worker waiting")
 	}
+	select {
+	case <-required.request.done:
+	default:
+		t.Fatal("shutdown returned before the pending consent worker settled")
+	}
+	err = m.authorizePolicy(t.Context(), in, false)
+	if err == nil || errors.As(err, &required) {
+		t.Fatal("shutdown allowed a new consent request", err)
+	}
 }
 func TestPhase4bNativePolicyRecheckedOnAnswer(t *testing.T) {
 	isolatePhase4b(t)
