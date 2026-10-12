@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Cancel and settle pending policy-consent workers before shutdown returns, preventing audit writes after teardown; preserve one-shot consent and reject new requests after shutdown.
+- Refresh compatible MCP SDK and readability libraries without changing the Go runtime baseline.
+
 - Retire coding harness integrations, native protocols/installers/accounts,
   quotas, remote agent imports and related interface screens.
 - Keep Local/Cloud discussions, engines/nodes, Brain, skills/MCP, terminals,
