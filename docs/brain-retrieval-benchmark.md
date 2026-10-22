@@ -21,9 +21,9 @@ checks without a model service or additional dependencies.
 From the repository root:
 
 ```sh
-GOTOOLCHAIN=go1.26.9 sh tools/brain-retrieval/run.sh
+GOTOOLCHAIN=go1.26.10 sh tools/brain-retrieval/run.sh
 python3 -m unittest discover -s tools/brain-retrieval -p 'test_*.py'
-GOTOOLCHAIN=go1.26.9 go test ./internal/loom/brain -run '^$' \
+GOTOOLCHAIN=go1.26.10 go test ./internal/loom/brain -run '^$' \
   -bench '^BenchmarkRetrievalEvidence$' -benchmem -benchtime=1s
 ```
 
@@ -40,9 +40,9 @@ The exact audit commands remain available:
 
 ```sh
 LOOM_BRAIN_RETRIEVAL_MODE=lexical LOOM_BRAIN_RETRIEVAL_OUT=/tmp/evidence.json \
-  GOTOOLCHAIN=go1.26.9 go test ./internal/loom/brain -run '^TestRetrievalEvidence$' -count=1 -v
+  GOTOOLCHAIN=go1.26.10 go test ./internal/loom/brain -run '^TestRetrievalEvidence$' -count=1 -v
 LOOM_BRAIN_RETRIEVAL_MODE=lexical LOOM_BRAIN_RETRIEVAL_OUT=/tmp/final-context.json \
-  GOTOOLCHAIN=go1.26.9 go test ./internal/loom -run '^TestBrainRetrievalFinalContext$' -count=1 -v
+  GOTOOLCHAIN=go1.26.10 go test ./internal/loom -run '^TestBrainRetrievalFinalContext$' -count=1 -v
 ```
 
 The tests themselves use `t.TempDir`; the shell runner also isolates process
@@ -105,7 +105,7 @@ python3 tools/brain-retrieval/import_longmemeval.py \
   --manifest .project-local/brain-retrieval/subset/manifest.json \
   --output-dir .project-local/brain-retrieval/subset
 LOOM_BRAIN_RETRIEVAL_CASES="$PWD/.project-local/brain-retrieval/subset" \
-  GOTOOLCHAIN=go1.26.9 sh tools/brain-retrieval/run.sh
+  GOTOOLCHAIN=go1.26.10 sh tools/brain-retrieval/run.sh
 ```
 
 Every haystack session and all its user/assistant turns are ingested. Source paths
