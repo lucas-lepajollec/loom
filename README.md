@@ -135,7 +135,7 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.ps1 | iex
 ```
 
-To build from source, install Go 1.26.9+ and GNU Make. The web UI is embedded directly, with no Node build step. macOS's native menu-bar build also requires a C toolchain; `CGO_ENABLED=0` builds the CLI/web interface without that icon.
+To build from source, install Go 1.26.10+ and GNU Make. The web UI is embedded directly, with no Node build step. macOS's native menu-bar build also requires a C toolchain; `CGO_ENABLED=0` builds the CLI/web interface without that icon.
 
 ```sh
 git clone https://github.com/lucas-lepajollec/loom.git

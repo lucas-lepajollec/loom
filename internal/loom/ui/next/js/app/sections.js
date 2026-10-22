@@ -7,6 +7,7 @@ import { app } from '../core/state.js';
 import { TabNav } from '../ui/tabnav.js';
 
 export const GROUPS = [
+  { id: 'agents', icon: 'agent', get label() { return t('agents.title'); }, tabs: [['agents', () => t('agents.title')]] },
   { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [['local', () => t('local.page.local')], ['cloud', () => t('app.routes.cloud')], ['engine', () => t('engine.page.title')], ['voice', () => t('voice.title')], ['jarvis', () => t('jv.title')]] },
   { id: 'tasks', icon: 'pulse', get label() { return t('tasks.title'); }, tabs: [['tasks', () => t('tasks.title')]] },
   { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')], ['workspaces', () => t('workspaces.title')], ['terminals', () => t('app.routes.terminaux')], ['environment', () => t('app.routes.environnement')]] },

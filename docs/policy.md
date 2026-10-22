@@ -49,6 +49,7 @@ Without a matching explicit rule, existing behavior remains:
 | `memory.consolidate` | Allow on an explicitly selected provider pair or an already-selected, consented consolidation destination. Missing/disconnected destinations and nonresident local models retain their existing no-generation behavior. |
 | `mcp.tool:<server>/<tool>` | Allow through existing authenticated gateway/tool selection. The Loom built-ins use server `loom`. |
 | `voice.install` | Authorize verified local voice engine/model/pack installs and engine rollback on the selected machine. Default allow for explicit actions; provider consent is unchanged. |
+| `codeman.session` | Allow. Checked before Loom asks Codeman to start or schedule a session; Codeman's own permission modes are unchanged. |
 | `node.install`, `node.update`, `node.terminal` | Allow existing explicitly requested actions. Harness automation is check-only; explicit lifecycle mutations check the same install/update policy. |
 | `spend.provider` | Allow; an optional rule can impose a cap when a fresh, credential-matching cached provider monthly observation exists. |
 

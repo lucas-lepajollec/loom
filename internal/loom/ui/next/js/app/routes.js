@@ -17,10 +17,12 @@ import { EnginePage, WorkspacesPage } from '../features/machines/panes.js';
 import { TasksPage } from '../features/tasks/page.js';
 import { VoicePage } from '../features/voice/page.js';
 import { JarvisPage } from '../features/voice/jarvis.js';
+import { AgentsPage } from '../features/agents/page.js';
 import { GROUPS } from './sections.js';
 
 export const ROUTES = [
   { id: 'chat', page: ChatView },
+  { id: 'agents', page: AgentsPage },
   { id: 'local', page: LocalPage },
   { id: 'cloud', page: CloudPage },
   { id: 'tasks', page: TasksPage },

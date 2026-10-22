@@ -14,6 +14,12 @@ login, model catalogs, sessions, quotas, ACP or other agent protocols. Existing
 transcripts and display events remain readable for migration; they cannot
 launch a retired executor. See [migration](docs/harness-retirement.md).
 
+The Agents module is an interface for an independent Codeman server, not a
+harness layer: Codeman runs the native CLIs and their accounts; Loom relays its
+official `/api/v1`, SSE and terminal WebSocket through `/api/codeman/*` with
+server-side credentials. Do not add agent SDKs, model calls for agents, CLI
+adapters or Codeman internals. See [Agents architecture](docs/agents/architecture.md).
+
 Loom controls external engines without reimplementing inference. Keep engine
 and model state separate; llama.cpp router model changes use its API rather
 than restart the server. Remote nodes expose only engine, terminal, observe and
@@ -34,7 +40,7 @@ current voice/Jarvis, policy, notifications and memory behavior within this scop
 
 ## Development
 
-Use Go 1.26.9 or newer compatible toolchain and Node for UI tests.
+Use Go 1.26.10 or newer compatible toolchain and Node for UI tests.
 `make build` embeds `internal/loom/ui/next`; `make check-ui` checks modules and
 runs free UI regressions. `go test -short ./...` covers Go behavior. Validate
 changed docs with `python3 tools/check-doc-links.py`.

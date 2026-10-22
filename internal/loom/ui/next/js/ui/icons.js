@@ -58,6 +58,8 @@ const P = {
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
   server: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4H3zM3 13h18v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM7 6h.01M7 16h.01',
   gauge: 'M4 18a9 9 0 1 1 16 0M12 13l4-5',
+  agent: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6l-4 3v-3H6a2 2 0 0 1-2-2ZM8 9l2 2-2 2M13 13h3',
+  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
 };
 
 export const Icon = ({ n, class: c, size }) => html`<svg class=${'ico ' + (c || '')} viewBox="0 0 24 24" aria-hidden="true" style=${size ? `width:${size}px;height:${size}px` : ''}><path d=${P[n] || P.info} /></svg>`;
