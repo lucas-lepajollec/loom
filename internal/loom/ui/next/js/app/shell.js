@@ -14,6 +14,7 @@ import { NAV_ITEMS } from './routes.js';
 import { groupOf } from './sections.js';
 import { Activity } from './activity.js';
 import { openPalette } from './palette.js';
+import { AgentsSide } from '../features/agents/side.js';
 
 const COLORS = ['#7c93e8', '#d49a4a', '#5bb58a', '#c07ad8', '#d9776d', '#63b3c9'];
 const projColor = id => COLORS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
@@ -134,6 +135,7 @@ export function Sidebar() {
         </div>`}</div>`)}
       </div>
     </div>
+    <${AgentsSide} />
     <div class=${cls('side-sec grow', over === '' && 'drop-on')} ...${dropZone('', on => setOver(on ? '' : null))}>
       <div class="side-sec-h"><span>${t("app.shell.recents")}</span></div>
       <div class="side-list">${loose.map(c => html`<${ChatLink} key=${c.id} c=${c} active=${route.section === 'chat' && c.id === activeId} />`)}</div>

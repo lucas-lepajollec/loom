@@ -7,7 +7,7 @@ const KEYS = {
   term: { connecting: 'agents.term.connecting', open: 'agents.term.open', exited: 'agents.term.exited', missing: 'agents.term.missing', disconnected: 'agents.term.disconnected', error: 'agents.term.error' },
   conn: { idle: 'agents.conn.idle', connecting: 'agents.conn.connecting', unreachable: 'agents.conn.unreachable', auth: 'agents.conn.auth', rejected: 'agents.conn.rejected', error: 'agents.conn.error' },
   connText: { idle: 'agents.conn.idle_text', connecting: 'agents.conn.connecting_text', unreachable: 'agents.conn.unreachable_text', auth: 'agents.conn.auth_text', rejected: 'agents.conn.rejected_text', error: 'agents.conn.error_text' },
-  nav: { '': 'agents.nav.sessions', control: 'agents.nav.control', grid: 'agents.nav.grid', cron: 'agents.nav.cron', settings: 'agents.nav.settings' },
+  nav: { '': 'agents.nav.sessions', control: 'agents.nav.control', cron: 'agents.nav.cron', settings: 'agents.nav.settings' },
   insp: { activity: 'agents.insp.activity', git: 'agents.insp.git', files: 'agents.insp.files', subagents: 'agents.insp.subagents', info: 'agents.insp.info' },
   gitKind: { staged: 'agents.git.kind.staged', unstaged: 'agents.git.kind.unstaged', untracked: 'agents.git.kind.untracked', conflicted: 'agents.git.kind.conflicted' },
   cronType: { once: 'agents.cron.type.once', interval: 'agents.cron.type.interval', daily: 'agents.cron.type.daily', weekly: 'agents.cron.type.weekly' },

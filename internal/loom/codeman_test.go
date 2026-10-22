@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -45,12 +46,24 @@ func (f *fakeCodeman) handler(t *testing.T) http.Handler {
 		case "/api/v1/me":
 			io.WriteString(w, `{"success":true,"data":{"username":"admin","role":"admin","multiUser":false}}`)
 		case "/api/v1/status":
-			io.WriteString(w, `{"success":true,"data":{"version":"1.43.0","sessions":[]}}`)
+			io.WriteString(w, `{"success":true,"data":{"version":"1.43.0","sessions":[],"planUsage":{"sessionId":"s1","fiveHour":{"usedPercentage":12,"resetAt":1792714800000},"sevenDay":{"usedPercentage":49.5,"resetAt":1793188800000},"costUsd":3.2,"codex":{"sevenDay":{"usedPercentage":7,"resetAt":1793302516000}}}}}`)
 		case "/api/v1/events":
 			w.Header().Set("Content-Type", "text/event-stream")
 			io.WriteString(w, "event: sse:heartbeat\ndata: {\"t\":1}\n\n")
 			w.(http.Flusher).Flush()
 			<-r.Context().Done()
+		case "/api/v1/sessions/abc/paste-image":
+			// Comme Codeman : sans Origin ni Referer, l'en-tête CSRF est exigé.
+			if r.Header.Get("Origin") != "" || r.Header.Get("X-Codeman-CSRF") == "" {
+				w.WriteHeader(403)
+				io.WriteString(w, `{"success":false,"error":"CSRF check failed","errorCode":"INVALID_INPUT"}`)
+				return
+			}
+			if err := r.ParseMultipartForm(1 << 20); err != nil || r.MultipartForm.File["image"] == nil {
+				http.Error(w, `{"success":false,"error":"no file"}`, 400)
+				return
+			}
+			io.WriteString(w, `{"success":true,"data":{"path":"/w/.codeman-uploads/paste-1.png","filename":"paste-1.png"}}`)
 		case "/api/v1/sessions/abc/shell":
 			if len(r.TransferEncoding) > 0 || r.ContentLength != 0 {
 				http.Error(w, `{"success":false,"error":"Unsupported Media Type"}`, 415)
@@ -308,5 +321,22 @@ func TestCodemanTerminalBridge(t *testing.T) {
 	}
 	if _, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(loom.URL, "http")+"/api/codeman/ws/..%2fx", nil); err == nil {
 		t.Fatal("invalid session id accepted")
+	}
+}
+
+func TestCodemanUploadPassesCodemanCSRFCheck(t *testing.T) {
+	_, loom := codemanTestServers(t)
+	if err := sealProviderSecret(codemanSecretID, "synthetic-codeman"); err != nil {
+		t.Fatal(err)
+	}
+	var buf strings.Builder
+	mw := multipart.NewWriter(&buf)
+	part, _ := mw.CreateFormFile("image", "capture.png")
+	part.Write([]byte("\x89PNG\r\n\x1a\n"))
+	mw.Close()
+	resp, out := codemanDo(t, "POST", loom.URL+"/api/codeman/v1/sessions/abc/paste-image", buf.String(), map[string]string{"Content-Type": mw.FormDataContentType(), "Origin": loom.URL})
+	data, _ := out["data"].(map[string]any)
+	if resp.StatusCode != 200 || data["path"] != "/w/.codeman-uploads/paste-1.png" {
+		t.Fatalf("upload: %d %v", resp.StatusCode, out)
 	}
 }

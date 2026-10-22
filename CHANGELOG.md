@@ -13,6 +13,18 @@
   launchd service, `.env`) and connects in one click, or takes a remote
   address; every connection is tested before it is saved. See
   [Agents docs](docs/agents/architecture.md).
+- Agents: Codeman sessions live in Loom's sidebar next to projects and
+  discussions; the page shows one session or a tmux-like grid of 2 to 6 panes
+  (draggable dividers, focus, zoom, drag-and-drop, Alt+Shift+arrows,
+  Alt+Shift+Z, Ctrl+Shift+G). A Settings tab edits Codeman's own settings
+  (default CLI and folder, Claude and Codex launch options, tracking, tmux
+  history, CLI management). Activity → Quotas shows the Claude 5-hour and
+  weekly limits and Codex's, with pace, reset times, a 14-day history sampled
+  by Loom every five minutes, and Codeman's tokens per day.
+- Fix attachments through Loom: Codeman's upload route requires its CSRF
+  header from non-browser clients, which the gateway now sends. Pasting an
+  image or dropping a file works in the composer (thumbnails) and in the
+  terminal (the path is typed, as in Codeman).
 
 - Cancel and settle pending policy-consent workers before shutdown returns, preventing audit writes after teardown; preserve one-shot consent and reject new requests after shutdown.
 - Refresh compatible MCP SDK and readability libraries without changing the Go runtime baseline.

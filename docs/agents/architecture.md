@@ -35,15 +35,20 @@ allowed by default and adjustable in Settings → Permissions.
 | File | Responsibility |
 | --- | --- |
 | `client.js` | Only network module: envelope unwrapping, errors, gateway config, SSE reader, prompt idempotence (`clientId` per page load, monotonic `seq`) |
-| `store.js` | Domain state: connection, sessions, history, CLI registry, approvals; SSE reducers; per-CLI capability table; derived session state |
+| `store.js` | Domain state: connection, sessions, history, CLI registry, approvals, plan usage, Codeman settings; SSE reducers; per-CLI capability table; derived session state; app-wide presence (`useAgentsPresence`) used by the sidebar |
 | `actions.js` | Intentions → official calls: create, resume, interrupt, close, rename, answer approvals |
 | `labels.js` | Literal translation keys for variable values |
-| `page.js`, `nav.js` | Route `#/agents[/s/<id>|/control|/grid|/cron|/settings]`, workspace layout, session header |
-| `rail.js` | Live sessions by folder, history, search, reboot restore |
+| `page.js`, `nav.js` | Route `#/agents[/s/<id>|/control|/cron|/settings]` (`/grid` opens the grid), single view or grid, layout picker, quota chip, session header |
+| `side.js` | Section of Loom's sidebar: live sessions, history to resume, new-session dialog host |
+| `layout.js`, `grid.js` | Per-device layout (1, 2, 3, 4 or 6 panes, cells, focus, zoom, divider fractions) and the tmux-like grid |
+| `rail.js` | Full list (home screen, phone): sessions by folder, history, search, reboot restore |
+| `attach.js` | Pasted images and dropped files: upload to Codeman, path inserted in the prompt or typed in the terminal |
+| `settings.js` | Codeman server settings (`/settings`, `/clis`) and the connection |
+| `quotas.js` | Activity → Quotas: live plan usage, Loom's sampled history, Codeman token stats |
 | `conversation.js` | Transcript blocks, activity folds, approvals, composer, live screen before the first identifiable prompt |
 | `terminal.js` | xterm.js terminal: screen read, WebSocket attach, resize, reconnect |
 | `inspector.js` | Activity, Git, files, subagents, session options |
-| `control.js`, `grid.js`, `cron.js`, `connection.js`, `new-session.js` | Control center, mosaic, scheduling, connection, new session |
+| `control.js`, `cron.js`, `connection.js`, `new-session.js` | Control center, scheduling, connection, new session |
 
 The module uses Loom's tokens and components (`.composer`, `.thread`, `.seg`,
 `Modal`, `Drawer`, `TabNav`), its i18n dictionaries and its CSS layering

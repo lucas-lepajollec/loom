@@ -172,6 +172,7 @@ func registerCodemanRoutes(mux *http.ServeMux, api func(string, http.HandlerFunc
 	api("/api/codeman/discover", handleCodemanDiscover)
 	api("/api/codeman/connect", handleCodemanConnect)
 	api("/api/codeman/disconnect", handleCodemanDisconnect)
+	api("/api/codeman/quotas", handleCodemanQuotas)
 	// Codeman emploie PUT/PATCH/DELETE : la passerelle est enregistrée hors du
 	// filtre GET/POST des anciennes routes, avec la même authentification et la
 	// même protection d'origine (requireWebAuth), et reste révocable.
@@ -427,6 +428,10 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 	if auth := codemanAuthHeader(c); auth != "" {
 		req.Header.Set("Authorization", auth)
 	}
+	// Les envois de fichiers de Codeman exigent une origine identique ou cet
+	// en-tête (un client sans navigateur). La requête du navigateur a déjà
+	// passé la protection d'origine de Loom ; Loom parle ensuite en son nom.
+	req.Header.Set("X-Codeman-CSRF", "1")
 	resp, err := codemanHTTP(c.URL).Do(req)
 	if err != nil {
 		if r.Context().Err() != nil {

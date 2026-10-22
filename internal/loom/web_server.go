@@ -49,6 +49,7 @@ func cmdWeb(args []string) error {
 	defer stopLifecycle()
 	go startConfiguredEngine(lifecycleCtx)
 	go voiceLifecycle(lifecycleCtx)
+	go codemanQuotaLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
 	if err := webHTTPS.start(lifecycleCtx, mux, host); err != nil {
 		fmt.Printf("[loom web] HTTPS unavailable: %v\n", err)

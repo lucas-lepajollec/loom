@@ -18,6 +18,7 @@ import { TasksPage } from '../features/tasks/page.js';
 import { VoicePage } from '../features/voice/page.js';
 import { JarvisPage } from '../features/voice/jarvis.js';
 import { AgentsPage } from '../features/agents/page.js';
+import { QuotasPage } from '../features/agents/quotas.js';
 import { GROUPS } from './sections.js';
 
 export const ROUTES = [
@@ -34,6 +35,7 @@ export const ROUTES = [
   { id: 'environment', page: EnvironmentPage },
   { id: 'bench', page: BenchPage },
   { id: 'usage', page: UsagePage },
+  { id: 'quotas', page: QuotasPage },
   { id: 'machines', page: MachinesPage },
   { id: 'engine', page: EnginePage },
   { id: 'workspaces', page: WorkspacesPage },

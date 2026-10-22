@@ -1,11 +1,12 @@
 // Module Agents : une interface Loom pour un serveur Codeman. Codeman reste
 // le moteur (sessions, tmux, CLI natifs, orchestration) ; Loom affiche et
-// pilote par son API officielle. Routes : #/agents (espace de travail),
-// #/agents/s/<id>, #/agents/control, #/agents/grid, #/agents/cron,
-// #/agents/settings.
+// pilote par son API officielle. Les sessions vivent dans la barre latérale ;
+// la page montre une session seule ou une grille de volets. Routes :
+// #/agents, #/agents/s/<id>, #/agents/control, #/agents/cron,
+// #/agents/settings (#/agents/grid ouvre la grille).
 import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
-import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
+import { html, useState, useEffect, useStore, cls, createStore } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Menu, Seg, Empty } from '../../ui/controls.js';
 import { prompt, confirm, toast } from '../../ui/dialog.js';
@@ -16,12 +17,14 @@ import { api } from './client.js';
 import { agents, useAgentsLive, refreshConnection, stateOf, cliOf, projectOf, upsertSession } from './store.js';
 import { closeSession, renameSession } from './actions.js';
 import { Rail, StateDot } from './rail.js';
+import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf } from './layout.js';
 import { Conversation } from './conversation.js';
 import { AgentTerminal } from './terminal.js';
 import { Inspector } from './inspector.js';
-import { NewSession, CliMark } from './new-session.js';
+import { CliMark } from './new-session.js';
 import { ControlCenter } from './control.js';
-import { Mosaic } from './grid.js';
+import { Grid, ShapeIcon } from './grid.js';
+import { CodemanSettings } from './settings.js';
 import { CronPage } from './cron.js';
 import { ConnectionPanel } from './connection.js';
 import { openSession, officialLink } from './nav.js';
@@ -33,7 +36,6 @@ function useNarrow() {
   return n;
 }
 
-const VIEWS = new Map();
 function SessionHeader({ s, view, setView, narrowView, insp, setInsp }) {
   const [menu, setMenu] = useState(null);
   const state = stateOf(s), cli = cliOf(s.mode);
@@ -74,10 +76,10 @@ function SessionHeader({ s, view, setView, narrowView, insp, setInsp }) {
 }
 
 function SessionPane({ s, narrowView }) {
-  const [view, setViewState] = useState(VIEWS.get(s.id) || (s.mode === 'shell' ? 'term' : 'chat'));
+  const [view, setViewState] = useState(viewOf(s));
   const [insp, setInspState] = useState(() => { try { return !narrow() && innerWidth > 1180 && localStorage.getItem('loom.codeman.inspOpen') !== '0'; } catch (_) { return false; } });
-  useEffect(() => { setViewState(VIEWS.get(s.id) || (s.mode === 'shell' ? 'term' : 'chat')); }, [s.id]);
-  const setView = v => { VIEWS.set(s.id, v); setViewState(v); };
+  useEffect(() => { setViewState(viewOf(s)); }, [s.id]);
+  const setView = v => { setViewOf(s.id, v); setViewState(v); };
   const setInsp = v => { setInspState(v); if (!narrow()) try { localStorage.setItem('loom.codeman.inspOpen', v ? '1' : '0'); } catch (_) {} };
   const mode = s.mode === 'shell' ? 'term' : (narrowView && view === 'split' ? 'chat' : view);
   const toTerm = () => setView(narrowView ? 'term' : 'split');
@@ -94,45 +96,94 @@ function SessionPane({ s, narrowView }) {
   </div>`;
 }
 
+// Accueil sans session ouverte : la liste complète (recherche, sessions par
+// dossier, historique à reprendre). Sur téléphone, c'est l'écran principal.
+function Home({ narrowView, activeId }) {
+  return html`<div class=${cls('cm-home', narrowView && 'narrow')}>
+    ${!narrowView && html`<div class="cm-home-h"><h1>${t('agents.home.title')}</h1><p class="muted">${t('agents.home.lead')}</p></div>`}
+    <${Rail} activeId=${activeId} onOpen=${openSession} onNew=${() => agents.set({ creating: {} })} />
+  </div>`;
+}
+
+// Grille : l'inspecteur suit le volet qui a le focus.
+function GridArea() {
+  const focusId = useStore(layout, l => l.cells[l.focus]);
+  const session = useStore(agents, s => (focusId && s.sessions[focusId]) || null);
+  const insp = useStore(gridInsp, g => g.open);
+  return html`<div class=${cls('cm-pane', insp && session && 'with-insp')}>
+    <div class="cm-main"><${Grid} /></div>
+    ${insp && session && html`<${Inspector} key=${session.id} session=${session} onClose=${() => gridInsp.set({ open: false })} />`}
+  </div>`;
+}
+const gridInsp = createStore({ open: false });
+
 function Workspace({ route }) {
   const narrowView = useNarrow();
   const id = route.sub === 's' ? route.id : '';
   const session = useStore(agents, s => s.sessions[id] || null);
   const loaded = useStore(agents, s => s.loaded);
-  const [creating, setCreating] = useState(false);
-  // Dernière session ouverte, sur grand écran.
+  const grid = useStore(layout, l => l.count > 1) && !narrowView;
+  // Dernière session ouverte, sur grand écran ; une session demandée par
+  // l'adresse entre dans la grille quand elle est ouverte.
   useEffect(() => {
-    if (id) { try { localStorage.setItem('loom.codeman.last', id); } catch (_) {} return; }
-    if (narrowView || !loaded) return;
+    if (id) {
+      try { localStorage.setItem('loom.codeman.last', id); } catch (_) {}
+      if (grid && loaded && agents.get().sessions[id] && !layout.get().cells.includes(id)) placeSession(id);
+      return;
+    }
+    if (narrowView || !loaded || grid) return;
     let last = ''; try { last = localStorage.getItem('loom.codeman.last') || ''; } catch (_) {}
     if (last && agents.get().sessions[last]) openSession(last);
-  }, [id, loaded, narrowView]);
-  useEffect(() => {
-    const key = e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'n') { e.preventDefault(); setCreating(true); } };
-    addEventListener('keydown', key); return () => removeEventListener('keydown', key);
-  }, []);
-  const showRail = !narrowView || !id;
+  }, [id, loaded, narrowView, grid]);
+  if (grid) return html`<div class="cm-ws"><${GridArea} /></div>`;
   return html`<div class=${cls('cm-ws', narrowView && id && 'focus')}>
-    ${showRail && html`<${Rail} activeId=${id} onOpen=${openSession} onNew=${() => setCreating(true)} />`}
-    ${(!narrowView || id) && (session ? html`<${SessionPane} key=${session.id} s=${session} narrowView=${narrowView} />`
-      : html`<div class="cm-main cm-blank">${id && loaded ? html`<${Empty} icon="info" title=${t('agents.session.missing')} text=${t('agents.session.missing_text')}><button class="btn" onClick=${() => go('agents')}>${t('agents.back')}</button></${Empty}>`
-        : html`<${Empty} icon="terminal" title=${t('agents.ws.title')} text=${t('agents.ws.text')}><button class="btn primary" onClick=${() => setCreating(true)}><${Icon} n="plus" />${t('agents.rail.new')}</button></${Empty}>`}</div>`)}
-    ${creating && html`<${NewSession} onClose=${() => setCreating(false)} onCreated=${openSession} />`}
+    ${session ? html`<${SessionPane} key=${session.id} s=${session} narrowView=${narrowView} />`
+      : id && loaded ? html`<div class="cm-main cm-blank"><${Empty} icon="info" title=${t('agents.session.missing')} text=${t('agents.session.missing_text')}><button class="btn" onClick=${() => go('agents')}>${t('agents.back')}</button></${Empty}></div>`
+      : id ? html`<div class="cm-main cm-blank"><span class="spinner"></span></div>`
+      : html`<${Home} narrowView=${narrowView} activeId=${id} />`}
   </div>`;
 }
 
-const SUBS = ['', 'control', 'grid', 'cron', 'settings'];
-function Top({ sub }) {
+// Disposition : vue seule ou grille, comme les volets de tmux.
+function LayoutPicker({ currentId }) {
+  const count = useStore(layout, l => l.count);
+  const insp = useStore(gridInsp, s => s.open);
+  return html`<div class="cm-layouts" role="radiogroup" aria-label=${t('agents.grid.layout')}>
+    ${COUNTS.map(n => html`<button key=${n} role="radio" aria-checked=${String(count === n)} class=${cls(count === n && 'on')}
+      title=${n === 1 ? t('agents.grid.single') : t('agents.grid.panes', { n })} aria-label=${n === 1 ? t('agents.grid.single') : t('agents.grid.panes', { n })}
+      onClick=${() => setCount(n, currentId)}><${ShapeIcon} n=${n} /></button>`)}
+    ${count > 1 && html`<span class="cm-layouts-sep"></span><button class=${cls(insp && 'on')} aria-pressed=${String(insp)} title=${t('agents.insp.title')} aria-label=${t('agents.insp.title')}
+      onClick=${() => gridInsp.set({ open: !insp })}><${Icon} n="panel" /></button>`}
+  </div>`;
+}
+
+// Quotas d'abonnement en un coup d'œil ; le détail est dans Activité.
+export function QuotaChip() {
+  const usage = useStore(agents, s => s.planUsage);
+  const pct = w => (w && Number.isFinite(w.usedPercentage) ? Math.round(w.usedPercentage) : null);
+  const codex = usage?.codex?.sevenDay || usage?.codex?.fiveHour;
+  const parts = [[t('quotas.w5h'), pct(usage?.fiveHour)], [t('quotas.w7d'), pct(usage?.sevenDay)]].filter(p => p[1] != null);
+  if (!parts.length && pct(codex) != null) parts.push(['Codex', pct(codex)]);
+  if (!parts.length) return null;
+  const tone = v => (v >= 90 ? 'red' : v >= 70 ? 'amber' : '');
+  return html`<a class="cm-quota hide-narrow" href="#/quotas" title=${t('quotas.chip')}>${parts.map(([label, v]) => html`<span class=${tone(v)}><em>${label}</em>${v}%</span>`)}</a>`;
+}
+
+const SUBS = ['', 'control', 'cron', 'settings'];
+function Top({ sub, currentId }) {
   const conn = useStore(agents, s => s.conn);
   const live = useStore(agents, s => s.live);
   const waiting = useStore(agents, s => s.approvals.filter(a => a.kind !== 'idle').length);
-  const current = sub === 's' ? '' : sub;
+  const narrowView = useNarrow();
+  const current = sub === 's' || sub === 'grid' ? '' : sub;
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v) + (v === 'control' && waiting ? ' · ' + waiting : ''), current: current === v }));
   const link = officialLink('');
   return html`<div class="cm-top">
     <button class="icon-btn only-mobile" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
     <span class="grow"></span>
+    ${current === '' && !narrowView && conn.state === 'ready' && html`<${LayoutPicker} currentId=${currentId} />`}
+    <${QuotaChip} />
     <span class=${cls('cm-conn', conn.state === 'ready' && live && 'ok')} title=${conn.url}>
       <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>
       <span class="hide-narrow">${conn.state === 'ready' ? 'Codeman ' + (conn.version || '') : lt('conn', conn.state)}</span></span>
@@ -151,15 +202,21 @@ export function AgentsPage({ route }) {
     const timer = setInterval(() => { if (!document.hidden) refreshConnection(); }, 10000);
     return () => clearInterval(timer);
   }, [ready]);
-  const sub = SUBS.includes(route.sub) || route.sub === 's' ? route.sub : '';
+  const sub = SUBS.includes(route.sub) || route.sub === 's' || route.sub === 'grid' ? route.sub : '';
+  const currentId = sub === 's' ? route.id : '';
+  // Ctrl+Maj+G ouvre ou referme la grille ; l'ancienne adresse #/agents/grid l'ouvre.
+  useEffect(() => { if (sub === 'grid' && innerWidth > 760) { if (layout.get().count === 1) toggleGrid(currentId); go('agents'); } }, [sub]);
+  useEffect(() => {
+    const key = e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g' && innerWidth > 760) { e.preventDefault(); e.stopPropagation(); toggleGrid(currentId); } };
+    addEventListener('keydown', key, true); return () => removeEventListener('keydown', key, true);
+  }, [currentId]);
   const gated = sub !== 'settings' && state !== 'ready';
   return html`<div class="view cm">
-    <${Top} sub=${sub} />
+    <${Top} sub=${sub} currentId=${currentId} />
     ${gated ? html`<div class="cm-gate">${state === 'idle' || state === 'connecting' ? html`<div class="cm-gate-in"><span class="spinner"></span><p class="muted">${t('agents.conn.connecting')}</p></div>` : html`<${ConnectionPanel} gate />`}</div>`
       : sub === 'control' ? html`<${ControlCenter} />`
-      : sub === 'grid' ? html`<${Mosaic} />`
       : sub === 'cron' ? html`<${CronPage} />`
-      : sub === 'settings' ? html`<div class="cm-scroll"><${ConnectionPanel} /></div>`
+      : sub === 'settings' ? html`<div class="cm-scroll"><${CodemanSettings} /></div>`
       : html`<${Workspace} route=${route} />`}
   </div>`;
 }
