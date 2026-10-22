@@ -63,7 +63,7 @@ function Main() {
   const route = useStore(app, s => s.route);
   const Page = pageFor(route.section) || Placeholder;
   return html`<main class="main">
-    ${route.section !== 'chat' && html`<div class="mobile-bar only-mobile"><button class="icon-btn" aria-label="${t("app.main.menu")}" onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button><b>${t("app.main.loom")}</b></div>`}
+    ${route.section !== 'chat' && route.section !== 'agents' && html`<div class="mobile-bar only-mobile"><button class="icon-btn" aria-label="${t("app.main.menu")}" onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button><b>${t("app.main.loom")}</b></div>`}
     <${PageGuard} key=${route.section} name=${route.section} sub=${route.sub || ''}><${Page} route=${route} /></${PageGuard}></main>`;
 }
 

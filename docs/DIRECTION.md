@@ -15,5 +15,10 @@ the authenticated MCP gateway manually. Loom does not manage their accounts,
 configuration files or private execution state. This is interoperability, not
 a return of an internal harness layer.
 
+Coding agents are driven through an independent [Codeman](agents/architecture.md)
+server: Loom provides the interface (sessions, conversation, terminals,
+approvals, scheduling) over Codeman's public API and never runs the CLIs itself.
+Codeman stays separately installed and updated.
+
 See [architecture principles](architecture-principles.md),
 [roadmap](ROADMAP.md) and [migration](harness-retirement.md).

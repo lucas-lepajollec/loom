@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Add the Agents module: a Loom interface for an independent Codeman server
+  (sessions for Claude Code, Codex, OpenCode, Antigravity, Pi and every CLI in
+  Codeman's registry, conversation and native terminal side by side, mosaic,
+  approvals, history and resume, Git/files/subagents inspector, scheduled jobs,
+  control center). A server-side gateway relays `/api/v1`, SSE and the terminal
+  WebSocket with a sealed password; launches follow the new `codeman.session`
+  policy subject. See [Agents docs](docs/agents/architecture.md).
+
 - Cancel and settle pending policy-consent workers before shutdown returns, preventing audit writes after teardown; preserve one-shot consent and reject new requests after shutdown.
 - Refresh compatible MCP SDK and readability libraries without changing the Go runtime baseline.
 
