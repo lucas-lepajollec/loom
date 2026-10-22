@@ -40,8 +40,10 @@ export function NewSession({ onClose, onCreated, preset }) {
   const clis = useStore(agents, s => s.clis.filter(c => c.enabled !== false));
   const unified = useStore(agents, s => s.unified);
   const cases = useStore(agents, s => s.cases);
-  const [mode, setMode] = useState(preset?.mode || (clis.find(c => c.id === 'claude' && c.installed) ? 'claude' : (clis.find(c => c.installed && c.kind === 'agent') || {}).id || 'shell'));
-  const [dir, setDir] = useState(preset?.workingDir || '');
+  const defaults = useStore(agents, s => s.settings || {});
+  const usable = id => clis.some(c => c.id === id && c.installed !== false);
+  const [mode, setMode] = useState(preset?.mode || (usable(defaults.runMode) ? defaults.runMode : usable('claude') ? 'claude' : (clis.find(c => c.installed && c.kind === 'agent') || {}).id || 'shell'));
+  const [dir, setDir] = useState(preset?.workingDir || defaults.defaultWorkingDir || '');
   const [name, setName] = useState('');
   const [model, setModel] = useState('');
   const [browse, setBrowse] = useState(false);

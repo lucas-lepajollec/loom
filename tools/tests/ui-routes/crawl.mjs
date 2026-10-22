@@ -46,7 +46,7 @@ try {
   const runtimes = (ws.runtimes || []).map(r => r.id);
   let routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'project', 'project/fixture-project', 'resources', 'terminals', 'environment', 'environment/docker', 'environment/proxmox', 'local/hub', 'voice', 'jarvis',
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
-    'tasks', 'brain', 'brain/sources', 'brain/memory', 'brain/skills', 'brain/mcp', 'usage', 'bench',
+    'tasks', 'brain', 'brain/sources', 'brain/memory', 'brain/skills', 'brain/mcp', 'usage', 'quotas', 'bench', 'agents', 'agents/settings',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
   if (process.env.CRAWL_ROUTES) routes = routes.filter(r => new RegExp(process.env.CRAWL_ROUTES).test(r));
   const fixturePhone = phoneFixtures(ws, remote);
@@ -78,11 +78,155 @@ try {
     if (await picker.count() && await picker.getAttribute('aria-expanded') !== 'true') await picker.click();
   };
   let checks = 0;
+  // Chaque cas (moteur, format, scénario, page) tourne dans un contexte de
+  // navigateur neuf : les cas sont indépendants, donc exécutés en parallèle
+  // (CRAWL_CONCURRENCY, 4 par défaut) et répartissables entre machines CI
+  // (CRAWL_SHARD=i/n, CRAWL_ENGINE=chromium|webkit).
+  const runCase = async (browser, { name, form, context, scenario, r }) => {
+    // Fresh browser state per route/scenario: guards, observations,
+    // pending requests and service workers never leak between cases.
+    const ctx = await browser.newContext(context);
+    let degraded = !['fresh', 'healthy', 'phone-layout'].includes(scenario), successfulReads = 0, injected = 0;
+    const page = await ctx.newPage(), errors = [];
+    if (process.env.CRAWL_BASELINE_UI) await page.route('**/next/**', route => {
+      const pathname = new URL(route.request().url()).pathname.slice('/next/'.length);
+      const root = resolve(process.env.CRAWL_BASELINE_UI), file = resolve(root, pathname);
+      if (!file.startsWith(root + '/')) return route.abort();
+      const ext = file.split('.').pop(), types = { js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', svg: 'image/svg+xml', woff2: 'font/woff2' };
+      try { return route.fulfill({ body: readFileSync(file), contentType: types[ext] || 'application/octet-stream' }); }
+      catch (_) { return route.abort(); }
+    });
+    page.on('pageerror', e => errors.push(e.message));
+    page.on('response', async response => {
+      const url = new URL(response.url());
+      if (!url.pathname.startsWith('/api/') || url.pathname.startsWith('/api/auth/') || url.pathname === '/api/prefs' || response.request().method() !== 'GET') return;
+      try { const data = await response.json(); if (response.ok() && data?.ok !== false && validData(data, url.pathname)) successfulReads++; } catch (_) {}
+    });
+    await page.route('**/api/**', async route => {
+      const u = new URL(route.request().url());
+      if (/^\/api\/(agents|harness|harness-history|runtimes)(\/|$)|^\/api\/(brain\/agents|skills\/targets|usage\/native)(\/|$)/.test(u.pathname)) {
+        failures.push(`Removed integration requested by #/${r}: ${u.pathname}`);
+        return route.abort();
+      }
+      if (/^\/api\/(chat\/send|runtime\/sessions\/send|load-model|start|restart)$/.test(u.pathname)) {
+        failures.push('Crawl attempted generation or engine startup: ' + u.pathname);
+        return route.abort();
+      }
+      // Let the access shell and onboarding preference identify this
+      // isolated installation. Domain APIs are faulted independently.
+      if (scenario === 'phone-layout' && !u.pathname.startsWith('/api/auth/') && u.pathname !== '/api/prefs') return fixturePhone(route);
+      const boot = u.pathname.startsWith('/api/auth/') || u.pathname === '/api/prefs';
+      const engineOnly = /^\/api\/(models|presets|preset|status|vram|ram|server|llamacpp|hub|backends|config|catalog|paths|naked|llama-flags|engines\/vllm|engine\/(params|service|keys|auto-update)|model-caps)(\/|$)/.test(u.pathname);
+      if (degraded && !boot && (scenario !== 'engine-unreachable' || engineOnly)) {
+        injected++;
+        if (scenario === 'abort' || scenario === 'offline') return route.abort('internetdisconnected');
+        if (scenario === 'malformed-json') return route.fulfill({ status: 200, contentType: 'application/json', body: '{broken' });
+        if (scenario === 'wrong-shape') return route.fulfill({ json: { ok: true, models: {}, presets: {}, sessions: {}, runtimes: {}, projects: {}, machines: {}, sources: {}, tasks: {}, servers: {}, installations: {} } });
+        return route.fulfill({ status: scenario === '401' ? 401 : 502, json: { ok: false, error: 'remote engine unreachable' } });
+      }
+      if (scenario === 'engine-unreachable') {
+        if (u.pathname === '/api/workspace') return route.fulfill({ json: { ...ws,
+          runtimes: ws.runtimes,
+          providers: [{ id: 'fixture', name: 'Fixture cloud', ready: true, models: ['fixture-model'] }],
+          models: fixtureSessions.map(session => ({ id: session.id, name: session.model, model: session.model, kind: 'cloud', runtime_id: session.runtime_id, provider_id: session.provider_id, provider_name: session.provider_name, enabled: true, ready: true })),
+        } });
+        if (u.pathname === '/api/runtime/sessions' && route.request().method() === 'GET') {
+          const session = fixtureSessions.find(s => s.id === u.searchParams.get('id'));
+          if (session) return route.fulfill({ json: { ok: true, session, context: {} } });
+          if (!u.searchParams.has('id')) return route.fulfill({ json: { ok: true, sessions: fixtureSessions } });
+        }
+        if (u.pathname === '/api/discussion/events') {
+          const session = fixtureSessions.find(s => s.id === route.request().postDataJSON()?.id);
+          if (session) {
+            const events = [{ reset: true, replay: true, session }, { type: 'text_delta', text: 'Synthetic retained history', seq: 1 }, { caught_up: true, session }];
+            return route.fulfill({ contentType: 'text/event-stream', body: events.map(delta => 'data: ' + JSON.stringify({ choices: [{ delta }] }) + '\n\n').join('') });
+          }
+        }
+      }
+      return scenario === 'fresh' ? route.continue() : mockRemote(route);
+    });
+    const label = `${name}/${form}/${scenario} #/${r}`;
+    try {
+      await page.goto(base + '#/' + r);
+      await page.waitForTimeout(600);
+      // Exercise the collection consumer that triggered the iPhone
+      // crash, and both other catalogs while the engine is unavailable.
+      if (r === 'chat') {
+        await openPicker(page);
+        await page.locator('.picker .seg button').nth(1).click();
+      }
+      if (r === 'chat' && scenario === 'engine-unreachable') {
+        await page.locator('.picker .pick-search button').click();
+        for (const session of fixtureSessions) {
+          const opened = await page.evaluate(async id => (await import('/next/js/features/chat/engine.js')).open(id), session.id);
+          if (!opened) throw new Error('Failed to open synthetic ' + session.id);
+          await page.waitForFunction(async () => !(await import('/next/js/features/chat/engine.js')).chat.get().loading);
+          await page.locator('.composer textarea').fill('Retained mobile draft');
+          await resume(page);
+          if (await page.locator('.composer textarea').inputValue() !== 'Retained mobile draft') throw new Error('Resume lost discussion draft');
+          if (await page.locator('.composer .send').isDisabled()) throw new Error('Engine failure disabled external discussion composer');
+          await inspect(page, errors, label + ' ' + session.id);
+        }
+      }
+      if (scenario === 'offline') {
+        await ctx.setOffline(true);
+        await resume(page);
+        await page.waitForTimeout(100);
+      }
+      if (scenario === 'phone-layout' && r === 'cloud') {
+        await page.locator('.cl-tile:not(.on) .btn').first().click(); await page.locator('.dialog').waitFor();
+        await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
+      }
+      if (scenario === 'phone-layout' && r === 'environment') {
+        await page.locator('.toolbar .btn.primary').click(); await page.locator('.dialog').waitFor();
+        await inspect(page, errors, label + ' service dialog'); await page.locator('.dialog-head .icon-btn').click();
+      }
+      await inspect(page, errors, label + ' degraded');
+      if (!['fresh', 'healthy', 'phone-layout'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);
+      if (!['fresh', 'healthy', 'phone-layout'].includes(scenario)) {
+        const identity = await page.evaluate(() => { window.__crawlDocument = crypto.randomUUID(); return window.__crawlDocument; });
+        degraded = false; await ctx.setOffline(false); successfulReads = 0;
+        await resume(page);
+        // Pages with mount-only reads recover on navigation too. Hash
+        // navigation uses the same document, without a browser reload.
+        await page.evaluate(() => { location.hash = '#/' + (location.hash.startsWith('#/chat') ? 'cloud' : 'chat'); });
+        await page.waitForTimeout(100);
+        await page.evaluate(route => { location.hash = '#/' + route; }, r);
+        await page.waitForTimeout(600);
+        if (r === 'chat') await openPicker(page);
+        await inspect(page, errors, label + ' recovery');
+        if (await page.evaluate(() => window.__crawlDocument) !== identity) failures.push(`${label}: recovery reloaded the document`);
+        if (!successfulReads) failures.push(`${label}: recovery made no valid API reads`);
+        const unavailable = await page.evaluate(async () => (await import('/next/js/core/state.js')).app.get().unavailable);
+        for (const key of ['models', 'presets', 'workspace', 'history', 'sessions']) if (unavailable[key]) failures.push(`${label}: ${key} did not recover`);
+      }
+      checks++;
+    } catch (e) { failures.push(`${label}: ${e.stack || e}`); }
+    finally { await ctx.close(); }
+  };
+  const [shardIndex, shardCount] = (process.env.CRAWL_SHARD || '1/1').split('/').map(Number);
+  const concurrency = Math.max(1, +process.env.CRAWL_CONCURRENCY || 4);
   for (const [name, engine, forms] of [
     ['chromium', chromium, [['desktop', { viewport: { width: 1360, height: 860 } }], ['phone', { ...devices['iPhone 15'], viewport: { width: 390, height: 844 } }], ['phone-small', { ...devices['iPhone 15'], viewport: { width: 320, height: 740 } }]]],
     ['webkit', webkit, [['phone', { ...devices['iPhone 15'], viewport: { width: 390, height: 844 } }], ['phone-small', { ...devices['iPhone 15'], viewport: { width: 320, height: 740 } }]]],
   ]) {
     if (process.env.CRAWL_LAYOUT && name !== 'chromium') continue;
+    if (process.env.CRAWL_ENGINE && process.env.CRAWL_ENGINE !== name) continue;
+    const cases = [];
+    for (const [form, context] of forms) {
+      if (process.env.CRAWL_LAYOUT && (name !== 'chromium' || form === 'desktop')) continue;
+      // Every degraded scenario runs on the Chromium phone (the reported
+      // crashes); desktop and WebKit keep a representative sample so CI stays
+      // bounded. CRAWL_FULL=1 runs the whole matrix everywhere.
+      const sample = ['fresh', 'healthy', 'phone-layout', '502', 'engine-unreachable'];
+      const planned = process.env.CRAWL_SCENARIOS ? process.env.CRAWL_SCENARIOS.split(',') : process.env.CRAWL_LAYOUT ? ['phone-layout'] : !process.env.CRAWL_FULL && form === 'phone-small' ? ['fresh', 'healthy', 'phone-layout'] : process.env.CRAWL_FULL || (name === 'chromium' && form === 'phone') ? scenarios : scenarios.filter(x => sample.includes(x));
+      for (const scenario of planned) for (const r of routes) {
+        if (scenario === 'fresh' && r === 'machines/' + remote.id) continue;
+        cases.push({ name, form, context, scenario, r });
+      }
+    }
+    const mine = cases.filter((_, i) => i % shardCount === shardIndex - 1);
+    if (!mine.length) continue;
     let browser;
     try { browser = await engine.launch(); }
     catch (e) {
@@ -90,142 +234,12 @@ try {
       console.log(`SKIP WebKit iPhone crawl: system cannot run WebKit: ${String(e).split('\n').slice(0, 4).join(' ')}`);
       continue;
     }
+    const started = Date.now();
     try {
-      for (const [form, context] of forms) {
-        if (process.env.CRAWL_LAYOUT && (name !== 'chromium' || form === 'desktop')) continue;
-        // Every degraded scenario runs on the Chromium phone (the reported
-        // crashes); desktop and WebKit keep a representative sample so CI stays
-        // bounded. CRAWL_FULL=1 runs the whole matrix everywhere.
-        const sample = ['fresh', 'healthy', 'phone-layout', '502', 'engine-unreachable'];
-        const planned = process.env.CRAWL_SCENARIOS ? process.env.CRAWL_SCENARIOS.split(',') : process.env.CRAWL_LAYOUT ? ['phone-layout'] : !process.env.CRAWL_FULL && form === 'phone-small' ? ['fresh', 'healthy', 'phone-layout'] : process.env.CRAWL_FULL || (name === 'chromium' && form === 'phone') ? scenarios : scenarios.filter(x => sample.includes(x));
-        for (const scenario of planned) {
-          for (const r of routes) {
-            if (scenario === 'fresh' && r === 'machines/' + remote.id) continue;
-            // Fresh browser state per route/scenario: guards, observations,
-            // pending requests and service workers never leak between cases.
-            const ctx = await browser.newContext(context);
-            let degraded = !['fresh', 'healthy', 'phone-layout'].includes(scenario), successfulReads = 0, injected = 0;
-            const page = await ctx.newPage(), errors = [];
-            if (process.env.CRAWL_BASELINE_UI) await page.route('**/next/**', route => {
-              const pathname = new URL(route.request().url()).pathname.slice('/next/'.length);
-              const root = resolve(process.env.CRAWL_BASELINE_UI), file = resolve(root, pathname);
-              if (!file.startsWith(root + '/')) return route.abort();
-              const ext = file.split('.').pop(), types = { js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', svg: 'image/svg+xml', woff2: 'font/woff2' };
-              try { return route.fulfill({ body: readFileSync(file), contentType: types[ext] || 'application/octet-stream' }); }
-              catch (_) { return route.abort(); }
-            });
-            page.on('pageerror', e => errors.push(e.message));
-            page.on('response', async response => {
-              const url = new URL(response.url());
-              if (!url.pathname.startsWith('/api/') || url.pathname.startsWith('/api/auth/') || url.pathname === '/api/prefs' || response.request().method() !== 'GET') return;
-              try { const data = await response.json(); if (response.ok() && data?.ok !== false && validData(data, url.pathname)) successfulReads++; } catch (_) {}
-            });
-            await page.route('**/api/**', async route => {
-              const u = new URL(route.request().url());
-              if (/^\/api\/(agents|harness|harness-history|runtimes)(\/|$)|^\/api\/(brain\/agents|skills\/targets|usage\/native)(\/|$)/.test(u.pathname)) {
-                failures.push(`Removed integration requested by #/${r}: ${u.pathname}`);
-                return route.abort();
-              }
-              if (/^\/api\/(chat\/send|runtime\/sessions\/send|load-model|start|restart)$/.test(u.pathname)) {
-                failures.push('Crawl attempted generation or engine startup: ' + u.pathname);
-                return route.abort();
-              }
-              // Let the access shell and onboarding preference identify this
-              // isolated installation. Domain APIs are faulted independently.
-              if (scenario === 'phone-layout' && !u.pathname.startsWith('/api/auth/') && u.pathname !== '/api/prefs') return fixturePhone(route);
-              const boot = u.pathname.startsWith('/api/auth/') || u.pathname === '/api/prefs';
-              const engineOnly = /^\/api\/(models|presets|preset|status|vram|ram|server|llamacpp|hub|backends|config|catalog|paths|naked|llama-flags|engines\/vllm|engine\/(params|service|keys|auto-update)|model-caps)(\/|$)/.test(u.pathname);
-              if (degraded && !boot && (scenario !== 'engine-unreachable' || engineOnly)) {
-                injected++;
-                if (scenario === 'abort' || scenario === 'offline') return route.abort('internetdisconnected');
-                if (scenario === 'malformed-json') return route.fulfill({ status: 200, contentType: 'application/json', body: '{broken' });
-                if (scenario === 'wrong-shape') return route.fulfill({ json: { ok: true, models: {}, presets: {}, sessions: {}, runtimes: {}, projects: {}, machines: {}, sources: {}, tasks: {}, servers: {}, installations: {} } });
-                return route.fulfill({ status: scenario === '401' ? 401 : 502, json: { ok: false, error: 'remote engine unreachable' } });
-              }
-              if (scenario === 'engine-unreachable') {
-                if (u.pathname === '/api/workspace') return route.fulfill({ json: { ...ws,
-                  runtimes: ws.runtimes,
-                  providers: [{ id: 'fixture', name: 'Fixture cloud', ready: true, models: ['fixture-model'] }],
-                  models: fixtureSessions.map(session => ({ id: session.id, name: session.model, model: session.model, kind: 'cloud', runtime_id: session.runtime_id, provider_id: session.provider_id, provider_name: session.provider_name, enabled: true, ready: true })),
-                } });
-                if (u.pathname === '/api/runtime/sessions' && route.request().method() === 'GET') {
-                  const session = fixtureSessions.find(s => s.id === u.searchParams.get('id'));
-                  if (session) return route.fulfill({ json: { ok: true, session, context: {} } });
-                  if (!u.searchParams.has('id')) return route.fulfill({ json: { ok: true, sessions: fixtureSessions } });
-                }
-                if (u.pathname === '/api/discussion/events') {
-                  const session = fixtureSessions.find(s => s.id === route.request().postDataJSON()?.id);
-                  if (session) {
-                    const events = [{ reset: true, replay: true, session }, { type: 'text_delta', text: 'Synthetic retained history', seq: 1 }, { caught_up: true, session }];
-                    return route.fulfill({ contentType: 'text/event-stream', body: events.map(delta => 'data: ' + JSON.stringify({ choices: [{ delta }] }) + '\n\n').join('') });
-                  }
-                }
-              }
-              return scenario === 'fresh' ? route.continue() : mockRemote(route);
-            });
-            const label = `${name}/${form}/${scenario} #/${r}`;
-            try {
-              await page.goto(base + '#/' + r);
-              await page.waitForTimeout(600);
-              // Exercise the collection consumer that triggered the iPhone
-              // crash, and both other catalogs while the engine is unavailable.
-              if (r === 'chat') {
-                await openPicker(page);
-                await page.locator('.picker .seg button').nth(1).click();
-              }
-              if (r === 'chat' && scenario === 'engine-unreachable') {
-                await page.locator('.picker .pick-search button').click();
-                for (const session of fixtureSessions) {
-                  const opened = await page.evaluate(async id => (await import('/next/js/features/chat/engine.js')).open(id), session.id);
-                  if (!opened) throw new Error('Failed to open synthetic ' + session.id);
-                  await page.waitForFunction(async () => !(await import('/next/js/features/chat/engine.js')).chat.get().loading);
-                  await page.locator('.composer textarea').fill('Retained mobile draft');
-                  await resume(page);
-                  if (await page.locator('.composer textarea').inputValue() !== 'Retained mobile draft') throw new Error('Resume lost discussion draft');
-                  if (await page.locator('.composer .send').isDisabled()) throw new Error('Engine failure disabled external discussion composer');
-                  await inspect(page, errors, label + ' ' + session.id);
-                }
-              }
-              if (scenario === 'offline') {
-                await ctx.setOffline(true);
-                await resume(page);
-                await page.waitForTimeout(100);
-              }
-              if (scenario === 'phone-layout' && r === 'cloud') {
-                await page.locator('.cl-tile:not(.on) .btn').first().click(); await page.locator('.dialog').waitFor();
-                await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
-              }
-              if (scenario === 'phone-layout' && r === 'environment') {
-                await page.locator('.toolbar .btn.primary').click(); await page.locator('.dialog').waitFor();
-                await inspect(page, errors, label + ' service dialog'); await page.locator('.dialog-head .icon-btn').click();
-              }
-              await inspect(page, errors, label + ' degraded');
-              if (!['fresh', 'healthy', 'phone-layout'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);
-              if (!['fresh', 'healthy', 'phone-layout'].includes(scenario)) {
-                const identity = await page.evaluate(() => { window.__crawlDocument = crypto.randomUUID(); return window.__crawlDocument; });
-                degraded = false; await ctx.setOffline(false); successfulReads = 0;
-                await resume(page);
-                // Pages with mount-only reads recover on navigation too. Hash
-                // navigation uses the same document, without a browser reload.
-                await page.evaluate(() => { location.hash = '#/' + (location.hash.startsWith('#/chat') ? 'cloud' : 'chat'); });
-                await page.waitForTimeout(100);
-                await page.evaluate(route => { location.hash = '#/' + route; }, r);
-                await page.waitForTimeout(600);
-                if (r === 'chat') await openPicker(page);
-                await inspect(page, errors, label + ' recovery');
-                if (await page.evaluate(() => window.__crawlDocument) !== identity) failures.push(`${label}: recovery reloaded the document`);
-                if (!successfulReads) failures.push(`${label}: recovery made no valid API reads`);
-                const unavailable = await page.evaluate(async () => (await import('/next/js/core/state.js')).app.get().unavailable);
-                for (const key of ['models', 'presets', 'workspace', 'history', 'sessions']) if (unavailable[key]) failures.push(`${label}: ${key} did not recover`);
-              }
-              checks++;
-            } catch (e) { failures.push(`${label}: ${e.stack || e}`); }
-            finally { await ctx.close(); }
-          }
-          console.log(`UI crawl ${name}/${form}/${scenario}: ${routes.length} routes checked`);
-        }
-      }
+      let next = 0;
+      await Promise.all(Array.from({ length: concurrency }, async () => { while (next < mine.length) await runCase(browser, mine[next++]); }));
     } finally { await browser.close(); }
+    console.log(`UI crawl ${name}: ${mine.length} cases (shard ${shardIndex}/${shardCount}) in ${Math.round((Date.now() - started) / 1000)} s`);
   }
   console.log(`UI route crawl: ${routes.length} routes, ${checks} isolated checks including degraded recovery`);
 } catch (e) {

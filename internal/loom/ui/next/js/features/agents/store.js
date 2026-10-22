@@ -1,13 +1,19 @@
 // État du domaine Agents : connexion à Codeman, sessions vivantes, historique,
 // CLI disponibles, approbations. Tenu à jour par le flux SSE ; chaque
 // (re)connexion relit l'état complet pour rattraper ce qui a été manqué.
-import { createStore } from '../../core/lib.js';
+import { createStore, useStore, useEffect } from '../../core/lib.js';
 import { api, gateway, connectEvents } from './client.js';
 
 export const agents = createStore({
   conn: { state: 'idle', configured: false, auth: '', version: '', error: '', ui_url: '', url: '', password_set: false },
   sessions: {}, order: [], unified: [], clis: [], cases: [], approvals: [], restore: [],
   live: false, loaded: false,
+  // Dernière mesure des quotas d'abonnement (Claude 5 h / 7 j, Codex).
+  planUsage: null,
+  // Réglages du serveur Codeman (CLI et dossier par défaut des nouvelles sessions).
+  settings: {},
+  // Nouvelle session demandée depuis la barre latérale ou la page.
+  creating: null,
   // Versions de transcription : un événement de tour incrémente, la vue relit.
   turns: {},
 });
@@ -80,7 +86,7 @@ export async function refreshConnection() {
 }
 
 export async function refreshAll() {
-  const [sessions, clis, approvals, unified, restore, cases] = await Promise.allSettled([api.sessions(), api.clis(), api.approvals(), api.unified(), api.rebootRestore(), api.cases()]);
+  const [sessions, clis, approvals, unified, restore, cases, status, settings] = await Promise.allSettled([api.sessions(), api.clis(), api.approvals(), api.unified(), api.rebootRestore(), api.cases(), api.status(), api.settings()]);
   if (sessions.status === 'fulfilled' && Array.isArray(sessions.value)) setSessions(sessions.value);
   const patch = { loaded: true };
   if (clis.status === 'fulfilled' && Array.isArray(clis.value)) patch.clis = clis.value;
@@ -88,6 +94,8 @@ export async function refreshAll() {
   if (unified.status === 'fulfilled') patch.unified = unified.value?.sessions || [];
   if (restore.status === 'fulfilled') patch.restore = restore.value?.sessions || [];
   if (cases.status === 'fulfilled' && Array.isArray(cases.value)) patch.cases = cases.value;
+  if (status.status === 'fulfilled' && status.value?.planUsage) patch.planUsage = status.value.planUsage;
+  if (settings.status === 'fulfilled' && settings.value) patch.settings = settings.value;
   agents.set(patch);
   if (sessions.status === 'rejected') throw sessions.reason;
 }
@@ -131,6 +139,7 @@ function onEvent(name, d) {
       break;
     }
     case 'approval:resolved': agents.set({ approvals: agents.get().approvals.filter(x => x.id !== d?.id) }); break;
+    case 'session:statusTelemetry': if (d && typeof d === 'object') agents.set({ planUsage: d }); break;
     case 'session:orderChanged': api.sessions().then(setSessions).catch(() => {}); break;
     default:
       if (name.startsWith('cron:')) listeners.cron.forEach(fn => fn(name, d));
@@ -159,3 +168,18 @@ export function useAgentsLive() {
 
 export function upsertSession(s) { upsert(s); }
 export function dropSession(id) { drop(id); }
+
+// Présence de Codeman dans toute l'application (barre latérale) : l'état est
+// lu au démarrage, le flux reste ouvert tant que Codeman répond, et une
+// connexion configurée mais perdue est revérifiée régulièrement.
+export function useAgentsPresence() {
+  const ready = useStore(agents, s => s.conn.state === 'ready');
+  const configured = useStore(agents, s => s.conn.configured);
+  useEffect(() => { refreshConnection(); }, []);
+  useEffect(() => {
+    if (ready) return useAgentsLive();
+    if (!configured) return;
+    const timer = setInterval(() => { if (!document.hidden) refreshConnection(); }, 20000);
+    return () => clearInterval(timer);
+  }, [ready, configured]);
+}

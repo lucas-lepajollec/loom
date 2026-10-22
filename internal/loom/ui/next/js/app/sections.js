@@ -12,7 +12,7 @@ export const GROUPS = [
   { id: 'tasks', icon: 'pulse', get label() { return t('tasks.title'); }, tabs: [['tasks', () => t('tasks.title')]] },
   { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')], ['workspaces', () => t('workspaces.title')], ['terminals', () => t('app.routes.terminaux')], ['environment', () => t('app.routes.environnement')]] },
   { id: 'brain', icon: 'brain', get label() { return t('resources.page.brain'); }, tabs: [['brain', () => t('resources.page.brain')], ['resources']] },
-  { id: 'activity', icon: 'chart', get label() { return t('app.groups.activity'); }, tabs: [['usage', () => t('app.routes.usage')], ['bench', () => t('app.routes.bench')]] },
+  { id: 'activity', icon: 'chart', get label() { return t('app.groups.activity'); }, tabs: [['usage', () => t('app.routes.usage')], ['quotas', () => t('quotas.title')], ['bench', () => t('app.routes.bench')]] },
 ];
 
 export const groupOf = section => GROUPS.find(g => g.tabs.some(([id]) => id === section));

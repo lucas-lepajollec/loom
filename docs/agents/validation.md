@@ -57,3 +57,21 @@ or Docker cases, WebKit/iOS devices.
   are reachable through the gateway but their screens remain in Codeman.
 - The terminal theme follows the Loom theme at load; switching theme applies
   on the next attach.
+
+## Sidebar, grid, settings, quotas (22 October 2026, later)
+
+Run against the same Codeman 1.43.0 with two throwaway shell sessions (deleted
+afterwards) and the live Claude session, on a rebuilt dev binary.
+
+| Scenario | Result |
+| --- | --- |
+| Sidebar | Live sessions listed under Agents next to Projects and Recents; history to resume; current session and grid membership marked; phone drawer |
+| Grid | 4 panes → 3 sessions + one free pane; 3-pane layout divider dragged (fractions 0.62/1.38 kept); Alt+Shift+→ moved focus; Alt+Shift+Z zoomed and restored; inspector follows the focused pane; Ctrl+Shift+G back to one session; terminals receive one resize per drag and repaint cleanly |
+| Paste an image | Composer: thumbnail chip, upload done, prompt not sent. Terminal: the uploaded path `.codeman-uploads/paste-…png` typed in the shell. Before the gateway fix both were refused by Codeman (`CSRF check failed`) |
+| Codeman settings | Loaded from `/settings`; selects, switches, CLI list with install buttons gated by CLI management |
+| Quotas | Claude 5 h and 7 d and Codex 7 d shown live with resets and pace; history chart; tokens per day; phone layout |
+| Console and overflow | No console errors; no horizontal overflow on phone pages (`#/agents`, settings, quotas, sessions) |
+
+`codeman_quota_test.go` covers sampling (percentages and resets only, file
+mode 0600), deduplication and expiry; `TestCodemanUploadPassesCodemanCSRFCheck`
+covers the upload header.

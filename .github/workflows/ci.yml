@@ -10,9 +10,17 @@ on:
   pull_request:
     branches: [main]
 
+# A new push to a pull request replaces its running checks; main always
+# finishes, since the Development build waits for it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Three independent jobs run side by side: Go checks, the UI and binary, then
+# the UI route crawl split across runners (each runs its cases in parallel).
 jobs:
-  test:
-    name: Test & Build
+  go:
+    name: Go tests & checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -24,12 +32,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-
       - name: Check compiled Windows version resources
         run: python3 tools/check-version-resources.py
 
-      - name: Run tests
-        run: go test -v -short ./...
+      - name: Run tests with the race detector
+        # The same tests as a plain run, plus concurrent execution checks.
+        run: go test -race -short ./...
 
       - name: Offline Brain evidence and final-context regression gate
         # Fixed authored fixtures only; never fetch histories/weights or call models.
@@ -54,13 +62,23 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           govulncheck ./...
 
-      - name: Check concurrent execution
-        run: go test -race -short ./...
-
       - name: Check documentation links
         run: python3 tools/check-doc-links.py
 
-      - name: Set up Node for the public demo
+  ui:
+    name: UI & build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
@@ -68,17 +86,65 @@ jobs:
       - name: Check demo
         run: npm --prefix demo run check
 
+      - name: Check UI modules and tests
+        run: make check-ui
+
       - name: Build binary
         run: make build
 
       - name: Check isolated node installation and rollback
         run: LOOM_TEST_BINARY="$PWD/bin/loom" sh tools/tests/install-node.sh
 
-      - name: Check UI modules and tests
-        run: make check-ui
+      - name: Keep the binary for the route crawl
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: loom-ci-binary
+          path: bin/loom
+          retention-days: 1
+
+  crawl:
+    name: UI routes (${{ matrix.engine }} ${{ matrix.shard }})
+    needs: ui
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { engine: chromium, shard: 1/2 }
+          - { engine: chromium, shard: 2/2 }
+          - { engine: webkit, shard: 1/2 }
+          - { engine: webkit, shard: 2/2 }
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Get the binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: loom-ci-binary
+          path: bin
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: tools/tests/ui-routes/package-lock.json
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ matrix.engine }}-${{ hashFiles('tools/tests/ui-routes/package-lock.json') }}
+
+      - name: Install the crawler and its browser
+        run: |
+          chmod +x bin/loom
+          npm ci --prefix tools/tests/ui-routes --no-audit --no-fund
+          npx --prefix tools/tests/ui-routes playwright install --with-deps ${{ matrix.engine }}
 
       - name: Crawl every UI route for render crashes
-        run: |
-          npm ci --prefix tools/tests/ui-routes --no-audit --no-fund
-          npx --prefix tools/tests/ui-routes playwright install --with-deps chromium webkit
-          node tools/tests/ui-routes/crawl.mjs bin/loom
+        env:
+          CRAWL_ENGINE: ${{ matrix.engine }}
+          CRAWL_SHARD: ${{ matrix.shard }}
+        run: node tools/tests/ui-routes/crawl.mjs bin/loom

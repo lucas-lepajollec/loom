@@ -60,6 +60,8 @@ const P = {
   gauge: 'M4 18a9 9 0 1 1 16 0M12 13l4-5',
   agent: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6l-4 3v-3H6a2 2 0 0 1-2-2ZM8 9l2 2-2 2M13 13h3',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  expand: 'M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6',
+  shrink: 'M14 10h6M14 10V4M10 14H4M10 14v6M14 10l6-6M10 14l-6 6',
 };
 
 export const Icon = ({ n, class: c, size }) => html`<svg class=${'ico ' + (c || '')} viewBox="0 0 24 24" aria-hidden="true" style=${size ? `width:${size}px;height:${size}px` : ''}><path d=${P[n] || P.info} /></svg>`;
