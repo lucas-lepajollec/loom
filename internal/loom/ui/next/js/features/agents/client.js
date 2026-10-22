@@ -49,6 +49,10 @@ export const gateway = {
   config: () => loomJSON('/api/codeman/config', { retryAuth: false }),
   save: body => loomJSON('/api/codeman/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   status: () => loomJSON('/api/codeman/status', { retryAuth: false, timeout: 10000 }),
+  discover: () => loomJSON('/api/codeman/discover', { retryAuth: false, timeout: 20000 }),
+  // Une réponse { ok:false, code } est un résultat de test, pas une panne.
+  connect: async body => { const r = await request('/api/codeman/connect', { method: 'POST', timeout: 20000, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); let d = {}; try { d = await r.json(); } catch (_) {} if (!r.ok && !d.code) throw new CodemanError(d.error || 'HTTP ' + r.status, 'LOOM', r.status); return d; },
+  disconnect: () => loomJSON('/api/codeman/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
 };
 
 // ---------- sessions ----------

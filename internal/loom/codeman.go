@@ -2,6 +2,7 @@ package loom
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -90,18 +91,57 @@ func codemanPassword() string {
 
 var codemanUserRe = regexp.MustCompile(`^[A-Za-z0-9._@-]{1,64}$`)
 
-// Une adresse de base : schéma http(s), hôte, port facultatif, sans chemin,
+// Une adresse de base : schéma http(s), hôte, port facultatif et, si
+// Codeman est servi sous un sous-chemin (CODEMAN_BASE_URL), ce chemin. Sans
 // requête ni identifiants (ceux-ci sont stockés à part, scellés).
 func normalizeCodemanURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
+	if raw != "" && !strings.Contains(raw, "://") {
+		raw = "http://" + raw
+	}
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "", errors.New("invalid Codeman address: use http(s)://host:port")
 	}
-	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-		return "", errors.New("invalid Codeman address: no credentials, path or query")
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Contains(u.Path, "..") || strings.Contains(u.Path, "/api/") {
+		return "", errors.New("invalid Codeman address: no credentials, API path or query")
 	}
-	return u.Scheme + "://" + u.Host, nil
+	return u.Scheme + "://" + u.Host + strings.TrimRight(u.Path, "/"), nil
+}
+
+func codemanLoopback(base string) bool {
+	u, err := url.Parse(base)
+	if err != nil {
+		return false
+	}
+	h := u.Hostname()
+	if h == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
+// Un Codeman lancé avec --https sur cette machine présente un certificat
+// auto-signé : accepté seulement en loopback, vérifié partout ailleurs.
+var codemanLoopbackTLS = &http.Client{
+	Transport: &http.Transport{
+		Proxy:                 nil,
+		DialContext:           (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+		TLSHandshakeTimeout:   5 * time.Second,
+		MaxIdleConnsPerHost:   16,
+		IdleConnTimeout:       90 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	},
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
+func codemanHTTP(base string) *http.Client {
+	if strings.HasPrefix(base, "https://") && codemanLoopback(base) {
+		return codemanLoopbackTLS
+	}
+	return codemanClient
 }
 
 func codemanAuthHeader(c codemanConfig) string {
@@ -129,6 +169,9 @@ var codemanClient = &http.Client{
 func registerCodemanRoutes(mux *http.ServeMux, api func(string, http.HandlerFunc)) {
 	api("/api/codeman/config", handleCodemanConfig)
 	api("/api/codeman/status", handleCodemanStatus)
+	api("/api/codeman/discover", handleCodemanDiscover)
+	api("/api/codeman/connect", handleCodemanConnect)
+	api("/api/codeman/disconnect", handleCodemanDisconnect)
 	// Codeman emploie PUT/PATCH/DELETE : la passerelle est enregistrée hors du
 	// filtre GET/POST des anciennes routes, avec la même authentification et la
 	// même protection d'origine (requireWebAuth), et reste révocable.
@@ -140,7 +183,8 @@ func handleCodemanConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		c := loadCodemanConfig()
-		sendJSON(w, 200, map[string]any{"ok": true, "url": c.URL, "username": c.Username, "ui_url": c.UIURL, "password_set": codemanPassword() != ""})
+		_, err := os.Stat(codemanConfigPath())
+		sendJSON(w, 200, map[string]any{"ok": true, "configured": err == nil, "url": c.URL, "username": c.Username, "ui_url": c.UIURL, "password_set": codemanPassword() != ""})
 	case http.MethodPost:
 		var req struct {
 			URL           string `json:"url"`
@@ -213,7 +257,7 @@ func handleCodemanStatus(w http.ResponseWriter, r *http.Request) {
 	if h := codemanAuthHeader(c); h != "" {
 		req.Header.Set("Authorization", h)
 	}
-	resp, err := codemanClient.Do(req)
+	resp, err := codemanHTTP(c.URL).Do(req)
 	if err != nil {
 		out["error"] = "unreachable"
 		sendJSON(w, 200, out)
@@ -247,7 +291,7 @@ func handleCodemanStatus(w http.ResponseWriter, r *http.Request) {
 	// La version vient de /status (contrat stable) ; un échec ne masque pas l'accès.
 	vreq, _ := http.NewRequestWithContext(ctx, http.MethodGet, c.URL+"/api/v1/status", nil)
 	vreq.Header = req.Header.Clone()
-	if vresp, err := codemanClient.Do(vreq); err == nil {
+	if vresp, err := codemanHTTP(c.URL).Do(vreq); err == nil {
 		var st struct {
 			Data struct {
 				Version string `json:"version"`
@@ -383,7 +427,7 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 	if auth := codemanAuthHeader(c); auth != "" {
 		req.Header.Set("Authorization", auth)
 	}
-	resp, err := codemanClient.Do(req)
+	resp, err := codemanHTTP(c.URL).Do(req)
 	if err != nil {
 		if r.Context().Err() != nil {
 			return
@@ -461,7 +505,7 @@ func handleCodemanWS(w http.ResponseWriter, r *http.Request) {
 	} else {
 		u.Scheme = "ws"
 	}
-	u.Path = "/ws/sessions/" + id + "/terminal"
+	u.Path = strings.TrimRight(u.Path, "/") + "/ws/sessions/" + id + "/terminal"
 	if cid := r.URL.Query().Get("cid"); codemanClientIDRe.MatchString(cid) {
 		u.RawQuery = url.Values{"cid": {cid}}.Encode()
 	}
@@ -470,7 +514,7 @@ func handleCodemanWS(w http.ResponseWriter, r *http.Request) {
 		header.Set("Authorization", auth)
 	}
 	dialCtx, cancelDial := context.WithTimeout(r.Context(), 8*time.Second)
-	upstream, resp, err := websocket.Dial(dialCtx, u.String(), &websocket.DialOptions{HTTPHeader: header, HTTPClient: codemanClient})
+	upstream, resp, err := websocket.Dial(dialCtx, u.String(), &websocket.DialOptions{HTTPHeader: header, HTTPClient: codemanHTTP(c.URL)})
 	cancelDial()
 	if err != nil {
 		status, msg := http.StatusBadGateway, "Codeman terminal unavailable"

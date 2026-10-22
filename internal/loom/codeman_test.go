@@ -91,6 +91,12 @@ func (f *fakeCodeman) handler(t *testing.T) http.Handler {
 	return mux
 }
 
+func openCodemanHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"success":true,"data":{"version":"1.43.0","sessions":[]}}`)
+	})
+}
+
 func codemanTestServers(t *testing.T) (*fakeCodeman, *httptest.Server) {
 	t.Helper()
 	testHome(t)
@@ -144,7 +150,7 @@ func TestCodemanConfigNeverReturnsThePassword(t *testing.T) {
 	if info, err := os.Stat(codemanConfigPath()); err != nil || info.Mode().Perm()&0077 != 0 {
 		t.Fatal("configuration file must be private", err)
 	}
-	for _, bad := range []string{`{"url":"ftp://x"}`, `{"url":"http://user:pw@host:3000"}`, `{"url":"http://host:3000/api"}`, `{"url":"http://host","username":"a b"}`} {
+	for _, bad := range []string{`{"url":"ftp://x"}`, `{"url":"http://user:pw@host:3000"}`, `{"url":"http://host:3000/?q=1"}`, `{"url":"http://host","username":"a b"}`} {
 		if resp, _ := codemanDo(t, "POST", loom.URL+"/api/codeman/config", bad, nil); resp.StatusCode != 400 {
 			t.Fatal(bad, resp.StatusCode)
 		}

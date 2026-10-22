@@ -19,6 +19,15 @@ isolated data directory. Only checks listed here were run.
 missing locale (shell warnings pollute output); it fails identically on `main`
 and passes with `LC_ALL=C.UTF-8`.
 
+## One-click connection
+
+On a fresh Loom data directory, Settings → Agents found the VM's Codeman
+(systemd service with a password in its override) and connected in one click;
+a wrong password typed in the manual form showed "rejected" and saved nothing;
+the Agents page then loaded its sessions. Desktop and phone, no console errors.
+Unit tests cover systemd `Environment=` quoting, `.env` parsing, discovery
+without password leakage, test-before-save and disconnect.
+
 ## Live instance
 
 | Scenario | Result |

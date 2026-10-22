@@ -326,3 +326,34 @@
 .cm-boot-term{height:min(380px,52vh);display:flex;border-radius:var(--r-lg);background:var(--bg-2);box-shadow:inset 0 0 0 1px var(--line-soft);overflow:hidden}
 .cm-screen-note{display:flex;align-items:center;gap:7px;margin:-6px 0 0;font-size:12px}
 .cm-screen-note .ico{width:13px;height:13px}
+
+/* connexion en un clic */
+.cm-connect.embedded{width:100%;max-width:680px;margin:0;padding:0 0 24px}
+.cm-setup,.cm-connected{display:flex;flex-direction:column;gap:12px}
+.cm-scan{display:flex;align-items:center;gap:10px;padding:18px 16px;border-radius:var(--r-lg);background:var(--surface);color:var(--text-2);font-size:13.5px}
+.cm-found-list{display:flex;flex-direction:column;gap:8px}
+.cm-found,.cm-connected>.cm-found-h,.cm-none{padding:14px 16px;border-radius:var(--r-lg);background:var(--surface)}
+.cm-found{display:flex;flex-direction:column;gap:10px}
+.cm-found-h{display:flex;align-items:center;gap:12px}
+.cm-found-h .grow{display:flex;flex-direction:column;min-width:0;gap:1px}
+.cm-found-h b{font-size:14px;font-weight:600}
+.cm-found-h small{font-size:12.5px}
+.cm-found-pw{display:grid;grid-template-columns:minmax(0,1fr) 120px auto;gap:8px;align-items:center}
+.cm-found-pw small{grid-column:1/-1}
+.cm-none{display:flex;flex-direction:column;gap:8px}
+.cm-none p{margin:0;font-size:13px}
+.cm-cmd{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 12px;border-radius:var(--r-sm);background:var(--bg-2);font-size:12.5px}
+.cm-cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap}
+.cm-none-acts,.cm-connect-acts{display:flex;flex-wrap:wrap;gap:8px}
+.cm-link{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;height:30px;padding:0 8px 0 4px;border-radius:var(--r-xs);font-size:13px;color:var(--text-2)}
+.cm-link:hover{background:var(--hover);color:var(--text)}
+.cm-link .ico{width:14px;height:14px}
+.cm-other{display:flex;flex-direction:column;gap:10px}
+.cm-manual,.cm-adv{display:flex;flex-direction:column;gap:12px;padding:4px 0 0 20px}
+.cm-inline-field{display:flex;gap:8px}
+.cm-inline-field .input{flex:1;min-width:0}
+@media(max-width:760px){
+  .cm-found-pw{grid-template-columns:minmax(0,1fr)}
+  .cm-manual,.cm-adv{padding-left:0}
+  .cm-found-h{flex-wrap:wrap}
+}

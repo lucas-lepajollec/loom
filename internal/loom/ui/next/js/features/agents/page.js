@@ -142,7 +142,15 @@ function Top({ sub }) {
 
 export function AgentsPage({ route }) {
   const state = useStore(agents, s => s.conn.state);
-  useEffect(() => { refreshConnection(); return useAgentsLive(); }, []);
+  const ready = state === 'ready';
+  useEffect(() => { refreshConnection(); }, []);
+  // Le flux d'événements ne s'ouvre qu'une fois connecté ; sinon on revérifie
+  // régulièrement (Codeman redémarré, mis à jour, réinstallé).
+  useEffect(() => {
+    if (ready) return useAgentsLive();
+    const timer = setInterval(() => { if (!document.hidden) refreshConnection(); }, 10000);
+    return () => clearInterval(timer);
+  }, [ready]);
   const sub = SUBS.includes(route.sub) || route.sub === 's' ? route.sub : '';
   const gated = sub !== 'settings' && state !== 'ready';
   return html`<div class="view cm">

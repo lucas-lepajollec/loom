@@ -7,17 +7,31 @@
 - The CLIs you want installed and signed in **on the Codeman host**. Loom never
   installs or logs into them.
 
-## Configure
+## Connect
 
-1. Install and start Codeman following its README (for example its systemd user
-   service). Set `CODEMAN_PASSWORD` if Codeman listens beyond loopback.
-2. In Loom, open **Agents → Connection** and enter the address as the Loom
-   server reaches it, the username (default `admin`) and the password.
-3. Optional: set the official interface address if the browser reaches
-   Codeman at a different host than Loom (used only for "Open in Codeman").
+Open **Settings → Agents** (or the Agents page, which shows the same screen
+until Codeman is connected).
+
+- **Same machine as Loom:** Loom looks for Codeman the way Codeman's own tools
+  do — its default port, its systemd user service (`codeman-web*.service` and
+  drop-ins, including `--port`, `--https`, `CODEMAN_BASE_URL`), its macOS
+  launchd agent, its data directory `.env` and Loom's environment. When the
+  password is found there, **Connect** is a single click; otherwise Loom asks
+  for it once. This works when Loom runs as the same OS user as Codeman.
+- **Not installed:** the screen shows Codeman's official installer
+  (`curl -fsSL https://getcodeman.com/install | bash`) and a search-again button.
+- **Another machine:** "Codeman runs on another machine?" takes `host:port`,
+  username and password.
+
+Every connection is tested before anything is saved; a refused password or a
+non-Codeman service is reported without changing the current setup. An `https`
+Codeman on loopback may use its self-signed certificate; remote `https`
+certificates are verified. "Advanced options" sets the official-interface
+address used by "Open in Codeman" when the browser reaches Codeman at another
+host. **Disconnect** forgets the address and password.
 
 The configuration lives in `<LOOM_HOME>/codeman.json`; the password is sealed
-under `<LOOM_HOME>/secrets/providers/`. **Forget the password** removes it.
+under `<LOOM_HOME>/secrets/providers/`; **Disconnect** removes both.
 
 If Codeman sits behind a reverse proxy with its own hostname, add that host to
 `CODEMAN_ALLOWED_HOSTS` on the Codeman side; Loom connects without an `Origin`

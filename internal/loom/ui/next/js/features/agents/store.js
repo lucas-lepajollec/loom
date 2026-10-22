@@ -5,7 +5,7 @@ import { createStore } from '../../core/lib.js';
 import { api, gateway, connectEvents } from './client.js';
 
 export const agents = createStore({
-  conn: { state: 'idle', auth: '', version: '', error: '', ui_url: '', url: '', password_set: false },
+  conn: { state: 'idle', configured: false, auth: '', version: '', error: '', ui_url: '', url: '', password_set: false },
   sessions: {}, order: [], unified: [], clis: [], cases: [], approvals: [], restore: [],
   live: false, loaded: false,
   // Versions de transcription : un événement de tour incrémente, la vue relit.
@@ -71,7 +71,7 @@ export async function refreshConnection() {
   try {
     const [cfg, st] = await Promise.all([gateway.config(), gateway.status()]);
     const state = !st.reachable ? 'unreachable' : st.auth === 'ok' ? 'ready' : st.auth === 'rejected' ? (cfg.password_set ? 'rejected' : 'auth') : 'error';
-    agents.set({ conn: { state, auth: st.auth, version: st.version || '', error: st.error || '', ui_url: st.ui_url || '', url: cfg.url, username: cfg.username, password_set: cfg.password_set, multi_user: !!st.multi_user } });
+    agents.set({ conn: { state, configured: !!cfg.configured, auth: st.auth, version: st.version || '', error: st.error || '', ui_url: st.ui_url || '', url: cfg.url, username: cfg.username, password_set: cfg.password_set, multi_user: !!st.multi_user } });
     return state;
   } catch (e) {
     agents.set({ conn: { ...agents.get().conn, state: 'error', error: e.message } });
