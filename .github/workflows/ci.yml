@@ -106,6 +106,12 @@ jobs:
     name: UI routes (${{ matrix.engine }} ${{ matrix.shard }})
     needs: ui
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Playwright's own image ships the browsers and their system libraries:
+    # installing them with apt on the runner took up to 11 minutes and could
+    # hang. Keep the tag in step with tools/tests/ui-routes/package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f
     strategy:
       fail-fast: false
       matrix:
@@ -124,24 +130,12 @@ jobs:
           name: loom-ci-binary
           path: bin
 
-      - name: Set up Node
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: tools/tests/ui-routes/package-lock.json
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ matrix.engine }}-${{ hashFiles('tools/tests/ui-routes/package-lock.json') }}
-
-      - name: Install the crawler and its browser
+      - name: Install the crawler
+        # A no-op when the image already holds this Playwright's browser.
         run: |
           chmod +x bin/loom
           npm ci --prefix tools/tests/ui-routes --no-audit --no-fund
-          npx --prefix tools/tests/ui-routes playwright install --with-deps ${{ matrix.engine }}
+          npx --prefix tools/tests/ui-routes playwright install ${{ matrix.engine }}
 
       - name: Crawl every UI route for render crashes
         env:
