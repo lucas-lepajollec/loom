@@ -486,3 +486,8 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
   .cm-cfg .set-c .input.sm{width:100%}
   .q-accs{grid-template-columns:minmax(0,1fr)}
 }
+@media(max-width:360px){
+  .cm-top{gap:2px;padding:0 4px}
+  .cm-top .sec-tabs a{padding:0 6px;font-size:12.5px}
+  .cm-top>.only-mobile{width:30px}
+}
