@@ -51,7 +51,7 @@ function Tile({ s, i, focused, hidden }) {
         onClick=${() => { focusCell(i); toggleZoom(); }}><${Icon} n=${zoom && focused ? 'shrink' : 'expand'} /></button>
       <button class="icon-btn" aria-label=${t('agents.grid.remove')} title=${t('agents.grid.remove')} onClick=${() => clearCell(i)}><${Icon} n="close" /></button>
     </header>
-    <div class="cm-tile-b">${term ? html`<${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} fontSize=${12.5} focus=${focused} />`
+    <div class="cm-tile-b">${term ? html`<${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} shell=${s.mode === 'shell'} scrollback=${10000} fontSize=${12.5} focus=${focused} />`
       : html`<${Conversation} key=${'c' + s.id} session=${s} compact onTerminal=${() => pick('term')} />`}</div>
   </section>`;
 }

@@ -179,7 +179,7 @@ export function Conversation({ session, onTerminal, terminalVisible, compact }) 
         ${blocks && !hasPrompt && !terminalVisible && session.mode !== 'shell' && html`<div class=${cls('cm-boot anim-rise', submitted && 'live')}>
           <div class="cm-boot-h"><b>${state === 'starting' ? t('agents.conv.empty_starting', { cli: cli.label }) : submitted ? t('agents.conv.live_title', { cli: cli.label }) : t('agents.conv.boot_title', { cli: cli.label })}</b>
             <span class="muted">${submitted ? t('agents.conv.live_text') : t('agents.conv.boot_text')}</span></div>
-          <div class="cm-boot-term"><${AgentTerminal} sessionId=${id} /></div></div>`}
+          <div class="cm-boot-term"><${AgentTerminal} sessionId=${id} mode=${session.mode} scrollback=${2000} /></div></div>`}
         ${blocks && !grouped.length && (terminalVisible || session.mode === 'shell') && html`<div class="cm-conv-empty">
           <p>${t('agents.conv.empty', { cli: cli.label })}</p></div>`}
         ${hasPrompt && capsOf(session.mode).transcript === 'screen' && html`<p class="cm-screen-note muted"><${Icon} n="info" />${t('agents.conv.screen_note')}</p>`}

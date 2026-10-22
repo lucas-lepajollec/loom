@@ -15,7 +15,7 @@ import { TabNav } from '../../ui/tabnav.js';
 import { app, go } from '../../core/state.js';
 import { api } from './client.js';
 import { agents, useAgentsLive, refreshConnection, stateOf, cliOf, projectOf, upsertSession } from './store.js';
-import { closeSession, renameSession } from './actions.js';
+import { closeSession, renameSession, createSession } from './actions.js';
 import { Rail, StateDot } from './rail.js';
 import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf } from './layout.js';
 import { Conversation } from './conversation.js';
@@ -88,7 +88,7 @@ function SessionPane({ s, narrowView }) {
       <${SessionHeader} s=${s} view=${mode} setView=${setView} narrowView=${narrowView} insp=${insp} setInsp=${setInsp} />
       <div class=${cls('cm-body', 'v-' + mode)}>
         ${(mode === 'chat' || mode === 'split') && html`<${Conversation} key=${'c' + s.id} session=${s} onTerminal=${toTerm} terminalVisible=${mode === 'split'} />`}
-        ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} focus=${mode === 'term'} /></div>`}
+        ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} shell=${s.mode === 'shell'} scrollback=${agents.get().settings?.terminalScrollbackLines || 50000} focus=${mode === 'term'} /></div>`}
       </div>
     </div>
     ${insp && (narrowView ? html`<${Drawer} title=${t('agents.insp.title')} onClose=${() => setInsp(false)}><${Inspector} session=${s} /></${Drawer}>`
@@ -169,6 +169,43 @@ export function QuotaChip() {
   return html`<a class="cm-quota hide-narrow" href="#/quotas" title=${t('quotas.chip')}>${parts.map(([label, v]) => html`<span class=${tone(v)}><em>${label}</em>${v}%</span>`)}</a>`;
 }
 
+// Lancement rapide : un shell ou l'agent par défaut, dans le dossier de la
+// session affichée (sinon le dossier par défaut de Codeman, sinon le plus
+// récent). Le menu propose les autres CLI et la fenêtre complète.
+function QuickLaunch({ currentId, narrowView }) {
+  const clis = useStore(agents, s => s.clis);
+  const settings = useStore(agents, s => s.settings || {});
+  const [busy, setBusy] = useState('');
+  const [menu, setMenu] = useState(null);
+  const folder = () => {
+    const l = layout.get(), st = agents.get();
+    const id = l.count > 1 && !narrowView ? l.cells[l.focus] : currentId;
+    return (id && st.sessions[id]?.workingDir) || settings.defaultWorkingDir || (st.unified.find(r => r.workingDir) || {}).workingDir || '';
+  };
+  const list = clis.filter(c => c.kind !== 'shell' && c.enabled !== false && c.installed !== false);
+  const def = list.find(c => c.id === settings.runMode) || list.find(c => c.id === 'claude') || list[0];
+  const launch = async mode => {
+    const dir = folder();
+    if (!dir) return agents.set({ creating: { preset: { mode } } });
+    setBusy(mode);
+    try { openSession(await createSession({ mode, workingDir: dir })); }
+    catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
+  };
+  const where = projectOf(folder());
+  const items = [...list.map(c => ({ label: c.label, icon: 'agent', run: () => launch(c.id) })), '-',
+    { label: t('agents.quick.more'), icon: 'sliders', run: () => agents.set({ creating: { preset: { workingDir: folder() } } }) }];
+  return html`<div class="cm-quick">
+    <button class="btn sm" disabled=${!!busy} title=${t('agents.quick.shell_hint', { dir: where })} aria-label=${t('agents.quick.shell')} onClick=${() => launch('shell')}>
+      ${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}${!narrowView && t('agents.quick.shell')}</button>
+    ${def && html`<div class="cm-split">
+      <button class="btn sm primary" disabled=${!!busy} title=${t('agents.quick.agent_hint', { cli: def.label, dir: where })} aria-label=${def.label} onClick=${() => launch(def.id)}>
+        ${busy && busy !== 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="plus" />`}${!narrowView && def.label}</button>
+      <button class="btn sm primary cm-split-caret" aria-label=${t('agents.quick.choose')} title=${t('agents.quick.choose')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="chevron" /></button>
+    </div>`}
+    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
+  </div>`;
+}
+
 const SUBS = ['', 'control', 'cron', 'settings'];
 function Top({ sub, currentId }) {
   const conn = useStore(agents, s => s.conn);
@@ -182,6 +219,7 @@ function Top({ sub, currentId }) {
     <button class="icon-btn only-mobile" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
     <span class="grow"></span>
+    ${conn.state === 'ready' && html`<${QuickLaunch} currentId=${currentId} narrowView=${narrowView} />`}
     ${current === '' && !narrowView && conn.state === 'ready' && html`<${LayoutPicker} currentId=${currentId} />`}
     <${QuotaChip} />
     <span class=${cls('cm-conn', conn.state === 'ready' && live && 'ok')} title=${conn.url}>

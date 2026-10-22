@@ -3234,4 +3234,9 @@ export default {
   "quotas.connect_title": "Codeman is not connected",
   "quotas.connect_text": "Quotas are read by Codeman. Connect it to track them here.",
   "quotas.connect": "Connect Codeman",
+  "agents.quick.shell": "Shell",
+  "agents.quick.shell_hint": "New shell in {dir}",
+  "agents.quick.agent_hint": "New {cli} session in {dir}",
+  "agents.quick.choose": "Choose the CLI",
+  "agents.quick.more": "More options…",
 };
