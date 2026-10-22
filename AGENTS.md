@@ -40,7 +40,7 @@ current voice/Jarvis, policy, notifications and memory behavior within this scop
 
 ## Development
 
-Use Go 1.26.9 or newer compatible toolchain and Node for UI tests.
+Use Go 1.26.10 or newer compatible toolchain and Node for UI tests.
 `make build` embeds `internal/loom/ui/next`; `make check-ui` checks modules and
 runs free UI regressions. `go test -short ./...` covers Go behavior. Validate
 changed docs with `python3 tools/check-doc-links.py`.

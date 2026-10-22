@@ -6,7 +6,7 @@ Thank you for contributing. Search existing issues and pull requests first, open
 
 ### Prerequisites
 
-- Go 1.26.9 or later
+- Go 1.26.10 or later
 - GNU Make
 - Node for `make check-ui` (no UI build step)
 - An engine or cloud provider for real execution checks; Loom can install llama.cpp or link an existing server
