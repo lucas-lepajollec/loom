@@ -21,6 +21,13 @@
   history, CLI management). Activity → Quotas shows the Claude 5-hour and
   weekly limits and Codex's, with pace, reset times, a 14-day history sampled
   by Loom every five minutes, and Codeman's tokens per day.
+- Agents terminal: loads tmux's rendered history like Codeman (it used to
+  show only the visible frame); the wheel scrolls a full-screen CLI's own
+  history (SGR wheel reports for Claude Code, PageUp/PageDown for others,
+  Shift+wheel for local scrollback); Ctrl+V no longer reaches the CLI as ^V
+  (Claude Code answered "No image found in clipboard"); the last columns no
+  longer slide under the scrollbar; the terminal you click reclaims the pane
+  size. Quick Shell and agent buttons in the Agents bar.
 - Fix attachments through Loom: Codeman's upload route requires its CSRF
   header from non-browser clients, which the gateway now sends. Pasting an
   image or dropping a file works in the composer (thumbnails) and in the

@@ -19,7 +19,7 @@ transcript, approvals in terminal; Shell = terminal only.
 | Send prompt | `POST /sessions/:id/input` | API | Done: single line + `\r`, `clientId`/`seq`, no double send, gated on readiness |
 | Interrupt | input `Esc` | API | Done |
 | Conversation view | `GET /sessions/:id/last-response?context=full` | Partial | Done; structured for Claude/Codex, screen-segmented otherwise; live screen shown when no prompt can be identified |
-| Native terminal | `WS /ws/sessions/:id/terminal`, `GET /terminal` | API | Done: xterm.js, reconnect, resize with confirmed geometry, conversation/terminal/side-by-side |
+| Native terminal | `WS /ws/sessions/:id/terminal`, `GET /terminal?full=1&tail=&lines=` | API | Done: xterm.js, tmux history as Codeman loads it, wheel forwarded to full-screen CLIs (SGR for Claude, page keys otherwise), Ctrl+V kept from the CLI, reconnect, resize with confirmed geometry (focus reclaims it), conversation/terminal/side-by-side |
 | Tile grid (tmux-like) | same WebSocket per pane | API | Done: 2, 3 (main + stack), 4 or 6 panes, draggable dividers, focus and zoom with keyboard chords, drag-and-drop from the sidebar, conversation or terminal per pane, inspector follows focus, per-device layout |
 | Approvals inbox | `GET /approvals`, `approval:*` SSE, `answer`, `dismiss`, `viewed` | Partial | Done for Claude (options/approve/deny); Codex and screen-only CLIs routed to the terminal, never auto-answered |
 | Close / detach / restart | `DELETE /sessions/:id?killMux=`, `/interactive` | API | Done with confirmation |

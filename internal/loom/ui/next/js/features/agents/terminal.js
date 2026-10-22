@@ -23,21 +23,28 @@ export function theme() {
 
 // fit : ajuste la grille au panneau ; sinon le terminal garde la géométrie
 // courante du pane (mosaïque en lecture, plusieurs clients).
-export function AgentTerminal({ sessionId, fit = true, fontSize = 13, focus = false, readOnly = false, onState }) {
+// Chargement de l'écran, comme l'interface officielle : l'historique tmux
+// rendu (borné en lignes et en octets) plutôt que le seul cadre visible ; un
+// shell dans un écran alternatif (vim, less, tmux imbriqué) garde
+// l'enregistrement brut.
+const TAIL = 1024 * 1024;
+const historyQuery = (shell, lines) => `full=1&tail=${TAIL}&lines=${lines}` + (shell ? '&alt=recording' : '');
+
+export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true, fontSize = 13, focus = false, readOnly = false, scrollback = 20000, onState }) {
   const box = useRef(), termRef = useRef();
   const [state, setState] = useState('connecting');
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
   const report = s => { setState(s); onState && onState(s); };
   useEffect(() => {
-    let term, fitAddon, ws, ro, stopConn, detach, alive = true, resizeTimer;
+    let term, fitAddon, ws, ro, stopConn, detach, alive = true, resizeTimer, hollow = false;
     (async () => {
       const w = await loadXterm();
       if (!alive) return;
       const light = document.documentElement.dataset.theme === 'light';
       term = new w.Terminal({
         fontFamily: cssVar('--mono') || 'monospace', fontSize, lineHeight: 1.18, letterSpacing: 0, cursorBlink: false,
-        cursorStyle: 'bar', scrollback: 8000, allowProposedApi: true, convertEol: false, minimumContrastRatio: light ? 4.5 : 1,
+        cursorStyle: 'bar', scrollback, allowProposedApi: true, convertEol: false, minimumContrastRatio: light ? 4.5 : 1,
         disableStdin: readOnly, theme: theme(),
       });
       termRef.current = term;
@@ -64,10 +71,12 @@ export function AgentTerminal({ sessionId, fit = true, fontSize = 13, focus = fa
       const redraw = () => { clearTimeout(redrawTimer); redrawTimer = setTimeout(() => { if (alive) loadScreen(); }, 400); };
       const loadScreen = async () => {
         try {
-          const r = await api.terminal(sessionId);
+          const r = await api.terminal(sessionId, historyQuery(shell, scrollback + term.rows));
           if (!alive) return;
           term.reset();
           if (r?.terminalBuffer) term.write(r.terminalBuffer);
+          // Pas d'historique tmux : le CLI dessine en plein écran et garde lui-même son historique.
+          hollow = r?.paneHistoryLines === 0;
         } catch (_) {}
       };
       stopConn = visibleConnection(async owner => {
@@ -98,6 +107,13 @@ export function AgentTerminal({ sessionId, fit = true, fontSize = 13, focus = fa
         socket.onerror = () => {};
         return () => { socket.onopen = socket.onmessage = socket.onclose = null; if (!ended) socket.close(); };
       }, 1500);
+      // Ctrl+V (Cmd+V) reste au navigateur : son collage apporte le texte ou
+      // l'image, et le CLI ne reçoit pas ^V (Claude Code lirait alors le
+      // presse-papiers du serveur : « No image found in clipboard »).
+      term.attachCustomKeyEventHandler(ev => !(ev.type === 'keydown' && (ev.ctrlKey || ev.metaKey) && !ev.altKey && ev.key.toLowerCase() === 'v'));
+      // Le terminal où l'on clique reprend sa taille (plusieurs écrans
+      // partagent le même pane ; Codeman suit le dernier qui la demande).
+      term.textarea?.addEventListener('focus', () => { if (fit) { try { fitAddon.fit(); } catch (_) {} sendResize(false); } });
       term.onData(d => { if (!readOnly && ws?.readyState === 1) ws.send(JSON.stringify({ t: 'i', d })); });
       ro = new ResizeObserver(refit); ro.observe(box.current);
       // Une image collée ou un fichier déposé part vers Codeman ; son chemin
@@ -117,11 +133,43 @@ export function AgentTerminal({ sessionId, fit = true, fontSize = 13, focus = fa
       const onOver = e => { if (hasFiles(e) && !readOnly) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setOver(true); } };
       const onLeave = e => { if (!el.contains(e.relatedTarget)) setOver(false); };
       const onDrop = e => { setOver(false); if (!hasFiles(e) || readOnly) return; e.preventDefault(); e.stopPropagation(); attach(filesOf(e.dataTransfer)); };
+      // Molette, comme l'interface officielle : un CLI plein écran (Claude
+      // Code) garde l'historique de sa conversation et le fait défiler lui-même.
+      // Claude reçoit des événements de molette SGR à la position du pointeur,
+      // les autres CLI des pages (PageUp/PageDown). Maj+molette, un shell ou un
+      // programme qui suit déjà la souris gardent le défilement de xterm.
+      let travel = 0;
+      const send = d => { if (ws?.readyState === 1) ws.send(JSON.stringify({ t: 'i', d })); };
+      const onWheel = ev => {
+        if (readOnly || shell || ev.shiftKey || ev.ctrlKey) return;
+        const tracking = term.modes?.mouseTrackingMode;
+        if ((tracking && tracking !== 'none') || term.buffer.active.type === 'alternate') return;
+        if (!hollow && term.buffer.active.baseY > 0) return;
+        ev.preventDefault(); ev.stopPropagation();
+        const screen = el.querySelector('.xterm-screen').getBoundingClientRect();
+        const cellH = screen.height / term.rows, cellW = screen.width / term.cols;
+        travel += ev.deltaMode === 1 ? ev.deltaY : ev.deltaMode === 2 ? ev.deltaY * term.rows : ev.deltaY / cellH;
+        if (mode === 'claude') {
+          const lines = Math.trunc(travel);
+          if (!lines) return;
+          travel -= lines;
+          const col = Math.min(term.cols, Math.max(1, Math.floor((ev.clientX - screen.left) / cellW) + 1));
+          const row = Math.min(term.rows, Math.max(1, Math.floor((ev.clientY - screen.top) / cellH) + 1));
+          send(`\x1b[<${lines < 0 ? 64 : 65};${col};${row}M`.repeat(Math.min(Math.abs(lines), 5)));
+        } else {
+          const page = Math.max(2, Math.round(term.rows / 2));
+          const pages = Math.trunc(travel / page);
+          if (!pages) return;
+          travel -= pages * page;
+          send((pages < 0 ? '\x1b[5~' : '\x1b[6~').repeat(Math.min(Math.abs(pages), 4)));
+        }
+      };
+      el.addEventListener('wheel', onWheel, { capture: true, passive: false });
       el.addEventListener('paste', onPaste, true);
       el.addEventListener('dragover', onOver);
       el.addEventListener('dragleave', onLeave);
       el.addEventListener('drop', onDrop, true);
-      detach = () => { el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
+      detach = () => { el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
     return () => { alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
   }, [sessionId, readOnly]);

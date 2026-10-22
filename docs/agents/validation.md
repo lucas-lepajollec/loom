@@ -72,6 +72,11 @@ afterwards) and the live Claude session, on a rebuilt dev binary.
 | Quotas | Claude 5 h and 7 d and Codex 7 d shown live with resets and pace; history chart; tokens per day; phone layout |
 | Console and overflow | No console errors; no horizontal overflow on phone pages (`#/agents`, settings, quotas, sessions) |
 
+Follow-up, same evening: terminal xterm screen fits its box (no column under the
+scrollbar at 1920 px); the wheel scrolled the live Claude session's own history
+up and back down; the quick Shell button created a shell in the current
+session's folder (deleted afterwards).
+
 `codeman_quota_test.go` covers sampling (percentages and resets only, file
 mode 0600), deduplication and expiry; `TestCodemanUploadPassesCodemanCSRFCheck`
 covers the upload header.

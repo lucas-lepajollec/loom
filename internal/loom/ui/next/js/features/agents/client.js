@@ -69,7 +69,7 @@ export const api = {
   rename: (id, name) => cm.put('/sessions/' + enc(id) + '/name', { name }),
   input: (id, body, opts) => cm.post('/sessions/' + enc(id) + '/input', body, opts),
   transcript: id => cm.get('/sessions/' + enc(id) + '/last-response?context=full'),
-  terminal: (id, tail = 400000) => cm.get('/sessions/' + enc(id) + '/terminal?tail=' + tail, { timeout: 20000 }),
+  terminal: (id, query = 'tail=400000') => cm.get('/sessions/' + enc(id) + '/terminal?' + query, { timeout: 45000 }),
   activeTools: id => cm.get('/sessions/' + enc(id) + '/active-tools'),
   runSummary: id => cm.get('/sessions/' + enc(id) + '/run-summary'),
   gitStatus: (id, fresh) => cm.get('/sessions/' + enc(id) + '/git-status' + (fresh ? '?fresh=1' : ''), { timeout: 45000 }),
