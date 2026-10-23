@@ -7,10 +7,12 @@
 .cm-scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-gutter:stable}
 
 /* barre du module */
-.cm-top{flex:none;display:flex;align-items:center;gap:10px;height:var(--head-h);padding:0 12px 0 14px;border-bottom:1px solid var(--line-soft)}
+.cm-top{flex:none;display:flex;align-items:center;gap:6px;height:var(--head-h);padding:0 12px 0 14px;border-bottom:1px solid var(--line-soft)}
 .cm-top .sec-tabs{margin:0}
-.cm-conn{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface-2);font:500 11.5px var(--mono);color:var(--text-3);white-space:nowrap}
-.cm-conn.ok{color:var(--text-2)}
+.cm-conn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:28px;height:28px;padding:0 8px;border-radius:999px;font-size:12px;color:var(--text-3);text-decoration:none;white-space:nowrap}
+.cm-conn:hover{background:var(--hover)}
+.cm-conn:not(.ok){background:var(--surface-2)}
+.cm-conn .dot{width:7px;height:7px}
 
 /* attente de connexion */
 .cm-gate{flex:1;min-height:0;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:48px 20px}
@@ -101,6 +103,10 @@
 .cm-term-box .xterm{height:100%;box-sizing:border-box;padding:12px 6px 8px 16px}
 .cm-term-box .xterm-viewport{background:transparent!important;scrollbar-width:thin;scrollbar-color:var(--surface-3) transparent}
 .cm-term-box .xterm-screen{margin:0 auto 0 0}
+/* Le moteur DOM d'xterm ajoute un espacement (letter-spacing) qui, cumulé sur
+   200 colonnes, poussait les derniers caractères hors du cadre (mesuré :
+   +0,156 px par colonne). Sans lui, le texte tombe exactement sur la grille. */
+.cm-term-box .xterm-rows,.cm-term-box .xterm-rows span{letter-spacing:0!important}
 .cm-term-state{position:absolute;top:10px;right:12px;display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface-2);box-shadow:var(--shadow-panel);font-size:12px;color:var(--text-2);pointer-events:none;animation:in-fade var(--mid) var(--ease)}
 .cm-term-exited .cm-term-box,.cm-term-missing .cm-term-box{opacity:.55}
 
@@ -370,18 +376,18 @@
 .cm-side-more .ico:first-child{width:14px;height:14px}
 
 /* disposition et quotas dans la barre du module */
-.cm-layouts{display:inline-flex;align-items:center;gap:1px;height:30px;padding:2px;border-radius:9px;background:var(--surface-2)}
-.cm-layouts button{display:inline-grid;place-items:center;width:30px;height:26px;border-radius:7px;color:var(--text-3);transition:background-color var(--fast),color var(--fast)}
-.cm-layouts button:hover{color:var(--text)}
-.cm-layouts button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.18)}
-.cm-layouts .ico{width:15px;height:15px}
-.cm-layouts-sep{width:1px;height:16px;margin:0 3px;background:var(--line)}
+.cm-layout-btn{width:32px;height:32px}
+.cm-layout-btn.on{background:var(--hover);color:var(--text)}
 .cm-shape{width:17px;height:13px;fill:none;stroke:currentColor;stroke-width:1.3}
-.cm-layouts button.on .cm-shape rect{fill:color-mix(in srgb,currentColor 14%,transparent)}
-.cm-quota{display:inline-flex;align-items:center;gap:10px;height:26px;padding:0 11px;border-radius:999px;background:var(--surface-2);font:500 12px var(--font);font-variant-numeric:tabular-nums;color:var(--text-2);text-decoration:none;white-space:nowrap}
-.cm-quota:hover{color:var(--text)}
-.cm-quota em{font-style:normal;color:var(--text-4);margin-right:4px}
-.cm-quota .amber{color:var(--amber)}.cm-quota .red{color:var(--red)}
+.cm-layout-pop{padding:10px;display:flex;flex-direction:column;gap:10px}
+.cm-layout-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.cm-layout-grid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0 6px;border-radius:var(--r-sm);color:var(--text-3);font:500 11px var(--font)}
+.cm-layout-grid button:hover{background:var(--hover);color:var(--text)}
+.cm-layout-grid button.on{background:var(--sel);color:var(--text)}
+.cm-layout-grid button.on .cm-shape rect{fill:color-mix(in srgb,currentColor 16%,transparent)}
+.cm-layout-grid .cm-shape{width:22px;height:17px}
+.cm-layout-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px 0;border-top:1px solid var(--line-soft);font-size:13px;cursor:pointer}
+.cm-layout-hint{margin:0;padding:0 4px;font-size:11.5px;line-height:1.45}
 
 /* grille de volets (tmux) */
 .cm-grid{flex:1;min-height:0;display:grid;padding:4px;background:var(--bg-2)}
@@ -503,8 +509,7 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 .cm-split>.btn+.btn{border-left-color:color-mix(in srgb,var(--on-ink) 25%,transparent)}
 .cm-split-caret{width:26px;padding:0;justify-content:center}
 .cm-split-caret .ico{width:13px!important;height:13px!important}
-@media(max-width:760px){.cm-quick .btn{width:32px;padding:0;justify-content:center}.cm-quick .cm-split-caret{width:24px}}
-@media(max-width:1280px) and (min-width:761px){.cm-quota{display:none}}
+.cm-quick-one{width:30px;padding:0;justify-content:center}
 .cm-term-foreign{pointer-events:auto;cursor:pointer;color:var(--text);border:0}
 .cm-term-foreign:hover{background:var(--surface-3)}
 .cm-term-foreign .ico{width:13px;height:13px}

@@ -3240,4 +3240,5 @@ export default {
   "agents.quick.choose": "Choose the CLI",
   "agents.quick.more": "More options…",
   "agents.term.foreign": "Size set by another screen · Fit",
+  "agents.grid.keys": "Ctrl+Shift+G toggles the grid · Alt+Shift+arrows switch panes · Alt+Shift+Z zooms",
 };
