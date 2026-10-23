@@ -58,6 +58,8 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
     const setForeign = v => { if (v !== isForeign) { isForeign = v; if (alive) setForeignState(v); } };
     (async () => {
       const w = await loadXterm();
+      // Comme Codeman : texte plus petit sur téléphone pour garder des colonnes.
+      if (viewport() === 'mobile' && fontSize > 10) fontSize = 10;
       await fontsReady(fontSize);
       if (!alive) return;
       const light = document.documentElement.dataset.theme === 'light';
@@ -79,9 +81,16 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         refit();
       };
       document.fonts?.addEventListener?.('loadingdone', remeasure);
+      // La taille que ce panneau voudrait. Elle est DEMANDÉE à Codeman ; le
+      // terminal ne prend que celle que Codeman confirme (zc). Redimensionner
+      // localement d'abord faisait sauter l'affichage à chaque geste quand la
+      // demande était refusée (téléphone pendant qu'un ordinateur est actif).
+      const wanted = () => { try { return fitAddon.proposeDimensions(); } catch (_) { return null; } };
       const sendResize = force => {
-        if (!fit || ws?.readyState !== 1) return;
-        ws.send(JSON.stringify({ t: 'z', c: term.cols, r: term.rows, v: viewport(), ...(force ? { f: true } : {}) }));
+        const d = fit && wanted();
+        if (!d || !Number.isFinite(d.cols) || !Number.isFinite(d.rows)) return;
+        if (ws?.readyState !== 1) { if (d.cols !== term.cols || d.rows !== term.rows) term.resize(d.cols, d.rows); return; }
+        ws.send(JSON.stringify({ t: 'z', c: d.cols, r: d.rows, v: viewport(), ...(force ? { f: true } : {}) }));
       };
       // Un seul redimensionnement par geste : pendant le glissement d'un
       // séparateur de la grille, on attend qu'il soit lâché.
@@ -89,7 +98,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
           if (document.body.classList.contains('cm-dragging')) return refit();
-          try { if (fit) fitAddon.fit(); sendResize(false); } catch (_) {}
+          try { sendResize(false); } catch (_) {}
         }, 150);
       };
       // Plusieurs écrans partagent le pane ; Codeman lui donne la taille du
@@ -99,7 +108,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       // celui qu'on utilise la réaffirme (au plus toutes les 2 s ; une taille
       // inchangée ne coûte rien côté Codeman).
       let lastClaim = 0;
-      const reclaim = now => { if (!fit || readOnly) return; if (!now && Date.now() - lastClaim < 2000) return; lastClaim = Date.now(); try { fitAddon.fit(); } catch (_) {} sendResize(false); };
+      const reclaim = now => { if (!fit || readOnly) return; if (!now && Date.now() - lastClaim < 2000) return; lastClaim = Date.now(); sendResize(false); };
       reclaimRef.current = () => reclaim(true);
       // Après un changement de géométrie, l'écran est relu une fois pour
       // effacer ce que les tailles intermédiaires ont laissé.
@@ -114,8 +123,8 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           // Pas d'historique tmux : le CLI dessine en plein écran et garde lui-même son historique.
           hollow = r?.paneHistoryLines === 0;
           // La capture dit la taille réelle du pane : plus large que ce panneau, il déborde.
-          const want = fit && fitAddon.proposeDimensions();
-          if (want && Number.isInteger(r?.captureCols)) setForeign(r.captureCols > want.cols);
+          const want = fit && wanted();
+          if (want && Number.isInteger(r?.captureCols)) setForeign(viewport() === 'desktop' && r.captureCols > want.cols);
         } catch (_) {}
       };
       stopConn = visibleConnection(async owner => {
@@ -134,7 +143,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           else if (m.t === 'c') term.clear();
           else if (m.t === 'r') loadScreen();
           // Géométrie réellement retenue par le pane (arbitrage entre appareils).
-          else if (m.t === 'zc' && Number.isInteger(m.c) && Number.isInteger(m.r)) { if (m.c !== term.cols || m.r !== term.rows) term.resize(m.c, m.r); const want = fit && fitAddon.proposeDimensions(); setForeign(!!want && (m.c > want.cols || m.r > want.rows)); if (seen && (m.c !== seen.c || m.r !== seen.r)) redraw(); seen = { c: m.c, r: m.r }; }
+          else if (m.t === 'zc' && Number.isInteger(m.c) && Number.isInteger(m.r)) { if (m.c !== term.cols || m.r !== term.rows) term.resize(m.c, m.r); const want = wanted(); setForeign(viewport() === 'desktop' && !!want && (m.c > want.cols || m.r > want.rows)); if (seen && (m.c !== seen.c || m.r !== seen.r)) redraw(); seen = { c: m.c, r: m.r }; }
         };
         socket.onclose = e => {
           if (!owner.alive()) return;
@@ -183,23 +192,25 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       // programme qui suit déjà la souris gardent le défilement de xterm.
       let travel = 0;
       const send = d => { if (ws?.readyState === 1) ws.send(JSON.stringify({ t: 'i', d })); };
-      const onWheel = ev => {
-        reclaim();
-        if (readOnly || shell || ev.shiftKey || ev.ctrlKey) return;
+      // Le défilement va-t-il au CLI (plein écran, sans historique local) ?
+      const toCli = () => {
+        if (readOnly || shell) return false;
         const tracking = term.modes?.mouseTrackingMode;
-        if ((tracking && tracking !== 'none') || term.buffer.active.type === 'alternate') return;
-        if (!hollow && term.buffer.active.baseY > 0) return;
-        ev.preventDefault(); ev.stopPropagation();
+        if ((tracking && tracking !== 'none') || term.buffer.active.type === 'alternate') return false;
+        return hollow || term.buffer.active.baseY === 0;
+      };
+      // lines : lignes de défilement (négatif = vers le haut), au point x/y.
+      const scrollCli = (lines, x, y) => {
         const screen = el.querySelector('.xterm-screen').getBoundingClientRect();
         const cellH = screen.height / term.rows, cellW = screen.width / term.cols;
-        travel += ev.deltaMode === 1 ? ev.deltaY : ev.deltaMode === 2 ? ev.deltaY * term.rows : ev.deltaY / cellH;
+        travel += lines;
         if (mode === 'claude') {
-          const lines = Math.trunc(travel);
-          if (!lines) return;
-          travel -= lines;
-          const col = Math.min(term.cols, Math.max(1, Math.floor((ev.clientX - screen.left) / cellW) + 1));
-          const row = Math.min(term.rows, Math.max(1, Math.floor((ev.clientY - screen.top) / cellH) + 1));
-          send(`\x1b[<${lines < 0 ? 64 : 65};${col};${row}M`.repeat(Math.min(Math.abs(lines), 5)));
+          const n = Math.trunc(travel);
+          if (!n) return;
+          travel -= n;
+          const col = Math.min(term.cols, Math.max(1, Math.floor((x - screen.left) / cellW) + 1));
+          const row = Math.min(term.rows, Math.max(1, Math.floor((y - screen.top) / cellH) + 1));
+          send(`\x1b[<${n < 0 ? 64 : 65};${col};${row}M`.repeat(Math.min(Math.abs(n), 5)));
         } else {
           const page = Math.max(2, Math.round(term.rows / 2));
           const pages = Math.trunc(travel / page);
@@ -208,12 +219,37 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           send((pages < 0 ? '\x1b[5~' : '\x1b[6~').repeat(Math.min(Math.abs(pages), 4)));
         }
       };
+      const cellHeight = () => el.querySelector('.xterm-screen').getBoundingClientRect().height / term.rows;
+      const onWheel = ev => {
+        reclaim();
+        if (ev.shiftKey || ev.ctrlKey || Math.abs(ev.deltaX) > Math.abs(ev.deltaY) || !toCli()) return;
+        ev.preventDefault(); ev.stopPropagation();
+        scrollCli(ev.deltaMode === 1 ? ev.deltaY : ev.deltaMode === 2 ? ev.deltaY * term.rows : ev.deltaY / cellHeight(), ev.clientX, ev.clientY);
+      };
+      // Au doigt : un glissement vertical fait défiler le CLI comme la molette ;
+      // un glissement horizontal reste au panneau (terminal plus large que
+      // l'écran quand un ordinateur fixe la taille).
+      let touch = null;
+      const onTouchStart = ev => { const t0 = ev.touches[0]; touch = ev.touches.length === 1 && toCli() ? { x: t0.clientX, y: t0.clientY, axis: '' } : null; };
+      const onTouchMove = ev => {
+        if (!touch) return;
+        const t1 = ev.touches[0], dx = t1.clientX - touch.x, dy = t1.clientY - touch.y;
+        if (!touch.axis) { if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return; touch.axis = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x'; }
+        if (touch.axis !== 'y') return;
+        ev.preventDefault();
+        scrollCli(-dy / cellHeight(), t1.clientX, t1.clientY);
+        touch.x = t1.clientX; touch.y = t1.clientY;
+      };
+      const onTouchEnd = () => { touch = null; };
+      el.addEventListener('touchstart', onTouchStart, { passive: true });
+      el.addEventListener('touchmove', onTouchMove, { passive: false });
+      el.addEventListener('touchend', onTouchEnd);
       el.addEventListener('wheel', onWheel, { capture: true, passive: false });
       el.addEventListener('paste', onPaste, true);
       el.addEventListener('dragover', onOver);
       el.addEventListener('dragleave', onLeave);
       el.addEventListener('drop', onDrop, true);
-      detach = () => { document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
+      detach = () => { el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchmove', onTouchMove); el.removeEventListener('touchend', onTouchEnd); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
     return () => { alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
   }, [sessionId, readOnly]);

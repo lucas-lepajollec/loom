@@ -97,10 +97,13 @@
 /* terminal */
 .cm-term-wrap{flex:1;min-width:0;min-height:0;display:flex;background:var(--bg-2)}
 .cm-term{position:relative;flex:1;min-width:0;min-height:0;display:flex}
-.cm-term-box{flex:1;min-width:0;min-height:0;overflow:hidden}
+.cm-term-box{flex:1;min-width:0;min-height:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:var(--surface-3) transparent}
 /* La marge est sur .xterm : FitAddon la déduit (pas celle du parent), sinon
    les dernières colonnes passent sous la barre de défilement. */
-.cm-term-box .xterm{height:100%;box-sizing:border-box;padding:12px 6px 8px 16px}
+.cm-term-box .xterm{height:100%;box-sizing:border-box;padding:12px 6px 8px 16px;width:max-content;min-width:100%}
+/* Quand Codeman garde une taille plus large que le panneau (téléphone pendant
+   qu'un ordinateur est actif), le terminal défile horizontalement, comme dans
+   Codeman, au lieu d'être coupé. */
 .cm-term-box .xterm-viewport{background:transparent!important;scrollbar-width:thin;scrollbar-color:var(--surface-3) transparent}
 .cm-term-box .xterm-screen{margin:0 auto 0 0}
 /* Le moteur DOM d'xterm ajoute un espacement (letter-spacing) qui, cumulé sur

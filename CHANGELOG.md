@@ -28,6 +28,12 @@
   (Claude Code answered "No image found in clipboard"); the last columns no
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
+- Agents terminal on phones: while a desktop uses the session, Codeman keeps
+  the desktop's size and Loom showed it cut off at 13 px, re-fitting on every
+  tap. Like Codeman, the phone now uses a 10 px font and scrolls the terminal
+  sideways; the terminal only takes the size Codeman confirms (no local
+  refit before the answer); a vertical swipe scrolls a full-screen CLI as the
+  wheel does; no "Fit" pill on phones.
 - Agents: drop the letter-spacing xterm's DOM renderer adds (+0.156 px per
   column measured), which pushed the last characters of a full line past the
   panel; text now ends exactly on the cell grid. Lighter Agents bar: one
