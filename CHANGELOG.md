@@ -88,6 +88,14 @@ Notable changes to Loom are documented here. The format follows [Keep a Changelo
 These notes record work before harness retirement. Native integration entries
 are superseded by the current Unreleased scope and are retained as history.
 
+- Brain passage and topic-memory ranking share one pure BM25 scorer with
+  identical benchmark rankings. Context packing retains identical passages
+  from distinct source/path/heading citations instead of losing provenance.
+  Synthetic packed recall rises from 78.6% to 85.7% at 512/1,500 tokens and
+  92.9% to 100% at 3,000; the fixed natural-only subset is unchanged. The CI
+  baseline now gates packed evidence and all measured top-k quality too.
+  Three broader ranking/packing experiments were reverted after category
+  regressions. See [measured retrieval results](docs/brain-retrieval-results.md).
 - Native Codex/Pi, OpenCode and Antigravity share one answer accumulator with
   protocol-specific replacement semantics and stable unfinished-item closing;
   all 43 native fixtures retain byte-identical canonical output. Builtin ACP,
@@ -121,8 +129,8 @@ are superseded by the current Unreleased scope and are retained as history.
 - Add a free offline Brain retrieval benchmark using the real context assembler
   and fake adapter capture, JSON evidence/token/latency reports, synthetic CI
   baseline gates, and explicit pinned LongMemEval cache fetch/import tools.
-  Brain runtime behavior is unchanged; natural subset selection awaits download
-  and review. See `docs/brain-retrieval-benchmark.md`.
+  Natural content stays in ignored cache; temporal labels await review.
+  See `docs/brain-retrieval-benchmark.md`.
 
 - Engine updates repair missing/CPU-only llama.cpp binaries and mismatched CMake
   caches even at the current commit, locally and through linked Loom nodes.

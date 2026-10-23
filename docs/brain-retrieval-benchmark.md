@@ -6,7 +6,9 @@ It calls production Brain ingestion, search, packing and discussion preparation,
 then captures the messages passed through production dispatch to a fake adapter.
 There are zero completions, embeddings, extraction, consolidation or judge calls.
 No engine, harness, account, model weights or Python dependencies are required.
-Brain runtime behavior and the UI are unchanged. There is no `loom brain bench`
+The original benchmark did not change runtime behavior or the UI. Subsequent
+[measured refinements](brain-retrieval-results.md) share BM25 scoring and retain
+distinct packing provenance. There is no `loom brain bench`
 flag: the audit's `go test` commands are the supported entry points.
 
 Reuse decision: use the [official LongMemEval input/evidence schema](https://github.com/xiaowu0162/LongMemEval#-dataset-format)
@@ -72,11 +74,14 @@ notice and content review. Code licences from other projects are not treated as
 dataset licences. The cache's `licence-manifest.json` records that declaration,
 its immutable source and this redistribution decision.
 
-The sandbox could not fetch the source because DNS was unavailable. Consequently
+The original benchmark sandbox could not fetch the source because DNS was unavailable. Consequently
 the committed `selected_ids`, category counts and natural converted hashes are
 empty, explicitly marked pending. The importer and its selection/hash guards
-are tested with synthetic upstream-shaped input; real LongMemEval retrieval
-quality, download success and actual selected IDs are **unverified** here.
+are tested with synthetic upstream-shaped input. Mission I subsequently imported
+the verified cached upstream file and measured the fixed natural subset locally;
+see the [results and remaining boundaries](brain-retrieval-results.md). Download
+success and natural temporal labels remain unverified. Natural text, IDs and
+sidecars remain in ignored cache.
 
 ## Lucas: run the larger local LongMemEval subset
 
@@ -158,8 +163,9 @@ supporting text; strict coverage may conservatively report a miss.
 
 `baseline.json` freezes the measured deterministic counts and quality values,
 with a tolerance of **0.01 absolute recall/presence**. The gate checks fixture
-digests, scope leakage, each case's Recall@5 and final complete-evidence presence,
-and per-type/macro quality. Missing rows/denominators fail. Timing is informational.
+digests, scope leakage, each case's span/session Recall@1/5/10/20, complete
+evidence at each k, packed recall and final complete-evidence presence, and the
+same per-type/macro quality. Missing rows/denominators fail. Timing is informational.
 An existing incomplete result is not presented as successful retrieval or
 automatic harness context: the baseline documents current behavior, including
 duplicate packing loss and the frozen-harness boundary.
@@ -169,7 +175,9 @@ and missing-stage reasons, then update deterministic baseline rows/macros and
 fixture digest in a focused review. Tests never rewrite their own baseline and
 there is no automatic acceptance flag. Regression tests also deliberately lower
 Recall@5, remove final presence, and remove duplicate provenance to check that
-measurement/gating detects those failures. No pre-existing runtime bug is fixed.
+measurement/gating detects those failures. The original benchmark slice fixed
+no pre-existing runtime bug; subsequent measured packing fixes are recorded in
+the [results](brain-retrieval-results.md).
 
 ## Transversal inventory and coverage
 
@@ -183,8 +191,8 @@ measurement/gating detects those failures. No pre-existing runtime bug is fixed.
 | Stores: `brain/engine.go`, `search.go`, `text.go`, `semantic.go`, `markdown_memory.go`, `markdown_context.go`, legacy memory/migration, `brain_{store,sources,items,transcripts,project_scope,semantic,consolidation,distill}.go` | Fresh temporary engine, provider conversations, actual folder Markdown, active Markdown memory and scope; vector edit/prune with synthetic vectors. Persistent migration/encryption, ingestion model extraction and semantic quality not claimed |
 | Engines: llama.cpp/router, vLLM, linked inference, Node and configured Chat Completions | All use existing local/common or cloud preparation; execution replaced with fake capture. No engine launch, load, restart, inference or remote transmission |
 
-No shared runtime contract, agent, engine, store implementation or UI page was
-changed. Changes are evaluation fixtures/helpers/tests, the explicit offline
+The original benchmark changed no shared runtime contract, agent, engine, store
+implementation or UI page. Its changes are evaluation fixtures/helpers/tests, the explicit offline
 import/download tools, documentation and CI. The small `tools/brain-retrieval`
 Go helper shares one evidence definition between leaf and assembly tests instead
 of duplicating measurement/fixture/baseline code; the production binary never
