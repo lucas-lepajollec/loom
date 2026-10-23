@@ -12,7 +12,9 @@ import { toast } from '../../ui/dialog.js';
 import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
 
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const viewport = () => innerWidth <= 760 ? 'mobile' : innerWidth <= 1100 ? 'tablet' : 'desktop';
+// Mêmes seuils que Codeman (MobileDetection.getDeviceType) : il refuse la taille
+// d'un téléphone ou d'une tablette tant qu'un ordinateur est actif.
+const viewport = () => innerWidth < 600 ? 'mobile' : innerWidth < 768 ? 'tablet' : 'desktop';
 
 export function theme() {
   return {
@@ -35,9 +37,13 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   const [state, setState] = useState('connecting');
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
+  // Taille imposée par un autre écran, plus grande que ce panneau.
+  const [foreign, setForeignState] = useState(false);
+  const reclaimRef = useRef(null);
   const report = s => { setState(s); onState && onState(s); };
   useEffect(() => {
-    let term, fitAddon, ws, ro, stopConn, detach, alive = true, resizeTimer, hollow = false;
+    let term, fitAddon, ws, ro, stopConn, detach, alive = true, resizeTimer, hollow = false, isForeign = false;
+    const setForeign = v => { if (v !== isForeign) { isForeign = v; if (alive) setForeignState(v); } };
     (async () => {
       const w = await loadXterm();
       if (!alive) return;
@@ -65,6 +71,15 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           try { if (fit) fitAddon.fit(); sendResize(false); } catch (_) {}
         }, 150);
       };
+      // Plusieurs écrans partagent le pane ; Codeman lui donne la taille du
+      // dernier ordinateur qui la demande. Celui qu'on utilise la reprend :
+      // clic, frappe, molette, retour sur l'onglet, ou la pastille.
+      // Codeman ne prévient pas les autres écrans d'un changement de taille :
+      // celui qu'on utilise la réaffirme (au plus toutes les 2 s ; une taille
+      // inchangée ne coûte rien côté Codeman).
+      let lastClaim = 0;
+      const reclaim = now => { if (!fit || readOnly) return; if (!now && Date.now() - lastClaim < 2000) return; lastClaim = Date.now(); try { fitAddon.fit(); } catch (_) {} sendResize(false); };
+      reclaimRef.current = () => reclaim(true);
       // Après un changement de géométrie, l'écran est relu une fois pour
       // effacer ce que les tailles intermédiaires ont laissé.
       let redrawTimer;
@@ -77,6 +92,9 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           if (r?.terminalBuffer) term.write(r.terminalBuffer);
           // Pas d'historique tmux : le CLI dessine en plein écran et garde lui-même son historique.
           hollow = r?.paneHistoryLines === 0;
+          // La capture dit la taille réelle du pane : plus large que ce panneau, il déborde.
+          const want = fit && fitAddon.proposeDimensions();
+          if (want && Number.isInteger(r?.captureCols)) setForeign(r.captureCols > want.cols);
         } catch (_) {}
       };
       stopConn = visibleConnection(async owner => {
@@ -95,7 +113,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           else if (m.t === 'c') term.clear();
           else if (m.t === 'r') loadScreen();
           // Géométrie réellement retenue par le pane (arbitrage entre appareils).
-          else if (m.t === 'zc' && Number.isInteger(m.c) && Number.isInteger(m.r)) { if (m.c !== term.cols || m.r !== term.rows) term.resize(m.c, m.r); if (seen && (m.c !== seen.c || m.r !== seen.r)) redraw(); seen = { c: m.c, r: m.r }; }
+          else if (m.t === 'zc' && Number.isInteger(m.c) && Number.isInteger(m.r)) { if (m.c !== term.cols || m.r !== term.rows) term.resize(m.c, m.r); const want = fit && fitAddon.proposeDimensions(); setForeign(!!want && (m.c > want.cols || m.r > want.rows)); if (seen && (m.c !== seen.c || m.r !== seen.r)) redraw(); seen = { c: m.c, r: m.r }; }
         };
         socket.onclose = e => {
           if (!owner.alive()) return;
@@ -113,8 +131,12 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       term.attachCustomKeyEventHandler(ev => !(ev.type === 'keydown' && (ev.ctrlKey || ev.metaKey) && !ev.altKey && ev.key.toLowerCase() === 'v'));
       // Le terminal où l'on clique reprend sa taille (plusieurs écrans
       // partagent le même pane ; Codeman suit le dernier qui la demande).
-      term.textarea?.addEventListener('focus', () => { if (fit) { try { fitAddon.fit(); } catch (_) {} sendResize(false); } });
-      term.onData(d => { if (!readOnly && ws?.readyState === 1) ws.send(JSON.stringify({ t: 'i', d })); });
+      term.textarea?.addEventListener('focus', () => reclaim(true));
+      term.onData(d => { if (readOnly || ws?.readyState !== 1) return; reclaim(); ws.send(JSON.stringify({ t: 'i', d })); });
+      const onBack = () => { if (!document.hidden && box.current?.offsetParent) reclaim(isForeign); };
+      box.current.addEventListener('pointerdown', onBack);
+      window.addEventListener('focus', onBack);
+      document.addEventListener('visibilitychange', onBack);
       ro = new ResizeObserver(refit); ro.observe(box.current);
       // Une image collée ou un fichier déposé part vers Codeman ; son chemin
       // est tapé dans le terminal, comme dans l'interface officielle.
@@ -141,6 +163,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       let travel = 0;
       const send = d => { if (ws?.readyState === 1) ws.send(JSON.stringify({ t: 'i', d })); };
       const onWheel = ev => {
+        reclaim();
         if (readOnly || shell || ev.shiftKey || ev.ctrlKey) return;
         const tracking = term.modes?.mouseTrackingMode;
         if ((tracking && tracking !== 'none') || term.buffer.active.type === 'alternate') return;
@@ -169,7 +192,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       el.addEventListener('dragover', onOver);
       el.addEventListener('dragleave', onLeave);
       el.addEventListener('drop', onDrop, true);
-      detach = () => { el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
+      detach = () => { window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
     return () => { alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
   }, [sessionId, readOnly]);
@@ -179,6 +202,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
     <div class="cm-term-box" ref=${box}></div>
     ${busy ? html`<div class="cm-term-state"><span class="spinner"></span>${t('agents.attach.sending')}</div>`
       : over ? html`<div class="cm-term-state"><${Icon} n="upload" />${t('agents.attach.drop')}</div>`
+      : foreign && state === 'open' ? html`<button type="button" class="cm-term-state cm-term-foreign" onClick=${() => reclaimRef.current?.()}><${Icon} n="expand" />${t('agents.term.foreign')}</button>`
       : state !== 'open' && html`<div class="cm-term-state"><i class=${cls('dot', state === 'connecting' || state === 'disconnected' ? 'amber' : '')}></i>${lt('term', state)}</div>`}
   </div>`;
 }

@@ -56,7 +56,7 @@
 /* en-tête de session */
 .cm-sh{flex:none;display:flex;align-items:center;gap:10px;height:58px;padding:0 10px 0 16px;border-bottom:1px solid var(--line-soft)}
 .cm-sh-t{display:flex;flex-direction:column;min-width:0;flex:1 1 auto}
-.cm-sh-name{font-size:15px;font-weight:600;letter-spacing:-.015em;text-align:left;color:var(--text);border-radius:5px}
+.cm-sh-name{align-self:flex-start;max-width:100%;font-size:15px;font-weight:600;letter-spacing:-.015em;text-align:left;color:var(--text);border-radius:5px}
 .cm-sh-name:hover{color:var(--accent-2)}
 .cm-sh-t small{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cm-sh .seg{flex:none}
@@ -497,9 +497,14 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 /* lancement rapide */
 .cm-quick{display:inline-flex;align-items:center;gap:6px}
 .cm-quick .btn .ico{width:15px;height:15px}
-.cm-split{display:inline-flex}
-.cm-split>.btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
-.cm-split-caret{width:26px;padding:0;justify-content:center;border-top-left-radius:0;border-bottom-left-radius:0;border-left:1px solid color-mix(in srgb,var(--on-ink) 22%,transparent)}
+/* Bouton scindé : une seule pastille, un filet entre l'action et le menu. */
+.cm-split{display:inline-flex;border-radius:7px;overflow:hidden}
+.cm-split>.btn{border-radius:0!important;transform:none!important}
+.cm-split>.btn+.btn{border-left-color:color-mix(in srgb,var(--on-ink) 25%,transparent)}
+.cm-split-caret{width:26px;padding:0;justify-content:center}
 .cm-split-caret .ico{width:13px!important;height:13px!important}
 @media(max-width:760px){.cm-quick .btn{width:32px;padding:0;justify-content:center}.cm-quick .cm-split-caret{width:24px}}
 @media(max-width:1280px) and (min-width:761px){.cm-quota{display:none}}
+.cm-term-foreign{pointer-events:auto;cursor:pointer;color:var(--text);border:0}
+.cm-term-foreign:hover{background:var(--surface-3)}
+.cm-term-foreign .ico{width:13px;height:13px}

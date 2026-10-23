@@ -28,6 +28,13 @@
   (Claude Code answered "No image found in clipboard"); the last columns no
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
+- Agents fixes: a desktop window narrower than 1100 px announced itself as a
+  tablet, so Codeman refused its size and the terminal overflowed; Loom now
+  uses Codeman's own thresholds and the terminal in use reasserts its size on
+  click, typing, wheel or return to the tab, with a "Fit" pill when another
+  screen set a wider pane. The quick agent button is one split pill whose menu
+  closes on a second click; clicking the empty session header no longer
+  renames the session.
 - Fix attachments through Loom: Codeman's upload route requires its CSRF
   header from non-browser clients, which the gateway now sends. Pasting an
   image or dropping a file works in the composer (thumbnails) and in the
