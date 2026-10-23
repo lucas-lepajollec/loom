@@ -200,6 +200,7 @@ control plane runs in a separate process.
 | --- | --- |
 | `GET /api/engine/service` | `{idle_unload_minutes,swap_wait_seconds,interactive_grace_minutes,models_max,resident:[{model,in_flight,since,last_used}],queue:[{model,waiting,since}],last_activity,idle_unload_at}` |
 | `POST /api/engine/service` | Partial `{idle_unload_minutes?,swap_wait_seconds?,interactive_grace_minutes?,models_max?}`; returns the service snapshot. |
+| `GET /api/engine/openai` | `{models:[{id,kind}],exposed,port,firewall,hint,url_local,url_lan,key_required,worker}`: what an OpenAI client needs; ids match `/v1/models`. No secret. Shown in Settings → API. |
 | `GET /api/engine/keys` | `{keys:[{id,name,created_at,last_used_at,allowed_models,max_concurrency,requests_per_minute,priority,usage:{requests,prompt_tokens,completion_tokens,last_error}}],endpoint}` |
 | `POST /api/engine/keys` | `{name,allowed_models?,max_concurrency?,requests_per_minute?,priority?}` → `{key:{…},secret:"sk-loom-…"}` |
 | `POST /api/engine/keys/update` | `{id,…changed fields}` → `{key:{…}}` |

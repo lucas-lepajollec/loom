@@ -43,6 +43,7 @@ func registerEngineControlRoutes(api func(string, http.HandlerFunc)) {
 	api("/api/preset/delete", handlePresetDelete)
 	api("/api/engine/auto-update", handleEngineAuto)
 	api("/api/engine/service", handleEngineService)
+	api("/api/engine/openai", handleEngineOpenAI) // adresse, clé et noms de modèles pour les applications tierces
 	for _, path := range []string{"/api/engine/keys", "/api/engine/keys/update", "/api/engine/keys/delete", "/api/engine/keys/rotate"} {
 		api(path, handleEngineKeys)
 	}

@@ -28,6 +28,12 @@
   (Claude Code answered "No image found in clipboard"); the last columns no
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
+- Settings → API: one page to use Loom's models from another application
+  (Tradoc, Open WebUI, Continue…): the base URL to copy (the linked machine's
+  when the engine runs elsewhere), network access, a short "what to enter"
+  recipe with an example request, named API keys and the exact model names.
+  New `GET /api/engine/openai` (forwarded to a linked engine) describes the
+  address, key requirement and `/v1/models` names, never a secret.
 - Agents terminal on phones: while a desktop uses the session, Codeman keeps
   the desktop's size and Loom showed it cut off at 13 px, re-fitting on every
   tap. Like Codeman, the phone now uses a 10 px font and scrolls the terminal
