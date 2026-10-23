@@ -70,7 +70,7 @@ function SessionHeader({ s, view, setView, narrowView, insp, setInsp }) {
     ${state === 'stopped' && html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`}
     ${s.mode !== 'shell' && html`<${Seg} size="sm" value=${view} options=${opts} onChange=${setView} label=${t('agents.view.label')} />`}
     <button class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} title=${t('agents.insp.title')} onClick=${() => setInsp(!insp)}><${Icon} n="panel" /></button>
-    <button class="icon-btn" aria-label=${t('agents.session.actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
+    <button class="icon-btn" aria-label=${t('agents.session.actions')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="more" /></button>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
   </header>`;
 }
@@ -200,7 +200,7 @@ function QuickLaunch({ currentId, narrowView }) {
     ${def && html`<div class="cm-split">
       <button class="btn sm primary" disabled=${!!busy} title=${t('agents.quick.agent_hint', { cli: def.label, dir: where })} aria-label=${def.label} onClick=${() => launch(def.id)}>
         ${busy && busy !== 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="plus" />`}${!narrowView && def.label}</button>
-      <button class="btn sm primary cm-split-caret" aria-label=${t('agents.quick.choose')} title=${t('agents.quick.choose')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="chevron" /></button>
+      <button class="btn sm primary cm-split-caret" aria-label=${t('agents.quick.choose')} title=${t('agents.quick.choose')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="chevron" /></button>
     </div>`}
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
   </div>`;

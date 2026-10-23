@@ -3239,4 +3239,5 @@ export default {
   "agents.quick.agent_hint": "New {cli} session in {dir}",
   "agents.quick.choose": "Choose the CLI",
   "agents.quick.more": "More options…",
+  "agents.term.foreign": "Size set by another screen · Fit",
 };
