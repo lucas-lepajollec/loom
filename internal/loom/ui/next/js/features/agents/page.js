@@ -8,7 +8,7 @@ import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls, createStore } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Menu, Seg, Empty } from '../../ui/controls.js';
+import { Menu, Seg, Empty, Popover, Switch } from '../../ui/controls.js';
 import { prompt, confirm, toast } from '../../ui/dialog.js';
 import { Drawer } from '../../ui/drawer.js';
 import { TabNav } from '../../ui/tabnav.js';
@@ -144,29 +144,21 @@ function Workspace({ route }) {
   </div>`;
 }
 
-// Disposition : vue seule ou grille, comme les volets de tmux.
+// Disposition : un bouton qui montre la forme actuelle et ouvre le choix
+// (vue seule ou grille de volets, comme tmux), plus l'inspecteur de la grille.
 function LayoutPicker({ currentId }) {
   const count = useStore(layout, l => l.count);
   const insp = useStore(gridInsp, s => s.open);
-  return html`<div class="cm-layouts" role="radiogroup" aria-label=${t('agents.grid.layout')}>
-    ${COUNTS.map(n => html`<button key=${n} role="radio" aria-checked=${String(count === n)} class=${cls(count === n && 'on')}
-      title=${n === 1 ? t('agents.grid.single') : t('agents.grid.panes', { n })} aria-label=${n === 1 ? t('agents.grid.single') : t('agents.grid.panes', { n })}
-      onClick=${() => setCount(n, currentId)}><${ShapeIcon} n=${n} /></button>`)}
-    ${count > 1 && html`<span class="cm-layouts-sep"></span><button class=${cls(insp && 'on')} aria-pressed=${String(insp)} title=${t('agents.insp.title')} aria-label=${t('agents.insp.title')}
-      onClick=${() => gridInsp.set({ open: !insp })}><${Icon} n="panel" /></button>`}
-  </div>`;
-}
-
-// Quotas d'abonnement en un coup d'œil ; le détail est dans Activité.
-export function QuotaChip() {
-  const usage = useStore(agents, s => s.planUsage);
-  const pct = w => (w && Number.isFinite(w.usedPercentage) ? Math.round(w.usedPercentage) : null);
-  const codex = usage?.codex?.sevenDay || usage?.codex?.fiveHour;
-  const parts = [[t('quotas.w5h'), pct(usage?.fiveHour)], [t('quotas.w7d'), pct(usage?.sevenDay)]].filter(p => p[1] != null);
-  if (!parts.length && pct(codex) != null) parts.push(['Codex', pct(codex)]);
-  if (!parts.length) return null;
-  const tone = v => (v >= 90 ? 'red' : v >= 70 ? 'amber' : '');
-  return html`<a class="cm-quota hide-narrow" href="#/quotas" title=${t('quotas.chip')}>${parts.map(([label, v]) => html`<span class=${tone(v)}><em>${label}</em>${v}%</span>`)}</a>`;
+  const [anchor, setAnchor] = useState(null);
+  const label = n => (n === 1 ? t('agents.grid.single') : t('agents.grid.panes', { n }));
+  return html`<button class=${cls('icon-btn cm-layout-btn', anchor && 'on')} aria-label=${t('agents.grid.layout')} title=${t('agents.grid.layout') + ' · ' + label(count)}
+      aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${ShapeIcon} n=${count} /></button>
+    ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${236} class="cm-layout-pop">
+      <div class="cm-layout-grid" role="radiogroup" aria-label=${t('agents.grid.layout')}>${COUNTS.map(n => html`<button key=${n} role="radio" aria-checked=${String(count === n)} class=${cls(count === n && 'on')}
+        title=${label(n)} aria-label=${label(n)} onClick=${() => { setCount(n, currentId); setAnchor(null); }}><${ShapeIcon} n=${n} /><span>${n}</span></button>`)}</div>
+      ${count > 1 && html`<label class="cm-layout-row"><span>${t('agents.insp.title')}</span><${Switch} checked=${insp} onChange=${v => gridInsp.set({ open: v })} /></label>`}
+      <p class="cm-layout-hint muted">${t('agents.grid.keys')}</p>
+    </${Popover}>`}`;
 }
 
 // Lancement rapide : un shell ou l'agent par défaut, dans le dossier de la
@@ -192,11 +184,15 @@ function QuickLaunch({ currentId, narrowView }) {
     catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
   };
   const where = projectOf(folder());
-  const items = [...list.map(c => ({ label: c.label, icon: 'agent', run: () => launch(c.id) })), '-',
+  const items = [...(narrowView ? [{ label: t('agents.quick.shell'), icon: 'terminal', run: () => launch('shell') }] : []), ...list.map(c => ({ label: c.label, icon: 'agent', run: () => launch(c.id) })), '-',
     { label: t('agents.quick.more'), icon: 'sliders', run: () => agents.set({ creating: { preset: { workingDir: folder() } } }) }];
+  // Sur téléphone, un seul bouton « + » ouvre le menu (shell compris).
+  if (narrowView) return html`<div class="cm-quick"><button class="btn sm primary cm-quick-one" aria-label=${t('agents.rail.new')} disabled=${!!busy}
+      onClick=${e => setMenu(menu ? null : e.currentTarget)}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="plus" />`}</button>
+    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}</div>`;
   return html`<div class="cm-quick">
-    <button class="btn sm" disabled=${!!busy} title=${t('agents.quick.shell_hint', { dir: where })} aria-label=${t('agents.quick.shell')} onClick=${() => launch('shell')}>
-      ${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}${!narrowView && t('agents.quick.shell')}</button>
+    <button class="icon-btn" disabled=${!!busy} title=${t('agents.quick.shell_hint', { dir: where })} aria-label=${t('agents.quick.shell')} onClick=${() => launch('shell')}>
+      ${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}</button>
     ${def && html`<div class="cm-split">
       <button class="btn sm primary" disabled=${!!busy} title=${t('agents.quick.agent_hint', { cli: def.label, dir: where })} aria-label=${def.label} onClick=${() => launch(def.id)}>
         ${busy && busy !== 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="plus" />`}${!narrowView && def.label}</button>
@@ -214,18 +210,15 @@ function Top({ sub, currentId }) {
   const narrowView = useNarrow();
   const current = sub === 's' || sub === 'grid' ? '' : sub;
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v) + (v === 'control' && waiting ? ' · ' + waiting : ''), current: current === v }));
-  const link = officialLink('');
   return html`<div class="cm-top">
     <button class="icon-btn only-mobile" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
     <span class="grow"></span>
     ${conn.state === 'ready' && html`<${QuickLaunch} currentId=${currentId} narrowView=${narrowView} />`}
     ${current === '' && !narrowView && conn.state === 'ready' && html`<${LayoutPicker} currentId=${currentId} />`}
-    <${QuotaChip} />
-    <span class=${cls('cm-conn', conn.state === 'ready' && live && 'ok')} title=${conn.url}>
-      <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>
-      <span class="hide-narrow">${conn.state === 'ready' ? 'Codeman ' + (conn.version || '') : lt('conn', conn.state)}</span></span>
-    ${link && html`<a class="icon-btn hide-narrow" href=${link} target="codeman" rel="noopener" title=${t('agents.official')} aria-label=${t('agents.official')}><${Icon} n="link" /></a>`}
+    <a class=${cls('cm-conn', conn.state === 'ready' && 'ok')} href="#/agents/settings"
+      title=${(conn.state === 'ready' ? 'Codeman ' + (conn.version || '') + (live ? '' : ' · ' + t('agents.conn.connecting')) : lt('conn', conn.state)) + (conn.url ? ' · ' + conn.url : '')}>
+      <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>${conn.state !== 'ready' && html`<span class="hide-narrow">${lt('conn', conn.state)}</span>`}</a>
   </div>`;
 }
 

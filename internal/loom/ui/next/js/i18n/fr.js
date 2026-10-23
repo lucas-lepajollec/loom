@@ -3240,4 +3240,5 @@ export default {
   "agents.quick.choose": "Choisir le CLI",
   "agents.quick.more": "Plus d’options…",
   "agents.term.foreign": "Taille fixée par un autre écran · Adapter",
+  "agents.grid.keys": "Ctrl+Maj+G ouvre ou ferme la grille · Alt+Maj+flèches change de volet · Alt+Maj+Z agrandit",
 };
