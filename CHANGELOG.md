@@ -28,6 +28,10 @@
   (Claude Code answered "No image found in clipboard"); the last columns no
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
+- Agents terminal: wait for its monospace font before measuring cells, and
+  re-measure when the font arrives later. Measured on the fallback font,
+  xterm counted too many columns and lines ran past the panel (reproduced
+  with a delayed font: text to 1774 px in a 1491 px panel; fits after).
 - Agents fixes: a desktop window narrower than 1100 px announced itself as a
   tablet, so Codeman refused its size and the terminal overflowed; Loom now
   uses Codeman's own thresholds and the terminal in use reasserts its size on
