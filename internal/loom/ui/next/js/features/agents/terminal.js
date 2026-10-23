@@ -16,6 +16,18 @@ const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(
 // d'un téléphone ou d'une tablette tant qu'un ordinateur est actif.
 const viewport = () => innerWidth < 600 ? 'mobile' : innerWidth < 768 ? 'tablet' : 'desktop';
 
+// xterm mesure la largeur d'un caractère une fois, à sa création. La police
+// du terminal (Geist Mono) est en font-display: swap : mesurée sur la police
+// de secours, plus étroite, elle donne trop de colonnes et le texte déborde du
+// panneau quand la vraie police arrive. On l'attend (borné), et on re-mesure
+// si elle arrive après.
+function fontsReady(size) {
+  const fam = cssVar('--mono').split(',')[0].trim() || 'monospace';
+  if (!document.fonts?.load) return Promise.resolve();
+  const wait = Promise.all([document.fonts.load(`${size}px ${fam}`), document.fonts.load(`bold ${size}px ${fam}`)]).catch(() => {});
+  return Promise.race([wait, new Promise(r => setTimeout(r, 3000))]);
+}
+
 export function theme() {
   return {
     background: cssVar('--bg-2') || '#0c0c0e', foreground: cssVar('--text') || '#ededef', cursor: cssVar('--text-2') || '#a1a1aa',
@@ -46,6 +58,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
     const setForeign = v => { if (v !== isForeign) { isForeign = v; if (alive) setForeignState(v); } };
     (async () => {
       const w = await loadXterm();
+      await fontsReady(fontSize);
       if (!alive) return;
       const light = document.documentElement.dataset.theme === 'light';
       term = new w.Terminal({
@@ -58,6 +71,14 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       term.loadAddon(fitAddon);
       term.open(box.current);
       try { fitAddon.fit(); } catch (_) {}
+      const remeasure = () => {
+        if (!alive) return;
+        const fam = term.options.fontFamily;
+        term.options.fontFamily = fam + ' ';
+        term.options.fontFamily = fam;
+        refit();
+      };
+      document.fonts?.addEventListener?.('loadingdone', remeasure);
       const sendResize = force => {
         if (!fit || ws?.readyState !== 1) return;
         ws.send(JSON.stringify({ t: 'z', c: term.cols, r: term.rows, v: viewport(), ...(force ? { f: true } : {}) }));
@@ -192,7 +213,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       el.addEventListener('dragover', onOver);
       el.addEventListener('dragleave', onLeave);
       el.addEventListener('drop', onDrop, true);
-      detach = () => { window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
+      detach = () => { document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
     return () => { alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
   }, [sessionId, readOnly]);
