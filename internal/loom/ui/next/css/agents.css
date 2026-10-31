@@ -550,3 +550,20 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 /* CLI plein écran (Claude Code /tui fullscreen) : pas de barre de défilement locale trompeuse. */
 .cm-term.cli-fullscreen .xterm-viewport{scrollbar-width:none}
 .cm-term.cli-fullscreen .xterm-viewport::-webkit-scrollbar{display:none}
+
+/* Écrans tactiles (iOS surtout), comme Codeman (styles.css) :
+   - iOS zoome la page quand on touche un champ en dessous de 16 px ; la zone
+     de saisie cachée de xterm prend la taille du terminal (10 px sur
+     téléphone), donc chaque toucher pouvait zoomer et tout décaler ;
+   - elle suit aussi le curseur dans un terminal plus large que l'écran, et
+     iOS fait défiler pour la montrer : on la fige, minuscule et invisible ;
+   - un appui long ne sélectionne pas le texte, un double toucher ne zoome pas. */
+html.touch .cm-term .xterm .xterm-helper-textarea{position:fixed!important;left:0!important;top:0!important;width:1px!important;height:1px!important;font-size:16px!important;opacity:0!important;caret-color:transparent!important;z-index:0!important}
+html.touch .cm-term .xterm .composition-view{display:none!important}
+html.touch .cm-term .xterm,html.touch .cm-term .xterm *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}
+/* Le script est seul maître des gestes sur le terminal (comme Codeman) :
+   sinon iOS lance son propre défilement dès les premiers pixels et ignore
+   le preventDefault qui arrive ensuite. Le glissement horizontal est géré
+   par terminal.js. */
+html.touch .cm-term-box,html.touch .cm-term .xterm,html.touch .cm-term .xterm-viewport,html.touch .cm-term .xterm-screen{touch-action:none}
+html.touch .cm-term-box{-webkit-text-size-adjust:100%}
