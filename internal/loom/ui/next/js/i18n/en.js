@@ -3280,5 +3280,7 @@ export default {
   "api.copy": "Copy: {what}",
   "api.copied": "Copied: {what}",
   "quotas.open": "See details",
-  "agents.mkeys.placeholder": "Type to the terminal…",
+  "agents.acc.label": "Terminal keys",
+  "agents.acc.ctrl": "Ctrl: then tap a letter",
+  "agents.acc.hide": "Hide the keyboard",
 };

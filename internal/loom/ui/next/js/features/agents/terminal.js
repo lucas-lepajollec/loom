@@ -41,23 +41,21 @@ export function theme() {
 // rendu (borné en lignes et en octets) plutôt que le seul cadre visible ; un
 // shell dans un écran alternatif (vim, less, tmux imbriqué) garde
 // l'enregistrement brut.
-// Téléphone : on n'écrit pas directement dans xterm (la saisie d'iOS s'y
-// superpose au texte et ses corrections partent au CLI). Une barre dédiée,
-// comme la barre d'accessoires de Codeman : un vrai champ de texte et les
-// touches qu'un clavier de téléphone n'a pas.
-const KEYS = [['Esc', '\x1b'], ['Tab', '\t'], ['⇧Tab', '\x1b[Z'], ['↑', '\x1b[A'], ['↓', '\x1b[B'], ['←', '\x1b[D'], ['→', '\x1b[C'], ['Ctrl+C', '\x03']];
-function MobileKeys({ send }) {
-  const [v, setV] = useState('');
-  const submit = e => { e.preventDefault(); if (send(v + '\r')) setV(''); };
-  // pointerdown sans effet par défaut : le champ garde le clavier ouvert.
-  return html`<form class="cm-mkeys" onSubmit=${submit}>
-    <div class="cm-mkeys-row">${KEYS.map(([label, seq]) => html`<button type="button" key=${label} onPointerDown=${e => e.preventDefault()} onClick=${() => send(seq)}>${label}</button>`)}</div>
-    <div class="cm-mkeys-in">
-      <input class="input" value=${v} onInput=${e => setV(e.target.value)} enterkeyhint="send" autocomplete="off" placeholder=${t('agents.mkeys.placeholder')} aria-label=${t('agents.mkeys.placeholder')} />
-      <button type="submit" class="cm-send" aria-label=${t('agents.composer.send')} onPointerDown=${e => e.preventDefault()}><${Icon} n="arrowUp" /></button>
-    </div>
-  </form>`;
+// Téléphone, comme Codeman : on tape dans le terminal lui-même, et une barre
+// de touches apparaît au-dessus du clavier tant qu'il est ouvert sur ce
+// terminal (Ctrl à un coup, Esc, Tab, flèches, fermer le clavier).
+const KEYS = [['Esc', '\x1b'], ['Tab', '\t'], ['↑', '\x1b[A'], ['↓', '\x1b[B'], ['←', '\x1b[D'], ['→', '\x1b[C']];
+function Accessory({ send, ctrl, setCtrl, dismiss }) {
+  // pointerdown sans effet par défaut : le terminal garde le clavier.
+  const keep = e => e.preventDefault();
+  return html`<div class="cm-acc" role="toolbar" aria-label=${t('agents.acc.label')}>
+    <button type="button" class=${cls(ctrl && 'on')} aria-pressed=${String(ctrl)} title=${t('agents.acc.ctrl')} onPointerDown=${keep} onClick=${() => setCtrl(!ctrl)}>Ctrl</button>
+    ${KEYS.map(([label, seq]) => html`<button type="button" key=${label} onPointerDown=${keep} onClick=${() => { setCtrl(false); send(seq); }}>${label}</button>`)}
+    <button type="button" class="cm-acc-hide" aria-label=${t('agents.acc.hide')} title=${t('agents.acc.hide')} onPointerDown=${keep} onClick=${dismiss}><${Icon} n="chevron" /></button>
+  </div>`;
 }
+// Ctrl à un coup : la lettre tapée ensuite devient son octet de contrôle.
+const ctrlByte = ch => { const c = ch.toUpperCase().charCodeAt(0); return c >= 64 && c <= 95 ? String.fromCharCode(c - 64) : ch === ' ' ? '\x00' : ch === '?' ? '\x7f' : ch; };
 
 const TAIL = 1024 * 1024;
 const historyQuery = (shell, lines) => `full=1&tail=${TAIL}&lines=${lines}` + (shell ? '&alt=recording' : '');
@@ -69,8 +67,11 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   const [over, setOver] = useState(false);
   // Taille imposée par un autre écran, plus grande que ce panneau.
   const [foreign, setForeignState] = useState(false);
-  const reclaimRef = useRef(null), inputRef = useRef(null);
+  const reclaimRef = useRef(null), inputRef = useRef(null), ctrlRef = useRef(false);
   const phone = viewport() === 'mobile';
+  const [typing, setTyping] = useState(false);
+  const [ctrl, setCtrlState] = useState(false);
+  const setCtrl = v => { ctrlRef.current = v; setCtrlState(v); };
   const report = s => { setState(s); onState && onState(s); };
   useEffect(() => {
     let term, fitAddon, ws, ro, stopConn, detach, alive = true, resizeTimer, hollow = false, isForeign = false;
@@ -95,7 +96,13 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       // Sur téléphone, toucher le terminal n'ouvre pas le clavier (la barre
       // de saisie s'en charge), et le bas du terminal (là où le CLI attend
       // sa saisie) reste visible quand le pane est plus haut que l'écran.
-      if (phone && !readOnly) term.textarea?.setAttribute('inputmode', 'none');
+      // Pas de correction automatique d'iOS : elle réécrit les mots déjà
+      // envoyés au CLI. Le clavier ouvert sur ce terminal montre la barre.
+      if (term.textarea) for (const [k, v] of [['autocorrect', 'off'], ['autocapitalize', 'off'], ['autocomplete', 'off'], ['spellcheck', 'false']]) term.textarea.setAttribute(k, v);
+      if (phone && !readOnly && term.textarea) {
+        term.textarea.addEventListener('focus', () => setTyping(true));
+        term.textarea.addEventListener('blur', () => { setTyping(false); setCtrl(false); });
+      }
       const anchor = () => { const b = box.current; if (b && b.scrollHeight > b.clientHeight) b.scrollTop = b.scrollHeight; };
       term.onResize(() => requestAnimationFrame(anchor));
       const remeasure = () => {
@@ -160,7 +167,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         const socket = new WebSocket(proto + location.host + '/api/codeman/ws/' + encodeURIComponent(sessionId) + '?cid=' + encodeURIComponent(terminalClientId()));
         ws = socket;
         let ended = false, seen = null;
-        socket.onopen = () => { if (!owner.alive()) return; report('open'); sendResize(true); if (focus && !readOnly) term.focus(); };
+        socket.onopen = () => { if (!owner.alive()) return; report('open'); sendResize(true); if (focus && !readOnly && !phone) term.focus(); };
         socket.onmessage = e => {
           if (!owner.alive() || typeof e.data !== 'string') return;
           let m; try { m = JSON.parse(e.data); } catch (_) { return; }
@@ -187,7 +194,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       // Le terminal où l'on clique reprend sa taille (plusieurs écrans
       // partagent le même pane ; Codeman suit le dernier qui la demande).
       term.textarea?.addEventListener('focus', () => reclaim(true));
-      term.onData(d => { if (readOnly || ws?.readyState !== 1) return; reclaim(); ws.send(JSON.stringify({ t: 'i', d })); });
+      term.onData(d => { if (readOnly || ws?.readyState !== 1) return; reclaim(); if (ctrlRef.current && d.length === 1) { d = ctrlByte(d); setCtrl(false); } ws.send(JSON.stringify({ t: 'i', d })); });
       const onBack = () => { if (!document.hidden && box.current?.offsetParent) reclaim(isForeign); };
       box.current.addEventListener('pointerdown', onBack);
       window.addEventListener('focus', onBack);
@@ -290,7 +297,8 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         const t1 = ev.touches[0], dx = t1.clientX - touch.x, dy = t1.clientY - touch.y;
         if (!touch.axis) { if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return; touch.axis = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x'; }
         if (touch.axis !== 'y') return;
-        ev.preventDefault();
+        // xterm a son propre défilement tactile : un seul des deux doit agir.
+        ev.preventDefault(); ev.stopPropagation();
         const now = performance.now(), lines = -dy / cellHeight();
         touch.v = 0.8 * (lines / Math.max(1, now - touch.at)) + 0.2 * touch.v;
         touch.at = now;
@@ -311,20 +319,25 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         }
         touch = null;
       };
+      el.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
+      el.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
+      el.addEventListener('touchend', onTouchEnd);
+      el.addEventListener('touchcancel', onTouchEnd);
       el.addEventListener('wheel', onWheel, { capture: true, passive: false });
       el.addEventListener('paste', onPaste, true);
       el.addEventListener('dragover', onOver);
       el.addEventListener('dragleave', onLeave);
       el.addEventListener('drop', onDrop, true);
-      detach = () => { stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchmove', onTouchMove); el.removeEventListener('touchend', onTouchEnd); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
+      detach = () => { stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart, true); el.removeEventListener('touchmove', onTouchMove, true); el.removeEventListener('touchend', onTouchEnd); el.removeEventListener('touchcancel', onTouchEnd); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
     return () => { alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
   }, [sessionId, readOnly]);
   // Un volet qui reçoit le focus donne le clavier à son terminal.
-  useEffect(() => { if (focus && !readOnly) termRef.current?.focus(); }, [focus]);
-  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', phone && !readOnly && 'with-keys')}>
+  // Sur téléphone, le clavier ne s'ouvre qu'au toucher (comme dans Codeman).
+  useEffect(() => { if (focus && !readOnly && !phone) termRef.current?.focus(); }, [focus]);
+  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', phone && typing && 'with-keys')}>
     <div class="cm-term-box" ref=${box}></div>
-    ${phone && !readOnly && html`<${MobileKeys} send=${d => inputRef.current?.(d)} />`}
+    ${phone && typing && !readOnly && html`<${Accessory} send=${d => inputRef.current?.(d)} ctrl=${ctrl} setCtrl=${setCtrl} dismiss=${() => termRef.current?.blur()} />`}
     ${busy ? html`<div class="cm-term-state"><span class="spinner"></span>${t('agents.attach.sending')}</div>`
       : over ? html`<div class="cm-term-state"><${Icon} n="upload" />${t('agents.attach.drop')}</div>`
       : foreign && state === 'open' ? html`<button type="button" class="cm-term-state cm-term-foreign" onClick=${() => reclaimRef.current?.()}><${Icon} n="expand" />${t('agents.term.foreign')}</button>`
