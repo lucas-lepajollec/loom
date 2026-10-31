@@ -61,9 +61,32 @@ function touchDebug() {
   log('touchdebug on — ' + navigator.userAgent.replace(/Mozilla\/5.0 /, '').slice(0, 90));
 }
 
+// La hauteur de l'application suit la zone réellement visible : iOS ne
+// réduit pas 100dvh quand le clavier s'ouvre (il fait défiler la page), et la
+// barre d'outils du navigateur en bas grignote l'écran. --app-h et --app-top
+// placent l'application juste au-dessus du clavier et de la barre.
+function followVisualViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const root = document.documentElement;
+  let frame = 0;
+  const apply = () => {
+    frame = 0;
+    root.style.setProperty('--app-h', Math.round(vv.height) + 'px');
+    root.style.setProperty('--app-top', Math.round(vv.offsetTop) + 'px');
+    root.classList.toggle('kb-open', vv.height < window.innerHeight - 80);
+  };
+  const soon = () => { if (!frame) frame = requestAnimationFrame(apply); };
+  vv.addEventListener('resize', soon);
+  vv.addEventListener('scroll', soon);
+  window.addEventListener('orientationchange', soon);
+  apply();
+}
+
 export function initTouch() {
   touchDebug();
   if (!coarse()) return;
   document.documentElement.classList.add('touch');
   keepDocumentAtTop();
+  followVisualViewport();
 }

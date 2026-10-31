@@ -3279,4 +3279,6 @@ export default {
   "api.models_empty": "Aucun modèle sur ce moteur pour l’instant.",
   "api.copy": "Copier : {what}",
   "api.copied": "Copié : {what}",
+  "quotas.open": "Voir le détail",
+  "agents.mkeys.placeholder": "Écrire au terminal…",
 };

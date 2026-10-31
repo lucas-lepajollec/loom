@@ -28,6 +28,15 @@
   (Claude Code answered "No image found in clipboard"); the last columns no
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
+- Phones and tablets: the app follows the visible area (visualViewport), so
+  the keyboard and the browser's bottom bar no longer cover the composer or
+  the terminal. Agents terminal on phones: a typing bar (text field and Esc,
+  Tab, arrows, Ctrl+C) replaces typing into xterm, whose iOS input overlaid
+  the text; tapping the terminal no longer opens the keyboard; the bottom of
+  a taller pane stays visible. Terminal scrolling is handled by Loom like in
+  Codeman (xterm's own wheel could stop answering after a screen reload),
+  batched towards the CLI and with momentum on touch. A gauge in the Agents
+  bar previews subscription quotas.
 - Settings → API: one page to use Loom's models from another application
   (Tradoc, Open WebUI, Continue…): the base URL to copy (the linked machine's
   when the engine runs elsewhere), network access, a short "what to enter"

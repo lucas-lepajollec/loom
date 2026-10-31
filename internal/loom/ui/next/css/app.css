@@ -188,6 +188,8 @@ code,pre,kbd,.mono{font-family:var(--mono)}
 
 /* ---------- structure ---------- */
 .app{display:flex;height:100dvh;overflow:hidden}
+/* Écrans tactiles : la zone visible au-dessus du clavier et de la barre du navigateur (touch.js). */
+html.touch .app{position:fixed;left:0;right:0;top:var(--app-top,0);height:var(--app-h,100dvh)}
 .side{width:var(--side-w);flex:none;display:flex;flex-direction:column;gap:14px;padding:14px 12px calc(12px + env(safe-area-inset-bottom));background:var(--bg-2);border-right:1px solid var(--line-soft);transition:width var(--slow) var(--out),transform var(--slow) var(--out)}
 .brand{display:flex;align-items:center;justify-content:space-between;padding:0 2px 0 6px;height:32px}
 .brand b{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:600;letter-spacing:-.02em}
