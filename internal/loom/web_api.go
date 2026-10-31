@@ -75,6 +75,15 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 			presetName = presetDisplayName(body, presetID)
 		}
 	}
+	// Un autre modèle demandé par /v1 a pu remplacer celui de la
+	// configuration : on montre celui qui tourne vraiment.
+	if health {
+		if cur, ok := routerModelStatus(routerCurrentName()); !ok || cur.Status != "loaded" {
+			if other := routerLoadedOther(routerCurrentName()); other != "" {
+				modelName, presetName = other, ""
+			}
+		}
+	}
 	host, _ := os.Hostname()
 	var ctxObserved *int
 	if model != "" && health {
