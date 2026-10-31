@@ -28,6 +28,7 @@
   (Claude Code answered "No image found in clipboard"); the last columns no
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
+- Require golang.org/x/net 0.62.0, which fixes the reachable HTML parser vulnerabilities GO-2026-6866 and GO-2026-6860.
 - Phones and tablets: the app follows the visible area (visualViewport), so
   the keyboard and the browser's bottom bar no longer cover the composer or
   the terminal. Agents terminal on phones: a typing bar (text field and Esc,
