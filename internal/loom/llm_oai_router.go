@@ -505,13 +505,36 @@ func newOAIRouter(injectKey string) http.Handler {
 
 // routerHealth garde le sens historique de /health : 200 seulement quand le
 // modèle choisi est chargé et prêt, 503 pendant un chargement ou sans modèle.
+// routerLoadedOther renvoie un modèle chargé autre que celui de la
+// configuration : une application (un agent, Tradoc…) peut demander un autre
+// modèle par /v1, que le routeur charge à la place du modèle enregistré.
+func routerLoadedOther(cur string) string {
+	models, err := routerModelsWithTimeout(false, time.Second)
+	if err != nil {
+		return ""
+	}
+	for _, m := range models {
+		if m.Status == "loaded" && m.ID != cur {
+			return m.ID
+		}
+	}
+	return ""
+}
+
 func routerHealth(w http.ResponseWriter) {
 	cur := routerCurrentName()
+	m, ok := routerModelStatus(cur)
+	if cur == "" || !(ok && m.Status == "loaded") {
+		if other := routerLoadedOther(cur); other != "" {
+			body, _ := json.Marshal(map[string]string{"status": "ok", "model": other})
+			oaiWriteJSON(w, http.StatusOK, body)
+			return
+		}
+	}
 	if cur == "" {
 		oaiWriteJSON(w, http.StatusServiceUnavailable, []byte(`{"status":"no model loaded"}`))
 		return
 	}
-	m, ok := routerModelStatus(cur)
 	switch {
 	case ok && m.Status == "loaded":
 		oaiWriteJSON(w, http.StatusOK, []byte(`{"status":"ok"}`))

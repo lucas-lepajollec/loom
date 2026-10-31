@@ -418,6 +418,13 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": "node requires a loopback engine"})
 		return
 	}
+	// Moteur llama.cpp de cette machine arrêté : il démarre pour la requête.
+	if currentEngineNode() == nil && r.Method == http.MethodPost {
+		if err := ensureEngineForRequest(r.Context(), u); err != nil {
+			sendJSON(w, 503, map[string]any{"ok": false, "error": "engine unavailable: " + err.Error()})
+			return
+		}
+	}
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	director := proxy.Director
 	proxy.Director = func(req *http.Request) {

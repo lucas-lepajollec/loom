@@ -29,6 +29,14 @@
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
 - Require golang.org/x/net 0.62.0, which fixes the reachable HTML parser vulnerabilities GO-2026-6866 and GO-2026-6860.
+- Engine node: an inference request to /v1 starts the stopped llama.cpp
+  engine and waits for it (up to 90 s) instead of answering 502; a failed
+  start is reported and not retried for 30 s.
+- Router mode: when an application loads another model through /v1 than the
+  saved one, engine health and status report the model actually loaded
+  instead of showing the saved one as loading forever.
+- Agents bar: the layout and quota buttons sit before the Shell and agent
+  buttons.
 - Agents terminal on phones, now like Codeman: you type in the terminal
   itself (iOS autocorrect off on its input), and a key bar (one-shot Ctrl,
   Esc, Tab, arrows, hide keyboard) shows above the keyboard only while it is

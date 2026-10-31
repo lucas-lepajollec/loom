@@ -150,6 +150,8 @@ For a GPU machine without a second full control plane, use [Loom node](engine-no
 
 ## Engine as a service
 
+On a Loom node, an inference request (`POST /v1/...`) that finds the local llama.cpp engine stopped starts it and waits up to 90 seconds for it to listen; the requested model then loads as usual. A failed start answers 503 with the reason and is not retried for 30 seconds. In router mode, engine health and `/api/status` report the model an application actually loaded when it differs from the saved selection.
+
 Loom's llama.cpp front accepts external OpenAI-compatible clients and Loom's
 native chat, Brain and Bench requests through the same inference endpoint.
 A request keeps its native model section for its entire response, including

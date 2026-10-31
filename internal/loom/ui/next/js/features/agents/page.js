@@ -242,9 +242,9 @@ function Top({ sub, currentId }) {
     <button class="icon-btn only-mobile" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
     <span class="grow"></span>
-    ${conn.state === 'ready' && html`<${QuickLaunch} currentId=${currentId} narrowView=${narrowView} />`}
     ${current === '' && !narrowView && conn.state === 'ready' && html`<${LayoutPicker} currentId=${currentId} />`}
     ${conn.state === 'ready' && !narrowView && html`<${QuotaPeek} />`}
+    ${conn.state === 'ready' && html`<${QuickLaunch} currentId=${currentId} narrowView=${narrowView} />`}
     <a class=${cls('cm-conn', conn.state === 'ready' && 'ok')} href="#/agents/settings"
       title=${(conn.state === 'ready' ? 'Codeman ' + (conn.version || '') + (live ? '' : ' · ' + t('agents.conn.connecting')) : lt('conn', conn.state)) + (conn.url ? ' · ' + conn.url : '')}>
       <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>${conn.state !== 'ready' && html`<span class="hide-narrow">${lt('conn', conn.state)}</span>`}</a>
