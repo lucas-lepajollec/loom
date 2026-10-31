@@ -106,8 +106,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         term.textarea.addEventListener('focus', () => setTyping(true));
         term.textarea.addEventListener('blur', () => { setTyping(false); setCtrl(false); });
       }
-      const anchor = () => { const b = box.current; if (b && b.scrollHeight > b.clientHeight) b.scrollTop = b.scrollHeight; };
-      term.onResize(() => requestAnimationFrame(anchor));
+
       const remeasure = () => {
         if (!alive) return;
         const fam = term.options.fontFamily;
@@ -149,11 +148,21 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       // effacer ce que les tailles intermédiaires ont laissé.
       let redrawTimer;
       const redraw = () => { clearTimeout(redrawTimer); redrawTimer = setTimeout(() => { if (alive) loadScreen(); }, 400); };
+      // Relecture de l'écran : une seule à la fois (la plus récente gagne), à la
+      // largeur réelle du pane, et le flux en direct reçu pendant la lecture
+      // est rejoué après elle au lieu d'être effacé par le reset.
+      let screenGen = 0, loading = false, held = [], drawnCols = 0;
       const loadScreen = async () => {
+        const gen = ++screenGen;
+        loading = true;
         try {
           const r = await api.terminal(sessionId, historyQuery(shell, scrollback + term.rows));
-          if (!alive) return;
+          if (!alive || gen !== screenGen) return;
           term.reset();
+          // Colonnes du pane, lignes du panneau (comme Codeman) : sinon le CLI
+          // dessine à une autre largeur et sa ligne de saisie sort du cadre.
+          if (Number.isInteger(r?.captureCols) && r.captureCols > 0 && r.captureCols !== term.cols) term.resize(r.captureCols, term.rows);
+          drawnCols = term.cols;
           if (r?.terminalBuffer) term.write(r.terminalBuffer);
           // Pas d'historique tmux : le CLI dessine en plein écran et garde lui-même son historique.
           hollow = r?.paneHistoryLines === 0;
@@ -162,6 +171,9 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           const want = fit && wanted();
           if (want && Number.isInteger(r?.captureCols)) setForeign(viewport() === 'desktop' && r.captureCols > want.cols);
         } catch (_) {}
+        finally {
+          if (gen === screenGen) { loading = false; const live = held; held = []; for (const d of live) term.write(d); }
+        }
       };
       stopConn = visibleConnection(async owner => {
         report('connecting');
@@ -170,16 +182,25 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(proto + location.host + '/api/codeman/ws/' + encodeURIComponent(sessionId) + '?cid=' + encodeURIComponent(terminalClientId()));
         ws = socket;
-        let ended = false, seen = null;
+        let ended = false;
         socket.onopen = () => { if (!owner.alive()) return; report('open'); sendResize(true); if (focus && !readOnly && !phone) term.focus(); };
         socket.onmessage = e => {
           if (!owner.alive() || typeof e.data !== 'string') return;
           let m; try { m = JSON.parse(e.data); } catch (_) { return; }
-          if (m.t === 'o' && typeof m.d === 'string') term.write(m.d);
+          if (m.t === 'o' && typeof m.d === 'string') { if (loading) held.push(m.d); else term.write(m.d); }
           else if (m.t === 'c') term.clear();
           else if (m.t === 'r') loadScreen();
           // Géométrie réellement retenue par le pane (arbitrage entre appareils).
-          else if (m.t === 'zc' && Number.isInteger(m.c) && Number.isInteger(m.r)) { if (m.c !== term.cols || m.r !== term.rows) term.resize(m.c, m.r); const want = wanted(); setForeign(viewport() === 'desktop' && !!want && (m.c > want.cols || m.r > want.rows)); if (seen && (m.c !== seen.c || m.r !== seen.r)) redraw(); seen = { c: m.c, r: m.r }; }
+          // Géométrie retenue par Codeman : on adopte ses colonnes, on garde les
+          // lignes du panneau (comme Codeman). Si l'écran affiché a été écrit à
+          // une autre largeur, une relecture le répare.
+          else if (m.t === 'zc' && Number.isInteger(m.c) && Number.isInteger(m.r)) {
+            const want = wanted();
+            const rows = want && Number.isFinite(want.rows) ? want.rows : term.rows;
+            if (m.c !== term.cols || rows !== term.rows) term.resize(m.c, rows);
+            setForeign(viewport() === 'desktop' && !!want && m.c > want.cols);
+            if (m.c !== drawnCols) redraw();
+          }
         };
         socket.onclose = e => {
           if (!owner.alive()) return;
@@ -203,7 +224,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       box.current.addEventListener('pointerdown', onBack);
       window.addEventListener('focus', onBack);
       document.addEventListener('visibilitychange', onBack);
-      ro = new ResizeObserver(() => { refit(); anchor(); }); ro.observe(box.current);
+      ro = new ResizeObserver(refit); ro.observe(box.current);
       inputRef.current = d => { if (readOnly || ws?.readyState !== 1) return false; reclaim(); ws.send(JSON.stringify({ t: 'i', d })); return true; };
       // Une image collée ou un fichier déposé part vers Codeman ; son chemin
       // est tapé dans le terminal, comme dans l'interface officielle.
@@ -238,11 +259,14 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       };
       // Le défilement va-t-il au CLI (plein écran, sans historique local) ?
       const toCli = () => !readOnly && !shell && (hollow || term.buffer.active.baseY === 0);
+      // Molette envoyée au programme : en événements souris (SGR) pour Claude
+      // et pour tout programme qui suit déjà la souris, sinon en pages.
+      const sgr = () => mode === 'claude' || (term.modes?.mouseTrackingMode && term.modes.mouseTrackingMode !== 'none');
       const scrollCli = (lines, x, y) => {
         const screen = el.querySelector('.xterm-screen').getBoundingClientRect();
         const cellH = screen.height / term.rows, cellW = screen.width / term.cols;
         travel += lines;
-        if (mode === 'claude') {
+        if (sgr()) {
           const n = Math.trunc(travel);
           if (!n) return;
           travel -= n;
@@ -262,7 +286,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       const flush = () => {
         frame = 0;
         if (!pending) return;
-        if (toCli()) {
+        if (!ownsWheel() || toCli()) {
           if (Date.now() - lastSend < 40) { frame = requestAnimationFrame(flush); return; }
           lastSend = Date.now();
           const n = pending; pending = 0;
@@ -294,15 +318,15 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       const onTouchStart = ev => {
         stopGlide();
         const t0 = ev.touches[0];
-        touch = ev.touches.length === 1 && ownsWheel() ? { x: t0.clientX, y: t0.clientY, axis: '', v: 0, at: performance.now() } : null;
+        touch = ev.touches.length === 1 && !readOnly ? { x: t0.clientX, y: t0.clientY, axis: '', v: 0, at: performance.now() } : null;
       };
       const onTouchMove = ev => {
         if (!touch) return;
         const t1 = ev.touches[0], dx = t1.clientX - touch.x, dy = t1.clientY - touch.y;
         if (!touch.axis) { if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return; touch.axis = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x'; }
-        if (touch.axis !== 'y') return;
-        // xterm a son propre défilement tactile : un seul des deux doit agir.
+        // touch-action:none : le navigateur ne fait rien, le geste est à nous.
         ev.preventDefault(); ev.stopPropagation();
+        if (touch.axis === 'x') { el.scrollLeft -= dx; touch.x = t1.clientX; touch.y = t1.clientY; return; }
         const now = performance.now(), lines = -dy / cellHeight();
         touch.v = 0.8 * (lines / Math.max(1, now - touch.at)) + 0.2 * touch.v;
         touch.at = now;
@@ -326,13 +350,14 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       el.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
       el.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
       el.addEventListener('touchend', onTouchEnd);
-      el.addEventListener('touchcancel', onTouchEnd);
+      const onTouchCancel = () => { touch = null; stopGlide(); };
+      el.addEventListener('touchcancel', onTouchCancel);
       el.addEventListener('wheel', onWheel, { capture: true, passive: false });
       el.addEventListener('paste', onPaste, true);
       el.addEventListener('dragover', onOver);
       el.addEventListener('dragleave', onLeave);
       el.addEventListener('drop', onDrop, true);
-      detach = () => { stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart, true); el.removeEventListener('touchmove', onTouchMove, true); el.removeEventListener('touchend', onTouchEnd); el.removeEventListener('touchcancel', onTouchEnd); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
+      detach = () => { stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart, true); el.removeEventListener('touchmove', onTouchMove, true); el.removeEventListener('touchend', onTouchEnd); el.removeEventListener('touchcancel', onTouchCancel); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
     return () => { alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
   }, [sessionId, readOnly]);

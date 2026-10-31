@@ -29,6 +29,17 @@
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
 - Require golang.org/x/net 0.62.0, which fixes the reachable HTML parser vulnerabilities GO-2026-6866 and GO-2026-6860.
+- Agents terminal on iPhone (audit with Codex, compared with Codeman): the
+  terminal adopts only the pane's columns and keeps its own rows (adopting
+  the desktop's rows pushed the CLI's input line out of view); the first
+  capture is written at the pane's real width; screen reloads are
+  serialized and live output received meanwhile is replayed instead of
+  wiped; xterm waits for its stylesheet before measuring. On touch devices
+  xterm's hidden input is pinned and 16 px (iOS zoomed the page and scrolled
+  to follow it), touch-action is none so the script alone owns gestures
+  (iOS started its own scroll and ignored the late preventDefault),
+  horizontal pans and full-screen/mouse-tracking apps are handled, text
+  selection on long press is off, and a cancelled touch no longer glides.
 - Engine card: a model an application loaded through /v1 is named
   "API · <model>" (its router section ID was shown before). Agents terminal:
   no misleading local scrollbar when the CLI draws full-screen (it keeps its
