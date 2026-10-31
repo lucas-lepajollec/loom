@@ -521,6 +521,25 @@ func routerLoadedOther(cur string) string {
 	return ""
 }
 
+// routerDisplayName donne un nom lisible à une section du routeur (son
+// identifiant est un condensé) : son libellé, sinon le fichier du modèle.
+func routerDisplayName(id string) string {
+	for _, e := range llamaRouter().Entries() {
+		if e.Name != id {
+			continue
+		}
+		for _, kv := range e.Options {
+			if kv[0] == "model" || kv[0] == "m" {
+				return strings.TrimSuffix(filepath.Base(kv[1]), ".gguf")
+			}
+		}
+		if strings.TrimSpace(e.Label) != "" {
+			return e.Label
+		}
+	}
+	return id
+}
+
 func routerHealth(w http.ResponseWriter) {
 	cur := routerCurrentName()
 	m, ok := routerModelStatus(cur)

@@ -70,6 +70,9 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   const reclaimRef = useRef(null), inputRef = useRef(null), ctrlRef = useRef(false);
   const phone = viewport() === 'mobile';
   const [typing, setTyping] = useState(false);
+  // CLI en plein écran : il garde lui-même son historique, la barre de
+  // défilement locale n'aurait presque rien à faire défiler.
+  const [fullscreen, setFullscreen] = useState(false);
   const [ctrl, setCtrlState] = useState(false);
   const setCtrl = v => { ctrlRef.current = v; setCtrlState(v); };
   const report = s => { setState(s); onState && onState(s); };
@@ -154,6 +157,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           if (r?.terminalBuffer) term.write(r.terminalBuffer);
           // Pas d'historique tmux : le CLI dessine en plein écran et garde lui-même son historique.
           hollow = r?.paneHistoryLines === 0;
+          if (alive) setFullscreen(hollow && !shell);
           // La capture dit la taille réelle du pane : plus large que ce panneau, il déborde.
           const want = fit && wanted();
           if (want && Number.isInteger(r?.captureCols)) setForeign(viewport() === 'desktop' && r.captureCols > want.cols);
@@ -335,7 +339,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   // Un volet qui reçoit le focus donne le clavier à son terminal.
   // Sur téléphone, le clavier ne s'ouvre qu'au toucher (comme dans Codeman).
   useEffect(() => { if (focus && !readOnly && !phone) termRef.current?.focus(); }, [focus]);
-  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', phone && typing && 'with-keys')}>
+  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', phone && typing && 'with-keys', fullscreen && 'cli-fullscreen')}>
     <div class="cm-term-box" ref=${box}></div>
     ${phone && typing && !readOnly && html`<${Accessory} send=${d => inputRef.current?.(d)} ctrl=${ctrl} setCtrl=${setCtrl} dismiss=${() => termRef.current?.blur()} />`}
     ${busy ? html`<div class="cm-term-state"><span class="spinner"></span>${t('agents.attach.sending')}</div>`

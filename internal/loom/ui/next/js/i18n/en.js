@@ -3283,4 +3283,5 @@ export default {
   "agents.acc.label": "Terminal keys",
   "agents.acc.ctrl": "Ctrl: then tap a letter",
   "agents.acc.hide": "Hide the keyboard",
+  "core.state.via_api": "API · {name}",
 };

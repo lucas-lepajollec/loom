@@ -29,6 +29,10 @@
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
 - Require golang.org/x/net 0.62.0, which fixes the reachable HTML parser vulnerabilities GO-2026-6866 and GO-2026-6860.
+- Engine card: a model an application loaded through /v1 is named
+  "API · <model>" (its router section ID was shown before). Agents terminal:
+  no misleading local scrollbar when the CLI draws full-screen (it keeps its
+  own history). The sidebar footer loses its initial avatar.
 - Engine node: an inference request to /v1 starts the stopped llama.cpp
   engine and waits for it (up to 90 s) instead of answering 502; a failed
   start is reported and not retried for 30 s.

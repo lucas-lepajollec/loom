@@ -3283,4 +3283,5 @@ export default {
   "agents.acc.label": "Touches du terminal",
   "agents.acc.ctrl": "Ctrl : touche ensuite une lettre",
   "agents.acc.hide": "Fermer le clavier",
+  "core.state.via_api": "API · {name}",
 };
