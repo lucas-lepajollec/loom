@@ -546,3 +546,7 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 .cm-qp-more{display:flex;align-items:center;justify-content:space-between;padding:8px 4px 0;border-top:1px solid var(--line-soft);font-size:13px;color:var(--text-2);text-decoration:none}
 .cm-qp-more:hover{color:var(--text)}
 .cm-qp-more .ico{width:14px;height:14px}
+
+/* CLI plein écran (Claude Code /tui fullscreen) : pas de barre de défilement locale trompeuse. */
+.cm-term.cli-fullscreen .xterm-viewport{scrollbar-width:none}
+.cm-term.cli-fullscreen .xterm-viewport::-webkit-scrollbar{display:none}

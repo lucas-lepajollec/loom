@@ -108,6 +108,8 @@ export const runtimeCaps = id => ((((app.get().workspace && app.get().workspace.
 export function engineState(s) {
   if (!s) return { tone: '', label: t("core.state.lecture_de_l_etat") };
   if (s.load_error) return { tone: 'red', label: t("core.state.erreur_de_chargement"), detail: s.load_error };
+  // Modèle chargé par une application via l'API /v1 (pas la sélection enregistrée).
+  if (s.health && s.model && s.via_api) return { tone: 'green', label: t('core.state.via_api', { name: s.model_name }) };
   if (s.health && s.model) return { tone: 'green', label: s.preset_name || s.model_name };
   if (s.active && s.model) return { tone: 'amber', label: t("core.state.chargement") + (s.preset_name || s.model_name) };
   if (s.active) return { tone: 'blue', label: t("core.state.moteur_pret_aucun_modele") };

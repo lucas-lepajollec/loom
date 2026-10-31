@@ -143,7 +143,6 @@ export function Sidebar() {
     <div class="side-foot">
       <${EngineCard} />
       <div class="me">
-        <span class="avatar-i" aria-hidden="true">${(serverInfo && serverInfo.hostname || 'L').slice(0, 1).toUpperCase()}</span>
         <span class="who"><b>${(serverInfo && serverInfo.hostname) || t("app.shell.cette_machine")}</b><small title=${serverInfo && serverInfo.version || ''}>${serverInfo && serverInfo.version ? 'Loom ' + shortVersion(serverInfo.version) : 'Loom'}</small></span>
         <a class="icon-btn" href="#/settings" aria-label="${t("app.shell.reglages")}" title="${t("app.shell.reglages")}" aria-current=${route.section === 'settings' ? 'page' : undefined}><${Icon} n="gear" /></a>
       </div>

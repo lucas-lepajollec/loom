@@ -75,12 +75,13 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 			presetName = presetDisplayName(body, presetID)
 		}
 	}
+	viaAPI := false
 	// Un autre modèle demandé par /v1 a pu remplacer celui de la
 	// configuration : on montre celui qui tourne vraiment.
 	if health {
 		if cur, ok := routerModelStatus(routerCurrentName()); !ok || cur.Status != "loaded" {
 			if other := routerLoadedOther(routerCurrentName()); other != "" {
-				modelName, presetName = other, ""
+				modelName, presetName, viaAPI = routerDisplayName(other), "", true
 			}
 		}
 	}
@@ -107,6 +108,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"preset_id":        presetID,
 		"preset_name":      presetName,
 		"naked_remembered": presetID == "" && model != "" && rememberedNaked(model) != nil,
+		"via_api":          viaAPI, // modèle chargé par une application via /v1, pas la sélection enregistrée
 	})
 }
 
