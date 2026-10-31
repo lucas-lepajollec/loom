@@ -517,15 +517,14 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 .cm-term-foreign:hover{background:var(--surface-3)}
 .cm-term-foreign .ico{width:13px;height:13px}
 
-/* téléphone : barre de saisie du terminal */
+/* téléphone : touches au-dessus du clavier, comme dans Codeman */
 .cm-term.with-keys{flex-direction:column}
-.cm-mkeys{flex:none;display:flex;flex-direction:column;gap:6px;padding:6px 8px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line-soft);background:var(--panel)}
-.cm-mkeys-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
-.cm-mkeys-row::-webkit-scrollbar{display:none}
-.cm-mkeys-row button{flex:none;min-width:40px;height:32px;padding:0 10px;border-radius:8px;background:var(--surface-2);font:500 12.5px var(--mono);color:var(--text-2);touch-action:manipulation}
-.cm-mkeys-row button:active{background:var(--surface-3);color:var(--text)}
-.cm-mkeys-in{display:flex;align-items:center;gap:8px}
-.cm-mkeys-in .input{flex:1;min-width:0;height:38px;font-size:16px}
+.cm-acc{flex:none;display:flex;align-items:center;gap:4px;padding:5px 6px;border-top:1px solid var(--line-soft);background:var(--panel);overflow-x:auto;scrollbar-width:none}
+.cm-acc::-webkit-scrollbar{display:none}
+.cm-acc button{flex:1 0 auto;min-width:36px;height:32px;padding:0 8px;border-radius:7px;font:500 13px var(--font);color:var(--text-2);touch-action:manipulation}
+.cm-acc button:active,.cm-acc button.on{background:var(--surface-3);color:var(--text)}
+.cm-acc .cm-acc-hide{flex:0 0 36px;color:var(--text-3)}
+.cm-acc .cm-acc-hide .ico{width:16px;height:16px}
 
 /* aperçu des quotas */
 .cm-quota-btn{position:relative;width:32px;height:32px}

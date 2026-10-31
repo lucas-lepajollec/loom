@@ -29,6 +29,12 @@
   longer slide under the scrollbar; the terminal you click reclaims the pane
   size. Quick Shell and agent buttons in the Agents bar.
 - Require golang.org/x/net 0.62.0, which fixes the reachable HTML parser vulnerabilities GO-2026-6866 and GO-2026-6860.
+- Agents terminal on phones, now like Codeman: you type in the terminal
+  itself (iOS autocorrect off on its input), and a key bar (one-shot Ctrl,
+  Esc, Tab, arrows, hide keyboard) shows above the keyboard only while it is
+  open on that terminal; the terminal no longer grabs focus (and the
+  keyboard) when it opens. Touch scrolling is actually attached now (a
+  rewrite had dropped its listeners) and takes precedence over xterm's own.
 - Phones and tablets: the app follows the visible area (visualViewport), so
   the keyboard and the browser's bottom bar no longer cover the composer or
   the terminal. Agents terminal on phones: a typing bar (text field and Esc,
