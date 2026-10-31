@@ -41,6 +41,24 @@ export function theme() {
 // rendu (borné en lignes et en octets) plutôt que le seul cadre visible ; un
 // shell dans un écran alternatif (vim, less, tmux imbriqué) garde
 // l'enregistrement brut.
+// Téléphone : on n'écrit pas directement dans xterm (la saisie d'iOS s'y
+// superpose au texte et ses corrections partent au CLI). Une barre dédiée,
+// comme la barre d'accessoires de Codeman : un vrai champ de texte et les
+// touches qu'un clavier de téléphone n'a pas.
+const KEYS = [['Esc', '\x1b'], ['Tab', '\t'], ['⇧Tab', '\x1b[Z'], ['↑', '\x1b[A'], ['↓', '\x1b[B'], ['←', '\x1b[D'], ['→', '\x1b[C'], ['Ctrl+C', '\x03']];
+function MobileKeys({ send }) {
+  const [v, setV] = useState('');
+  const submit = e => { e.preventDefault(); if (send(v + '\r')) setV(''); };
+  // pointerdown sans effet par défaut : le champ garde le clavier ouvert.
+  return html`<form class="cm-mkeys" onSubmit=${submit}>
+    <div class="cm-mkeys-row">${KEYS.map(([label, seq]) => html`<button type="button" key=${label} onPointerDown=${e => e.preventDefault()} onClick=${() => send(seq)}>${label}</button>`)}</div>
+    <div class="cm-mkeys-in">
+      <input class="input" value=${v} onInput=${e => setV(e.target.value)} enterkeyhint="send" autocomplete="off" placeholder=${t('agents.mkeys.placeholder')} aria-label=${t('agents.mkeys.placeholder')} />
+      <button type="submit" class="cm-send" aria-label=${t('agents.composer.send')} onPointerDown=${e => e.preventDefault()}><${Icon} n="arrowUp" /></button>
+    </div>
+  </form>`;
+}
+
 const TAIL = 1024 * 1024;
 const historyQuery = (shell, lines) => `full=1&tail=${TAIL}&lines=${lines}` + (shell ? '&alt=recording' : '');
 
@@ -51,7 +69,8 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   const [over, setOver] = useState(false);
   // Taille imposée par un autre écran, plus grande que ce panneau.
   const [foreign, setForeignState] = useState(false);
-  const reclaimRef = useRef(null);
+  const reclaimRef = useRef(null), inputRef = useRef(null);
+  const phone = viewport() === 'mobile';
   const report = s => { setState(s); onState && onState(s); };
   useEffect(() => {
     let term, fitAddon, ws, ro, stopConn, detach, alive = true, resizeTimer, hollow = false, isForeign = false;
@@ -73,6 +92,12 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       term.loadAddon(fitAddon);
       term.open(box.current);
       try { fitAddon.fit(); } catch (_) {}
+      // Sur téléphone, toucher le terminal n'ouvre pas le clavier (la barre
+      // de saisie s'en charge), et le bas du terminal (là où le CLI attend
+      // sa saisie) reste visible quand le pane est plus haut que l'écran.
+      if (phone && !readOnly) term.textarea?.setAttribute('inputmode', 'none');
+      const anchor = () => { const b = box.current; if (b && b.scrollHeight > b.clientHeight) b.scrollTop = b.scrollHeight; };
+      term.onResize(() => requestAnimationFrame(anchor));
       const remeasure = () => {
         if (!alive) return;
         const fam = term.options.fontFamily;
@@ -167,7 +192,8 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       box.current.addEventListener('pointerdown', onBack);
       window.addEventListener('focus', onBack);
       document.addEventListener('visibilitychange', onBack);
-      ro = new ResizeObserver(refit); ro.observe(box.current);
+      ro = new ResizeObserver(() => { refit(); anchor(); }); ro.observe(box.current);
+      inputRef.current = d => { if (readOnly || ws?.readyState !== 1) return false; reclaim(); ws.send(JSON.stringify({ t: 'i', d })); return true; };
       // Une image collée ou un fichier déposé part vers Codeman ; son chemin
       // est tapé dans le terminal, comme dans l'interface officielle.
       const attach = async files => {
@@ -185,21 +211,22 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       const onOver = e => { if (hasFiles(e) && !readOnly) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setOver(true); } };
       const onLeave = e => { if (!el.contains(e.relatedTarget)) setOver(false); };
       const onDrop = e => { setOver(false); if (!hasFiles(e) || readOnly) return; e.preventDefault(); e.stopPropagation(); attach(filesOf(e.dataTransfer)); };
-      // Molette, comme l'interface officielle : un CLI plein écran (Claude
-      // Code) garde l'historique de sa conversation et le fait défiler lui-même.
-      // Claude reçoit des événements de molette SGR à la position du pointeur,
-      // les autres CLI des pages (PageUp/PageDown). Maj+molette, un shell ou un
-      // programme qui suit déjà la souris gardent le défilement de xterm.
-      let travel = 0;
+      // Défilement. Tout passe par ici, comme dans l'interface officielle :
+      // après un rechargement de l'écran, la molette de xterm peut ne plus
+      // répondre. Un CLI plein écran (Claude Code) garde l'historique de sa
+      // conversation et le fait défiler lui-même : Claude reçoit des molettes
+      // SGR au point visé, les autres CLI des pages (PageUp/PageDown). Sinon,
+      // c'est l'historique local de xterm qui défile. Maj+molette force le
+      // local ; un programme qui suit la souris ou l'écran alternatif d'un
+      // shell (vim, less) gardent le comportement de xterm.
+      let travel = 0, local = 0, pending = 0, frame = 0, lastSend = 0, point = { x: 0, y: 0 };
       const send = d => { if (ws?.readyState === 1) ws.send(JSON.stringify({ t: 'i', d })); };
-      // Le défilement va-t-il au CLI (plein écran, sans historique local) ?
-      const toCli = () => {
-        if (readOnly || shell) return false;
+      const ownsWheel = () => {
         const tracking = term.modes?.mouseTrackingMode;
-        if ((tracking && tracking !== 'none') || term.buffer.active.type === 'alternate') return false;
-        return hollow || term.buffer.active.baseY === 0;
+        return !(tracking && tracking !== 'none') && term.buffer.active.type !== 'alternate';
       };
-      // lines : lignes de défilement (négatif = vers le haut), au point x/y.
+      // Le défilement va-t-il au CLI (plein écran, sans historique local) ?
+      const toCli = () => !readOnly && !shell && (hollow || term.buffer.active.baseY === 0);
       const scrollCli = (lines, x, y) => {
         const screen = el.querySelector('.xterm-screen').getBoundingClientRect();
         const cellH = screen.height / term.rows, cellW = screen.width / term.cols;
@@ -219,44 +246,85 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           send((pages < 0 ? '\x1b[5~' : '\x1b[6~').repeat(Math.min(Math.abs(pages), 4)));
         }
       };
-      const cellHeight = () => el.querySelector('.xterm-screen').getBoundingClientRect().height / term.rows;
+      // Les mouvements s'accumulent et partent une fois par image (au plus
+      // toutes les 40 ms vers le CLI, qui redessine à chaque envoi).
+      const flush = () => {
+        frame = 0;
+        if (!pending) return;
+        if (toCli()) {
+          if (Date.now() - lastSend < 40) { frame = requestAnimationFrame(flush); return; }
+          lastSend = Date.now();
+          const n = pending; pending = 0;
+          scrollCli(n, point.x, point.y);
+        } else {
+          local += pending; pending = 0;
+          const n = Math.trunc(local);
+          if (n) { local -= n; term.scrollLines(n); }
+        }
+      };
+      const queue = (lines, x, y, forceLocal) => {
+        if (forceLocal) { local += lines; const n = Math.trunc(local); if (n) { local -= n; term.scrollLines(n); } return; }
+        pending += lines; point = { x, y };
+        if (!frame) frame = requestAnimationFrame(flush);
+      };
+      const cellHeight = () => el.querySelector('.xterm-screen').getBoundingClientRect().height / term.rows || 16;
       const onWheel = ev => {
         reclaim();
-        if (ev.shiftKey || ev.ctrlKey || Math.abs(ev.deltaX) > Math.abs(ev.deltaY) || !toCli()) return;
+        if (ev.ctrlKey || Math.abs(ev.deltaX) > Math.abs(ev.deltaY) || !ownsWheel()) return;
         ev.preventDefault(); ev.stopPropagation();
-        scrollCli(ev.deltaMode === 1 ? ev.deltaY : ev.deltaMode === 2 ? ev.deltaY * term.rows : ev.deltaY / cellHeight(), ev.clientX, ev.clientY);
+        const lines = ev.deltaMode === 1 ? ev.deltaY : ev.deltaMode === 2 ? ev.deltaY * term.rows : ev.deltaY / cellHeight();
+        queue(lines, ev.clientX, ev.clientY, ev.shiftKey);
       };
-      // Au doigt : un glissement vertical fait défiler le CLI comme la molette ;
-      // un glissement horizontal reste au panneau (terminal plus large que
-      // l'écran quand un ordinateur fixe la taille).
-      let touch = null;
-      const onTouchStart = ev => { const t0 = ev.touches[0]; touch = ev.touches.length === 1 && toCli() ? { x: t0.clientX, y: t0.clientY, axis: '' } : null; };
+      // Au doigt : un glissement vertical défile (CLI ou historique local) et
+      // continue sur son élan ; un glissement horizontal reste au panneau
+      // (terminal plus large que l'écran quand un ordinateur fixe la taille).
+      let touch = null, glide = 0;
+      const stopGlide = () => { cancelAnimationFrame(glide); glide = 0; };
+      const onTouchStart = ev => {
+        stopGlide();
+        const t0 = ev.touches[0];
+        touch = ev.touches.length === 1 && ownsWheel() ? { x: t0.clientX, y: t0.clientY, axis: '', v: 0, at: performance.now() } : null;
+      };
       const onTouchMove = ev => {
         if (!touch) return;
         const t1 = ev.touches[0], dx = t1.clientX - touch.x, dy = t1.clientY - touch.y;
         if (!touch.axis) { if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return; touch.axis = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x'; }
         if (touch.axis !== 'y') return;
         ev.preventDefault();
-        scrollCli(-dy / cellHeight(), t1.clientX, t1.clientY);
+        const now = performance.now(), lines = -dy / cellHeight();
+        touch.v = 0.8 * (lines / Math.max(1, now - touch.at)) + 0.2 * touch.v;
+        touch.at = now;
+        queue(lines, t1.clientX, t1.clientY);
         touch.x = t1.clientX; touch.y = t1.clientY;
       };
-      const onTouchEnd = () => { touch = null; };
-      el.addEventListener('touchstart', onTouchStart, { passive: true });
-      el.addEventListener('touchmove', onTouchMove, { passive: false });
-      el.addEventListener('touchend', onTouchEnd);
+      const onTouchEnd = () => {
+        if (touch?.axis === 'y' && Math.abs(touch.v) > 0.01) {
+          let v = touch.v, last = performance.now();
+          const { x, y } = touch;
+          const step = now => {
+            const dt = now - last; last = now;
+            queue(v * dt, x, y);
+            v *= Math.pow(0.94, dt / 16);
+            glide = Math.abs(v) > 0.004 ? requestAnimationFrame(step) : 0;
+          };
+          glide = requestAnimationFrame(step);
+        }
+        touch = null;
+      };
       el.addEventListener('wheel', onWheel, { capture: true, passive: false });
       el.addEventListener('paste', onPaste, true);
       el.addEventListener('dragover', onOver);
       el.addEventListener('dragleave', onLeave);
       el.addEventListener('drop', onDrop, true);
-      detach = () => { el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchmove', onTouchMove); el.removeEventListener('touchend', onTouchEnd); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
+      detach = () => { stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchmove', onTouchMove); el.removeEventListener('touchend', onTouchEnd); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
     return () => { alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
   }, [sessionId, readOnly]);
   // Un volet qui reçoit le focus donne le clavier à son terminal.
   useEffect(() => { if (focus && !readOnly) termRef.current?.focus(); }, [focus]);
-  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on')}>
+  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', phone && !readOnly && 'with-keys')}>
     <div class="cm-term-box" ref=${box}></div>
+    ${phone && !readOnly && html`<${MobileKeys} send=${d => inputRef.current?.(d)} />`}
     ${busy ? html`<div class="cm-term-state"><span class="spinner"></span>${t('agents.attach.sending')}</div>`
       : over ? html`<div class="cm-term-state"><${Icon} n="upload" />${t('agents.attach.drop')}</div>`
       : foreign && state === 'open' ? html`<button type="button" class="cm-term-state cm-term-foreign" onClick=${() => reclaimRef.current?.()}><${Icon} n="expand" />${t('agents.term.foreign')}</button>`

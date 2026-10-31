@@ -3279,4 +3279,6 @@ export default {
   "api.models_empty": "No model on this engine yet.",
   "api.copy": "Copy: {what}",
   "api.copied": "Copied: {what}",
+  "quotas.open": "See details",
+  "agents.mkeys.placeholder": "Type to the terminal…",
 };

@@ -516,3 +516,34 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 .cm-term-foreign{pointer-events:auto;cursor:pointer;color:var(--text);border:0}
 .cm-term-foreign:hover{background:var(--surface-3)}
 .cm-term-foreign .ico{width:13px;height:13px}
+
+/* téléphone : barre de saisie du terminal */
+.cm-term.with-keys{flex-direction:column}
+.cm-mkeys{flex:none;display:flex;flex-direction:column;gap:6px;padding:6px 8px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line-soft);background:var(--panel)}
+.cm-mkeys-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.cm-mkeys-row::-webkit-scrollbar{display:none}
+.cm-mkeys-row button{flex:none;min-width:40px;height:32px;padding:0 10px;border-radius:8px;background:var(--surface-2);font:500 12.5px var(--mono);color:var(--text-2);touch-action:manipulation}
+.cm-mkeys-row button:active{background:var(--surface-3);color:var(--text)}
+.cm-mkeys-in{display:flex;align-items:center;gap:8px}
+.cm-mkeys-in .input{flex:1;min-width:0;height:38px;font-size:16px}
+
+/* aperçu des quotas */
+.cm-quota-btn{position:relative;width:32px;height:32px}
+.cm-quota-btn.on{background:var(--hover);color:var(--text)}
+.cm-quota-dot{display:none;position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%}
+.cm-quota-btn.amber .cm-quota-dot{display:block;background:var(--amber)}
+.cm-quota-btn.red .cm-quota-dot{display:block;background:var(--red)}
+.cm-quota-pop{padding:12px;display:flex;flex-direction:column;gap:12px}
+.cm-qp-acc{display:flex;flex-direction:column;gap:8px}
+.cm-qp-acc>b{font-size:12.5px;font-weight:600}
+.cm-qp-win{display:flex;flex-direction:column;gap:4px}
+.cm-qp-h{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-2)}
+.cm-qp-h em{font-style:normal;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.cm-qp-bar{height:5px;border-radius:3px;background:var(--surface-3);overflow:hidden}
+.cm-qp-bar i{display:block;height:100%;border-radius:3px;background:var(--text-2)}
+.cm-qp-win.amber .cm-qp-bar i{background:var(--amber)}.cm-qp-win.red .cm-qp-bar i{background:var(--red)}
+.cm-qp-win.amber em{color:var(--amber)}.cm-qp-win.red em{color:var(--red)}
+.cm-qp-win small{font-size:11.5px}
+.cm-qp-more{display:flex;align-items:center;justify-content:space-between;padding:8px 4px 0;border-top:1px solid var(--line-soft);font-size:13px;color:var(--text-2);text-decoration:none}
+.cm-qp-more:hover{color:var(--text)}
+.cm-qp-more .ico{width:14px;height:14px}
