@@ -217,10 +217,11 @@ func TestBudgetPackDedupAndReadAmbiguity(t *testing.T) {
 		}
 		seen := map[string]bool{}
 		for _, c := range pack.Chunks {
-			if seen[c.Text] {
+			key := c.Source + "\x00" + c.Path + "\x00" + strings.Join(c.Heading, "\x00") + "\x00" + c.Text
+			if seen[key] {
 				t.Fatal("duplicate chunk")
 			}
-			seen[c.Text] = true
+			seen[key] = true
 		}
 		if len(pack.Chunks) > 0 && !strings.HasPrefix(pack.Text, "Context from the user's Brain:\n") {
 			t.Fatal("missing prefix")

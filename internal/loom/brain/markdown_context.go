@@ -1,7 +1,6 @@
 package brain
 
 import (
-	"math"
 	"sort"
 	"strings"
 )
@@ -91,8 +90,8 @@ func FileMemoryContext(global MemoryFiles, project *MemoryFiles, query string, t
 			if tf == 0 {
 				continue
 			}
-			idf := math.Log(1 + (float64(len(candidates)-df[t])+.5)/(float64(df[t])+.5))
-			c.score += idf * tf * 2.2 / (tf + 1.2*(.25+.75*float64(c.length)/average))
+			idf := bm25IDF(len(candidates), df[t])
+			c.score += bm25Term(idf, tf, c.length, average)
 		}
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
