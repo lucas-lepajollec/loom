@@ -44,7 +44,7 @@ export function ChatView() {
   return html`<div class="view chat-view">
     <div class="chat-col">
       <header class="topbar">
-        <button class="icon-btn only-mobile" aria-label="${t("chat.view.menu")}" onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
+        <button class="icon-btn only-mobile menu-btn" aria-label="${t("chat.view.menu")}" onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
         <${Picker} />
         <span class="grow"></span>
         <button class=${cls('icon-btn', insp && 'on')} aria-label="${t("chat.view.panneau")}" title="${t("chat.view.parametres_et_contexte")}" onClick=${toggle}><${Icon} n="panel" /></button>

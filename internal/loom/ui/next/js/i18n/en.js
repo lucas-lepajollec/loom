@@ -3299,4 +3299,10 @@ export default {
   "quotas.reset_tip_codex": "Codex banks the resets it grants (/usage menu, “Redeem reset”). Loom opens that menu in a Codex session; you pick and confirm in the terminal, nothing is used without you.",
   "quotas.reset_no_session": "No open session for this CLI: start one, then try again.",
   "quotas.reset_opened": "Reset menu opened in {name}: pick and confirm in the terminal.",
+  "quotas.resets_count": "{n} reset(s) available",
+  "quotas.reset_full": "Full reset",
+  "quotas.reset_until": "until {date}",
+  "quotas.resets_none": "No reset available",
+  "quotas.resets_claude_yes": "A reset is available",
+  "quotas.resets_claude_seen": "seen by Claude Code on {date}; details show in /limit-reset",
 };

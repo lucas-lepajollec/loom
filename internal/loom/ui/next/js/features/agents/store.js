@@ -37,6 +37,10 @@ export const CAPS = {
 };
 export const capsOf = mode => CAPS[mode] || (mode === 'shell' ? { approvals: 'none', stop: false, transcript: 'none' } : { approvals: 'terminal', stop: false, transcript: 'screen' });
 
+// Vue conversation : seulement pour les CLI dont Codeman lit une vraie
+// transcription (Claude, Codex…). Les autres ne montrent que leur terminal.
+export const hasConversation = mode => ['jsonl', 'rollout'].includes(capsOf(mode).transcript);
+
 export function approvalsFor(id) { return agents.get().approvals.filter(a => a.sessionId === id); }
 
 // État lisible d'une session, du plus urgent au plus calme.

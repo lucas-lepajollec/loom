@@ -232,6 +232,15 @@ func (c *Conversation) snapshotForSession() *convArchive {
 // son id stable). No-op si elle est vide (pas de session fantôme).
 func (c *Conversation) upsertSession() {
 	if a := c.snapshotForSession(); a != nil {
+		// Switching or deleting discussions saves the one being left. Without a
+		// new event its date stays: the list is ordered by last activity, not
+		// by the last time a discussion was opened.
+		var prev convArchiveMeta
+		if getStoreJSON(bkChatMeta, a.ID, &prev) && prev.SavedAt > 0 {
+			if old, ok := loadArchive(a.ID); ok && old.Seq == a.Seq && old.Title == a.Title && old.ProjectID == a.ProjectID {
+				a.SavedAt = prev.SavedAt
+			}
+		}
 		_ = saveArchive(a)
 		workspaceSessions.syncNativeArchive(a)
 	}

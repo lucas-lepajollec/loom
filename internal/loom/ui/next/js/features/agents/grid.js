@@ -5,7 +5,7 @@
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { agents, stateOf, projectOf, sessionList } from './store.js';
+import { agents, stateOf, projectOf, sessionList, hasConversation } from './store.js';
 import { layout, SHAPES, focusCell, toggleZoom, clearCell, placeSession, setFractions, neighbor, viewOf, setViewOf, pruneCells } from './layout.js';
 import { AgentTerminal } from './terminal.js';
 import { Conversation } from './conversation.js';
@@ -38,14 +38,14 @@ function Tile({ s, i, focused, hidden }) {
   const [view, setView] = useState(() => { const v = viewOf(s); return v === 'split' ? 'chat' : v; });
   const [over, setOver] = useState(false);
   const pick = v => { setView(v); setViewOf(s.id, v); };
-  const term = view === 'term' || s.mode === 'shell';
+  const term = view === 'term' || !hasConversation(s.mode);
   return html`<section class=${cls('cm-tile', 'st-' + state, focused && 'focused', over && 'drop-on')} style=${hidden ? 'display:none' : ''}
       onPointerDownCapture=${() => focusCell(i)} ...${dropProps(i, setOver)} aria-label=${s.name || s.id.slice(0, 8)}>
     <header class="cm-tile-h" draggable="true" onDblClick=${toggleZoom}
         onDragStart=${e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData(DRAG_TYPE, s.id); }}>
       <${StateDot} state=${state} /><${CliMark} mode=${s.mode} size="xs" />
       <span class="cm-tile-t trunc"><b>${s.name || s.id.slice(0, 8)}</b><small>${state === 'idle' ? projectOf(s.workingDir) : lt('state', state)}${s.displayModel?.model ? ' · ' + s.displayModel.model : ''}</small></span>
-      ${s.mode !== 'shell' && html`<button class="icon-btn" aria-label=${term ? t('agents.view.chat') : t('agents.view.terminal')} title=${term ? t('agents.view.chat') : t('agents.view.terminal')}
+      ${hasConversation(s.mode) && html`<button class="icon-btn" aria-label=${term ? t('agents.view.chat') : t('agents.view.terminal')} title=${term ? t('agents.view.chat') : t('agents.view.terminal')}
         onClick=${() => pick(term ? 'chat' : 'term')}><${Icon} n=${term ? 'chat' : 'terminal'} /></button>`}
       <button class="icon-btn" aria-label=${zoom && focused ? t('agents.grid.unzoom') : t('agents.grid.zoom')} title=${zoom && focused ? t('agents.grid.unzoom') : t('agents.grid.zoom_hint')}
         onClick=${() => { focusCell(i); toggleZoom(); }}><${Icon} n=${zoom && focused ? 'shrink' : 'expand'} /></button>
