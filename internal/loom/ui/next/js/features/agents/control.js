@@ -44,7 +44,7 @@ function SessionCard({ s }) {
   </li>`;
 }
 
-const ORDER = ['waiting', 'error', 'working', 'starting', 'idle', 'stopped'];
+const ORDER = ['waiting', 'error', 'limited', 'working', 'starting', 'idle', 'stopped'];
 export function ControlCenter() {
   useStore(agents, s => [s.order, s.sessions]);
   const approvals = useStore(agents, s => s.approvals);

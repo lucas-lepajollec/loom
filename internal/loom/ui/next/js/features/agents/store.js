@@ -45,10 +45,12 @@ export function stateOf(s) {
   if (approvalsFor(s.id).some(a => a.kind !== 'idle')) return 'waiting';
   if (s.status === 'error') return 'error';
   if (s.pid == null) return Date.now() - (s.createdAt || 0) < 90000 && s.status !== 'stopped' ? 'starting' : 'stopped';
+  // Arrêtée sur une limite d'abonnement, Codeman la relancera à la remise à zéro.
+  if (s.autoResumeAt && s.autoResumeAt > Date.now()) return 'limited';
   if (s.isWorking || s.status === 'busy') return 'working';
   return 'idle';
 }
-export const TONE = { waiting: 'red', error: 'red', working: 'amber', starting: 'amber', idle: 'green', stopped: '', gone: '' };
+export const TONE = { waiting: 'red', error: 'red', working: 'amber', starting: 'amber', limited: 'amber', idle: 'green', stopped: '', gone: '' };
 
 export const sessionList = () => { const st = agents.get(); return st.order.map(id => st.sessions[id]).filter(Boolean); };
 export const projectOf = dir => String(dir || '').replace(/\/+$/, '').split('/').pop() || '/';
@@ -139,6 +141,9 @@ function onEvent(name, d) {
       break;
     }
     case 'approval:resolved': agents.set({ approvals: agents.get().approvals.filter(x => x.id !== d?.id) }); break;
+    // Limite d'abonnement atteinte : Codeman programme la reprise (auto-resume).
+    case 'session:limitPauseScheduled': { const id = idOf(d); if (agents.get().sessions[id] && Number.isFinite(d.resumeAt)) upsert({ id, autoResumeAt: d.resumeAt, isWorking: false }); break; }
+    case 'session:limitResume': case 'session:limitResumeCancelled': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, autoResumeAt: null }); break; }
     case 'session:statusTelemetry': if (d && typeof d === 'object') agents.set({ planUsage: d }); break;
     case 'session:orderChanged': api.sessions().then(setSessions).catch(() => {}); break;
     default:

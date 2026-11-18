@@ -400,9 +400,6 @@ func (m *runtimeSessions) observedMonthlySpend(id, endpoint string) *float64 {
 	value := *e.result.PeriodUsage.Month
 	return &value
 }
-func authorizeEngineTurn(ctx context.Context) error {
-	return authorizeEngineDestination(ctx, currentEngineNode())
-}
 func authorizeEngineDestination(ctx context.Context, n *engineNode) error {
 	if n == nil {
 		return nil

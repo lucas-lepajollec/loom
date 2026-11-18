@@ -12,9 +12,6 @@
 }
 
 @media(max-width:900px){
-  .dist-item{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-  .dist-item>.grow,.dist-item>.btn-row{grid-column:1/-1}
-  .dist-item>.icon-btn{grid-column:2;justify-self:end}
   .mem-grid,.preset-grid,.grid-proj,.split{grid-template-columns:minmax(0,1fr)}
   .bench-t .tr{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .bench-t .tr.th{display:none}
@@ -89,8 +86,6 @@
   .req{grid-template-columns:minmax(0,1fr) auto;gap:8px}
   .brain-search{flex-wrap:wrap}
   .brain-search>.input{flex-basis:100%}
-  .prov-h{flex-wrap:wrap;gap:10px}
-  .prov-h>.acts{width:100%}
   .env-table{max-width:100%;overflow-x:auto}
   .dialog-head{padding:16px 16px 6px;min-width:0}
   .dialog-body{padding:12px 16px;min-height:0}
@@ -106,25 +101,14 @@
   .cl-bar .search{width:100%;min-width:0}
   .local-strip .v{white-space:normal;flex-wrap:wrap}
   .cell-main b,.mx-row,.mc-row{overflow-wrap:anywhere}
-  .mc-hs{flex-wrap:wrap;max-width:100%}
   .scrim{padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
   .dialog{max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
   .usage-t .cell-main b,.native-t .cell-main b{flex-wrap:wrap;gap:4px}
-  .native-t .cell-main .q-m{white-space:normal;max-width:100%}
   .brain-search>.search{flex:1 1 100%;min-width:0}
   .brain-connectors,.brain-permissions{grid-template-columns:minmax(0,1fr)}
-  .mi-bar{flex-wrap:wrap}
-  .sk-used{display:none}
-  .sk-home .btn{order:3;flex:1 1 100%}
   .mcp-url code{word-break:break-all}
-  .mi-sugg-h{flex-wrap:wrap}
-  .mi-sugg .mi-item{flex-wrap:wrap}
-  .mi-sugg .mi-acts{margin:0;width:100%;justify-content:flex-end}
-  .mi-q{flex:1 1 calc(100% - 140px);width:auto;min-width:0}
   .mi-pick{order:2;flex:1 1 calc(50% - 4px);width:auto;min-width:0}
   .bs-primary,.bs-none{flex-wrap:wrap;padding:14px}
-  .bs-primary>.grow{flex:1 1 calc(100% - 90px)}
-  .bs-wide{order:3;flex:1 1 100%}
   .bs-none .btn{flex:1 1 100%}
   .bs-row{align-items:flex-start;padding:12px 10px 12px 14px}
   .bs-pick{width:100%}
@@ -146,14 +130,6 @@
 }
 
 /* Native history controls follow the common page/row layout on small screens. */
-.history-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.history-options .field, .history-options .select { min-width: 0; width: 100%; }
-.history-row .grow { min-width: 0; overflow-wrap: anywhere; }
-@media (max-width: 760px) {
-  .history-options { grid-template-columns: minmax(0, 1fr); }
-  .history-row { flex-wrap: wrap; gap: 12px; }
-  .history-row .grow { flex-basis: 100%; }
-}
 
 /* Shared phone content rules. Keep controls readable before letting flex/grid
    squeeze labels; identifiers may break, ordinary prose keeps word boundaries. */
@@ -179,8 +155,6 @@
   .sec-tabs .sec-pill{display:none}
   .sec-tabs a{height:auto;min-height:28px;max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere;padding-top:3px;padding-bottom:3px}
   .sec-tabs a[aria-current="page"]{background:var(--panel)}
-  .split-list{flex-wrap:wrap;max-width:100%;overflow:visible}
-  .split-item{max-width:100%;min-width:0;overflow-wrap:anywhere}
   .tabs>button{min-width:0;max-width:100%;height:auto;min-height:38px;white-space:normal;overflow-wrap:anywhere}
   .acts,.btn-row,.row-inline,.src-pick{max-width:100%;min-width:0;flex-wrap:wrap}
   .toolbar>.grow{flex-basis:100%;min-width:0}
@@ -193,9 +167,6 @@
   .kv{flex-wrap:wrap;align-items:flex-start}
   .kv>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
   .kv>span:first-child{flex:1 1 140px}
-  .details-kv .kv{flex-direction:column;gap:4px}
-  .details-kv .kv>span:first-child{flex:none}
-  .details-kv .kv span:last-child,.details-kv .kv code,.details-kv .kv a{max-width:100%;text-align:left}
   .set-l{flex-wrap:wrap;overflow-wrap:anywhere}
   .set-l>span{min-width:0}
   .set-line:has(.set-c>:not(.switch))>.set-l{flex-basis:100%}
@@ -209,39 +180,13 @@
   .mx-fields{grid-template-columns:minmax(0,1fr)}
   .task-row>.grow{flex:1 1 180px}
   .task-main b{white-space:normal;overflow-wrap:anywhere}
-  .model-chips{grid-template-columns:minmax(0,1fr)}
-  .mchip{min-width:0;max-width:100%;overflow-wrap:anywhere}
-  .mchip>b,.mchip>small{max-width:100%}
-  .mchip em{position:static}
 
   /* Object headers share one phone grid: identity + refresh, then state,
      description and metadata, followed by full-width actions. Desktop DOM and
      action handlers remain the same. display:contents keeps their source order. */
-  .object-head{display:grid;grid-template-columns:42px minmax(0,1fr) 32px;gap:10px 12px;align-items:center}
-  .object-head>.mono-tile{grid-column:1;grid-row:1}
-  .object-copy,.object-title{display:contents}
-  .object-head>.object-actions{display:flex;grid-column:1/-1;grid-row:5;flex-wrap:wrap;width:100%;min-width:0;gap:8px}
-  .object-title>h2{grid-column:2;grid-row:1;min-width:0;margin:0;overflow-wrap:anywhere}
-  .object-state{grid-column:1/-1;grid-row:2;justify-self:start}
-  .object-description{grid-column:1/-1;grid-row:3;margin:0}
-  .object-meta{grid-column:1/-1;grid-row:4;min-width:0;margin:0;overflow-wrap:anywhere}
-  .object-meta>*{max-width:100%;min-width:0;overflow-wrap:anywhere}
-  .object-head>.object-refresh{grid-column:3;grid-row:1}
-  .object-actions>*{width:100%;min-width:0}
 
   /* Labeled metric blocks reuse the Usage/Bench approach without hiding data. */
-  .am .am-row{grid-template-columns:minmax(0,1fr);gap:10px;padding:14px}
-  .am .am-head{display:none}
-  .am .am-v{display:flex;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere}
-  .am-v::before{content:attr(data-label);flex-basis:100%;font:12px/1.5 var(--font);color:var(--text-3)}
-  .scope-control{justify-content:space-between;min-width:0;gap:12px}
-  .scope-control>span{display:block;min-width:0;font-size:13px;color:var(--text-2)}
-  .am-m b{min-width:0;overflow-wrap:anywhere}
-  .ag-row{grid-template-columns:minmax(0,1fr);gap:10px;padding:14px}
-  .ag-row.ag-head{display:none}
-  .ag-name{flex-wrap:wrap}
-  .ag-name b{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
-  .ag-name em{display:inline;max-width:100%;overflow-wrap:anywhere}
+
   .lib .tr{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .lib .tr.th{display:none}
   .lib .tr>span:nth-child(2),.lib .tr>span:nth-child(3),.lib .tr>span:nth-child(4){display:flex;grid-column:auto;grid-row:auto}

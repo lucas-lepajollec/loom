@@ -91,6 +91,10 @@ func TestMCPPoolDiscoveryCallAndSingleReconnect(t *testing.T) {
 	if got := mgr.Call(tools[0].Function.Name, map[string]any{}); got != "bonjour-loom" {
 		t.Fatal(got)
 	}
+	// A hidden tool is never advertised and cannot be called by name either.
+	if got := mgr.Call("mcp__test_server__hidden", map[string]any{}); !strings.Contains(got, "not enabled") {
+		t.Fatalf("hidden tool callable: %q", got)
+	}
 	if line := mgr.PromptLine(); !strings.Contains(line, "test.server (2)") {
 		t.Fatal(line)
 	}

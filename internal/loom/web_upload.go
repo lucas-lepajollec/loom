@@ -222,30 +222,6 @@ func userMessageContent(files []attachInfo, prompt string) any {
 	return append(parts, imgParts...)
 }
 
-// workspaceRel dit si `abs` se trouve DANS le dossier de travail de l'agent et,
-// si oui, renvoie son chemin relatif en séparateurs '/'.
-//
-// C'est le seul périmètre téléchargeable. L'agent peut écrire n'importe où quand
-// on lui donne un chemin absolu (voir resolveAgentPath) ; ouvrir le téléchargement
-// à ces fichiers-là ferait de /api/chat/file un « lis-moi ce fichier du serveur »
-// à usage général — l'API n'a pas forcément de clé et écoute sur 0.0.0.0.
-func workspaceRel(abs string) (string, bool) {
-	root := agentWorkspace()
-	// EvalSymlinks des deux côtés : sans ça, un lien qui sort du dossier passerait
-	// le test de préfixe.
-	if r, err := filepath.EvalSymlinks(root); err == nil {
-		root = r
-	}
-	if a, err := filepath.EvalSymlinks(abs); err == nil {
-		abs = a
-	}
-	rel, err := filepath.Rel(root, abs)
-	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", false
-	}
-	return filepath.ToSlash(rel), true
-}
-
 // e2eInnerHeader marque une requête dispatchée depuis le proxy chiffré
 // (relay_e2e.go). Cf. handleChatFile : c'est le seul moyen pour un handler de
 // savoir que sa réponse sera réemballée en JSON.

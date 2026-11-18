@@ -10,7 +10,9 @@ import { Logo } from '../../ui/logo.js';
 import { get } from '../../core/api.js';
 import { visibleRefresh } from '../../core/poll.js';
 import { SectionTabs } from '../../app/sections.js';
-import { agents } from './store.js';
+import { agents, sessionList, stateOf } from './store.js';
+import { openSession } from './nav.js';
+import { CliMark } from './new-session.js';
 import { api } from './client.js';
 
 const H = 3600e3, DAY = 24 * H;
@@ -38,7 +40,7 @@ function Window({ name, w }) {
     <div class="q-win-h"><span>${name === '5h' ? t('quotas.win_5h') : t('quotas.win_7d')}</span><b>${used}<small>%</small></b></div>
     <div class="q-bar"><i style=${`width:${Math.min(100, used)}%`}></i>${expected != null && html`<u style=${`left:${expected}%`} title=${t('quotas.expected', { v: expected })}></u>`}</div>
     <div class="q-win-f muted">
-      ${w.reset_at ? html`<span>${left > 0 ? t('quotas.resets_in', { in: fmtIn(left), at: clock(w.reset_at) }) : t('quotas.reset_done')}</span>` : html`<span></span>`}
+      ${w.reset_at ? html`<span>${left > 0 ? t(used >= 100 ? 'quotas.back_in' : 'quotas.resets_in', { in: fmtIn(left), at: clock(w.reset_at) }) : t('quotas.reset_done')}</span>` : html`<span></span>`}
       ${pace && html`<span class=${'q-pace ' + pace}>${pace === 'ahead' ? t('quotas.pace_ahead') : pace === 'under' ? t('quotas.pace_under') : t('quotas.pace_even')}</span>`}
     </div>
   </div>`;
@@ -82,6 +84,18 @@ function History({ samples, range }) {
     </svg>
     <div class="q-legend">${lines.map(l => html`<span key=${l.klass}><i class=${l.klass}></i>${l.label}</span>`)}</div>
   </div>`;
+}
+
+// Sessions arrêtées sur une limite : Codeman les relance seul à la remise à
+// zéro (reprise automatique, réglable par session dans Infos).
+function Paused() {
+  useStore(agents, s => [s.order, s.sessions]);
+  const list = sessionList().filter(s => stateOf(s) === 'limited').sort((a, b) => a.autoResumeAt - b.autoResumeAt);
+  if (!list.length) return null;
+  return html`<section class="sec"><div class="sec-h"><h2>${t('quotas.paused')}<${Tip} text=${t('quotas.paused_tip')} /></h2></div>
+    <div class="card q-paused">${list.map(s => html`<button key=${s.id} class="q-paused-row" onClick=${() => openSession(s.id)}>
+      <${CliMark} mode=${s.mode} size="sm" /><b class="trunc grow">${s.name || s.id.slice(0, 8)}</b>
+      <span class="muted">${t('quotas.resumes_at', { at: clock(s.autoResumeAt), in: fmtIn(s.autoResumeAt - Date.now()) })}</span></button>`)}</div></section>`;
 }
 
 function Tokens({ stats }) {
@@ -133,6 +147,7 @@ export function QuotasPage() {
           ${has(codex) ? html`<${Account} logo="openai" title="Codex" windows=${codex} sub="" />` : ''}
         </div>
         ${!has(claude) && !has(codex) && html`<p class="note">${t('quotas.no_data_note')}</p>`}
+        <${Paused} />
         <section class="sec"><div class="sec-h"><h2>${t('quotas.history')}<${Tip} text=${t('quotas.history_tip')} /></h2>
           <${Seg} size="sm" value=${range} onChange=${setR} label=${t('quotas.history')} options=${[{ value: DAY, label: t('quotas.r24h') }, { value: 7 * DAY, label: t('quotas.r7d') }, { value: 14 * DAY, label: t('quotas.r14d') }]} /></div>
           <div class="card pad"><${History} samples=${data?.samples || []} range=${range} /></div></section>

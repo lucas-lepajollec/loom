@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- Require Go 1.26.11, which fixes the reachable `net/http` vulnerability GO-2026-6859.
+- Security: the local chat tool loop runs only the tools offered to the
+  discussion (a model could name `bash` with the agent mode off); hidden MCP
+  tools and disabled servers can no longer be called by name; web tools only
+  reach public addresses (no loopback, LAN, link-local or CGNAT, checked at
+  connect time so redirects and DNS rebinding are covered).
+- Agents: Claude sessions resume on their own when a subscription limit resets,
+  through Codeman's auto-resume. A switch per session (Info) and a default for
+  new sessions (Settings); paused sessions show as "Paused (limit)" with their
+  resume time, and Activity → Quotas lists them and says when a used-up window
+  is available again.
+- Removed 133 unreachable Go functions left by the retired harness integration
+  and 282 unused CSS rules. See the
+  [November 2026 audit](docs/audits/2026-11-product-audit.md).
+
 - Require Go 1.26.10, which fixes the reachable `crypto/x509` vulnerability GO-2026-6809.
 - Add the Agents module: a Loom interface for an independent Codeman server
   (sessions for Claude Code, Codex, OpenCode, Antigravity, Pi and every CLI in

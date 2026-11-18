@@ -9,7 +9,7 @@ import { Switch, Empty } from '../../ui/controls.js';
 import { Modal, toast } from '../../ui/dialog.js';
 import { copyText } from '../../ui/clipboard.js';
 import { api } from './client.js';
-import { agents, cliOf, onDomain } from './store.js';
+import { agents, cliOf, onDomain, upsertSession } from './store.js';
 
 const today = ms => new Date(ms).toDateString() === new Date().toDateString();
 const time = ms => !ms ? '' : today(ms) ? new Date(ms).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : new Date(ms).toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
@@ -150,6 +150,8 @@ function InfoTab({ session }) {
     ${pc && html`<${Row} k=${t('agents.info.cache')}>${pc.warm ? t('agents.info.cache_warm', { ttl: pc.ttl || '' }) : t('agents.info.cache_cold')}${typeof pc.hitRatio === 'number' ? ' · ' + Math.round(pc.hitRatio * 100) + '%' : ''}</${Row}>`}
     <${Row} k=${t('agents.info.id')}><button class="cm-copy mono" onClick=${() => copyText(session.id).then(() => toast(t('agents.copied')))}>${session.id.slice(0, 8)}…</button></${Row}>
     ${session.mode === 'claude' && html`<div class="cm-switches">
+      <label class="cm-switch"><span><b>${t('agents.info.auto_resume')}</b><small>${session.autoResumeAt > Date.now() ? t('agents.info.auto_resume_at', { at: when(session.autoResumeAt) }) : t('agents.info.auto_resume_hint')}</small></span>
+        <${Switch} checked=${!!session.autoResumeEnabled} disabled=${busy} onChange=${v => toggle((id, on) => api.autoResume(id, on).then(r => upsertSession({ id, autoResumeEnabled: on, autoResumeAt: r?.autoResume?.resumeAt ?? (on ? session.autoResumeAt : null) })), v)} label=${t('agents.info.auto_resume')} /></label>
       <label class="cm-switch"><span><b>${t('agents.info.auto_compact')}</b><small>${t('agents.info.auto_compact_hint', { n: fmtTok(session.autoCompactThreshold || 0) })}</small></span>
         <${Switch} checked=${!!session.autoCompactEnabled} disabled=${busy} onChange=${v => toggle(api.autoCompact, v)} label=${t('agents.info.auto_compact')} /></label>
       <label class="cm-switch"><span><b>${t('agents.info.auto_clear')}</b><small>${t('agents.info.auto_clear_hint', { n: fmtTok(session.autoClearThreshold || 0) })}</small></span>

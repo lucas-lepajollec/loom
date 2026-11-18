@@ -6,31 +6,11 @@ package loom
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/notify"
 )
-
-// fmtDurFR : durée → « 42s », « 3 mn 05s », « 1 h 12 mn » pour le corps de la
-// notification. Miroir serveur de fmtElapsed() côté UI (09-stream.js).
-func fmtDurFR(d time.Duration) string {
-	secs := int(d.Round(time.Second).Seconds())
-	if secs < 0 {
-		secs = 0
-	}
-	h, m, s := secs/3600, (secs%3600)/60, secs%60
-	switch {
-	case h > 0:
-		return fmt.Sprintf("%d h %02d mn", h, m)
-	case m > 0:
-		return fmt.Sprintf("%d mn %02ds", m, s)
-	default:
-		return fmt.Sprintf("%ds", s)
-	}
-}
 
 // Stockées dans bkState (une seule base bbolt, voir store.go).
 const (
@@ -148,6 +128,3 @@ func removeSub(endpoint string) error {
 	}
 	return saveSubs(out)
 }
-
-// Legacy subscriptions remain usable through the opt-in notification rules.
-func hasPushSubs() bool { return len(loadSubs()) > 0 }

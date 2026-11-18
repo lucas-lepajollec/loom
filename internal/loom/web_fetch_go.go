@@ -1,10 +1,15 @@
 package loom
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strings"
+	"time"
 )
 
 // Moteur web INTÉGRÉ (pur Go) — alternative à Crawl4AI, sans rien à installer.
@@ -75,9 +80,14 @@ func setWebEngine(engine string) error {
 // cookie de session puis redirigent (murs de consentement typiques). Le jar est
 // en mémoire : il disparaît à l'arrêt du process, on ne persiste rien.
 // On ne touche pas à http.DefaultClient (utilisé ailleurs).
+//
+// Pages are requested by the model, so text it read elsewhere can ask for any
+// URL: the dialer only reaches public addresses (checked at dial time, which
+// also covers redirects and DNS rebinding), never this machine or the LAN.
 var goHTTPClient = &http.Client{
-	Timeout: goFetchTimeout,
-	Jar:     newCookieJar(),
+	Timeout:   goFetchTimeout,
+	Jar:       newCookieJar(),
+	Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: publicWebDial, ForceAttemptHTTP2: true, TLSHandshakeTimeout: 10 * time.Second},
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
 			return fmt.Errorf("too many redirects")
@@ -92,4 +102,50 @@ func newCookieJar() http.CookieJar {
 		return nil // un client sans jar reste fonctionnel
 	}
 	return j
+}
+
+var errPrivateTarget = errors.New("private or local addresses cannot be opened by web tools")
+
+func publicWebDial(ctx context.Context, network, address string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	for _, ip := range ips {
+		if !publicIP(ip.IP) {
+			return nil, errPrivateTarget
+		}
+	}
+	var last error = errors.New("no address")
+	for _, ip := range ips {
+		conn, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+		last = err
+	}
+	return nil, last
+}
+
+// publicTarget rejects URLs whose host resolves to a non-public address before
+// they are handed to an external crawler (Crawl4AI fetches them itself).
+func publicTarget(raw string) error {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return errors.New("invalid URL")
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(context.Background(), u.Hostname())
+	if err != nil {
+		return err
+	}
+	for _, ip := range ips {
+		if !publicIP(ip.IP) {
+			return errPrivateTarget
+		}
+	}
+	return nil
 }

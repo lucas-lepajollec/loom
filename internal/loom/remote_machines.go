@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 	"net/http"
 	"os"
 	"os/exec"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/capability"
 )
 
 // SSH machines provide terminals, workspaces and environment observations.
@@ -242,15 +243,6 @@ func checkRemoteMachine(ctx context.Context, m RemoteMachine) (RemoteMachine, er
 func lastLine(s string) string {
 	lines := strings.Split(strings.TrimSpace(s), "\n")
 	return strings.TrimSpace(lines[len(lines)-1])
-}
-
-func machineName(id string) string {
-	for _, m := range loadRemoteMachines() {
-		if m.ID == id {
-			return m.Name
-		}
-	}
-	return ""
 }
 
 // Public capabilities are derived from saved transport identity, never requests.

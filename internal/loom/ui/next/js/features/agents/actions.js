@@ -20,6 +20,11 @@ function nextName(dir) {
 
 // Crée la session puis démarre son CLI (ou le shell). Codeman répond à la
 // boîte de dialogue de confiance de Claude dans sa fenêtre de démarrage.
+// Reprise après la limite d'abonnement pour les nouvelles sessions Claude
+// (préférence de ce navigateur, activée par défaut).
+export const autoResumeDefault = () => { try { return localStorage.getItem('loom.codeman.autoresume') !== '0'; } catch (_) { return true; } };
+export const setAutoResumeDefault = on => { try { localStorage.setItem('loom.codeman.autoresume', on ? '1' : '0'); } catch (_) {} };
+
 export async function createSession({ mode, workingDir, name, model }) {
   const body = { workingDir, mode, name: (name || '').trim() || nextName(workingDir) };
   const m = String(model || '').trim();
@@ -32,6 +37,7 @@ export async function createSession({ mode, workingDir, name, model }) {
   if (!session?.id) throw new Error('no session');
   upsertSession(session);
   await api.start(session.id, mode === 'shell');
+  if (mode === 'claude' && autoResumeDefault()) api.autoResume(session.id, true).catch(() => {});
   api.session(session.id).then(upsertSession).catch(() => {});
   return session.id;
 }

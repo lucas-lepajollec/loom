@@ -121,32 +121,6 @@ var engineModelsCache struct {
 	body []byte
 }
 
-func engineModelsJSON() []byte {
-	n := currentEngineNode()
-	if n == nil {
-		return oaiModelsJSON()
-	}
-	engineModelsCache.Lock()
-	defer engineModelsCache.Unlock()
-	if time.Since(engineModelsCache.at) < 30*time.Second && engineModelsCache.body != nil {
-		return engineModelsCache.body
-	}
-	req, _ := http.NewRequest(http.MethodGet, strings.TrimRight(n.V1, "/")+"/v1/models", nil)
-	if n.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+n.APIKey)
-	}
-	resp, err := nodeClient.Do(req)
-	if err != nil {
-		return engineModelsCache.body
-	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-	if err == nil && resp.StatusCode == 200 {
-		engineModelsCache.at, engineModelsCache.body = time.Now(), b
-	}
-	return engineModelsCache.body
-}
-
 // engineCurrentModel names the model the engine serves, for attribution.
 func engineCurrentModel() string {
 	n := currentEngineNode()
@@ -553,13 +527,6 @@ func handleEngineNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	cloned := r.Clone(r.Context())
 	cloned.URL.Path, cloned.URL.RawPath, cloned.URL.RawQuery = path, "", "channel="+updateChannel()
 	proxyEngineNode(w, cloned, n)
-}
-
-// A linked engine owns its sampling configuration. Never apply the VM's stale
-// local preset to requests headed for the GPU machine. Fail visibly if that
-// configuration cannot be read; do not silently substitute local defaults.
-func engineExecutionConfig(ctx context.Context) (map[string]string, error) {
-	return engineExecutionConfigFor(ctx, currentEngineNode())
 }
 
 func engineExecutionConfigFor(ctx context.Context, n *engineNode) (map[string]string, error) {

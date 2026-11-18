@@ -257,6 +257,13 @@ func (m *MCPManager) Call(name string, args map[string]any) string {
 	if !ok {
 		return "[error] unknown MCP tool or server not connected: " + name
 	}
+	// The registry outlives configuration changes: a server switched off or a
+	// tool hidden since the last listing must not stay callable by name.
+	if servers, err := m.config.LoadMCPConfig(); err != nil {
+		return "[error] MCP configuration unavailable"
+	} else if cfg, exists := servers[ref.server]; !exists || !cfg.Enabled || cfg.ToolDisabled(ref.tool) {
+		return "[error] MCP tool not enabled: " + name
+	}
 
 	result, err := m.callOnce(ref, args)
 	if err != nil {
