@@ -1,7 +1,6 @@
 package loom
 
 import (
-	"encoding/json"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -35,8 +34,6 @@ func TestRemoteMachineValidation(t *testing.T) {
 		t.Fatalf("%v %+v", err, m)
 	}
 }
-
-func jsonUnmarshalString(s string, v any) error { return json.Unmarshal([]byte(s), v) }
 
 func TestRemoteMachinePersistsAndRemainsEditable(t *testing.T) {
 	home := testHome(t)

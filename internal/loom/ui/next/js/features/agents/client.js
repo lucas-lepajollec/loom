@@ -85,6 +85,7 @@ export const api = {
   installCli: id => cm.post('/clis/' + enc(id) + '/install', {}, { timeout: 600000 }),
   tokenStats: () => cm.get('/token-stats'),
   autoCompact: (id, enabled, threshold) => cm.post('/sessions/' + enc(id) + '/auto-compact', { enabled, ...(threshold ? { threshold } : {}) }),
+  autoResume: (id, enabled) => cm.post('/sessions/' + enc(id) + '/auto-resume', { enabled }),
   autoClear: (id, enabled, threshold) => cm.post('/sessions/' + enc(id) + '/auto-clear', { enabled, ...(threshold ? { threshold } : {}) }),
   approvals: () => cm.get('/approvals'),
   answer: (itemId, body) => cm.post('/approvals/' + enc(itemId) + '/answer', body),

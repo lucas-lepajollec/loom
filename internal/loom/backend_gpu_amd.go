@@ -20,24 +20,11 @@ package loom
 // donc tolérante et ne suppose jamais un type précis.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 )
-
-// amdVramGPUs renvoie les GPU AMD au même format que handleVram
-// ({name, used, total, util, temp}), ou nil si amd-smi est absent / muet.
-func amdVramGPUs() []map[string]any {
-	if !hasTool("amd-smi") {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return amdVramGPUsWithRunner(gpuRunner(ctx))
-}
 
 func amdVramGPUsWithRunner(run gpuCommandRunner) []map[string]any {
 	names := amdSmiNamesWithRunner(run)
@@ -75,15 +62,6 @@ func amdPos(n int) int {
 	return n
 }
 
-// amdSmiNames lit le nom lisible de chaque carte (asic.market_name), indexé par
-// numéro de GPU. Vide si `amd-smi static` échoue : on retombe alors sur un nom
-// générique, sans empêcher l'affichage du reste.
-func amdSmiNames() map[int]string {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return amdSmiNamesWithRunner(gpuRunner(ctx))
-}
-
 func amdSmiNamesWithRunner(run gpuCommandRunner) map[int]string {
 	names := map[int]string{}
 	for i, e := range amdSmiJSONWithRunner(run, "static") {
@@ -98,21 +76,6 @@ func amdSmiNamesWithRunner(run gpuCommandRunner) map[int]string {
 		}
 	}
 	return names
-}
-
-// amdSmiJSON lance `amd-smi <sub> --json` et décode la sortie en liste d'objets
-// GPU. Le schéma varie selon la version d'amd-smi :
-//   - un TABLEAU d'objets GPU (ancien schéma) ;
-//   - un OBJET RACINE enveloppant le tableau sous « gpu_data » (schéma récent,
-//     ex. amd-smi sur RX 7800 XT / Bazzite — issue #39) ;
-//   - un OBJET GPU seul (certaines versions, un seul GPU non enveloppé).
-//
-// Sans le déballage de « gpu_data », on prenait le wrapper pour un GPU : ni
-// « gpu » ni « mem_usage » à l'intérieur → toutes les valeurs à 0.
-func amdSmiJSON(sub string) []map[string]any {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return amdSmiJSONWithRunner(gpuRunner(ctx), sub)
 }
 
 func amdSmiJSONWithRunner(run gpuCommandRunner, sub string) []map[string]any {

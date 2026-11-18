@@ -3,13 +3,11 @@ package loom
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	"golang.org/x/net/html"
 )
 
 // Historical names delegate to the leaf; Loom retains application state.
@@ -41,12 +39,6 @@ const (
 var errAlreadyApplied = tools.ErrAlreadyApplied
 
 func memFileName(name string) (string, error) { return tools.MemFileName(name) }
-
-func titleOf(content string) string { return tools.TitleOf(content) }
-
-func uniqueTerms(q string) []string { return tools.UniqueTerms(q) }
-
-func snippetAround(content string, terms []string) string { return tools.SnippetAround(content, terms) }
 
 func MemList() []MemPage { return nativeMemory().MemList() }
 
@@ -83,21 +75,9 @@ func normalizeCrawlURL(raw string) string { return tools.NormalizeCrawlURL(raw) 
 
 func normalizeLines(raw string) []string { return tools.NormalizeLines(raw) }
 
-func extractOutline(lines []string) string { return tools.ExtractOutline(lines) }
-
-func formatLines(lines []string, startLine int) string { return tools.FormatLines(lines, startLine) }
-
-func formatBytes(n int) string { return tools.FormatBytes(n) }
-
-func decodeHTMLEntities(s string) string { return tools.DecodeHTMLEntities(s) }
-
-func decodeUddg(raw string) string { return tools.DecodeUddg(raw) }
-
 type crwlOptions = tools.CrawlOptions
 
 type crwlResult tools.CrawlResult
-
-func (r crwlResult) markdown(raw bool) string { return tools.CrawlResult(r).MarkdownText(raw) }
 
 type searchResult = tools.SearchResult
 
@@ -113,51 +93,13 @@ type nativeCrawlSource struct{}
 func (nativeCrawlSource) CrawlURL() string { return crawl4aiURL() }
 func (nativeCrawlSource) CrawlKey() string { return crawl4aiKey() }
 
-func duckduckgoSearch(query string, limit int) ([]searchResult, error) {
-	return tools.DuckduckgoSearch(nativeWebSource{}, query, limit)
-}
-
-func goFetch(ctx context.Context, target string) (body []byte, contentType, finalURL string, err error) {
-	return tools.GoFetch(goHTTPClient, ctx, target)
-}
-
-func goParseHTML(body []byte, contentType string) (*html.Node, error) {
-	return tools.GoParseHTML(body, contentType)
-}
-
 func goFetchMarkdown(target string) (string, error) {
 	return tools.GoFetchMarkdown(goHTTPClient, target)
 }
 
-func goArticleMarkdown(doc *html.Node, base *url.URL) (md, title string) {
-	return tools.GoArticleMarkdown(doc, base)
-}
-
-func goConvert(node *html.Node, baseURL string) (string, error) {
-	return tools.GoConvert(node, baseURL)
-}
-
-func goCloneDoc(doc *html.Node) (*html.Node, error) { return tools.GoCloneDoc(doc) }
-
-func baseString(u *url.URL) string { return tools.BaseString(u) }
-
 func goSearch(query string, limit int) ([]searchResult, error) {
 	return tools.GoSearch(goHTTPClient, query, limit)
 }
-
-func goHasClass(n *html.Node, class string) bool { return tools.GoHasClass(n, class) }
-
-func goAttr(n *html.Node, name string) string { return tools.GoAttr(n, name) }
-
-func goFindByClass(root *html.Node, class string) []*html.Node {
-	return tools.GoFindByClass(root, class)
-}
-
-func goFirstByClass(root *html.Node, class string) *html.Node {
-	return tools.GoFirstByClass(root, class)
-}
-
-func goText(n *html.Node) string { return tools.GoText(n) }
 
 type cacheEntry = tools.Page
 
@@ -190,29 +132,29 @@ func (nativeWebSource) Search(query string, limit int) ([]tools.SearchResult, er
 	return goSearch(query, limit)
 }
 func (nativeWebSource) Crawl(target string, opts tools.CrawlOptions) (string, error) {
+	if err := publicTarget(target); err != nil {
+		return "", err
+	}
 	return runCrwl(target, opts)
 }
 func (nativeWebSource) SearchPages(query string, limit int) ([]tools.SearchResult, error) {
 	return configuredWebSearch(context.Background(), query, limit)
 }
 func (nativeWebSource) GetPage(url string, opts tools.FetchOptions) (*tools.Page, error) {
+	if err := publicTarget(url); err != nil {
+		return nil, err
+	}
 	return getPage(url, opts)
 }
 func (nativeWebSource) FindCached(url string) *tools.Page { return findCached(url) }
 
 func tailRunes(s string, n int) string { return tools.TailRunes(s, n) }
 
-func mcpSanitize(s string) string { return tools.MCPSanitize(s) }
-
 func mcpExposedName(server, tool string) string { return tools.MCPExposedName(server, tool) }
-
-func mcpNormalizeSchema(schema any) map[string]any { return tools.MCPNormalizeSchema(schema) }
 
 func mcpArgLabel(args map[string]any) string { return tools.MCPArgLabel(args) }
 
 func isMCPTool(name string) bool { return tools.IsMCPTool(name) }
-
-func flattenMCPContent(res *mcpsdk.CallToolResult) string { return tools.FlattenMCPContent(res) }
 
 // Native subprocess setup remains application/platform owned.
 func mcpConnect(ctx context.Context, name string, cfg MCPServerConfig) (*mcpsdk.ClientSession, error) {

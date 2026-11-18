@@ -2,7 +2,6 @@ package loom
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,74 +53,23 @@ const (
 	estDefaultVocab         = llamacpp.EstDefaultVocab
 )
 
-func parseLlamaHelp(text string) []LlamaFlag       { return llamacpp.ParseLlamaHelp(text) }
-func parseLlamaHelpFlagLine(line string) LlamaFlag { return llamacpp.ParseLlamaHelpFlagLine(line) }
-func splitHelpFlagAndDesc(line string) (flags, desc string) {
-	return llamacpp.SplitHelpFlagAndDesc(line)
-}
-func splitHelpComma(s string) []string              { return llamacpp.SplitHelpComma(s) }
-func helpTokenArg(p string) (token, arg string)     { return llamacpp.HelpTokenArg(p) }
-func canonicalHelpFlag(longs []string) string       { return llamacpp.CanonicalHelpFlag(longs) }
-func parseHelpChoices(s string) []string            { return llamacpp.ParseHelpChoices(s) }
-func finishLlamaFlag(f *LlamaFlag)                  { llamacpp.FinishLlamaFlag(f) }
-func lookupFlagConfigKey(f LlamaFlag) string        { return llamacpp.LookupFlagConfigKey(f) }
-func flagTierFor(f LlamaFlag) string                { return llamacpp.FlagTierFor(f) }
-func parseHelpAllowed(help string) []string         { return llamacpp.ParseHelpAllowed(help) }
-func parseHelpChoicesFromHelp(help string) []string { return llamacpp.ParseHelpChoicesFromHelp(help) }
-func inferHelpKind(f LlamaFlag) string              { return llamacpp.InferHelpKind(f) }
-func looksNumeric(s string) bool                    { return llamacpp.LooksNumeric(s) }
-func isHiddenLlamaFlag(f LlamaFlag) bool            { return llamacpp.IsHiddenLlamaFlag(f) }
-func mergeUniq(a, b []string) []string              { return llamacpp.MergeUniq(a, b) }
-func containsFold(list []string, s string) bool     { return llamacpp.ContainsFold(list, s) }
-func readGGUFMeta(path string) (ggufMeta, error)    { return llamacpp.ReadGGUFMeta(path) }
-func pickGGUFContext(arch string, ctxByKey map[string]int) int {
-	return llamacpp.PickGGUFContext(arch, ctxByKey)
-}
-func ggufReadString(r io.Reader) (string, error)       { return llamacpp.GGUFReadString(r) }
-func ggufReadInt(r io.Reader, typ uint32) (int, error) { return llamacpp.GGUFReadInt(r, typ) }
-func ggufSkipValue(r io.Reader, typ uint32) error      { return llamacpp.GGUFSkipValue(r, typ) }
-func ggufSkipArrayKeepLen(r io.Reader) (uint64, error) { return llamacpp.GGUFSkipArrayKeepLen(r) }
-func ggufReadIntArray(r io.Reader) ([]int, error)      { return llamacpp.GGUFReadIntArray(r) }
-func ggufScalarSize(typ uint32) int64                  { return llamacpp.GGUFScalarSize(typ) }
-func chatTemplateThinks(s string) bool                 { return llamacpp.ChatTemplateThinks(s) }
-func inspectChatTemplate(s string) chatTemplateCaps    { return llamacpp.InspectChatTemplate(s) }
-func effortDefaultIn(chunk string) string              { return llamacpp.EffortDefaultIn(chunk) }
-func kvBPE(t string) float64                           { return llamacpp.KVBPE(t) }
-func layerNKVHeads(m ggufMeta, i int) int              { return llamacpp.LayerNKVHeads(m, i) }
-func layerIsSWA(m ggufMeta, i int) bool                { return llamacpp.LayerIsSWA(m, i) }
-func kvHeadDims(m ggufMeta, swa bool) (klen, vlen int) { return llamacpp.KVHeadDims(m, swa) }
-func estimateKVBytesPerLayer(m ggufMeta, ctx int, kvK, kvV string) int64 {
-	return llamacpp.EstimateKVBytesPerLayer(m, ctx, kvK, kvV)
-}
-func estimateKVBytes(m ggufMeta, ctx int, kvK, kvV string) int64 {
-	return llamacpp.EstimateKVBytes(m, ctx, kvK, kvV)
-}
-func estimateComputeBytes(m ggufMeta, ctx, ubatch, np int, kvK, kvV string) int64 {
-	return llamacpp.EstimateComputeBytes(m, ctx, ubatch, np, kvK, kvV)
-}
-func estimateMTPBytes(m ggufMeta, ctx int, kvK, kvV string) int64 {
-	return llamacpp.EstimateMTPBytes(m, ctx, kvK, kvV)
-}
 func estimateRun(m ggufMeta, opt estimateOpt) vramEst { return llamacpp.EstimateRun(m, opt) }
 func maxCtxThatFits(m ggufMeta, opt estimateOpt, budget int64) int {
 	return llamacpp.MaxCtxThatFits(m, opt, budget)
 }
-func vramEstJSON(e vramEst) map[string]any           { return llamacpp.VRAMEstimateJSON(e) }
-func readCuratedParams() curatedParams               { return llamacpp.ReadCuratedParams() }
-func paramMatchesFlag(p ParamSpec, f LlamaFlag) bool { return llamacpp.ParamMatchesFlag(p, f) }
+func vramEstJSON(e vramEst) map[string]any { return llamacpp.VRAMEstimateJSON(e) }
+func readCuratedParams() curatedParams     { return llamacpp.ReadCuratedParams() }
 func mergeEngineParams(c curatedParams, flags []LlamaFlag) []ParamSpec {
 	return llamacpp.MergeEngineParams(c, flags)
 }
 func argsToPresetOptions(bin string, args []string) ([][2]string, error) {
 	return llamacpp.ArgsToPresetOptions(llamaFlagsForBin(bin), args)
 }
-func routerEntryName(options [][2]string) string   { return llamacpp.RouterEntryName(options) }
-func renderRouterINI(entries []routerEntry) []byte { return llamacpp.RenderRouterINI(entries) }
-func unquoteValue(v string) string                 { return llamacpp.UnquoteValue(v) }
-func parseEnv(text string) map[string]string       { return llamacpp.ParseEnv(text) }
-func quoteValue(v string) string                   { return llamacpp.QuoteValue(v) }
-func formatEnv(m map[string]string) string         { return llamacpp.FormatEnv(m) }
-func splitArgs(s string) []string                  { return llamacpp.SplitArgs(s) }
+func routerEntryName(options [][2]string) string { return llamacpp.RouterEntryName(options) }
+func unquoteValue(v string) string               { return llamacpp.UnquoteValue(v) }
+func parseEnv(text string) map[string]string     { return llamacpp.ParseEnv(text) }
+func quoteValue(v string) string                 { return llamacpp.QuoteValue(v) }
+func formatEnv(m map[string]string) string       { return llamacpp.FormatEnv(m) }
 func presetDisplayName(content, fallback string) string {
 	return llamacpp.PresetDisplayName(content, fallback)
 }
@@ -202,34 +150,11 @@ func buildLlamaServerArgsWithRuntime(cfg map[string]string, runtimeGet func(stri
 	})
 }
 
-func cloneEngineConfig(cfg map[string]string) map[string]string {
-	out := make(map[string]string, len(cfg))
-	for k, v := range cfg {
-		out[k] = v
-	}
-	return out
-}
-
 // buildLlamaServerArgs construit argv de llama-server à partir de la config
 // courante. --host/--port forcés en dernier : le GGUF n'écoute que en local,
 // le front Loom prend HOST:PORT.
 func buildLlamaServerArgs() ([]string, error) {
 	return (llamaCppEngine{}).BuildArgs(ModelConfig{})
-}
-
-// binSupportsReasoningFlag dit si ce llama-server accepte « --reasoning ».
-//
-// Le drapeau est récent : les moteurs plus anciens, et certains forks, ne le
-// connaissent pas et REFUSENT de démarrer sur un argument inconnu. Comme on ne
-// l'ajoute que pour interdire le raisonnement, mieux vaut demander au binaire
-// que parier : on lit son aide, une fois, au lancement du moteur.
-//
-// L'aide se lit avec le même chemin de bibliothèques que le vrai lancement
-// (setLibraryPath a déjà été appelé) : sans ça un moteur parfaitement valide
-// échoue à s'exécuter (« libllama-common.so introuvable ») et on conclurait à
-// tort qu'il ne gère pas le drapeau.
-func binSupportsReasoningFlag(bin string) bool {
-	return llamaHasFlag(bin, "reasoning")
 }
 
 // loomRouterStore adapts the existing active store without capturing its path;
@@ -271,15 +196,9 @@ func routerServerArgs(bin string) []string {
 	// Keep fallback config reads after successful credential preparation.
 	return r.ServerArgs(func() string { return ReadConfig()["API_KEY"] })
 }
-func loadRouterEntries() []routerEntry                         { return llamaRouter().Entries() }
-func rememberRouterEntry(e routerEntry) ([]routerEntry, error) { return llamaRouter().RememberEntry(e) }
-func writeRouterINI(entries []routerEntry) error               { return llamaRouter().WriteINI(entries) }
-func ensureRouterINI() error                                   { return llamaRouter().EnsureINI() }
-func routerDo(method, path string, body any, timeout time.Duration) ([]byte, int, error) {
-	return llamaRouter().Do(method, path, body, timeout)
-}
-func routerReachable() bool                           { return llamaRouter().Reachable() }
-func routerModels(reload bool) ([]routerModel, error) { return llamaRouter().Models(reload) }
+func loadRouterEntries() []routerEntry { return llamaRouter().Entries() }
+func ensureRouterINI() error           { return llamaRouter().EnsureINI() }
+func routerReachable() bool            { return llamaRouter().Reachable() }
 func routerModelsWithTimeout(reload bool, timeout time.Duration) ([]routerModel, error) {
 	return llamaRouter().ModelsWithTimeout(reload, timeout)
 }

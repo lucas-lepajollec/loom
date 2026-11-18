@@ -33,6 +33,13 @@ var notificationClient = &http.Client{Timeout: 10 * time.Second, CheckRedirect: 
 // to prevent subscription-based SSRF, including DNS rebinding and redirects.
 var notificationPushClient = &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: &http.Transport{Proxy: nil, DialContext: publicPushDial}}
 
+// publicIP reports whether an address is reachable on the public internet:
+// not loopback, private, link-local, CGNAT/Tailscale or unspecified.
+func publicIP(ip net.IP) bool {
+	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() &&
+		!(&net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}).Contains(ip)
+}
+
 func publicPushDial(ctx context.Context, network, address string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
@@ -43,7 +50,7 @@ func publicPushDial(ctx context.Context, network, address string) (net.Conn, err
 		return nil, err
 	}
 	for _, ip := range ips {
-		if !ip.IP.IsGlobalUnicast() || ip.IP.IsPrivate() || ip.IP.IsLoopback() || ip.IP.IsLinkLocalUnicast() || (&net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}).Contains(ip.IP) {
+		if !publicIP(ip.IP) {
 			return nil, errors.New("public push destination required")
 		}
 	}

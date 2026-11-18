@@ -151,21 +151,6 @@ func FormatBytes(n int) string {
 	}
 }
 
-func DecodeHTMLEntities(s string) string {
-	s = strings.NewReplacer(
-		"&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", `"`,
-		"&#39;", "'", "&#x2F;", "/", "&nbsp;", " ",
-	).Replace(s)
-	return numEntityRe.ReplaceAllStringFunc(s, func(m string) string {
-		var n int
-		fmt.Sscanf(m, "&#%d;", &n)
-		if n > 0 {
-			return string(rune(n))
-		}
-		return m
-	})
-}
-
 // DecodeUddg : DDG enrobe les résultats en //duckduckgo.com/l/?uddg=URL_ENCODÉE
 func DecodeUddg(raw string) string {
 	s := raw
@@ -315,65 +300,6 @@ func RunCrwl(source CrawlSource, client HTTPDoer, target string, opts CrawlOptio
 		return "", fmt.Errorf("Crawl4AI : %s", TailRunes(msg, 300))
 	}
 	return r.MarkdownText(opts.RawMarkdown), nil
-}
-
-func DuckduckgoSearch(source SearchSource, query string, limit int) ([]SearchResult, error) {
-	if source.Engine() == EngineGo {
-		// Le moteur intégré lit la structure HTML des résultats plutôt que de
-		// reparser un Markdown intermédiaire.
-		return source.Search(query, limit)
-	}
-	searchURL := "https://html.duckduckgo.com/html/?q=" + url.QueryEscape(query)
-	md, err := source.Crawl(searchURL, CrawlOptions{RawMarkdown: true, PageTimeoutMS: 30000})
-	if err != nil {
-		return nil, err
-	}
-	if strings.Contains(md, "anomaly-modal") || strings.Contains(md, "anomaly.js") {
-		return nil, fmt.Errorf("DuckDuckGo returned an anti-bot challenge")
-	}
-	var results []SearchResult
-	lines := strings.Split(md, "\n")
-	for i := 0; i < len(lines) && len(results) < limit; i++ {
-		h := ddgHeadRe.FindStringSubmatch(lines[i])
-		if h == nil {
-			continue
-		}
-		title := strings.TrimSpace(strings.ReplaceAll(DecodeHTMLEntities(h[1]), "**", ""))
-		u := DecodeUddg(h[2])
-		if title == "" || u == "" || strings.Contains(u, "duckduckgo.com") {
-			continue
-		}
-		snippet := ""
-		for j := i + 1; j < i+6 && j < len(lines); j++ {
-			ln := strings.TrimSpace(lines[j])
-			if ln == "" {
-				continue
-			}
-			for _, lm := range ddgLinkRe.FindAllStringSubmatch(ln, -1) {
-				text := strings.TrimSpace(lm[1])
-				if text == "" || strings.HasPrefix(text, "!") || urlishRe.MatchString(text) {
-					continue
-				}
-				snippet = strings.TrimSpace(strings.ReplaceAll(DecodeHTMLEntities(text), "**", ""))
-				break
-			}
-			if snippet != "" {
-				break
-			}
-		}
-		dup := false
-		for _, r := range results {
-			if r.URL == u {
-				dup = true
-				break
-			}
-		}
-		if dup {
-			continue
-		}
-		results = append(results, SearchResult{Title: title, URL: u, Snippet: snippet})
-	}
-	return results, nil
 }
 
 const EngineGo = "go"

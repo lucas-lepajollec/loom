@@ -476,20 +476,6 @@ func runBenchQueue(ctx context.Context, j *benchJob, t benchTest) {
 	benchJobMu.Unlock()
 }
 
-func runBenchTest(t benchTest) (*benchResult, string, error) {
-	return runBenchTestContext(context.Background(), t)
-}
-
-func runBenchTestContext(ctx context.Context, t benchTest) (*benchResult, string, error) {
-	prompt, n := benchPrompt(t)
-	res, output, err := runCompletionBenchContext(ctx, prompt, n, nil)
-	if err == nil && (t.Kind == "perf" || t.ID == benchTestPerf) {
-		saveLastBench(res)
-		saveBenchForActivePreset(res)
-	}
-	return res, output, err
-}
-
 func clipBenchPreview(s string) string {
 	s = strings.Join(strings.Fields(s), " ")
 	r := []rune(s)
@@ -497,89 +483,4 @@ func clipBenchPreview(s string) string {
 		return string(r[:280]) + "…"
 	}
 	return s
-}
-
-func benchModelReady(model string) bool {
-	if !healthCheck() {
-		return false
-	}
-	cur := strings.TrimSpace(ReadConfig()["MODEL"])
-	if cur == "" {
-		return false
-	}
-	if normDir(cur) == normDir(model) {
-		return true
-	}
-	if p, err := resolveServeModelPath(model); err == nil && normDir(cur) == normDir(p) {
-		return true
-	}
-	if filepath.Base(cur) == filepath.Base(model) {
-		return true
-	}
-	return false
-}
-
-func waitLLMHealth(timeout time.Duration) error {
-	return waitLLMHealthContext(context.Background(), timeout)
-}
-
-func waitLLMHealthContext(ctx context.Context, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if healthCheck() {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(1500 * time.Millisecond):
-		}
-	}
-	return fmt.Errorf("engine not ready after %s", timeout.Round(time.Second))
-}
-
-func benchPresetReady(preset string) bool {
-	if !healthCheck() {
-		return false
-	}
-	active := strings.TrimSpace(getStr(bkState, "active_preset"))
-	return active != "" && active == strings.TrimSpace(preset)
-}
-
-func benchLoadAndWait(model, preset string) error {
-	return benchLoadAndWaitContext(context.Background(), model, preset)
-}
-
-func benchLoadAndWaitContext(ctx context.Context, model, preset string) error {
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	preset = strings.TrimSpace(preset)
-	if preset != "" {
-		if benchPresetReady(preset) {
-			return nil
-		}
-		path, err := safePresetPath(preset)
-		if err != nil {
-			return err
-		}
-		if err := SwitchToPreset(path); err != nil {
-			return err
-		}
-		return waitLLMHealthContext(ctx, benchHealthWait)
-	}
-	model = strings.TrimSpace(model)
-	if model == "" {
-		return fmt.Errorf("model required")
-	}
-	if benchModelReady(model) {
-		return nil
-	}
-	if err := loadNakedModel(model); err != nil {
-		return err
-	}
-	if err := restartLlamaEngine(); err != nil {
-		return err
-	}
-	return waitLLMHealthContext(ctx, benchHealthWait)
 }

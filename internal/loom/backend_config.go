@@ -177,18 +177,6 @@ var samplingKeys = []struct {
 	{"REPEAT_PENALTY", "repeat_penalty", false},
 }
 
-// applySampling superpose les paramètres d'échantillonnage du preset au corps
-// d'une requête de complétion. Les clés vides sont ignorées (le serveur garde son
-// défaut) ; TEMP, s'il est défini, l'emporte sur la température déjà posée dans le
-// payload — c'est le réglage recommandé du modèle, et l'UI n'a de toute façon pas
-// de curseur de température qui pourrait le contredire.
-//
-// REASONING_EFFORT (Qwen3.8 : low/medium/high/xhigh…) passe par le mécanisme des
-// gabarits jinja de llama.cpp (chat_template_kwargs) : il n'a d'effet que si le
-// serveur tourne avec --jinja, mais on ne l'envoie que lorsqu'un preset le
-// définit explicitement, donc jamais à l'aveugle.
-func applySampling(payload map[string]any) { applySamplingFrom(payload, ReadConfig()) }
-
 // applySamplingFrom est la partie pure d'applySampling : testable sans base.
 func applySamplingFrom(payload map[string]any, cfg map[string]string) {
 	for _, s := range samplingKeys {

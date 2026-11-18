@@ -10,6 +10,9 @@ Sources stay authoritative and memory supports cognitive continuity without
 making users configure an implementation graph. Projects stay simple: title,
 workspace, machine, default model and their own discussions.
 
-Coding-agent orchestration is outside Loom's scope. External applications such
-as T3 Code manage coding agents independently. Existing agent transcripts remain
-readable. See [migration](harness-retirement.md) and [direction](DIRECTION.md).
+Loom does not run coding agents itself. Its Agents module is an interface for
+an independent Codeman server, which runs the native CLIs with their own
+accounts; Loom adds the workspace around them (sessions, terminals, approvals,
+schedules, quotas). Existing agent transcripts from the retired integration
+remain readable. See [Agents architecture](agents/architecture.md),
+[migration](harness-retirement.md) and [direction](DIRECTION.md).

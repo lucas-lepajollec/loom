@@ -124,17 +124,6 @@ func primarySecondBrainParts() []contextPart {
 	return parts
 }
 
-// projectBrainContext returns the Brain passages for a project and query, and
-// the citations, or "" when the project uses no Brain source.
-func projectBrainContext(p ChatProject, query string) (string, []string) {
-	pack := projectBrainPack(p, query)
-	cites := []string{}
-	for _, c := range pack.Citations {
-		cites = append(cites, c.Citation)
-	}
-	return pack.Text, cites
-}
-
 func projectBrainPack(p ChatProject, query string) brain.Pack {
 	sources := autoContextBrainSources(p)
 	if len(sources) == 0 || strings.TrimSpace(query) == "" {

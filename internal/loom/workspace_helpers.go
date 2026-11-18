@@ -2,12 +2,10 @@ package loom
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
- "github.com/lucas-lepajollec/loom/internal/loom/resources"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
 
 var machineIDRe = regexp.MustCompile(`[^a-z0-9]+`)
@@ -21,13 +19,6 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-func expandHome(p string) string {
-	if p == "~" || strings.HasPrefix(p, "~/") || strings.HasPrefix(p, "~\\") {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, strings.TrimLeft(strings.TrimPrefix(p, "~"), "/\\"))
-	}
-	return p
 }
 func hasNodeModule(modules []string, module string) bool { return slices.Contains(modules, module) }
 func cloneEventMap(m map[string]any) map[string]any {
@@ -53,8 +44,24 @@ func validateMCPSelection(names []string) error {
 	return nil
 }
 
-func hasName(list []string,name string)bool{return slices.Contains(list,name)}
+func hasName(list []string, name string) bool { return slices.Contains(list, name) }
+
 // Used only to label preserved historical agent turns, never to execute them.
-func legacyRuntime(id string)bool{return id!=""&&id!="llama.cpp"&&id!="openai-compatible"&&id!="policy"}
-func runtimeVaultError()error{if memEncActive()&&!memUnlocked(){return errors.New("unlock the Loom vault")};return nil}
-func defaultWorkspaceForTarget(target string)(resources.Workspace,error){ws:=workspaceList(target);for _,w:=range ws{if w.Default{return w,nil}};return resources.Workspace{},errors.New("default workspace unavailable")}
+func legacyRuntime(id string) bool {
+	return id != "" && id != "llama.cpp" && id != "openai-compatible" && id != "policy"
+}
+func runtimeVaultError() error {
+	if memEncActive() && !memUnlocked() {
+		return errors.New("unlock the Loom vault")
+	}
+	return nil
+}
+func defaultWorkspaceForTarget(target string) (resources.Workspace, error) {
+	ws := workspaceList(target)
+	for _, w := range ws {
+		if w.Default {
+			return w, nil
+		}
+	}
+	return resources.Workspace{}, errors.New("default workspace unavailable")
+}

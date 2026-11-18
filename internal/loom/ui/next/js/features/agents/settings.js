@@ -11,6 +11,7 @@ import { Line, Group } from '../settings/kit.js';
 import { api } from './client.js';
 import { agents } from './store.js';
 import { CliMark } from './new-session.js';
+import { autoResumeDefault, setAutoResumeDefault } from './actions.js';
 import { ConnectionPanel } from './connection.js';
 import { officialLink } from './nav.js';
 
@@ -84,6 +85,7 @@ export function CodemanSettings() {
   const sw = (key, def = false) => html`<${Switch} checked=${s[key] ?? def} onChange=${v => save({ [key]: v })} />`;
   const agentsList = clis.filter(c => c.kind !== 'shell' && c.enabled !== false && c.installed !== false);
   const nice = s.nice || {};
+  const [resume, setResume] = useState(autoResumeDefault);
   return html`<div class="cm-cfg">
     <div class="cm-cfg-h"><div><h1>${t('agents.cfg.title')}</h1><p class="muted">${t('agents.cfg.lead')}</p></div>
       ${link && html`<a class="btn sm" href=${link} target="codeman" rel="noopener"><${Icon} n="link" />${t('agents.cfg.all')}</a>`}</div>
@@ -100,6 +102,7 @@ export function CodemanSettings() {
     <${Group} title="Claude Code">
       <${Line} label=${t('agents.cfg.claude_mode')} tip=${t('agents.cfg.claude_mode_tip')}><${Select} label=${t('agents.cfg.claude_mode')} value=${s.claudeMode || 'dangerously-skip-permissions'} options=${CLAUDE_MODES()} onChange=${v => save({ claudeMode: v })} /></${Line}>
       ${s.claudeMode === 'allowedTools' && html`<${Line} label=${t('agents.cfg.allowed_tools')} tip=${t('agents.cfg.allowed_tools_tip')}><${TextField} mono value=${s.allowedTools} placeholder="Read,Edit,Bash(git:*)" onSave=${v => save({ allowedTools: v })} /></${Line}>`}
+      <${Line} label=${t('agents.cfg.auto_resume')} tip=${t('agents.cfg.auto_resume_tip')}><${Switch} checked=${resume} onChange=${v => { setAutoResumeDefault(v); setResume(v); toast(t('agents.cfg.saved')); }} /></${Line}>
       <${Line} label=${t('agents.cfg.claude_model')} tip=${t('agents.cfg.claude_model_tip')}><${TextField} mono value=${s.claudeModel} placeholder=${t('agents.cfg.cli_default')} onSave=${v => save({ claudeModel: v })} /></${Line}>
       <${Line} label=${t('agents.cfg.context_1m')}>${sw('opusContext1mEnabled')}</${Line}>
       <${Line} label=${t('agents.cfg.effort')}><${Select} label=${t('agents.cfg.effort')} value=${s.thinkingEffort || ''} onChange=${v => save({ thinkingEffort: v })} options=${EFFORTS.map(e => [e, e || t('agents.cfg.cli_default')])} /></${Line}>

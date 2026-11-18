@@ -21,7 +21,6 @@ func newRuntimeRegistry() *runtimeRegistry {
 	return &runtimeRegistry{runtime.NewRegistry[Message, Caps, StreamEvent]()}
 }
 func (reg *runtimeRegistry) register(adapter RuntimeAdapter) error   { return reg.Register(adapter) }
-func (reg *runtimeRegistry) upsert(adapter RuntimeAdapter)           { reg.Upsert(adapter) }
 func (reg *runtimeRegistry) remove(id string)                        { reg.Remove(id) }
 func (reg *runtimeRegistry) lookup(id string) (RuntimeAdapter, bool) { return reg.Lookup(id) }
 func (reg *runtimeRegistry) catalog() []RuntimeDescriptor            { return reg.List() }

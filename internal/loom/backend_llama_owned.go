@@ -62,7 +62,3 @@ func restartLlamaEngine() error {
 	}
 	return serviceAction("restart")
 }
-
-func waitOwnedLlama() error {
-	return nil
-}

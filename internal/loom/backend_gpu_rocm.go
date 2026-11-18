@@ -16,27 +16,12 @@ package loom
 // plutôt que par un nom exact, et on ignore ce qu'on ne sait pas lire.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
-
-// rocmVramGPUs renvoie les GPU AMD au même format que handleVram
-// ({name, used, total, util, temp}, VRAM en MiB), ou nil si rocm-smi est absent
-// ou muet. Les valeurs VRAM de rocm-smi sont en OCTETS → converties en MiB pour
-// s'aligner sur nvidia-smi (que l'UI attend en MiB).
-func rocmVramGPUs() []map[string]any {
-	if !hasTool("rocm-smi") {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return rocmVramGPUsWithRunner(gpuRunner(ctx))
-}
 
 func rocmVramGPUsWithRunner(run gpuCommandRunner) []map[string]any {
 	query := gpuQueries[3]

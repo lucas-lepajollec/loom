@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/lucas-lepajollec/loom/internal/loom/runtime"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +16,8 @@ import (
 	"syscall"
 	"time"
 	"unicode/utf8"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/runtime"
 )
 
 // Tool definitions: OpenAI-shaped function schemas advertised to the model when
@@ -107,42 +108,6 @@ func bashTool() Tool {
 					"timeout": map[string]any{"type": "integer", "description": fmt.Sprintf("Timeout s (default %d, max %d)", toolDefaultTimeout, toolMaxTimeout)},
 				},
 				"required": []string{"command"},
-			},
-		},
-	}
-}
-
-// machinesListTool advertises the read-only view of the paired postes (other
-// machines) and the current execution target. No arguments.
-func machinesListTool() Tool {
-	return Tool{
-		Type: "function",
-		Function: ToolFunction{
-			Name:        "machines_list",
-			Description: "List the paired postes (other machines you can operate on) with their connection state, and show which one is your current execution target.",
-			Parameters: map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
-			},
-		},
-	}
-}
-
-// machinesUseTool switches which machine the agent operates on: a poste slug, or
-// "local" to come back to this server. Same target the user picks by hand in the
-// Postes distants panel.
-func machinesUseTool() Tool {
-	return Tool{
-		Type: "function",
-		Function: ToolFunction{
-			Name:        "machines_use",
-			Description: "Switch the machine you operate on: your bash/write/edit tools then run on it. Pass a poste slug (from machines_list), or \"local\" to operate on this server.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"machine": map[string]any{"type": "string", "description": "Poste slug to switch to, or \"local\" for this server."},
-				},
-				"required": []string{"machine"},
 			},
 		},
 	}
@@ -624,6 +589,13 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	}
 	var extra []Message
 	tools := EnabledTools(caps)
+	// Only advertised tools may run: a model (or text injected into its context
+	// by a web page or file) can name any tool, including bash when the agent
+	// mode is off.
+	advertised := make(map[string]bool, len(tools))
+	for _, t := range tools {
+		advertised[t.Function.Name] = true
+	}
 	// Some backends (vanilla llama.cpp builds) don't populate `reasoning_content`
 	// in streaming mode: the model's <think> block (opened by the chat template)
 	// arrives inline in `content`, terminated by a literal </think>. When
@@ -1058,6 +1030,14 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					}
 				}
 				cb(StreamEvent{ToolUsed: &ToolUsedEvent{Name: tc.Function.Name, Label: label}})
+				if !advertised[tc.Function.Name] || disableTools {
+					refused := "[error] tool not enabled for this discussion: " + tc.Function.Name
+					cb(StreamEvent{ToolUsed: &ToolUsedEvent{Name: tc.Function.Name, Label: label, Result: refused, Done: true, ArgToks: flushArgToks()}})
+					toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: refused}
+					messages = append(messages, toolMsg)
+					extra = append(extra, toolMsg)
+					continue
+				}
 
 				result := ""
 				// diff : rempli par les outils d'écriture (edit / mémoire) pour que

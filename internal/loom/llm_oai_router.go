@@ -198,24 +198,6 @@ func applyOAIEntry(e oaiEntry) error {
 	return loadNakedModel(e.Model)
 }
 
-func ensureOAIModel(id string) error {
-	if oaiAlreadyLoaded(id) {
-		return nil
-	}
-	clearOAIRuntime()
-	e, ok := resolveOAIModel(id)
-	if !ok {
-		return fmt.Errorf("unknown model: %s", id)
-	}
-	if err := applyOAIEntry(e); err != nil {
-		return err
-	}
-	if err := restartLlamaForOAI(); err != nil {
-		return err
-	}
-	return waitLlamaReady(10 * time.Minute)
-}
-
 func restartLlamaForOAI() error {
 	if routerReachable() {
 		return routerActivate()

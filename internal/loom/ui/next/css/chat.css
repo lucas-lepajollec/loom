@@ -342,22 +342,12 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .approval.done .ap-tool{font-size:12.5px;color:var(--text-3)}
 .ap-acts{display:flex;gap:6px;flex-wrap:wrap}
 /* état historique */
-.hs-sec{display:flex;flex-direction:column;gap:8px}
-.hs-h{display:flex;align-items:center;font-size:12px;font-weight:500;color:var(--text-3)}
-.hs-h .count{margin-left:6px;font:400 12px var(--font);color:var(--text-4)}
+
 .hs-dir{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg-2);text-align:left;font-size:12.5px}
 .hs-dir:hover{background:var(--hover)}
 .hs-dir .ico{color:var(--text-3);flex:none}
 .hs-dir .mono{flex:1;min-width:0}
 .hs-dir .muted{font-size:12px}
-.hs-sec .seg{width:100%}
-.hs-sec .seg button{flex:1}
-.hs-files{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-sm);padding:3px;max-height:260px;overflow-y:auto}
-.hs-file{display:flex;align-items:center;gap:8px;min-height:30px;padding:0 8px;border-radius:5px;text-align:left;font:12px var(--mono);color:var(--text-2)}
-.hs-file:hover{background:var(--hover);color:var(--text)}
-.hs-file .ico{width:13px;height:13px;color:var(--text-3);flex:none}
-.hs-file .trunc{flex:1;min-width:0}
-.hs-file .tc-n em:not(.plus):not(.minus){font-style:normal;color:var(--text-3)}
 .insp-body .select{width:100%}
 /* travail d'un tour terminé, replié au-dessus de la réponse */
 .work-h{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 10px 0 8px;margin-left:-8px;border-radius:var(--r-sm);font-size:13px;color:var(--text-3)}
@@ -379,20 +369,6 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .insp-model-row .insp-model{flex:1;min-width:0}
 .pick-foot{gap:14px}
 .insp-model-row .insp-model b{max-width:100%}
-.slash-row span{flex:1;min-width:0}
-.slash-row>svg{flex:none;width:14px;height:14px;color:var(--text-3);align-self:center}
-.slash-head{display:flex;align-items:center;gap:8px;padding:4px 6px 6px;margin-bottom:2px;border-bottom:1px solid var(--line)}
-.slash-head button{display:grid;place-items:center;width:24px;height:24px;border-radius:6px;color:var(--text-2)}
-.slash-head button:hover{background:var(--surface-3)}
-.slash-head svg{width:14px;height:14px}
-.slash-head b{font:500 12.5px var(--mono);color:var(--text)}
-.slash-head span{font-size:12px;color:var(--text-3);margin-left:auto}
-.slash-row.sub b{font:500 13px var(--font);max-width:60%;overflow:hidden;text-overflow:ellipsis}
-.hs-sess{font:12.5px var(--font)}
-.hs-sess .tc-n{color:var(--text-3);flex:none}
-.hs-sess:disabled{opacity:.6}
-.hs-more{margin-top:6px;align-self:flex-start}
-.hs-term{margin-top:6px;align-self:flex-start}
 .tool-more{margin:0 0 8px}
 
 /* panneau de session : une règle pour tous les réglages, sans débordement */
@@ -401,7 +377,6 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .insp-body .workspace-picker .btn{align-self:flex-start}
 .insp-body .select{min-width:0;text-overflow:ellipsis}
 .insp-body .note{margin:0}
-.hs-sub{font-size:12px;color:var(--text-3);margin-top:2px}
 .msg-user.can-edit{position:relative}
 .msg-user .msg-edit{position:absolute;left:-36px;top:6px;opacity:0;transition:opacity var(--fast)}
 .msg-user.can-edit:hover .msg-edit,.msg-user .msg-edit:focus-visible{opacity:1}
@@ -438,12 +413,7 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .why-item small{font-size:11.5px;color:var(--text-3)}
 .why-item .mono{font-size:11.5px}
 .ctx.hot{color:var(--amber)}
-.ctx-warn{display:flex;align-items:center;gap:12px;margin:0 0 8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2);font-size:12.5px;color:var(--text-2)}
-.ctx-warn>.ico{flex:none;color:var(--amber)}
-.ctx-warn b{display:block;color:var(--text);font-weight:500}
-.ctx-warn a{color:inherit;text-decoration:underline}
-.ctx-warn-acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
-@media(max-width:720px){.ctx-warn{flex-wrap:wrap}.ctx-warn-acts{width:100%;justify-content:flex-start}}
+
 .rq .rq-msg{font-size:13px;color:var(--text-2)}
 .rq-q{display:flex;flex-direction:column;gap:8px}
 .rq-head{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}

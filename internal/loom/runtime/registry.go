@@ -93,17 +93,6 @@ func (reg *Registry[Message, Caps, Event]) List() []RuntimeDescriptor {
 	return catalog
 }
 
-// Adapters snapshots identities without invoking a CLI-backed descriptor.
-func (reg *Registry[Message, Caps, Event]) Adapters() []RuntimeAdapter[Message, Caps, Event] {
-	reg.mu.RLock()
-	defer reg.mu.RUnlock()
-	out := make([]RuntimeAdapter[Message, Caps, Event], 0, len(reg.order))
-	for _, id := range reg.order {
-		out = append(out, reg.adapters[id])
-	}
-	return out
-}
-
 func HasRuntimeCapability(d RuntimeDescriptor, capability string) bool {
 	if !d.Implemented {
 		return false
