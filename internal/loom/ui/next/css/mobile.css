@@ -150,11 +150,9 @@
   .seg .ind{display:none}
   .seg button,.seg.sm button{flex:1 1 auto;min-width:0;max-width:100%;height:auto;min-height:26px;white-space:normal;overflow-wrap:anywhere;padding-top:3px;padding-bottom:3px}
   .seg button[aria-selected="true"]{background:var(--surface-3)}
-  .tabs,.sec-tabs{flex-wrap:wrap;overflow:visible}
-  .sec-tabs{width:100%;min-width:0}
-  .sec-tabs .sec-pill{display:none}
-  .sec-tabs a{height:auto;min-height:28px;max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere;padding-top:3px;padding-bottom:3px}
-  .sec-tabs a[aria-current="page"]{background:var(--panel)}
+  .tabs{flex-wrap:wrap;overflow:visible}
+  .sec-tabs{width:100%;min-width:0;gap:20px}
+  .sec-tabs a{height:44px;font-size:15px}
   .tabs>button{min-width:0;max-width:100%;height:auto;min-height:38px;white-space:normal;overflow-wrap:anywhere}
   .acts,.btn-row,.row-inline,.src-pick{max-width:100%;min-width:0;flex-wrap:wrap}
   .toolbar>.grow{flex-basis:100%;min-width:0}

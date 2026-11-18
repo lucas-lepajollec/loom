@@ -8,7 +8,8 @@
 
 /* barre du module */
 .cm-top{flex:none;display:flex;align-items:center;gap:6px;height:var(--head-h);padding:0 12px 0 14px;border-bottom:1px solid var(--line-soft)}
-.cm-top .sec-tabs{margin:0}
+.cm-top .sec-tabs{margin:0;width:auto;border-bottom:0;align-self:stretch;gap:20px}
+.cm-top .sec-tabs a{height:100%;font-size:14px}
 .cm-conn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:28px;height:28px;padding:0 8px;border-radius:999px;font-size:12px;color:var(--text-3);text-decoration:none;white-space:nowrap}
 .cm-conn:hover{background:var(--hover)}
 .cm-conn:not(.ok){background:var(--surface-2)}
@@ -275,7 +276,7 @@
   .cm-top{gap:6px;padding:0 6px;height:50px}
   .cm-top .sec-tabs{flex:1 1 auto;min-width:0;width:auto;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .cm-top .sec-tabs::-webkit-scrollbar{display:none}
-  .cm-top .sec-tabs a{flex:none;white-space:nowrap;padding:0 9px}
+  .cm-top .sec-tabs a{flex:none;white-space:nowrap;padding:0 2px;font-size:14.5px}
   .cm-sh .seg{flex-wrap:nowrap}
   .cm-sh .seg button{flex:none;white-space:nowrap}
   .hide-narrow{display:none!important}
@@ -503,7 +504,8 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 }
 @media(max-width:360px){
   .cm-top{gap:2px;padding:0 4px}
-  .cm-top .sec-tabs a{padding:0 6px;font-size:12.5px}
+  .cm-top .sec-tabs{gap:14px}
+  .cm-top .sec-tabs a{font-size:13.5px}
   .cm-top>.only-mobile{width:30px}
 }
 

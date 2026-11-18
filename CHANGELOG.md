@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Page tabs (Models, Machines, Brain, Activity, Agents) are now underlined
+  tabs: larger text (14.5 px, 15 px and 44 px high on phones), a sliding bar
+  under the current tab, no more small segmented control; they scroll
+  sideways on phones instead of wrapping.
 - Linked engine: when the node's API key was rotated or recreated on the node,
   chat turns failed with 401 until the node was linked again. Loom now reads
   the current key with the machine credential and retries once; 401/403 no
