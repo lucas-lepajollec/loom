@@ -556,3 +556,42 @@ func engineExecutionConfigFor(ctx context.Context, n *engineNode) (map[string]st
 	}
 	return cfg, nil
 }
+
+// refreshEngineNodeKey re-reads a linked Loom node's current inference key with
+// the machine credential (which does not change when the user rotates or
+// recreates the node's API key) and stores it when it changed. Direct engines
+// and pairings without a machine credential cannot be refreshed.
+func refreshEngineNodeKey(ctx context.Context, n *engineNode) (*engineNode, bool) {
+	if n == nil || n.Direct || n.URL == "" || n.WebKey == "" {
+		return nil, false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, n.URL+"/api/node/info", nil)
+	if err != nil {
+		return nil, false
+	}
+	req.Header.Set("Authorization", "Bearer "+n.WebKey)
+	resp, err := nodeClient.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer resp.Body.Close()
+	var info struct {
+		OK     bool   `json:"ok"`
+		ID     string `json:"id"`
+		APIKey string `json:"api_key"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&info) != nil || !info.OK {
+		return nil, false
+	}
+	if info.APIKey == "" || info.APIKey == n.APIKey || (n.NodeID != "" && info.ID != n.NodeID) {
+		return nil, false
+	}
+	fresh := *n
+	fresh.APIKey = info.APIKey
+	if setEngineNode(&fresh) != nil {
+		return nil, false
+	}
+	return &fresh, true
+}

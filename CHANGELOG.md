@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Linked engine: when the node's API key was rotated or recreated on the node,
+  chat turns failed with 401 until the node was linked again. Loom now reads
+  the current key with the machine credential and retries once; 401/403 no
+  longer trigger a pointless compaction or tool-less retry.
+- Activity → Quotas: "Use a reset" opens the CLI's own reset menu (Claude Code
+  `/limit-reset`, Codex `/usage`) in an existing session, in terminal view;
+  the reset is chosen and confirmed in the CLI, never used by Loom on its own.
 - Require Go 1.26.11, which fixes the reachable `net/http` vulnerability GO-2026-6859.
 - Security: the local chat tool loop runs only the tools offered to the
   discussion (a model could name `bash` with the agent mode off); hidden MCP
