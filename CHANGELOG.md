@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Require Go 1.26.11, which fixes the reachable `net/http` vulnerability GO-2026-6859.
 - Security: the local chat tool loop runs only the tools offered to the
   discussion (a model could name `bash` with the agent mode off); hidden MCP
   tools and disabled servers can no longer be called by name; web tools only
