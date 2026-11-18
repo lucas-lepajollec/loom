@@ -3294,4 +3294,9 @@ export default {
   "quotas.paused": "Paused sessions",
   "quotas.paused_tip": "These sessions stopped on a subscription limit. Codeman will restart them automatically when it resets.",
   "quotas.resumes_at": "Resumes at {at} · in {in}",
+  "quotas.reset_use": "Use a reset",
+  "quotas.reset_tip_claude": "When Anthropic grants you a reset, Claude Code offers it through /limit-reset. Loom opens that command in a Claude session; you pick and confirm in the terminal, nothing is used without you.",
+  "quotas.reset_tip_codex": "Codex banks the resets it grants (/usage menu, “Redeem reset”). Loom opens that menu in a Codex session; you pick and confirm in the terminal, nothing is used without you.",
+  "quotas.reset_no_session": "No open session for this CLI: start one, then try again.",
+  "quotas.reset_opened": "Reset menu opened in {name}: pick and confirm in the terminal.",
 };

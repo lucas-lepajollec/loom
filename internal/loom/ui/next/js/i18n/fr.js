@@ -3294,4 +3294,9 @@ export default {
   "quotas.paused": "Sessions en pause",
   "quotas.paused_tip": "Ces sessions se sont arrêtées sur une limite d’abonnement. Codeman les relancera automatiquement à la remise à zéro.",
   "quotas.resumes_at": "Reprise à {at} · dans {in}",
+  "quotas.reset_use": "Utiliser une réinitialisation",
+  "quotas.reset_tip_claude": "Quand Anthropic t’offre une réinitialisation, Claude Code la propose avec /limit-reset. Loom ouvre cette commande dans une session Claude ; tu choisis et confirmes dans le terminal, rien n’est utilisé sans toi.",
+  "quotas.reset_tip_codex": "Codex garde de côté les réinitialisations offertes (menu /usage, « Redeem reset »). Loom ouvre ce menu dans une session Codex ; tu choisis et confirmes dans le terminal, rien n’est utilisé sans toi.",
+  "quotas.reset_no_session": "Aucune session ouverte pour ce CLI : lances-en une, puis réessaie.",
+  "quotas.reset_opened": "Menu de réinitialisation ouvert dans {name} : choisis et confirme dans le terminal.",
 };

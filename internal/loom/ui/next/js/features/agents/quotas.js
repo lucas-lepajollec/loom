@@ -12,8 +12,10 @@ import { visibleRefresh } from '../../core/poll.js';
 import { SectionTabs } from '../../app/sections.js';
 import { agents, sessionList, stateOf } from './store.js';
 import { openSession } from './nav.js';
+import { setViewOf } from './layout.js';
+import { toast } from '../../ui/dialog.js';
 import { CliMark } from './new-session.js';
-import { api } from './client.js';
+import { api, sendPrompt } from './client.js';
 
 const H = 3600e3, DAY = 24 * H;
 const SPAN = { '5h': 5 * H, '7d': 7 * DAY };
@@ -46,11 +48,26 @@ function Window({ name, w }) {
   </div>`;
 }
 
-function Account({ logo, title, windows, sub }) {
+// Réinitialisation de quota offerte par le CLI (Claude Code : /limit-reset,
+// Codex : menu /usage). Loom n'en utilise jamais une seul : il ouvre le menu du
+// CLI dans une session existante, en vue terminal, et la personne choisit et
+// confirme dans le CLI.
+const RESET_CMD = { claude: '/limit-reset', codex: '/usage' };
+const RANK = { limited: 0, idle: 1 };
+async function openReset(mode) {
+  const s = sessionList().filter(x => x.mode === mode && x.pid != null)
+    .sort((a, b) => (RANK[stateOf(a)] ?? 2) - (RANK[stateOf(b)] ?? 2) || (b.lastActivityAt || 0) - (a.lastActivityAt || 0))[0];
+  if (!s) return toast(t('quotas.reset_no_session'), 'err');
+  try { setViewOf(s.id, 'term'); await sendPrompt(s.id, RESET_CMD[mode]); openSession(s.id); toast(t('quotas.reset_opened', { name: s.name || s.id.slice(0, 8) })); }
+  catch (e) { toast(e.message, 'err'); }
+}
+
+function Account({ logo, title, windows, sub, mode }) {
   const names = ['5h', '7d'].filter(n => windows && windows[n]);
   return html`<div class="card pad q-acc">
     <div class="q-acc-h"><${Logo} id=${logo} size="sm" /><b>${title}</b><span class="muted">${sub}</span></div>
     ${names.length ? names.map(n => html`<${Window} key=${n} name=${n} w=${windows[n]} />`) : html`<p class="muted q-none">${t('quotas.no_data')}</p>`}
+    ${mode && html`<div class="q-reset"><button class="btn sm" onClick=${() => openReset(mode)}><${Icon} n="refresh" />${t('quotas.reset_use')}</button><${Tip} text=${t(mode === 'claude' ? 'quotas.reset_tip_claude' : 'quotas.reset_tip_codex')} /></div>`}
   </div>`;
 }
 
@@ -143,8 +160,8 @@ export function QuotasPage() {
       : html`
         ${!ready && html`<p class="note"><i class="dot amber"></i> ${t('quotas.offline')}</p>`}
         <div class="grid2 q-accs">
-          <${Account} logo="claude" title="Claude" windows=${claude} sub=${live?.modelDisplayName || ''} />
-          ${has(codex) ? html`<${Account} logo="openai" title="Codex" windows=${codex} sub="" />` : ''}
+          <${Account} logo="claude" title="Claude" mode="claude" windows=${claude} sub=${live?.modelDisplayName || ''} />
+          ${has(codex) || sessionList().some(s => s.mode === 'codex') ? html`<${Account} logo="openai" title="Codex" mode="codex" windows=${codex} sub="" />` : ''}
         </div>
         ${!has(claude) && !has(codex) && html`<p class="note">${t('quotas.no_data_note')}</p>`}
         <${Paused} />

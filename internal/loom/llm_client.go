@@ -611,6 +611,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// dépassement de la fenêtre de contexte après de gros résultats d'outils), on
 	// compacte l'historique en vol et on rejoue le tour — une seule fois.
 	compactedRetry := false
+	keyRefreshed := false
 	// Appels d'outil déjà exécutés (clé = nom + arguments bruts) : sert à ne pas
 	// rejouer deux fois exactement la même écriture dans un même échange.
 	doneCalls := map[string]string{}
@@ -686,6 +687,22 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 			msg := strings.TrimSpace(string(b))
 			if msg == "" {
 				msg = resp.Status
+			}
+			// The linked node's inference key was rotated on that machine: read
+			// the current one with the machine credential and retry once.
+			if resp.StatusCode == http.StatusUnauthorized && node != nil && !keyRefreshed {
+				keyRefreshed = true
+				if fresh, ok := refreshEngineNodeKey(ctx, node); ok {
+					node, key = fresh, fresh.APIKey
+					continue
+				}
+			}
+			// Authentication failures are not fixed by compaction or by
+			// dropping tools: report them as they are.
+			if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+				err := fmt.Errorf("llama-server returned %d: %s", resp.StatusCode, msg)
+				cb(StreamEvent{Err: err})
+				return extra, err
 			}
 			// Le prompt a peut-être dépassé la fenêtre de contexte : on tente une
 			// compaction en vol et on rejoue le tour (une seule fois) avant tout le

@@ -474,6 +474,7 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 .q-pace{font-weight:500}
 .q-pace.ahead{color:var(--amber)}.q-pace.under{color:var(--green)}
 .q-none{margin:0;font-size:13px}
+.q-reset{display:flex;align-items:center;gap:6px;margin-top:2px}
 .q-paused{display:flex;flex-direction:column;padding:4px}
 .q-paused-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;text-align:left;min-height:44px}
 .q-paused-row:hover{background:var(--hover)}

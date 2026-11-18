@@ -373,3 +373,40 @@ func TestEngineNodeServerDisplaysNegotiatedEndpoint(t *testing.T) {
 		t.Fatal("displayed internal or wrong-scheme endpoint")
 	}
 }
+
+// The node's API key was rotated on the node itself: the VM reads the current
+// one with its machine credential and the turn goes through.
+func TestLinkedEngineRefreshesRotatedInferenceKey(t *testing.T) {
+	testHome(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/engine/execution-config":
+			sendJSON(w, 200, map[string]string{})
+		case "/api/node/info":
+			if r.Header.Get("Authorization") != "Bearer management-fixture" {
+				w.WriteHeader(401)
+				return
+			}
+			sendJSON(w, 200, map[string]any{"ok": true, "id": "node-1", "api_key": "rotated-fixture"})
+		case "/v1/chat/completions":
+			if r.Header.Get("Authorization") != "Bearer rotated-fixture" {
+				w.WriteHeader(401)
+				w.Write([]byte(`{"error":{"code":"invalid_api_key"}}`))
+				return
+			}
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"hello\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+	_ = setEngineNode(&engineNode{Role: "engine-node", NodeID: "node-1", URL: srv.URL, V1: srv.URL, WebKey: "management-fixture", APIKey: "old-fixture"})
+	t.Cleanup(func() { _ = setEngineNode(nil) })
+	if _, err := runChat(context.Background(), []Message{{Role: "user", Content: "hello"}}, 0.7, Caps{}, func(StreamEvent) bool { return true }); err != nil {
+		t.Fatal(err)
+	}
+	if n := currentEngineNode(); n == nil || n.APIKey != "rotated-fixture" {
+		t.Fatal("rotated key not stored")
+	}
+}
