@@ -759,3 +759,33 @@ details.vx-lib[open]>summary h3::after{content:" ⌄"}
 .api-model:first-child{border-top:0}
 .api-note{margin:0;padding:10px 16px 14px}
 @media(max-width:760px){.api-recipe>div{grid-template-columns:minmax(0,1fr);gap:4px;padding:10px 14px}.api-warn{margin:2px 12px 12px;flex-wrap:wrap}}
+
+/* Groupes repliables (réglages) */
+.set-fold>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;margin:0 0 10px;padding:2px 2px;border-radius:var(--r-sm)}
+.set-fold>summary::-webkit-details-marker{display:none}
+.set-fold>summary h3{margin:0!important}
+.set-fold>summary:hover h3{color:var(--text)}
+.set-caret{color:var(--text-3);transition:transform var(--fast)}
+.set-fold:not([open])>summary .set-caret{transform:rotate(-90deg)}
+.set-fold:not([open])>summary{margin-bottom:0}
+.set-fold:not([open]){padding-bottom:8px;border-bottom:1px solid var(--line-soft, var(--line))}
+
+/* Onglets de page en menu déroulant sur téléphone */
+.sec-drop{display:none}
+@media (max-width:720px){
+  .sec-tabs{display:none!important}
+  .sec-drop{display:block;position:relative;margin:-6px 0 22px}
+  .sec-drop-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;height:46px;padding:0 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);font-size:16px;font-weight:600;color:var(--text)}
+  .sec-drop-btn .ico{width:18px;height:18px;color:var(--text-3);transition:transform var(--fast)}
+  .sec-drop.open .sec-drop-btn .ico{transform:rotate(180deg)}
+  .sec-drop-list{position:absolute;z-index:60;top:calc(100% + 6px);left:0;right:0;min-width:220px;display:flex;flex-direction:column;padding:6px;border-radius:14px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow-pop)}
+  .sec-drop-list a{display:flex;align-items:center;justify-content:space-between;min-height:48px;padding:0 12px;border-radius:10px;font-size:16px;color:var(--text);text-decoration:none}
+  .sec-drop-list a[aria-current]{background:var(--sel)}
+  .sec-drop-list a .ico{width:18px;height:18px}
+  .brain-bar{border-bottom:0;flex-wrap:wrap}
+  .brain-bar .sec-drop{margin:0;flex:1 1 100%}
+  .brain-bar .brain-q{max-width:none;flex:1 1 100%;margin:0}
+  .set-fold>summary{min-height:48px;padding:0 4px}
+  .set-fold>summary h3{font-size:15px!important;color:var(--text)!important}
+  .set-fold[open]>summary{margin-bottom:6px}
+}

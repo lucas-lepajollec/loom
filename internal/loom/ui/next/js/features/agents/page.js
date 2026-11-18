@@ -14,7 +14,7 @@ import { Drawer } from '../../ui/drawer.js';
 import { TabNav } from '../../ui/tabnav.js';
 import { app, go } from '../../core/state.js';
 import { api } from './client.js';
-import { agents, useAgentsLive, refreshConnection, stateOf, cliOf, projectOf, upsertSession } from './store.js';
+import { agents, useAgentsLive, refreshConnection, stateOf, cliOf, projectOf, upsertSession, hasConversation } from './store.js';
 import { closeSession, renameSession, createSession } from './actions.js';
 import { Rail, StateDot } from './rail.js';
 import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf } from './layout.js';
@@ -68,7 +68,7 @@ function SessionHeader({ s, view, setView, narrowView, insp, setInsp }) {
       <small class="trunc"><${StateDot} state=${state} />${lt('state', state)} · ${cli.label}${s.displayModel?.model ? ' · ' + s.displayModel.model : ''} · <span class="mono" title=${s.workingDir}>${projectOf(s.workingDir)}</span></small>
     </div>
     ${state === 'stopped' && html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`}
-    ${s.mode !== 'shell' && html`<${Seg} size="sm" value=${view} options=${opts} onChange=${setView} label=${t('agents.view.label')} />`}
+    ${hasConversation(s.mode) && html`<${Seg} size="sm" value=${view} options=${opts} onChange=${setView} label=${t('agents.view.label')} />`}
     <button class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} title=${t('agents.insp.title')} onClick=${() => setInsp(!insp)}><${Icon} n="panel" /></button>
     <button class="icon-btn" aria-label=${t('agents.session.actions')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="more" /></button>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
@@ -81,7 +81,7 @@ function SessionPane({ s, narrowView }) {
   useEffect(() => { setViewState(viewOf(s)); }, [s.id]);
   const setView = v => { setViewOf(s.id, v); setViewState(v); };
   const setInsp = v => { setInspState(v); if (!narrow()) try { localStorage.setItem('loom.codeman.inspOpen', v ? '1' : '0'); } catch (_) {} };
-  const mode = s.mode === 'shell' ? 'term' : (narrowView && view === 'split' ? 'chat' : view);
+  const mode = !hasConversation(s.mode) ? 'term' : (narrowView && view === 'split' ? 'chat' : view);
   const toTerm = () => setView(narrowView ? 'term' : 'split');
   return html`<div class=${cls('cm-pane', insp && !narrowView && 'with-insp')}>
     <div class="cm-main">
@@ -239,15 +239,15 @@ function Top({ sub, currentId }) {
   const current = sub === 's' || sub === 'grid' ? '' : sub;
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v) + (v === 'control' && waiting ? ' · ' + waiting : ''), current: current === v }));
   return html`<div class="cm-top">
-    <button class="icon-btn only-mobile" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
+    <button class="icon-btn only-mobile menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
     <span class="grow"></span>
     ${current === '' && !narrowView && conn.state === 'ready' && html`<${LayoutPicker} currentId=${currentId} />`}
     ${conn.state === 'ready' && !narrowView && html`<${QuotaPeek} />`}
-    ${conn.state === 'ready' && html`<${QuickLaunch} currentId=${currentId} narrowView=${narrowView} />`}
-    <a class=${cls('cm-conn', conn.state === 'ready' && 'ok')} href="#/agents/settings"
+    ${conn.state === 'ready' && !narrowView && html`<${QuickLaunch} currentId=${currentId} narrowView=${narrowView} />`}
+    ${!(narrowView && conn.state === 'ready') && html`<a class=${cls('cm-conn', conn.state === 'ready' && 'ok')} href="#/agents/settings"
       title=${(conn.state === 'ready' ? 'Codeman ' + (conn.version || '') + (live ? '' : ' · ' + t('agents.conn.connecting')) : lt('conn', conn.state)) + (conn.url ? ' · ' + conn.url : '')}>
-      <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>${conn.state !== 'ready' && html`<span class="hide-narrow">${lt('conn', conn.state)}</span>`}</a>
+      <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>${conn.state !== 'ready' && html`<span class="hide-narrow">${lt('conn', conn.state)}</span>`}</a>`}
   </div>`;
 }
 
@@ -271,8 +271,11 @@ export function AgentsPage({ route }) {
     addEventListener('keydown', key, true); return () => removeEventListener('keydown', key, true);
   }, [currentId]);
   const gated = sub !== 'settings' && state !== 'ready';
+  // Sur téléphone, une session ouverte a son propre en-tête (retour, nom,
+  // vue) : la barre du module ne s'empile pas au-dessus.
+  const narrowView = useNarrow();
   return html`<div class="view cm">
-    <${Top} sub=${sub} currentId=${currentId} />
+    ${!(narrowView && sub === 's' && currentId) && html`<${Top} sub=${sub} currentId=${currentId} />`}
     ${gated ? html`<div class="cm-gate">${state === 'idle' || state === 'connecting' ? html`<div class="cm-gate-in"><span class="spinner"></span><p class="muted">${t('agents.conn.connecting')}</p></div>` : html`<${ConnectionPanel} gate />`}</div>`
       : sub === 'control' ? html`<${ControlCenter} />`
       : sub === 'cron' ? html`<${CronPage} />`

@@ -62,44 +62,73 @@ async function openReset(mode) {
   catch (e) { toast(e.message, 'err'); }
 }
 
-function Account({ logo, title, windows, sub, mode }) {
+// Réinitialisations offertes : nombre et nature (Codex), ou simple indication
+// relevée par Claude Code. Inconnu : on n'affiche rien.
+function Resets({ mode, r }) {
+  const day = ms => new Date(ms).toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
+  let body = null;
+  if (mode === 'codex' && r?.codex) {
+    const list = r.codex.credits || [];
+    body = r.codex.available > 0 ? html`<b>${t('quotas.resets_count', { n: r.codex.available })}</b>
+      <ul class="q-credits">${list.map((c, i) => html`<li key=${i}><span>${c.title || t('quotas.reset_full')}</span>${c.expires_at ? html`<small class="muted">${t('quotas.reset_until', { date: day(c.expires_at) })}</small>` : ''}</li>`)}</ul>`
+      : html`<span class="muted">${t('quotas.resets_none')}</span>`;
+  } else if (mode === 'claude' && r?.claude) {
+    body = r.claude.available ? html`<b>${t('quotas.resets_claude_yes')}</b>${r.claude.checked_at ? html`<small class="muted">${t('quotas.resets_claude_seen', { date: day(r.claude.checked_at) })}</small>` : ''}`
+      : html`<span class="muted">${t('quotas.resets_none')}</span>`;
+  }
+  const has = mode === 'codex' ? r?.codex?.available > 0 : r?.claude?.available;
+  return html`<div class="q-resets">
+    ${body && html`<div class="q-resets-b">${body}</div>`}
+    <div class="q-reset"><button class=${cls('btn sm', has && 'primary')} onClick=${() => openReset(mode)}><${Icon} n="refresh" />${t('quotas.reset_use')}</button><${Tip} text=${t(mode === 'claude' ? 'quotas.reset_tip_claude' : 'quotas.reset_tip_codex')} /></div>
+  </div>`;
+}
+
+function Account({ logo, title, windows, sub, mode, resets }) {
   const names = ['5h', '7d'].filter(n => windows && windows[n]);
   return html`<div class="card pad q-acc">
     <div class="q-acc-h"><${Logo} id=${logo} size="sm" /><b>${title}</b><span class="muted">${sub}</span></div>
     ${names.length ? names.map(n => html`<${Window} key=${n} name=${n} w=${windows[n]} />`) : html`<p class="muted q-none">${t('quotas.no_data')}</p>`}
-    ${mode && html`<div class="q-reset"><button class="btn sm" onClick=${() => openReset(mode)}><${Icon} n="refresh" />${t('quotas.reset_use')}</button><${Tip} text=${t(mode === 'claude' ? 'quotas.reset_tip_claude' : 'quotas.reset_tip_codex')} /></div>`}
+    ${mode && html`<${Resets} mode=${mode} r=${resets} />`}
   </div>`;
 }
 
 // Courbes de l'historique : une ligne par fenêtre, de 0 à 100 %.
 const SERIES = [['claude', '5h', 'q-s1'], ['claude', '7d', 'q-s2'], ['codex', '5h', 'q-s3'], ['codex', '7d', 'q-s4']];
 function History({ samples, range }) {
-  // Le dessin suit la largeur réelle : le texte des axes garde sa taille.
+  // Le dessin suit la largeur réelle du conteneur (toujours le même élément,
+  // qu'il y ait des données ou non) : le texte des axes garde sa taille.
   const box = useRef();
-  const [W, setW] = useState(720);
+  const [W, setW] = useState(0);
   useEffect(() => {
     const el = box.current; if (!el) return;
-    const ro = new ResizeObserver(() => setW(Math.max(240, Math.round(el.clientWidth) - 48)));
+    const measure = () => setW(Math.max(240, Math.round(el.clientWidth) - 56));
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el); return () => ro.disconnect();
   }, []);
   const now = Date.now(), from = now - range;
   const pts = samples.filter(s => s.at >= from);
-  const Hh = 180;
-  const x = at => ((at - from) / range) * W, y = v => Hh - (v / 100) * Hh;
-  const lines = SERIES.map(([acc, win, klass]) => {
-    const p = pts.filter(s => s[acc] && s[acc][win]).map(s => [x(s.at), y(s[acc][win].used)]);
-    return p.length ? { klass, label: (acc === 'claude' ? 'Claude' : 'Codex') + ' · ' + (win === '5h' ? t('quotas.w5h') : t('quotas.w7d')), d: p.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ') + (p.length === 1 ? ' l1 0' : '') } : null;
-  }).filter(Boolean);
-  if (!lines.length) return html`<p class="muted q-none" ref=${box}>${t('quotas.history_empty')}</p>`;
-  const every = Math.max(1, Math.ceil((range <= DAY ? 5 : range / DAY + 1) / Math.max(2, Math.floor(W / 90))));
+  const Hh = 240;
+  const x = at => ((at - from) / range) * W, y = v => Hh - (Math.min(100, Math.max(0, v)) / 100) * Hh;
+  // Un trou de plus de 30 min entre deux relevés coupe la ligne au lieu de
+  // tracer une pente qui n'a pas eu lieu.
+  const GAP = 30 * 60e3;
+  const lines = W ? SERIES.map(([acc, win, klass]) => {
+    const p = pts.filter(s => s[acc] && s[acc][win]).map(s => [s.at, x(s.at), y(s[acc][win].used)]);
+    if (!p.length) return null;
+    const d = p.map((q, i) => (i && q[0] - p[i - 1][0] <= GAP ? 'L' : 'M') + q[1].toFixed(1) + ' ' + q[2].toFixed(1)).join(' ') + (p.length === 1 ? ' l1 0' : '');
+    return { klass, label: (acc === 'claude' ? 'Claude' : 'Codex') + ' · ' + (win === '5h' ? t('quotas.w5h') : t('quotas.w7d')), d };
+  }).filter(Boolean) : [];
+  const every = Math.max(1, Math.ceil((range <= DAY ? 5 : range / DAY + 1) / Math.max(2, Math.floor((W || 600) / 90))));
   const ticks = (range <= DAY ? [0, 6, 12, 18, 24].map(h => from + h * H) : Array.from({ length: Math.round(range / DAY) + 1 }, (_, i) => from + i * DAY)).filter((_, i) => i % every === 0);
   return html`<div class="q-chart" ref=${box}>
-    <svg viewBox=${`-40 -8 ${W + 48} ${Hh + 30}`} style=${`height:${Hh + 30}px`} role="img" aria-label=${t('quotas.history')}>
-      ${[0, 25, 50, 75, 100].map(v => html`<g key=${v}><line class="q-grid" x1="0" x2=${W} y1=${y(v)} y2=${y(v)} /><text class="q-ax" x="-8" y=${y(v) + 3.5} text-anchor="end">${v}%</text></g>`)}
-      ${ticks.map(tk => html`<text key=${tk} class="q-ax" x=${x(tk)} y=${Hh + 18} text-anchor="middle">${new Date(tk).toLocaleString(locale(), range <= DAY ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short' })}</text>`)}
+    ${!W ? '' : !lines.length ? html`<p class="muted q-none">${t('quotas.history_empty')}</p>` : html`
+    <svg width="100%" viewBox=${`-44 -10 ${W + 56} ${Hh + 34}`} style=${`display:block;height:${Hh + 34}px`} role="img" aria-label=${t('quotas.history')}>
+      ${[0, 25, 50, 75, 100].map(v => html`<g key=${v}><line class="q-grid" x1="0" x2=${W} y1=${y(v)} y2=${y(v)} /><text class="q-ax" x="-10" y=${y(v) + 4} text-anchor="end">${v}%</text></g>`)}
+      ${ticks.map(tk => html`<text key=${tk} class="q-ax" x=${x(tk)} y=${Hh + 22} text-anchor="middle">${new Date(tk).toLocaleString(locale(), range <= DAY ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short' })}</text>`)}
       ${lines.map(l => html`<path key=${l.klass} class=${'q-line ' + l.klass} d=${l.d}/>`)}
     </svg>
-    <div class="q-legend">${lines.map(l => html`<span key=${l.klass}><i class=${l.klass}></i>${l.label}</span>`)}</div>
+    <div class="q-legend">${lines.map(l => html`<span key=${l.klass}><i class=${l.klass}></i>${l.label}</span>`)}</div>`}
   </div>`;
 }
 
@@ -160,8 +189,8 @@ export function QuotasPage() {
       : html`
         ${!ready && html`<p class="note"><i class="dot amber"></i> ${t('quotas.offline')}</p>`}
         <div class="grid2 q-accs">
-          <${Account} logo="claude" title="Claude" mode="claude" windows=${claude} sub=${live?.modelDisplayName || ''} />
-          ${has(codex) || sessionList().some(s => s.mode === 'codex') ? html`<${Account} logo="openai" title="Codex" mode="codex" windows=${codex} sub="" />` : ''}
+          <${Account} logo="claude" title="Claude" mode="claude" resets=${data?.resets} windows=${claude} sub=${live?.modelDisplayName || ''} />
+          ${has(codex) || sessionList().some(s => s.mode === 'codex') ? html`<${Account} logo="openai" title="Codex" mode="codex" resets=${data?.resets} windows=${codex} sub="" />` : ''}
         </div>
         ${!has(claude) && !has(codex) && html`<p class="note">${t('quotas.no_data_note')}</p>`}
         <${Paused} />

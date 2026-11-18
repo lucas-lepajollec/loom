@@ -3299,4 +3299,10 @@ export default {
   "quotas.reset_tip_codex": "Codex garde de côté les réinitialisations offertes (menu /usage, « Redeem reset »). Loom ouvre ce menu dans une session Codex ; tu choisis et confirmes dans le terminal, rien n’est utilisé sans toi.",
   "quotas.reset_no_session": "Aucune session ouverte pour ce CLI : lances-en une, puis réessaie.",
   "quotas.reset_opened": "Menu de réinitialisation ouvert dans {name} : choisis et confirme dans le terminal.",
+  "quotas.resets_count": "{n} réinitialisation(s) disponible(s)",
+  "quotas.reset_full": "Réinitialisation complète",
+  "quotas.reset_until": "jusqu’au {date}",
+  "quotas.resets_none": "Aucune réinitialisation disponible",
+  "quotas.resets_claude_yes": "Une réinitialisation est disponible",
+  "quotas.resets_claude_seen": "vu par Claude Code le {date} ; le détail s’affiche dans /limit-reset",
 };

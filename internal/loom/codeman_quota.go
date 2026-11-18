@@ -205,6 +205,7 @@ func handleCodemanQuotas(w http.ResponseWriter, r *http.Request) {
 	if stale {
 		sampleCodemanQuota(r.Context())
 	}
+	resets := readQuotaResets(r.Context())
 	codemanQuotas.Lock()
 	defer codemanQuotas.Unlock()
 	loadQuotaHistoryLocked()
@@ -216,5 +217,5 @@ func handleCodemanQuotas(w http.ResponseWriter, r *http.Request) {
 	if !codemanQuotas.latest.empty() {
 		latest = codemanQuotas.latest
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "latest": latest, "samples": samples, "every_ms": codemanQuotaEvery.Milliseconds()})
+	sendJSON(w, 200, map[string]any{"ok": true, "latest": latest, "samples": samples, "every_ms": codemanQuotaEvery.Milliseconds(), "resets": resets})
 }

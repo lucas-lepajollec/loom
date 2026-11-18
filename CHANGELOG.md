@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- Discussions: switching or deleting a discussion no longer moves it to the
+  top of Recents; the list follows the last message, and new discussions
+  appear at the top.
+- Agents: CLIs without a readable transcript (OpenCode, Pi…) open in their
+  terminal only, without a useless Conversation view.
+- Activity → Quotas: the history chart fills its card, breaks the line on
+  gaps and has readable axes; each card shows the subscription resets on
+  offer (Codex: number, kind and expiry from its app server; Claude: the
+  availability Claude Code last saw).
+- Phones: the menu button sits on the right and opens a full-screen menu with
+  large rows; page tabs become a dropdown; settings groups fold (folded by
+  default on phones, choice remembered); the Agents bar drops its duplicate
+  new-session button and status dot, and an open session shows a single
+  header.
 - Page tabs (Models, Machines, Brain, Activity, Agents) are now underlined
   tabs: larger text (14.5 px, 15 px and 44 px high on phones), a sliding bar
   under the current tab, no more small segmented control; they scroll

@@ -257,7 +257,10 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 			}
 		}
 		s.Title, s.ProjectID = a.Title, a.ProjectID
-		s.Model, s.Status, s.UpdatedAt = ReadConfig()["MODEL"], "idle", time.Now().UnixMilli()
+		s.Model, s.Status = ReadConfig()["MODEL"], "idle"
+		if a.SavedAt > s.UpdatedAt {
+			s.UpdatedAt = a.SavedAt
+		}
 		recordNativeCompactions(&s, a.CompactCount, before, s.PortableMessages)
 		_ = putStoreJSON(bkRuntimeSessions, id, s)
 	}
