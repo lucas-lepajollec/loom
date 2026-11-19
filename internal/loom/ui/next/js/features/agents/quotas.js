@@ -5,7 +5,7 @@
 import { t, locale } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Empty, Seg, Tip } from '../../ui/controls.js';
+import { Empty, Seg, Tip, Popover } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
 import { get, post } from '../../core/api.js';
 import { visibleRefresh } from '../../core/poll.js';
@@ -16,6 +16,7 @@ import { setViewOf } from './layout.js';
 import { toast, confirm } from '../../ui/dialog.js';
 import { CliMark } from './new-session.js';
 import { api, sendPrompt } from './client.js';
+import { currentWindow, dailyUse } from './quota-math.js';
 
 const H = 3600e3, DAY = 24 * H;
 const SPAN = { '5h': 5 * H, '7d': 7 * DAY };
@@ -132,52 +133,94 @@ function Resets({ accounts, codeman, refresh }) {
     <div class="card q-rs">${rows}</div></section>`;
 }
 
-// Courbes de l'historique d'un compte : une ligne par limite, de 0 à 100 %.
-const KLASS = ['q-s1', 'q-s2', 'q-s3', 'q-s4', 'q-s5'];
-function seriesOf(acc, samples, accounts) {
-  const keys = [];
-  for (const s of samples) for (const k of Object.keys(s[acc] || {})) if (!keys.includes(k)) keys.push(k);
-  const limits = (accounts.find(a => a.id === acc) || {}).limits || [];
-  return keys.slice(0, KLASS.length).map((k, i) => {
-    const l = limits.find(x => x.id === k) || { id: k, window: k };
-    return { key: k, klass: KLASS[i], label: (l.group ? l.group + ' · ' : '') + limitName(l) };
-  });
-}
-function History({ samples, range, acc, accounts }) {
-  // Le dessin suit la largeur réelle du conteneur (toujours le même élément,
-  // qu'il y ait des données ou non) : le texte des axes garde sa taille.
-  const box = useRef();
-  const [W, setW] = useState(0);
+// Largeur réelle d'un conteneur : les dessins suivent la carte au pixel près,
+// le texte reste en HTML et garde sa taille.
+function useWidth() {
+  const ref = useRef();
+  const [w, setW] = useState(0);
   useEffect(() => {
-    const el = box.current; if (!el) return;
-    const measure = () => setW(Math.max(240, Math.round(el.clientWidth) - 56));
+    const el = ref.current; if (!el) return;
+    const measure = () => setW(Math.round(el.clientWidth));
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el); return () => ro.disconnect();
   }, []);
-  const now = Date.now(), from = now - range;
-  const pts = samples.filter(s => s.at >= from);
-  const Hh = 240;
-  const x = at => ((at - from) / range) * W, y = v => Hh - (Math.min(100, Math.max(0, v)) / 100) * Hh;
-  // Un trou de plus de 30 min entre deux relevés coupe la ligne au lieu de
-  // tracer une pente qui n'a pas eu lieu.
-  const GAP = 30 * 60e3;
-  const lines = W ? seriesOf(acc, pts, accounts).map(({ key, klass, label }) => {
-    const p = pts.filter(s => s[acc] && s[acc][key]).map(s => [s.at, x(s.at), y(s[acc][key].used)]);
-    if (!p.length) return null;
-    const d = p.map((q, i) => (i && q[0] - p[i - 1][0] <= GAP ? 'L' : 'M') + q[1].toFixed(1) + ' ' + q[2].toFixed(1)).join(' ') + (p.length === 1 ? ' l1 0' : '');
-    return { klass, label, d };
-  }).filter(Boolean) : [];
-  const every = Math.max(1, Math.ceil((range <= DAY ? 5 : range / DAY + 1) / Math.max(2, Math.floor((W || 600) / 90))));
-  const ticks = (range <= DAY ? [0, 6, 12, 18, 24].map(h => from + h * H) : Array.from({ length: Math.round(range / DAY) + 1 }, (_, i) => from + i * DAY)).filter((_, i) => i % every === 0);
-  return html`<div class="q-chart" ref=${box}>
-    ${!W ? '' : !lines.length ? html`<p class="muted q-none">${t('quotas.history_empty')}</p>` : html`
-    <svg width="100%" viewBox=${`-44 -10 ${W + 56} ${Hh + 34}`} style=${`display:block;height:${Hh + 34}px`} role="img" aria-label=${t('quotas.history') + ' · ' + accName(acc)}>
-      ${[0, 25, 50, 75, 100].map(v => html`<g key=${v}><line class="q-grid" x1="0" x2=${W} y1=${y(v)} y2=${y(v)} /><text class="q-ax" x="-10" y=${y(v) + 4} text-anchor="end">${v}%</text></g>`)}
-      ${ticks.map(tk => html`<text key=${tk} class="q-ax" x=${x(tk)} y=${Hh + 22} text-anchor="middle">${new Date(tk).toLocaleString(locale(), range <= DAY ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short' })}</text>`)}
-      ${lines.map(l => html`<path key=${l.klass} class=${'q-line ' + l.klass} d=${l.d}/>`)}
-    </svg>
-    <div class="q-legend">${lines.map(l => html`<span key=${l.klass}><i class=${l.klass}></i>${l.label}</span>`)}</div>`}
+  return [ref, w];
+}
+
+// Fenêtre en cours d'une limite : consommation depuis son ouverture (trait
+// plein), rythme régulier jusqu'à la remise à zéro (diagonale), et projection
+// au rythme récent (pointillés), avec la conclusion en clair.
+// Clé d'une limite dans les relevés : la fenêtre (5h, 7d, month) pour Claude,
+// Codex et Copilot, l'identifiant de la limite pour Antigravity.
+const sampleKey = (acc, l) => (acc === 'antigravity' ? l.id : l.label ? l.id : l.window);
+// Pas de projection tant que la fenêtre a moins d'une demi-heure (ou d'un
+// dixième de sa durée) : trop peu de mesures pour un rythme fiable.
+const tooEarly = w => Date.now() - w.start < Math.max(30 * 60e3, (w.end - w.start) / 10);
+
+function WindowChart({ acc, l, samples }) {
+  const [ref, W] = useWidth();
+  const now = Date.now();
+  const w = currentWindow(samples, acc, sampleKey(acc, l), l, now);
+  const name = (l.group ? l.group + ' · ' : '') + limitName(l);
+  let verdict, warn = false;
+  if (!w) verdict = l.used > 0 ? t('quotas.win_unknown') : t('quotas.win_closed');
+  else if (w.used < 100 && tooEarly(w)) verdict = t('quotas.win_early', { at: clock(w.start) });
+  else if (w.eta != null) { verdict = w.used >= 100 ? t('quotas.win_out', { at: clock(w.end) }) : t('quotas.win_eta', { at: clock(w.eta) }); warn = true; }
+  else if (w.rate <= 0) verdict = t('quotas.win_flat', { at: clock(w.end) });
+  else verdict = t('quotas.win_at_reset', { v: Math.round(w.atReset), at: clock(w.end) });
+  const Hc = 96;
+  let svg = null;
+  if (w && W) {
+    const x = at => ((at - w.start) / (w.end - w.start)) * W, y = v => Hc - (Math.min(100, Math.max(0, v)) / 100) * Hc;
+    const line = w.pts.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join(' ');
+    const first = w.pts[0], last = w.pts[w.pts.length - 1];
+    const area = line + ` L${x(last[0]).toFixed(1)} ${Hc} L${x(first[0]).toFixed(1)} ${Hc} Z`;
+    const proj = w.eta != null ? [x(w.eta), y(100)] : [W, y(w.atReset)];
+    svg = html`<svg width=${W} height=${Hc + 2} viewBox=${`0 -1 ${W} ${Hc + 2}`} aria-hidden="true">
+      <line class="qw-grid" x1="0" x2=${W} y1=${y(100)} y2=${y(100)} /><line class="qw-grid" x1="0" x2=${W} y1=${y(50)} y2=${y(50)} /><line class="qw-base" x1="0" x2=${W} y1=${Hc} y2=${Hc} />
+      <line class="qw-pace" x1="0" y1=${Hc} x2=${W} y2="0" />
+      <path class="qw-area" d=${area} /><path class="qw-line" d=${line} />
+      ${w.used < 100 && !tooEarly(w) && html`<line class=${cls('qw-proj', warn && 'warn')} x1=${x(now)} y1=${y(w.used)} x2=${proj[0]} y2=${proj[1]} />`}
+      <line class="qw-now" x1=${x(now)} x2=${x(now)} y1="0" y2=${Hc} /><circle class="qw-dot" cx=${x(now)} cy=${y(w.used)} r="3.5" />
+    </svg>`;
+  }
+  return html`<div class=${cls('qw', 'q-' + tone(l.used))}>
+    <div class="qw-h"><span>${name}</span><b>${Math.round(l.used)}<small>%</small></b></div>
+    <div class="qw-plot" ref=${ref}>${svg}</div>
+    ${w && html`<div class="qw-axis muted"><span>${clock(w.start)}</span><span>${t('quotas.win_reset_at', { at: clock(w.end) })}</span></div>`}
+    <p class=${cls('qw-verdict', warn && 'warn')}>${verdict}</p>
+  </div>`;
+}
+
+// Part de la semaine (ou du mois) consommée chaque jour, sur 14 jours.
+function DailyChart({ acc, l, samples }) {
+  const days = dailyUse(samples, acc, sampleKey(acc, l), 14);
+  const max = Math.max(10, ...days.map(d => d.used));
+  const total = days.reduce((n, d) => n + d.used, 0);
+  const name = (l.group ? l.group + ' · ' : '') + limitName(l);
+  return html`<div class="qd">
+    <div class="qd-h"><span>${t('quotas.daily_of', { name })}</span>${total > 0 && html`<span class="muted">${t('quotas.daily_avg', { v: Math.round((total / days.filter(d => d.used > 0).length) * 10) / 10 })}</span>`}</div>
+    <div class="qd-bars" role="img" aria-label=${t('quotas.daily_of', { name })}>${days.map(d => {
+      const label = new Date(d.day).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric' });
+      return html`<div class="qd-col" key=${d.day} title=${label + ' · ' + d.used + ' %'}>
+        <small class="qd-v">${d.used >= 1 ? Math.round(d.used) : ''}</small>
+        <i style=${`height:${(d.used / max) * 100}%`}></i>
+        <small class="qd-d">${new Date(d.day).toLocaleDateString(locale(), { weekday: 'narrow' })}</small></div>`;
+    })}</div>
+  </div>`;
+}
+
+const CHARTED = ['5h', '7d', 'month'];
+function Evolution({ acc, accounts, samples }) {
+  const a = accounts.find(x => x.id === acc);
+  const order = ['5h', '7d', 'month'];
+  const limits = ((a && a.limits) || []).filter(l => CHARTED.includes(l.window)).sort((x, y) => (x.group || '').localeCompare(y.group || '') || order.indexOf(x.window) - order.indexOf(y.window));
+  const long = limits.filter(l => l.window !== '5h');
+  if (!limits.length) return html`<p class="muted q-none">${t('quotas.history_empty')}</p>`;
+  return html`<div class="q-evo">
+    <div class="q-evo-grid">${limits.map(l => html`<div class="card pad" key=${l.id}><${WindowChart} acc=${acc} l=${l} samples=${samples} /></div>`)}</div>
+    ${long.map(l => html`<div class="card pad" key=${'d-' + l.id}><${DailyChart} acc=${acc} l=${l} samples=${samples} /></div>`)}
   </div>`;
 }
 
@@ -205,6 +248,39 @@ function Tokens({ stats }) {
       <span class="mono" data-label=${t('usage.page.entree_2')}>${fmtTok(d.inputTokens || 0)}</span><span class="mono" data-label=${t('usage.page.sortie_2')}>${fmtTok(d.outputTokens || 0)}</span>
       <span class="mono" data-label=${t('quotas.sessions')}>${d.sessions ?? '—'}</span><span class="num strong" data-label=${t('quotas.cost')}>${money(d.estimatedCost)}</span></div>`; })}
   </div>`;
+}
+
+// Aperçu des quotas dans la barre Agents : une jauge (la limite la plus
+// entamée), le détail de chaque abonnement en un clic, la page complète
+// dans Activité. Mêmes données que la page.
+const WIN_ORDER = ['5h', '7d', 'month', 'other'];
+const byWindow = list => [...list].sort((x, y) => (x.group || '').localeCompare(y.group || '') || WIN_ORDER.indexOf(x.window) - WIN_ORDER.indexOf(y.window));
+let lastQuotas = null;
+async function loadQuotas() {
+  const r = await get('/api/quotas', { retryAuth: false, timeout: 45000 }).catch(() => null);
+  if (r && r.ok !== false) lastQuotas = r;
+  return lastQuotas;
+}
+export function QuotaPeek() {
+  const live = useStore(agents, s => s.planUsage);
+  const [data, setData] = useState(lastQuotas);
+  const [anchor, setAnchor] = useState(null);
+  useEffect(() => visibleRefresh(async alive => { const r = await loadQuotas(); if (alive() && r) setData(r); }, 120000), []);
+  const accounts = withLive(data?.accounts || [], live).filter(a => (a.limits || []).length);
+  if (!accounts.length) return null;
+  const top = Math.round(Math.max(...accounts.flatMap(a => a.limits.map(l => l.used))));
+  const warn = v => (v >= 90 ? 'red' : v >= 70 ? 'amber' : '');
+  return html`<button class=${cls('icon-btn cm-quota-btn', anchor && 'on', warn(top))} aria-label=${t('quotas.chip')} title=${t('quotas.chip') + ' · ' + top + '%'}
+      aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="gauge" /><i class="cm-quota-dot"></i></button>
+    ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${300} class="cm-quota-pop">
+      ${accounts.map(a => html`<div class="cm-qp-acc" key=${a.id}><b>${accName(a.id)}</b>
+        ${byWindow(a.limits).map(l => html`<div class=${cls('cm-qp-win', warn(l.used))} key=${l.id}>
+          <div class="cm-qp-h"><span>${(l.group ? l.group + ' · ' : '') + limitName(l)}</span><em>${Math.round(l.used)}%</em></div>
+          <div class="cm-qp-bar"><i style=${`width:${Math.min(100, l.used)}%`}></i></div>
+          ${l.reset_at && l.reset_at > Date.now() ? html`<small class="muted">${t('quotas.resets_in', { in: fmtIn(l.reset_at - Date.now()), at: clock(l.reset_at) })}</small>` : ''}
+        </div>`)}</div>`)}
+      <a class="cm-qp-more" href="#/quotas" onClick=${() => setAnchor(null)}>${t('quotas.open')}<${Icon} n="right" /></a>
+    </${Popover}>`}`;
 }
 
 // La mesure en direct de Codeman (statusline d'une session Claude, Codex)
@@ -235,17 +311,16 @@ export function QuotasPage() {
   const [data, setData] = useState(null);
   const [stats, setStats] = useState(null);
   const [tick, setTick] = useState(0);
-  const [range, setRange] = useState(() => +stored('loom.quotas.range', DAY) || DAY);
   const [acc, setAcc] = useState(() => stored('loom.quotas.acc', 'claude'));
   const ready = conn.state === 'ready';
   useEffect(() => visibleRefresh(async alive => {
-    const r = await get('/api/quotas', { retryAuth: false, timeout: 45000 }).catch(() => null);
-    if (alive() && r && r.ok !== false) setData(r);
+    const r = await loadQuotas();
+    if (alive() && r) setData(r);
     if (ready) { const s = await api.tokenStats().catch(() => null); if (alive() && s) setStats(s); }
   }, 60000), [ready, tick]);
   const accounts = withLive(data?.accounts || [], live);
   const samples = data?.samples || [];
-  const charted = Object.keys(ACCOUNTS).filter(id => samples.some(s => s[id] && Object.keys(s[id]).length));
+  const charted = Object.keys(ACCOUNTS).filter(id => accounts.some(a => a.id === id && (a.limits || []).some(l => CHARTED.includes(l.window))));
   const shown = charted.includes(acc) ? acc : charted[0];
   const sub = a => (a.id === 'claude' && live?.modelDisplayName) || (a.plan ? a.plan[0].toUpperCase() + a.plan.slice(1) : '');
   return html`<div class="view page"><div class="page-in">
@@ -260,11 +335,8 @@ export function QuotasPage() {
           <div class="grid2 q-accs">${accounts.map(a => html`<${Account} key=${a.id} a=${a} sub=${sub(a)} />`)}</div></section>
         ${conn.configured && html`<${Paused} />`}
         ${shown && html`<section class="sec"><div class="sec-h"><h2>${t('quotas.history')}<${Tip} text=${t('quotas.history_tip')} /></h2>
-          <div class="q-hist-ctl">
-            ${charted.length > 1 && html`<${Seg} size="sm" value=${shown} onChange=${v => { setAcc(v); store('loom.quotas.acc', v); }} label=${t('quotas.history_account')} options=${charted.map(id => ({ value: id, label: accName(id) }))} />`}
-            <${Seg} size="sm" value=${range} onChange=${v => { setRange(v); store('loom.quotas.range', v); }} label=${t('quotas.history')} options=${[{ value: DAY, label: t('quotas.r24h') }, { value: 7 * DAY, label: t('quotas.r7d') }, { value: 14 * DAY, label: t('quotas.r14d') }]} />
-          </div></div>
-          <div class="card pad"><${History} samples=${samples} range=${range} acc=${shown} accounts=${accounts} /></div></section>`}
+          ${charted.length > 1 && html`<div class="q-hist-ctl"><${Seg} size="sm" value=${shown} onChange=${v => { setAcc(v); store('loom.quotas.acc', v); }} label=${t('quotas.history_account')} options=${charted.map(id => ({ value: id, label: accName(id) }))} /></div>`}</div>
+          <${Evolution} acc=${shown} accounts=${accounts} samples=${samples} /></section>`}
         ${ready && html`<section class="sec"><div class="sec-h"><h2>${t('quotas.tokens')}<${Tip} text=${t('quotas.tokens_tip')} /></h2></div>
           <${Tokens} stats=${stats} /></section>`}`}
   </div></div>`;
