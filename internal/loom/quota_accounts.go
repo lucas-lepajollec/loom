@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -170,10 +171,24 @@ func parseResetTime(s string) int64 {
 	return t.UnixMilli()
 }
 
+// Un service (systemd, launchd) n'a souvent pas le PATH de la session : les
+// CLI sont cherchés aussi dans les dossiers d'installation habituels
+// (~/.local/bin, npm, bun…), et lancés avec ce PATH élargi pour trouver
+// leurs propres dépendances (node).
+func quotaCLIEnv() []string {
+	env := []string{"PATH=" + lifecycleLocalPath()}
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "PATH=") {
+			env = append(env, kv)
+		}
+	}
+	return env
+}
+
 // runQuotaCLI lance une commande d'un CLI hors de tout projet et renvoie sa
 // sortie standard.
 func runQuotaCLI(ctx context.Context, name string, args ...string) ([]byte, error) {
-	bin, err := exec.LookPath(name)
+	bin, err := lifecycleLookPath(name)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +196,7 @@ func runQuotaCLI(ctx context.Context, name string, args ...string) ([]byte, erro
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = os.TempDir()
+	cmd.Env = quotaCLIEnv()
 	cmd.Stdin = nil
 	cmd.Stderr = io.Discard
 	return cmd.Output()
@@ -241,7 +257,7 @@ var claudeLimitKinds = map[string][2]string{
 
 func readClaudeAccount(ctx context.Context) *quotaAccount {
 	cfg, ok := loadClaudeConfigQuota()
-	if _, err := exec.LookPath("claude"); err == nil {
+	if _, err := lifecycleLookPath("claude"); err == nil {
 		// Relevé trop ancien : /usage le rafraîchit (commande locale, sans
 		// modèle ni session enregistrée).
 		if !ok || cfg.Usage == nil || time.Since(time.UnixMilli(cfg.Usage.FetchedAtMs)) > quotaClaudeStale {
@@ -328,7 +344,7 @@ func (c *codexRPC) call(method string, params any) (json.RawMessage, error) {
 
 // withCodexAppServer lance le serveur d'application de Codex le temps de fn.
 func withCodexAppServer(parent context.Context, fn func(*codexRPC) error) error {
-	bin, err := exec.LookPath("codex")
+	bin, err := lifecycleLookPath("codex")
 	if err != nil {
 		return err
 	}
@@ -336,6 +352,7 @@ func withCodexAppServer(parent context.Context, fn func(*codexRPC) error) error 
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, "app-server")
 	cmd.Dir = os.TempDir()
+	cmd.Env = quotaCLIEnv()
 	cmd.Stderr = io.Discard
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
