@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-// Suivi des quotas d'abonnement relevés par Codeman. Codeman ne garde que la
-// dernière mesure (Claude : fenêtres 5 h et 7 j lues dans la statusline ;
-// Codex : ses propres limites) ; Loom en relève une toutes les cinq minutes
-// tant que Codeman est configuré, pour tracer leur évolution. Seuls des
-// pourcentages et des heures de remise à zéro sont gardés.
+// Historique des quotas d'abonnement. Toutes les cinq minutes, Loom relève
+// ce que donne Codeman (Claude par la statusline de ses sessions, Codex,
+// Copilot) et ce que donnent les CLI installés ici (voir quota_accounts.go),
+// pour tracer leur évolution. Seuls des pourcentages et des heures de remise
+// à zéro sont gardés.
 
 const (
 	codemanQuotaEvery   = 5 * time.Minute
@@ -32,12 +32,16 @@ type quotaWindow struct {
 }
 
 type quotaSample struct {
-	At     int64                  `json:"at"`
-	Claude map[string]quotaWindow `json:"claude,omitempty"`
-	Codex  map[string]quotaWindow `json:"codex,omitempty"`
+	At          int64                  `json:"at"`
+	Claude      map[string]quotaWindow `json:"claude,omitempty"`
+	Codex       map[string]quotaWindow `json:"codex,omitempty"`
+	Copilot     map[string]quotaWindow `json:"copilot,omitempty"`
+	Antigravity map[string]quotaWindow `json:"antigravity,omitempty"` // par identifiant de limite
 }
 
-func (s quotaSample) empty() bool { return len(s.Claude) == 0 && len(s.Codex) == 0 }
+func (s quotaSample) empty() bool {
+	return len(s.Claude) == 0 && len(s.Codex) == 0 && len(s.Copilot) == 0 && len(s.Antigravity) == 0
+}
 
 // Même mesure : mêmes fenêtres, mêmes pourcentages, même remise à zéro.
 func (s quotaSample) same(o quotaSample) bool {
@@ -52,7 +56,7 @@ func (s quotaSample) same(o quotaSample) bool {
 		}
 		return true
 	}
-	return eq(s.Claude, o.Claude) && eq(s.Codex, o.Codex)
+	return eq(s.Claude, o.Claude) && eq(s.Codex, o.Codex) && eq(s.Copilot, o.Copilot) && eq(s.Antigravity, o.Antigravity)
 }
 
 var codemanQuotas struct {
@@ -65,10 +69,10 @@ var codemanQuotas struct {
 
 func codemanQuotaPath() string { return filepath.Join(LoomHome(), "codeman-quotas.json") }
 
-// Fenêtres d'une mesure Codeman ({fiveHour,sevenDay:{usedPercentage,resetAt}}).
+// Fenêtres d'une mesure Codeman ({fiveHour,sevenDay,monthly:{usedPercentage,resetAt}}).
 func quotaWindows(raw map[string]any) map[string]quotaWindow {
 	out := map[string]quotaWindow{}
-	for key, name := range map[string]string{"fiveHour": "5h", "sevenDay": "7d"} {
+	for key, name := range map[string]string{"fiveHour": "5h", "sevenDay": "7d", "monthly": "month"} {
 		w, _ := raw[key].(map[string]any)
 		used, ok := w["usedPercentage"].(float64)
 		if !ok || math.IsNaN(used) || math.IsInf(used, 0) {
@@ -90,6 +94,9 @@ func parsePlanUsage(raw map[string]any) quotaSample {
 	s := quotaSample{Claude: quotaWindows(raw)}
 	if codex, ok := raw["codex"].(map[string]any); ok {
 		s.Codex = quotaWindows(codex)
+	}
+	if copilot, ok := raw["copilot"].(map[string]any); ok {
+		s.Copilot = quotaWindows(copilot)
 	}
 	return s
 }
@@ -172,10 +179,52 @@ func probeCodemanQuota(ctx context.Context) (quotaSample, bool) {
 	return parsePlanUsage(st.Data.PlanUsage), true
 }
 
-func sampleCodemanQuota(ctx context.Context) {
-	if s, ok := probeCodemanQuota(ctx); ok {
-		recordQuotaSample(s, time.Now())
+// Complète une mesure Codeman par les comptes lus auprès des CLI d'ici.
+func addAccountsToSample(s quotaSample, accounts []quotaAccount) quotaSample {
+	byWindow := func(a quotaAccount) map[string]quotaWindow {
+		m := map[string]quotaWindow{}
+		for _, l := range a.Limits {
+			if l.Label == "" && (l.Window == "5h" || l.Window == "7d" || l.Window == "month") {
+				m[l.Window] = quotaWindow{Used: l.Used, ResetAt: l.ResetAt}
+			}
+		}
+		if len(m) == 0 {
+			return nil
+		}
+		return m
 	}
+	for _, a := range accounts {
+		if a.Source != "cli" {
+			continue
+		}
+		switch a.ID {
+		case "claude":
+			if len(s.Claude) == 0 {
+				s.Claude = byWindow(a)
+			}
+		case "codex":
+			if len(s.Codex) == 0 {
+				s.Codex = byWindow(a)
+			}
+		case "antigravity":
+			s.Antigravity = map[string]quotaWindow{}
+			for _, l := range a.Limits {
+				s.Antigravity[l.ID] = quotaWindow{Used: l.Used, ResetAt: l.ResetAt}
+			}
+		}
+	}
+	return s
+}
+
+func sampleQuotas(ctx context.Context, accountsAge time.Duration) {
+	s, _ := probeCodemanQuota(ctx)
+	if !s.empty() {
+		s.At = time.Now().UnixMilli()
+		codemanQuotas.Lock()
+		codemanQuotas.latest = s
+		codemanQuotas.Unlock()
+	}
+	recordQuotaSample(addAccountsToSample(s, readQuotaAccounts(ctx, accountsAge)), time.Now())
 	codemanQuotas.Lock()
 	codemanQuotas.probed = time.Now()
 	codemanQuotas.Unlock()
@@ -189,7 +238,7 @@ func codemanQuotaLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			sampleCodemanQuota(ctx)
+			sampleQuotas(ctx, codemanQuotaEvery-time.Minute)
 			timer.Reset(codemanQuotaEvery)
 		}
 	}
@@ -203,9 +252,9 @@ func handleCodemanQuotas(w http.ResponseWriter, r *http.Request) {
 	stale := time.Since(codemanQuotas.probed) > codemanQuotaRefresh
 	codemanQuotas.Unlock()
 	if stale {
-		sampleCodemanQuota(r.Context())
+		sampleQuotas(r.Context(), quotaAccountsMaxAge)
 	}
-	resets := readQuotaResets(r.Context())
+	accounts := readQuotaAccounts(r.Context(), quotaAccountsMaxAge)
 	codemanQuotas.Lock()
 	defer codemanQuotas.Unlock()
 	loadQuotaHistoryLocked()
@@ -217,5 +266,5 @@ func handleCodemanQuotas(w http.ResponseWriter, r *http.Request) {
 	if !codemanQuotas.latest.empty() {
 		latest = codemanQuotas.latest
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "latest": latest, "samples": samples, "every_ms": codemanQuotaEvery.Milliseconds(), "resets": resets})
+	sendJSON(w, 200, map[string]any{"ok": true, "latest": latest, "samples": samples, "every_ms": codemanQuotaEvery.Milliseconds(), "accounts": accounts})
 }

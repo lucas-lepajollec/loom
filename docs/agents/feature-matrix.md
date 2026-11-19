@@ -32,7 +32,7 @@ transcript, approvals in terminal; Shell = terminal only.
 | Session info and options | session state, `/auto-compact`, `/auto-clear` | API | Done: model, CLI version, tokens, cost, prompt cache, auto-compact/clear |
 | Scheduled jobs | `/cron/jobs`, `/cron/runs`, `cron:*` | API | Done: create/edit/enable/run now/delete, run history |
 | Control center | aggregate of the above | API | Done: needs-attention queue, board by state, next runs, latest launches, update check |
-| Plan usage limits | `planUsage` in `/status`, `session:statusTelemetry` | API | Done: Activity → Quotas (Claude 5 h / 7 d, Codex), pace and resets, 14-day history sampled by Loom, quota chip in the Agents bar |
+| Plan usage limits | `planUsage` in `/status`, `session:statusTelemetry` | API | Done: Activity → Quotas (Claude, Codex, Antigravity, Copilot), pace, available subscription resets (Codex ones usable from Loom after confirmation), 14-day history per subscription sampled by Loom, quota chip in the Agents bar |
 | Token stats | `GET /token-stats` | API | Done: tokens and Codeman's estimated cost per day |
 | Server settings and CLI registry | `GET/PUT /settings`, `PUT /clis/:id`, `POST /clis/:id/install` | API | Done: sessions, Claude Code, Codex, tracking, terminal/system, CLI enable/install, advanced switches; voice, notifications, tunnel and respawn presets stay in Codeman |
 | Reboot restore | `/reboot-restore`, `/restore`, `/dismiss` | API | Done |

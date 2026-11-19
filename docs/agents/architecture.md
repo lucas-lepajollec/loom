@@ -44,7 +44,7 @@ allowed by default and adjustable in Settings → Permissions.
 | `rail.js` | Full list (home screen, phone): sessions by folder, history, search, reboot restore |
 | `attach.js` | Pasted images and dropped files: upload to Codeman, path inserted in the prompt or typed in the terminal |
 | `settings.js` | Codeman server settings (`/settings`, `/clis`) and the connection |
-| `quotas.js` | Activity → Quotas: live plan usage, Loom's sampled history, Codeman token stats |
+| `quotas.js` | Activity → Quotas: one card per subscription (`/api/quotas`, read from the CLIs by `quota_accounts.go` and from Codeman), resets on offer, Loom's sampled history, Codeman token stats |
 | `conversation.js` | Transcript blocks, activity folds, approvals, composer, live screen before the first identifiable prompt |
 | `terminal.js` | xterm.js terminal: screen read, WebSocket attach, resize, reconnect |
 | `inspector.js` | Activity, Git, files, subagents, session options |
