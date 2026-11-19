@@ -173,6 +173,8 @@ func registerCodemanRoutes(mux *http.ServeMux, api func(string, http.HandlerFunc
 	api("/api/codeman/connect", handleCodemanConnect)
 	api("/api/codeman/disconnect", handleCodemanDisconnect)
 	api("/api/codeman/quotas", handleCodemanQuotas)
+	api("/api/quotas", handleCodemanQuotas)
+	api("/api/quotas/reset", handleQuotaReset)
 	// Codeman emploie PUT/PATCH/DELETE : la passerelle est enregistrée hors du
 	// filtre GET/POST des anciennes routes, avec la même authentification et la
 	// même protection d'origine (requireWebAuth), et reste révocable.

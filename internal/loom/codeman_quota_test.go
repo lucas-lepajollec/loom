@@ -11,9 +11,14 @@ func resetCodemanQuotas() {
 	codemanQuotas.Lock()
 	codemanQuotas.loaded, codemanQuotas.samples, codemanQuotas.latest, codemanQuotas.probed = false, nil, quotaSample{}, time.Time{}
 	codemanQuotas.Unlock()
+	invalidateQuotaAccounts()
 }
 
 func TestCodemanQuotasAreSampledAndKeptAsPercentagesOnly(t *testing.T) {
+	// Aucun CLI de cette machine : seules les mesures de Codeman comptent.
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	_, loom := codemanTestServers(t)
 	resetCodemanQuotas()
 	t.Cleanup(resetCodemanQuotas)

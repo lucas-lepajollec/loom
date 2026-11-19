@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Activity → Quotas covers every subscription harness: Claude Code (its own
+  usage cache, refreshed with the local `/usage` command), Codex (its app
+  server), Antigravity (`agy -p /quota` and `/credits`, grouped by model
+  family) and Copilot (through Codeman). It works without Codeman; Codeman
+  fills in accounts whose CLI runs on its machine.
+- A new Resets section lists, per harness, how many resets are on offer, their
+  kind and expiry. A Codex reset can be used from Loom after confirmation;
+  Claude Code's opens its `/limit-reset` menu in a Claude session;
+  Antigravity shows its AI credits. The history chart shows one subscription
+  at a time.
 - Discussions: switching or deleting a discussion no longer moves it to the
   top of Recents; the list follows the last message, and new discussions
   appear at the top.
