@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- Activity → Quotas: the history chart is replaced by one card per limit
+  showing the current window (used so far, steady pace, projection at the
+  recent pace, with a plain verdict such as "used up around 21:10" or "≈ 62%
+  at reset") and a per-day use chart for weekly limits. Reset times are
+  rounded to the minute so identical readings no longer pile up.
+- The quota gauge in the Agents bar shows every subscription (Antigravity
+  included), from the same data as the Quotas page.
+- Agents: no separator under the module bar; its tabs are 42 px high like
+  the other pages, so the underline sits at the same distance from the text.
+- Phones: the menu button is back on the left; the menu slides in from the
+  left and pushes the page aside, with 44 px rows and 15 px text.
 - Quotas: when Loom runs as a service, whose PATH often lacks `~/.local/bin`,
   it now still finds the Claude Code, Codex and Antigravity CLIs in the usual
   install folders (as for the CLIs Loom launches elsewhere), so their

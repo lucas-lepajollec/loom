@@ -7,9 +7,11 @@
 .cm-scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-gutter:stable}
 
 /* barre du module */
-.cm-top{flex:none;display:flex;align-items:center;gap:8px;height:56px;padding:0 14px 0 20px;border-bottom:1px solid var(--line-soft)}
-.cm-top .sec-tabs{margin:0;width:auto;border-bottom:0;align-self:stretch;gap:20px}
-.cm-top .sec-tabs a{height:100%;font-size:14.5px}
+/* Barre du module : pas de filet ; onglets de 42 px comme sur les autres pages,
+   soulignement à la même distance du texte. */
+.cm-top{flex:none;display:flex;align-items:center;gap:8px;height:56px;padding:0 14px 0 20px}
+.cm-top .sec-tabs{margin:0;width:auto;border-bottom:0;align-self:center;height:42px;gap:24px}
+.cm-top .sec-tabs a{height:42px;font-size:14.5px}
 .cm-conn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:28px;height:28px;padding:0 8px;border-radius:999px;font-size:12px;color:var(--text-3);text-decoration:none;white-space:nowrap}
 .cm-conn:hover{background:var(--hover)}
 .cm-conn:not(.ok){background:var(--surface-2)}
@@ -496,17 +498,36 @@ body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
 .q-paused-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;text-align:left;min-height:44px}
 .q-paused-row:hover{background:var(--hover)}
 .q-paused-row .muted{font-size:12.5px;white-space:nowrap}
-.q-chart{display:flex;flex-direction:column;gap:10px}
-.q-chart svg{display:block;width:100%;overflow:visible}
-.q-grid{stroke:var(--line-soft);stroke-width:1;vector-effect:non-scaling-stroke}
-.q-ax{fill:var(--text-3);font:11.5px var(--mono)}
-.q-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
-.q-s1{stroke:var(--accent);background:var(--accent)}.q-s2{stroke:var(--text-2);background:var(--text-2)}
-.q-s3{stroke:var(--green);background:var(--green)}.q-s4{stroke:var(--amber);background:var(--amber)}
-.q-s5{stroke:var(--red);background:var(--red)}
-.q-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--text-3)}
-.q-legend span{display:inline-flex;align-items:center;gap:6px}
-.q-legend i{width:10px;height:3px;border-radius:2px}
+.q-evo{display:flex;flex-direction:column;gap:14px}
+.q-evo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.qw{display:flex;flex-direction:column;gap:8px}
+.qw-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px;color:var(--text-2)}
+.qw-h b{font:600 22px var(--font);letter-spacing:-.02em;color:var(--text)}
+.qw-h b small{font-size:13px;color:var(--text-3);margin-left:1px}
+.q-amber .qw-h b{color:var(--amber)}.q-red .qw-h b{color:var(--red)}
+.qw-plot{height:98px;color:var(--text)}
+.qw-plot svg{display:block;overflow:visible}
+.qw-grid{stroke:var(--line-soft);stroke-width:1;stroke-dasharray:2 4}
+.qw-base{stroke:var(--line);stroke-width:1}
+.qw-pace{stroke:var(--text-4);stroke-width:1;stroke-dasharray:4 4}
+.qw-area{fill:currentColor;opacity:.08}
+.qw-line{fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.qw-proj{stroke:var(--text-3);stroke-width:1.6;stroke-dasharray:3 4;stroke-linecap:round}
+.qw-proj.warn{stroke:var(--amber)}
+.qw-now{stroke:var(--line-strong);stroke-width:1}
+.qw-dot{fill:currentColor}
+.q-amber .qw-plot{color:var(--amber)}.q-red .qw-plot{color:var(--red)}
+.qw-axis{display:flex;justify-content:space-between;font:11.5px var(--mono)}
+.qw-verdict{margin:2px 0 0;font-size:13px;color:var(--text-2)}
+.qw-verdict.warn{color:var(--amber);font-weight:500}
+.qd{display:flex;flex-direction:column;gap:12px}
+.qd-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--text-2)}
+.qd-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:6px;align-items:end;height:120px}
+.qd-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;min-width:0}
+.qd-col i{display:block;width:100%;max-width:28px;min-height:2px;border-radius:4px 4px 2px 2px;background:var(--text-3)}
+.qd-col:last-child i{background:var(--text)}
+.qd-v{font:11px var(--mono);color:var(--text-3);min-height:14px}
+.qd-d{font-size:11.5px;color:var(--text-3)}
 .q-tokens .tr{grid-template-columns:minmax(0,1.6fr) repeat(4,minmax(0,1fr))}
 .q-day{display:flex;flex-direction:column;gap:5px;min-width:0}
 .q-day b{font-weight:500}

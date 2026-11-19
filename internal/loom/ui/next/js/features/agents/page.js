@@ -5,7 +5,7 @@
 // #/agents, #/agents/s/<id>, #/agents/control, #/agents/cron,
 // #/agents/settings (#/agents/grid ouvre la grille).
 import { lt } from './labels.js';
-import { t, locale } from '../../core/i18n.js';
+import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls, createStore } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Menu, Seg, Empty, Popover, Switch } from '../../ui/controls.js';
@@ -28,6 +28,7 @@ import { CodemanSettings } from './settings.js';
 import { CronPage } from './cron.js';
 import { ConnectionPanel } from './connection.js';
 import { openSession, officialLink } from './nav.js';
+import { QuotaPeek } from './quotas.js';
 
 const narrow = () => matchMedia('(max-width: 760px)').matches;
 function useNarrow() {
@@ -158,34 +159,6 @@ function LayoutPicker({ currentId }) {
         title=${label(n)} aria-label=${label(n)} onClick=${() => { setCount(n, currentId); setAnchor(null); }}><${ShapeIcon} n=${n} /><span>${n}</span></button>`)}</div>
       ${count > 1 && html`<label class="cm-layout-row"><span>${t('agents.insp.title')}</span><${Switch} checked=${insp} onChange=${v => gridInsp.set({ open: v })} /></label>`}
       <p class="cm-layout-hint muted">${t('agents.grid.keys')}</p>
-    </${Popover}>`}`;
-}
-
-// Aperçu des quotas d'abonnement : une jauge dans la barre, le détail en un
-// clic (fenêtres de Claude et de Codex, remise à zéro), la page complète
-// dans Activité.
-function QuotaPeek() {
-  const usage = useStore(agents, s => s.planUsage);
-  const [anchor, setAnchor] = useState(null);
-  const win = (label, w) => (w && Number.isFinite(w.usedPercentage) ? { label, used: Math.round(w.usedPercentage), reset: w.resetAt } : null);
-  const rows = [
-    ['Claude', [win(t('quotas.win_5h'), usage?.fiveHour), win(t('quotas.win_7d'), usage?.sevenDay)]],
-    ['Codex', [win(t('quotas.win_5h'), usage?.codex?.fiveHour), win(t('quotas.win_7d'), usage?.codex?.sevenDay)]],
-  ].map(([name, ws]) => [name, ws.filter(Boolean)]).filter(([, ws]) => ws.length);
-  if (!rows.length) return null;
-  const top = Math.max(...rows.flatMap(([, ws]) => ws.map(w => w.used)));
-  const tone = v => (v >= 90 ? 'red' : v >= 70 ? 'amber' : '');
-  const until = ms => { const m = Math.max(0, Math.round((ms - Date.now()) / 60000)); return m >= 1440 ? t('quotas.in_dh', { d: Math.floor(m / 1440), h: Math.floor((m % 1440) / 60) }) : m >= 60 ? t('quotas.in_hm', { h: Math.floor(m / 60), m: m % 60 }) : t('quotas.in_m', { m }); };
-  return html`<button class=${cls('icon-btn cm-quota-btn', anchor && 'on', tone(top))} aria-label=${t('quotas.chip')} title=${t('quotas.chip') + ' · ' + top + '%'}
-      aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="gauge" /><i class="cm-quota-dot"></i></button>
-    ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${272} class="cm-quota-pop">
-      ${rows.map(([name, ws]) => html`<div class="cm-qp-acc" key=${name}><b>${name}</b>
-        ${ws.map(w => html`<div class=${cls('cm-qp-win', tone(w.used))} key=${w.label}>
-          <div class="cm-qp-h"><span>${w.label}</span><em>${w.used}%</em></div>
-          <div class="cm-qp-bar"><i style=${`width:${Math.min(100, w.used)}%`}></i></div>
-          ${w.reset ? html`<small class="muted">${t('quotas.resets_in', { in: until(w.reset), at: new Date(w.reset).toLocaleString(locale(), w.reset - Date.now() > 86400000 ? { weekday: 'short', hour: '2-digit', minute: '2-digit' } : { hour: '2-digit', minute: '2-digit' }) })}</small>` : ''}
-        </div>`)}</div>`)}
-      <a class="cm-qp-more" href="#/quotas" onClick=${() => setAnchor(null)}>${t('quotas.open')}<${Icon} n="right" /></a>
     </${Popover}>`}`;
 }
 

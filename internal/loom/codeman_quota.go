@@ -121,10 +121,27 @@ func loadQuotaHistoryLocked() {
 
 // Ajoute une mesure si elle change, ou au moins toutes les 30 minutes pour
 // que la courbe reste lisible pendant une période calme.
+// Les CLI annoncent une même remise à zéro à quelques secondes près : arrondie
+// à la minute, une mesure inchangée n'ajoute pas de relevé.
+func roundResets(m map[string]quotaWindow) map[string]quotaWindow {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]quotaWindow, len(m))
+	for k, w := range m {
+		if w.ResetAt > 0 {
+			w.ResetAt = (w.ResetAt + 30000) / 60000 * 60000
+		}
+		out[k] = w
+	}
+	return out
+}
+
 func recordQuotaSample(s quotaSample, now time.Time) {
 	if s.empty() {
 		return
 	}
+	s.Claude, s.Codex, s.Copilot, s.Antigravity = roundResets(s.Claude), roundResets(s.Codex), roundResets(s.Copilot), roundResets(s.Antigravity)
 	s.At = now.UnixMilli()
 	codemanQuotas.Lock()
 	defer codemanQuotas.Unlock()
