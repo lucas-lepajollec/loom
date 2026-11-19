@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Quotas: when Loom runs as a service, whose PATH often lacks `~/.local/bin`,
+  it now still finds the Claude Code, Codex and Antigravity CLIs in the usual
+  install folders (as for the CLIs Loom launches elsewhere), so their
+  subscriptions show up.
 - Activity → Quotas covers every subscription harness: Claude Code (its own
   usage cache, refreshed with the local `/usage` command), Codex (its app
   server), Antigravity (`agy -p /quota` and `/credits`, grouped by model

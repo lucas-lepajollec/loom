@@ -39,6 +39,10 @@ done
 esac
 `)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+"/bin"+string(os.PathListSeparator)+"/usr/bin")
+	// Les dossiers d'installation habituels sont cherchés sous HOME.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
 
 	codex := readCodexAccount(context.Background())
 	if codex == nil || codex.Plan != "pro" || len(codex.Limits) != 2 || codex.Limits[0].Window != "5h" || codex.Limits[1].Window != "7d" || codex.Limits[1].ResetAt != 2000000 {
@@ -59,9 +63,6 @@ esac
 		t.Fatalf("antigravity: %+v", agy)
 	}
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	_ = os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"cachedUsageUtilization":{"fetchedAtMs":5,"utilization":{"limits":[{"kind":"session","percent":69,"resets_at":"2026-11-19T14:10:00.5+00:00"},{"kind":"weekly_all","percent":38,"resets_at":"2026-11-25T12:00:00+00:00"},{"kind":"weekly_opus","percent":10}]}},"unusedLimitResetStatusCache":{"holdsUnusedReset":true,"checkedAt":7,"validUntil":9}}`), 0o600)
 	claude := readClaudeAccount(context.Background())
 	if claude == nil || len(claude.Limits) != 3 || claude.Limits[0].Window != "5h" || claude.Limits[2].Label != "Opus" || claude.CheckedAt != 5 {
@@ -74,5 +75,25 @@ esac
 	s := addAccountsToSample(quotaSample{}, []quotaAccount{*claude, *codex, *agy})
 	if s.Claude["5h"].Used != 69 || s.Codex["7d"].Used != 40 || len(s.Antigravity) != 2 {
 		t.Fatalf("sample: %+v", s)
+	}
+}
+
+// A service started without the session's PATH still finds a CLI installed
+// in ~/.local/bin.
+func TestQuotaCLIFoundOutsidePath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fixtures")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	local := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(local, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeQuotaFake(t, local, "agy", `[ "$2" = /quota ] && echo '{"command":{"data":{"groups":[{"name":"Gemini Models","buckets":[{"id":"gemini-5h","window":"5h","remaining_fraction":0.5}]}]}}}'
+`)
+	t.Setenv("PATH", "/usr/bin:/bin")
+	if a := readAntigravityAccount(context.Background()); a == nil || len(a.Limits) != 1 || a.Limits[0].Used != 50 {
+		t.Fatalf("antigravity outside PATH: %+v", a)
 	}
 }
