@@ -3,7 +3,6 @@ package brain
 import (
 	"container/heap"
 	"errors"
-	"math"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -85,14 +84,14 @@ func (e *Engine) searchLocked(r SearchRequest) ([]Hit, error) {
 				df++
 			}
 		}
-		idf := math.Log(1 + (float64(n-df)+0.5)/(float64(df)+0.5))
+		idf := bm25IDF(n, df)
 		for _, p := range postings {
 			d := e.docs[p.doc]
 			if !allowed[d.chunk.Source] || !allowsPath(r.PathPrefixes, d.chunk.Source, d.chunk.Path) {
 				continue
 			}
 			tf := float64(p.frequency)
-			scores[p.doc] += idf * tf * 2.2 / (tf + 1.2*(0.25+0.75*float64(d.length)/average))
+			scores[p.doc] += bm25Term(idf, tf, d.length, average)
 		}
 	}
 	quoted := phrases(r.Query)
@@ -264,7 +263,10 @@ func (e *Engine) packHitsLocked(r PackRequest, hits []Hit) Pack {
 			continue
 		}
 		normalized := strings.Join(strings.Fields(c.Text), " ")
-		if seen[normalized] {
+		// Identical passages with distinct citations are separate supporting units.
+		// Deduplicate repeats within one provenance, never erase another source.
+		key := c.Source + "\x00" + c.Path + "\x00" + strings.Join(c.Heading, "\x00") + "\x00" + normalized
+		if seen[key] {
 			continue
 		}
 		citation := c.Path
@@ -278,7 +280,7 @@ func (e *Engine) packHitsLocked(r PackRequest, hits []Hit) Pack {
 			continue
 		}
 		text += section
-		seen[normalized] = true
+		seen[key] = true
 		out.Citations = append(out.Citations, Citation{c.ID, c.Source, citation})
 		copy := *c
 		copy.Heading = append([]string{}, c.Heading...)

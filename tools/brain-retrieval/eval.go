@@ -382,6 +382,7 @@ type Row struct {
 	CorpusBytes          int                 `json:"corpus_bytes"`
 	CorpusChunks         int                 `json:"corpus_chunks"`
 	CorpusHash           string              `json:"corpus_sha256"`
+	RankingHash          string              `json:"ranking_sha256"`
 	Recall               map[int]Coverage    `json:"span_recall_at"`
 	Sessions             map[int]Coverage    `json:"session_recall_at"`
 	Packed               Coverage            `json:"packed"`
@@ -457,6 +458,9 @@ func Measure(e *brain.Engine, c Case, g Gold, docs []Document, budget int, index
 	}
 	r.SearchLatency = Percentiles(searchTimes)
 	r.PackLatency = Percentiles(packTimes)
+	ranking, _ := json.Marshal(hits)
+	rankingHash := sha256.Sum256(ranking)
+	r.RankingHash = hex.EncodeToString(rankingHash[:])
 	r.InjectionTokens = brain.Tokens(pack.Text)
 	byID := map[string]brain.Chunk{}
 	for _, chunk := range all {
@@ -718,6 +722,26 @@ func Gate(report Report, b Baseline) error {
 		if recall := row.Recall[5].Recall; recall != nil && *recall+b.Tolerance < prior.Recall5 {
 			return fmt.Errorf("Recall@5 regression: %s", key)
 		}
+		quality := Aggregate{PackedRecall: row.Packed.Recall, SpanRecallAt: map[int]float64{}, SessionRecallAt: map[int]float64{}, CompleteAt: map[int]float64{}}
+		for k, coverage := range row.Recall {
+			if coverage.Recall != nil {
+				quality.SpanRecallAt[k] = *coverage.Recall
+			}
+			if coverage.Complete != nil {
+				quality.CompleteAt[k] = 0
+				if *coverage.Complete {
+					quality.CompleteAt[k] = 1
+				}
+			}
+		}
+		for k, coverage := range row.Sessions {
+			if coverage.Recall != nil {
+				quality.SessionRecallAt[k] = *coverage.Recall
+			}
+		}
+		if err := gateQuality(quality, prior, b.Tolerance); err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
 		if prior.FinalPresence != nil && (row.Final == nil || row.Final.Complete == nil || !*row.Final.Complete && *prior.FinalPresence > b.Tolerance) {
 			return fmt.Errorf("final-context regression: %s", key)
 		}
@@ -741,6 +765,9 @@ func Gate(report Report, b Baseline) error {
 		if a.Cases != prior.Cases || a.Recall5+b.Tolerance < prior.Recall5 {
 			return fmt.Errorf("category regression: %s", key)
 		}
+		if err := gateQuality(a, prior, b.Tolerance); err != nil {
+			return fmt.Errorf("category %s: %w", key, err)
+		}
 		if prior.FinalPresence != nil && (a.FinalPresence == nil || *a.FinalPresence+b.Tolerance < *prior.FinalPresence) {
 			return fmt.Errorf("category final regression: %s", key)
 		}
@@ -750,6 +777,28 @@ func Gate(report Report, b Baseline) error {
 		if routes[route] {
 			if _, ok := report.Macro[key]; !ok {
 				return fmt.Errorf("missing baseline category: %s", key)
+			}
+		}
+	}
+	return nil
+}
+
+func gateQuality(actual, prior Aggregate, tolerance float64) error {
+	if prior.PackedRecall != nil && (actual.PackedRecall == nil || *actual.PackedRecall+tolerance < *prior.PackedRecall) {
+		return errors.New("packed evidence regression or missing denominator")
+	}
+	for _, metric := range []struct {
+		name          string
+		actual, prior map[int]float64
+	}{
+		{"span recall", actual.SpanRecallAt, prior.SpanRecallAt},
+		{"session recall", actual.SessionRecallAt, prior.SessionRecallAt},
+		{"complete evidence", actual.CompleteAt, prior.CompleteAt},
+	} {
+		for k, want := range metric.prior {
+			got, ok := metric.actual[k]
+			if !ok || got+tolerance < want {
+				return fmt.Errorf("%s@%d regression or missing denominator", metric.name, k)
 			}
 		}
 	}
