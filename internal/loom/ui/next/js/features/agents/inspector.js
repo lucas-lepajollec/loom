@@ -10,9 +10,10 @@ import { Icon } from '../../ui/icons.js';
 import { Switch, Empty, Seg, Menu } from '../../ui/controls.js';
 import { Modal, toast, prompt, confirm } from '../../ui/dialog.js';
 import { copyText } from '../../ui/clipboard.js';
-import { api } from './client.js';
-import { agents, cliOf, onDomain, upsertSession, stateOf, projectOf, hasConversation } from './store.js';
-import { closeSession, renameSession, createSession, interrupt } from './actions.js';
+import { api, sendPrompt } from './client.js';
+import { ago } from './rail.js';
+import { agents, cliOf, onDomain, upsertSession, stateOf, projectOf, hasConversation, sessionList } from './store.js';
+import { closeSession, renameSession, createSession } from './actions.js';
 import { CliMark } from './new-session.js';
 import { openSession, officialLink } from './nav.js';
 import { HarnessQuota } from './quotas.js';
@@ -198,11 +199,29 @@ function SessionMenu({ s }) {
 // Une section repliable ; son contenu (et donc sa lecture) n'existe qu'ouvert.
 const openKey = 'loom.codeman.panel.open';
 const readOpen = () => { try { return JSON.parse(localStorage.getItem(openKey)) || ['git']; } catch (_) { return ['git']; } };
-function Section({ id, label, open, toggle, children }) {
+function Section({ id, label, hint, open, toggle, children }) {
   return html`<section class=${cls('cm-ps', open && 'open')}>
-    <button class="cm-ps-h" aria-expanded=${String(open)} onClick=${() => toggle(id)}><span>${label}</span><${Icon} n=${open ? 'chevron' : 'right'} /></button>
+    <button class="cm-ps-h" aria-expanded=${String(open)} onClick=${() => toggle(id)}><span>${label}</span>${hint && html`<small>${hint}</small>`}<${Icon} n=${open ? 'chevron' : 'right'} /></button>
     ${open && html`<div class="cm-ps-b">${children}</div>`}
   </section>`;
+}
+
+// Modèles proposés à Claude Code par sa commande /model.
+const CLAUDE_MODELS = ['opus', 'sonnet', 'haiku'];
+function ModelRow({ s }) {
+  const [menu, setMenu] = useState(null);
+  const model = s.displayModel?.model || '';
+  const send = cmd => sendPrompt(s.id, cmd).then(() => toast(t('agents.panel.sent', { cmd }))).catch(e => toast(e.message, 'err'));
+  if (s.mode !== 'claude') return model ? html`<div class="cm-kv"><span>${t('agents.info.model')}</span><b>${model}</b></div>` : null;
+  return html`<div class="cm-kv"><span>${t('agents.info.model')}</span>
+    <button class="btn sm dd" onClick=${e => setMenu(e.currentTarget)}>${model || t('agents.new.model_ph')}<${Icon} n="chevron" /></button>
+    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${CLAUDE_MODELS.map(m => ({ label: m[0].toUpperCase() + m.slice(1), icon: model.toLowerCase().includes(m) ? 'check' : '', run: () => send('/model ' + m) }))} />`}</div>`;
+}
+
+function OthersTab({ s }) {
+  const others = sessionList().filter(x => x.mode === s.mode && x.id !== s.id);
+  if (!others.length) return html`<p class="muted">${t('agents.panel.no_others')}</p>`;
+  return html`<ul class="cm-others">${others.map(o => html`<li key=${o.id}><button onClick=${() => openSession(o.id)}><span class="trunc">${o.name || o.id.slice(0, 8)}</span><small class="muted">${projectOf(o.workingDir)} · ${ago(o.lastActivityAt)}</small></button></li>`)}</ul>`;
 }
 
 export function Inspector({ session, onClose, view, setView, narrowView }) {
@@ -215,6 +234,11 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
     setBusy('shell');
     try { openSession(await createSession({ mode: 'shell', workingDir: s.workingDir })); } catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
   };
+  const slash = async (cmd, ask) => {
+    if (ask && !await confirm(t('agents.panel.clear'), t('agents.panel.clear_text'), { ok: t('agents.panel.clear'), danger: true })) return;
+    setBusy(cmd);
+    try { await sendPrompt(s.id, cmd); toast(t('agents.panel.sent', { cmd })); } catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
+  };
   const views = [{ value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') }, ...(narrowView ? [] : [{ value: 'split', label: t('agents.view.split') }])];
   const link = officialLink(s.id);
   return html`<aside class="cm-insp cm-panel" aria-label=${t('agents.insp.title')}>
@@ -225,21 +249,24 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
       ${setView && hasConversation(s.mode) && html`<${Seg} value=${view} options=${views} onChange=${setView} label=${t('agents.view.label')} />`}
       <div class="cm-panel-rows">
         <div class="cm-kv"><span>${t('agents.info.cli')}</span><b class="cm-panel-cli"><${CliMark} mode=${s.mode} size="xs" />${c.label}${s.cliVersion ? ' ' + s.cliVersion : ''}</b></div>
-        ${s.displayModel?.model && html`<div class="cm-kv"><span>${t('agents.info.model')}</span><b>${s.displayModel.model}</b></div>`}
+        <${ModelRow} s=${s} />
         <div class="cm-kv"><span>${t('agents.info.dir')}</span><b class="mono trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</b></div>
       </div>
       <div class="cm-panel-acts">
         ${s.mode !== 'shell' && html`<button disabled=${!!busy} onClick=${shell}>${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}<span>${t('agents.panel.shell')}</span></button>`}
-        <button disabled=${state !== 'working'} onClick=${() => interrupt(s.id).catch(e => toast(e.message, 'err'))}><${Icon} n="stop" /><span>${t('agents.panel.interrupt')}</span></button>
-        ${link ? html`<button onClick=${() => window.open(link, 'codeman')}><${Icon} n="link" /><span>${t('agents.panel.codeman')}</span></button>` : ''}
+        ${s.mode === 'claude' ? html`
+          <button disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>
+          <button disabled=${!!busy} onClick=${() => slash('/clear', true)}><${Icon} n="refresh" /><span>${t('agents.panel.clear')}</span></button>`
+        : link ? html`<button onClick=${() => window.open(link, 'codeman')}><${Icon} n="link" /><span>${t('agents.panel.codeman')}</span></button>` : ''}
       </div>
       <${HarnessQuota} mode=${s.mode} />
       <div class="cm-panel-secs">
         <${Section} id="git" label=${t('agents.panel.changes')} open=${open.includes('git')} toggle=${toggle}><${GitTab} id=${s.id} /></${Section}>
-        <${Section} id="activity" label=${lt('insp', 'activity')} open=${open.includes('activity')} toggle=${toggle}><${ActivityTab} id=${s.id} /></${Section}>
+        <${Section} id="activity" label=${lt('insp', 'activity')} hint=${ago(s.lastActivityAt)} open=${open.includes('activity')} toggle=${toggle}><${ActivityTab} id=${s.id} /></${Section}>
         <${Section} id="files" label=${lt('insp', 'files')} open=${open.includes('files')} toggle=${toggle}><${FilesTab} id=${s.id} /></${Section}>
         <${Section} id="subagents" label=${lt('insp', 'subagents')} open=${open.includes('subagents')} toggle=${toggle}><${SubagentsTab} id=${s.id} /></${Section}>
-        <${Section} id="info" label=${t('agents.panel.details')} open=${open.includes('info')} toggle=${toggle}><${InfoTab} session=${s} /></${Section}>
+        <${Section} id="others" label=${t('agents.panel.others', { cli: c.label })} hint=${String(sessionList().filter(x => x.mode === s.mode && x.id !== s.id).length || '')} open=${open.includes('others')} toggle=${toggle}><${OthersTab} s=${s} /></${Section}>
+        <${Section} id="info" label=${t('agents.panel.details')} hint=${s.tokens?.total > 0 ? fmtTok(s.tokens.total) + ' ' + t('agents.panel.tokens') : ''} open=${open.includes('info')} toggle=${toggle}><${InfoTab} session=${s} /></${Section}>
       </div>
     </div>
   </aside>`;

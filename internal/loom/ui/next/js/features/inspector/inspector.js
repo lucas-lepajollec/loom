@@ -11,7 +11,7 @@ import { Modal, toast, confirm, prompt } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, refreshWorkspace } from '../../core/state.js';
 import { chat, open } from '../chat/engine.js';
-import { currentExec, EXEC_TAG } from '../chat/picker.js';
+import { currentExec } from '../chat/picker.js';
 import { openTerminalWith } from '../terminals/page.js';
 import { LocalParams } from './params.js';
 
@@ -50,12 +50,10 @@ export function Inspector({ open, onClose }) {
   useStore(chat, c => (c.mode || '') + ':' + ((c.session && c.session.runtime_id) || ''));
   useStore(app, a => a.workspace && a.workspace.runtimes);
   const exec = currentExec();
-  const [tag, tone] = EXEC_TAG[exec.kind];
   const title = exec.kind === 'local' ? t("inspector.inspector.parametres") : exec.kind === 'cloud' ? t("inspector.inspector.modele") : t("inspector.inspector.session");
   return html`<aside class=${cls('insp', open && 'open')} aria-label="${t("inspector.inspector.panneau")}" aria-hidden=${String(!open)}>
     <div class="insp-in">
       <header class="insp-head">
-        <span class=${'tag ' + tone}>${tag}</span>
         <b class="insp-title">${title}</b>
         <button class="icon-btn" aria-label="${t("inspector.inspector.fermer_le_panneau")}" onClick=${onClose}><${Icon} n="close" /></button>
       </header>

@@ -153,10 +153,10 @@ try {
       // crash, and both other catalogs while the engine is unavailable.
       if (r === 'chat') {
         await openPicker(page);
-        await page.locator('.picker .seg button').nth(1).click();
+        await page.locator('.picker .seg button').nth(2).click();
       }
       if (r === 'chat' && scenario === 'engine-unreachable') {
-        await page.locator('.picker .pick-search button').click();
+        await page.keyboard.press('Escape');
         for (const session of fixtureSessions) {
           const opened = await page.evaluate(async id => (await import('/next/js/features/chat/engine.js')).open(id), session.id);
           if (!opened) throw new Error('Failed to open synthetic ' + session.id);

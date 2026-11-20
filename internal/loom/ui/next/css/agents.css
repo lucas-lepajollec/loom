@@ -326,6 +326,8 @@
 .ses-row.st-stopped{color:var(--text-4)}
 .ses-row.st-stopped .ses-ico{opacity:.5}
 .ses-row>.dot{width:7px;height:7px}
+.ses-when{flex:none;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.ses-row:hover .ses-when,.ses-row[aria-current] .ses-when{display:none}
 .ses-folder-h small{flex:none;font-size:11.5px;color:var(--text-4)}
 .ses-folder-in .chat-link{padding-left:22px}
 .ses-folder.drop-on,.ses .side-list.drop-on{border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line-strong)}
@@ -615,3 +617,9 @@ html.touch .cm-term-box{-webkit-text-size-adjust:100%}
   .cm-sh-state{padding:0;background:none!important;font-size:0;gap:0}
   .cm-sh-state .dot{width:8px;height:8px}
 }
+.cm-ps-h small{margin-left:auto;margin-right:8px;font-size:12.5px;color:var(--text-3)}
+.cm-panel-rows .cm-kv{align-items:center;min-height:38px;padding:0;border:0;font-size:13.5px}
+.cm-panel-rows .cm-kv span{color:var(--text-2)}
+.cm-others{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.cm-others button{display:flex;flex-direction:column;align-items:flex-start;width:100%;padding:6px 8px;border-radius:var(--r-sm);text-align:left}
+.cm-others button:hover{background:var(--hover)}
