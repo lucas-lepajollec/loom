@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Updates: GitHub allows 60 anonymous API requests per hour per network.
+  Loom now keeps a release lookup for 10 minutes (30 for llama.cpp), and once
+  GitHub reports the limit it stops asking until the reset and says when to
+  try again, instead of failing with "403 Forbidden".
+
 - Every page now follows the approved mockups. Sidebar: filled New session
   button, waiting count on Agents, time on each session, compact engine pill.
   Discussions: title next to the model, model picker with search, all/local/

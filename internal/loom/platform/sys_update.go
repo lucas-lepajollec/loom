@@ -11,7 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -114,8 +116,69 @@ func FetchRelease(channel string) (*Release, error) {
 	return fetchRelease("latest")
 }
 
+// GitHub allows 60 anonymous API requests per hour and per IP address, shared
+// by every Loom (and anything else) behind it. A release lookup is kept for
+// ten minutes, and once GitHub says the hour is used up Loom waits for the
+// reset instead of asking again and again.
+const releaseCacheFor = 10 * time.Minute
+
+var (
+	releaseMu      sync.Mutex
+	releaseCache   = map[string]cachedRelease{}
+	githubLimitEnd time.Time
+)
+
+type cachedRelease struct {
+	rel Release
+	at  time.Time
+}
+
+// RateLimitError says when GitHub will answer again.
+type RateLimitError struct{ Until time.Time }
+
+func (e RateLimitError) Error() string {
+	return fmt.Sprintf("GitHub limits update checks without an account to 60 per hour from this network, and they are used up; try again after %s", e.Until.Local().Format("15:04"))
+}
+
+// githubLimited reads GitHub's rate-limit headers on a refused request.
+func githubLimited(resp *http.Response) (time.Time, bool) {
+	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+		return time.Time{}, false
+	}
+	if resp.Header.Get("X-RateLimit-Remaining") != "0" && resp.Header.Get("Retry-After") == "" {
+		return time.Time{}, false
+	}
+	until := time.Now().Add(time.Minute)
+	if reset, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil && reset > 0 {
+		until = time.Unix(reset, 0)
+	} else if secs, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil {
+		until = time.Now().Add(time.Duration(secs) * time.Second)
+	}
+	return until, true
+}
+
+// forgetReleases empties the cache and the rate-limit memory (tests).
+func forgetReleases() {
+	releaseMu.Lock()
+	releaseCache, githubLimitEnd = map[string]cachedRelease{}, time.Time{}
+	releaseMu.Unlock()
+}
+
 func fetchRelease(path string) (*Release, error) {
-	req, _ := http.NewRequest("GET", releasesAPI+path, nil)
+	url := releasesAPI + path
+	releaseMu.Lock()
+	if time.Now().Before(githubLimitEnd) {
+		until := githubLimitEnd
+		releaseMu.Unlock()
+		return nil, RateLimitError{Until: until}
+	}
+	if c, ok := releaseCache[url]; ok && time.Since(c.at) < releaseCacheFor {
+		rel := c.rel
+		releaseMu.Unlock()
+		return &rel, nil
+	}
+	releaseMu.Unlock()
+	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "loom-update")
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
@@ -123,6 +186,12 @@ func fetchRelease(path string) (*Release, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if until, limited := githubLimited(resp); limited {
+		releaseMu.Lock()
+		githubLimitEnd = until
+		releaseMu.Unlock()
+		return nil, RateLimitError{Until: until}
+	}
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("GitHub returned %s", resp.Status)
 	}
@@ -130,6 +199,9 @@ func fetchRelease(path string) (*Release, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
 		return nil, err
 	}
+	releaseMu.Lock()
+	releaseCache[url] = cachedRelease{rel: rel, at: time.Now()}
+	releaseMu.Unlock()
 	return &rel, nil
 }
 
