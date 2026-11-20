@@ -455,24 +455,32 @@ test('mobile Settings opens its index, follows section links and returns without
 
 
 const nodeMachines = fs.readFileSync(new URL('../next/js/features/settings/machines.js', import.meta.url), 'utf8');
+const machinesPage = fs.readFileSync(new URL('../next/js/features/machines/page.js', import.meta.url), 'utf8');
 const nodeMachineEnv = { setInterval: () => 1, clearInterval: () => {}, refreshEngineNode: async () => {}, refreshWorkspace: async () => {}, copyText: async () => true, MachineDialog: 'MachineDialog', ModelDirs: 'ModelDirs', DirectEngineForm: 'DirectEngineForm', LoomUpdates: 'LoomUpdates' };
 
-test('Machines has one Add a machine card and keeps SSH edit off the add path', async () => {
-  const h = harness(nodeMachines, 'MachinesSettings', nodeMachineEnv);
+test('Machines puts the interface first and keeps pairing separate from SSH setup', async () => {
+  const h = harness(machinesPage, 'MachinesPage', {
+    ...nodeMachineEnv, AbortController, MachineCard: 'MachineCard', MachineDetail: 'MachineDetail',
+    PairDialog: 'PairDialog', Discovered: 'Discovered',
+    visibleRefresh(task) { task(() => true); },
+  });
   h.data['/api/machines'] = { ok: true, machines: [{ id: 'legacy', name: 'Old GPU', host: '192.168.1.20', user: 'gpu' }], offers: {} };
   h.data['/api/machines/local'] = { hostname: 'This machine', os: 'Linux' };
   h.data['/api/machines/metrics'] = { metrics: {} };
-  h.data['/api/agents/installations'] = { installations: [] };
+  h.data['/api/machines/roles'] = { roles: { engine: 'legacy', voice: 'local', codeman: '', files: 'local' } };
   h.data['/api/terminals'] = { terminals: [] };
   const tree = await h.ready({ route: {} });
-  const adds = nodes(tree, 'button').filter(n => n.props.class === 'mcard add');
+  assert.deepEqual(nodes(tree, 'MachineCard').map(n => n.props.machine.id), ['local', 'legacy']);
+  const adds = nodes(tree, 'button').filter(n => textOf(n) === 'Ajouter une machine');
   assert.equal(adds.length, 1);
-  assert.match(textOf(adds[0]), /Ajouter une machine/);
   adds[0].props.onClick();
   const opened = h.render();
-  assert.ok(flatten(opened).some(n => n.type?.name === 'PairDialog'));
+  assert.equal(nodes(opened, 'PairDialog').length, 1);
   assert.equal(nodes(opened, 'MachineDialog').length, 0);
-  assert.ok(flatten(opened).some(n => n.type?.name === 'MachineMigration'));
+  nodes(opened, 'PairDialog')[0].props.onClose();
+  const detail = h.render({ route: { sub: 'legacy' } });
+  assert.equal(nodes(detail, 'MachineDetail')[0].props.machine.id, 'legacy');
+  assert.equal(nodes(detail, 'MachineDetail')[0].props.roles.engine, 'legacy');
 });
 
 test('Node stepper copies the installer, accepts a discovered URL, pairs and displays modules', async () => {

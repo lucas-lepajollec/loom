@@ -1,14 +1,12 @@
 import { t } from '../../core/i18n.js';
 // Link an SSH machine using Loom’s public key and inventory metadata.
-import { html, useState, useEffect, cls } from '../../core/lib.js';
+import { html, useState, useEffect } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Logo } from '../../ui/logo.js';
 import { Tip } from '../../ui/controls.js';
-import { Modal, confirm, toast } from '../../ui/dialog.js';
+import { Modal, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
-import { go, refreshWorkspace } from '../../core/state.js';
+import { refreshWorkspace } from '../../core/state.js';
 import { copyText } from '../../ui/clipboard.js';
-import { openTerminalWith } from '../terminals/page.js';
 
 // Ligne « LOOM-MACHINE {…} » collée depuis le terminal de la machine.
 export function parseMachineLine(text) {
@@ -20,12 +18,15 @@ export function parseMachineLine(text) {
 }
 
 export function MachineDialog({ machine, onClose }) {
+  const paired = machine?.node_id && !machine.user;
   const [setup, setSetup] = useState('');
   const [paste, setPaste] = useState('');
-  const [v, setV] = useState(machine ? { id: machine.id, name: machine.name, host: machine.host, user: machine.user, port: String(machine.port || 22) } : { name: '', host: '', user: '', port: '22' });
+  const [v, setV] = useState({
+    id: machine?.id || '', name: machine?.name || '', host: machine?.host || '', user: machine?.user || '', port: String(machine?.port || 22),
+  });
   const [check, setCheck] = useState(null);
   const [busy, setBusy] = useState('');
-  useEffect(() => { get('/api/machines').then(r => r.ok && setSetup(r.setup)).catch(() => {}); }, []);
+  useEffect(() => { if (!paired) get('/api/machines').then(r => r.ok && setSetup(r.setup)).catch(() => {}); }, [paired]);
   const set = patch => { setV({ ...v, ...patch }); setCheck(null); };
   const onPaste = text => {
     setPaste(text);
@@ -48,6 +49,13 @@ export function MachineDialog({ machine, onClose }) {
     if (!r.ok) return toast(r.error || t("machines.edit.enregistrement_impossible"), 'err');
     toast(r.machine.name + t("machines.edit.connectee")); await refreshWorkspace(); onClose(r.machine);
   };
+  if (paired) return html`<${Modal} title=${t('environment.page.modifier_prefix') + machine.name} onClose=${() => onClose()}
+    foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t('machines.edit.annuler')}</button>
+      <button class="btn primary" disabled=${!!busy || !v.name.trim()} onClick=${save}>
+        ${busy ? t('settings.machines.verification') : t('machines.edit.enregistrer_machine')}
+      </button>`}>
+    <label class="field"><span>${t('machines.edit.nom')}</span><input class="input" value=${v.name} onInput=${e => set({ name: e.target.value })} /></label>
+  </${Modal}>`;
   const ready = v.host.trim() && v.user.trim();
   return html`<${Modal} wide title=${machine ? t("environment.page.modifier_prefix") + machine.name : t("machines.edit.connecter_une_machine")} sub="${t("machines.edit.un_autre_ordinateur_ou_tournent_des_harnesses_joint_en_ssh")}" onClose=${() => onClose()}
       foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t("machines.edit.annuler")}</button>
