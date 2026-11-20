@@ -15,6 +15,7 @@ import { VoicePage } from '../features/voice/page.js';
 import { JarvisPage } from '../features/voice/jarvis.js';
 import { AgentsPage } from '../features/agents/page.js';
 import { QuotasPage } from '../features/agents/quotas.js';
+import { FilesPage } from '../features/files/page.js';
 import { GROUPS } from './sections.js';
 
 export const ROUTES = [
@@ -29,6 +30,7 @@ export const ROUTES = [
   { id: 'usage', page: UsagePage },
   { id: 'quotas', page: QuotasPage },
   { id: 'machines', page: MachinesPage },
+  { id: 'files', page: FilesPage },
   { id: 'engine', page: EnginePage },
   { id: 'workspaces', page: WorkspacesPage },
   { id: 'settings', page: SettingsPage },

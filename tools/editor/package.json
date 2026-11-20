@@ -1,0 +1,16 @@
+{
+  "name": "loom-editor-bundle",
+  "private": true,
+  "description": "Builds internal/loom/ui/next/vendor/editor/editor.mjs (TipTap with Markdown).",
+  "dependencies": {
+    "@tiptap/core": "3.35.0",
+    "@tiptap/extension-image": "3.35.0",
+    "@tiptap/extension-list": "3.35.0",
+    "@tiptap/extension-table": "3.35.0",
+    "@tiptap/extensions": "3.35.0",
+    "@tiptap/markdown": "3.35.0",
+    "@tiptap/pm": "3.35.0",
+    "@tiptap/starter-kit": "3.35.0",
+    "esbuild": "0.28.2"
+  }
+}
