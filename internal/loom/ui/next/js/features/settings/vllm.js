@@ -49,24 +49,31 @@ function Params({ model, onClose, onStart }) {
   </${Modal}>`;
 }
 
-function Search({ onDownload, busy, enginePicker }) {
-  const [q, setQ] = useState('');
+function Search({ onDownload, busy, enginePicker, initialQuery = '' }) {
+  const [q, setQ] = useState(initialQuery);
   const [quant, setQuant] = useState('');
   const [res, setRes] = useState(null);
   const [loading, setLoading] = useState(false);
-  const run = async e => {
-    e && e.preventDefault();
-    if (!q.trim()) return;
+  const search = async (query, quantization, signal) => {
+    if (!query.trim()) return;
     setLoading(true);
-    const r = await get('/api/engines/vllm/hub/search?q=' + encodeURIComponent(q.trim()) + (quant ? '&quantization=' + quant : '')).catch(e => ({ error: e.message }));
+    const r = await get('/api/engines/vllm/hub/search?q=' + encodeURIComponent(query.trim()) + (quantization ? '&quantization=' + quantization : ''), { signal })
+      .catch(e => ({ error: e.message }));
+    if (signal?.aborted) return;
     setLoading(false);
     if (r.error) return toast(r.error, 'err');
     setRes(r.models || []);
   };
+  useEffect(() => {
+    if (!initialQuery) return;
+    const controller = new AbortController();
+    search(initialQuery, '', controller.signal);
+    return () => controller.abort();
+  }, [initialQuery]);
   const verdicts = VERDICT();
   const label = t('vllm.search.placeholder');
   return html`
-    <form class="models-toolbar" onSubmit=${run}><label class="search"><${Icon} n="search" /><input aria-label=${label} placeholder=${label} value=${q} onInput=${e => setQ(e.target.value)} /></label>
+    <form class="models-toolbar" onSubmit=${e => { e.preventDefault(); search(q, quant); }}><label class="search"><${Icon} n="search" /><input aria-label=${label} placeholder=${label} value=${q} onInput=${e => setQ(e.target.value)} /></label>
       ${enginePicker}
       <select class="select" aria-label=${t('local.hub.quantisations')} value=${quant} onChange=${e => setQuant(e.target.value)}><option value="">${t('vllm.search.any')}</option><option value="awq">AWQ</option><option value="gptq">GPTQ</option><option value="fp8">FP8</option></select>
       <button class="btn" type="submit" disabled=${loading}>${loading ? html`<span class="spinner"></span>` : t('resources.brain.chercher')}</button></form>
@@ -216,8 +223,8 @@ export function VllmLibrary({ v, onHub, enginePicker }) {
 }
 
 // Local › Hub (vLLM) : recherche sur Hugging Face avec estimation de VRAM.
-export function VllmHub({ v, enginePicker }) {
-  return html`<${Search} busy=${dlActive(v.dl)} onDownload=${v.download} enginePicker=${enginePicker} /><${DownloadRow} v=${v} />`;
+export function VllmHub({ v, enginePicker, initialQuery }) {
+  return html`<${Search} busy=${dlActive(v.dl)} onDownload=${v.download} enginePicker=${enginePicker} initialQuery=${initialQuery} /><${DownloadRow} v=${v} />`;
 }
 
 // Local › Moteur (vLLM) : ce qui est servi, arrêt, journal.

@@ -46,7 +46,7 @@ try {
   const runtimes = (ws.runtimes || []).map(r => r.id);
   let routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'terminals', 'local/hub', 'voice', 'jarvis',
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
-    'files', 'usage', 'quotas', 'bench', 'agents', 'agents/cron', 'agents/settings',
+    'files', 'usage', 'quotas', 'market', 'agents', 'agents/cron', 'agents/settings',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
   if (process.env.CRAWL_ROUTES) routes = routes.filter(r => new RegExp(process.env.CRAWL_ROUTES).test(r));
   const fixturePhone = phoneFixtures(ws, remote);

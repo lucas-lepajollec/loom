@@ -150,20 +150,3 @@ test('raw upload responses cannot publish an object as an attachment path', asyn
   body = { ok: true, path: 'uploads/file.txt' };
   assert.equal((await env.attach(file)).path, 'uploads/file.txt');
 });
-
-test('raw benchmark cancellation retains the job when the response has malformed rows', async () => {
-  const { validData } = await import('../next/js/core/shape.js');
-  const source = fs.readFileSync(process.env.LOOM_BENCH_BASELINE || new URL('../next/js/features/bench/page.js', import.meta.url), 'utf8');
-  const previous = { id: 'fixture', status: 'running', rows: [] }, slots = []; let cursor = 0;
-  const env = {}; let body = { ok: true, job: { rows: {} } };
-  for (const match of source.matchAll(/^import \{([^}]+)\}/gm)) for (const symbol of match[1].split(',')) env[symbol.trim()] = symbol.trim();
-  Object.assign(env, { validData, t: x => x, cls: () => '', benchChoices: () => [], useEffect() {}, useVisibleRefresh() {}, toast() {},
-    app: { get: () => ({ models: [], presets: [] }) }, useStore: (store, select) => select(store.get()), useRef: value => ({ current: value }),
-    useState: value => { const i = cursor++; slots[i] = i === 9 ? previous : value; return [slots[i], v => { slots[i] = v; }]; },
-    html: (_strings, ...values) => { for (const value of values) if (typeof value === 'function' && value.name === 'stop') env.cancel = value; return null; },
-    request: async () => ({ ok: true, json: async () => body }),
-  });
-  vm.runInNewContext(plain(source) + '\nglobalThis.view = BenchPage;', env);
-  env.view(); assert.equal(typeof env.cancel, 'function'); await env.cancel(); assert.equal(slots[9], previous);
-  body = { ok: true, job: { id: 'fixture', status: 'cancel', rows: [] } }; await env.cancel(); assert.equal(slots[9].status, 'cancel');
-});
