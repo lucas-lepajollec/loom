@@ -28,7 +28,12 @@ func marketFixture(t *testing.T, catalog *string) {
 	oldOR, oldAA := marketOpenRouterURL, marketAAURL
 	marketOpenRouterURL, marketAAURL = or.URL, aa.URL
 	market = &marketCache{}
-	t.Cleanup(func() { or.Close(); aa.Close(); marketOpenRouterURL, marketAAURL = oldOR, oldAA; market = &marketCache{} })
+	t.Cleanup(func() {
+		or.Close()
+		aa.Close()
+		marketOpenRouterURL, marketAAURL = oldOR, oldAA
+		market = &marketCache{}
+	})
 }
 
 // The catalogue drops routers and variants and sorts newest first; the first
