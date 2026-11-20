@@ -1,5 +1,5 @@
 import { t, getLang } from '../core/i18n.js';
-// Palette de recherche (Ctrl K) : pages, discussions, projets, modèles et
+// Palette de recherche (Ctrl K) : pages, discussions, modèles et
 // actions au même endroit. Flèches pour naviguer, Entrée pour ouvrir.
 import { html, useState, useEffect, useRef, useStore, useMemo, cls, baseName } from '../core/lib.js';
 import { Icon } from '../ui/icons.js';
@@ -17,10 +17,9 @@ function entries(s) {
   const add = (group, e) => out.push({ group, ...e });
   add('Actions', { icon: 'plus', title: t("app.palette.nouvelle_discussion"), hint: t("app.palette.ctrl_maj_o"), run: () => newDiscussion() });
   add('Actions', { icon: s.theme === 'light' ? 'moon' : 'sun', title: s.theme === 'light' ? t("app.palette.passer_en_theme_sombre") : t("app.palette.passer_en_theme_clair"), run: () => setTheme(s.theme === 'light' ? 'dark' : 'light') });
-  for (const r of NAV_ITEMS) add(t("app.palette.pages"), { icon: r.nav.icon, title: r.nav.label, run: () => go(r.id) });
+  for (const r of NAV_ITEMS) add(t("app.palette.pages"), { icon: r.nav.icon, title: r.nav.label, run: () => { location.hash = r.href; } });
   add(t("app.palette.pages"), { icon: 'gear', title: t("app.palette.reglages"), run: () => go('settings') });
   for (const c of s.nav.conversations) add(t("app.palette.discussions"), { icon: 'chat', title: c.title || t("app.palette.nouvelle_discussion"), run: () => { open(c.id); go('chat'); } });
-  for (const p of s.nav.projects) add(t("app.palette.projets"), { icon: 'folder', title: p.name, run: () => go('project', p.id) });
   for (const p of s.presets || []) add(t("app.palette.modeles"), { logo: vendorOf(p.model || p.name), title: p.name, sub: t("app.palette.preset_local"), run: () => { go('chat'); chooseLocal({ presetIndex: s.presets.indexOf(p) + 1, name: p.name, model: p.model }); } });
   for (const m of (s.models || []).filter(m => !/mmproj/i.test(m.name))) add(t("app.palette.modeles"), { logo: vendorOf(m.name), title: m.name.replace(/\.gguf$/i, ''), sub: 'local', run: () => { go('chat'); chooseLocal({ model: m.value || m.path, name: m.name }); } });
   for (const m of ((s.workspace && s.workspace.models) || []).filter(m => m.kind !== 'local' && m.enabled))

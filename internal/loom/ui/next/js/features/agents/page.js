@@ -1,9 +1,9 @@
 // Module Agents : une interface Loom pour un serveur Codeman. Codeman reste
 // le moteur (sessions, tmux, CLI natifs, orchestration) ; Loom affiche et
-// pilote par son API officielle. Les sessions vivent dans la barre latérale ;
-// la page montre une session seule ou une grille de volets. Routes :
-// #/agents, #/agents/s/<id>, #/agents/control, #/agents/cron,
-// #/agents/settings (#/agents/grid ouvre la grille).
+// pilote par son API officielle. Les sessions vivent dans la liste de la
+// barre latérale ; la page Agents sert à gérer Codeman. Routes :
+// #/agents (vue d'ensemble), #/agents/cron, #/agents/settings,
+// #/agents/s/<id> (une session) et #/agents/grid (la mosaïque).
 import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls, createStore } from '../../core/lib.js';
@@ -15,8 +15,8 @@ import { TabNav } from '../../ui/tabnav.js';
 import { app, go } from '../../core/state.js';
 import { api } from './client.js';
 import { agents, useAgentsLive, refreshConnection, stateOf, cliOf, projectOf, upsertSession, hasConversation } from './store.js';
-import { closeSession, renameSession, createSession } from './actions.js';
-import { Rail, StateDot } from './rail.js';
+import { closeSession, renameSession } from './actions.js';
+import { StateDot } from './rail.js';
 import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf } from './layout.js';
 import { Conversation } from './conversation.js';
 import { AgentTerminal } from './terminal.js';
@@ -28,7 +28,6 @@ import { CodemanSettings } from './settings.js';
 import { CronPage } from './cron.js';
 import { ConnectionPanel } from './connection.js';
 import { openSession, officialLink } from './nav.js';
-import { QuotaPeek } from './quotas.js';
 
 const narrow = () => matchMedia('(max-width: 760px)').matches;
 function useNarrow() {
@@ -62,7 +61,7 @@ function SessionHeader({ s, view, setView, narrowView, insp, setInsp }) {
   ];
   const opts = [{ value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') }, ...(narrowView ? [] : [{ value: 'split', label: t('agents.view.split') }])];
   return html`<header class="cm-sh">
-    ${narrowView && html`<button class="icon-btn" aria-label=${t('agents.back')} onClick=${() => go('agents')}><${Icon} n="left" /></button>`}
+    ${narrowView && html`<button class="icon-btn menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>`}
     <${CliMark} mode=${s.mode} />
     <div class="cm-sh-t">
       <button class="cm-sh-name trunc" onClick=${rename} title=${t('agents.session.rename')}>${s.name || s.id.slice(0, 8)}</button>
@@ -97,13 +96,10 @@ function SessionPane({ s, narrowView }) {
   </div>`;
 }
 
-// Accueil sans session ouverte : la liste complète (recherche, sessions par
-// dossier, historique à reprendre). Sur téléphone, c'est l'écran principal.
-function Home({ narrowView, activeId }) {
-  return html`<div class=${cls('cm-home', narrowView && 'narrow')}>
-    ${!narrowView && html`<div class="cm-home-h"><h1>${t('agents.home.title')}</h1><p class="muted">${t('agents.home.lead')}</p></div>`}
-    <${Rail} activeId=${activeId} onOpen=${openSession} onNew=${() => agents.set({ creating: {} })} />
-  </div>`;
+// Aucune session ouverte : la liste est dans la barre latérale.
+function Home() {
+  return html`<div class="cm-main cm-blank"><${Empty} icon="agent" title=${t('agents.home.pick')} text=${t('agents.home.pick_text')}>
+    <button class="btn primary" onClick=${() => agents.set({ creating: {} })}><${Icon} n="plus" />${t('agents.rail.new')}</button></${Empty}></div>`;
 }
 
 // Grille : l'inspecteur suit le volet qui a le focus.
@@ -112,7 +108,12 @@ function GridArea() {
   const session = useStore(agents, s => (focusId && s.sessions[focusId]) || null);
   const insp = useStore(gridInsp, g => g.open);
   return html`<div class=${cls('cm-pane', insp && session && 'with-insp')}>
-    <div class="cm-main"><${Grid} /></div>
+    <div class="cm-main">
+      <header class="cm-sh cm-grid-h"><b>${t('agents.nav.grid')}</b><span class="grow"></span>
+        <${LayoutPicker} currentId=${focusId || ''} />
+        <button class="icon-btn" aria-label=${t('agents.grid.close')} title=${t('agents.grid.close')} onClick=${() => { toggleGrid(focusId || ''); if (focusId) openSession(focusId); }}><${Icon} n="close" /></button></header>
+      <${Grid} />
+    </div>
     ${insp && session && html`<${Inspector} key=${session.id} session=${session} onClose=${() => gridInsp.set({ open: false })} />`}
   </div>`;
 }
@@ -141,7 +142,7 @@ function Workspace({ route }) {
     ${session ? html`<${SessionPane} key=${session.id} s=${session} narrowView=${narrowView} />`
       : id && loaded ? html`<div class="cm-main cm-blank"><${Empty} icon="info" title=${t('agents.session.missing')} text=${t('agents.session.missing_text')}><button class="btn" onClick=${() => go('agents')}>${t('agents.back')}</button></${Empty}></div>`
       : id ? html`<div class="cm-main cm-blank"><span class="spinner"></span></div>`
-      : html`<${Home} narrowView=${narrowView} activeId=${id} />`}
+      : html`<${Home} />`}
   </div>`;
 }
 
@@ -162,65 +163,18 @@ function LayoutPicker({ currentId }) {
     </${Popover}>`}`;
 }
 
-// Lancement rapide : un shell ou l'agent par défaut, dans le dossier de la
-// session affichée (sinon le dossier par défaut de Codeman, sinon le plus
-// récent). Le menu propose les autres CLI et la fenêtre complète.
-function QuickLaunch({ currentId, narrowView }) {
-  const clis = useStore(agents, s => s.clis);
-  const settings = useStore(agents, s => s.settings || {});
-  const [busy, setBusy] = useState('');
-  const [menu, setMenu] = useState(null);
-  const folder = () => {
-    const l = layout.get(), st = agents.get();
-    const id = l.count > 1 && !narrowView ? l.cells[l.focus] : currentId;
-    return (id && st.sessions[id]?.workingDir) || settings.defaultWorkingDir || (st.unified.find(r => r.workingDir) || {}).workingDir || '';
-  };
-  const list = clis.filter(c => c.kind !== 'shell' && c.enabled !== false && c.installed !== false);
-  const def = list.find(c => c.id === settings.runMode) || list.find(c => c.id === 'claude') || list[0];
-  const launch = async mode => {
-    const dir = folder();
-    if (!dir) return agents.set({ creating: { preset: { mode } } });
-    setBusy(mode);
-    try { openSession(await createSession({ mode, workingDir: dir })); }
-    catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
-  };
-  const where = projectOf(folder());
-  const items = [...(narrowView ? [{ label: t('agents.quick.shell'), icon: 'terminal', run: () => launch('shell') }] : []), ...list.map(c => ({ label: c.label, icon: 'agent', run: () => launch(c.id) })), '-',
-    { label: t('agents.quick.more'), icon: 'sliders', run: () => agents.set({ creating: { preset: { workingDir: folder() } } }) }];
-  // Sur téléphone, un seul bouton « + » ouvre le menu (shell compris).
-  if (narrowView) return html`<div class="cm-quick"><button class="btn sm primary cm-quick-one" aria-label=${t('agents.rail.new')} disabled=${!!busy}
-      onClick=${e => setMenu(menu ? null : e.currentTarget)}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="plus" />`}</button>
-    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}</div>`;
-  return html`<div class="cm-quick">
-    <button class="icon-btn" disabled=${!!busy} title=${t('agents.quick.shell_hint', { dir: where })} aria-label=${t('agents.quick.shell')} onClick=${() => launch('shell')}>
-      ${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}</button>
-    ${def && html`<div class="cm-split">
-      <button class="btn sm primary" disabled=${!!busy} title=${t('agents.quick.agent_hint', { cli: def.label, dir: where })} aria-label=${def.label} onClick=${() => launch(def.id)}>
-        ${busy && busy !== 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="plus" />`}${!narrowView && def.label}</button>
-      <button class="btn sm primary cm-split-caret" aria-label=${t('agents.quick.choose')} title=${t('agents.quick.choose')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="chevron" /></button>
-    </div>`}
-    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
-  </div>`;
-}
-
-const SUBS = ['', 'control', 'cron', 'settings'];
-function Top({ sub, currentId }) {
+const SUBS = ['', 'cron', 'settings'];
+function Top({ sub }) {
   const conn = useStore(agents, s => s.conn);
   const live = useStore(agents, s => s.live);
-  const waiting = useStore(agents, s => s.approvals.filter(a => a.kind !== 'idle').length);
-  const narrowView = useNarrow();
-  const current = sub === 's' || sub === 'grid' ? '' : sub;
-  const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v) + (v === 'control' && waiting ? ' · ' + waiting : ''), current: current === v }));
+  const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v), current: sub === v }));
   return html`<div class="cm-top">
     <button class="icon-btn only-mobile menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
     <span class="grow"></span>
-    ${current === '' && !narrowView && conn.state === 'ready' && html`<${LayoutPicker} currentId=${currentId} />`}
-    ${conn.state === 'ready' && !narrowView && html`<${QuotaPeek} />`}
-    ${conn.state === 'ready' && !narrowView && html`<${QuickLaunch} currentId=${currentId} narrowView=${narrowView} />`}
-    ${!(narrowView && conn.state === 'ready') && html`<a class=${cls('cm-conn', conn.state === 'ready' && 'ok')} href="#/agents/settings"
+    <a class=${cls('cm-conn', conn.state === 'ready' && 'ok')} href="#/agents/settings"
       title=${(conn.state === 'ready' ? 'Codeman ' + (conn.version || '') + (live ? '' : ' · ' + t('agents.conn.connecting')) : lt('conn', conn.state)) + (conn.url ? ' · ' + conn.url : '')}>
-      <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>${conn.state !== 'ready' && html`<span class="hide-narrow">${lt('conn', conn.state)}</span>`}</a>`}
+      <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>${conn.state !== 'ready' && html`<span class="hide-narrow">${lt('conn', conn.state)}</span>`}</a>
   </div>`;
 }
 
@@ -235,24 +189,23 @@ export function AgentsPage({ route }) {
     const timer = setInterval(() => { if (!document.hidden) refreshConnection(); }, 10000);
     return () => clearInterval(timer);
   }, [ready]);
-  const sub = SUBS.includes(route.sub) || route.sub === 's' || route.sub === 'grid' ? route.sub : '';
+  const sub = SUBS.includes(route.sub) || route.sub === 's' || route.sub === 'grid' ? route.sub : route.sub === 'control' ? '' : '';
+  const work = sub === 's' || sub === 'grid';
   const currentId = sub === 's' ? route.id : '';
-  // Ctrl+Maj+G ouvre ou referme la grille ; l'ancienne adresse #/agents/grid l'ouvre.
-  useEffect(() => { if (sub === 'grid' && innerWidth > 760) { if (layout.get().count === 1) toggleGrid(currentId); go('agents'); } }, [sub]);
+  // #/agents/grid ouvre la mosaïque ; Ctrl+Maj+G l'ouvre ou la referme.
+  useEffect(() => { if (sub === 'grid' && innerWidth > 760 && layout.get().count === 1) toggleGrid(''); }, [sub]);
   useEffect(() => {
-    const key = e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g' && innerWidth > 760) { e.preventDefault(); e.stopPropagation(); toggleGrid(currentId); } };
+    const key = e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g' && innerWidth > 760) { e.preventDefault(); e.stopPropagation(); if (layout.get().count === 1) { toggleGrid(currentId); go('agents', 'grid'); } else { toggleGrid(currentId); if (currentId) openSession(currentId); } } };
     addEventListener('keydown', key, true); return () => removeEventListener('keydown', key, true);
   }, [currentId]);
   const gated = sub !== 'settings' && state !== 'ready';
-  // Sur téléphone, une session ouverte a son propre en-tête (retour, nom,
-  // vue) : la barre du module ne s'empile pas au-dessus.
-  const narrowView = useNarrow();
+  const gate = html`<div class="cm-gate">${state === 'idle' || state === 'connecting' ? html`<div class="cm-gate-in"><span class="spinner"></span><p class="muted">${t('agents.conn.connecting')}</p></div>` : html`<${ConnectionPanel} gate />`}</div>`;
   return html`<div class="view cm">
-    ${!(narrowView && sub === 's' && currentId) && html`<${Top} sub=${sub} currentId=${currentId} />`}
-    ${gated ? html`<div class="cm-gate">${state === 'idle' || state === 'connecting' ? html`<div class="cm-gate-in"><span class="spinner"></span><p class="muted">${t('agents.conn.connecting')}</p></div>` : html`<${ConnectionPanel} gate />`}</div>`
-      : sub === 'control' ? html`<${ControlCenter} />`
+    ${!work && html`<${Top} sub=${sub} />`}
+    ${gated ? gate
+      : work ? html`<${Workspace} route=${route} />`
       : sub === 'cron' ? html`<${CronPage} />`
       : sub === 'settings' ? html`<div class="cm-scroll"><${CodemanSettings} /></div>`
-      : html`<${Workspace} route=${route} />`}
+      : html`<${ControlCenter} />`}
   </div>`;
 }

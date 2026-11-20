@@ -160,8 +160,9 @@ func TestCloudSessionsIsolationConsentPersistenceAndReplay(t *testing.T) {
 		t.Fatalf("bad result: %+v", finished)
 	}
 	first := <-requests
-	if len(first) != 2 || !strings.Contains(first[0].Content.(string), "Explicit project context") {
-		t.Fatalf("missing project context: %+v", first)
+	// A folder only files the discussion: its old project text is never sent.
+	if len(first) != 1 || strings.Contains(fmt.Sprint(first), "Explicit project context") {
+		t.Fatalf("folder leaked context: %+v", first)
 	}
 	if strings.Contains(fmt.Sprint(finished.Messages), "Explicit project context") {
 		t.Fatal("system context persisted in history")

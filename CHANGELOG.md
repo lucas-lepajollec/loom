@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- New structure. The sidebar keeps five pages (Models, Agents, Machines,
+  Activity, then Settings) and one list of sessions: discussions with a
+  model and agent sessions run by Codeman, newest first, with a filter menu
+  (all, discussions, agents). "New session" lets you pick a discussion or an
+  agent.
+- Folders replace projects: create, rename or delete a folder, and file any
+  session in it (from its menu or by dragging), agent sessions included.
+  A folder only groups sessions: its old project instructions, files, skills,
+  Brain memory and shared preferences are no longer sent to models.
+- Agents is now a management page (overview, scheduled tasks, Codeman
+  settings). Sessions open from the sidebar list; the mosaic opens from the
+  button next to the filter or with Ctrl+Shift+G.
+- Removed from navigation: Brain, Tasks, Environment and the project page.
+
 - Activity → Quotas: the history chart is replaced by one card per limit
   showing the current window (used so far, steady pace, projection at the
   recent pace, with a plain verdict such as "used up around 21:10" or "≈ 62%

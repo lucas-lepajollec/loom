@@ -9,6 +9,9 @@ import { Messages } from './messages.js';
 import { Composer } from './composer.js';
 import { Picker, currentExec } from './picker.js';
 import { Inspector } from '../inspector/inspector.js';
+import { Seg } from '../../ui/controls.js';
+import { agents } from '../agents/store.js';
+import { go } from '../../core/state.js';
 
 function Thread() {
   const { items, gen, loading, compacting } = useStore(chat, s => s.frozen ? { items: s.frozen, gen: null, loading: false, compacting: false } : { items: s.items, gen: s.gen, loading: s.loading, compacting: s.compacting });
@@ -27,11 +30,20 @@ function Thread() {
   const exec = currentExec();
   return html`<div class="thread" ref=${box} onScroll=${onScroll}>
     ${loading ? html`<div class="thread-in"><div class="skeleton" style="height:44px;width:46%;margin-left:auto"></div><div class="skeleton" style="height:16px;width:80%;margin-top:26px"></div><div class="skeleton" style="height:16px;width:64%;margin-top:10px"></div></div>`
-      : empty ? html`<div class="welcome anim-rise"><div class="welcome-mark"><${Icon} n="loom" /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
+      : empty ? html`<div class="welcome anim-rise"><${SessionType} /><div class="welcome-mark"><${Icon} n="loom" /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
           <p>${exec.name ? html`${t("chat.view.la_discussion_part_avec")} <b>${exec.name}</b>${t("chat.view.tu_pourras_changer_de_modele_en_cours_de_route")}` : t("chat.view.choisis_un_modele_local_cloud_ou_un_harness_en_haut_pour_commence")}</p></div>`
       : html`<div class="thread-in"><${Messages} items=${items} gen=${gen} compacting=${compacting} root=${root} sessionId=${sessionId} /></div>`}
     ${showDown && html`<button class="to-end anim-fade" aria-label="${t("chat.view.aller_en_bas")}" onClick=${() => { stick.current = true; const el = box.current; if (el) el.scrollTop = el.scrollHeight; }}><${Icon} n="chevron" /></button>`}
   </div>`;
+}
+
+// Une nouvelle session est une discussion (un modèle) ou une session d'agent
+// (un harness lancé par Codeman). Choisir Agent ouvre la fenêtre de Codeman.
+function SessionType() {
+  const conn = useStore(agents, s => s.conn);
+  const pick = v => { if (v !== 'agent') return; if (conn.state === 'ready') agents.set({ creating: {} }); else go('agents', 'settings'); };
+  return html`<div class="welcome-type"><${Seg} value="chat" onChange=${pick} label=${t('side.session_type')}
+    options=${[{ value: 'chat', label: t('side.type_chat') }, { value: 'agent', label: t('side.type_agent') }]} /></div>`;
 }
 
 // Le mode vocal remplace la discussion le temps de l'échange avec Jarvis.

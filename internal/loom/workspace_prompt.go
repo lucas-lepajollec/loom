@@ -11,7 +11,6 @@ import (
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 	"github.com/lucas-lepajollec/loom/internal/loom/policy"
-	"github.com/lucas-lepajollec/loom/internal/loom/project"
 )
 
 type contextPart struct {
@@ -66,98 +65,8 @@ func assembleDiscussionContextParts(s RuntimeSession, query string, notes bool) 
 	add := func(kind, label, source, reason, text string) {
 		appendContextPart(&c, contextPart{text: text, separator: "\n\n", item: discussion.ContextItem{Kind: kind, Label: label, Source: source, Reason: reason}})
 	}
-	if text, err := globalPreferences(s.RuntimeID != "llama.cpp"); err != nil {
-		c.Problem = err.Error()
-	} else if text != "" {
-		var selected sharedPreferences
-		getStoreJSON(bkState, sharedPreferencesKey, &selected)
-		add("global_preferences", selected.Page, selected.Page, "selected shared preferences", text)
-		c.GlobalPreferences = text
-	}
-	skillParts := []contextPart{}
-	if s.ProjectID != "" {
-		p, ok := getProject(s.ProjectID)
-		if !ok {
-			c.Problem = "The project is missing or locked. Choose an accessible project or detach this thread."
-		} else {
-			if text := project.Text(p.Continuity); text != "" {
-				text = "Project identity: " + p.ID + "\n" + text
-				add("project", p.Name, p.ID, "project continuity", "Project continuity:\n"+text)
-				c.Minimum = text
-			}
-			if p.Continuity != nil {
-				for _, ref := range p.Continuity.References {
-					c.ReferenceIDs = append(c.ReferenceIDs, ref.DiscussionID)
-				}
-			}
-			c.ProjectName, c.Instructions = p.Name, p.Instructions
-			if c.MCPServers == nil {
-				c.MCPServers = p.MCPServers
-			}
-			if p.Instructions != "" {
-				add("project", p.Name, p.ID, "project instructions", "Project instructions:\n"+p.Instructions)
-			}
-			files, warning := projectContextFiles(p)
-			for _, text := range files {
-				path, _, _ := strings.Cut(strings.TrimPrefix(text, "Project file "), ":\n")
-				add("project_files", path, path, "selected project file", text)
-			}
-			if warning != "" {
-				c.Warning = warning
-			}
-			pack := brain.Pack{}
-			if notes {
-				pack = projectBrainPack(p, query)
-			}
-			for i, chunk := range pack.Chunks {
-				cite := pack.Citations[i]
-				text := "\n[" + cite.Source + ": " + cite.Citation + "]\n" + chunk.Text + "\n"
-				separator := ""
-				if i == 0 {
-					text = "Context from the user's Brain:\n" + text
-					separator = "\n\n"
-				}
-				appendContextPart(&c, contextPart{text: text, separator: separator, item: discussion.ContextItem{Kind: "brain_passage", Label: cite.Citation, Source: cite.Source, Reason: "matches your message"}})
-				c.BrainCitations = append(c.BrainCitations, cite.Citation)
-			}
-			for _, id := range p.CapabilityIDs {
-				if skill, ok := getCapability(id); ok && skill.Instructions != "" {
-					c.Skills = append(c.Skills, skill)
-					skillParts = append(skillParts, contextPart{text: "Skill: " + skill.Name + "\n" + skill.Instructions, separator: "\n\n", item: discussion.ContextItem{Kind: "skill", Label: skill.Name, Source: skill.ID, Reason: "selected project skill"}})
-				} else {
-					c.Warning = "A project skill is no longer available and will not be sent."
-				}
-			}
-		}
-	}
-	c.Budget.Memory = discussion.MemoryBudget{TokenBudget: discussion.TokenBudget{Available: 15000}, Classes: map[string]discussion.TokenBudget{}}
-	if indexes, err := theBrain().MemoryIndex(brain.MemoryIndexRequest{ProjectID: s.ProjectID}); err != nil {
-		if c.Problem == "" {
-			c.Problem = "Loom memory is unavailable: " + err.Error()
-		}
-	} else {
-		for _, part := range brain.FileMemoryContext(indexes.Global, indexes.Project, query, loomTranscript(s)) {
-			scope := part.Scope
-			if scope == "project" {
-				scope = "project:" + s.ProjectID
-			}
-			add("memory", part.File, part.File, part.Reason, part.Text)
-			c.Items[len(c.Items)-1].Scope = scope
-			c.Budget.Memory.Used += c.Items[len(c.Items)-1].Tokens
-		}
-		if indexes.Global.Warning != "" {
-			c.Warning = indexes.Global.Warning
-		}
-		if indexes.Project != nil && indexes.Project.Warning != "" {
-			c.Warning = indexes.Project.Warning
-		}
-	}
-	for _, part := range skillParts {
-		appendContextPart(&c, part)
-	}
-	for _, part := range primarySecondBrainParts() {
-		appendContextPart(&c, part)
-	}
+	// Folders (ProjectID) only group discussions: no project text, skills,
+	// Brain memory or shared preferences reach the model.
 	if s.Instructions != "" {
 		add("discussion_instructions", "Discussion instructions", s.ID, "discussion instructions", "Discussion instructions:\n"+s.Instructions)
 	}
@@ -201,7 +110,7 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 			return s, errors.New("project not found or locked")
 		}
 	}
-	if s.RuntimeID != "llama.cpp" && (s.ProjectID != projectID || s.Instructions != instructions) {
+	if s.RuntimeID != "llama.cpp" && s.Instructions != instructions {
 		in := sessionPolicyInput(s, "data.send_provider", policy.Confirm)
 		// Context changes need a fresh grant; a migrated route grant does not
 		// authorize adding new project text or instructions.
@@ -218,7 +127,7 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 		m.cancelPolicyRequests(id)
 		return s, errors.New("the discussion changed during configuration; try again")
 	}
-	if s.ProjectID != projectID || s.Instructions != instructions {
+	if s.Instructions != instructions {
 		m.cancelPolicyRequests(id)
 		s.NativeSessionID, s.NativeRuntimeID, s.NativeContext = "", "", ""
 	}
@@ -231,11 +140,6 @@ func (m *runtimeSessions) configureDiscussion(id, title, projectID, instructions
 	// ACP configuration can change the MCP selection without changing text.
 	// Publish that selection with the prepared context, without another retrieval.
 	nextContext.MCPServers = s.MCPServers
-	if nextContext.MCPServers == nil && projectID != "" {
-		if p, ok := getProject(projectID); ok {
-			nextContext.MCPServers = p.MCPServers
-		}
-	}
 	s.UpdatedAt = time.Now().UnixMilli()
 	if err := putStoreJSON(bkRuntimeSessions, id, s); err != nil {
 		m.cancelPolicyRequests(id)
