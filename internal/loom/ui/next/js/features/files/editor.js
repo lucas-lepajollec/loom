@@ -8,6 +8,7 @@ import { Icon } from '../../ui/icons.js';
 import { Menu } from '../../ui/controls.js';
 import { prompt } from '../../ui/dialog.js';
 import { post } from '../../core/api.js';
+import { scopeQuery } from './page.js';
 
 export const isNote = p => /\.(md|markdown)$/i.test(p);
 let lib = null;
@@ -23,7 +24,7 @@ function resolveSrc(src, notePath) {
   for (const seg of s.replace(/^\/+/, '').split('/')) {
     if (seg === '..') parts.pop(); else if (seg && seg !== '.') parts.push(decodeURIComponent(seg));
   }
-  return '/api/files/raw?path=' + encodeURIComponent(parts.join('/'));
+  return '/api/files/raw?path=' + encodeURIComponent(parts.join('/')) + scopeQuery('&');
 }
 
 // Blocs proposés par « / » et par le menu de style.
@@ -115,7 +116,7 @@ function useSaver({ path, file, onState, onSaved }) {
     if (pending.current === null) return;
     const content = pending.current;
     onState('saving');
-    const r = await post('/api/files/write', { path, content, modified: force ? 0 : modified.current });
+    const r = await post('/api/files/write' + scopeQuery(), { path, content, modified: force ? 0 : modified.current });
     if (r.conflict) { blocked.current = true; onState('conflict'); return; }
     if (r.ok === false) { onState('dirty'); return; }
     if (pending.current === content) pending.current = null;

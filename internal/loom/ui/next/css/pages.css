@@ -651,6 +651,13 @@ details.vx-lib[open]>summary h3::after{content:" ⌄"}
 .fl-root{display:inline-flex;align-items:center;gap:6px;min-width:0;height:30px;padding:0 8px;border-radius:var(--r-sm);font-size:14px;font-weight:600;color:var(--text)}
 .fl-root:hover{background:var(--hover)}
 .fl-root .ico{width:12px;height:12px;color:var(--text-3)}
+.fl-root .ico:first-child{width:14px;height:14px;color:var(--text-2)}
+.fl-source{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+.fl-scope{display:flex;width:100%}
+.fl-scope button{flex:1;min-width:0;font-size:12.5px}
+.fl-tree-acts{display:flex;justify-content:flex-end;gap:2px;margin:-2px 0 2px}
+.fl-tree-acts .icon-btn{width:28px;height:28px}
+.fl-tree-acts .icon-btn .ico{width:15px;height:15px}
 .fl-search{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:var(--r-sm);background:var(--surface-2)}
 .fl-search .ico{width:14px;height:14px;color:var(--text-3)}
 .fl-search input{flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:13.5px}

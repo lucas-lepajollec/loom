@@ -279,16 +279,18 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/projects", handleProjects)                       // GET liste / POST crée
 	api("/api/projects/rename", handleProjectsRename)
 	api("/api/projects/delete", handleProjectsDelete)
-	api("/api/agent-folders", handleAgentFolders) // dossier Loom de chaque session Codeman
-	api("/api/files/root", handleFilesRoot)       // dossier du second cerveau
-	api("/api/files/tree", handleFilesTree)       // arborescence
-	api("/api/files/read", handleFilesRead)       // texte d'une note
-	api("/api/files/raw", handleFilesRaw)         // octets (images des notes)
-	api("/api/files/write", handleFilesWrite)     // enregistre une note
-	api("/api/files/op", handleFilesOp)           // dossier, renommer, corbeille
-	api("/api/chat/compact", handleChatCompact)   // compaction manuelle du contexte
-	api("/api/chat/state", handleChatState)       // instantané léger {seq, generating, ctx_used}
-	api("/api/chat/export", handleChatExport)     // téléchargement du fil (?format=md|json)
+	api("/api/agent-folders", handleAgentFolders)  // dossier Loom de chaque session Codeman
+	api("/api/files/root", handleFilesRoot)        // dossier du second cerveau
+	api("/api/files/tree", handleFilesTree)        // arborescence
+	api("/api/files/read", handleFilesRead)        // texte d'une note
+	api("/api/files/raw", handleFilesRaw)          // octets (images des notes)
+	api("/api/files/write", handleFilesWrite)      // enregistre une note
+	api("/api/files/op", handleFilesOp)            // dossier, renommer, corbeille
+	api("/api/files/list", handleFilesList)        // un dossier (parcours de toute la machine)
+	api("/api/machines/roles", handleMachineRoles) // quelle machine fournit chaque brique
+	api("/api/chat/compact", handleChatCompact)    // compaction manuelle du contexte
+	api("/api/chat/state", handleChatState)        // instantané léger {seq, generating, ctx_used}
+	api("/api/chat/export", handleChatExport)      // téléchargement du fil (?format=md|json)
 	// Notifications Web Push : le serveur pousse une notif à la fin d'un tour
 	// utilisateur (push.go), même app fermée / iPhone verrouillé.
 	api("/api/push/key", handlePushKey)                 // clé publique VAPID (pour s'abonner)

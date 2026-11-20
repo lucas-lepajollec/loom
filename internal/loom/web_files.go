@@ -519,6 +519,11 @@ func handleFilesList(w http.ResponseWriter, r *http.Request) {
 			p = rel + "/" + name
 		}
 		n := &fileNode{Name: name, Path: p, Dir: e.IsDir(), Modified: info.ModTime().UnixMilli()}
+		if e.Type()&os.ModeSymlink != 0 {
+			if target, err := root.Stat(p); err == nil && target.IsDir() {
+				n.Dir = true
+			}
+		}
 		if !n.Dir {
 			n.Size = info.Size()
 		}
