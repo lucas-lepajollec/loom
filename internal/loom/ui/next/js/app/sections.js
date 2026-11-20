@@ -7,7 +7,14 @@ import { app } from '../core/state.js';
 import { TabNav } from '../ui/tabnav.js';
 
 export const GROUPS = [
-  { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [['local', () => t('local.page.local')], ['cloud', () => t('app.routes.cloud')], ['voice', () => t('voice.title')], ['jarvis', () => t('jv.title')], ['engine', () => t('engine.page.title')]] },
+  { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [
+    ['local', () => t('local.page.bibliotheque')],
+    ['local/hub', () => t('local.page.hub')],
+    ['cloud', () => t('app.routes.cloud')],
+    ['voice', () => t('voice.title')],
+    ['jarvis', () => t('jv.title')],
+    ['engine', () => t('models.engine.tab')],
+  ] },
   { id: 'agents', icon: 'agent', get label() { return t('agents.title'); }, tabs: [['agents', () => t('agents.title')]] },
   { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')]] },
   { id: 'files', icon: 'folder', get label() { return t('files.title'); }, tabs: [['files', () => t('files.title')]] },
