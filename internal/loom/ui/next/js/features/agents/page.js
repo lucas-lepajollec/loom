@@ -148,17 +148,14 @@ function LayoutPicker({ currentId }) {
 
 const SUBS = ['', 'cron', 'settings'];
 function Top({ sub }) {
-  const conn = useStore(agents, s => s.conn);
-  const live = useStore(agents, s => s.live);
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v), current: sub === v }));
-  return html`<div class="cm-top">
-    <button class="icon-btn only-mobile menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
+  return html`<header class=${cls('cm-admin-top', !sub && 'overview')}>
+    <div class="cm-admin-phone-head">
+      <button class="icon-btn menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
+      <b>${t('agents.title')}</b>
+    </div>
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
-    <span class="grow"></span>
-    <a class=${cls('cm-conn', conn.state === 'ready' && 'ok')} href="#/agents/settings"
-      title=${(conn.state === 'ready' ? 'Codeman ' + (conn.version || '') + (live ? '' : ' · ' + t('agents.conn.connecting')) : lt('conn', conn.state)) + (conn.url ? ' · ' + conn.url : '')}>
-      <i class=${cls('dot', conn.state === 'ready' ? (live ? 'green' : 'amber') : 'red')}></i>${conn.state !== 'ready' && html`<span class="hide-narrow">${lt('conn', conn.state)}</span>`}</a>
-  </div>`;
+  </header>`;
 }
 
 export function AgentsPage({ route }) {
