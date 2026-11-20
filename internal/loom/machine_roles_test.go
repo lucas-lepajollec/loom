@@ -60,4 +60,10 @@ func TestFilesBrickOnAnotherMachine(t *testing.T) {
 	if post(`{"role":"files","machine":"local"}`) != 200 || filesMachine() != "local" {
 		t.Fatal("files role not moved back")
 	}
+	// Another machine's files can be read without moving the brick.
+	w = httptest.NewRecorder()
+	handleFilesRoot(w, httptest.NewRequest(http.MethodGet, "/api/files/root?machine=tower", nil))
+	if w.Code != 200 || !strings.HasPrefix(seen, "/api/files/root") {
+		t.Fatalf("machine query not proxied: %d %s", w.Code, seen)
+	}
 }

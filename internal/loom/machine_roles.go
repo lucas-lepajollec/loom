@@ -28,9 +28,13 @@ func filesMachine() string {
 var filesProxyClient = &http.Client{Timeout: 60 * time.Second}
 
 // proxyFiles forwards a files request to the machine that holds the files
-// brick. It returns false when the files are local.
+// brick, or to the one named by ?machine= (to look at another machine's
+// files without moving the brick). It returns false when the files are local.
 func proxyFiles(w http.ResponseWriter, r *http.Request) bool {
 	machine := filesMachine()
+	if m := strings.TrimSpace(r.URL.Query().Get("machine")); m != "" {
+		machine = m
+	}
 	if machine == "local" {
 		return false
 	}
