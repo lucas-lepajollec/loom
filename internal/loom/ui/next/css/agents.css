@@ -197,14 +197,14 @@
 .ses-row.st-stopped{color:var(--text-4)}
 .ses-row.st-stopped .ses-ico{opacity:.5}
 .ses-row>.dot{width:7px;height:7px}
+/* pastilles d'état : même place que la durée, au bord, effacées au survol */
+.ses-row>.dot,.ses-row>.run{flex:none;margin-left:auto;margin-right:4px}
 .ses-when{flex:none;margin-left:auto;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
 /* la durée colle au bord ; au survol elle laisse la place aux « ⋯ » */
 .ses-row{padding-right:8px}
 .ses-row>.more{position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0}
-.ses-row:hover>.more,.ses-row:focus-within>.more{opacity:1}
-.ses-row:hover .ses-when,.ses-row:focus-within .ses-when,.ses-row:hover>.dot,.ses-row:hover>.run{visibility:hidden}
-.ses-row[aria-current]>.more{opacity:0}
-.ses-row[aria-current]:hover>.more{opacity:1}
+.ses-row:hover>.more,.ses-row:focus-visible>.more,.ses-row:has(:focus-visible)>.more{opacity:1}
+.ses-row:is(:hover,:focus-visible,:has(:focus-visible))>:is(.ses-when,.dot,.run){visibility:hidden}
 .cm-resume{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:2px 12px}
 .cm-resume .chat-link{min-height:36px;padding:0 10px;gap:10px}
 .cm-resume .chat-link small{margin-left:auto}
