@@ -12,7 +12,7 @@ export const GROUPS = [
     ['local/hub', () => t('local.page.hub')],
     ['cloud', () => t('app.routes.cloud')],
     ['voice', () => t('voice.title')],
-    ['jarvis', () => t('jv.title')],
+    ['jarvis'],
     ['engine', () => t('models.engine.tab')],
   ] },
   { id: 'agents', icon: 'agent', get label() { return t('agents.title'); }, tabs: [['agents', () => t('agents.title')]] },
@@ -24,11 +24,14 @@ export const GROUPS = [
 export const groupOf = section => GROUPS.find(g => g.tabs.some(([id]) => id === section));
 
 export function SectionTabs() {
-  const section = useStore(app, s => s.route.section);
+  const { section, sub } = useStore(app, s => ({ section: s.route.section, sub: s.route.sub }));
   const group = groupOf(section);
   const tabs = group ? group.tabs.filter(([, label]) => label) : [];
   if (tabs.length < 2) return null;
-  return html`<${TabNav} id=${group.id} label=${group.label} tabs=${tabs.map(([id, label]) => ({ href: '#/' + id, label: label(), current: id === section }))} />`;
+  // Un onglet peut viser une sous-page (« local/hub ») : il l'emporte alors.
+  const exact = section + (sub ? '/' + sub : '');
+  const here = tabs.some(([id]) => id === exact) ? exact : section;
+  return html`<${TabNav} id=${group.id} label=${group.label} tabs=${tabs.map(([id, label]) => ({ href: '#/' + id, label: label(), current: id === here }))} />`;
 }
 
 // Une page de groupe qui accueille un ancien panneau des réglages.
