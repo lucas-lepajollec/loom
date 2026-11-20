@@ -104,11 +104,16 @@ export function BenchPage() {
       ${Object.entries(list.filter(i => !i.supported).reduce((by, i) => ((by[i.provider || i.name] ||= []).push(i), by), {})).map(([provider, items]) => html`<div class="choice off" key=${'off-' + provider}>
         <${Logo} name=${items[0].logo} size="sm" /><span class="grow"><b>${provider}</b><small>${t('bench.unsupported_group', { n: items.length })} · ${items[0].reason_text || items[0].sub.split(' · ').slice(1).join(' · ')}</small></span></div>`)}</div>` : html`<p class="note">${empty}</p>`}</div>`;
 
-  return html`<div class="view page"><div class="page-in">
-    <${SectionTabs} /><div class="page-head"><div><h1>${t("bench.page.bench")}</h1><p>${t('bench.description')}</p></div>
+  return html`<div class="view page activity-view">
+    <header class="activity-mobile-head only-mobile">
+      <button type="button" class="icon-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
+      <b>${t('app.groups.activity')}</b>
+    </header>
+    <div class="page-in activity-in"><${SectionTabs} />
+    <div class="page-head"><div><h1>${t("bench.page.bench")}</h1><p>${t('bench.description')}</p></div>
       <div class="acts">${busy ? html`<button class="btn" onClick=${stop}>${t("bench.page.arreter_la_file")}</button>`
         : html`<button class="btn primary" disabled=${!chosen.length || chosen.length > 16 || sending} onClick=${run}><${Icon} n="play" />${t("bench.page.lancer")}${chosen.length ? ' (' + chosen.length + ')' : ''}</button>`}</div></div>
-    <div class="bench">
+    <div class="bench activity-bench">
       <div class="grid-bench">
         <div class="card pad">
           <div class="sec-h"><h2>${t("bench.page.test")}</h2><button class="btn sm ghost" onClick=${() => setAdding(true)}><${Icon} n="plus" />${t("bench.page.nouveau")}</button></div>
