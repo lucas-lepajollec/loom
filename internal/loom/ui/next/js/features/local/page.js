@@ -461,12 +461,14 @@ export function LocalPage({ route }) {
   };
   if (route.sub === 'engine') { go('engine'); return null; }
   const hub = route.sub === 'hub';
+  const hubQuery = hub ? route.id : '';
   const ownedVllm = ownsVllm(node, v.x);
   const direct = node?.direct && !ownedVllm;
   const which = v.x?.installed && (engine === 'vllm' || (!engine && (ownedVllm || v.x.running))) ? 'vllm' : 'llama';
   const enginePicker = v.x?.installed && html`<${Seg} size="sm" label=${t('vllm.local.engine')} value=${which} onChange=${setEngine}
     options=${[{ value: 'llama', label: 'llama.cpp' }, { value: 'vllm', label: 'vLLM' }]} />`;
   const owner = node?.url || 'local';
+  const hubKey = owner + '/' + hubQuery;
   const group = groupOf('local');
   const activeTab = hub ? 'local/hub' : 'local';
   const tabs = group.tabs.filter(([, label]) => label)
@@ -475,9 +477,9 @@ export function LocalPage({ route }) {
     <${TabNav} id=${group.id} label=${group.label} tabs=${tabs} />
     <h1 class="sr">${hub ? t('local.page.hub') : t('local.page.bibliotheque')}</h1>
     ${direct ? html`<${DirectLibrary} key=${owner} node=${node} hub=${hub} />`
-      : which === 'vllm' ? (hub ? html`<${VllmHub} key=${owner} v=${v} enginePicker=${enginePicker} />`
+      : which === 'vllm' ? (hub ? html`<${VllmHub} key=${hubKey} v=${v} enginePicker=${enginePicker} initialQuery=${hubQuery} />`
         : html`<${VllmLibrary} key=${owner} v=${v} onHub=${() => go('local', 'hub')} enginePicker=${enginePicker} />`)
-      : hub ? html`<${Hub} key=${owner} enginePicker=${enginePicker} />`
+      : hub ? html`<${Hub} key=${hubKey} enginePicker=${enginePicker} initialQuery=${hubQuery} />`
       : ownedVllm ? html`<div class="models-toolbar">${enginePicker}</div>
           <div class="models-card"><${Empty} icon="chip" title=${t('models.library.vllm_active')} text=${t('models.library.stop_vllm_hint')}>
             <button class="btn sm" onClick=${() => v.act({ action: 'stop' })}>${t('local.page.arreter')}</button>

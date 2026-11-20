@@ -4,7 +4,7 @@ import { t, tSource } from '../core/i18n.js';
 import { html, useState, useEffect, useRef, cls } from '../core/lib.js';
 import { Icon } from '../ui/icons.js';
 import { Popover } from '../ui/controls.js';
-import { get, post } from '../core/api.js';
+import { get, post, request } from '../core/api.js';
 import { go } from '../core/state.js';
 import { visibleRefresh } from '../core/poll.js';
 
@@ -14,7 +14,7 @@ async function readActivity() {
   const [dl, job, bench] = await Promise.all([
     get('/api/models/download/status', { timeout: 6000, retryAuth: false }).catch(() => null),
     get('/api/llamacpp/job', { timeout: 6000, retryAuth: false }).catch(() => null),
-    get('/api/bench/queue', { timeout: 6000, retryAuth: false }).catch(() => null),
+    get('/api/bench/queue?compact=1', { timeout: 6000, retryAuth: false }).catch(() => null),
   ]);
   const items = [];
   for (const d of Array.isArray(dl) ? dl : []) {
@@ -33,8 +33,12 @@ async function readActivity() {
   const b = bench && bench.job;
   if (b && b.status === 'running') {
     const done = (b.rows || []).filter(r => ['ok', 'err', 'skip'].includes(r.status)).length;
-    items.push({ id: 'bench', icon: 'gauge', title: 'Bench · ' + (b.test_name || 'file'), sub: t("app.activity.v0_v1_modeles", { v0: done, v1: (b.rows || []).length }),
-      p: pct(done, (b.rows || []).length), cancel: () => post('/api/bench/queue/cancel', {}), cancelLabel: t("app.activity.arreter"), to: () => go('bench') });
+    const title = [t('app.activity.bench_queue'), b.test_name].filter(Boolean).join(' · ');
+    const cancel = b.id ? () => request('/api/bench/queue/cancel', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Loom-Bench-Job': b.id }, body: '{}',
+    }).catch(() => null) : null;
+    items.push({ id: 'bench', icon: 'gauge', title, sub: t("app.activity.v0_v1_modeles", { v0: done, v1: (b.rows || []).length }),
+      p: pct(done, (b.rows || []).length), cancel, cancelLabel: t("app.activity.arreter") });
   }
   return items;
 }
@@ -51,11 +55,15 @@ export function Activity() {
       onClick=${() => setAnchor(anchor ? null : btn.current)}><${Icon} n="bell" />${items.length > 0 && html`<i class="act-dot"></i>`}</button>
     ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${320} class="act-pop">
       <div class="act-h">${t("app.activity.activite")}</div>
-      ${items.length ? items.map(i => html`<div class="act-row" key=${i.id}>
-        <${Icon} n=${i.icon} />
-        <button type="button" class="act-main" onClick=${() => { setAnchor(null); i.to(); }}><b>${i.title}</b><small class=${i.err ? 'err' : ''}>${i.sub}</small>
-          ${i.p != null && !i.err && html`<span class="gauge"><i style=${`width:${i.p}%`}></i></span>`}</button>
-        ${i.cancel && html`<button class="btn sm ghost" onClick=${async () => { await i.cancel(); setItems(await readActivity()); }}>${i.cancelLabel || t("app.activity.annuler")}</button>`}
-      </div>`) : html`<div class="act-empty">${t("app.activity.rien_en_cours")}</div>`}
+      ${items.length ? items.map(i => {
+        const row = i.to ? 'button' : 'div';
+        const open = i.to && (() => { setAnchor(null); i.to(); });
+        return html`<div class="act-row" key=${i.id}>
+          <${Icon} n=${i.icon} />
+          <${row} type=${i.to ? 'button' : undefined} class="act-main" onClick=${open}><b>${i.title}</b><small class=${i.err ? 'err' : ''}>${i.sub}</small>
+            ${i.p != null && !i.err && html`<span class="gauge"><i style=${`width:${i.p}%`}></i></span>`}</${row}>
+          ${i.cancel && html`<button class="btn sm ghost" onClick=${async () => { await i.cancel(); setItems(await readActivity()); }}>${i.cancelLabel || t("app.activity.annuler")}</button>`}
+        </div>`;
+      }) : html`<div class="act-empty">${t("app.activity.rien_en_cours")}</div>`}
     </${Popover}>`}`;
 }

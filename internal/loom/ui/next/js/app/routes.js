@@ -1,4 +1,3 @@
-import { t } from '../core/i18n.js';
 // Registre des sections de l'application. Ajouter une page = une entrée ici :
 // `nav` la place dans la barre latérale, `page` est le composant rendu pour
 // #/<id>/<sub>/<id>. Rien d'autre à modifier dans la coquille.
@@ -6,7 +5,7 @@ import { ChatView } from '../features/chat/view.js';
 import { LocalPage } from '../features/local/page.js';
 import { CloudPage } from '../features/cloud/page.js';
 import { UsagePage } from '../features/usage/page.js';
-import { BenchPage } from '../features/bench/page.js';
+import { MarketPage } from '../features/market/page.js';
 import { SettingsPage } from '../features/settings/page.js';
 import { TerminalsPage } from '../features/terminals/page.js';
 import { MachinesPage } from '../features/machines/page.js';
@@ -26,9 +25,9 @@ export const ROUTES = [
   { id: 'voice', page: VoicePage },
   { id: 'jarvis', page: JarvisPage },
   { id: 'terminals', page: TerminalsPage },
-  { id: 'bench', page: BenchPage },
   { id: 'usage', page: UsagePage },
   { id: 'quotas', page: QuotasPage },
+  { id: 'market', page: MarketPage },
   { id: 'machines', page: MachinesPage },
   { id: 'files', page: FilesPage },
   { id: 'engine', page: EnginePage },
