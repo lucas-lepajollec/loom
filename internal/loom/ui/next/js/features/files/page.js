@@ -142,8 +142,10 @@ function Viewer({ path, refresh, narrow }) {
   const [state, setState] = useState('saved');
   const [menu, setMenu] = useState(null);
   const reload = async () => {
-    const r = await get('/api/files/read?path=' + encodeURIComponent(path));
-    setFile(r.ok === false ? { error: r.error || t('files.failed') } : r);
+    try {
+      const r = await get('/api/files/read?path=' + encodeURIComponent(path));
+      setFile(r.ok === false ? { error: r.error || t('files.failed') } : r);
+    } catch (e) { setFile({ error: e.message || t('files.failed') }); }
     setState('saved');
   };
   useEffect(() => { setFile(null); setRaw(false); reload(); }, [path]);
@@ -176,10 +178,16 @@ export function FilesPage({ route }) {
   const [data, setData] = useState(null);
   const [setup, setSetup] = useState(false);
   const current = route.sub === 'n' ? route.id || '' : '';
-  const refresh = async () => { const r = await get('/api/files/tree'); if (r && r.ok !== false) setData(r); return r; };
+  const [failed, setFailed] = useState('');
+  // Une lecture refusée (serveur injoignable, session expirée) laisse
+  // l'arborescence affichée et réessaie au prochain passage.
+  const refresh = async () => {
+    try { const r = await get('/api/files/tree'); if (r && r.ok !== false) { setData(r); setFailed(''); } else setFailed((r && r.error) || t('files.failed')); return r; }
+    catch (e) { setFailed(e.message || t('files.failed')); return null; }
+  };
   useEffect(() => { refresh(); const timer = setInterval(() => { if (!document.hidden) refresh(); }, 15000); return () => clearInterval(timer); }, []);
   useEffect(() => { if (current) save('loom.files.last', current); else if (!narrow) { const last = load('loom.files.last', ''); if (last) openPath(last); } }, [current]);
-  if (!data) return html`<div class="view files"><div class="fl-body"><span class="spinner"></span></div></div>`;
+  if (!data) return html`<div class="view files"><div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
   const menuBtn = html`<button class="icon-btn only-mobile menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>`;
   if (!data.exists || setup) return html`<div class="view files">${narrow && html`<header class="fl-head">${menuBtn}</header>`}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;
   const showTree = !narrow || !current;
