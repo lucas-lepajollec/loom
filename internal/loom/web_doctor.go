@@ -56,24 +56,6 @@ func doctorJobs() []doctor.Job {
 			}
 			return doctorCheck("ok", "vault_unlocked", "")
 		}},
-		{ID: "brain.primary_writable", Area: "brain", Run: func(context.Context) doctor.Check {
-			if !usageVaultAccessStream() {
-				return doctorCheck("skip", "vault_locked", "")
-			}
-			sources, err := theBrain().storage.LoadSources()
-			if err != nil {
-				return doctorCheck("warn", "brain_config_unavailable", "#/brain/sources")
-			}
-			for _, s := range sources {
-				if s.Primary {
-					if s.Permission != "write" || !doctor.Writable(s.Path) {
-						return doctorCheck("fail", "brain_not_writable", "#/brain/sources")
-					}
-					return doctorCheck("ok", "brain_writable", "")
-				}
-			}
-			return doctorCheck("skip", "brain_primary_missing", "#/brain/sources")
-		}},
 		{ID: "engine.reachable", Area: "engine", Run: doctorEngine},
 		{ID: "security.password", Area: "security", Run: func(context.Context) doctor.Check {
 			p, _, err := readWebPassword()
@@ -146,10 +128,10 @@ func doctorJobs() []doctor.Job {
 				}
 				observed, connected, _ := mcpMgr.Probe(ctx, name)
 				if !observed {
-					return doctorCheck("skip", "mcp_not_observed", "#/brain/mcp")
+					return doctorCheck("skip", "mcp_not_observed", "")
 				}
 				if !connected {
-					return doctorCheck("warn", "mcp_unreachable", "#/brain/mcp")
+					return doctorCheck("warn", "mcp_unreachable", "")
 				}
 				return doctorCheck("ok", "mcp_reachable", "")
 			}})
