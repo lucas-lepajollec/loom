@@ -739,3 +739,8 @@ button.mc-chip:hover {
     min-height: 36px;
   }
 }
+
+/* un long chemin se coupe au lieu de sortir de l'écran */
+.adm-dd { min-width: 0; }
+.adm-dd > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.set-c:has(> .adm-dd) { min-width: 0; max-width: 100%; }

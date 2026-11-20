@@ -174,7 +174,7 @@ try {
         await page.waitForTimeout(100);
       }
       if (scenario === 'phone-layout' && r === 'cloud') {
-        await page.locator('.cl-tile:not(.on) .btn').first().click(); await page.locator('.dialog').waitFor();
+        await page.locator('.models-row .btn.sm:not(.ghost)').first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
       }
       await inspect(page, errors, label + ' degraded');
