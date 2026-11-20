@@ -74,7 +74,7 @@ function Manual({ onDone, initial }) {
   </div>`;
 }
 
-function Setup({ onDone, initial }) {
+export function ServerSetup({ onDone, initial }) {
   const [found, setFound] = useState(null);
   const [manual, setManual] = useState(false);
   const scan = () => { setFound(null); gateway.discover().then(r => setFound(r.found || [])).catch(() => setFound([])); };
@@ -97,6 +97,11 @@ function Setup({ onDone, initial }) {
   </div>`;
 }
 
+export async function disconnectServer() {
+  if (!await confirm(t('agents.setup.disconnect'), t('agents.setup.disconnect_text'), { ok: t('agents.setup.disconnect'), danger: true })) return;
+  try { await gateway.disconnect(); await refreshConnection(); } catch (e) { toast(e.message, 'err'); }
+}
+
 function Connected({ conn, onChange }) {
   const clis = useStore(agents, s => s.clis);
   const [ui, setUi] = useState('');
@@ -106,10 +111,6 @@ function Connected({ conn, onChange }) {
     try { const c = await gateway.config(); await gateway.save({ url: c.url, username: c.username, ui_url: ui }); await refreshConnection(); toast(t('agents.conn.saved_ok')); }
     catch (e) { toast(e.message, 'err'); }
   };
-  const disconnect = async () => {
-    if (!await confirm(t('agents.setup.disconnect'), t('agents.setup.disconnect_text'), { ok: t('agents.setup.disconnect'), danger: true })) return;
-    try { await gateway.disconnect(); await refreshConnection(); } catch (e) { toast(e.message, 'err'); }
-  };
   return html`<div class="cm-connected">
     <div class="cm-found-h"><span class="cm-connect-ico ok"><${Icon} n="check" /></span>
       <div class="grow"><b>${t('agents.conn.ready', { v: conn.version || '?', user: conn.username || '' })}</b><small class="muted mono">${hostOf(conn.url)}</small></div>
@@ -117,7 +118,7 @@ function Connected({ conn, onChange }) {
     <div class="cm-connect-acts">
       <button class="btn ghost" onClick=${onChange}><${Icon} n="refresh" />${t('agents.setup.change')}</button>
       ${conn.ui_url && html`<a class="btn ghost" href=${conn.ui_url + '/'} target="codeman" rel="noopener"><${Icon} n="link" />${t('agents.official')}</a>`}
-      <button class="btn ghost danger" onClick=${disconnect}>${t('agents.setup.disconnect')}</button>
+      <button class="btn ghost danger" onClick=${disconnectServer}>${t('agents.setup.disconnect')}</button>
     </div>
     <button class="cm-link" aria-expanded=${String(adv)} onClick=${() => setAdv(!adv)}><${Icon} n=${adv ? 'chevron' : 'right'} />${t('agents.setup.advanced')}</button>
     ${adv && html`<div class="cm-adv">
@@ -140,6 +141,21 @@ export function ConnectionPanel({ gate, embedded }) {
   useEffect(() => { refreshConnection(); }, []);
   const ok = conn.state === 'ready';
   const broken = conn.configured && ['unreachable', 'rejected', 'auth', 'error'].includes(conn.state);
+  const [testing, setTesting] = useState(false);
+  const test = async () => {
+    setTesting(true);
+    const state = await refreshConnection();
+    toast(state === 'ready' ? t('agents.conn.saved_ok') : lt('conn', state), state === 'ready' ? undefined : 'err');
+    setTesting(false);
+  };
+  const forget = async () => {
+    if (!await confirm(t('agents.conn.forget'), t('agents.admin.forget_text'), { ok: t('agents.conn.forget'), danger: true })) return;
+    try {
+      const { url, username, ui_url } = await gateway.config();
+      await gateway.save({ url, username, ui_url, clear_password: true });
+      await refreshConnection();
+    } catch (e) { toast(e.message, 'err'); }
+  };
   return html`<div class=${cls('cm-connect', gate && 'gate', embedded && 'embedded')}>
     <div class="cm-connect-h">
       <span class=${cls('cm-connect-ico', ok ? 'ok' : 'bad')}><${Icon} n=${ok ? 'agent' : 'plug'} /></span>
@@ -147,7 +163,11 @@ export function ConnectionPanel({ gate, embedded }) {
         <p class="muted">${ok ? t('agents.setup.lead_ok') : broken ? lt('connText', conn.state) : t('agents.setup.lead')}</p></div>
     </div>
     ${ok && !changing ? html`<${Connected} conn=${conn} onChange=${() => setChanging(true)} />`
-      : html`<${Setup} initial=${conn.configured ? { url: conn.url, username: conn.username } : null} onDone=${() => setChanging(false)} />`}
+      : html`<${ServerSetup} initial=${conn.configured ? { url: conn.url, username: conn.username } : null} onDone=${() => setChanging(false)} />`}
+    ${conn.configured && html`<div class="cm-connect-acts">
+      <button class="btn sm" disabled=${testing} onClick=${test}>${t('agents.conn.test')}</button>
+      ${conn.password_set && html`<button class="btn sm ghost danger" onClick=${forget}>${t('agents.conn.forget')}</button>`}
+    </div>`}
     <p class="note muted">${t('agents.conn.security')}</p>
   </div>`;
 }
