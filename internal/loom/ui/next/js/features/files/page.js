@@ -2,7 +2,9 @@
 // Arborescence à gauche (comme Obsidian), la note au centre, éditée en rendu :
 // le Markdown n'apparaît que sur demande. Enregistrement automatique ; si un
 // agent a modifié la note entre-temps, Loom le signale au lieu d'écraser.
-// Route : #/files/n/<chemin relatif>.
+// Deux portées : le second cerveau (#/files/n/<chemin>) ou toute la machine
+// qui fournit les fichiers (#/files/m/<chemin depuis la racine>). La machine
+// se choisit ici ; c'est la même brique que dans Machines.
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
@@ -23,10 +25,13 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
 const baseOf = p => p.slice(p.lastIndexOf('/') + 1);
 const isImage = p => /\.(png|jpe?g|gif|webp|avif)$/i.test(p);
-const openPath = p => go('files', 'n', p);
+// Portée courante, partagée par tous les appels de la page.
+let scope = 'brain';
+export const scopeQuery = (sep = '?') => (scope === 'machine' ? sep + 'scope=machine' : '');
+const openPath = p => go('files', scope === 'machine' ? 'm' : 'n', p);
 
 async function op(body) {
-  const r = await post('/api/files/op', body);
+  const r = await post('/api/files/op' + scopeQuery(), body);
   if (r.ok === false) toast(r.error || t('files.failed'), 'err');
   return r.ok !== false;
 }
@@ -57,7 +62,7 @@ async function newNote(dir, refresh) {
   const name = await prompt(t('files.new_note'), { placeholder: t('files.note_name'), ok: t('files.create') });
   if (!name) return;
   const file = (dir ? dir + '/' : '') + (/\.[a-z0-9]+$/i.test(name) ? name : name + '.md');
-  const r = await post('/api/files/write', { path: file, content: '', create: true });
+  const r = await post('/api/files/write' + scopeQuery(), { path: file, content: '', create: true });
   if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
   await refresh(); openPath(r.path);
 }
@@ -87,10 +92,88 @@ const filterTree = (nodes, q) => nodes.flatMap(n => {
   return n.name.toLowerCase().includes(q) ? [n] : [];
 });
 
-function Tree({ data, current, refresh, onRoot }) {
+// En-tête commun : la machine qui fournit les fichiers et la portée.
+function Source({ scopeNow, onScope, onRoot, refresh, rootLabel, rootPath }) {
+  const [machines, setMachines] = useState([]);
+  const [roles, setRoles] = useState(null);
+  const [menu, setMenu] = useState(null);
+  const loadSources = () => Promise.all([get('/api/machines').catch(() => null), get('/api/machines/roles').catch(() => null)])
+    .then(([m, r]) => { setMachines(((m && m.machines) || []).filter(x => (x.modules || []).includes('files'))); setRoles(r && r.roles); });
+  useEffect(() => { loadSources(); }, []);
+  const host = app.get().serverInfo?.hostname || t('app.shell.cette_machine');
+  const current = roles?.files || 'local';
+  const name = current === 'local' ? host : (machines.find(m => m.id === current) || {}).name || current;
+  const use = async id => { const r = await post('/api/machines/roles', { role: 'files', machine: id }); if (r.ok === false) return toast(r.error || t('files.failed'), 'err'); await loadSources(); refresh(); };
+  const items = [
+    { label: host, icon: current === 'local' ? 'check' : 'server', run: () => use('local') },
+    ...machines.map(m => ({ label: m.name, icon: current === m.id ? 'check' : 'server', run: () => use(m.id) })),
+    '-',
+    ...(scopeNow === 'brain' ? [{ label: t('files.change_root'), icon: 'folder', run: onRoot }] : []),
+    { label: t('common.refresh'), icon: 'refresh', run: refresh },
+  ];
+  return html`<div class="fl-source">
+    <div class="fl-tree-h">
+      <button class="fl-root" title=${rootPath} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="server" />${name}<${Icon} n="chevron" /></button>
+      ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
+    </div>
+    <div class="seg fl-scope" role="tablist" aria-label=${t('files.scope')}>
+      <button role="tab" aria-selected=${String(scopeNow === 'brain')} onClick=${() => onScope('brain')}>${rootLabel}</button>
+      <button role="tab" aria-selected=${String(scopeNow === 'machine')} onClick=${() => onScope('machine')}>${t('files.whole_machine')}</button>
+    </div>
+  </div>`;
+}
+
+// Toute la machine : chaque dossier se charge quand on l'ouvre.
+function LazyRow({ n, depth, current, refreshAll, onSetBrain }) {
+  const [open, setOpen] = useState(false);
+  const [kids, setKids] = useState(null);
+  const [menu, setMenu] = useState(null);
+  const expand = async () => {
+    if (open) return setOpen(false);
+    setOpen(true);
+    try { const r = await get('/api/files/list?scope=machine&path=' + encodeURIComponent(n.path)); setKids(r.entries || []); }
+    catch (e) { setKids([]); toast(e.message, 'err'); }
+  };
+  useEffect(() => { if (n.dir && current && current.startsWith(n.path + '/') && !open) expand(); }, [current]);
+  const items = n.dir ? [{ label: t('files.use_as_brain'), icon: 'star', run: () => onSetBrain(n.path) }, '-',
+    { label: t('files.new_note'), icon: 'plus', run: () => newNote(n.path, refreshAll) }, { label: t('files.new_folder'), icon: 'folder', run: () => newFolder(n.path, refreshAll) }, '-',
+    { label: t('files.rename'), icon: 'edit', run: () => renameEntry(n, refreshAll, current) }]
+    : [{ label: t('files.rename'), icon: 'edit', run: () => renameEntry(n, refreshAll, current) }, { label: t('files.delete'), icon: 'trash', danger: true, run: () => deleteEntry(n, refreshAll, current) }];
+  return html`<div class="fl-node">
+    <div class=${cls('fl-row', current === n.path && 'on', n.dir && 'dir')} role="treeitem" aria-expanded=${n.dir ? String(open) : undefined} tabindex="0"
+        style=${`padding-left:${8 + depth * 14}px`} onClick=${() => (n.dir ? expand() : openPath(n.path))} onKeyDown=${e => e.key === 'Enter' && (n.dir ? expand() : openPath(n.path))}>
+      ${n.dir ? html`<${Icon} n=${open ? 'chevron' : 'right'} class="fl-caret" />` : html`<i class="fl-caret"></i>`}
+      <span class="fl-name">${n.name}</span>
+      <button class="icon-btn fl-more" aria-label=${t('files.actions')} onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
+    </div>
+    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
+    ${open && (kids === null ? html`<div class="fl-row" style=${`padding-left:${22 + depth * 14}px`}><span class="spinner"></span></div>`
+      : kids.map(c => html`<${LazyRow} key=${c.path} n=${c} depth=${depth + 1} current=${current} refreshAll=${refreshAll} onSetBrain=${onSetBrain} />`))}
+  </div>`;
+}
+
+function MachineTree({ current, onSetBrain, header }) {
+  const [top, setTop] = useState(null);
+  const [rootDir, setRootDir] = useState('/');
+  const [stamp, setStamp] = useState(0);
+  const load = async () => {
+    try { const r = await get('/api/files/list?scope=machine&path=.'); setTop(r.entries || []); setRootDir(r.root || '/'); }
+    catch (e) { setTop([]); toast(e.message, 'err'); }
+  };
+  useEffect(() => { load(); }, [stamp]);
+  const refreshAll = async () => setStamp(x => x + 1);
+  return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
+    ${header}
+    <div class="fl-list" role="tree" key=${stamp}>
+      ${top === null ? html`<span class="spinner"></span>` : top.map(n => html`<${LazyRow} key=${n.path} n=${n} depth=${0} current=${current} refreshAll=${refreshAll} onSetBrain=${p => onSetBrain(rootDir, p)} />`)}
+    </div>
+    <p class="fl-root-path mono">${rootDir}</p>
+  </nav>`;
+}
+
+function Tree({ data, current, refresh, onRoot, header }) {
   const [open, setOpen] = useState(() => new Set(load('loom.files.open', [])));
   const [q, setQ] = useState('');
-  const [menu, setMenu] = useState(null);
   // La note ouverte reste visible : ses dossiers parents s'ouvrent.
   useEffect(() => {
     if (!current) return;
@@ -101,15 +184,12 @@ function Tree({ data, current, refresh, onRoot }) {
   const toggle = p => { const n = new Set(open); n.has(p) ? n.delete(p) : n.add(p); setOpen(n); save('loom.files.open', [...n]); };
   const query = q.trim().toLowerCase();
   const nodes = query ? filterTree(data.tree || [], query) : data.tree || [];
-  const rootName = baseOf(String(data.root || '').replace(/\/+$/, '')) || t('files.title');
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
-    <div class="fl-tree-h">
-      <button class="fl-root" title=${data.root} onClick=${e => setMenu(e.currentTarget)}>${rootName}<${Icon} n="chevron" /></button>
-      <span class="grow"></span>
+    ${header}
+    <div class="fl-tree-acts">
       <button class="icon-btn" aria-label=${t('files.new_note')} title=${t('files.new_note')} onClick=${() => newNote(current ? parentOf(current) : '', refresh)}><${Icon} n="edit" /></button>
       <button class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder(current ? parentOf(current) : '', refresh)}><${Icon} n="folder" /></button>
     </div>
-    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${[{ label: t('files.change_root'), icon: 'folder', run: onRoot }, { label: t('common.refresh'), icon: 'refresh', run: refresh }]} />`}
     <label class="fl-search"><${Icon} n="search" /><input placeholder=${t('files.search')} value=${q} onInput=${e => setQ(e.target.value)} aria-label=${t('files.search')} /></label>
     <div class="fl-list" role="tree">
       ${nodes.map(n => html`<${TreeRow} key=${n.path} n=${n} depth=${0} current=${current} open=${open} toggle=${toggle} refresh=${refresh} filter=${!!query} />`)}
@@ -143,7 +223,7 @@ function Viewer({ path, refresh, narrow }) {
   const [menu, setMenu] = useState(null);
   const reload = async () => {
     try {
-      const r = await get('/api/files/read?path=' + encodeURIComponent(path));
+      const r = await get('/api/files/read?path=' + encodeURIComponent(path) + scopeQuery('&'));
       setFile(r.ok === false ? { error: r.error || t('files.failed') } : r);
     } catch (e) { setFile({ error: e.message || t('files.failed') }); }
     setState('saved');
@@ -167,7 +247,7 @@ function Viewer({ path, refresh, narrow }) {
     </header>
     ${!file ? html`<div class="fl-body"><div class="skeleton" style="height:28px;width:50%"></div><div class="skeleton" style="height:16px;margin-top:18px"></div></div>`
       : file.error ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${file.error} />`
-      : isImage(path) ? html`<div class="fl-body fl-image"><img src=${'/api/files/raw?path=' + encodeURIComponent(path)} alt=${baseOf(path)} /></div>`
+      : isImage(path) ? html`<div class="fl-body fl-image"><img src=${'/api/files/raw?path=' + encodeURIComponent(path) + scopeQuery('&')} alt=${baseOf(path)} /></div>`
       : file.binary || file.too_large ? html`<${Empty} icon="file" title=${file.too_large ? t('files.too_large') : t('files.binary')} />`
       : html`<${NoteEditor} key=${path + (raw ? ':raw' : '')} path=${path} file=${file} raw=${raw || !isNote(path)} onState=${setState} onSaved=${m => { setFile(f => ({ ...f, modified: m })); refresh(); }} onReload=${reload} narrow=${narrow} />`}
   </section>`;
@@ -177,7 +257,9 @@ export function FilesPage({ route }) {
   const narrow = useNarrow();
   const [data, setData] = useState(null);
   const [setup, setSetup] = useState(false);
-  const current = route.sub === 'n' ? route.id || '' : '';
+  const scopeNow = route.sub === 'm' ? 'machine' : route.sub === 'n' ? 'brain' : load('loom.files.scope', 'brain');
+  scope = scopeNow;
+  const current = route.sub === 'n' || route.sub === 'm' ? route.id || '' : '';
   const [failed, setFailed] = useState('');
   // Une lecture refusée (serveur injoignable, session expirée) laisse
   // l'arborescence affichée et réessaie au prochain passage.
@@ -186,15 +268,28 @@ export function FilesPage({ route }) {
     catch (e) { setFailed(e.message || t('files.failed')); return null; }
   };
   useEffect(() => { refresh(); const timer = setInterval(() => { if (!document.hidden) refresh(); }, 15000); return () => clearInterval(timer); }, []);
-  useEffect(() => { if (current) save('loom.files.last', current); else if (!narrow) { const last = load('loom.files.last', ''); if (last) openPath(last); } }, [current]);
+  useEffect(() => {
+    save('loom.files.scope', scopeNow);
+    const key = 'loom.files.last.' + scopeNow;
+    if (current) save(key, current); else if (!narrow) { const last = load(key, ''); if (last) openPath(last); }
+  }, [current, scopeNow]);
+  const setScope = v => { save('loom.files.scope', v); scope = v; const last = load('loom.files.last.' + v, ''); go('files', v === 'machine' ? 'm' : 'n', last || undefined); };
+  const setBrain = async (rootDir, rel) => {
+    const path = (rootDir.replace(/\/+$/, '') + '/' + rel).replace(/^\/\//, '/');
+    const r = await post('/api/files/root', { path });
+    if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
+    toast(t('files.brain_set', { path })); await refresh(); setScope('brain');
+  };
   if (!data) return html`<div class="view files"><div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
   const menuBtn = html`<button class="icon-btn only-mobile menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>`;
-  if (!data.exists || setup) return html`<div class="view files">${narrow && html`<header class="fl-head">${menuBtn}</header>`}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;
+  const header = html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} />`;
+  if (scopeNow === 'brain' && (!data.exists || setup)) return html`<div class="view files">${narrow && html`<header class="fl-head">${menuBtn}</header>`}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;
   const showTree = !narrow || !current;
   return html`<div class=${cls('view files', narrow && 'narrow')}>
     ${narrow && !current && html`<header class="fl-head">${menuBtn}<b>${t('files.title')}</b></header>`}
-    ${showTree && html`<${Tree} data=${data} current=${current} refresh=${refresh} onRoot=${() => setSetup(true)} />`}
-    ${current ? html`<${Viewer} key=${current} path=${current} refresh=${refresh} narrow=${narrow} />`
+    ${showTree && (scopeNow === 'machine' ? html`<${MachineTree} key=${'m'} current=${current} onSetBrain=${setBrain} header=${header} />`
+      : html`<${Tree} data=${data} current=${current} refresh=${refresh} onRoot=${() => setSetup(true)} header=${header} />`)}
+    ${current ? html`<${Viewer} key=${scopeNow + current} path=${current} refresh=${refresh} narrow=${narrow} />`
       : !narrow && html`<section class="fl-view"><${Empty} icon="file" title=${t('files.pick')} text=${t('files.pick_text')} /></section>`}
   </div>`;
 }

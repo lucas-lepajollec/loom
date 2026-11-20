@@ -120,8 +120,8 @@ function Detail({ id, onBack }) {
     ${readme && html`<div class="card models-card pad readme md" dangerouslySetInnerHTML=${{ __html: readme }}></div>`}`;
 }
 
-export function Hub({ enginePicker }) {
-  const [q, setQ] = useState('');
+export function Hub({ enginePicker, initialQuery = '' }) {
+  const [q, setQ] = useState(initialQuery);
   const [sort, setSort] = useState('downloads');
   const [pipe, setPipe] = useState('');
   const [list, setList] = useState(null);

@@ -21,6 +21,7 @@ const (
 	EngineDown         Type = "engine.down"
 	CapabilityDegraded Type = "capability.degraded"
 	CapabilityRestored Type = "capability.restored"
+	ModelNew           Type = "model.new"
 )
 
 type Event struct {

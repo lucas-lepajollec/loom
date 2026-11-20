@@ -327,6 +327,12 @@ func newEngineWorkerMuxModules(token string, terminal *nodeTerminalServer) *http
 	})
 	registerVoiceRoutes(api, true)
 	api("/api/node/terminal/ws", terminal.ws)
+	if nodeTerminalEnabled() {
+		for path, h := range map[string]http.HandlerFunc{"/api/files/root": handleFilesRoot, "/api/files/tree": handleFilesTree, "/api/files/list": handleFilesList,
+			"/api/files/read": handleFilesRead, "/api/files/raw": handleFilesRaw, "/api/files/write": handleFilesWrite, "/api/files/op": handleFilesOp} {
+			api(path, h)
+		}
+	}
 	api("/api/node/observe", handleNodeObserve)
 	api("/api/node/inventory", handleNodeInventory)
 	api("/api/node/folders", handleNodeFolders)

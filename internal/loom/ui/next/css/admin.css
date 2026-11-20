@@ -215,76 +215,569 @@
 
 /* ---------- Machines ---------- */
 .mc-page {
-  max-width: 940px;
-}
-
-.mc-page .page-head {
-  align-items: flex-end;
-  margin-bottom: 20px;
-}
-
-.mc-page .page-head h1 {
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.mc-page .page-head .acts .mcard.add {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  width: auto;
-  min-height: 0;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--on-ink);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.mc-page .page-head .acts .mcard.add:hover {
-  background: color-mix(in srgb, var(--ink) 88%, var(--bg));
-  border-color: var(--ink);
-  color: var(--on-ink);
-}
-
-.mc-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-width: 1040px;
 }
 
-.mc-card {
+.mc-page.machine-detail {
+  max-width: 940px;
+}
+
+.mc-page .page-head,
+.machine-terminal-page .page-head {
+  align-items: center;
+  margin: 0;
+}
+
+.mc-page .page-head h1,
+.machine-detail-head h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.machine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 256px), 1fr));
+  gap: 12px;
+}
+
+.machine-card {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 18px 20px;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
   border-radius: var(--r-lg);
   background: var(--surface);
 }
 
-.mc-card.offline {
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: transparent;
-  border: 1px dashed var(--line-strong);
-}
-
-.mc-card-h {
+.machine-card-head,
+.machine-detail-identity {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
+.machine-card-head > div {
+  min-width: 0;
+}
+
+.machine-card h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.machine-card h2 a:hover {
+  text-decoration: underline;
+}
+
+.machine-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+
+.machine-icon .ico {
+  width: 17px;
+  height: 17px;
+}
+
+.machine-card-tags,
+.machine-chips,
+.machine-actions,
+.machine-migration {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.machine-interface {
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.machine-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.machine-status > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+
+.machine-status.online,
+.machine-provides {
+  color: var(--green);
+}
+
+.machine-status.online > i {
+  background: var(--green);
+}
+
+.machine-status.offline > i {
+  background: var(--red);
+}
+
+.machine-specs {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.machine-card-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.machine-card h3 {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.machine-chip,
+.machine-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.machine-chip {
+  padding: 3px 7px;
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+  line-height: 1.3;
+}
+
+.machine-chip.provided {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.machine-chip .ico {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.machine-chips > .machine-agent {
+  padding: 4px 7px;
+  background: var(--surface-2);
+}
+
+.machine-agent-version {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.machine-meters {
+  display: grid;
+  gap: 8px 20px;
+}
+
+.machine-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.machine-meter > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.machine-meter-track {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+
+.machine-meter-track > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-3);
+}
+
+.machine-meter.warm .machine-meter-track > i {
+  background: var(--amber);
+}
+
+.machine-meter.hot .machine-meter-track > i {
+  background: var(--red);
+}
+
+.machine-card-foot {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.machine-card-foot .machine-actions > a {
+  margin-left: auto;
+}
+
+.machine-version {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.machine-update {
+  color: var(--amber);
+}
+
+.machine-note,
+.machine-section-note {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.machine-section-note {
+  padding: 12px 16px;
+}
+
+.machine-back {
+  align-self: flex-start;
+}
+
+.machine-detail-head,
+.machine-detail-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.machine-detail-identity .machine-icon {
+  width: 42px;
+  height: 42px;
+}
+
+.machine-detail-identity .machine-icon .ico {
+  width: 20px;
+  height: 20px;
+}
+
+.machine-detail-identity small {
+  margin-top: 3px;
+}
+
+.machine-section {
+  min-width: 0;
+}
+
+.machine-section > h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.machine-row {
+  display: flex;
+  align-items: center;
+  gap: 10px 14px;
+  min-height: 52px;
+  min-width: 0;
+  padding: 8px 16px;
+  overflow-wrap: anywhere;
+}
+
+.machine-row + .machine-row,
+.machine-install,
+.machine-section-note + .machine-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.machine-row-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.machine-row-text b {
+  font-weight: 500;
+}
+
+.machine-row-text small {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.machine-row-text .machine-provides {
+  color: var(--green);
+}
+
+.machine-row .machine-actions {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.machine-row .btn.used {
+  border-color: transparent;
+  background: var(--green-bg);
+  color: var(--green);
+  opacity: 1;
+  box-shadow: none;
+}
+
+.machine-file-root {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 5px;
+  color: var(--text-3);
+}
+
+.machine-file-root .machine-update {
+  color: var(--amber);
+}
+
+.machine-install > summary {
+  padding: 12px 16px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.machine-resource-body {
+  padding: 14px 16px;
+}
+
+.machine-resource-body .machine-meters {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+}
+
+.machine-terminal-link {
+  color: var(--text);
+}
+
+.machine-terminal-link:hover {
+  background: var(--hover);
+}
+
+.machine-terminal-link > .ico,
+.machine-folder > .ico {
+  flex: none;
+  color: var(--text-3);
+}
+
+.machine-loading {
+  height: 240px;
+}
+
+.machine-load-error {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+}
+
+.mc-page > .sec {
+  margin-top: 0;
+}
+
+.mc-page .bs-name,
+.mc-page .bs-sub {
+  overflow-wrap: anywhere;
+}
+
+.machine-dialog .cm-connect.embedded {
+  padding-bottom: 0;
+}
+
+.machine-dialog :is(.set-line, .set-c) {
+  flex-wrap: wrap;
+}
+
+/* Terminals opened from Machines */
+.machine-terminal-page .machine-back {
+  margin-bottom: 10px;
+}
+
+.terminal-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  margin-top: 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: min(100%, 260px);
+  padding-right: 4px;
+  border-radius: 8px 8px 0 0;
+  color: var(--text-3);
+}
+
+.terminal-tab.current {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: inset 0 -2px var(--text);
+}
+
+.terminal-tab:hover {
+  background: var(--surface-2);
+}
+
+.terminal-tab a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+  min-height: 42px;
+  color: inherit;
+}
+
+.terminal-tab a > span {
+  display: grid;
+  min-width: 0;
+}
+
+.terminal-tab b,
+.terminal-tab small,
+.machine-terminal-page .term-head b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tab b {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.terminal-tab small {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.terminal-tab .icon-btn {
+  flex: none;
+}
+
+.machine-terminal-page .term-view {
+  height: clamp(360px, calc(100dvh - 230px), 850px);
+  margin-top: 10px;
+}
+
+.machine-terminal-page .term-head b {
+  max-width: 50%;
+}
+
+.machine-terminal-page .term-box {
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  .mc-page {
+    gap: 14px;
+  }
+
+  .machine-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mc-page .page-head,
+  .machine-terminal-page .page-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  :is(.mc-page, .machine-terminal-page, .machine-dialog) :is(.btn, .icon-btn),
+  .dialog:has(.mx-steps, .machine-dialog) :is(.btn, .icon-btn, .input),
+  .terminal-tab a,
+  .machine-install > summary {
+    min-height: 44px;
+  }
+
+  :is(.mc-page, .machine-terminal-page, .machine-dialog) .icon-btn,
+  .dialog:has(.mx-steps, .machine-dialog) .icon-btn {
+    min-width: 44px;
+  }
+
+  .mc-page .page-head .acts,
+  .machine-terminal-page .page-head .acts {
+    justify-content: flex-start;
+  }
+
+  .mc-page .page-head .acts > .btn {
+    flex: 1 1 auto;
+  }
+
+  .machine-row,
+  .machine-detail .set-line {
+    flex-wrap: wrap;
+  }
+
+  .machine-row .machine-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+
+  .machine-terminal-page .term-view {
+    height: 60dvh;
+  }
+}
+
+/* Voice service status */
 .mc-dot {
   width: 9px;
   height: 9px;
@@ -295,266 +788,6 @@
 
 .mc-dot.green {
   background: var(--green);
-}
-
-.mc-dot.amber {
-  background: var(--amber);
-}
-
-.mc-dot.red {
-  background: var(--red);
-}
-
-.mc-card-title {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mc-card-title b {
-  font-size: 15px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-}
-
-.mc-card-title b a {
-  color: var(--text);
-  text-decoration: none;
-}
-
-.mc-card-title b a:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.mc-card-title .mc-tag-here {
-  font-weight: 400;
-  font-size: 13px;
-  color: var(--text-3);
-}
-
-.mc-sub {
-  font-size: 13px;
-  color: var(--text-2);
-  overflow-wrap: anywhere;
-}
-
-.mc-card-acts {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-}
-
-.mc-kv4 {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.mc-kv3 {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.mc-kv {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.mc-kv > span:first-child {
-  font-size: 12.5px;
-  color: var(--text-3);
-}
-
-.mc-kv > a,
-.mc-kv > span:last-child {
-  font-size: 13.5px;
-  color: var(--text);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.mc-kv > a:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.mc-vram {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mc-bar {
-  flex: 1;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--surface-3);
-  overflow: hidden;
-  min-width: 48px;
-}
-
-.mc-bar i {
-  display: block;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--text-2);
-  transition: width var(--slow) var(--out);
-}
-
-.mc-bar i.warm {
-  background: var(--amber);
-}
-
-.mc-bar i.hot {
-  background: var(--red);
-}
-
-.mc-vram span {
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.mc-sec {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.mc-sec-h {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.mc-lbl {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-3);
-}
-
-.mc-link-btn {
-  font-size: 12.5px;
-  color: var(--text-3);
-  padding: 2px 4px;
-  border-radius: 6px;
-}
-
-.mc-link-btn:hover {
-  color: var(--text);
-  background: var(--hover);
-}
-
-.mc-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.mc-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 13px;
-  white-space: nowrap;
-  max-width: 100%;
-  text-decoration: none;
-}
-
-a.mc-chip:hover,
-button.mc-chip:hover {
-  background: var(--surface-3);
-}
-
-.mc-chip.dashed {
-  background: transparent;
-  border: 1px dashed var(--line-strong);
-  color: var(--text-2);
-}
-
-.mc-chip.dashed:hover {
-  color: var(--text);
-  background: var(--hover);
-}
-
-.mc-chip-ver {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.mc-chip-up {
-  color: var(--amber);
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 0 2px;
-}
-
-.mc-chip-up:hover {
-  text-decoration: underline;
-}
-
-.mc-chip-del {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-right: -4px;
-  border-radius: 5px;
-  color: var(--text-3);
-}
-
-.mc-chip-del:hover {
-  color: var(--text);
-  background: var(--surface-3);
-}
-
-.mc-chip-del svg {
-  width: 12px;
-  height: 12px;
-}
-
-.mc-cols2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-}
-
-.mc-engine-acts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.mc-mig {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
-}
-
-.mc-mig > .state {
-  margin-right: auto;
 }
 
 /* ---------- Voix & Jarvis (deux colonnes) ---------- */
@@ -652,11 +885,6 @@ button.mc-chip:hover {
   .set-nav {
     position: static;
   }
-  .mc-kv4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mc-kv3,
-  .mc-cols2,
   .vx-cols {
     grid-template-columns: 1fr;
   }
@@ -679,38 +907,6 @@ button.mc-chip:hover {
     height: auto;
     padding: 12px 16px;
   }
-  .mc-card {
-    padding: 16px;
-    gap: 14px;
-  }
-  .mc-card-h {
-    flex-wrap: wrap;
-  }
-  .mc-card-acts {
-    width: 100%;
-    justify-content: flex-start;
-  }
-  .mc-card.offline {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .mc-kv4,
-  .mc-kv3,
-  .mc-cols2 {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .mc-chip {
-    min-height: 36px;
-    height: auto;
-    padding: 6px 10px;
-    white-space: normal;
-  }
-  .mc-page .page-head .acts,
-  .mc-page .page-head .acts .mcard.add {
-    width: 100%;
-    min-height: 44px;
-  }
   .vx-inline {
     justify-content: flex-start;
     width: 100%;
@@ -729,12 +925,10 @@ button.mc-chip:hover {
     min-height: 44px;
   }
   .vx-col .btn,
-  .mc-card .btn,
   .settings-body .btn {
     min-height: 44px;
   }
   .vx-col .btn.sm,
-  .mc-card .btn.sm,
   .settings-body .btn.sm {
     min-height: 36px;
   }

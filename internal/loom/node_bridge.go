@@ -24,7 +24,8 @@ func nodeModules() []string {
 		modules = append(modules, "voice")
 	}
 	if nodeTerminalEnabled() {
-		modules = append(modules, "terminal")
+		// Files share the terminal's trust: the same account and credential.
+		modules = append(modules, "terminal", "files")
 	}
 	if nodeObserveEnabled() {
 		modules = append(modules, "observe")

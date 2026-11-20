@@ -9,6 +9,7 @@ import { api, cm } from './client.js';
 import { agents, stateOf, sessionList, projectOf, cliOf, capsOf, hasConversation, onDomain } from './store.js';
 import { answerApproval, dismissApproval, interrupt } from './actions.js';
 import { StateDot, ago } from './rail.js';
+import { HistoryRow } from './side.js';
 import { CliMark } from './new-session.js';
 import { officialLink, openSession } from './nav.js';
 import { Menu } from '../../ui/controls.js';
@@ -156,6 +157,20 @@ function HarnessTable() {
 }
 
 const ORDER = ['waiting', 'error', 'limited', 'working', 'starting', 'idle', 'stopped'];
+// Conversations passées que Codeman sait reprendre (dans le même dossier).
+function ResumeList() {
+  const unified = useStore(agents, s => s.unified);
+  useStore(agents, s => s.order);
+  const ids = new Set(sessionList().map(s => s.id));
+  const rows = unified.filter(r => !(r.sources || []).includes('live') && !ids.has(r.sessionId))
+    .sort((a, b) => (b.lastActivityAt || 0) - (a.lastActivityAt || 0)).slice(0, 12);
+  if (!rows.length) return null;
+  return html`<section class="cm-cc-sec">
+    <h2>${t('agents.cc.resume')}</h2>
+    <div class="cm-resume">${rows.map(r => html`<${HistoryRow} key=${r.sessionId} r=${r} />`)}</div>
+  </section>`;
+}
+
 export function ControlCenter() {
   useStore(agents, s => [s.order, s.sessions]);
   const approvals = useStore(agents, s => s.approvals);
@@ -201,6 +216,7 @@ export function ControlCenter() {
       ${next.length ? html`<ul class="cm-next-runs">${next.map(j => html`<li key=${j.id}><b>${j.name}</b><span>${cliOf(j.agentType).label} · ${schedule(j)}</span><time>${fmt(j.nextRunAt)}</time></li>`)}</ul>`
         : !error && html`<p class="cm-admin-empty">${jobs ? t('agents.cc.no_next') : t('agents.conn.connecting')}</p>`}
     </section>
+    <${ResumeList} />
     <details class="cm-session-board"><summary>${t('agents.cc.board')} · ${list.length}</summary>
       ${list.length ? html`<ul class="cm-cc-grid">${list.map(s => html`<${SessionCard} key=${s.id} s=${s} />`)}</ul>` : html`<p class="muted">${t('agents.rail.empty')}</p>`}
     </details>

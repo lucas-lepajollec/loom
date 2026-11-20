@@ -312,6 +312,9 @@ func (s *notificationService) message(c notify.Config, e events.Event, summaryAl
 	if e.DiscussionID != "" {
 		link = base + "/#/chat/" + url.PathEscape(e.DiscussionID)
 	}
+	if e.Type == events.ModelNew {
+		link = base + "/#/market"
+	}
 	body := e.Status
 	if e.Summary != "" {
 		body += " · " + e.Summary
