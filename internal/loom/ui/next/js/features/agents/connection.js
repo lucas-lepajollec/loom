@@ -135,9 +135,9 @@ function Connected({ conn, onChange }) {
 }
 
 // gate : affiché à la place du module tant que Codeman n'est pas connecté.
-export function ConnectionPanel({ gate, embedded }) {
+export function ConnectionPanel({ gate, embedded, initialUrl }) {
   const conn = useStore(agents, s => s.conn);
-  const [changing, setChanging] = useState(false);
+  const [changing, setChanging] = useState(!!initialUrl);
   useEffect(() => { refreshConnection(); }, []);
   const ok = conn.state === 'ready';
   const broken = conn.configured && ['unreachable', 'rejected', 'auth', 'error'].includes(conn.state);
@@ -163,7 +163,8 @@ export function ConnectionPanel({ gate, embedded }) {
         <p class="muted">${ok ? t('agents.setup.lead_ok') : broken ? lt('connText', conn.state) : t('agents.setup.lead')}</p></div>
     </div>
     ${ok && !changing ? html`<${Connected} conn=${conn} onChange=${() => setChanging(true)} />`
-      : html`<${ServerSetup} initial=${conn.configured ? { url: conn.url, username: conn.username } : null} onDone=${() => setChanging(false)} />`}
+      : initialUrl ? html`<${Manual} initial=${{ url: initialUrl, username: conn.username }} onDone=${() => setChanging(false)} />`
+        : html`<${ServerSetup} initial=${conn.configured ? { url: conn.url, username: conn.username } : null} onDone=${() => setChanging(false)} />`}
     ${conn.configured && html`<div class="cm-connect-acts">
       <button class="btn sm" disabled=${testing} onClick=${test}>${t('agents.conn.test')}</button>
       ${conn.password_set && html`<button class="btn sm ghost danger" onClick=${forget}>${t('agents.conn.forget')}</button>`}
