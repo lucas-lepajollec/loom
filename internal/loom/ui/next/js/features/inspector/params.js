@@ -208,16 +208,16 @@ export function ParamsEditor({ src, onSaved, onLoaded }) {
   return html`<div class="insp-body">
       <div class="insp-model-row"><div class="insp-model"><b>${src.mode === 'preset' ? src.presetName : baseName(src.model).replace(/\.gguf$/i, '')}</b>
         <span>${src.mode === 'preset' ? t("inspector.params.preset_model") + baseName(src.model) : !src.live ? t("inspector.params.pas_charge") : src.remembered ? t("inspector.params.modele_reglages_memorises") : t("inspector.params.modele_reglages_automatiques")}</span></div>
-        <button class="btn sm ghost" title="${t("inspector.params.enregistrer_ces_reglages_sous_un_nom")}" onClick=${newPreset}><${Icon} n="plus" />${t("inspector.params.preset")}</button></div>
+        <button class="btn sm dd" title="${t("inspector.params.enregistrer_ces_reglages_sous_un_nom")}" onClick=${newPreset}>${t("inspector.params.preset")}<${Icon} n="plus" /></button></div>
       <${VramCard} est=${est} note=${!cfg.get('CTX') ? (autoFit ? t("inspector.params.estimation_au_contexte_natif_llama_cpp_ajustera_les_valeurs_non_f") : t("inspector.params.ajustement_automatique_indisponible_ou_desactive_le_contexte_nati")) : ''} />
       <${Seg} value=${tier} onChange=${localT => { setTier(localT); localStorage.setItem('loom.next.tier', localT); }} label="${t("inspector.params.niveau")}" options=${[{ value: 'essential', label: t("inspector.params.essentiel") }, { value: 'advanced', label: t("inspector.params.avance") }, { value: 'expert', label: t("inspector.params.expert") }]} />
       <div class="prows" key=${tier}>${tier === 'essential' ? essentials : tier === 'advanced' ? advanced : expert}</div>
     </div>
     <div class=${cls('insp-foot', dirty && 'dirty')}>
-      <span class="insp-state">${!src.live ? t("inspector.params.le_moteur_ne_change_pas_tant_que_tu_ne_charges_pas") : dirty ? t("inspector.params.modifications_non_appliquees") : t("inspector.params.applique_au_modele_charge")}</span>
+      <span class=${cls('insp-state', dirty && 'warn')}>${!src.live ? t("inspector.params.le_moteur_ne_change_pas_tant_que_tu_ne_charges_pas") : dirty ? t("inspector.params.modifications_non_appliquees") : t("inspector.params.applique_au_modele_charge")}</span>
       <div class="insp-acts">
         ${src.live ? html`<button class="btn primary" disabled=${!dirty} onClick=${apply}>${t("inspector.params.appliquer")}</button>` : html`<button class="btn primary" onClick=${loadNow}><${Icon} n="play" />${t("inspector.params.charger")}</button>`}
-        <button class="btn" onClick=${e => setMenu(e.currentTarget)}>${t("inspector.params.enregistrer")}<${Icon} n="chevron" /></button>
+        <button class="btn dd" onClick=${e => setMenu(e.currentTarget)}>${t("inspector.params.enregistrer")}<${Icon} n="chevron" /></button>
       </div>
       ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${saveMenu} />`}
     </div>`;

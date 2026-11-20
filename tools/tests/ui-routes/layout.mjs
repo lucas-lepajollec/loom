@@ -4,6 +4,8 @@ export function phoneLayoutIssues() {
   const issues = [], width = document.documentElement.clientWidth, tolerance = 2;
   const visible = el => {
     const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    // Visually hidden headings (.sr) exist for screen readers only.
+    if (el.closest && el.closest('.sr')) return false;
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && !!el.getClientRects().length;
   };
   const name = el => el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().replace(/\s+/g, '.') : '') + ' ' + el.textContent.trim().slice(0, 70);

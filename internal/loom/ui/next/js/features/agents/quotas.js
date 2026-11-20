@@ -9,19 +9,22 @@ import { Empty, Seg, Tip, Popover } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
 import { get, post } from '../../core/api.js';
 import { visibleRefresh } from '../../core/poll.js';
-import { SectionTabs } from '../../app/sections.js';
+import { ActivityLayout } from '../usage/page.js';
 import { agents, sessionList, stateOf } from './store.js';
 import { openSession } from './nav.js';
 import { setViewOf } from './layout.js';
 import { toast, confirm } from '../../ui/dialog.js';
 import { CliMark } from './new-session.js';
 import { api, sendPrompt } from './client.js';
-import { currentWindow, dailyUse } from './quota-math.js';
+import { H, currentWindow, dailyUse } from './quota-math.js';
 
-const H = 3600e3, DAY = 24 * H;
+const DAY = 24 * H;
 const SPAN = { '5h': 5 * H, '7d': 7 * DAY };
-const ACCOUNTS = { claude: ['Claude', 'claude'], codex: ['Codex', 'openai'], antigravity: ['Antigravity', 'google'], copilot: ['Copilot', ''] };
-const accName = id => (ACCOUNTS[id] || [id])[0];
+const CHARTED = ['5h', '7d', 'month'];
+const WIN_ORDER = [...CHARTED, 'other'];
+const ACCOUNTS = { claude: 'Claude', codex: 'Codex', antigravity: 'Antigravity', copilot: 'Copilot' };
+const TILES = { codex: 'Cx', antigravity: 'Ag', copilot: 'Cp' };
+const accName = id => ACCOUNTS[id] || id;
 
 function fmtIn(ms) {
   const m = Math.max(0, Math.round(ms / 60000));
@@ -32,49 +35,88 @@ function fmtIn(ms) {
 const clock = ms => new Date(ms).toLocaleString(locale(), Date.now() + DAY > ms ? { timeStyle: 'short' } : { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 const day = ms => new Date(ms).toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
 const tone = v => (v >= 90 ? 'red' : v >= 70 ? 'amber' : 'ok');
+const percent = (v, decimals = 0) => (v / 100).toLocaleString(locale(), { style: 'percent', maximumFractionDigits: decimals });
+const joinList = values => new Intl.ListFormat(locale()).format(values);
 
 // Nom d'une limite : fenêtre connue (5 h, semaine, mois), précisée par le
 // modèle quand le CLI la découpe (Claude : Opus, Sonnet), sinon son libellé.
-function limitName(l) {
-  const base = { '5h': t('quotas.win_5h'), '7d': t('quotas.win_7d'), month: t('quotas.win_month') }[l.window];
+function limitName(l, compact = false) {
+  const base = {
+    '5h': compact ? t('quotas.short_5h') : t('quotas.win_5h'),
+    '7d': compact ? t('quotas.short_7d') : t('quotas.win_7d'),
+    month: t('quotas.win_month'),
+  }[l.window];
   if (!base) return l.label || l.id;
   return l.label ? base + ' · ' + l.label : base;
 }
 
-// Une limite : part consommée, remise à zéro, et rythme (la part attendue si
-// la consommation était régulière sur la fenêtre).
-function Window({ l }) {
+function AccountMark({ id }) {
+  return id === 'claude'
+    ? html`<span class="q-mark q-mark-claude"><${Logo} id="claude" size="xs" /></span>`
+    : html`<span class="q-mark" aria-hidden="true">${TILES[id] || id.slice(0, 1).toUpperCase()}</span>`;
+}
+
+function Window({ acc, l, samples }) {
   const now = Date.now();
   const span = l.label ? 0 : SPAN[l.window];
   const used = Math.round(l.used);
   const left = l.reset_at ? l.reset_at - now : 0;
   const expected = span && l.reset_at && left > 0 && left <= span ? Math.round((1 - left / span) * 100) : null;
   const pace = expected == null ? '' : used - expected > 8 ? 'ahead' : expected - used > 8 ? 'under' : 'even';
-  return html`<div class=${cls('q-win', 'q-' + tone(used))}>
-    <div class="q-win-h"><span>${limitName(l)}</span><b>${used}<small>%</small></b></div>
-    <div class="q-bar"><i style=${`width:${Math.min(100, used)}%`}></i>${expected != null && html`<u style=${`left:${expected}%`} title=${t('quotas.expected', { v: expected })}></u>`}</div>
-    <div class="q-win-f muted">
-      ${l.reset_at ? html`<span>${left > 0 ? t(used >= 100 ? 'quotas.back_in' : 'quotas.resets_in', { in: fmtIn(left), at: clock(l.reset_at) }) : t('quotas.reset_done')}</span>` : html`<span></span>`}
-      ${pace && html`<span class=${'q-pace ' + pace}>${pace === 'ahead' ? t('quotas.pace_ahead') : pace === 'under' ? t('quotas.pace_under') : t('quotas.pace_even')}</span>`}
+  const verdict = { ahead: t('quotas.pace_ahead'), under: t('quotas.pace_under'), even: t('quotas.pace_even') }[pace];
+  const name = [l.group, limitName(l, true)].filter(Boolean).join(' · ');
+  const resetTime = left > 0 ? clock(l.reset_at) : '';
+  const closed = !l.reset_at && l.used === 0 && CHARTED.includes(l.window);
+  let caption = closed ? t('quotas.closed_short') : '';
+  if (l.reset_at) caption = left <= 0 ? t('quotas.reset_done') : used >= 100
+    ? t('quotas.back_in', { in: fmtIn(left), at: resetTime }) : t('quotas.reset_at_short', { at: resetTime });
+  const w = currentWindow(samples, acc, sampleKey(acc, l), l, now);
+  const forecast = windowProjection(w, now);
+  const warning = forecast?.warning || pace === 'ahead';
+  const color = tone(used) === 'red' ? 'red' : warning ? 'amber' : tone(used);
+  const compact = forecast?.warning ? forecast.short : used < 100 ? resetTime : '';
+  const resetTitle = resetTime && t('quotas.resets_in', { in: fmtIn(left), at: resetTime });
+  if (forecast?.warning) caption = forecast.detail;
+  return html`<div class=${cls('q-win', 'q-' + color, closed && 'closed')}>
+    <div class="q-win-h"><span>${name}</span><span class="q-win-value" title=${resetTitle || undefined}>${percent(l.used)}
+      ${compact && html`<span class="q-win-compact"> · ${compact}</span>`}</span></div>
+    <div class="q-bar" role="meter" aria-label=${name} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${l.used}>
+      <i style=${`width:${Math.min(100, Math.max(0, l.used))}%`}></i>
+      ${expected != null && html`<u style=${`left:${expected}%`} title=${t('quotas.expected', { v: expected })}></u>`}
     </div>
+    ${(caption || verdict) && html`<small class="q-win-f muted">
+      ${caption && html`<span class=${cls(compact && 'q-win-desktop')} title=${resetTitle || undefined}>${caption}</span>`}
+      ${verdict && html`<span class=${cls('q-pace', pace)}>${verdict}</span>`}
+    </small>`}
   </div>`;
 }
 
-function Account({ a, sub }) {
-  const [name, logo] = ACCOUNTS[a.id] || [a.id, ''];
-  // Antigravity regroupe ses limites par famille de modèles.
-  const groups = [], order = ['5h', '7d', 'month', 'other'];
-  const limits = [...(a.limits || [])].sort((x, y) => order.indexOf(x.window) - order.indexOf(y.window));
-  for (const l of limits) {
-    let g = groups.find(x => x.name === (l.group || ''));
-    if (!g) groups.push(g = { name: l.group || '', list: [] });
-    g.list.push(l);
+function Account({ a, sub, samples, first }) {
+  const name = accName(a.id);
+  const groups = new Map();
+  for (const l of a.limits || []) {
+    const group = l.group || '';
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(l);
   }
-  return html`<div class=${cls('card pad q-acc', groups.length > 1 && 'wide')}>
-    <div class="q-acc-h"><${Logo} id=${logo} name=${name} size="sm" /><b>${name}</b><span class="muted">${sub}</span></div>
-    ${!groups.length ? html`<p class="muted q-none">${t('quotas.no_data')}</p>`
-      : html`<div class="q-groups">${groups.map(g => html`<div class="q-group" key=${g.name}>${g.name && html`<h3>${g.name}</h3>`}${g.list.map(l => html`<${Window} key=${l.id} l=${l} />`)}</div>`)}</div>`}
-  </div>`;
+  const [primary, ...others] = groups.values();
+  const otherNames = [...groups.keys()].slice(1).map(group => group || t('quotas.other_limits'));
+  const otherUsed = others.flat().map(l => Math.round(l.used));
+  const common = otherUsed.length && otherUsed.every(v => v === otherUsed[0]) ? percent(otherUsed[0]) : '';
+  const tip = [
+    first && t('quotas.limits_tip'),
+    a.id === 'antigravity' && t('quotas.reset_agy', { n: a.credits?.toLocaleString(locale()) ?? '—' }),
+    a.id === 'copilot' && t('quotas.reset_copilot'),
+  ].filter(Boolean).join(' ');
+  const draw = list => byWindow(list).map(l => html`<${Window} key=${l.id} acc=${a.id} l=${l} samples=${samples} />`);
+  return html`<article class="activity-card q-acc" aria-label=${name}>
+    <header class="q-acc-h"><${AccountMark} id=${a.id} /><h3>${name}</h3>${sub && html`<span class="q-acc-sub muted">${sub}</span>`}
+      ${tip && html`<${Tip} text=${tip} />`}
+    </header>
+    ${primary ? html`<div class="q-group">${draw(primary)}</div>` : html`<p class="muted q-none">${t('quotas.no_data')}</p>`}
+    ${others.length > 0 && html`<details class="q-group-details"><summary>${joinList(otherNames)}${common && ' · ' + common}</summary>
+      <div class="q-group">${draw(others.flat())}</div></details>`}
+  </article>`;
 }
 
 // Claude Code n'offre ses réinitialisations que dans son menu /limit-reset :
@@ -102,35 +144,65 @@ async function useCodexReset(c, done) {
   done();
 }
 
-// Une ligne par harness : combien de réinitialisations, de quelle nature, et
-// comment s'en servir.
+function ResetRow({ id, title, detail, class: variant, children }) {
+  return html`<div class=${cls('q-reset-row', variant)}>
+    <${AccountMark} id=${id} /><div class="q-reset-copy"><span>${accName(id)}</span>
+      ${title && html`<span class="q-reset-title">${title}</span>`}
+      ${detail && html`<small>${detail}</small>`}
+    </div>${children}
+  </div>`;
+}
+
+const creditTitle = c => c.title || t('quotas.reset_full');
+const creditExpiry = c => c.expires_at ? t('quotas.reset_until', { date: day(c.expires_at) }) : '';
+
+function CodexResets({ reset, refresh }) {
+  const [anchor, setAnchor] = useState(null);
+  const credits = reset.credits || [];
+  const extra = reset.available - credits.length;
+  const grouped = credits.length > 1;
+  const title = grouped && credits[0].title && credits.every(c => c.title === credits[0].title)
+    ? t('quotas.reset_group_kind', { n: credits.length, kind: credits[0].title })
+    : t('quotas.reset_group_count', { n: credits.length });
+  const expiry = grouped && credits.every(c => c.expires_at)
+    ? t('quotas.reset_until', { date: joinList(credits.map(c => day(c.expires_at))) }) : '';
+  return html`
+    ${!reset.available && html`<${ResetRow} id="codex" detail=${t('quotas.resets_none')} />`}
+    ${credits.map(c => html`<${ResetRow} id="codex" key=${c.id} title=${creditTitle(c)} detail=${creditExpiry(c)} class=${grouped ? 'q-reset-desktop' : ''}>
+      <button type="button" class="btn sm q-reset-action" onClick=${() => useCodexReset(c, refresh)}>${t('quotas.reset_use_one')}</button>
+    </${ResetRow}>`)}
+    ${grouped && html`<${ResetRow} id="codex" title=${title} detail=${expiry} class="q-reset-phone">
+      <button type="button" class="btn sm q-reset-action" aria-haspopup="dialog" aria-expanded=${String(!!anchor)}
+        onClick=${e => setAnchor(anchor ? null : e.currentTarget)}>${t('quotas.reset_use_one')}</button>
+    </${ResetRow}>`}
+    ${anchor && grouped && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${260} class="q-reset-pop">
+      ${credits.map(c => html`<button type="button" key=${c.id} class="item" onClick=${() => { setAnchor(null); anchor.focus(); useCodexReset(c, refresh); }}>
+        <span>${creditTitle(c)}</span>${c.expires_at && html`<small class="muted">${creditExpiry(c)}</small>`}
+      </button>`)}
+    </${Popover}>`}
+    ${extra > 0 && html`<p class="muted q-reset-more">${t('quotas.reset_more', { n: extra })}</p>`}`;
+}
+
 function Resets({ accounts, codeman, refresh }) {
-  const rows = [];
-  for (const a of accounts) {
-    const r = a.resets, [name, logo] = ACCOUNTS[a.id] || [a.id, ''];
-    const mark = html`<${Logo} id=${logo} name=${name} size="sm" />`;
-    if (a.id === 'codex' && r) {
-      if (!r.available) rows.push(html`<div class="q-rs-row" key="codex-none">${mark}<div class="q-rs-t"><b>${name}</b><span class="muted">${t('quotas.resets_none')}</span></div></div>`);
-      (r.credits || []).forEach(c => rows.push(html`<div class="q-rs-row" key=${'codex-' + c.id}>${mark}
-        <div class="q-rs-t"><b>${name} · ${c.title || t('quotas.reset_full')}</b><span class="muted">${t('quotas.reset_codex_what')}${c.expires_at ? ' · ' + t('quotas.reset_until', { date: day(c.expires_at) }) : ''}</span></div>
-        <button class="btn sm primary" onClick=${() => useCodexReset(c, refresh)}>${t('quotas.reset_use_one')}</button></div>`));
-      const extra = r.available - (r.credits || []).length;
-      if (extra > 0) rows.push(html`<p class="muted q-rs-more" key="codex-more">${t('quotas.reset_more', { n: extra })}</p>`);
-    } else if (a.id === 'claude' && r) {
-      rows.push(r.available ? html`<div class="q-rs-row" key="claude">${mark}
-        <div class="q-rs-t"><b>${name} · ${t('quotas.reset_claude_one')}</b><span class="muted">${t(r.stale ? 'quotas.reset_claude_stale' : 'quotas.reset_claude_seen', { date: day(r.checked_at) })} ${t('quotas.reset_claude_kind')}</span></div>
-        ${codeman ? html`<button class="btn sm primary" onClick=${openClaudeReset}>${t('quotas.reset_open_claude')}</button>` : html`<code class="q-rs-cmd">/limit-reset</code>`}</div>`
-        : html`<div class="q-rs-row" key="claude">${mark}<div class="q-rs-t"><b>${name}</b><span class="muted">${t('quotas.reset_claude_none')}</span></div></div>`);
-    } else if (a.id === 'antigravity') {
-      rows.push(html`<div class="q-rs-row" key="agy">${mark}<div class="q-rs-t"><b>${name}</b><span class="muted">${t('quotas.reset_agy', { n: a.credits ?? '—' })}</span></div></div>`);
-    } else if (a.id === 'copilot') {
-      rows.push(html`<div class="q-rs-row" key="copilot">${mark}<div class="q-rs-t"><b>${name}</b><span class="muted">${t('quotas.reset_copilot')}</span></div></div>`);
-    }
-  }
-  if (!rows.length) return null;
-  const total = accounts.reduce((n, a) => n + (a.resets?.available || 0), 0);
-  return html`<section class="sec"><div class="sec-h"><h2>${t('quotas.resets')}${total ? html`<span class="q-rs-n">${total}</span>` : ''}<${Tip} text=${t('quotas.resets_tip')} /></h2></div>
-    <div class="card q-rs">${rows}</div></section>`;
+  const claude = accounts.find(a => a.id === 'claude')?.resets;
+  const codex = accounts.find(a => a.id === 'codex')?.resets;
+  if (!claude && !codex) return null;
+  const total = (claude?.available || 0) + (codex?.available || 0);
+  const checked = claude?.checked_at ? day(claude.checked_at) : '';
+  const reported = claude?.stale ? (checked ? t('quotas.reset_claude_stale', { date: checked }) : t('quotas.reset_claude_unconfirmed'))
+    : checked ? t('quotas.reset_claude_reported', { date: checked }) : '';
+  const tip = [t('quotas.resets_tip'), claude?.available && t('quotas.reset_claude_kind')].filter(Boolean).join(' ');
+  return html`<section class="activity-section">
+    <div class="activity-heading"><h2>${t('quotas.resets')}${total > 0 && html`<span class="q-reset-count">${total}</span>`}<${Tip} text=${tip} /></h2></div>
+    <div class="activity-card q-resets">
+      ${claude && (claude.available ? html`<${ResetRow} id="claude" title=${t('quotas.reset_claude_one')} detail=${reported} class="q-reset-claude">
+        ${codeman ? html`<button type="button" class="btn sm q-reset-action" aria-label=${t('quotas.reset_open_command')} onClick=${openClaudeReset}>
+          <span class="q-reset-text">${t('quotas.reset_open_command')}</span><span class="q-reset-short">${t('quotas.reset_open_short')}</span>
+        </button>` : html`<code class="q-reset-command">/limit-reset</code>`}
+      </${ResetRow}>` : html`<${ResetRow} id="claude" detail=${t('quotas.reset_claude_none')} />`)}
+      ${codex && html`<${CodexResets} reset=${codex} refresh=${refresh} />`}
+    </div>
+  </section>`;
 }
 
 // Largeur réelle d'un conteneur : les dessins suivent la carte au pixel près,
@@ -148,79 +220,96 @@ function useWidth() {
   return [ref, w];
 }
 
-// Fenêtre en cours d'une limite : consommation depuis son ouverture (trait
-// plein), rythme régulier jusqu'à la remise à zéro (diagonale), et projection
-// au rythme récent (pointillés), avec la conclusion en clair.
 // Clé d'une limite dans les relevés : la fenêtre (5h, 7d, month) pour Claude,
 // Codex et Copilot, l'identifiant de la limite pour Antigravity.
 const sampleKey = (acc, l) => (acc === 'antigravity' ? l.id : l.label ? l.id : l.window);
 // Pas de projection tant que la fenêtre a moins d'une demi-heure (ou d'un
 // dixième de sa durée) : trop peu de mesures pour un rythme fiable.
-const tooEarly = w => Date.now() - w.start < Math.max(30 * 60e3, (w.end - w.start) / 10);
+const tooEarly = (w, now) => now - w.start < Math.max(30 * 60e3, (w.end - w.start) / 10);
 
-function WindowChart({ acc, l, samples }) {
-  const [ref, W] = useWidth();
+function windowProjection(w, now) {
+  if (!w || w.used >= 100 || tooEarly(w, now) || w.rate <= 0) return null;
+  if (w.eta != null) {
+    const at = clock(w.eta);
+    return { warning: true, short: t('quotas.eta_short', { at }), detail: t('quotas.win_eta', { at }) };
+  }
+  const v = percent(w.atReset);
+  return { warning: tone(w.atReset) !== 'ok', short: t('quotas.projection_short', { v }),
+    detail: t('quotas.projection_detail', { v, at: clock(w.end) }) };
+}
+
+const chartName = l => l.window === '7d' && !l.group && !l.label
+  ? t('quotas.current_week') : [l.group, limitName(l, true)].filter(Boolean).join(' · ');
+
+function WindowChart({ acc, l, samples, label }) {
+  const [ref, width] = useWidth();
   const now = Date.now();
   const w = currentWindow(samples, acc, sampleKey(acc, l), l, now);
-  const name = (l.group ? l.group + ' · ' : '') + limitName(l);
-  let verdict, warn = false;
+  const forecast = windowProjection(w, now);
+  const used = percent(l.used);
+  const color = tone(l.used) === 'red' ? 'red' : forecast?.warning ? 'amber' : tone(l.used);
+  let verdict = '';
   if (!w) verdict = l.used > 0 ? t('quotas.win_unknown') : t('quotas.win_closed');
-  else if (w.used < 100 && tooEarly(w)) verdict = t('quotas.win_early', { at: clock(w.start) });
-  else if (w.eta != null) { verdict = w.used >= 100 ? t('quotas.win_out', { at: clock(w.end) }) : t('quotas.win_eta', { at: clock(w.eta) }); warn = true; }
-  else if (w.rate <= 0) verdict = t('quotas.win_flat', { at: clock(w.end) });
-  else verdict = t('quotas.win_at_reset', { v: Math.round(w.atReset), at: clock(w.end) });
-  const Hc = 96;
+  else if (w.used >= 100) verdict = t('quotas.win_out', { at: clock(w.end) });
+  else if (tooEarly(w, now)) verdict = t('quotas.win_early', { at: clock(w.start) });
+  else if (!forecast) verdict = t('quotas.win_flat', { at: clock(w.end) });
+  const height = 120;
   let svg = null;
-  if (w && W) {
-    const x = at => ((at - w.start) / (w.end - w.start)) * W, y = v => Hc - (Math.min(100, Math.max(0, v)) / 100) * Hc;
-    const line = w.pts.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join(' ');
-    const first = w.pts[0], last = w.pts[w.pts.length - 1];
-    const area = line + ` L${x(last[0]).toFixed(1)} ${Hc} L${x(first[0]).toFixed(1)} ${Hc} Z`;
-    const proj = w.eta != null ? [x(w.eta), y(100)] : [W, y(w.atReset)];
-    svg = html`<svg width=${W} height=${Hc + 2} viewBox=${`0 -1 ${W} ${Hc + 2}`} aria-hidden="true">
-      <line class="qw-grid" x1="0" x2=${W} y1=${y(100)} y2=${y(100)} /><line class="qw-grid" x1="0" x2=${W} y1=${y(50)} y2=${y(50)} /><line class="qw-base" x1="0" x2=${W} y1=${Hc} y2=${Hc} />
-      <line class="qw-pace" x1="0" y1=${Hc} x2=${W} y2="0" />
-      <path class="qw-area" d=${area} /><path class="qw-line" d=${line} />
-      ${w.used < 100 && !tooEarly(w) && html`<line class=${cls('qw-proj', warn && 'warn')} x1=${x(now)} y1=${y(w.used)} x2=${proj[0]} y2=${proj[1]} />`}
-      <line class="qw-now" x1=${x(now)} x2=${x(now)} y1="0" y2=${Hc} /><circle class="qw-dot" cx=${x(now)} cy=${y(w.used)} r="3.5" />
+  if (w && width > 8) {
+    const x = at => 4 + Math.max(0, (at - w.start) / (w.end - w.start)) * (width - 8);
+    const y = v => height - 4 - Math.min(100, Math.max(0, v)) / 100 * (height - 8);
+    const line = w.pts.map(([at, value], i) => `${i ? 'L' : 'M'}${x(at).toFixed(1)} ${y(value).toFixed(1)}`).join(' ');
+    const area = `${line} L${x(now)} ${y(0)} L${x(w.pts[0][0])} ${y(0)} Z`;
+    svg = html`<svg width=${width} height=${height} viewBox=${`0 0 ${width} ${height}`} role="img"
+      aria-label=${t('quotas.chart_used', { name: chartName(l), v: used })}>
+      <line class="q-chart-pace" x1=${x(w.start)} y1=${y(0)} x2=${x(w.end)} y2=${y(100)} />
+      <path class="q-chart-area" d=${area} /><path class="q-chart-line" d=${line} />
+      ${w.used < 100 && !tooEarly(w, now) && html`<line class="q-chart-proj" x1=${x(now)} y1=${y(w.used)}
+        x2=${x(w.eta ?? w.end)} y2=${y(w.eta == null ? w.atReset : 100)} />`}
+      <circle class="q-chart-dot" cx=${x(now)} cy=${y(w.used)} r="3.5" />
     </svg>`;
   }
-  return html`<div class=${cls('qw', 'q-' + tone(l.used))}>
-    <div class="qw-h"><span>${name}</span><b>${Math.round(l.used)}<small>%</small></b></div>
-    <div class="qw-plot" ref=${ref}>${svg}</div>
-    ${w && html`<div class="qw-axis muted"><span>${clock(w.start)}</span><span>${t('quotas.win_reset_at', { at: clock(w.end) })}</span></div>`}
-    <p class=${cls('qw-verdict', warn && 'warn')}>${verdict}</p>
-  </div>`;
+  return html`<figure class=${cls('q-chart', 'q-' + color)}>
+    <figcaption class="q-chart-head">${label}<span class="q-chart-value">${forecast?.short || used}</span></figcaption>
+    <div class=${cls('q-chart-plot', w && 'has-window')} ref=${ref}>${svg}</div>
+    ${w && html`<div class="q-chart-foot muted"><span>${clock(w.start)}</span><span>${t('quotas.win_reset_at', { at: clock(w.end) })}</span></div>`}
+    ${verdict && html`<p class="q-none muted">${verdict}</p>`}
+  </figure>`;
 }
 
 // Part de la semaine (ou du mois) consommée chaque jour, sur 14 jours.
 function DailyChart({ acc, l, samples }) {
-  const days = dailyUse(samples, acc, sampleKey(acc, l), 14);
-  const max = Math.max(10, ...days.map(d => d.used));
+  const key = sampleKey(acc, l);
+  const hasSamples = samples.some(s => s[acc]?.[key]);
+  const days = dailyUse(samples, acc, key, 14);
+  const max = Math.max(100, ...days.map(d => d.used));
   const total = days.reduce((n, d) => n + d.used, 0);
-  const name = (l.group ? l.group + ' · ' : '') + limitName(l);
-  return html`<div class="qd">
-    <div class="qd-h"><span>${t('quotas.daily_of', { name })}</span>${total > 0 && html`<span class="muted">${t('quotas.daily_avg', { v: Math.round((total / days.filter(d => d.used > 0).length) * 10) / 10 })}</span>`}</div>
-    <div class="qd-bars" role="img" aria-label=${t('quotas.daily_of', { name })}>${days.map(d => {
-      const label = new Date(d.day).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric' });
-      return html`<div class="qd-col" key=${d.day} title=${label + ' · ' + d.used + ' %'}>
-        <small class="qd-v">${d.used >= 1 ? Math.round(d.used) : ''}</small>
-        <i style=${`height:${(d.used / max) * 100}%`}></i>
-        <small class="qd-d">${new Date(d.day).toLocaleDateString(locale(), { weekday: 'narrow' })}</small></div>`;
-    })}</div>
-  </div>`;
+  return html`<figure class="q-chart">
+    <figcaption class="q-chart-head"><span>${t('quotas.daily_period', { n: days.length })}</span>
+      ${total > 0 && html`<span class="muted">${t('quotas.daily_average', { v: percent(total / days.filter(d => d.used > 0).length, 1) })}</span>`}
+    </figcaption>
+    ${hasSamples ? html`<div class="q-day-bars" role="img" aria-label=${t('quotas.daily_of', { name: chartName(l) })}>${days.map(d => {
+      const date = new Date(d.day);
+      const label = date.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric' });
+      return html`<div class="q-day-column" key=${d.day} title=${label + ' · ' + percent(d.used, 1)}>
+        <span><i style=${`height:${(d.used / max) * 100}%`}></i></span>
+        <small>${date.toLocaleDateString(locale(), { weekday: 'narrow' })}</small></div>`;
+    })}</div>` : html`<p class="q-none muted">${t('quotas.history_empty')}</p>`}
+  </figure>`;
 }
 
-const CHARTED = ['5h', '7d', 'month'];
-function Evolution({ acc, accounts, samples }) {
-  const a = accounts.find(x => x.id === acc);
-  const order = ['5h', '7d', 'month'];
-  const limits = ((a && a.limits) || []).filter(l => CHARTED.includes(l.window)).sort((x, y) => (x.group || '').localeCompare(y.group || '') || order.indexOf(x.window) - order.indexOf(y.window));
-  const long = limits.filter(l => l.window !== '5h');
+function Evolution({ account, samples }) {
+  const [selected, setSelected] = useState(null);
+  const limits = account.limits.filter(l => CHARTED.includes(l.window));
   if (!limits.length) return html`<p class="muted q-none">${t('quotas.history_empty')}</p>`;
-  return html`<div class="q-evo">
-    <div class="q-evo-grid">${limits.map(l => html`<div class="card pad" key=${l.id}><${WindowChart} acc=${acc} l=${l} samples=${samples} /></div>`)}</div>
-    ${long.map(l => html`<div class="card pad" key=${'d-' + l.id}><${DailyChart} acc=${acc} l=${l} samples=${samples} /></div>`)}
+  const l = limits.find(l => l.id === selected) || limits.find(l => l.window === '7d' && !l.label)
+    || limits.find(l => l.window !== '5h') || limits[0];
+  const label = limits.length > 1 ? html`<select class="select sm q-chart-select" aria-label=${t('quotas.history_window')}
+    value=${l.id} onChange=${e => setSelected(e.target.value)}>${byWindow(limits).map(x => html`<option key=${x.id} value=${x.id}>${chartName(x)}</option>`)}</select>`
+    : html`<span>${chartName(l)}</span>`;
+  return html`<div class=${cls('activity-card q-charts', l.window !== '5h' && 'with-daily')}>
+    <${WindowChart} acc=${account.id} l=${l} samples=${samples} label=${label} />
+    ${l.window !== '5h' && html`<${DailyChart} acc=${account.id} l=${l} samples=${samples} />`}
   </div>`;
 }
 
@@ -230,30 +319,31 @@ function Paused() {
   useStore(agents, s => [s.order, s.sessions]);
   const list = sessionList().filter(s => stateOf(s) === 'limited').sort((a, b) => a.autoResumeAt - b.autoResumeAt);
   if (!list.length) return null;
-  return html`<section class="sec"><div class="sec-h"><h2>${t('quotas.paused')}<${Tip} text=${t('quotas.paused_tip')} /></h2></div>
-    <div class="card q-paused">${list.map(s => html`<button key=${s.id} class="q-paused-row" onClick=${() => openSession(s.id)}>
-      <${CliMark} mode=${s.mode} size="sm" /><b class="trunc grow">${s.name || s.id.slice(0, 8)}</b>
-      <span class="muted">${t('quotas.resumes_at', { at: clock(s.autoResumeAt), in: fmtIn(s.autoResumeAt - Date.now()) })}</span></button>`)}</div></section>`;
+  return html`<section class="activity-section"><div class="activity-heading"><h2>${t('quotas.paused')}<${Tip} text=${t('quotas.paused_tip')} /></h2></div>
+    <div class="activity-card q-paused">${list.map(s => html`<button type="button" key=${s.id} class="q-paused-row" onClick=${() => openSession(s.id)}>
+      <${CliMark} mode=${s.mode} size="sm" /><span><b>${s.name || s.id.slice(0, 8)}</b>
+      <small class="muted">${t('quotas.resumes_at', { at: clock(s.autoResumeAt), in: fmtIn(s.autoResumeAt - Date.now()) })}</small></span>
+      <${Icon} n="right" /></button>`)}</div></section>`;
 }
 
 function Tokens({ stats }) {
   const days = (stats?.daily || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 14);
   if (!days.length) return html`<p class="muted q-none">${t('quotas.tokens_empty')}</p>`;
   const max = Math.max(...days.map(d => (d.inputTokens || 0) + (d.outputTokens || 0)), 1);
-  const money = v => Number(v || 0).toLocaleString(locale(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+  const money = v => v == null ? '—' : Number(v).toLocaleString(locale(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+  const tokens = n => n == null ? '—' : fmtTok(n);
   return html`<div class="card table q-tokens">
-    <div class="tr th"><span>${t('quotas.day')}</span><span>${t('usage.page.entree_2')}</span><span>${t('usage.page.sortie_2')}</span><span>${t('quotas.sessions')}</span><span>${t('quotas.cost')}<${Tip} text=${t('quotas.cost_tip')} /></span></div>
+    <div class="tr th"><span>${t('quotas.day')}</span><span>${t('usage.page.entree_2')}</span><span>${t('usage.page.sortie_2')}</span><span>${t('quotas.sessions')}</span><span>${t('quotas.cost')}</span></div>
     ${days.map(d => { const total = (d.inputTokens || 0) + (d.outputTokens || 0); return html`<div class="tr" key=${d.date}>
       <span class="q-day"><b>${new Date(d.date + 'T12:00:00').toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' })}</b><i class="q-mini"><b style=${`width:${(total / max) * 100}%`}></b></i></span>
-      <span class="mono" data-label=${t('usage.page.entree_2')}>${fmtTok(d.inputTokens || 0)}</span><span class="mono" data-label=${t('usage.page.sortie_2')}>${fmtTok(d.outputTokens || 0)}</span>
-      <span class="mono" data-label=${t('quotas.sessions')}>${d.sessions ?? '—'}</span><span class="num strong" data-label=${t('quotas.cost')}>${money(d.estimatedCost)}</span></div>`; })}
+      <span class="num" data-label=${t('usage.page.entree_2')}>${tokens(d.inputTokens)}</span><span class="num" data-label=${t('usage.page.sortie_2')}>${tokens(d.outputTokens)}</span>
+      <span class="num" data-label=${t('quotas.sessions')}>${d.sessions ?? '—'}</span><span class="num strong" data-label=${t('quotas.cost')}>${money(d.estimatedCost)}</span></div>`; })}
   </div>`;
 }
 
 // Aperçu des quotas dans la barre Agents : une jauge (la limite la plus
 // entamée), le détail de chaque abonnement en un clic, la page complète
 // dans Activité. Mêmes données que la page.
-const WIN_ORDER = ['5h', '7d', 'month', 'other'];
 const byWindow = list => [...list].sort((x, y) => (x.group || '').localeCompare(y.group || '') || WIN_ORDER.indexOf(x.window) - WIN_ORDER.indexOf(y.window));
 let lastQuotas = null;
 async function loadQuotas() {
@@ -340,24 +430,28 @@ export function QuotasPage() {
   }, 60000), [ready, tick]);
   const accounts = withLive(data?.accounts || [], live);
   const samples = data?.samples || [];
-  const charted = Object.keys(ACCOUNTS).filter(id => accounts.some(a => a.id === id && (a.limits || []).some(l => CHARTED.includes(l.window))));
-  const shown = charted.includes(acc) ? acc : charted[0];
-  const sub = a => (a.id === 'claude' && live?.modelDisplayName) || (a.plan ? a.plan[0].toUpperCase() + a.plan.slice(1) : '');
-  return html`<div class="view page"><div class="page-in">
-    <${SectionTabs} />
-    <div class="page-head"><div><h1>${t('quotas.title')}</h1><p>${t('quotas.lead')}</p></div></div>
+  const charted = accounts.filter(a => a.limits.some(l => CHARTED.includes(l.window)));
+  const shown = charted.find(a => a.id === acc) || charted[0];
+  const sub = a => {
+    if (a.id === 'antigravity' && a.credits != null) return t('quotas.ai_credits', { n: a.credits, v: a.credits.toLocaleString(locale()) });
+    return (a.id === 'claude' && live?.modelDisplayName) || (a.plan ? a.plan[0].toUpperCase() + a.plan.slice(1) : '');
+  };
+  return html`<${ActivityLayout} title=${t('quotas.title')}>
     ${data === null && !live ? html`<div class="skeleton" style="height:220px"></div>`
-      : !accounts.length ? html`<div class="card"><${Empty} icon="gauge" title=${t('quotas.empty_title')} text=${t('quotas.empty_text')}>${!conn.configured && html`<a class="btn" href="#/settings/agents"><${Icon} n="plug" />${t('quotas.connect')}</a>`}</${Empty}></div>`
+      : !accounts.length ? html`<div class="activity-card"><${Empty} icon="gauge" title=${t('quotas.empty_title')} text=${t('quotas.empty_text')}>${!conn.configured && html`<a class="btn" href="#/settings/agents"><${Icon} n="plug" />${t('quotas.connect')}</a>`}</${Empty}></div>`
       : html`
         ${conn.configured && !ready && html`<p class="note"><i class="dot amber"></i> ${t('quotas.offline')}</p>`}
         <${Resets} accounts=${accounts} codeman=${ready} refresh=${() => setTick(n => n + 1)} />
-        <section class="sec"><div class="sec-h"><h2>${t('quotas.limits')}<${Tip} text=${t('quotas.limits_tip')} /></h2></div>
-          <div class="grid2 q-accs">${accounts.map(a => html`<${Account} key=${a.id} a=${a} sub=${sub(a)} />`)}</div></section>
+        <section class="activity-section" aria-labelledby="quota-limits">
+          <h2 class="q-limits-title" id="quota-limits">${t('quotas.limits')}</h2>
+          <div class="activity-grid q-accs">${accounts.map((a, i) => html`<${Account} key=${a.id} a=${a} sub=${sub(a)} samples=${samples} first=${i === 0} />`)}</div>
+        </section>
+        ${shown && html`<section class="activity-section"><div class="activity-heading"><h2>${t('quotas.history')}<${Tip} text=${t('quotas.history_tip')} /></h2>
+          ${charted.length > 1 && html`<${Seg} size="sm" value=${shown.id} onChange=${v => { setAcc(v); store('loom.quotas.acc', v); }}
+            label=${t('quotas.history_account')} options=${charted.map(a => ({ value: a.id, label: accName(a.id) }))} />`}
+          </div><${Evolution} key=${shown.id} account=${shown} samples=${samples} /></section>`}
         ${conn.configured && html`<${Paused} />`}
-        ${shown && html`<section class="sec"><div class="sec-h"><h2>${t('quotas.history')}<${Tip} text=${t('quotas.history_tip')} /></h2>
-          ${charted.length > 1 && html`<div class="q-hist-ctl"><${Seg} size="sm" value=${shown} onChange=${v => { setAcc(v); store('loom.quotas.acc', v); }} label=${t('quotas.history_account')} options=${charted.map(id => ({ value: id, label: accName(id) }))} /></div>`}</div>
-          <${Evolution} acc=${shown} accounts=${accounts} samples=${samples} /></section>`}
-        ${ready && html`<section class="sec"><div class="sec-h"><h2>${t('quotas.tokens')}<${Tip} text=${t('quotas.tokens_tip')} /></h2></div>
+        ${ready && html`<section class="activity-section"><div class="activity-heading"><h2>${t('quotas.tokens')}<${Tip} text=${t('quotas.tokens_tip') + ' ' + t('quotas.cost_tip')} /></h2></div>
           <${Tokens} stats=${stats} /></section>`}`}
-  </div></div>`;
+  </${ActivityLayout}>`;
 }

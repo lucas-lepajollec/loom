@@ -6,6 +6,7 @@ import { md, plain } from './md.js';
 import { ToolCard, QuietGroup, Plan, Approval, QUIET } from './tools.js';
 import { post } from '../../core/api.js';
 import { toast } from '../../ui/dialog.js';
+import { copyText } from '../../ui/clipboard.js';
 import { runtimeKind } from '../../core/state.js';
 import { splitPastedMessage, downloadPaste } from './pasted-text.js';
 import { chat, editLast } from './engine.js';
@@ -60,6 +61,21 @@ function provenance(rt) {
   const model = rt.model ? String(rt.model).split(/[\\/]/).pop() : '';
   return (rt.runtime_id === 'llama.cpp' ? 'local' : rt.provider_name || rt.runtime_id) + (model ? ' · ' + model : '');
 }
+// Une réponse devient une note du second cerveau, dans inbox/.
+async function saveNote(text) {
+  const first = String(text).split('\n').map(l => l.replace(/^[#>*\-\s]+/, '').trim()).find(Boolean) || 'note';
+  const slug = first.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'note';
+  const stamp = new Date().toISOString().slice(0, 10);
+  let path = 'inbox/' + stamp + '-' + slug + '.md', r;
+  for (let n = 2; n < 20; n++) {
+    r = await post('/api/files/write', { path, content: String(text).trim() + '\n', create: true });
+    if (r.ok !== false || r.status !== 409) break;
+    path = 'inbox/' + stamp + '-' + slug + '-' + n + '.md';
+  }
+  if (r.ok === false) toast(r.error || t('files.failed'), 'err');
+  else toast(t('chat.messages.saved_note', { path: r.path }));
+}
+
 function Foot({ it }) {
   const rt = it.rt || {};
   const parts = [];
@@ -74,7 +90,11 @@ function Foot({ it }) {
   if (rt.runtime_id === 'llama.cpp' || (!rt.runtime_id && it.rate)) parts.push(t("chat.messages.sans_cout_api"));
   if (!parts.length) return null;
   const events = rt.events || [];
+  const done = !it.running && it.answer;
   return html`<div class="turn-foot anim-fade">
+    ${done && html`<span class="turn-acts">
+      <button class="icon-btn" aria-label=${t('chat.messages.copy')} title=${t('chat.messages.copy')} onClick=${() => copyText(it.answer).then(() => toast(t('chat.messages.copied')))}><${Icon} n="copy" /></button>
+      <button class="icon-btn" aria-label=${t('chat.messages.save_note')} title=${t('chat.messages.save_note')} onClick=${() => saveNote(it.answer)}><${Icon} n="folder" /></button></span>`}
     <${Icon} n=${rt.runtime_id && rt.runtime_id !== 'llama.cpp' ? (runtimeKind(rt.runtime_id) === 'harness' ? 'terminal' : 'cloud') : 'chip'} />
     <span>${parts.join(' · ')}</span>
     ${events.length ? html`<span class="muted"> · ${events.length} ${t("chat.messages.outil_2")}${events.length > 1 ? 's' : ''} ${t("chat.messages.natif")}${events.length > 1 ? 's' : ''}</span>` : ''}
@@ -122,6 +142,8 @@ function arrange(items, live) {
       : it.k === 'tool' && it.tool && !['completed', 'failed'].includes(it.tool.status) ? { ...it, tool: { ...it.tool, status: 'interrupted' } }
       : it.k === 'plan' ? { ...it, entries: (it.entries || []).map(e => e.status === 'in_progress' ? { ...e, status: 'pending' } : e) }
       : it.k === 'foot' && it.running ? { ...it, running: false } : it);
+    const answerItem = [...turn].reverse().find(x => x.k === 'assistant' && x.text);
+    if (answerItem) turn = turn.map(x => x.k === 'foot' ? { ...x, answer: answerItem.text } : x);
     const open = (last && live) || turn.some(it => it.live || ((it.k === 'approval' || it.k === 'request') && !it.resolved) || (it.k === 'foot' && it.running));
     const final = turn.map(it => it.k).lastIndexOf('assistant');
     const work = open || final < 0 ? [] : turn.filter((it, i) => i < final && WORK.has(it.k));

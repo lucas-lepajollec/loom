@@ -6,9 +6,8 @@ import { SectionTabs } from '../../app/sections.js';
 import { MachinesSettings } from '../settings/machines.js';
 
 export function MachinesPage({ route }) {
-  return html`<div class="view page"><div class="page-in">
+  return html`<div class="view page"><div class="page-in mc-page">
     <${SectionTabs} />
-    ${!route.sub && html`<div class="page-head"><div><h1>${t('settings.page.machines')}</h1><p>${t("settings.machines.loom_travaille_sur_cette_machine_et_sur_les_machines_que_tu_conne")}</p></div></div>`}
     <div class="set-body machines-body"><${MachinesSettings} route=${{ section: 'settings', sub: 'machines', id: route.sub }} /></div>
   </div></div>`;
 }

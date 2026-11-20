@@ -441,3 +441,62 @@
 .vm-end{position:absolute;inset:0;z-index:3;display:flex;align-items:flex-end;justify-content:center;padding:20px 16px calc(20px + env(safe-area-inset-bottom));background:rgba(8,8,7,.45);animation:in-fade var(--fast)}
 .vm-end .card{width:min(460px,100%)}
 @media (max-width:720px){.vm-line{font-size:16px}.vm-stage{width:min(78vw,360px)}}
+
+/* sélecteur de modèle (maquette) */
+.exec-btn{height:34px;font-size:15px}
+.exec-btn b{font-size:15px;font-weight:500}
+.exec-sub{font-size:14px;color:var(--text-3)}
+.picker{width:430px;padding:0}
+.pick-top{border-bottom:0;padding:8px 8px 4px;gap:6px}
+.pick-q{height:36px;border-radius:var(--r-sm);background:var(--panel)}
+.pick-top .seg{width:100%}
+.pick-top .seg button{flex:1}
+.pick-list{padding:2px 8px 6px}
+.pick-h{padding:8px 10px 4px;font-size:12px;font-weight:500;color:var(--text-3)}
+.pick-row .pick-txt small{font-size:12.5px;color:var(--text-3)}
+.pick-row.nested{padding-left:10px}
+.pick-row .dot{display:none}
+.pick-row.active{background:var(--surface-3)}
+.pick-foot{justify-content:flex-start;padding:6px 8px;border-top:1px solid var(--line-soft)}
+.pick-foot button{height:30px;padding:0 10px;border-radius:var(--r-sm);color:var(--text-2);font-weight:500}
+.pick-foot button:hover{background:var(--hover);color:var(--text)}
+.pick-foot .grow{flex:1}
+
+/* panneau de discussion (maquette) : même structure que celui d'un agent */
+.insp{background:var(--panel)}
+.insp-head{height:56px;padding:0 10px 0 18px;border-bottom:0}
+.insp-head .insp-title{font-size:14px;font-weight:600}
+.insp-body{padding:0 18px 16px;gap:16px}
+.insp-model-row{display:flex;align-items:center;gap:10px}
+.insp-model-row .insp-model{flex:1;min-width:0}
+.insp-model b{font-size:14px;font-weight:500;letter-spacing:0}
+.btn.dd{border:0;background:var(--surface-2);color:var(--text);font-weight:400;gap:8px}
+.btn.dd:hover{background:var(--surface-3)}
+.btn.dd .ico{width:13px;height:13px;color:var(--text-3)}
+.vram{border:0;background:var(--surface);border-radius:var(--r);padding:12px}
+.insp-body>.seg{width:100%}
+.insp-body>.seg button{flex:1}
+.prow{border-top:0;min-height:38px;padding:4px 0}
+.prow-l{color:var(--text-2)}
+.insp-foot{border-top:1px solid var(--line-soft);padding:12px 18px 16px}
+.insp-state{display:flex;align-items:center;gap:8px}
+.insp-state.warn::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber)}
+
+/* en-tête et saisie d'une discussion (maquette) */
+.chat-title{display:inline-flex;align-items:center;gap:8px;min-width:0;font-size:14px;color:var(--text-2)}
+.chat-title i{font-style:normal;color:var(--text-4)}
+.chat-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.composer{border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.composer .chip-btn{border:0;background:var(--surface-2);color:var(--text)}
+.composer .chip-btn.on{background:var(--surface-3)}
+.composer .ctx{border:0;background:none;color:var(--text-3);font:12px var(--mono)}
+.composer .ctx-ring{display:none}
+.composer .send{border-radius:50%}
+@media (max-width:760px){.chat-title{display:none}}
+/* nouvelle session : la saisie au centre, sous le choix du type */
+.chat-col.is-empty .thread{flex:0 0 auto;overflow:visible;margin-top:auto}
+.chat-col.is-empty .welcome{height:auto;padding-bottom:20px}
+.chat-col.is-empty .composer-wrap{margin-bottom:auto;padding-bottom:12vh}
+.turn-acts{display:inline-flex;gap:2px;margin:0 6px 0 -6px}
+.turn-acts .icon-btn{width:26px;height:26px}
+.turn-acts .icon-btn .ico{width:14px;height:14px}

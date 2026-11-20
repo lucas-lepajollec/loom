@@ -153,10 +153,10 @@ try {
       // crash, and both other catalogs while the engine is unavailable.
       if (r === 'chat') {
         await openPicker(page);
-        await page.locator('.picker .seg button').nth(1).click();
+        await page.locator('.picker .seg button').nth(2).click();
       }
       if (r === 'chat' && scenario === 'engine-unreachable') {
-        await page.locator('.picker .pick-search button').click();
+        await page.keyboard.press('Escape');
         for (const session of fixtureSessions) {
           const opened = await page.evaluate(async id => (await import('/next/js/features/chat/engine.js')).open(id), session.id);
           if (!opened) throw new Error('Failed to open synthetic ' + session.id);
@@ -174,7 +174,7 @@ try {
         await page.waitForTimeout(100);
       }
       if (scenario === 'phone-layout' && r === 'cloud') {
-        await page.locator('.cl-tile:not(.on) .btn').first().click(); await page.locator('.dialog').waitFor();
+        await page.locator('.models-row .btn.sm:not(.ghost)').first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
       }
       await inspect(page, errors, label + ' degraded');

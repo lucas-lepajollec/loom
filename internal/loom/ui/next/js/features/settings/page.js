@@ -25,6 +25,7 @@ import { VLLMEngine } from './vllm.js';
 import { ConnectionPanel } from '../agents/connection.js';
 import { ApiSettings } from './api.js';
 import { ListPick } from '../../ui/listpick.js';
+import { FolderPicker } from '../../ui/folder.js';
 
 const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['agents', t('agents.title'), 'agent'], ['api', t('api.title'), 'plug'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
@@ -41,6 +42,51 @@ function usePref() {
   return [p, set];
 }
 
+const homePath = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
+
+function SecondBrainDialog({ current, onClose, onSaved }) {
+  const [path, setPath] = useState(current || '');
+  const [pick, setPick] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const apply = async create => {
+    setBusy(true);
+    const r = await post('/api/files/root', { path, create }).catch(e => ({ ok: false, error: e.message }));
+    setBusy(false);
+    if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
+    toast(t('settings.brain.saved'));
+    onSaved(r.root || path);
+    onClose();
+  };
+  return html`<${Modal} title=${t('settings.brain.title')} sub=${t('settings.brain.folder_sub')} onClose=${busy ? undefined : onClose}
+      foot=${html`<button class="btn ghost" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button>
+        <button class="btn" disabled=${busy || !path.trim()} onClick=${() => apply(false)}>${t('files.use_folder')}</button>
+        <button class="btn primary" disabled=${busy || !path.trim()} onClick=${() => apply(true)}>${t('files.create_folder')}</button>`}>
+    <div class="sb-form">
+      <div class="field-row">
+        <input class="input mono" aria-label=${t('settings.brain.folder')} value=${path} placeholder="~/second-cerveau" onInput=${e => setPath(e.target.value)} />
+        ${typeof FolderPicker === 'function' && html`<button type="button" class="btn sm" onClick=${() => setPick(true)}>${t('settings.brain.choose')}</button>`}
+      </div>
+    </div>
+    ${pick && typeof FolderPicker === 'function' && html`<${FolderPicker} start=${path} onClose=${() => setPick(false)} onPick=${d => { setPick(false); setPath(d); }} />`}
+  </${Modal}>`;
+}
+
+function SecondBrainGroup() {
+  const [info, setInfo] = useState(null);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { get('/api/files/root').then(r => { if (r && typeof r.root === 'string') setInfo(r); }).catch(() => {}); }, []);
+  const root = info?.root || '';
+  return html`<${Group} title=${t('settings.brain.title')}>
+    <${Line} label=${t('settings.brain.folder')} sub=${t('settings.brain.folder_sub')}>
+      <button type="button" class="adm-dd mono" onClick=${() => setEditing(true)}>
+        <span>${root ? homePath(root) : t('settings.brain.not_set')}</span>
+        <${Icon} n="chevron" />
+      </button>
+    </${Line}>
+    ${editing && html`<${SecondBrainDialog} current=${root} onClose=${() => setEditing(false)} onSaved=${next => setInfo({ ...(info || {}), root: next, exists: true })} />`}
+  </${Group}>`;
+}
+
 function General() {
   const theme = useStore(app, s => s.theme);
   const [p, setPref] = usePref();
@@ -50,24 +96,26 @@ function General() {
   const saveSys = async () => { await post('/api/sysprompt', { text: sys }); toast(t("settings.page.prompt_systeme_enregistre")); };
   return html`
     <${Group} title="${t("settings.page.apparence")}">
+      <${Line} label="${t("settings.page.theme")}"><${Seg} size="sm" value=${theme} onChange=${localT => { setTheme(localT); setPref('theme', localT); }} options=${[{ value: 'dark', label: t("settings.page.sombre") }, { value: 'light', label: t("settings.page.clair") }]} /></${Line}>
       <${Line} label=${t('settings.language.label')}><select class="select sm" value=${getLang()} onChange=${e => setLang(e.target.value).then(ok => { if (!ok) toast(t('settings.language.save_failed'), 'err'); }).catch(() => toast(t('settings.language.save_failed'), 'err'))}>
         <option value="fr">Français</option><option value="en">English</option>
       </select></${Line}>
-      <${Line} label="${t("settings.page.theme")}"><${Seg} size="sm" value=${theme} onChange=${localT => { setTheme(localT); setPref('theme', localT); }} options=${[{ value: 'dark', label: t("settings.page.sombre") }, { value: 'light', label: t("settings.page.clair") }]} /></${Line}>
       ${p && html`
         <${Line} label="${t("settings.page.masquer_la_reflexion")}" tip="${t("settings.page.les_blocs_de_reflexion_des_modeles_ne_s_affichent_plus_dans_le_fi")}"><${Switch} checked=${p.hide_reasoning === '1'} onChange=${v => setPref('hide_reasoning', v ? '1' : '0')} /></${Line}>
         <${Line} label="${t("settings.page.masquer_les_appels_d_outils")}"><${Switch} checked=${p.hide_tools === '1'} onChange=${v => setPref('hide_tools', v ? '1' : '0')} /></${Line}>
         <${Line} label="${t("settings.page.entree_pour_aller_a_la_ligne")}" tip="${t("settings.page.par_defaut_entree_envoie_et_maj_entree_va_a_la_ligne")}"><${Switch} checked=${p.enter_newline === '1'} onChange=${v => setPref('enter_newline', v ? '1' : '0')} /></${Line}>`}
     </${Group}>
+    <${SecondBrainGroup} />
     <${Group} title="${t("settings.page.discussions")}">
       <${DefaultChoice} />
       <${PushNotifications} />
       ${agent && html`<${Line} label="${t("settings.page.compactage_automatique")}" tip="${t("settings.page.vers_75_du_contexte_les_anciens_tours_sont_resumes_pour_laisser_d")}">
         <${Switch} checked=${agent.compact} onChange=${async v => { await post('/api/agent/compact', { on: v }); setAgent({ ...agent, compact: v }); }} /></${Line}>`}
       <${Line} label="${t("settings.page.prompt_systeme_global")}" tip="${t("settings.page.envoye_a_tous_les_modeles_locaux_sauf_si_un_modele_ou_un_preset_a")}" stack>
-        ${sys !== null && html`<textarea class="textarea" rows="4" value=${sys} onInput=${e => setSys(e.target.value)} placeholder="${t("settings.page.ex_reponds_en_francais_de_facon_concise")}"></textarea>
+        ${sys !== null && html`<textarea class="textarea" rows="3" value=${sys} onInput=${e => setSys(e.target.value)} placeholder="${t("settings.page.ex_reponds_en_francais_de_facon_concise")}"></textarea>
           <div><button class="btn sm" onClick=${saveSys}>${t("settings.page.enregistrer")}</button></div>`}</${Line}>
-    </${Group}>`;
+    </${Group}>
+    ${typeof LoomUpdates !== 'undefined' && html`<${LoomUpdates} />`}`;
 }
 
 // Modèle ou agent d'une discussion neuve. Le défaut d'un projet passe avant ;
@@ -572,12 +620,12 @@ export function SettingsPage({ route }) {
   const detail = !mobile || !!selected;
   const View = { general: General, internet: Internet, agents: AgentsSettings, api: ApiSection, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
-    <div class="page-head settings-head"><div>
-      ${mobile && selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}
-      <h1>${mobile && selected ? selected[1] : t("settings.page.reglages")}</h1></div></div>
+    ${mobile && html`<div class="page-head settings-head"><div>
+      ${selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}
+      <h1>${selected ? selected[1] : t("settings.page.reglages")}</h1></div></div>`}
     <div class="settings">
-      ${(!mobile || !selected) && html`<nav class="set-nav" aria-label=${t("settings.page.reglages")}>${sections.map(([id, label, ico]) => html`<a href=${'#/settings/' + id} aria-current=${!mobile && id === sec ? 'page' : undefined}><${Icon} n=${ico} /><span>${label}</span>${mobile && html`<${Icon} n="right" />`}</a>`)}</nav>`}
-      ${detail && html`<div class="set-body" key=${sec}><${View} route=${route} /></div>`}
+      ${(!mobile || !selected) && html`<nav class="set-nav" aria-label=${t("settings.page.reglages")}>${!mobile && html`<h1>${t("settings.page.reglages")}</h1>`}${sections.map(([id, label, ico]) => html`<a href=${'#/settings/' + id} aria-current=${!mobile && id === sec ? 'page' : undefined}><${Icon} n=${ico} /><span>${label}</span>${mobile && html`<${Icon} n="right" />`}</a>`)}</nav>`}
+      ${detail && html`<div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>`}
     </div>
   </div></div>`;
 }

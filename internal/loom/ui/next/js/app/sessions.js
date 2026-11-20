@@ -18,6 +18,7 @@ import { layout, toggleGrid } from '../features/agents/layout.js';
 import { DRAG_TYPE } from '../features/agents/grid.js';
 import { lt } from '../features/agents/labels.js';
 import { HistoryRow, NewSessionHost } from '../features/agents/side.js';
+import { ago } from '../features/agents/rail.js';
 
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
@@ -114,7 +115,8 @@ function Row({ it, current }) {
     ${agent && state === 'waiting' ? html`<i class="dot blue" title=${lt('state', state)}></i>`
       : busy ? html`<i class="run" title=${agent ? lt('state', state) : ''}></i>`
       : agent && state === 'error' ? html`<i class="dot red" title=${lt('state', state)}></i>`
-      : agent && state === 'limited' ? html`<i class="dot" title=${lt('state', state)}></i>` : ''}
+      : agent && state === 'limited' ? html`<i class="dot" title=${lt('state', state)}></i>`
+      : it.at ? html`<small class="ses-when">${ago(it.at)}</small>` : ''}
     <button class="icon-btn more" aria-label=${t('app.shell.actions')} onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${agent ? agentMenu(it) : chatMenu(it)} />`}
   </div>`;

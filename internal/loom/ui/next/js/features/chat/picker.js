@@ -1,6 +1,7 @@
 import { t, getLang } from '../../core/i18n.js';
-// Sélecteur d'exécution : qui répond au prochain message. Trois onglets (Local,
-// Cloud, Harness), une recherche, et la même discussion quel que soit le choix.
+// Sélecteur de modèle d'une discussion : une recherche, un filtre (tous,
+// local, cloud), les presets, les modèles locaux puis ceux de chaque
+// fournisseur cloud. La discussion reste la même quel que soit le choix.
 import { Logo } from '../../ui/logo.js';
 import { html, useState, useRef, useStore, useMemo, cls, fmtBytes, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
@@ -58,14 +59,14 @@ export function Picker() {
   const { status, workspace, models, presets, unavailable } = useStore(app, s => ({ status: s.status, workspace: s.workspace, models: s.models, presets: s.presets, unavailable: s.unavailable }));
   const route = useStore(chat, executionKey);
   const cur = currentExec();
-  const [tab, setTab] = useState(cur.kind === 'cloud' ? 'cloud' : 'local');
+  const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
   const btn = useRef();
 
   const toggle = () => {
     if (anchor) { setAnchor(null); return; }
     refreshLibrary(); refreshWorkspace();
-    setTab(currentExec().kind === 'cloud' ? 'cloud' : 'local'); setQ(''); setAnchor(btn.current);
+    setTab('all'); setQ(''); setAnchor(btn.current);
   };
   const close = () => setAnchor(null);
   const wsModels = (workspace && workspace.models) || [];
@@ -76,39 +77,51 @@ export function Picker() {
     const visible = new Map(wsModels.filter(m => m.kind === 'local').flatMap(m => [[m.model, m.enabled], [m.engine_value || m.model, m.enabled]]));
     const weights = (models || []).filter(m => !/mmproj/i.test(m.name) && visible.get(m.path || m.value) !== false);
     const local = [
-      ...(presets || []).map((p, i) => ({ id: 'p' + p.id, title: p.name || p.id, sub: 'preset' + (p.model ? ' · ' + baseName(p.model) : ''), active: cur.kind === 'local' && status && status.preset_id === p.id, loaded: status && status.preset_id === p.id && status.health, run: () => chooseLocal({ presetIndex: i + 1, name: p.name, model: p.model }) })),
-      ...weights.map(m => ({ id: 'm' + m.path, title: m.name.replace(/\.gguf$/i, ''), sub: [fmtBytes(m.size), m.shards > 1 ? m.shards + t("chat.picker.fichiers") : ''].filter(Boolean).join(' · '), active: cur.kind === 'local' && status && status.health && (status.model === m.path || status.model === (m.value || m.path)) && !status.preset_id, loaded: status && status.health && (status.model === m.path || status.model === (m.value || m.path)), run: () => chooseLocal({ path: m.path, model: m.value || m.path, name: m.name }) })),
+      ...(presets || []).map((p, i) => ({ id: 'p' + p.id, preset: true, title: p.name || p.id, sub: p.model ? baseName(p.model).replace(/\.gguf$/i, '') : '', active: cur.kind === 'local' && status && status.preset_id === p.id, loaded: status && status.preset_id === p.id && status.health, run: () => chooseLocal({ presetIndex: i + 1, name: p.name, model: p.model }) })),
+      ...weights.map(m => ({ id: 'm' + m.path, title: m.name.replace(/\.gguf$/i, ''), sub: [quantOf(m.name), fmtBytes(m.size), m.shards > 1 ? m.shards + t("chat.picker.fichiers") : '', status && status.health && (status.model === m.path || status.model === (m.value || m.path)) ? t('chat.picker.loaded') : ''].filter(Boolean).join(' · '), active: cur.kind === 'local' && status && status.health && (status.model === m.path || status.model === (m.value || m.path)) && !status.preset_id, loaded: status && status.health && (status.model === m.path || status.model === (m.value || m.path)), run: () => chooseLocal({ path: m.path, model: m.value || m.path, name: m.name }) })),
     ];
     const cloud = wsModels.filter(m => m.kind === 'cloud' && m.enabled).map(m => ({ id: m.id, title: m.name, sub: '', group: m.provider_name, vendorKey: m.model, active: cur.kind === 'cloud' && chat.get().session && chat.get().session.provider_id === m.provider_id && chat.get().session.model === m.model, run: () => chooseRemote(m) }));
     return { local, cloud };
   }, [anchor, status, workspace, models, presets, route, cur.kind, cur.name, getLang()]);
 
-  const shown = lists[tab].filter(r => match(r.title + ' ' + r.sub));
+  const pick = list => list.filter(r => match(r.title + ' ' + r.sub + ' ' + (r.group || '')));
+  const shownLocal = tab === 'cloud' ? [] : pick(lists.local), shownCloud = tab === 'local' ? [] : pick(lists.cloud);
+  const shown = [...shownLocal, ...shownCloud];
+  const machine = (app.get().serverInfo && app.get().serverInfo.hostname) || '';
   const [tag] = EXEC_TAG[cur.kind];
-  const emptyText = { local: t("chat.picker.aucun_modele_local_telecharge_un_gguf_depuis_le_hub"), cloud: t("chat.picker.aucun_modele_cloud_ajoute_un_fournisseur_dans_cloud") }[tab];
+  const emptyText = tab === 'cloud' ? t("chat.picker.aucun_modele_cloud_ajoute_un_fournisseur_dans_cloud") : t("chat.picker.aucun_modele_local_telecharge_un_gguf_depuis_le_hub");
+  const rowsOf = list => list.map(r => html`<${Row} key=${r.id} ...${r} onPick=${() => { close(); r.run(); }} />`);
+  const presetsShown = shownLocal.filter(r => r.preset), weightsShown = shownLocal.filter(r => !r.preset);
 
+  const extra = cur.kind === 'local' ? quantOf(status && (status.model_name || status.model)) : cur.sub;
   return html`<button type="button" class=${cls('exec-btn', anchor && 'open')} ref=${btn} onClick=${toggle} aria-haspopup="dialog" aria-expanded=${String(!!anchor)}>
-      ${cur.name ? html`<i class=${cls('dot', cur.kind !== 'local' || (status && status.health) ? 'green' : '')}></i><span class="exec-route">${tag}</span><b>${cur.name}</b>${cur.sub && html`<span class="exec-sub">${cur.sub}</span>`}` : html`<b>${t("chat.picker.choisir_un_modele")}</b>`}
+      ${cur.name ? html`<i class=${cls('dot', cur.kind !== 'local' || (status && status.health) ? 'green' : '')}></i><b>${cur.name}</b><span class="exec-sub"><span class="exec-route">${tag}</span>${extra ? ' · ' + extra : ''}</span>` : html`<b>${t("chat.picker.choisir_un_modele")}</b>`}
       <${Icon} n="chevron" class="exec-caret" />
     </button>
-    ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} width=${420} heightLimit=${520} heightRatio=${0.7} class="picker">
+    ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} width=${430} heightLimit=${560} heightRatio=${0.75} class="picker">
       <div class="pick-top">
-        <div class="pick-search"><label class="search"><${Icon} n="search" /><input autofocus placeholder="${t("chat.picker.rechercher_un_modele_un_preset_un_harness")}" value=${q} onInput=${e => setQ(e.target.value)} /></label><button type="button" class="icon-btn" aria-label=${t('ui.dialog.fermer')} onClick=${close}><${Icon} n="close" /></button></div>
+        <label class="search pick-q"><${Icon} n="search" /><input autofocus placeholder="${t("chat.picker.rechercher_un_modele_un_preset_un_harness")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>
         <${Seg} value=${tab} onChange=${setTab} label="${t("chat.picker.type_d_execution")}" options=${[
+          { value: 'all', label: t('chat.picker.all') },
           { value: 'local', label: t("chat.picker.local"), count: lists.local.length },
           { value: 'cloud', label: t("chat.picker.cloud"), count: lists.cloud.length }]} />
       </div>
       <div class="pick-list" key=${tab}>
-        ${(tab === 'local' ? unavailable.models || unavailable.presets : unavailable.workspace) && html`<div class="alert amber" role="status">${t('access.unavailable')}</div>`}
-        ${!shown.length ? html`<div class="pick-empty">${q ? t("chat.picker.aucun_resultat_pour") + q + ' ».' : emptyText}</div>`
-          : tab === 'local' ? shown.map(r => html`<${Row} key=${r.id} ...${r} onPick=${() => { close(); r.run(); }} />`)
-          : grouped(shown).map(g => html`<div class="pick-g" key=${g.name}>
-              <div class="pick-group"><${Logo} name=${g.logo || g.name} size="sm" /><span>${g.name}</span><span class="grow"></span>${g.cli && html`<small>${g.cli}</small>`}</div>
+        ${(tab !== 'cloud' && (unavailable.models || unavailable.presets) || tab !== 'local' && unavailable.workspace) && html`<div class="alert amber" role="status">${t('access.unavailable')}</div>`}
+        ${!shown.length ? html`<div class="pick-empty">${q ? t("chat.picker.aucun_resultat_pour") + q + ' ».' : emptyText}</div>` : html`
+          ${presetsShown.length > 0 && html`<div class="pick-h">${t('chat.picker.presets')}</div>${rowsOf(presetsShown)}`}
+          ${weightsShown.length > 0 && html`<div class="pick-h">${t('chat.picker.local_on', { machine: machine || t('app.shell.cette_machine') })}</div>${rowsOf(weightsShown)}`}
+          ${grouped(shownCloud).map(g => html`<div class="pick-g" key=${g.name}>
+              <div class="pick-h"><span>${t('chat.picker.cloud')} · ${g.name}</span></div>
               ${g.subs.map(([v, items]) => html`${v && html`<div class="pick-sub"><${Logo} name=${v} size="xs" />${v}</div>`}${items.map(r => html`<${Row} key=${r.id} ...${r} nested onPick=${() => { close(); r.run(); }} />`)}`)}
-            </div>`)}
+            </div>`)}`}
       </div>
-      <div class="pick-foot"><span>${t("chat.picker.changer_d_execution_garde_la_meme_discussion")}</span>
-        ${tab === 'local' && html`<button type="button" onClick=${() => { close(); app.set({ newPreset: true }); go('local'); }}>${t("chat.picker.nouveau_preset")}</button>`}
-        <button type="button" onClick=${() => { close(); go(tab === 'local' ? 'local' : 'cloud'); }}>${t("chat.picker.gerer")}</button></div>
+      <div class="pick-foot">
+        <button type="button" onClick=${() => { close(); app.set({ newPreset: true }); go('local'); }}>${t("chat.picker.nouveau_preset")}</button>
+        <span class="grow"></span>
+        <button type="button" onClick=${() => { close(); go(tab === 'cloud' ? 'cloud' : 'local'); }}>${t('chat.picker.manage_models')}</button></div>
     </${Popover}>`}`;
 }
+
+// Quantisation lisible d'un fichier GGUF (« Q4_K_M »).
+function quantOf(name) { const m = /(?:^|[-_.])((?:I?Q\d[\w]*?)|F16|BF16|F32)(?:\.gguf)?$/i.exec(String(name || '').replace(/\.gguf$/i, '')); return m ? m[1].toUpperCase() : ''; }

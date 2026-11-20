@@ -46,18 +46,28 @@ function SessionType() {
     options=${[{ value: 'chat', label: t('side.type_chat') }, { value: 'agent', label: t('side.type_agent') }]} /></div>`;
 }
 
+// Titre de la discussion à côté du modèle, comme le nom d'une session d'agent.
+function ChatTitle() {
+  const title = useStore(chat, c => (c.session && c.session.title) || '');
+  const navTitle = useStore(app, a => { const id = chat.get().sessionId || (a.nav && a.nav.active); const c = id && (a.nav.conversations || []).find(x => x.id === id); return c ? c.title : ''; });
+  const text = title || navTitle;
+  return text ? html`<span class="chat-title"><i aria-hidden="true">/</i><span>${text}</span></span>` : null;
+}
+
 // Le mode vocal remplace la discussion le temps de l'échange avec Jarvis.
 function voiceDiscussion() { return chat.get().sessionId || (app.get().nav && app.get().nav.active) || ''; }
 export function ChatView() {
   const insp = useStore(app, s => s.inspector);
   const toggle = () => { const v = !app.get().inspector; if (innerWidth > 1100) { try { localStorage.setItem('loom.next.insp', v ? '1' : '0'); } catch (_) {} } app.set({ inspector: v }); };
   const voice = useStore(app, s => s.voiceMode);
+  const empty = useStore(chat, s => !s.loading && !(s.frozen || s.items || []).length);
   if (voice) return html`<div class="view chat-view"><${VoiceMode} discussionId=${voice.discussion} internet=${!!voice.internet} onClose=${async injected => { app.set({ voiceMode: null }); if (injected && voice.discussion) await open(voice.discussion, true); }} /></div>`;
   return html`<div class="view chat-view">
-    <div class="chat-col">
+    <div class=${cls('chat-col', empty && 'is-empty')}>
       <header class="topbar">
         <button class="icon-btn only-mobile menu-btn" aria-label="${t("chat.view.menu")}" onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
         <${Picker} />
+        <${ChatTitle} />
         <span class="grow"></span>
         <button class=${cls('icon-btn', insp && 'on')} aria-label="${t("chat.view.panneau")}" title="${t("chat.view.parametres_et_contexte")}" onClick=${toggle}><${Icon} n="panel" /></button>
       </header>

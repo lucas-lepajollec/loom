@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+- Every page now follows the approved mockups. Sidebar: filled New session
+  button, waiting count on Agents, time on each session, compact engine pill.
+  Discussions: title next to the model, model picker with search, all/local/
+  cloud filter and grouped presets, local and cloud models; restyled settings
+  panel and composer; copy an answer or save it to the second brain. Agent
+  sessions: model menu (Claude Code), Compact and Clear, other sessions of
+  the same harness. Models: Library, Hub, Cloud, Voice and Engine and API
+  tabs; Voice and Jarvis share one page. Agents: overview with Codeman,
+  attention, harness table and next runs; scheduled tasks list beside the
+  editor; Codeman settings by group. Machines: one detailed card per
+  machine. Settings: grouped rows, with the second brain folder. Activity:
+  compact quota cards, resets and history.
+
 - Cleanup: the Brain, project, Tasks and Environment pages, the Context
   panel and the old Agents session list are removed from the web app, with
   about 270 CSS rules that only they used.

@@ -131,7 +131,7 @@ export function Composer() {
           : html`<button class="send" aria-label="${t("chat.composer.envoyer")}" disabled=${!!blocked || (!text.trim() && !files.length)} onClick=${submit}><${Icon} n="arrowUp" /></button>`}
       </div>
     </div>
-    <div class=${cls('composer-hint', hint && 'warn')}>${hint || t("chat.composer.entree_pour_envoyer_maj_entree_pour_une_nouvelle_ligne")}</div>
+    ${hint && html`<div class="composer-hint warn">${hint}</div>`}
     ${menu && html`<${Popover} anchor=${menu} onClose=${() => setMenu(null)} place="above" width=${240}>
       <button class="item" disabled=${webOn === false} onClick=${() => toggleTool('internet')}><${Icon} n="globe" />${t("chat.composer.recherche_web")}<${Tip} text=${webOn === false ? t('chat.tools.web_off') : t('chat.tools.web_tip')} /><span class="grow"></span>${tools.internet && webOn !== false && html`<${Icon} n="check" />`}</button>
       ${toolList.includes('mcp') && html`<button class="item" onClick=${() => toggleTool('mcp')}><${Icon} n="plug" />${t("chat.composer.outils_mcp")}<${Tip} text=${t('chat.tools.mcp_tip')} /><span class="grow"></span>${tools.mcp && html`<${Icon} n="check" />`}</button>`}
