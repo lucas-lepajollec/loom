@@ -283,6 +283,26 @@ export function QuotaPeek() {
     </${Popover}>`}`;
 }
 
+// Quotas de l'abonnement d'un harness, dans le panneau de sa session.
+const ACCOUNT_OF = { claude: 'claude', codex: 'codex', antigravity: 'antigravity', gemini: 'antigravity', copilot: 'copilot' };
+export function HarnessQuota({ mode }) {
+  const live = useStore(agents, s => s.planUsage);
+  const [data, setData] = useState(lastQuotas);
+  useEffect(() => visibleRefresh(async alive => { const r = await loadQuotas(); if (alive() && r) setData(r); }, 120000), []);
+  const id = ACCOUNT_OF[mode];
+  const a = id && withLive(data?.accounts || [], live).find(x => x.id === id);
+  if (!a || !(a.limits || []).length) return null;
+  const warn = v => (v >= 90 ? 'red' : v >= 70 ? 'amber' : '');
+  return html`<section class="cm-hq" aria-label=${t('quotas.title') + ' · ' + accName(id)}>
+    <div class="cm-hq-h"><span>${t('quotas.title')} · ${accName(id)}</span><a href="#/quotas">${t('quotas.open')}</a></div>
+    ${byWindow(a.limits).slice(0, 4).map(l => html`<div class=${cls('cm-qp-win', warn(l.used))} key=${l.id}>
+      <div class="cm-qp-h"><span>${(l.group ? l.group + ' · ' : '') + limitName(l)}</span><em>${Math.round(l.used)}%</em></div>
+      <div class="cm-qp-bar"><i style=${`width:${Math.min(100, l.used)}%`}></i></div>
+      ${l.reset_at && l.reset_at > Date.now() ? html`<small class="muted">${t('quotas.resets_in', { in: fmtIn(l.reset_at - Date.now()), at: clock(l.reset_at) })}</small>` : ''}
+    </div>`)}
+  </section>`;
+}
+
 // La mesure en direct de Codeman (statusline d'une session Claude, Codex)
 // passe avant le dernier relevé.
 function withLive(accounts, live) {

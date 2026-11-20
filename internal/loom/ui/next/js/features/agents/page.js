@@ -8,14 +8,14 @@ import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls, createStore } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Menu, Seg, Empty, Popover, Switch } from '../../ui/controls.js';
-import { prompt, confirm, toast } from '../../ui/dialog.js';
+import { Empty, Popover, Switch } from '../../ui/controls.js';
+import { prompt, toast } from '../../ui/dialog.js';
 import { Drawer } from '../../ui/drawer.js';
 import { TabNav } from '../../ui/tabnav.js';
 import { app, go } from '../../core/state.js';
 import { api } from './client.js';
-import { agents, useAgentsLive, refreshConnection, stateOf, cliOf, projectOf, upsertSession, hasConversation } from './store.js';
-import { closeSession, renameSession } from './actions.js';
+import { agents, useAgentsLive, refreshConnection, stateOf, cliOf, upsertSession, hasConversation } from './store.js';
+import { renameSession } from './actions.js';
 import { StateDot } from './rail.js';
 import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf } from './layout.js';
 import { Conversation } from './conversation.js';
@@ -27,7 +27,7 @@ import { Grid, ShapeIcon } from './grid.js';
 import { CodemanSettings } from './settings.js';
 import { CronPage } from './cron.js';
 import { ConnectionPanel } from './connection.js';
-import { openSession, officialLink } from './nav.js';
+import { openSession } from './nav.js';
 
 const narrow = () => matchMedia('(max-width: 760px)').matches;
 function useNarrow() {
@@ -36,42 +36,25 @@ function useNarrow() {
   return n;
 }
 
-function SessionHeader({ s, view, setView, narrowView, insp, setInsp }) {
-  const [menu, setMenu] = useState(null);
+// En-tête d'une session : le harness et son modèle, le nom, l'état et le
+// bouton du panneau. Tout le reste est dans le panneau, comme pour une
+// discussion.
+function SessionHeader({ s, narrowView, insp, setInsp }) {
   const state = stateOf(s), cli = cliOf(s.mode);
   const rename = async () => {
     const name = await prompt(t('agents.session.rename'), { value: s.name || '' });
     if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
   };
-  const close = async killMux => {
-    const ok = await confirm(killMux ? t('agents.session.close_title') : t('agents.session.detach_title'),
-      killMux ? t('agents.session.close_text', { name: s.name || s.id.slice(0, 8) }) : t('agents.session.detach_text'), { ok: killMux ? t('agents.session.close') : t('agents.session.detach'), danger: killMux });
-    if (!ok) return;
-    try { await closeSession(s.id, killMux); go('agents'); } catch (e) { toast(e.message, 'err'); }
-  };
   const restart = () => api.start(s.id, s.mode === 'shell').then(() => api.session(s.id).then(upsertSession)).catch(e => toast(e.message, 'err'));
-  const link = officialLink(s.id);
-  const items = [
-    { label: t('agents.session.rename'), icon: 'edit', run: rename },
-    ...(state === 'stopped' ? [{ label: t('agents.session.restart'), icon: 'play', run: restart }] : []),
-    ...(link ? [{ label: t('agents.session.official'), icon: 'link', run: () => window.open(link, 'codeman') }] : []),
-    '-',
-    { label: t('agents.session.detach'), icon: 'power', run: () => close(false) },
-    { label: t('agents.session.close'), icon: 'trash', danger: true, run: () => close(true) },
-  ];
-  const opts = [{ value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') }, ...(narrowView ? [] : [{ value: 'split', label: t('agents.view.split') }])];
   return html`<header class="cm-sh">
     ${narrowView && html`<button class="icon-btn menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>`}
-    <${CliMark} mode=${s.mode} />
-    <div class="cm-sh-t">
-      <button class="cm-sh-name trunc" onClick=${rename} title=${t('agents.session.rename')}>${s.name || s.id.slice(0, 8)}</button>
-      <small class="trunc"><${StateDot} state=${state} />${lt('state', state)} · ${cli.label}${s.displayModel?.model ? ' · ' + s.displayModel.model : ''} · <span class="mono" title=${s.workingDir}>${projectOf(s.workingDir)}</span></small>
-    </div>
-    ${state === 'stopped' && html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`}
-    ${hasConversation(s.mode) && html`<${Seg} size="sm" value=${view} options=${opts} onChange=${setView} label=${t('agents.view.label')} />`}
-    <button class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} title=${t('agents.insp.title')} onClick=${() => setInsp(!insp)}><${Icon} n="panel" /></button>
-    <button class="icon-btn" aria-label=${t('agents.session.actions')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="more" /></button>
-    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
+    <span class="cm-sh-cli"><${CliMark} mode=${s.mode} /><b>${cli.label}</b>${s.displayModel?.model && html`<span class="muted">${s.displayModel.model}</span>`}</span>
+    <span class="cm-sh-sep" aria-hidden="true">/</span>
+    <button class="cm-sh-name trunc" onClick=${rename} title=${t('agents.session.rename')}>${s.name || s.id.slice(0, 8)}</button>
+    <span class="grow"></span>
+    ${state === 'stopped' ? html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`
+      : html`<span class=${'cm-sh-state st-' + state}><${StateDot} state=${state} />${lt('state', state)}</span>`}
+    <button class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} title=${t('agents.insp.title')} aria-pressed=${String(!!insp)} onClick=${() => setInsp(!insp)}><${Icon} n="panel" /></button>
   </header>`;
 }
 
@@ -85,14 +68,14 @@ function SessionPane({ s, narrowView }) {
   const toTerm = () => setView(narrowView ? 'term' : 'split');
   return html`<div class=${cls('cm-pane', insp && !narrowView && 'with-insp')}>
     <div class="cm-main">
-      <${SessionHeader} s=${s} view=${mode} setView=${setView} narrowView=${narrowView} insp=${insp} setInsp=${setInsp} />
+      <${SessionHeader} s=${s} narrowView=${narrowView} insp=${insp} setInsp=${setInsp} />
       <div class=${cls('cm-body', 'v-' + mode)}>
         ${(mode === 'chat' || mode === 'split') && html`<${Conversation} key=${'c' + s.id} session=${s} onTerminal=${toTerm} terminalVisible=${mode === 'split'} />`}
         ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} shell=${s.mode === 'shell'} scrollback=${agents.get().settings?.terminalScrollbackLines || 50000} focus=${mode === 'term'} /></div>`}
       </div>
     </div>
-    ${insp && (narrowView ? html`<${Drawer} title=${t('agents.insp.title')} onClose=${() => setInsp(false)}><${Inspector} session=${s} /></${Drawer}>`
-      : html`<${Inspector} session=${s} onClose=${() => setInsp(false)} />`)}
+    ${insp && (narrowView ? html`<${Drawer} title=${t('agents.insp.info')} onClose=${() => setInsp(false)}><${Inspector} session=${s} view=${mode} setView=${setView} narrowView /></${Drawer}>`
+      : html`<${Inspector} session=${s} onClose=${() => setInsp(false)} view=${mode} setView=${setView} />`)}
   </div>`;
 }
 
