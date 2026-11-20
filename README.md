@@ -9,7 +9,7 @@
   <img src="docs/screenshots/chat.png" alt="Loom discussion with an execution selector and contextual side panel" width="1200" />
 </div>
 
-Loom is a single Go binary with a web UI. Run local inference or connect cloud providers in the same discussion. The interface defaults to English; French is available in Settings and the first-run guide. On phones, Settings opens a section menu with a back link; model selection, model metrics and Environment tables adapt to the available screen width. The free [mobile layout audit](docs/mobile-layout-audit.md) documents checks at 390 px and 320 px and remaining browser acceptance.
+Loom is a single Go binary with a web UI. Run local inference or connect cloud providers in the same discussion, and drive Codeman agent sessions from the same session list. A [Files page](docs/files.md) edits the folder your agents work in. The interface defaults to English; French is available in Settings and the first-run guide. On phones, Settings opens a section menu with a back link; model selection, model metrics and Environment tables adapt to the available screen width. The free [mobile layout audit](docs/mobile-layout-audit.md) documents checks at 390 px and 320 px and remaining browser acceptance.
 
 Local speech management (Jarvis 6.1) uses sherpa-onnx 1.13.8 on this machine
 or a paired node's `voice` module. It provides verified engine/model downloads,

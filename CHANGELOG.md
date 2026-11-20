@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- Files: a new page for the second brain, one folder of your own where
+  agents work (`~/second-brain` by default, changeable from the page). The
+  folder tree sits on the left like Obsidian, the note in the middle is
+  edited as formatted text (never raw Markdown unless you ask), with a
+  floating toolbar (text style, bold, italic, strikethrough, code, link,
+  lists, checklists, quote, divider, table, image, undo) and a "/" menu to
+  insert blocks. Notes save as you type; if a note changed elsewhere (an
+  agent, another app) since you opened it, Loom says so instead of
+  overwriting. Files changed outside the editor in the last day are marked.
+  Rename, move, new note or folder; deleting moves to the folder's `.trash`.
+  Every access stays inside the folder, symlinks included.
+
 - Agent sessions get the same layout as discussions: the header keeps the
   harness, its model, the session name, its state and the panel button. The
   panel holds everything else: the view (conversation, terminal, side by
