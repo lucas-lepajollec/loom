@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -80,6 +81,26 @@ func cleanRel(p string) (string, error) {
 		}
 	}
 	return clean, nil
+}
+
+// machineRootDir is where whole-machine browsing starts: the filesystem root
+// on Unix, the user's home elsewhere. Access stays limited by the account's
+// own permissions; dot entries are not listed.
+func machineRootDir() string {
+	if runtime.GOOS == "windows" {
+		home, _ := os.UserHomeDir()
+		return home
+	}
+	return "/"
+}
+
+func openFilesScope(r *http.Request) (*os.Root, string, error) {
+	if r != nil && r.URL.Query().Get("scope") == "machine" {
+		dir := machineRootDir()
+		root, err := os.OpenRoot(dir)
+		return root, dir, err
+	}
+	return openSecondBrain()
 }
 
 func openSecondBrain() (*os.Root, string, error) {
@@ -175,6 +196,9 @@ func filesError(w http.ResponseWriter, err error) {
 
 // handleFilesRoot: GET → {root, exists}; POST {path, create} chooses the folder.
 func handleFilesRoot(w http.ResponseWriter, r *http.Request) {
+	if proxyFiles(w, r) {
+		return
+	}
 	if r.Method == http.MethodPost {
 		var body struct {
 			Path   string `json:"path"`
@@ -216,6 +240,9 @@ func handleFilesRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFilesTree(w http.ResponseWriter, r *http.Request) {
+	if proxyFiles(w, r) {
+		return
+	}
 	root, dir, err := openSecondBrain()
 	if err != nil {
 		sendJSON(w, 200, map[string]any{"ok": true, "root": dir, "exists": false, "tree": []any{}})
@@ -231,12 +258,15 @@ func handleFilesTree(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFilesRead(w http.ResponseWriter, r *http.Request) {
+	if proxyFiles(w, r) {
+		return
+	}
 	rel, err := cleanRel(r.URL.Query().Get("path"))
 	if err != nil || rel == "." {
 		filesError(w, errors.New("invalid path"))
 		return
 	}
-	root, _, err := openSecondBrain()
+	root, _, err := openFilesScope(r)
 	if err != nil {
 		filesError(w, err)
 		return
@@ -275,12 +305,15 @@ func handleFilesRead(w http.ResponseWriter, r *http.Request) {
 // handleFilesRaw serves a file's bytes (images in notes). Never executable:
 // served as an attachment unless it is an image.
 func handleFilesRaw(w http.ResponseWriter, r *http.Request) {
+	if proxyFiles(w, r) {
+		return
+	}
 	rel, err := cleanRel(r.URL.Query().Get("path"))
 	if err != nil || rel == "." {
 		http.Error(w, "invalid path", 400)
 		return
 	}
-	root, _, err := openSecondBrain()
+	root, _, err := openFilesScope(r)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -311,6 +344,9 @@ func handleFilesRaw(w http.ResponseWriter, r *http.Request) {
 // handleFilesWrite saves a text file. With `modified`, the write is refused
 // when the file changed since it was read (an agent may have edited it).
 func handleFilesWrite(w http.ResponseWriter, r *http.Request) {
+	if proxyFiles(w, r) {
+		return
+	}
 	var body struct {
 		Path     string `json:"path"`
 		Content  string `json:"content"`
@@ -326,7 +362,7 @@ func handleFilesWrite(w http.ResponseWriter, r *http.Request) {
 		filesError(w, errors.New("invalid path"))
 		return
 	}
-	root, _, err := openSecondBrain()
+	root, _, err := openFilesScope(r)
 	if err != nil {
 		filesError(w, err)
 		return
@@ -376,6 +412,9 @@ func handleFilesWrite(w http.ResponseWriter, r *http.Request) {
 // handleFilesOp: POST {op: mkdir|rename|delete, path, to}. Delete moves the
 // entry to the folder's .trash, so nothing is lost by a misclick.
 func handleFilesOp(w http.ResponseWriter, r *http.Request) {
+	if proxyFiles(w, r) {
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", 405)
 		return
@@ -394,7 +433,7 @@ func handleFilesOp(w http.ResponseWriter, r *http.Request) {
 		filesError(w, errors.New("invalid path"))
 		return
 	}
-	root, _, err := openSecondBrain()
+	root, _, err := openFilesScope(r)
 	if err != nil {
 		filesError(w, err)
 		return
@@ -435,4 +474,64 @@ func handleFilesOp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true})
+}
+
+// handleFilesList lists one directory (dot entries and node_modules hidden),
+// for browsing a whole machine without walking it.
+func handleFilesList(w http.ResponseWriter, r *http.Request) {
+	if proxyFiles(w, r) {
+		return
+	}
+	rel, err := cleanRel(r.URL.Query().Get("path"))
+	if err != nil {
+		filesError(w, err)
+		return
+	}
+	root, dir, err := openFilesScope(r)
+	if err != nil {
+		filesError(w, err)
+		return
+	}
+	defer root.Close()
+	f, err := root.Open(rel)
+	if err != nil {
+		filesError(w, err)
+		return
+	}
+	entries, err := f.ReadDir(-1)
+	f.Close()
+	if err != nil {
+		filesError(w, err)
+		return
+	}
+	out := []*fileNode{}
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, ".") || name == "node_modules" {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		p := name
+		if rel != "." {
+			p = rel + "/" + name
+		}
+		n := &fileNode{Name: name, Path: p, Dir: e.IsDir(), Modified: info.ModTime().UnixMilli()}
+		if !n.Dir {
+			n.Size = info.Size()
+		}
+		out = append(out, n)
+		if len(out) >= filesMaxEntries {
+			break
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Dir != out[j].Dir {
+			return out[i].Dir
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	sendJSON(w, 200, map[string]any{"ok": true, "root": dir, "path": rel, "entries": out})
 }
