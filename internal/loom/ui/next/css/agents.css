@@ -605,3 +605,13 @@ html.touch .cm-term-box{-webkit-text-size-adjust:100%}
 .cm-ps-h{display:flex;align-items:center;justify-content:space-between;width:100%;height:40px;font-size:13.5px;color:var(--text)}
 .cm-ps-h .ico{width:14px;height:14px;color:var(--text-3)}
 .cm-ps-b{display:flex;flex-direction:column;gap:10px;padding:2px 0 14px}
+/* téléphone : panneau dans un tiroir (son titre suffit) et en-tête allégé */
+.drawer-panel .cm-panel-h{height:auto;padding:0 10px;border:0;justify-content:flex-end}
+.drawer-panel .cm-panel-h b,.drawer-panel .cm-panel-h .grow{display:none}
+.drawer-panel .cm-panel-body{padding-top:4px}
+@media (max-width:760px){
+  .cm-sh-cli .muted,.cm-sh-sep{display:none}
+  .cm-sh .cm-sh-name{color:var(--text-3)}
+  .cm-sh-state{padding:0;background:none!important;font-size:0;gap:0}
+  .cm-sh-state .dot{width:8px;height:8px}
+}
