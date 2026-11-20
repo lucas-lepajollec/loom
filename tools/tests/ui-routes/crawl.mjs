@@ -44,9 +44,9 @@ try {
   await fetch(base + 'api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarded: '1', lang: process.env.CRAWL_LANG || 'en' }) });
   const ws = await (await fetch(base + 'api/workspace')).json();
   const runtimes = (ws.runtimes || []).map(r => r.id);
-  let routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'project', 'project/fixture-project', 'resources', 'terminals', 'environment', 'environment/docker', 'environment/proxmox', 'local/hub', 'voice', 'jarvis',
+  let routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'terminals', 'local/hub', 'voice', 'jarvis',
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
-    'tasks', 'brain', 'brain/sources', 'brain/memory', 'brain/skills', 'brain/mcp', 'usage', 'quotas', 'bench', 'agents', 'agents/settings',
+    'usage', 'quotas', 'bench', 'agents', 'agents/cron', 'agents/settings',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
   if (process.env.CRAWL_ROUTES) routes = routes.filter(r => new RegExp(process.env.CRAWL_ROUTES).test(r));
   const fixturePhone = phoneFixtures(ws, remote);
@@ -176,10 +176,6 @@ try {
       if (scenario === 'phone-layout' && r === 'cloud') {
         await page.locator('.cl-tile:not(.on) .btn').first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
-      }
-      if (scenario === 'phone-layout' && r === 'environment') {
-        await page.locator('.toolbar .btn.primary').click(); await page.locator('.dialog').waitFor();
-        await inspect(page, errors, label + ' service dialog'); await page.locator('.dialog-head .icon-btn').click();
       }
       await inspect(page, errors, label + ' degraded');
       if (!['fresh', 'healthy', 'phone-layout'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);

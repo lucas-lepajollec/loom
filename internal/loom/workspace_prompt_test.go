@@ -34,8 +34,8 @@ func TestDiscussionContextConfigurePreservesHistoryAndRoute(t *testing.T) {
 	if p.Problem != "" || !p.DraftAdded || len(p.Messages) != 4 || p.HistoryCount != 2 || p.Messages[3].Content != "A draft" {
 		t.Fatalf("bad preview: %+v", p)
 	}
-	if !strings.Contains(p.Context.System, skill.Instructions) || !strings.Contains(p.Context.System, updated.Instructions) || strings.Contains(p.Context.System, project.Directory) {
-		t.Fatal("context missing selected instructions or leaking folder")
+	if strings.Contains(p.Context.System, skill.Instructions) || !strings.Contains(p.Context.System, updated.Instructions) || strings.Contains(p.Context.System, project.Directory) || strings.Contains(p.Context.System, project.Instructions) {
+		t.Fatal("context missing discussion instructions or leaking folder")
 	}
 	if !reflect.DeepEqual(updated.Messages, before.Messages) {
 		t.Fatal("preview mutated history")
@@ -57,8 +57,9 @@ func TestDiscussionContextConfigurePreservesHistoryAndRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	missing := prepareDiscussion(persisted, "Still here")
-	if missing.Problem == "" {
-		t.Fatal("deleted project silently ignored")
+	// Deleting a folder only unfiles the discussion; it keeps working.
+	if missing.Problem != "" {
+		t.Fatalf("deleted folder blocked the discussion: %s", missing.Problem)
 	}
 	detached, err := m.configureDiscussion(s.ID, persisted.Title, "", persisted.Instructions, missing.Context.Revision, false)
 	if err != nil || len(detached.Messages) != 2 {

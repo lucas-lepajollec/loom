@@ -1,87 +1,16 @@
 import { shortVersion } from '../core/version.js';
 import { t } from '../core/i18n.js';
-// Coquille : barre latérale (navigation, projets, récents, carte moteur) et
-// zone principale routée.
-import { html, useState, useStore, useEffect, cls } from '../core/lib.js';
-import { newProjectDiscussion } from '../features/projects/page.js';
+// Coquille : barre latérale (navigation, sessions, carte moteur) et zone
+// principale routée.
+import { html, useStore, useEffect } from '../core/lib.js';
 import { Icon } from '../ui/icons.js';
-import { Menu } from '../ui/controls.js';
-import { prompt, confirm, toast } from '../ui/dialog.js';
-import { get, post } from '../core/api.js';
-import { app, go, engineState, refreshNav } from '../core/state.js';
-import { chat, open, newDiscussion } from '../features/chat/engine.js';
+import { app, go, engineState } from '../core/state.js';
+import { newDiscussion } from '../features/chat/engine.js';
 import { NAV_ITEMS } from './routes.js';
 import { groupOf } from './sections.js';
 import { Activity } from './activity.js';
 import { openPalette } from './palette.js';
-import { AgentsSide } from '../features/agents/side.js';
-
-const COLORS = ['#7c93e8', '#d49a4a', '#5bb58a', '#c07ad8', '#d9776d', '#63b3c9'];
-const projColor = id => COLORS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
-
-// Glisser-déposer : une discussion se dépose sur un projet, ou sur Récents
-// pour la sortir de son projet.
-let dragged = null;
-function dropZone(projectId, setOver) {
-  const accept = e => dragged && (dragged.project_id || '') !== projectId;
-  return {
-    onDragOver: e => { if (accept(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(true); } },
-    onDragLeave: () => setOver(false),
-    onDrop: e => { setOver(false); if (!accept(e)) return; e.preventDefault(); const c = dragged; dragged = null; moveTo(c, projectId); },
-  };
-}
-
-// Déplacer une discussion : archive native ou discussion commune (on garde son titre et ses instructions).
-async function moveTo(c, projectId) {
-  let r;
-  if (!c.workspace) r = await post('/api/chat/history/move', { id: c.id, project_id: projectId });
-  else {
-    const cur = await get('/api/runtime/sessions?id=' + encodeURIComponent(c.id));
-    if (!cur.ok) return toast(cur.error || t("app.shell.discussion_introuvable"), 'err');
-    // A provider or agent outside this machine receives the project context
-    // from the next message on: ask once, then send the consent.
-    const external = cur.session.runtime_id !== 'llama.cpp';
-    const project = (app.get().nav.projects || []).find(p => p.id === projectId);
-    if (external && !await confirm(t('app.shell.move_share_title'), t(projectId ? 'app.shell.move_share_text' : 'app.shell.move_unshare_text', { project: project ? project.name : '' }), { ok: t('app.shell.move_ok') })) return;
-    r = await post('/api/runtime/sessions/configure', { id: c.id, title: cur.session.title || '', project_id: projectId, instructions: cur.session.instructions || '', context_revision: (cur.context && cur.context.revision) || '', consent: external });
-  }
-  if (r.ok === false) toast(r.error || t("app.shell.deplacement_impossible"), 'err'); refreshNav();
-}
-
-function ChatLink({ c, active }) {
-  const [menu, setMenu] = useState(null);
-  const running = c.status === 'running';
-  const items = [
-    { label: t("app.shell.renommer"), icon: 'edit', run: async () => {
-      const name = await prompt(t("app.shell.renommer_la_discussion"), { value: c.title || '' });
-      if (!name) return;
-      let r;
-      if (c.workspace) {
-        const cur = await get('/api/runtime/sessions?id=' + encodeURIComponent(c.id));
-        r = cur.ok ? await post('/api/runtime/sessions/configure', { id: c.id, title: name, project_id: cur.session.project_id || '', instructions: cur.session.instructions || '', context_revision: (cur.context && cur.context.revision) || '' }) : cur;
-      } else r = await post('/api/chat/history/rename', { id: c.id, title: name });
-      if (!r.ok) toast(r.error || t("app.shell.impossible_de_renommer"), 'err'); refreshNav();
-    } },
-    ...(!c.workspace ? [{ label: c.fav ? t("app.shell.desepingler") : t("app.shell.epingler"), icon: 'star', run: async () => {
-      const r = await post('/api/chat/history/fav', { id: c.id, fav: !c.fav }); if (r.ok === false) toast(r.error || t("app.shell.impossible"), 'err'); refreshNav();
-    } }] : []),
-    ...app.get().nav.projects.filter(p => p.id !== c.project_id).map(p => ({ label: t("app.shell.deplacer_vers") + p.name, icon: 'folder', run: () => moveTo(c, p.id) })),
-    ...(c.project_id ? [{ label: t("app.shell.retirer_du_projet"), icon: 'folder', run: () => moveTo(c, '') }] : []),
-    '-',
-    { label: t("app.shell.supprimer"), icon: 'trash', danger: true, run: async () => {
-      if (!await confirm(t("app.shell.supprimer_la_discussion"), '« ' + (c.title || t("app.shell.discussion")) + t("app.shell.sera_supprimee_definitivement"), { ok: t("app.shell.supprimer"), danger: true })) return;
-      const r = c.workspace ? await post('/api/runtime/sessions/delete', { id: c.id }) : await post('/api/chat/history/delete', { id: c.id });
-      if (!r.ok) toast(r.error || t("app.shell.suppression_impossible"), 'err'); refreshNav();
-    } },
-  ];
-  return html`<div class="chat-link" aria-current=${active ? 'page' : undefined} role="button" tabindex="0" draggable="true"
-      onDragStart=${e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-loom-chat', c.id); dragged = c; }} onDragEnd=${() => { dragged = null; }}
-      onClick=${() => { open(c.id); go('chat'); }} onKeyDown=${e => e.key === 'Enter' && (open(c.id), go('chat'))}>
-    ${running && html`<i class="run"></i>`}<span>${c.title || t("app.shell.nouvelle_discussion")}</span>
-    <button class="icon-btn more" aria-label="${t("app.shell.actions")}" onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
-    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
-  </div>`;
-}
+import { Sessions } from './sessions.js';
 
 function EngineCard() {
   const { status, gpus } = useStore(app, s => ({ status: s.status, gpus: s.gpus }));
@@ -95,18 +24,7 @@ function EngineCard() {
 }
 
 export function Sidebar() {
-  const { route, nav, open: sideOpen, serverInfo } = useStore(app, s => ({ route: s.route, nav: s.nav, open: s.sideOpen, serverInfo: s.serverInfo }));
-  const current = useStore(chat, s => s.sessionId);
-  const activeId = current || nav.active;
-  const [openProj, setOpenProj] = useState(() => new Set(JSON.parse(localStorage.getItem('loom.next.proj') || '[]')));
-  const [over, setOver] = useState(null);
-  const toggleProj = id => { const n = new Set(openProj); n.has(id) ? n.delete(id) : n.add(id); setOpenProj(n); localStorage.setItem('loom.next.proj', JSON.stringify([...n])); };
-  const newProject = async () => {
-    const name = await prompt(t("app.shell.nouveau_projet"), { placeholder: t("app.shell.nom_du_projet"), ok: t("app.shell.creer") });
-    if (!name) return;
-    const r = await post('/api/projects/context', { id: '', name, directory: '', instructions: '', capability_ids: [] });
-    if (!r.ok) toast(r.error || t("app.shell.creation_impossible"), 'err'); refreshNav();
-  };
+  const { route, serverInfo } = useStore(app, s => ({ route: s.route, serverInfo: s.serverInfo }));
   useEffect(() => {
     const key = e => {
       const mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
@@ -115,31 +33,13 @@ export function Sidebar() {
     };
     addEventListener('keydown', key); return () => removeEventListener('keydown', key);
   }, []);
-  const loose = nav.conversations.filter(c => !c.project_id);
   return html`<aside class="side" aria-label="${t("app.shell.navigation")}">
     <div class="brand"><b><svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M40 64H52H52V104H40A20 20 0 0 1 20 84V84A20 20 0 0 1 40 64ZM116 64H216A20 20 0 0 1 236 84V84A20 20 0 0 1 216 104H116H116V64ZM40 152H140H140V192H40A20 20 0 0 1 20 172V172A20 20 0 0 1 40 152ZM204 152H216A20 20 0 0 1 236 172V172A20 20 0 0 1 216 192H204H204V152ZM64 40A20 20 0 0 1 84 20H84A20 20 0 0 1 104 40V140V140H64ZM64 204V204H104V216A20 20 0 0 1 84 236H84A20 20 0 0 1 64 216ZM152 40A20 20 0 0 1 172 20H172A20 20 0 0 1 192 40V52V52H152ZM152 116V116H192V216A20 20 0 0 1 172 236H172A20 20 0 0 1 152 216Z"></path></svg>${t("app.shell.loom")}</b>
       <span class="brand-acts"><button class="icon-btn" aria-label="${t("app.shell.rechercher")}" title="${t("app.shell.rechercher_ctrl_k")}" onClick=${openPalette}><${Icon} n="search" /></button><${Activity} /></span>
       <button class="icon-btn only-mobile" aria-label="${t("app.shell.fermer")}" onClick=${() => app.set({ sideOpen: false })}><${Icon} n="close" /></button></div>
-    <button class="new-chat" onClick=${() => newDiscussion()}><${Icon} n="plus" />${t("app.shell.nouvelle_discussion")}</button>
+    <button class="new-chat" onClick=${() => newDiscussion()}><${Icon} n="plus" />${t("side.new_session")}</button>
     <nav class="nav">${NAV_ITEMS.map(r => html`<a href=${r.href} aria-current=${groupOf(route.section)?.id === r.id ? 'page' : undefined}><${Icon} n=${r.nav.icon} />${r.nav.label}</a>`)}</nav>
-    <div class="side-sec">
-      <div class="side-sec-h"><span>${t("app.shell.projets")}</span><button class="icon-btn" style="width:24px;height:24px" aria-label="${t("app.shell.nouveau_projet")}" onClick=${newProject}><${Icon} n="plus" /></button></div>
-      <div class="side-list">${nav.projects.map(p => html`<div class=${cls('proj', over === p.id && 'drop-on')} ...${dropZone(p.id, on => setOver(on ? p.id : null))}>
-        <button class="chat-link" onClick=${() => toggleProj(p.id)} aria-expanded=${String(openProj.has(p.id))}>
-          <i class="proj-dot" style=${`background:${projColor(p.id)}`}></i><span>${p.name}</span>
-          <span class="icon-btn more" role="button" tabindex="0" aria-label="${t("app.shell.reglages_du_projet")}" onClick=${e => { e.stopPropagation(); go('project', p.id); }}><${Icon} n="gear" /></span>
-          <${Icon} n=${openProj.has(p.id) ? 'chevron' : 'right'} class="proj-caret" /></button>
-        ${openProj.has(p.id) && html`<div class="proj-chats anim-fade">
-          ${nav.conversations.filter(c => c.project_id === p.id).map(c => html`<${ChatLink} key=${c.id} c=${c} active=${route.section === 'chat' && c.id === activeId} />`)}
-          <button class="chat-link sub" onClick=${() => newProjectDiscussion(p)}><${Icon} n="plus" /><span>${t("app.shell.nouvelle_discussion")}</span></button>
-        </div>`}</div>`)}
-      </div>
-    </div>
-    <${AgentsSide} />
-    <div class=${cls('side-sec grow', over === '' && 'drop-on')} ...${dropZone('', on => setOver(on ? '' : null))}>
-      <div class="side-sec-h"><span>${t("app.shell.recents")}</span></div>
-      <div class="side-list">${loose.map(c => html`<${ChatLink} key=${c.id} c=${c} active=${route.section === 'chat' && c.id === activeId} />`)}</div>
-    </div>
+    <${Sessions} />
     <div class="side-foot">
       <${EngineCard} />
       <div class="me">

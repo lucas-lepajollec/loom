@@ -106,6 +106,15 @@ func deleteProject(id string) error {
 	if conv.currentProject() == id {
 		conv.setActiveProject("")
 	}
+	agentFoldersMu.Lock()
+	folders := loadAgentFolders()
+	for session, folder := range folders {
+		if folder == id {
+			delete(folders, session)
+		}
+	}
+	_ = putStoreJSON(bkState, agentFoldersKey, folders)
+	agentFoldersMu.Unlock()
 	if err := putBytes(bkProjects, id, nil); err != nil {
 		return err
 	}

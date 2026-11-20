@@ -361,24 +361,33 @@
 .cm-home.narrow{align-items:stretch}
 .cm-home.narrow .cm-rail{width:100%;padding:0}
 
-/* barre latérale de Loom : sessions Codeman */
-.side-agents .side-list{max-height:38vh}
-.side-sec-t{display:flex;align-items:center;gap:6px;height:26px;margin-left:-4px;padding:0 4px;border-radius:var(--r-xs);font:inherit;color:inherit}
-.side-sec-t:hover{color:var(--text-2)}
-.side-sec-t .dot{width:6px;height:6px}
-.cm-side-count{min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--red);color:#fff;font:600 10px/16px var(--mono);font-style:normal;text-align:center}
-.cm-side-row{text-decoration:none}
-.side-agents .chat-link>.mono-tile{flex:none;width:14px;height:14px}
-.cm-side-row .mono-tile.xs{color:var(--text-3)}
-.cm-side-row.st-stopped{color:var(--text-4)}
-.cm-side-row.st-stopped .mono-tile{opacity:.5}
-.cm-side-row.in-grid:not([aria-current])::before{content:"";position:absolute;left:2px;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--line-strong)}
-.cm-side-flag{flex:none;height:18px;padding:0 6px;border-radius:9px;background:var(--red-bg);color:var(--red);font:500 11px/18px var(--font);font-style:normal}
-.cm-side-row .dot{width:7px;height:7px}
+/* barre latérale : liste unique des sessions et dossiers */
+.ses-h{padding:0 2px 0 4px;margin-top:4px}
+.ses-h .icon-btn{width:26px;height:26px}
+.ses-h .icon-btn .ico{width:14px;height:14px}
+.ses-filter{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 6px;border-radius:var(--r-xs);font:500 12px var(--font);color:var(--text-3)}
+.ses-filter:hover,.ses-filter[aria-expanded="true"]{background:var(--hover);color:var(--text-2)}
+.ses-filter .ico{width:12px;height:12px}
+.ses .side-list{flex:1;min-height:0}
+.ses-row{text-decoration:none}
+.chat-link .ses-ico{width:16px;height:16px;flex:none;display:grid;place-items:center;color:var(--text-3)}
+.ses-ico .ico{width:15px;height:15px}
+.ses-ico .mono-tile.xs,.ses-ico .logo{width:15px;height:15px}
+.ses-row.st-stopped{color:var(--text-4)}
+.ses-row.st-stopped .ses-ico{opacity:.5}
+.ses-row>.dot{width:7px;height:7px}
+.ses-folder-h small{flex:none;font-size:11.5px;color:var(--text-4)}
+.ses-folder-in .chat-link{padding-left:22px}
+.ses-folder.drop-on,.ses .side-list.drop-on{border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.ses-empty{margin:4px 10px;font-size:12.5px;color:var(--text-4)}
 .cm-side-hist small{flex:none;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--text-4)}
 .cm-side-hist span{color:var(--text-3)}
 .cm-side-more{margin-top:2px}
 .cm-side-more .ico:first-child{width:14px;height:14px}
+.cm-grid-h{min-height:48px}
+.cm-grid-h b{font-size:14px;font-weight:600}
+.welcome-type{width:240px;margin-bottom:8px}
+.welcome-type .seg{width:100%}.welcome-type .seg button{flex:1}
 
 /* disposition et quotas dans la barre du module */
 .cm-layout-btn{width:32px;height:32px}

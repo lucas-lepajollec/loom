@@ -7,8 +7,11 @@ machine paths, model files or local state.
 
 ## Product boundaries
 
-Loom is a local-first workspace for Local and Cloud discussions, engines,
-projects, Brain, skills, MCP, terminals, machines and voice. Coding harness
+Loom is a local-first workspace with two kinds of sessions in one list:
+discussions with a Local or Cloud model, and agent sessions run by Codeman.
+Folders only group sessions; no folder or project context is sent to models.
+It also manages engines, machines, voice and activity. Brain is being
+retired: do not add new Brain, project-context or shared-preference features. Coding harness
 integration is retired. Do not restore native agent installation, account
 login, model catalogs, sessions, quotas, ACP or other agent protocols. Existing
 transcripts and display events remain readable for migration; they cannot
@@ -25,8 +28,8 @@ and model state separate; llama.cpp router model changes use its API rather
 than restart the server. Remote nodes expose only engine, terminal, observe and
 optional voice modules. Cloud providers use explicit credentials and consent.
 MCP clients are configured manually; Loom never writes native client settings.
-Brain source files remain authoritative; indexes are derived data. Preserve
-current voice/Jarvis, policy, notifications and memory behavior within this scope.
+Preserve current voice/Jarvis, policy and notifications behavior within this
+scope.
 
 ## Working method
 

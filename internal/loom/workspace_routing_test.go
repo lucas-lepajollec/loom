@@ -75,7 +75,7 @@ func TestUnifiedDiscussionSwitchesLocalCloudLocalWithoutForking(t *testing.T) {
 		t.Fatalf("cloud run failed: %+v", second)
 	}
 	cloudMessages := <-requests
-	if len(cloudMessages) != 4 || !strings.Contains(fmt.Sprint(cloudMessages), "Hello local") || !strings.Contains(fmt.Sprint(cloudMessages), "Same shared instructions") {
+	if len(cloudMessages) != 3 || !strings.Contains(fmt.Sprint(cloudMessages), "Hello local") || strings.Contains(fmt.Sprint(cloudMessages), "Same shared instructions") {
 		t.Fatalf("cloud lost shared context: %+v", cloudMessages)
 	}
 	localID := ""
@@ -93,7 +93,7 @@ func TestUnifiedDiscussionSwitchesLocalCloudLocalWithoutForking(t *testing.T) {
 	}
 	final := awaitCloudFinished(t, m, s.ID)
 	localMessages := <-requests
-	if len(final.Messages) != 6 || len(localMessages) != 6 || len(m.list()) != 1 || len(final.Turns) != 3 {
+	if len(final.Messages) != 6 || len(localMessages) != 5 || len(m.list()) != 1 || len(final.Turns) != 3 {
 		t.Fatalf("lost history: %+v", final)
 	}
 	if final.Turns[0].RuntimeID != "llama.cpp" || final.Turns[1].Model != "model-b" || final.Turns[2].RuntimeID != "llama.cpp" {

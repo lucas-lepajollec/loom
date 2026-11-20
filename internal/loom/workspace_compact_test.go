@@ -299,28 +299,6 @@ func TestWorkspaceContinueRetainsTranscriptAndProject(t *testing.T) {
 			if _, err := store.Write(brain.MemoryWrite{Scope: "global", Name: "Profile", Description: "who the user is", Type: "user", Text: "Prefers short answers."}, nil); err != nil {
 				t.Fatal(err)
 			}
-			if next.ProjectID != "" {
-				if _, err := store.Write(brain.MemoryWrite{Scope: "project:" + next.ProjectID, Name: "Release", Description: "how to release", Type: "project", Text: "Tag then publish."}, nil); err != nil {
-					t.Fatal(err)
-				}
-			}
-			next.FrozenContext, next.FrozenRevision = "", ""
-			c := discussionContext(next)
-			globalIndex, projectIndex := false, false
-			for _, item := range c.Items {
-				if item.Kind == "memory" && item.Scope == "global" && item.Label == "MEMORY.md" {
-					globalIndex = true
-				}
-				if item.Kind == "memory" && item.Scope == "project:"+next.ProjectID && item.Label == "MEMORY.md" {
-					projectIndex = true
-				}
-			}
-			if !globalIndex || next.ProjectID != "" && !projectIndex {
-				t.Fatal("continuation memory indexes missing", c.Items)
-			}
-			if c.Budget.Memory.Used > c.Budget.Memory.Available {
-				t.Fatal("memory exceeded budget")
-			}
 			transcriptJobs.Wait()
 			if path, err := store.DiscussionPath(s.ID); err != nil || path == "" {
 				t.Fatal("original transcript missing", err)

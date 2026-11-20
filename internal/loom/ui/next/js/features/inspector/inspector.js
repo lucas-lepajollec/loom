@@ -1,7 +1,6 @@
 import { t, locale, tSource } from '../../core/i18n.js';
 // Panneau de droite : s'adapte à l'exécution choisie. Local = paramètres
 // llama.cpp ; Cloud = fournisseur, usage, coût.
-// Un second onglet montre le contexte partagé de la discussion.
 import { html, useState, useEffect, useRef, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Seg, Switch, Tip } from '../../ui/controls.js';
@@ -15,7 +14,6 @@ import { chat, open } from '../chat/engine.js';
 import { currentExec, EXEC_TAG } from '../chat/picker.js';
 import { openTerminalWith } from '../terminals/page.js';
 import { LocalParams } from './params.js';
-import { ContextPanel } from './context.js';
 
 const KV = ({ k, children }) => html`<div class="kv"><span>${k}</span><span>${children}</span></div>`;
 
@@ -47,25 +45,22 @@ function CloudPanel() {
 }
 
 export function Inspector({ open, onClose }) {
-  const mode = useStore(chat, c => c.mode);
-  const hasCtx = useStore(chat, c => !!c.session);
   useStore(app, a => a.status && a.status.model);
   // currentExec() dépend de la discussion et du registre des runtimes (chargé après).
   useStore(chat, c => (c.mode || '') + ':' + ((c.session && c.session.runtime_id) || ''));
   useStore(app, a => a.workspace && a.workspace.runtimes);
-  const [tab, setTab] = useState('params');
   const exec = currentExec();
-  const localT = hasCtx ? tab : 'params';
   const [tag, tone] = EXEC_TAG[exec.kind];
+  const title = exec.kind === 'local' ? t("inspector.inspector.parametres") : exec.kind === 'cloud' ? t("inspector.inspector.modele") : t("inspector.inspector.session");
   return html`<aside class=${cls('insp', open && 'open')} aria-label="${t("inspector.inspector.panneau")}" aria-hidden=${String(!open)}>
     <div class="insp-in">
       <header class="insp-head">
         <span class=${'tag ' + tone}>${tag}</span>
-        <${Seg} size="sm" value=${localT} onChange=${setTab} label="${t("inspector.inspector.panneau")}" options=${[{ value: 'params', label: exec.kind === 'local' ? t("inspector.inspector.parametres") : exec.kind === 'cloud' ? t("inspector.inspector.modele") : t("inspector.inspector.session") }, { value: 'context', label: t("inspector.inspector.contexte"), disabled: !hasCtx }]} />
+        <b class="insp-title">${title}</b>
         <button class="icon-btn" aria-label="${t("inspector.inspector.fermer_le_panneau")}" onClick=${onClose}><${Icon} n="close" /></button>
       </header>
-      <div class="insp-scroll" key=${localT + exec.kind}>
-        ${localT === 'context' ? html`<${ContextPanel} />` : exec.kind === 'local' ? html`<${LocalParams} />` : exec.kind === 'cloud' ? html`<${CloudPanel} />` : html`<p class="note">${t('runtime.retired')}</p>`}
+      <div class="insp-scroll" key=${exec.kind}>
+        ${exec.kind === 'local' ? html`<${LocalParams} />` : exec.kind === 'cloud' ? html`<${CloudPanel} />` : html`<p class="note">${t('runtime.retired')}</p>`}
       </div>
     </div>
   </aside>`;
