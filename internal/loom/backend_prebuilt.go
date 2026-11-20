@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -182,8 +183,34 @@ func prebuiltPrune(keep string, logf func(string)) {
 	}
 }
 
+// La dernière release de llama.cpp est gardée 30 minutes : GitHub limite les
+// requêtes anonymes à 60 par heure et par adresse IP.
+var (
+	llamaLatestMu  sync.Mutex
+	llamaLatestTag string
+	llamaLatestAs  []ghAsset
+	llamaLatestAt  time.Time
+)
+
 // fetchLlamaLatest interroge l'API GitHub pour la dernière release officielle.
 func fetchLlamaLatest() (string, []ghAsset, error) {
+	llamaLatestMu.Lock()
+	if llamaLatestTag != "" && time.Since(llamaLatestAt) < 30*time.Minute {
+		tag, assets := llamaLatestTag, llamaLatestAs
+		llamaLatestMu.Unlock()
+		return tag, assets, nil
+	}
+	llamaLatestMu.Unlock()
+	tag, assets, err := fetchLlamaLatestNow()
+	if err == nil {
+		llamaLatestMu.Lock()
+		llamaLatestTag, llamaLatestAs, llamaLatestAt = tag, assets, time.Now()
+		llamaLatestMu.Unlock()
+	}
+	return tag, assets, err
+}
+
+func fetchLlamaLatestNow() (string, []ghAsset, error) {
 	req, err := http.NewRequest("GET", llamaReleasesAPI, nil)
 	if err != nil {
 		return "", nil, err
@@ -195,6 +222,9 @@ func fetchLlamaLatest() (string, []ghAsset, error) {
 		return "", nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == 403 && resp.Header.Get("X-RateLimit-Remaining") == "0" {
+		return "", nil, fmt.Errorf("GitHub limits anonymous requests to 60 per hour from this network and they are used up; try again later")
+	}
 	if resp.StatusCode != 200 {
 		return "", nil, fmt.Errorf("GitHub API : HTTP %d", resp.StatusCode)
 	}
