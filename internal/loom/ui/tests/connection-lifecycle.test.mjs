@@ -69,23 +69,6 @@ test('the real terminal view reattaches after mobile resume without opening a pr
   stop(); assert.equal(sockets[1].readyState, 3);
 });
 
-test('Tasks rejects malformed SSE snapshots and reconnects the real page on bfcache resume', async () => {
-  const source = fs.readFileSync(process.env.LOOM_TASKS_BASELINE || new URL('../next/js/features/tasks/page.js', import.meta.url), 'utf8');
-  const env = surface(), streams = [], effects = [], slots = []; let cursor = 0;
-  const { validData } = await import('../next/js/core/shape.js');
-  const context = { ...env, validData, html: () => null, t: x => x, SectionTabs: 'Tabs', Icon: 'Icon', Empty: 'Empty', cls: () => '',
-    EventSource: class { constructor() { streams.push(this); } close() {} },
-    useState: initial => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = v; }]; },
-    useEffect: f => effects.push(f), get: async () => ({ ok: true, tasks: [] }),
-    visibleConnection: (connect, delay) => module.connection(connect, delay, env),
-  };
-  vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.view = TasksPage;', context);
-  context.view(); const stop = effects[0](); await settle();
-  const previous = slots[0]; streams[0].onmessage({ data: '{"ok":true,"tasks":{}}' });
-  assert.equal(slots[0], previous); cursor = 0; assert.doesNotThrow(() => context.view());
-  env.listeners.get('pagehide')?.(); env.listeners.get('pageshow')?.({ persisted: true }); await settle();
-  assert.equal(streams.length, 2); stop();
-});
 test('Voice rejects malformed frames and reconnects without replaying a turn or reacquiring the microphone', async () => {
   const source = fs.readFileSync(process.env.LOOM_VOICE_BASELINE || new URL('../next/js/features/voice/mode.js', import.meta.url), 'utf8');
   const env = surface(), sockets = [], effects = [], posts = [], states = []; let microphones = 0, buffers = 0, cursor = 0, turns = 0;

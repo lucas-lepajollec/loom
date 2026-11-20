@@ -11,29 +11,26 @@
   .page-head .acts{flex-wrap:wrap;justify-content:flex-end}
 }
 
-@media(max-width:900px){
-  .mem-grid,.preset-grid,.grid-proj,.split{grid-template-columns:minmax(0,1fr)}
+@media(max-width:900px){.preset-grid,.split{grid-template-columns:minmax(0,1fr)}
   .bench-t .tr{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .bench-t .tr.th{display:none}
   .bench-t .cell-id{grid-column:1/-1}
   .bench-t [data-label]{display:flex;flex-direction:column;align-items:flex-start;white-space:normal}
   .bench-t [data-label]::before{content:attr(data-label);font:12px/1.5 var(--font);color:var(--text-3)}
   .bench-t .cell-main small,.bench-prev p{white-space:pre-wrap;overflow-wrap:anywhere}
-  .usage-t .tr,.native-t .tr{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-  .usage-t .tr.th,.native-t .tr.th{display:none}
-  .usage-t .cell-id,.native-t .cell-id{grid-column:1/-1}
-  .usage-t .tr>span[data-label],.native-t .tr>span[data-label]{display:flex;flex-direction:column;align-items:flex-start;min-width:0;text-align:left}
-  .usage-t [data-label]::before,.native-t [data-label]::before{content:attr(data-label);font:12px/1.5 var(--font);color:var(--text-3)}
-  .usage-t [data-label]:has(.price-edit),.native-t .tr>.nm{grid-column:1/-1}
+  .usage-t .tr{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .usage-t .tr.th{display:none}
+  .usage-t .cell-id{grid-column:1/-1}
+  .usage-t .tr>span[data-label]{display:flex;flex-direction:column;align-items:flex-start;min-width:0;text-align:left}
+  .usage-t [data-label]::before{content:attr(data-label);font:12px/1.5 var(--font);color:var(--text-3)}
+  .usage-t [data-label]:has(.price-edit){grid-column:1/-1}
   .price-edit{flex-wrap:wrap}
-  .usage-t .cell-main b,.native-t .cell-main b,.bench-t .cell-main b{white-space:normal;overflow-wrap:anywhere}
+  .usage-t .cell-main b,.bench-t .cell-main b{white-space:normal;overflow-wrap:anywhere}
   .q-h{flex-wrap:wrap;min-width:0}
   .q-h b{min-width:0;overflow-wrap:anywhere}
   .q-h .icon-btn{flex-shrink:0}
   .qw-h{flex-wrap:wrap;gap:4px 12px}
   .grid-bench{grid-template-columns:minmax(0,1fr)}
-  .project-simple-grid{grid-template-columns:minmax(0,1fr)}
-  .project-setting{grid-template-columns:minmax(0,1fr);gap:10px}
   .grid-bench>.card{min-width:0}
   .bench .sec-h{flex-wrap:wrap;gap:8px}
   .bench .sec-h>.input{flex-basis:100%;max-width:100%;min-width:0}
@@ -56,8 +53,8 @@
   .page-head p,.note{overflow-wrap:anywhere}
   .sec-h{gap:8px;flex-wrap:wrap}
   .sec-h>.input,.sec-h>.select{width:100%;max-width:100%;min-width:0}
-  .grid2,.grid3,.hub-grid,.env-nodes{grid-template-columns:minmax(0,1fr)}
-  .card,.pad,.form-card{min-width:0}
+  .grid2,.grid3,.hub-grid{grid-template-columns:minmax(0,1fr)}
+  .card,.pad{min-width:0}
   .pad{padding:16px}
   .input,.textarea,.select{max-width:100%;min-width:0}
   .tabs{overflow-x:auto;flex-wrap:nowrap}
@@ -86,7 +83,6 @@
   .req{grid-template-columns:minmax(0,1fr) auto;gap:8px}
   .brain-search{flex-wrap:wrap}
   .brain-search>.input{flex-basis:100%}
-  .env-table{max-width:100%;overflow-x:auto}
   .dialog-head{padding:16px 16px 6px;min-width:0}
   .dialog-body{padding:12px 16px;min-height:0}
   .dialog-foot{padding:12px 16px 16px;flex-wrap:wrap}
@@ -100,21 +96,12 @@
   .cl-bar{flex-wrap:wrap}
   .cl-bar .search{width:100%;min-width:0}
   .local-strip .v{white-space:normal;flex-wrap:wrap}
-  .cell-main b,.mx-row,.mc-row{overflow-wrap:anywhere}
+  .cell-main b{overflow-wrap:anywhere}
   .scrim{padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
   .dialog{max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
-  .usage-t .cell-main b,.native-t .cell-main b{flex-wrap:wrap;gap:4px}
+  .usage-t .cell-main b{flex-wrap:wrap;gap:4px}
   .brain-search>.search{flex:1 1 100%;min-width:0}
-  .brain-connectors,.brain-permissions{grid-template-columns:minmax(0,1fr)}
-  .mcp-url code{word-break:break-all}
-  .mi-pick{order:2;flex:1 1 calc(50% - 4px);width:auto;min-width:0}
-  .bs-primary,.bs-none{flex-wrap:wrap;padding:14px}
-  .bs-none .btn{flex:1 1 100%}
   .bs-row{align-items:flex-start;padding:12px 10px 12px 14px}
-  .bs-pick{width:100%}
-  .project-setting{grid-template-columns:minmax(0,1fr);gap:10px;padding:15px 14px}
-  .project-save{flex-wrap:wrap}
-  .project-save .danger{width:100%;justify-content:flex-start}
   .workspace-picker{align-items:stretch;flex-direction:column}
   .workspace-picker .btn{align-self:flex-start}
   .insp.open{border:0;border-radius:0;background:var(--panel)}
@@ -134,7 +121,7 @@
 /* Shared phone content rules. Keep controls readable before letting flex/grid
    squeeze labels; identifiers may break, ordinary prose keeps word boundaries. */
 @media(max-width:720px){
-  .page-head,.h-head{flex-wrap:wrap}
+  .page-head{flex-wrap:wrap}
   .page-head .acts>.btn{flex:1 1 auto}
   .btn{max-width:100%;height:auto;min-height:32px;white-space:normal;overflow-wrap:anywhere;padding-top:4px;padding-bottom:4px}
   .btn.sm{height:auto;min-height:28px;padding-top:3px;padding-bottom:3px}
@@ -143,9 +130,9 @@
   .pill,.tag,.state{flex-shrink:0;max-width:100%;white-space:normal;overflow-wrap:break-word}
   .pill{height:auto;min-height:24px;padding-top:2px;padding-bottom:2px}
   .tag{height:auto;min-height:20px;padding-top:2px;padding-bottom:2px}
-  h1,h2,h3,h4,.row .t,.row .s,.cell-main,.agent-meta,.cat-name,.cat-d{min-width:0;overflow-wrap:anywhere}
+  h1,h2,h3,h4,.row .t,.row .s,.cell-main{min-width:0;overflow-wrap:anywhere}
   .sec-h>h2{flex:1 1 180px;min-width:0}
-  .sec-h>.seg,.src-pick,.import-bar{max-width:100%;min-width:0}
+  .sec-h>.seg{max-width:100%;min-width:0}
   .seg{flex-wrap:wrap;max-width:100%;min-width:0}
   .seg .ind{display:none}
   .seg button,.seg.sm button{flex:1 1 auto;min-width:0;max-width:100%;height:auto;min-height:26px;white-space:normal;overflow-wrap:anywhere;padding-top:3px;padding-bottom:3px}
@@ -154,12 +141,10 @@
   .sec-tabs{width:100%;min-width:0;gap:20px}
   .sec-tabs a{height:44px;font-size:15px}
   .tabs>button{min-width:0;max-width:100%;height:auto;min-height:38px;white-space:normal;overflow-wrap:anywhere}
-  .acts,.btn-row,.row-inline,.src-pick{max-width:100%;min-width:0;flex-wrap:wrap}
+  .acts{max-width:100%;min-width:0;flex-wrap:wrap}
   .toolbar>.grow{flex-basis:100%;min-width:0}
-  .toolbar .search{min-width:0;max-width:100%}
-  .row-inline>.input,.row-inline>.select,.field.inline{flex:1 1 160px;min-width:0}
-  .row-inline>.btn{flex-shrink:0}
-  .row,.link-row{min-width:0;flex-wrap:wrap}
+  .toolbar .search{min-width:0;max-width:100%}.field.inline{flex:1 1 160px;min-width:0}
+  .row{min-width:0;flex-wrap:wrap}
   .row>.grow{flex-basis:160px}
   .row .t,.row .s{white-space:normal;overflow-wrap:anywhere}
   .kv{flex-wrap:wrap;align-items:flex-start}
@@ -176,8 +161,6 @@
   .dialog-body code,.dialog-body pre,.lc-log pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
   .pop .item{max-width:100%;white-space:normal;overflow-wrap:anywhere;height:auto;min-height:32px}
   .mx-fields{grid-template-columns:minmax(0,1fr)}
-  .task-row>.grow{flex:1 1 180px}
-  .task-main b{white-space:normal;overflow-wrap:anywhere}
 
   /* Object headers share one phone grid: identity + refresh, then state,
      description and metadata, followed by full-width actions. Desktop DOM and
@@ -191,14 +174,6 @@
   .lib .tr .cell-id,.lib .tr>.acts{grid-column:1/-1;grid-row:auto;min-width:0}
   .lib .tr>[data-label]{flex-direction:column;align-items:flex-start;min-width:0}
   .lib [data-label]::before{content:attr(data-label);font:12px/1.5 var(--font);color:var(--text-3)}
-  .env-table{overflow:visible}
-  .env-table table,.env-table tbody{display:block;width:100%}
-  .env-table thead{display:none}
-  .env-table tr{display:grid;grid-template-columns:minmax(0,1fr);border-top:1px solid var(--line-soft);padding:10px 14px}
-  .env-table td{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;padding:6px 0;border:0;white-space:normal;text-align:left;overflow-wrap:anywhere}
-  .env-table td[data-label]::before{content:attr(data-label);font:12px/1.5 var(--font);color:var(--text-3)}
-  .env-table td.c,.env-table td.actions{white-space:normal;text-align:left}
-  .env-table td.actions{flex-direction:row;flex-wrap:wrap}
 }
 
 /* Téléphone : bouton menu à gauche ; le menu glisse depuis la gauche et pousse
@@ -226,8 +201,7 @@
   .side .side-sec-h .icon-btn{width:36px!important;height:36px!important}
   .side>*{flex:none!important}
   .side .side-sec,.side .side-sec.grow{overflow:visible;min-height:auto}
-  .side .side-list,.side .side-agents .side-list{overflow:visible;max-height:none}
+  .side .side-list{overflow:visible;max-height:none}
   .side .side-foot{margin-top:auto}
   .side .side-sec-h{height:auto;padding-top:4px}
-  .side .side-sec-t{height:32px}
 }

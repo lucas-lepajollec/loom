@@ -8,10 +8,8 @@ const failures = [];
 process.on('unhandledRejection', e => failures.push(e.message));
 const cases = [
   ['features/settings/page.js', ['General', 'Job', 'Engine', 'Internet', 'About']],
-  ['features/resources/mcp.js', ['Mcp']],
   ['features/machines/edit.js', ['MachineDialog']],
   ['features/local/hub.js', ['Detail']],
-  ['features/inspector/context.js', ['Preview']],
 ];
 for (const [file, components] of cases) {
   const source = fs.readFileSync(new URL(file, root), 'utf8');

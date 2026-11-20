@@ -175,19 +175,12 @@
 .search.sm{height:32px}
 .card.pad-sm{padding:6px 14px}
 .trunc{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
-.row-inline{display:inline-flex;align-items:center;gap:7px}
-.btn-row{display:flex;gap:8px;flex-wrap:wrap}
-.ctx-block{display:flex;flex-direction:column;gap:5px}
-.ctx-block p{margin:0;font-size:13px;line-height:1.55;white-space:pre-wrap;color:var(--text-2);max-height:180px;overflow:auto}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .alert{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:10px;font-size:13px}
 .alert.red{background:var(--red-bg);color:var(--red)}.alert.amber{background:var(--amber-bg);color:var(--amber)}
 .alert .ico{margin-top:1px}
 .check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--text-2)}
 .check input{margin-top:3px;accent-color:var(--text)}
-details.pv{border:1px solid var(--line-soft);border-radius:10px;padding:0 12px}
-details.pv summary{cursor:pointer;height:38px;display:flex;align-items:center;font-size:13px;font-weight:500}
-details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono);color:var(--text-2);max-height:300px;overflow:auto}
 
 @media (max-width:1100px){
   .insp.open{position:absolute;right:0;top:0;bottom:0;z-index:60;box-shadow:var(--shadow-pop)}
@@ -401,17 +394,6 @@ details.pv pre{margin:0 0 12px;white-space:pre-wrap;font:12.5px/1.55 var(--mono)
 .insp-body .prow .prow-c{flex:1 1 60%;max-width:64%}
 /* panneau Contexte : pourquoi chaque élément est là */
 .why .lbl{display:flex;justify-content:space-between;align-items:center}
-.why-budget{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;font-size:12px;color:var(--text-2);margin:4px 0 10px}
-.why-budget b{font-weight:500}
-.why-budget .gauge{grid-column:1/-1}
-.why-list{display:flex;flex-direction:column;border:1px solid var(--line-soft);border-radius:var(--r-md);overflow:hidden}
-.why-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-top:1px solid var(--line-soft)}
-.why-item:first-child{border-top:0}
-.why-item .ico{color:var(--text-3);flex:none}
-.why-item .grow{display:flex;flex-direction:column;min-width:0}
-.why-item b{font-size:12.5px;font-weight:500}
-.why-item small{font-size:11.5px;color:var(--text-3)}
-.why-item .mono{font-size:11.5px}
 .ctx.hot{color:var(--amber)}
 
 .rq .rq-msg{font-size:13px;color:var(--text-2)}
