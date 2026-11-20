@@ -213,7 +213,6 @@ html.touch .app{position:fixed;left:0;right:0;top:var(--app-top,0);height:var(--
 .chat-link .more{opacity:0;width:24px;height:24px}
 .chat-link:hover .more,.chat-link[aria-current="page"] .more{opacity:1}
 .chat-link .run{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:pulse 1.2s infinite}
-.proj-dot{width:8px;height:8px;border-radius:3px;flex:none}
 .side-foot{display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1px solid var(--line-soft)}
 .engine-card{display:flex;flex-direction:column;gap:7px;width:100%;padding:10px 11px;border-radius:11px;border:1px solid var(--line-soft);background:var(--surface);text-align:left;transition:border-color var(--fast),background-color var(--fast)}
 .engine-card:hover{border-color:var(--line)}
@@ -481,6 +480,6 @@ input[type="checkbox"]:disabled,input[type="radio"]:disabled{opacity:.4;cursor:n
 html,body{overscroll-behavior:none}
 @media (hover:none) and (pointer:coarse){
   html,body{cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;text-size-adjust:100%}
-  .view,.page,.pick-list,.lpick-list,.pop,.dialog-body,.insp-scroll,.insp-body,.side,.thread,.cat-list{overscroll-behavior:contain}
+  .view,.page,.pick-list,.lpick-list,.pop,.dialog-body,.insp-scroll,.insp-body,.side,.thread{overscroll-behavior:contain}
   input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea,select{font-size:16px!important}
 }

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Cleanup: the Brain, project, Tasks and Environment pages, the Context
+  panel and the old Agents session list are removed from the web app, with
+  about 270 CSS rules that only they used.
+
 - Files: a new page for the second brain, one folder of your own where
   agents work (`~/second-brain` by default, changeable from the page). The
   folder tree sits on the left like Obsidian, the note in the middle is
