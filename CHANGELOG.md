@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Agent sessions get the same layout as discussions: the header keeps the
+  harness, its model, the session name, its state and the panel button. The
+  panel holds everything else: the view (conversation, terminal, side by
+  side), harness and folder, Shell here, Interrupt and Codeman buttons, the
+  subscription's quotas, then Changes (Git), Activity, Files, Subagents and
+  Details as sections that open on demand, plus the session menu (rename,
+  restart, remove from Codeman, close).
+
 - New structure. The sidebar keeps five pages (Models, Agents, Machines,
   Activity, then Settings) and one list of sessions: discussions with a
   model and agent sessions run by Codeman, newest first, with a filter menu

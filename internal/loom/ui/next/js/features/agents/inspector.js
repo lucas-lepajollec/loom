@@ -1,15 +1,22 @@
-// Inspecteur d'une session : activité, Git, fichiers, sous-agents et
-// informations. Chaque onglet lit une route officielle de Codeman à
-// l'ouverture et sur demande ; rien n'est déduit hors de ces réponses.
+// Panneau d'une session d'agent : affichage, harness, actions (shell,
+// interruption, Codeman), quotas de l'abonnement, puis les sections Git,
+// activité, fichiers, sous-agents et détails. Chaque section lit une route
+// officielle de Codeman quand on l'ouvre ; rien n'est déduit hors de ces
+// réponses. Même structure que le panneau d'une discussion.
 import { lt } from './labels.js';
 import { t, locale } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Switch, Empty } from '../../ui/controls.js';
-import { Modal, toast } from '../../ui/dialog.js';
+import { Switch, Empty, Seg, Menu } from '../../ui/controls.js';
+import { Modal, toast, prompt, confirm } from '../../ui/dialog.js';
 import { copyText } from '../../ui/clipboard.js';
 import { api } from './client.js';
-import { agents, cliOf, onDomain, upsertSession } from './store.js';
+import { agents, cliOf, onDomain, upsertSession, stateOf, projectOf, hasConversation } from './store.js';
+import { closeSession, renameSession, createSession, interrupt } from './actions.js';
+import { CliMark } from './new-session.js';
+import { openSession, officialLink } from './nav.js';
+import { HarnessQuota } from './quotas.js';
+import { go } from '../../core/state.js';
 
 const today = ms => new Date(ms).toDateString() === new Date().toDateString();
 const time = ms => !ms ? '' : today(ms) ? new Date(ms).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : new Date(ms).toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
@@ -160,20 +167,80 @@ function InfoTab({ session }) {
   </div>`;
 }
 
-const TABS = ['activity', 'git', 'files', 'subagents', 'info'];
-export function Inspector({ session, onClose }) {
-  const [tab, setTab] = useState(() => { try { return localStorage.getItem('loom.codeman.insp') || 'activity'; } catch (_) { return 'activity'; } });
-  const pick = v => { setTab(v); try { localStorage.setItem('loom.codeman.insp', v); } catch (_) {} };
+// Menu de la session : renommer, relancer, interface Codeman, retirer ou fermer.
+function SessionMenu({ s }) {
+  const [menu, setMenu] = useState(null);
+  const state = stateOf(s);
+  const rename = async () => {
+    const name = await prompt(t('agents.session.rename'), { value: s.name || '' });
+    if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
+  };
+  const close = async killMux => {
+    const ok = await confirm(killMux ? t('agents.session.close_title') : t('agents.session.detach_title'),
+      killMux ? t('agents.session.close_text', { name: s.name || s.id.slice(0, 8) }) : t('agents.session.detach_text'), { ok: killMux ? t('agents.session.close') : t('agents.session.detach'), danger: killMux });
+    if (!ok) return;
+    try { await closeSession(s.id, killMux); go('agents'); } catch (e) { toast(e.message, 'err'); }
+  };
+  const restart = () => api.start(s.id, s.mode === 'shell').then(() => api.session(s.id).then(upsertSession)).catch(e => toast(e.message, 'err'));
+  const link = officialLink(s.id);
+  const items = [
+    { label: t('agents.session.rename'), icon: 'edit', run: rename },
+    ...(state === 'stopped' ? [{ label: t('agents.session.restart'), icon: 'play', run: restart }] : []),
+    ...(link ? [{ label: t('agents.session.official'), icon: 'link', run: () => window.open(link, 'codeman') }] : []),
+    '-',
+    { label: t('agents.session.detach'), icon: 'power', run: () => close(false) },
+    { label: t('agents.session.close'), icon: 'trash', danger: true, run: () => close(true) },
+  ];
+  return html`<button class=${cls('icon-btn', menu && 'on')} aria-label=${t('agents.session.actions')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="more" /></button>
+    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}`;
+}
+
+// Une section repliable ; son contenu (et donc sa lecture) n'existe qu'ouvert.
+const openKey = 'loom.codeman.panel.open';
+const readOpen = () => { try { return JSON.parse(localStorage.getItem(openKey)) || ['git']; } catch (_) { return ['git']; } };
+function Section({ id, label, open, toggle, children }) {
+  return html`<section class=${cls('cm-ps', open && 'open')}>
+    <button class="cm-ps-h" aria-expanded=${String(open)} onClick=${() => toggle(id)}><span>${label}</span><${Icon} n=${open ? 'chevron' : 'right'} /></button>
+    ${open && html`<div class="cm-ps-b">${children}</div>`}
+  </section>`;
+}
+
+export function Inspector({ session, onClose, view, setView, narrowView }) {
+  const [open, setOpen] = useState(readOpen);
+  const [busy, setBusy] = useState('');
   if (!session) return html`<aside class="cm-insp"><${Empty} icon="info" title=${t('agents.insp.none')} /></aside>`;
-  return html`<aside class="cm-insp" aria-label=${t('agents.insp.title')}>
-    <div class="cm-insp-tabs" role="tablist">${TABS.map(v => html`<button role="tab" aria-selected=${String(tab === v)} onClick=${() => pick(v)}>${lt('insp', v)}</button>`)}
-      ${onClose && html`<button class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${onClose}><${Icon} n="close" /></button>`}</div>
-    <div class="cm-insp-body">
-      ${tab === 'activity' && html`<${ActivityTab} id=${session.id} />`}
-      ${tab === 'git' && html`<${GitTab} id=${session.id} />`}
-      ${tab === 'files' && html`<${FilesTab} id=${session.id} />`}
-      ${tab === 'subagents' && html`<${SubagentsTab} id=${session.id} />`}
-      ${tab === 'info' && html`<${InfoTab} session=${session} />`}
+  const toggle = id => { const n = open.includes(id) ? open.filter(x => x !== id) : [...open, id]; setOpen(n); try { localStorage.setItem(openKey, JSON.stringify(n)); } catch (_) {} };
+  const s = session, c = cliOf(s.mode), state = stateOf(s);
+  const shell = async () => {
+    setBusy('shell');
+    try { openSession(await createSession({ mode: 'shell', workingDir: s.workingDir })); } catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
+  };
+  const views = [{ value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') }, ...(narrowView ? [] : [{ value: 'split', label: t('agents.view.split') }])];
+  const link = officialLink(s.id);
+  return html`<aside class="cm-insp cm-panel" aria-label=${t('agents.insp.title')}>
+    <header class="cm-panel-h"><b>${t('agents.insp.info')}</b><span class="grow"></span>
+      <${SessionMenu} s=${s} />
+      ${onClose && html`<button class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${onClose}><${Icon} n="close" /></button>`}</header>
+    <div class="cm-panel-body">
+      ${setView && hasConversation(s.mode) && html`<${Seg} value=${view} options=${views} onChange=${setView} label=${t('agents.view.label')} />`}
+      <div class="cm-panel-rows">
+        <div class="cm-kv"><span>${t('agents.info.cli')}</span><b class="cm-panel-cli"><${CliMark} mode=${s.mode} size="xs" />${c.label}${s.cliVersion ? ' ' + s.cliVersion : ''}</b></div>
+        ${s.displayModel?.model && html`<div class="cm-kv"><span>${t('agents.info.model')}</span><b>${s.displayModel.model}</b></div>`}
+        <div class="cm-kv"><span>${t('agents.info.dir')}</span><b class="mono trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</b></div>
+      </div>
+      <div class="cm-panel-acts">
+        ${s.mode !== 'shell' && html`<button disabled=${!!busy} onClick=${shell}>${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}<span>${t('agents.panel.shell')}</span></button>`}
+        <button disabled=${state !== 'working'} onClick=${() => interrupt(s.id).catch(e => toast(e.message, 'err'))}><${Icon} n="stop" /><span>${t('agents.panel.interrupt')}</span></button>
+        ${link ? html`<button onClick=${() => window.open(link, 'codeman')}><${Icon} n="link" /><span>${t('agents.panel.codeman')}</span></button>` : ''}
+      </div>
+      <${HarnessQuota} mode=${s.mode} />
+      <div class="cm-panel-secs">
+        <${Section} id="git" label=${t('agents.panel.changes')} open=${open.includes('git')} toggle=${toggle}><${GitTab} id=${s.id} /></${Section}>
+        <${Section} id="activity" label=${lt('insp', 'activity')} open=${open.includes('activity')} toggle=${toggle}><${ActivityTab} id=${s.id} /></${Section}>
+        <${Section} id="files" label=${lt('insp', 'files')} open=${open.includes('files')} toggle=${toggle}><${FilesTab} id=${s.id} /></${Section}>
+        <${Section} id="subagents" label=${lt('insp', 'subagents')} open=${open.includes('subagents')} toggle=${toggle}><${SubagentsTab} id=${s.id} /></${Section}>
+        <${Section} id="info" label=${t('agents.panel.details')} open=${open.includes('info')} toggle=${toggle}><${InfoTab} session=${s} /></${Section}>
+      </div>
     </div>
   </aside>`;
 }

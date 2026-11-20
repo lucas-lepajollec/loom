@@ -191,6 +191,6 @@ export function Conversation({ session, onTerminal, terminalVisible, compact }) 
         ${approvals.map(a => html`<${Approval} key=${a.id} item=${a} session=${session} onTerminal=${onTerminal} />`)}
       </div>
     </div>
-    <${Composer} session=${session} onTerminal=${terminalVisible ? null : onTerminal} compact=${compact} />
+    <${Composer} session=${session} compact=${compact} />
   </div>`;
 }
