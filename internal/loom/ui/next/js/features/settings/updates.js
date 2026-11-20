@@ -72,14 +72,17 @@ export function LoomUpdates({ node = false, endpoint = '', compact = false } = {
     ${info?.available
       ? html`<button class="btn sm" disabled=${busy || !info.can_apply} title=${info.can_apply ? info.current + ' → ' + info.latest : info.apply_reason || ''} onClick=${install}><${Icon} n="download" />${busy ? t('updates.installing_short') : t('machines.node.update_to', { version: shortVersion(info.latest) })}</button>`
       : info?.current && html`<span class="state" title=${info.current}><i class="dot green"></i>${t('machines.node.up_to_date', { version: shortVersion(info.current) })}</span>`}</div>`;
+  const versionLabel = info?.current ? 'Loom ' + shortVersion(info.current) : t('updates.version');
+  const versionSub = info?.available ? t('updates.available', { version: shortVersion(info.latest) })
+    : info?.current ? t('updates.current', { version: shortVersion(info.current) }) : '';
   return html`<${Group} title=${t(node ? 'node.updates' : 'settings.page.mises_a_jour')}>
     ${!node && html`<${Line} label=${t('updates.channel')} tip=${t('updates.channel_tip')}><${Seg} size="sm" label=${t('updates.channel')} value=${info?.channel || 'stable'} onChange=${setChannel} options=${[{ value: 'stable', label: t('updates.stable'), disabled: busy }, { value: 'edge', label: t('updates.edge'), disabled: busy }]} /></${Line}>`}
-    <${Line} label=${t('updates.source')}><a href="https://github.com/lucas-lepajollec/loom/releases" target="_blank" rel="noopener noreferrer">${t('updates.releases')}</a></${Line}>
-    <${Line} label=${t('updates.version')}>
-      ${info?.current && html`<span class="state" title=${info.available ? info.latest : info.current}>${info.available ? t('updates.available', { version: shortVersion(info.latest) }) : t('updates.current', { version: shortVersion(info.current) })}</span>`}
+    <${Line} label=${versionLabel}>
+      ${versionSub && html`<span class="state" title=${info.available ? info.latest : info.current}>${versionSub}</span>`}
       <button class="btn sm" disabled=${busy} onClick=${check}>${t('settings.page.verifier')}</button>
       ${info?.available && html`<button class="btn sm primary" disabled=${busy || !info.can_apply} onClick=${install}>${t('updates.install')}</button>`}
     </${Line}>
+    <${Line} label=${t('updates.source')}><a href="https://github.com/lucas-lepajollec/loom/releases" target="_blank" rel="noopener noreferrer">${t('updates.releases')}</a></${Line}>
     ${info?.available && !info.can_apply && html`<p class="set-note">${info.apply_reason || t('updates.setup')}</p>`}
     ${message && html`<p class="set-note" role="status">${message}</p>`}
     ${error && html`<p class="set-note" role="alert">${error}</p>`}
