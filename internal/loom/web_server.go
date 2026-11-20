@@ -124,6 +124,11 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/doctor/run", handleDoctorRun)
 	api("/api/doctor/bundle", handleDoctorBundle)
 	registerNotifications(mux, api, brainCtx)
+	api("/api/market", handleMarket)                  // veille des modèles (OpenRouter, Artificial Analysis)
+	api("/api/market/settings", handleMarketSettings) // clé Artificial Analysis, alertes
+	if brainCtx != nil {
+		go watchMarket(brainCtx)
+	}
 	api("/api/tasks", handleTasks)
 	api("/api/tasks/stream", handleTasksStream)
 	api("/api/events", handleDomainEvents)

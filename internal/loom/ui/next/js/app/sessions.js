@@ -17,7 +17,7 @@ import { openSession } from '../features/agents/nav.js';
 import { layout, toggleGrid } from '../features/agents/layout.js';
 import { DRAG_TYPE } from '../features/agents/grid.js';
 import { lt } from '../features/agents/labels.js';
-import { HistoryRow, NewSessionHost } from '../features/agents/side.js';
+import { NewSessionHost } from '../features/agents/side.js';
 import { ago } from '../features/agents/rail.js';
 
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
@@ -164,13 +164,11 @@ export function Sessions() {
   const { route, nav } = useStore(app, s => ({ route: s.route, nav: s.nav }));
   const conn = useStore(agents, s => s.conn);
   useStore(agents, s => [s.order, s.sessions]);
-  const unified = useStore(agents, s => s.unified);
   const folderMap = useStore(agentFolders, s => s.map);
   const chatId = useStore(chat, s => s.sessionId) || nav.active;
   const [filter, setFilterState] = useState(() => { const f = load('loom.side.filter', 'all'); return FILTERS.includes(f) ? f : 'all'; });
   const [openFolders, setOpenFolders] = useState(() => new Set(load('loom.next.proj', [])));
   const [fmenu, setFmenu] = useState(null);
-  const [hist, setHist] = useState(() => load('loom.side.agents.hist', false));
   const [overLoose, setOverLoose] = useState(false);
   useEffect(() => { refreshAgentFolders(); }, []);
   const setFilter = f => { setFilterState(f); save('loom.side.filter', f); };
@@ -188,9 +186,6 @@ export function Sessions() {
   const loose = all.filter(it => !it.folder);
   const onAgents = route.section === 'agents' && route.sub === 's';
   const isCurrent = it => (it.kind === 'agent' ? onAgents && route.id === it.id : route.section === 'chat' && it.id === chatId);
-  const ids = new Set(live.map(it => it.id));
-  const history = filter === 'chats' || !ready ? [] : unified.filter(r => !(r.sources || []).includes('live') && !ids.has(r.sessionId))
-    .sort((a, b) => (b.lastActivityAt || 0) - (a.lastActivityAt || 0)).slice(0, 8);
 
   const newFolder = async () => {
     const name = await prompt(t('side.new_folder'), { placeholder: t('side.folder_name'), ok: t('app.shell.creer') });
@@ -215,9 +210,6 @@ export function Sessions() {
       ${loose.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} />`)}
       ${!all.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}
       ${agentsOn && !ready && filter !== 'chats' && html`<a class="chat-link sub" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span></a>`}
-      ${history.length > 0 && html`<button class="chat-link sub cm-side-more" aria-expanded=${String(hist)} onClick=${() => { setHist(!hist); save('loom.side.agents.hist', !hist); }}>
-        <${Icon} n="history" /><span>${t('agents.rail.history')}</span><${Icon} n=${hist ? 'chevron' : 'right'} class="proj-caret" /></button>`}
-      ${hist && history.map(r => html`<${HistoryRow} key=${r.sessionId} r=${r} />`)}
     </div>
     <${NewSessionHost} />
   </div>`;

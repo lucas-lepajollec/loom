@@ -397,9 +397,9 @@ html,body{letter-spacing:-.011em;font-size:13.5px}
 .seg button[aria-selected="true"]{color:var(--text)}
 .seg .n{font:400 11px var(--font);color:var(--text-4)}
 .tabs button[aria-selected="true"]{box-shadow:none;background:var(--surface-2)}
-/* nouvelle session : bouton plein en tête de barre */
-.new-chat{height:36px;padding:0 10px;border:0;border-radius:var(--r);background:var(--surface-2);color:var(--text);font-size:14px;font-weight:500;gap:10px}
-.new-chat:hover{background:var(--surface-3);border:0}
+/* nouvelle session : une entrée comme les pages, sans fond */
+.new-chat{height:34px;padding:0 10px;border:0;border-radius:var(--r-sm);background:transparent;color:var(--text);font-size:14px;font-weight:500;gap:10px;box-shadow:none}
+.new-chat:hover{background:var(--hover);border:0}
 .new-chat .ico{color:var(--text)}
 .side{gap:8px}
 .nav{gap:1px}

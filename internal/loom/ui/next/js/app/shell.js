@@ -42,7 +42,7 @@ export function Sidebar() {
     <div class="brand"><b><svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M40 64H52H52V104H40A20 20 0 0 1 20 84V84A20 20 0 0 1 40 64ZM116 64H216A20 20 0 0 1 236 84V84A20 20 0 0 1 216 104H116H116V64ZM40 152H140H140V192H40A20 20 0 0 1 20 172V172A20 20 0 0 1 40 152ZM204 152H216A20 20 0 0 1 236 172V172A20 20 0 0 1 216 192H204H204V152ZM64 40A20 20 0 0 1 84 20H84A20 20 0 0 1 104 40V140V140H64ZM64 204V204H104V216A20 20 0 0 1 84 236H84A20 20 0 0 1 64 216ZM152 40A20 20 0 0 1 172 20H172A20 20 0 0 1 192 40V52V52H152ZM152 116V116H192V216A20 20 0 0 1 172 236H172A20 20 0 0 1 152 216Z"></path></svg>${t("app.shell.loom")}</b>
       <span class="brand-acts"><button class="icon-btn" aria-label="${t("app.shell.rechercher")}" title="${t("app.shell.rechercher_ctrl_k")}" onClick=${openPalette}><${Icon} n="search" /></button><${Activity} /></span>
       <button class="icon-btn only-mobile" aria-label="${t("app.shell.fermer")}" onClick=${() => app.set({ sideOpen: false })}><${Icon} n="close" /></button></div>
-    <button class="new-chat" onClick=${() => newDiscussion()}><${Icon} n="plus" />${t("side.new_session")}<kbd>${isMac ? '⇧⌘O' : t('side.shortcut_new')}</kbd></button>
+    <button class="new-chat" title=${isMac ? '⇧⌘O' : t('side.shortcut_new')} onClick=${() => newDiscussion()}><${Icon} n="plus" />${t("side.new_session")}</button>
     <nav class="nav">${NAV_ITEMS.map(r => html`<a href=${r.href} aria-current=${groupOf(route.section)?.id === r.id ? 'page' : undefined}><${Icon} n=${r.nav.icon} /><span>${r.nav.label}</span>${r.id === 'agents' && waiting > 0 && html`<em class="nav-n" title=${t('agents.cc.waiting')}>${waiting}</em>`}</a>`)}</nav>
     <${Sessions} />
     <div class="side-foot">

@@ -9,8 +9,8 @@ import { Switch } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
 import { Line, Group } from './kit.js';
 
-const EVENTS = ['task.waiting', 'task.completed', 'task.failed', 'node.offline', 'engine.down'];
-const EVENT_LABEL = () => ({ 'task.waiting': t('notify.ev.task_waiting'), 'task.completed': t('notify.ev.task_completed'), 'task.failed': t('notify.ev.task_failed'), 'node.offline': t('notify.ev.node_offline'), 'engine.down': t('notify.ev.engine_down') });
+const EVENTS = ['task.waiting', 'task.completed', 'task.failed', 'node.offline', 'engine.down', 'model.new'];
+const EVENT_LABEL = () => ({ 'task.waiting': t('notify.ev.task_waiting'), 'task.completed': t('notify.ev.task_completed'), 'task.failed': t('notify.ev.task_failed'), 'node.offline': t('notify.ev.node_offline'), 'engine.down': t('notify.ev.engine_down'), 'model.new': t('notify.ev.model_new') });
 const secure = () => (window.isSecureContext ? 'true' : 'false');
 
 export function NotificationSettings() {

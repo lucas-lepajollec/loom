@@ -2965,6 +2965,8 @@ export default {
   "chat.messages.copied": "Copied",
   "chat.messages.save_note": "Save to the second brain",
   "chat.messages.saved_note": "Saved to {path}",
+  "agents.cc.resume": "Resume a session",
+  "notify.ev.model_new": "New model released",
   "side.new_session": "New session",
   "side.filter_all": "All sessions",
   "side.filter_chats": "Discussions",
