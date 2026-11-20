@@ -1,13 +1,12 @@
 import { shortVersion } from '../../core/version.js';
-import { t } from '../../core/i18n.js';
-// Réglages › Machines : l'endroit unique pour connecter une machine et gérer ce
-// qui s'y trouve. Cette machine et chaque machine appairée ont leur
-// page : moteur, harnesses (installer, mettre à jour, ajouter à Loom),
-// dossiers de travail favoris, dossiers de modèles, terminaux.
+import { t, locale } from '../../core/i18n.js';
+// Réglages › Machines : une carte par machine (locale détaillée, distantes
+// SSH / nœud Loom, hors ligne), avec spécifications, moteur, harnesses,
+// dossiers de travail et terminaux.
 import { html, useState, useRef, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
-import { Empty, Tip, Switch } from '../../ui/controls.js';
+import { Empty, Tip, Menu } from '../../ui/controls.js';
 import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
@@ -20,6 +19,7 @@ import { LoomUpdates } from './updates.js';
 import { ModelDirs, DirectEngineForm } from './page.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
+const CLI_LOGOS = { claude: 'claude', codex: 'openai', gemini: 'gemini', antigravity: 'google', deepseek: 'deepseek', grok: 'xai' };
 
 // Lien vers cette page depuis les endroits qui en ont besoin.
 export const MachinesLink = ({ label }) => html`<a class="btn sm ghost" href="#/machines"><${Icon} n="server" />${label || t("settings.machines.gerer_les_machines")}</a>`;
@@ -84,7 +84,7 @@ function MachineMigration({ m, onChange, compact = false }) {
     } catch (e) { if (alive.current) setError(e.message); }
     finally { clearInterval(timer); if (alive.current) { setBusy(false); setPhase(''); } }
   };
-  return html`<div class=${compact ? 'mcard-a' : 'card pad mig-banner'}>
+  return html`<div class=${compact ? 'mc-mig' : 'card pad mig-banner'}>
     <span class="state">${t('machines.migrate.old')}</span>
     <button class="btn sm primary" disabled=${busy} onClick=${migrate}>${t('machines.migrate.install')}</button>
     <button class="btn sm ghost" disabled=${busy} onClick=${e => { e.preventDefault(); e.stopPropagation(); setPairing(true); }}>${t('machines.migrate.manual')}</button>
@@ -121,17 +121,17 @@ function Discovered({ onPair }) {
 }
 
 // SSH machines show user@host; machines paired by code only have their node.
-const where = m => (m.user ? m.user + '@' + m.host + (m.port && m.port !== 22 ? ':' + m.port : '') : m.host + ' · ' + t('machines.node_label')) + (m.os ? ' · ' + m.os : '');
+const where = m => (m.user ? 'SSH · ' + m.user + '@' + m.host + (m.port && m.port !== 22 ? ':' + m.port : ':' + (m.port || 22)) : m.host + ' · ' + t('machines.node_label')) + (m.os ? ' · ' + m.os : '');
 
 // Jauges d'une machine : processeur, mémoire, carte graphique, disque.
-const pct = (u, t) => t ? Math.min(100, Math.round(u * 100 / t)) : 0;
+const pct = (u, total) => total ? Math.min(100, Math.round(u * 100 / total)) : 0;
 const gb = n => (n / 1073741824).toFixed(n >= 107374182400 ? 0 : 1);
 function Meters({ m }) {
   if (!m) return html`<div class="mmeters muted">…</div>`;
   if (m.error || m.supported === false) return html`<div class="mmeters"><span class="muted mmeter-none" title=${m.error || ''}>${t('machines.metrics.none')}</span></div>`;
   const gpu = (m.gpus || [])[0];
   const row = (label, value, sub, title) => html`<div class="mmeter" title=${title || ''}><span>${label}</span><i class="mmeter-bar"><b style=${`width:${value}%`} class=${value >= 90 ? 'hot' : value >= 70 ? 'warm' : ''}></b></i><em>${sub}</em></div>`;
-  return html`<div class="mmeters">
+  return html`<div class="mmeters" style="padding:0">
     ${row(t('machines.metrics.cpu'), Math.round(m.cpu || 0), Math.round(m.cpu || 0) + ' %', m.cores ? t('machines.metrics.cores', { n: m.cores }) : '')}
     ${row(t('machines.metrics.ram'), pct(m.ram_used, m.ram_total), gb(m.ram_used) + ' / ' + gb(m.ram_total) + t('common.units.gb'))}
     ${gpu && row(t('machines.metrics.gpu'), pct(gpu.vram_used, gpu.vram_total), gb(gpu.vram_used) + ' / ' + gb(gpu.vram_total) + t('common.units.gb'), gpu.name + ' · ' + Math.round(gpu.util || 0) + ' %')}
@@ -139,27 +139,262 @@ function Meters({ m }) {
   </div>`;
 }
 
+function sameHost(n, m) {
+  try { return n && m && (n.hostname === m.host || new URL(n.url).hostname === m.host); } catch (_) { return false; }
+}
+
+function LocalMachineCard({ local, metrics, serverInfo, node, codeman, terminals, onAddFolder, onRemoveFolder, onOpenSsh }) {
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [busyCli, setBusyCli] = useState('');
+  const name = (local && local.hostname) || t("settings.machines.cette_machine_2");
+  const gpu = (metrics?.gpus || [])[0];
+  const gpuSpec = gpu ? `${gpu.name.replace(/^NVIDIA (GeForce )?/, '')}${gpu.vram_total ? ' ' + Math.round(gpu.vram_total / 1073741824) + ' ' + t('common.units.gb') : ''}` : '';
+  const ramSpec = metrics?.ram_total ? t('settings.machines.ram_suffix', { n: Math.round(metrics.ram_total / 1073741824) }) : '';
+  const specs = [local?.os, gpuSpec, ramSpec].filter(Boolean).join(' · ');
+  const folders = local?.folders || [];
+  const openTerms = terminals.filter(x => x.target === 'local');
+  const clis = (codeman.clis || []).filter(c => c.kind !== 'shell');
+  const installedClis = clis.filter(c => c.installed !== false);
+  const installableClis = clis.filter(c => c.installed === false && c.stock !== false && c.installCommand);
+  const memUsed = gpu?.vram_total ? gpu.vram_used : metrics?.ram_used;
+  const memTotal = gpu?.vram_total ? gpu.vram_total : metrics?.ram_total;
+  const memPct = pct(memUsed, memTotal);
+
+  const installCli = async c => {
+    if (!await confirm(t('agents.cfg.cli.install_title', { cli: c.label }), t('agents.cfg.cli.install_text', { cmd: c.installCommand || '' }), { ok: t('agents.cfg.cli.install') })) return;
+    setBusyCli(c.id);
+    const r = await post('/api/codeman/v1/clis/' + encodeURIComponent(c.id) + '/install', {}, { timeout: 600000 }).catch(e => ({ success: false, error: e.message }));
+    setBusyCli('');
+    if (r?.success === false || r?.ok === false) return toast(r.error || t('voice.failed'), 'err');
+    toast(t('agents.cfg.cli.installed', { cli: c.label }));
+    codeman.reload();
+  };
+
+  return html`<section aria-label=${name} class="mc-card">
+    <div class="mc-card-h">
+      <i class="mc-dot green"></i>
+      <div class="mc-card-title">
+        <b><a href="#/machines/local">${name}</a> <span class="mc-tag-here">· ${t("settings.machines.cette_machine")}</span></b>
+        ${specs && html`<span class="mc-sub">${specs}</span>`}
+      </div>
+      <div class="mc-card-acts">
+        <button type="button" class="btn" onClick=${() => openTerminalWith({ target: 'local', dir: '', title: name })}><${Icon} n="terminal" />${t("settings.machines.nouveau_terminal")}</button>
+        <button type="button" class="icon-btn" aria-label=${t('settings.machines.more_actions')} onClick=${e => setMenuAnchor(menuAnchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
+        ${menuAnchor && html`<${Menu} anchor=${menuAnchor} onClose=${() => setMenuAnchor(null)} items=${[
+          { icon: 'server', label: t('settings.machines.details'), run: () => go('machines', 'local') },
+          { icon: 'plus', label: t('settings.machines.ssh_add'), run: onOpenSsh },
+          { icon: 'power', label: t('startup.title'), run: () => go('settings', 'startup') },
+          { icon: 'info', label: t('settings.page.mises_a_jour'), run: () => go('settings', 'about') },
+        ]} />`}
+      </div>
+    </div>
+
+    <div class="mc-kv4">
+      <div class="mc-kv">
+        <span>${t('settings.page.loom')}</span>
+        <span>${shortVersion(serverInfo?.version) || '—'}</span>
+      </div>
+      <div class="mc-kv">
+        <span>Codeman</span>
+        ${codeman.status?.auth === 'ok'
+          ? html`<a href="#/agents">${[shortVersion(codeman.status.version), t('settings.machines.codeman_sessions', { n: codeman.sessions.length })].filter(Boolean).join(' · ')}</a>`
+          : html`<a href="#/agents/settings" class="muted">${codeman.status?.configured ? t('agents.conn.unreachable') : t('settings.machines.codeman_not_connected')}</a>`}
+      </div>
+      <div class="mc-kv">
+        <span>${t('settings.machines.moteur')}</span>
+        <a href="#/engine">${!node ? `llama.cpp · ${t('settings.machines.used_by_loom')}` : `${t('settings.machines.celui_de')} ${node.hostname}`}</a>
+      </div>
+      <div class="mc-kv">
+        <span>${gpu?.vram_total ? t('settings.machines.gpu_memory') : t('settings.machines.ram_memory')}</span>
+        ${memTotal ? html`<div class="mc-vram"><div class="mc-bar"><i style=${`width:${memPct}%`} class=${memPct >= 90 ? 'hot' : memPct >= 70 ? 'warm' : ''}></i></div><span>${gb(memUsed)} / ${gb(memTotal)} ${t('common.units.gb')}</span></div>`
+          : html`<span class="muted">—</span>`}
+      </div>
+    </div>
+
+    ${(installedClis.length > 0 || installableClis.length > 0) && html`<div class="mc-sec">
+      <span class="mc-lbl">${t('settings.machines.harnesses')}</span>
+      <div class="mc-chips">
+        ${installedClis.map(c => {
+          const logo = CLI_LOGOS[c.id];
+          const ver = c.version || '';
+          const nextVer = c.latestVersion && c.latestVersion !== ver ? c.latestVersion : '';
+          return html`<span class="mc-chip" key=${c.id}>
+            ${logo && html`<${Logo} id=${logo} size="xs" />`}
+            <span>${c.label}</span>
+            ${ver && html`<span class="mc-chip-ver">${ver}</span>`}
+            ${(c.updateAvailable || nextVer) && c.installCommand && html`<button type="button" class="mc-chip-up" disabled=${busyCli === c.id} onClick=${() => installCli(c)}>${t('settings.machines.harness_update', { v: nextVer || t('machines.node.update_short') })}</button>`}
+          </span>`;
+        })}
+        ${installableClis.map(c => html`<button type="button" class="mc-chip dashed" key=${c.id} disabled=${busyCli === c.id} onClick=${() => installCli(c)}>
+          ${c.label} · ${t('settings.machines.harness_install')}
+        </button>`)}
+      </div>
+    </div>`}
+
+    <div class="mc-cols2">
+      <div class="mc-sec">
+        <div class="mc-sec-h">
+          <span class="mc-lbl">${t('settings.machines.dossiers_de_travail')}</span>
+          <button type="button" class="mc-link-btn" onClick=${onAddFolder}>${t('settings.machines.ajouter')}</button>
+        </div>
+        <div class="mc-chips">
+          ${folders.length ? folders.map(f => html`<span class="mc-chip mono" key=${f}>
+            <button type="button" onClick=${() => openTerminalWith({ target: 'local', dir: f, title: name })}>${home(f)}</button>
+            <button type="button" class="mc-chip-del" aria-label=${t('settings.machines.retirer_2')} onClick=${() => onRemoveFolder(f)}><${Icon} n="close" /></button>
+          </span>`) : html`<span class="muted">${t('settings.machines.no_folders')}</span>`}
+        </div>
+      </div>
+      <div class="mc-sec">
+        <span class="mc-lbl">${t('settings.machines.open_terminals')}</span>
+        <div class="mc-chips">
+          ${openTerms.length ? openTerms.map(term => html`<a key=${term.id} href=${'#/terminals/' + term.id} class="mc-chip mono">${term.title}${term.dir ? ' · ' + home(term.dir) : ''}</a>`)
+            : html`<span class="muted">${t('settings.machines.no_open_terminals')}</span>`}
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
+function RemoteMachineCard({ m, metric, testState, node, terminals, onTest, onEdit, onRemove, onChange, onDirectEngine, children }) {
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [pairing, setPairing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const owns = sameHost(node, m);
+  const paired = !m.user;
+  const rmErr = metric?.error && !String(metric.error).includes('observe module') && metric.supported !== false;
+  const isOffline = testState?.ok === false || (rmErr && testState?.ok !== true);
+
+  const useEngine = async () => {
+    setBusy(true);
+    const r = await post('/api/engine/node', { machine: m.id }, { timeout: 30000 }).catch(e => ({ ok: false, error: e.message }));
+    setBusy(false);
+    if (!r.ok) return toast(r.error || t("settings.machines.liaison_impossible"), 'err');
+    toast(t("settings.machines.moteur_de") + r.hostname + t("settings.machines.utilise")); await refreshEngineNode(); refreshStatus(); refreshLibrary();
+  };
+  const unlink = async () => { await post('/api/engine/node', { unlink: true }); await refreshEngineNode(); refreshStatus(); refreshLibrary(); };
+
+  const menuItems = [
+    { icon: 'refresh', label: t('settings.machines.test_connection'), run: onTest },
+    { icon: 'server', label: t('settings.machines.details'), run: () => go('machines', m.id) },
+    ...(m.user ? [{ icon: 'edit', label: t('settings.machines.modifier'), run: onEdit }] : []),
+    '-',
+    { icon: 'trash', label: t('settings.machines.retirer_2'), danger: true, run: onRemove },
+  ];
+
+  if (isOffline) {
+    const when = m.checked_at ? new Date(m.checked_at).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    return html`<section aria-label=${m.name} class="mc-card offline">
+      <i class="mc-dot"></i>
+      <div class="mc-card-title">
+        <b><a href=${'#/machines/' + encodeURIComponent(m.id)}>${m.name}</a></b>
+        <span class="mc-sub">${testState?.error || (when ? t('settings.machines.offline_since', { when }) : t('settings.machines.offline'))}</span>
+      </div>
+      <div class="mc-card-acts">
+        <button type="button" class="btn" disabled=${!!testState?.busy} onClick=${onTest}>${testState?.busy ? t('settings.machines.verification') : t('settings.machines.test_connection')}</button>
+        <button type="button" class="icon-btn" aria-label=${t('settings.machines.more_actions')} onClick=${e => setMenuAnchor(menuAnchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
+        ${menuAnchor && html`<${Menu} anchor=${menuAnchor} onClose=${() => setMenuAnchor(null)} items=${menuItems} />`}
+      </div>
+    </section>`;
+  }
+
+  const gpu = (metric?.gpus || [])[0];
+  const specBits = [where(m), gpu?.name ? gpu.name.replace(/^NVIDIA (GeForce )?/, '') : '', metric?.ram_total ? Math.round(metric.ram_total / 1073741824) + ' ' + t('common.units.gb') : ''].filter(Boolean).join(' · ');
+  const remoteTerms = terminals.filter(x => x.target === m.id);
+  const canTerm = m.user || (m.modules || []).includes('terminal');
+
+  return html`<section aria-label=${m.name} class="mc-card">
+    <div class="mc-card-h">
+      <i class="mc-dot green"></i>
+      <div class="mc-card-title">
+        <b><a href=${'#/machines/' + encodeURIComponent(m.id)}>${m.name}</a>${m.node_id && html`<${NodeUpdateBadge} m=${m} />`}</b>
+        <span class="mc-sub mono">${specBits}</span>
+      </div>
+      <div class="mc-card-acts">
+        ${canTerm && html`<button type="button" class="btn" onClick=${() => openTerminalWith({ target: m.id, dir: m.home || '', title: m.name })}>${t("settings.machines.terminal")}</button>`}
+        <button type="button" class="icon-btn" aria-label=${t('settings.machines.more_actions')} onClick=${e => setMenuAnchor(menuAnchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
+        ${menuAnchor && html`<${Menu} anchor=${menuAnchor} onClose=${() => setMenuAnchor(null)} items=${menuItems} />`}
+      </div>
+    </div>
+
+    <div class="mc-kv3">
+      <div class="mc-kv">
+        <span>${t('settings.machines.harnesses')}</span>
+        <span>${(m.harnesses || []).length ? m.harnesses.join(' · ') : '—'}</span>
+      </div>
+      <div class="mc-kv">
+        <span>${t('settings.machines.moteur')}</span>
+        ${owns ? html`<div class="mc-engine-acts"><span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? `${node.kind} ${t('settings.machines.used_by_loom')}` : t('settings.machines.moteur_utilise_par_loom')}</span>
+            <button type="button" class="btn sm ghost" onClick=${unlink}>${t("settings.machines.ne_plus_l_utiliser")}</button></div>`
+          : html`<div class="mc-engine-acts">
+              ${paired ? html`<button type="button" class="btn sm" disabled=${busy} onClick=${useEngine}>${t('machines.node.use_engine')}</button>`
+                : html`<button type="button" class="btn sm" onClick=${() => setPairing(true)}>${t('settings.machines.connect_node')}</button>`}
+              <button type="button" class="btn sm ghost" onClick=${onDirectEngine}>${t('settings.machines.link_server')}</button>
+            </div>`}
+      </div>
+      <div class="mc-kv">
+        <span>${t('machines.module.observe')}</span>
+        ${metric && !metric.error && metric.supported !== false ? html`<${Meters} m=${metric} />`
+          : html`<span class="muted">${paired ? t('machines.link.paired') : t('machines.link.ssh')}</span>`}
+      </div>
+    </div>
+
+    ${remoteTerms.length > 0 && html`<div class="mc-sec">
+      <span class="mc-lbl">${t('settings.machines.open_terminals')}</span>
+      <div class="mc-chips">${remoteTerms.map(term => html`<a key=${term.id} href=${'#/terminals/' + term.id} class="mc-chip mono">${term.title}${term.dir ? ' · ' + home(term.dir) : ''}</a>`)}</div>
+    </div>`}
+
+    ${children}
+    ${pairing && html`<${PairDialog} start=${{ address: nodeAddress(m), name: m.name, machine_id: m.id }} onClose=${ok => { setPairing(false); if (ok) onChange?.(); }} />`}
+  </section>`;
+}
+
 export function MachinesSettings({ route }) {
   const [data, setData] = useState(null);
   const [local, setLocal] = useState(null);
   const [dlg, setDlg] = useState(null);
   const [pair, setPair] = useState(null);
+  const [directFor, setDirectFor] = useState(null);
+  const [pickLocalFolder, setPickLocalFolder] = useState(false);
   const [metrics, setMetrics] = useState({});
+  const [tests, setTests] = useState({});
+  const [terminals, setTerminals] = useState([]);
+  const [cm, setCm] = useState({ status: null, clis: [], sessions: [] });
+
+  const loadCodeman = () => {
+    get('/api/codeman/status', { retryAuth: false }).then(st => {
+      if (!st || st.auth !== 'ok') { setCm({ status: st || null, clis: [], sessions: [] }); return; }
+      Promise.all([
+        get('/api/codeman/v1/clis', { retryAuth: false }).catch(() => null),
+        get('/api/codeman/v1/sessions', { retryAuth: false }).catch(() => null),
+      ]).then(([clisRes, sessRes]) => {
+        const clis = Array.isArray(clisRes?.data) ? clisRes.data : Array.isArray(clisRes) ? clisRes : [];
+        const sessions = Array.isArray(sessRes?.data) ? sessRes.data : Array.isArray(sessRes) ? sessRes : [];
+        setCm({ status: st, clis, sessions });
+      });
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     let alive = true;
     const tick = () => get('/api/machines/metrics', { timeout: 9000 }).then(r => { if (alive && r && r.metrics) setMetrics(r.metrics); }).catch(() => {});
     tick(); const id = setInterval(tick, 10000);
     return () => { alive = false; clearInterval(id); };
   }, []);
+
   const load = () => Promise.all([
     get('/api/machines').then(r => setData(r.ok ? r : { machines: [], offers: {} })).catch(() => setData({ machines: [], offers: {} })),
     get('/api/machines/local').then(setLocal).catch(() => setLocal(null)),
   ]);
-  const [terminals, setTerminals] = useState([]);
+
   const node = useStore(app, x => x.engineNode);
-  // Le moteur tourne sur cette machine, sauf s'il est lié ailleurs.
-  const engineAt = node && node.machine_id ? node.machine_id : node && (node.direct || node.remote) ? '' : 'local';
-  useEffect(() => { load(); get('/api/terminals').then(r => setTerminals(r.terminals || [])).catch(() => {}); }, []);
+  const serverInfo = useStore(app, x => x.serverInfo);
+
+  useEffect(() => {
+    load();
+    loadCodeman();
+    get('/api/terminals').then(r => setTerminals(r.terminals || [])).catch(() => {});
+  }, []);
+
   const id = route && route.id;
   if (!data) return html`<div class="skeleton" style="height:240px"></div>`;
   if (id) {
@@ -168,28 +403,80 @@ export function MachinesSettings({ route }) {
     return html`<${MachineDetail} m=${m} local=${local} offers=${m ? (data.offers || {})[m.id] || [] : null} onChange=${load} onEdit=${() => setDlg({ machine: m })} />
       ${dlg && html`<${MachineDialog} machine=${dlg.machine} onClose=${x => { setDlg(null); if (x) load(); }} />`}`;
   }
-  // Une carte par machine : ce qui y tourne pour Loom, d'un coup d'œil.
-  const card = (id, name, sub, icon, machine = null) => {
-    const terms = terminals.filter(x => x.target === id).length;
-    return html`<div class="mcard" key=${id}>
-      <a class="mcard-h" href=${'#/machines/' + encodeURIComponent(id)}><span class="mx-ico"><${Icon} n=${icon} /></span><span class="grow"><b>${name}${machine?.node_id && html`<${NodeUpdateBadge} m=${machine} />`}</b><small class="mono">${sub}</small></span><${Icon} n="right" /></a>
-      <${Meters} m=${metrics[id]} />
-      <div class="mcard-s">
-        <div><span>${t('engine.page.title')}</span><b>${id === engineAt ? t('machines.card.engine_here') : '—'}</b></div>
-        <div><span>${t('app.routes.terminaux')}</span><b>${terms || '—'}</b></div>
-      </div>
-      ${machine?.user && html`<${MachineMigration} m=${machine} onChange=${load} compact=${true} />`}
-    </div>`;
+
+  const saveLocalFolders = async next => {
+    const r = await post('/api/machines/folders', { machine: 'local', folders: next });
+    if (!r.ok) return toast(r.error || t("settings.machines.enregistrement_impossible"), 'err');
+    setLocal(old => ({ ...(old || {}), folders: r.folders }));
   };
+
+  const testMachine = async m => {
+    setTests(old => ({ ...old, [m.id]: { busy: true } }));
+    const r = await post('/api/machines', { machine: m, check_only: true }).catch(e => ({ ok: false, error: e.message }));
+    if (r?.ok) {
+      setTests(old => ({ ...old, [m.id]: { ok: true } }));
+      toast(`${m.name} · ${t('settings.machines.connection_ok')}`);
+      load();
+    } else {
+      const err = r?.error || t('machines.edit.connexion_impossible');
+      setTests(old => ({ ...old, [m.id]: { ok: false, error: err } }));
+      toast(err, 'err');
+    }
+  };
+
+  const removeMachine = async m => {
+    if (!await confirm(t("settings.machines.retirer") + m.name, t("settings.machines.ses_harnesses_disparaissent_de_loom_les_discussions_deja_faites_r"), { ok: t("settings.machines.retirer_2"), danger: true })) return;
+    const r = await post('/api/machines/delete', { id: m.id });
+    if (!r.ok) return toast(r.error || t("settings.machines.suppression_impossible"), 'err');
+    await refreshWorkspace(); load();
+  };
+
   return html`
-    <div class="mcards">
-      ${card('local', (local && local.hostname) || t("settings.machines.cette_machine_2"), t("settings.machines.cette_machine") + (local ? ' · ' + local.os : ''), 'chip')}
-      ${data.machines.map(m => card(m.id, m.name, where(m), 'server', m))}
-      <button type="button" class="mcard add" onClick=${() => setPair({})}><${Icon} n="plus" /><span>${t('machines.add.title')}</span><small>${t('machines.add.note')}</small></button>
+    <div class="page-head">
+      <div>
+        <h1>${t('settings.page.machines')}</h1>
+        <p>${t("settings.machines.loom_travaille_sur_cette_machine_et_sur_les_machines_que_tu_conne")}</p>
+      </div>
+      <div class="acts">
+        <button type="button" class="mcard add" onClick=${() => setPair({})}>${t('machines.add.title')}</button>
+      </div>
     </div>
+
+    <div class="mc-list">
+      <${LocalMachineCard}
+        local=${local}
+        metrics=${metrics.local}
+        serverInfo=${serverInfo}
+        node=${node}
+        codeman=${{ ...cm, reload: loadCodeman }}
+        terminals=${terminals}
+        onAddFolder=${() => setPickLocalFolder(true)}
+        onRemoveFolder=${f => saveLocalFolders((local?.folders || []).filter(x => x !== f))}
+        onOpenSsh=${() => setDlg({ machine: null })}
+      />
+      ${data.machines.map(m => html`<${RemoteMachineCard}
+        key=${m.id}
+        m=${m}
+        metric=${metrics[m.id]}
+        testState=${tests[m.id]}
+        node=${node}
+        terminals=${terminals}
+        onTest=${() => testMachine(m)}
+        onEdit=${() => setDlg({ machine: m })}
+        onRemove=${() => removeMachine(m)}
+        onChange=${load}
+        onDirectEngine=${() => setDirectFor(m)}
+      >${m.user && html`<${MachineMigration} m=${m} onChange=${load} compact=${true} />`}</${RemoteMachineCard}>`)}
+    </div>
+
     ${!pair && html`<${Discovered} onPair=${setPair} />`}
     ${pair && html`<${PairDialog} start=${pair} onClose=${x => { setPair(null); if (x) { load(); if (x.id) go('machines', x.id); } }} />`}
-`;
+    ${dlg && html`<${MachineDialog} machine=${dlg.machine} onClose=${x => { setDlg(null); if (x) load(); }} />`}
+    ${directFor && html`<${Modal} title=${t('settings.machines.link_server')} sub=${directFor.name} onClose=${() => setDirectFor(null)}>
+      <${DirectEngineForm} start=${'http://' + directFor.host + ':8080'} onDone=${() => setDirectFor(null)} />
+    </${Modal}>`}
+    ${pickLocalFolder && typeof FolderPicker === 'function' && html`<${FolderPicker} start="" onClose=${() => setPickLocalFolder(false)} onPick=${d => { setPickLocalFolder(false); saveLocalFolders([...(local?.folders || []), d]); }} />`}
+  `;
 }
 
 function MachineDetail({ m, local, offers, onChange, onEdit }) {
@@ -224,8 +511,7 @@ function EngineSection({ m, onChange }) {
   const [pairing, setPairing] = useState(false);
   const [busy, setBusy] = useState(false);
   const isLocal = !m;
-  const sameHost = n => { try { return n && m && n.hostname === m.host || new URL(n.url).hostname === m.host; } catch (_) { return false; } };
-  const owns = isLocal ? !node : sameHost(node);
+  const owns = isLocal ? !node : sameHost(node, m);
   const paired = m && !m.user;
   // A paired machine's credential is already known: no key to copy.
   const useEngine = async () => {
@@ -266,12 +552,6 @@ function MachineNodeMaintenance({ m, onChange }) {
   </${Group}>`;
 }
 
-// Agents détectés sur cette machine : deux choix seulement ici. « Gérer »
-// (Loom suit l'agent : compte, versions, import de discussions) et « Utiliser
-// dans Loom » (il peut mener des discussions). Tout le reste est sur la page
-// Agents.
-
-
 // Dossiers de travail favoris : proposés pour un harness, un terminal…
 function FoldersSection({ target, m }) {
   const [folders, setFolders] = useState(null);
@@ -293,7 +573,7 @@ function FoldersSection({ target, m }) {
       <div class="set-c"><button class="btn sm ghost" onClick=${() => openTerminalWith({ target, dir: f })}><${Icon} n="prompt" />${t("settings.machines.terminal")}</button>
         <button class="icon-btn" aria-label="${t("settings.machines.retirer_2")}" onClick=${() => save(folders.filter(x => x !== f))}><${Icon} n="close" /></button></div></div>`)}
     <div class="set-actions"><button class="btn ghost" onClick=${add}><${Icon} n="plus" />${t("settings.machines.ajouter_un_dossier")}</button></div>
-    ${pick && html`<${FolderPicker} start="" onClose=${() => setPick(false)} onPick=${d => { setPick(false); save([...(folders || []), d]); }} />`}
+    ${pick && typeof FolderPicker === 'function' && html`<${FolderPicker} start="" onClose=${() => setPick(false)} onPick=${d => { setPick(false); save([...(folders || []), d]); }} />`}
   </${Group}>`;
 }
 

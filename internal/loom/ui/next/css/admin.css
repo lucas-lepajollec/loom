@@ -1,0 +1,741 @@
+/* Machines, Réglages et Voix — mise en page unifiée alignée sur les maquettes. */
+
+/* ---------- Blocs et lignes groupés (Réglages + Voix) ---------- */
+.settings-body .set-group > h3,
+.vx-page .set-group > h3,
+.mc-page .set-group > h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-body .card,
+.vx-page .card,
+.mc-page .card {
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--r-lg);
+}
+
+.settings-body .set-line,
+.vx-page .set-line,
+.mc-page .set-line {
+  min-height: 52px;
+  padding: 8px 16px;
+  gap: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.settings-body .set-line:first-child,
+.vx-page .set-line:first-child,
+.mc-page .set-line:first-child {
+  border-top: 0;
+}
+
+.settings-body .set-line.stack,
+.vx-page .set-line.stack,
+.mc-page .set-line.stack {
+  padding: 12px 16px;
+  gap: 8px;
+}
+
+.set-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.set-label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.set-label small {
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+/* Boutons sélecteurs discrets et champs plats sur surface-2 */
+.settings-body .set-c .select,
+.vx-page .set-c .select,
+.settings-body .set-c .lpick-b,
+.vx-page .set-c .lpick-b {
+  height: 32px;
+  padding: 0 28px 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background-color: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  width: auto;
+  max-width: 100%;
+}
+
+.settings-body .set-c .lpick,
+.vx-page .set-c .lpick {
+  width: auto;
+  max-width: 100%;
+}
+
+.settings-body .set-pick,
+.vx-page .set-pick {
+  width: auto;
+  max-width: 100%;
+}
+
+.settings-body .set-c .input.sm,
+.vx-page .set-c .input.sm {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.settings-body .set-line.stack .textarea,
+.vx-page .set-line.stack .textarea {
+  border: 0;
+  border-radius: 9px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+}
+
+.settings-body .set-c .seg,
+.vx-page .set-c .seg {
+  background: var(--surface-2);
+  border: 0;
+  border-radius: 9px;
+  padding: 2px;
+}
+
+.settings-body .set-c .seg button,
+.vx-page .set-c .seg button {
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 7px;
+}
+
+.settings-body .set-c .seg .ind,
+.vx-page .set-c .seg .ind {
+  top: 2px;
+  bottom: 2px;
+  border-radius: 7px;
+}
+
+/* ---------- Réglages : navigation à gauche + colonne de contenu ---------- */
+.settings {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 680px);
+  gap: 36px;
+  align-items: start;
+}
+
+.set-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: sticky;
+  top: 0;
+}
+
+.set-nav h1 {
+  margin: 0 0 14px 10px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.set-nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 13.5px;
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.set-nav a:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.set-nav a[aria-current="page"] {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.settings-body {
+  padding-top: 44px;
+  gap: 22px;
+}
+
+.adm-dd {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adm-dd:hover {
+  background: var(--surface-3);
+}
+
+.adm-dd .ico {
+  width: 13px;
+  height: 13px;
+  color: var(--text-3);
+  flex: none;
+}
+
+.sb-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------- Machines ---------- */
+.mc-page {
+  max-width: 940px;
+}
+
+.mc-page .page-head {
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.mc-page .page-head h1 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.mc-page .page-head .acts .mcard.add {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: auto;
+  min-height: 0;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.mc-page .page-head .acts .mcard.add:hover {
+  background: color-mix(in srgb, var(--ink) 88%, var(--bg));
+  border-color: var(--ink);
+  color: var(--on-ink);
+}
+
+.mc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 20px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.mc-card.offline {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+}
+
+.mc-card-h {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.mc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--text-4);
+}
+
+.mc-dot.green {
+  background: var(--green);
+}
+
+.mc-dot.amber {
+  background: var(--amber);
+}
+
+.mc-dot.red {
+  background: var(--red);
+}
+
+.mc-card-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mc-card-title b {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.mc-card-title b a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.mc-card-title b a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mc-card-title .mc-tag-here {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.mc-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.mc-card-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.mc-kv4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.mc-kv3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.mc-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mc-kv > span:first-child {
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.mc-kv > a,
+.mc-kv > span:last-child {
+  font-size: 13.5px;
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mc-kv > a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mc-vram {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mc-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+  min-width: 48px;
+}
+
+.mc-bar i {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--text-2);
+  transition: width var(--slow) var(--out);
+}
+
+.mc-bar i.warm {
+  background: var(--amber);
+}
+
+.mc-bar i.hot {
+  background: var(--red);
+}
+
+.mc-vram span {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.mc-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mc-sec-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mc-lbl {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.mc-link-btn {
+  font-size: 12.5px;
+  color: var(--text-3);
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.mc-link-btn:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.mc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  max-width: 100%;
+  text-decoration: none;
+}
+
+a.mc-chip:hover,
+button.mc-chip:hover {
+  background: var(--surface-3);
+}
+
+.mc-chip.dashed {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+  color: var(--text-2);
+}
+
+.mc-chip.dashed:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.mc-chip-ver {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.mc-chip-up {
+  color: var(--amber);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 0 2px;
+}
+
+.mc-chip-up:hover {
+  text-decoration: underline;
+}
+
+.mc-chip-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: -4px;
+  border-radius: 5px;
+  color: var(--text-3);
+}
+
+.mc-chip-del:hover {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.mc-chip-del svg {
+  width: 12px;
+  height: 12px;
+}
+
+.mc-cols2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.mc-engine-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.mc-mig {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.mc-mig > .state {
+  margin-right: auto;
+}
+
+/* ---------- Voix & Jarvis (deux colonnes) ---------- */
+.vx-page {
+  max-width: 1040px;
+}
+
+.vx-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  align-items: start;
+}
+
+.vx-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.vx-sec-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.vx-sec-h h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.vx-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.vx-num {
+  width: 68px;
+  text-align: right;
+}
+
+.vx-name {
+  width: 150px;
+}
+
+.vx-pack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vx-pack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.vx-pack-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.vx-pack-h b {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.vx-pack p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+/* ---------- Responsive (tablette & téléphone) ---------- */
+@media (max-width: 900px) {
+  .settings {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .settings-body {
+    padding-top: 0;
+  }
+  .set-nav {
+    position: static;
+  }
+  .mc-kv4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mc-kv3,
+  .mc-cols2,
+  .vx-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings {
+    display: block;
+  }
+  .set-nav h1 {
+    display: none;
+  }
+  .set-nav {
+    border: 0;
+    background: var(--surface);
+    border-radius: var(--r-lg);
+  }
+  .set-nav a {
+    min-height: 48px;
+    height: auto;
+    padding: 12px 16px;
+  }
+  .mc-card {
+    padding: 16px;
+    gap: 14px;
+  }
+  .mc-card-h {
+    flex-wrap: wrap;
+  }
+  .mc-card-acts {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .mc-card.offline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mc-kv4,
+  .mc-kv3,
+  .mc-cols2 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .mc-chip {
+    min-height: 36px;
+    height: auto;
+    padding: 6px 10px;
+    white-space: normal;
+  }
+  .mc-page .page-head .acts,
+  .mc-page .page-head .acts .mcard.add {
+    width: 100%;
+    min-height: 44px;
+  }
+  .vx-inline {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .vx-name,
+  .vx-num {
+    width: auto;
+    flex: 1 1 88px;
+    min-height: 44px;
+  }
+  .settings-body .set-c .select,
+  .vx-page .set-c .select,
+  .settings-body .set-c .lpick-b,
+  .vx-page .set-c .lpick-b,
+  .adm-dd {
+    min-height: 44px;
+  }
+  .vx-col .btn,
+  .mc-card .btn,
+  .settings-body .btn {
+    min-height: 44px;
+  }
+  .vx-col .btn.sm,
+  .mc-card .btn.sm,
+  .settings-body .btn.sm {
+    min-height: 36px;
+  }
+}
