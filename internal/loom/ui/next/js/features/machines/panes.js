@@ -62,11 +62,14 @@ function EnginePanels({ node }) {
       <${EngineMemory} local=${node?.direct}><${EngineSlots} server=${server} /></${EngineMemory}>
       ${!ownedVllm && server?.engine_kind !== 'vllm' && (v.x?.running || v.x?.job === 'start') && html`<${VllmEngine} v=${v} />`}`}
     access=${server => html`<${ApiSettings} compact server=${server}><${EngineRecent} server=${server} /></${ApiSettings}>`}
-    maintenance=${html`<section class="models-group models-engine-maintenance">
-      <div class="models-section-head"><h2>${t('engine.page.installed')}</h2></div>
-      <div class="eng-list"><${Engine} /><${VLLMEngine} /></div>
-      <${ModelDirs} />
-    </section>`} />`;
+    maintenance=${html`<details class="models-extra models-card models-engine-maintenance">
+      <summary>${t('models.engine.advanced')}</summary>
+      <div class="models-group">
+        <div class="models-section-head"><h2>${t('engine.page.installed')}</h2></div>
+        <div class="eng-list"><${Engine} /><${VLLMEngine} /></div>
+        <${ModelDirs} />
+      </div>
+    </details>`} />`;
 }
 
 export function EnginePage() {

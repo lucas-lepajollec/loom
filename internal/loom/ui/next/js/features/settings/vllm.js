@@ -168,6 +168,40 @@ function DownloadRow({ v }) {
     ${dlActive(dl) && html`<button class="btn sm ghost" onClick=${async () => { await post('/api/engines/vllm/download/cancel', { model: dl.model }); v.reloadDl(); }}>${t('settings.page.annuler')}</button>`}</div>`;
 }
 
+export function VllmLibraryStatus({ v }) {
+  const [selected, setSelected] = useState('');
+  const [acting, setActing] = useState(false);
+  const choices = (v.lib || []).filter(m => m.servable);
+  const x = v.x;
+  const idle = x.installed && !x.running && !x.job;
+  const loading = x.job === 'start';
+  const preferred = selected || x.model;
+  const startModel = choices.find(m => m.id === preferred)?.id || choices[0]?.id;
+  const state = loading ? t('models.engine.starting') : x.running ? t('models.engine.running') : t('local.page.arrete');
+  const active = loading || x.running;
+  const toggle = async () => {
+    setActing(true);
+    try {
+      if (active) await v.act({ action: 'stop' });
+      else if (startModel) await v.start(startModel);
+    } finally { setActing(false); }
+  };
+  return html`
+    <section class="models-card models-status" aria-label=${t('local.page.moteur')}>
+      <i class=${cls('dot', loading ? 'amber' : x.running ? 'green' : '')} aria-hidden="true"></i>
+      <div class="models-row-main"><b>${t('models.engine.state', { engine: 'vLLM', state })}</b>
+        <small>${[active && x.model, x.version].filter(Boolean).join(' · ')}</small>
+      </div>
+      ${!active && startModel && html`<select class="select models-start-model" aria-label=${t('local.page.modele')} value=${startModel}
+        disabled=${acting || !idle} onChange=${e => setSelected(e.target.value)}>
+        ${choices.map(m => html`<option key=${m.id} value=${m.id}>${m.id}</option>`)}
+      </select>`}
+      <button class=${cls('btn', !active && 'primary')} disabled=${acting || !active && (!idle || !startModel)} onClick=${toggle}>
+        ${active ? t('local.page.arreter') : t('local.page.demarrer')}
+      </button>
+    </section>`;
+}
+
 // Local › Bibliothèque (vLLM) : modèles Hugging Face présents sur la machine.
 export function VllmLibrary({ v, onHub, enginePicker }) {
   const [params, setParams] = useState(null);
@@ -175,19 +209,14 @@ export function VllmLibrary({ v, onHub, enginePicker }) {
   const [menu, setMenu] = useState(null);
   const x = v.x;
   const idle = x.installed && !x.running && !x.job;
+  const loading = x.job === 'start';
   const matches = (v.lib || []).filter(m => m.id?.toLowerCase().includes(q.trim().toLowerCase()));
   const servable = matches.filter(m => m.servable), others = matches.filter(m => !m.servable);
-  const loading = x.job === 'start';
   const remove = m => v.remove(m);
   const openMenu = (anchor, m) => setMenu({ anchor, items: [{ label: t('vllm.lib.delete'), icon: 'trash', danger: true, run: () => remove(m) }] });
   const filter = t('models.library.filter_models');
   return html`
-    <section class="models-card models-status" aria-label=${t('local.page.moteur')}>
-      <i class=${cls('dot', loading ? 'amber' : x.running ? 'green' : '')} aria-hidden="true"></i>
-      <div class="models-row-main"><b>${loading ? t('models.library.loading', { name: x.model }) : x.running && x.model ? t('models.library.loaded', { name: x.model }) : t('vllm.eng.stopped')}</b>
-        <small>${['vLLM', x.version].filter(Boolean).join(' · ')}</small></div>
-      ${(loading || x.running) && html`<button class="btn" onClick=${() => v.act({ action: 'stop' })}>${t('local.page.arreter')}</button>`}
-    </section>
+    <${VllmLibraryStatus} v=${v} />
     <div class="models-toolbar"><label class="search"><${Icon} n="search" /><input aria-label=${filter} placeholder=${filter} value=${q} onInput=${e => setQ(e.target.value)} /></label>
       ${enginePicker}<a class="btn primary" href="#/local/hub">${t('local.page.telecharger_un_modele')}</a>
     </div>

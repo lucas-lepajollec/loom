@@ -725,8 +725,16 @@
 }
 
 /* ---------- Voix & Jarvis (deux colonnes) ---------- */
-.vx-page {
-  max-width: 1040px;
+.vx-engine {
+  margin-bottom: 24px;
+}
+
+.vx-engine .set-line:first-child {
+  min-height: 70px;
+}
+
+.vx-engine .set-label > span {
+  font-weight: 500;
 }
 
 .vx-cols {
@@ -734,6 +742,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 28px;
   align-items: start;
+}
+
+.vx-profile-only {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .vx-col {
@@ -757,12 +769,58 @@
   font-weight: 600;
 }
 
-.vx-inline {
+.vx-details + .vx-details,
+.vx-page .set-line + .vx-details,
+.vx-details[open] > div {
+  border-top: 1px solid var(--line-soft);
+}
+
+.vx-details > summary {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 10px 16px;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-2);
+  list-style: none;
+}
+
+.vx-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.vx-details > summary .ico {
+  width: 14px;
+  color: var(--text-3);
+  transform: rotate(-90deg);
+}
+
+.vx-details[open] > summary .ico {
+  transform: none;
+}
+
+.vx-preview {
+  align-items: center;
+  gap: 8px;
+}
+
+.vx-preview .input {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.vx-hint {
+  margin: 0;
+  padding: 10px 16px;
+}
+
+.vx-page .set-label,
+.vx-model,
+.vx-pack-h > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .vx-num {
@@ -841,10 +899,6 @@
     height: auto;
     padding: 12px 16px;
   }
-  .vx-inline {
-    justify-content: flex-start;
-    width: 100%;
-  }
   .vx-name,
   .vx-num {
     width: auto;
@@ -858,13 +912,42 @@
   .adm-dd {
     min-height: 44px;
   }
-  .vx-col .btn,
   .settings-body .btn {
     min-height: 44px;
   }
-  .vx-col .btn.sm,
   .settings-body .btn.sm {
     min-height: 36px;
+  }
+}
+
+@media (max-width: 760px) {
+  .vx-page :is(.btn, .input, .select, .seg button, .icon-btn),
+  .vx-lib > summary,
+  body:has(.vx-page) :is(.dialog .btn, .lpick-o) {
+    min-height: 44px;
+  }
+
+  .vx-page .icon-btn {
+    min-width: 44px;
+  }
+
+  .vx-page .switch::before,
+  .vx-page .tip::before {
+    content: "";
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  .vx-lib > summary {
+    align-content: center;
+  }
+
+  .vx-sec-h, .vx-pack-h {
+    align-items: center;
+    flex-wrap: wrap;
   }
 }
 
