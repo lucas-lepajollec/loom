@@ -11,7 +11,7 @@ import { confirm, toast, Modal } from '../../ui/dialog.js';
 import { Drawer, inspectTrigger } from '../../ui/drawer.js';
 import { ParamsEditor, draftSource, liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
-import { useVllm, VllmLibrary, VllmHub, ownsVllm } from '../settings/vllm.js';
+import { useVllm, VllmLibrary, VllmLibraryStatus, VllmHub, ownsVllm } from '../settings/vllm.js';
 import { Hub } from './hub.js';
 
 const modelName = name => (name || '').replace(/\.gguf$/i, '');
@@ -44,12 +44,25 @@ function ModelEstimate({ model, 'data-label': label }) {
   </span>`;
 }
 
+async function controlEngine(action) {
+  const result = await post('/api/' + action, {});
+  if (!result.ok) toast(result.out || result.error || t('local.page.action_impossible'), 'err');
+  await refreshStatus();
+}
+
 function LibraryStatus({ onUnload }) {
   const { status, gpus, node, unavailable } = useStore(app, s => ({
     status: s.status, gpus: s.gpus, node: s.engineNode, unavailable: s.unavailable.status,
   }));
   const server = useEngineServer();
   const [ram, setRam] = useState(null);
+  const [pending, setPending] = useState('');
+  const toggle = async () => {
+    const action = status.active ? 'stop' : 'start';
+    setPending(action);
+    try { await controlEngine(action); }
+    finally { setPending(''); }
+  };
   useEffect(() => visibleRefresh(async alive => {
     const result = await get('/api/ram', { timeout: 6000 });
     if (alive()) setRam(result);
@@ -61,20 +74,19 @@ function LibraryStatus({ onUnload }) {
   const st = engineState(status);
   const name = modelName(status?.preset_name || status?.model_name || baseName(status?.model));
   const activeModel = status?.active && name && !status.load_error;
-  const title = activeModel
-    ? status.health ? t('models.library.loaded', { name }) : t('models.library.loading', { name })
-    : st.label || t('local.page.aucun_modele');
-  const host = node?.hostname || status?.hostname;
+  const starting = pending === 'start' || status?.active && !status.health && !status.load_error;
   const kind = engineKind(status?.engine_kind || server?.engine_kind);
-  const engine = host ? t('models.engine.on_host', { engine: kind, host }) : kind;
-  const detail = [engine, ...serverActivity(server)].join(' · ');
+  const state = starting ? t('models.engine.starting') : status?.active ? t('models.engine.running') : t('local.page.arrete');
+  const title = unavailable ? t('models.engine.unavailable') : !status ? st.label : t('models.engine.state', { engine: kind, state });
+  const host = node?.hostname || status?.hostname;
+  const model = activeModel && (status.health ? t('models.library.loaded', { name }) : t('models.library.loading', { name }));
+  const detail = [!unavailable && model, host, ...(!unavailable && status?.active ? serverActivity(server) : [])].filter(Boolean).join(' · ');
   return html`<section class="models-card models-status" aria-label=${t('local.page.moteur')}>
-    <i class=${cls('dot', unavailable ? 'amber' : st.tone)} aria-hidden="true"></i>
+    <i class=${cls('dot', unavailable || starting ? 'amber' : st.tone)} aria-hidden="true"></i>
     <div class="models-row-main">
       <b>${title}</b>
-      <small>${detail}</small>
-      ${unavailable && html`<small>${t('engine.na.unreachable')}</small>`}
-      ${status?.load_error && html`<small class="models-warning">${status.load_error}</small>`}
+      ${detail && html`<small>${detail}</small>`}
+      ${status?.load_error && !unavailable && html`<small class="models-warning">${status.load_error}</small>`}
     </div>
     <div class="models-memory-meter">
       <div><span>${t('models.library.gpu_memory')}</span>
@@ -85,7 +97,14 @@ function LibraryStatus({ onUnload }) {
         : html`<small>${t('local.page.aucun_gpu_detecte')}</small>`}
       <${Tip} text=${[gpu?.name, t('local.page.ram_systeme') + ' · ' + ramLabel].filter(Boolean).join(' · ')} />
     </div>
-    ${status?.active && (status.model || status.via_api) && html`<button class="btn" disabled=${unavailable} onClick=${onUnload}>${t('local.page.decharger')}</button>`}
+    <div class="models-actions">
+      <button class=${cls('btn', !status?.active && 'primary')} disabled=${!!pending || unavailable || !status} onClick=${toggle}>
+        ${status?.active ? t('local.page.arreter') : t('local.page.demarrer')}
+      </button>
+      ${status?.active && !unavailable && (status.model || status.via_api) && html`<${RowMenu} name=${name || kind}>
+        <button class="item" onClick=${onUnload}>${t('local.page.decharger')}</button>
+      </${RowMenu}>`}
+    </div>
   </section>`;
 }
 
@@ -111,7 +130,7 @@ function NewPreset({ models, onClose, onCreated }) {
   </${Modal}>`;
 }
 
-function PresetMenu({ name, children }) {
+function RowMenu({ name, children }) {
   const [anchor, setAnchor] = useState(null);
   const close = () => setAnchor(null);
   return html`<button class="icon-btn" aria-label=${t('models.row.actions', { name })}
@@ -249,12 +268,12 @@ function Library({ enginePicker }) {
               ${on ? html`<span class=${stateClass}>${modelState}</span><button class="btn sm" onClick=${unload}>${t('local.page.decharger')}</button>`
                 : html`<button class="btn sm" onClick=${() => loadPreset(p)}>${t('local.page.charger')}</button>`}
               <button class="btn sm ghost" onClick=${() => openPreset(p)}>${t('local.page.regler')}</button>
-              <${PresetMenu} name=${p.name}>
+              <${RowMenu} name=${p.name}>
                 <button class="item" disabled=${ordering || index === 0} onClick=${() => movePreset(p, -1)}>${t('local.page.monter')}</button>
                 <button class="item" disabled=${ordering || index === presets.length - 1} onClick=${() => movePreset(p, 1)}>${t('local.page.descendre')}</button>
                 <hr />
                 <button class="item danger" onClick=${() => removePreset(p)}><${Icon} n="trash" />${t('local.page.supprimer')}</button>
-              </${PresetMenu}>
+              </${RowMenu}>
             </div>
           </div>`;
         }) : html`<div class="models-row models-empty">${unavailable.presets ? t('engine.na.unreachable') : query
@@ -349,12 +368,12 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
   const x = vllm?.x;
   const kind = engineKind(node?.kind || status?.engine_kind || server?.engine_kind);
   const running = x?.running ?? status?.active;
-  const starting = x?.job === 'start' || running && !status?.health && status?.model;
+  const starting = x ? x.job === 'start' : running && !status?.health;
   const error = x ? x.error || x.auto_update?.last_error : status?.load_error;
   const st = engineState(status);
   const label = direct ? (node.reachable ? t('common.reachable') : t('common.unreachable'))
-    : error ? t('core.state.erreur_de_chargement')
-      : starting ? t('local.page.chargement_du_modele')
+    : unavailable ? t('models.engine.unavailable') : error ? t('core.state.erreur_de_chargement')
+      : starting ? t('models.engine.starting')
         : running ? t('local.page.pret')
           : status ? t('local.page.arrete') : st.label;
   const tone = direct ? (node.reachable ? 'green' : 'red')
@@ -363,7 +382,7 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
   const port = !node?.direct && (status?.port || server?.port);
   const description = [machine, port && t('models.engine.port', { port }), running && t('local.page.utilise_par_loom')].filter(Boolean);
   const model = x?.model || status?.preset_name || status?.model_name || baseName(server?.model_name);
-  const activity = direct ? [] : [model?.replace(/\.gguf$/i, ''), ...(!x ? serverActivity(server) : [])].filter(Boolean);
+  const activity = direct || !running || unavailable ? [] : [model?.replace(/\.gguf$/i, ''), ...(!x ? serverActivity(server) : [])].filter(Boolean);
   const act = async action => {
     setActing(true);
     try {
@@ -371,9 +390,7 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
         if (action === 'stop') await vllm.act({ action });
         else if (model) await vllm.start(model);
       } else {
-        const r = await post('/api/' + action, {});
-        if (!r.ok) toast(r.out || r.error || t('local.page.action_impossible'), 'err');
-        setTimeout(refreshStatus, 600);
+        await controlEngine(action);
       }
     } finally { setActing(false); }
   };
@@ -391,7 +408,6 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
           ${description.length > 0 && html`<small>${description.join(' · ')}</small>`}
           ${activity.length > 0 && html`<small>${activity.join(' · ')}</small>`}
           ${server?.node_managed && html`<small>${server.url}</small>`}
-          ${unavailable && !direct && html`<small>${t('engine.na.unreachable')}</small>`}
         </div>
         ${!direct && html`<div class="models-actions">
           ${running || x?.job === 'start' ? html`
@@ -433,7 +449,7 @@ function DirectLibrary({ node, hub }) {
     <section class="models-card models-status" aria-label=${t('local.page.moteur')}>
       <i class=${cls('dot', node.reachable ? 'green' : 'red')} aria-hidden="true"></i>
       <div class="models-row-main"><b>${t('models.engine.on_host', { engine: kind, host: node.hostname })}</b>
-        <small>${node.reachable ? t('common.reachable') : t('common.unreachable')} · ${node.url}</small></div>
+        <small>${[node.reachable ? t('common.reachable') : t('common.unreachable'), node.model, node.url].filter(Boolean).join(' · ')}</small></div>
       <a class="btn" href="#/engine">${t('local.page.emplacement_du_moteur')}</a>
     </section>
     ${hub ? html`<div class="models-card"><${Empty} icon="server" title=${t('models.hub.direct_title')} text=${t('models.hub.direct_hint')}>
@@ -473,17 +489,16 @@ export function LocalPage({ route }) {
   const activeTab = hub ? 'local/hub' : 'local';
   const tabs = group.tabs.filter(([, label]) => label)
     .map(([id, label]) => ({ href: '#/' + id, label: label(), current: id === activeTab }));
-  return html`<div class="view page models-page" key=${route.sub}><div class="page-in models-layout">
+  return html`<div class="view page models-page" key=${route.sub}><div class=${cls('page-in models-layout', !hub && 'models-library')}>
     <${TabNav} id=${group.id} label=${group.label} tabs=${tabs} />
     <h1 class="sr">${hub ? t('local.page.hub') : t('local.page.bibliotheque')}</h1>
     ${direct ? html`<${DirectLibrary} key=${owner} node=${node} hub=${hub} />`
       : which === 'vllm' ? (hub ? html`<${VllmHub} key=${hubKey} v=${v} enginePicker=${enginePicker} initialQuery=${hubQuery} />`
         : html`<${VllmLibrary} key=${owner} v=${v} onHub=${() => go('local', 'hub')} enginePicker=${enginePicker} />`)
       : hub ? html`<${Hub} key=${hubKey} enginePicker=${enginePicker} initialQuery=${hubQuery} />`
-      : ownedVllm ? html`<div class="models-toolbar">${enginePicker}</div>
-          <div class="models-card"><${Empty} icon="chip" title=${t('models.library.vllm_active')} text=${t('models.library.stop_vllm_hint')}>
-            <button class="btn sm" onClick=${() => v.act({ action: 'stop' })}>${t('local.page.arreter')}</button>
-          </${Empty}></div>`
+      : ownedVllm ? html`<${VllmLibraryStatus} v=${v} />
+          <div class="models-toolbar">${enginePicker}</div>
+          <p class="models-row-meta">${t('models.library.stop_vllm_hint')}</p>`
       : html`<${Library} key=${owner} enginePicker=${enginePicker} />`}
   </div></div>`;
 }

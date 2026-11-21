@@ -64,8 +64,8 @@ export function EngineSlots({ server }) {
 
 export function EngineRecent({ server }) {
   const recent = Array.isArray(server?.recent) ? server.recent.slice(-12).reverse() : [];
-  return html`<section class="models-group">
-    <div class="models-section-head"><h2>${t('local.page.requetes_recentes')}</h2></div>
+  return html`<details class="models-extra models-card">
+    <summary>${t('local.page.requetes_recentes')}</summary>
     <div class="models-card">${recent.length ? recent.map(r => {
       const tokens = Number.isFinite(r.prompt) && Number.isFinite(r.tokens) ? r.prompt + r.tokens : null;
       const when = msOf(r.ended);
@@ -76,7 +76,7 @@ export function EngineRecent({ server }) {
         </span>
       </div>`;
     }) : html`<div class="models-row models-recent-row models-empty">${server ? t('models.engine.no_requests') : t('core.state.lecture_de_l_etat')}</div>`}</div>
-  </section>`;
+  </details>`;
 }
 
 export function EngineUnavailable({ what, error }) {
@@ -129,15 +129,9 @@ export function EngineMemory({ children, local }) {
   const queue = Array.isArray(settings?.queue) ? settings.queue : [];
   const unloadAt = msOf(settings?.idle_unload_at);
   return html`<section class="models-group">
-    <div class="models-section-head"><h2>${t('engine.svc.memory')}</h2>${local && html`<small>${t('models.engine.local_settings')}</small>`}</div>
+    <div class="models-section-head"><h2>${t('models.engine.performance')}</h2>${local && html`<small>${t('models.engine.local_settings')}</small>`}</div>
     <div class="models-card">
       ${error ? html`<${EngineUnavailable} what=${t('engine.svc.memory')} error=${error} />` : settings && html`
-        <div class="models-row">
-          <div class="models-row-main"><span>${t('engine.svc.models_max')} <${Tip} text=${t('engine.svc.models_max_tip')} /></span></div>
-          <div class="models-choice"><${ListPick} label=${t('engine.svc.models_max')} value=${String(settings.models_max)} disabled=${saving}
-            options=${pickOptions([1, 2, 3, 4], settings.models_max, n => n === 0 ? t('models.engine.unlimited') : n === 1 ? t('models.engine.one_model') : t('engine.svc.n_models', { n }))}
-            onChange=${v => save({ models_max: +v })} /></div>
-        </div>
         <div class="models-row">
           <div class="models-row-main"><span>${t('models.engine.idle')} <${Tip} text=${t('engine.svc.idle_tip')} /></span>
             ${unloadAt && resident.length > 0 ? html`<small>${t('models.engine.unload_at', { when: clockTime(unloadAt) })}</small>` : ''}
@@ -145,17 +139,7 @@ export function EngineMemory({ children, local }) {
           <div class="models-choice"><${ListPick} label=${t('models.engine.idle')} value=${String(settings.idle_unload_minutes)} disabled=${saving}
             options=${pickOptions([5, 15, 30, 60, 120, 0], settings.idle_unload_minutes, n => n === 0 ? t('engine.svc.never_unload') : minutes(n))}
             onChange=${v => save({ idle_unload_minutes: +v })} /></div>
-        </div>
-        <div class="models-row">
-          <div class="models-row-main"><span>${t('models.engine.protect')} <${Tip} text=${t('models.engine.protect_delay')} /></span><small>${t('models.engine.protect_hint')}</small></div>
-          <div class="models-actions">
-            ${protect && html`<div class="models-choice"><${ListPick} label=${t('engine.svc.grace')} value=${String(settings.interactive_grace_minutes)} disabled=${saving}
-              options=${pickOptions([5, 15, 30, 60], settings.interactive_grace_minutes, minutes)}
-              onChange=${v => save({ interactive_grace_minutes: +v })} /></div>`}
-            <${Switch} checked=${protect} label=${t('models.engine.protect')} disabled=${saving} onChange=${setProtection} />
-          </div>
         </div>`}
-      ${children}
       ${settings && !error && html`<div class="models-row">
         <span class="models-row-main">${t('engine.svc.resident')}</span>
         <div class="models-actions models-resident">
@@ -164,6 +148,26 @@ export function EngineMemory({ children, local }) {
           ${queue.map(q => html`<span class="tag amber" key=${q.model}>${t('engine.svc.waiting', { model: q.model, n: q.waiting })}</span>`)}
         </div>
       </div>`}
+      <details class="models-extra models-tuning">
+        <summary>${t('models.engine.tuning')}</summary>
+        ${settings && !error && html`
+          <div class="models-row">
+            <div class="models-row-main"><span>${t('engine.svc.models_max')} <${Tip} text=${t('engine.svc.models_max_tip')} /></span></div>
+            <div class="models-choice"><${ListPick} label=${t('engine.svc.models_max')} value=${String(settings.models_max)} disabled=${saving}
+              options=${pickOptions([1, 2, 3, 4], settings.models_max, n => n === 0 ? t('models.engine.unlimited') : n === 1 ? t('models.engine.one_model') : t('engine.svc.n_models', { n }))}
+              onChange=${v => save({ models_max: +v })} /></div>
+          </div>
+          <div class="models-row">
+            <div class="models-row-main"><span>${t('models.engine.protect')} <${Tip} text=${t('models.engine.protect_delay')} /></span><small>${t('models.engine.protect_hint')}</small></div>
+            <div class="models-actions">
+              ${protect && html`<div class="models-choice"><${ListPick} label=${t('engine.svc.grace')} value=${String(settings.interactive_grace_minutes)} disabled=${saving}
+                options=${pickOptions([5, 15, 30, 60], settings.interactive_grace_minutes, minutes)}
+                onChange=${v => save({ interactive_grace_minutes: +v })} /></div>`}
+              <${Switch} checked=${protect} label=${t('models.engine.protect')} disabled=${saving} onChange=${setProtection} />
+            </div>
+          </div>`}
+        ${children}
+      </details>
     </div>
   </section>`;
 }
