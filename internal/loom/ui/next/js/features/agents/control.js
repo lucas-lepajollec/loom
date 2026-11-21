@@ -6,7 +6,7 @@ import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { api, cm } from './client.js';
-import { agents, stateOf, projectOf, cliOf, capsOf, onDomain, loadHistory } from './store.js';
+import { agents, stateOf, projectOf, cliOf, capsOf, onDomain, loadHistory, refreshAll, restorable } from './store.js';
 import { answerApproval, dismissApproval, interrupt } from './actions.js';
 import { StateDot, ago } from './rail.js';
 import { HistoryRow } from './side.js';
@@ -180,6 +180,38 @@ function ResumeList({ sessions }) {
   </section>`;
 }
 
+// Sessions coupées par un redémarrage de la machine (ou une coupure de courant) :
+// Codeman garde le plan, Loom propose de les relancer d'un clic. Chaque CLI
+// reprend sa conversation dans son dossier ; l'historique du terminal est perdu.
+export function RestoreBanner() {
+  const entries = useStore(agents, restorable);
+  const [busy, setBusy] = useState('');
+  if (!entries.length) return null;
+  const run = async ids => {
+    setBusy(ids ? ids[0] : 'all');
+    try {
+      const r = await api.restore(ids);
+      const restored = (r && r.restored) || [], skipped = (r && r.skipped) || [];
+      if (restored.length) toast(t('agents.restore.done', { n: restored.length }));
+      for (const k of skipped) toast(t('agents.restore.skipped', { name: (entries.find(e => e.id === k.sessionId) || {}).name || k.sessionId, reason: lt('restoreReason', k.reason) }), 'err');
+      await refreshAll();
+      if (!ids) agents.set({ restore: [] });
+    } catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
+  };
+  const dismiss = async () => { setBusy('dismiss'); try { await api.dismissRestore(); agents.set({ restore: [] }); } catch (e) { toast(e.message, 'err'); } finally { setBusy(''); } };
+  return html`<section class="cm-cc-sec cm-restore" aria-labelledby="cm-restore-title">
+    <div class="cm-section-head"><h2 id="cm-restore-title">${t('agents.restore.title', { n: entries.length })}</h2>
+      <span class="cm-restore-acts"><button class="btn sm" disabled=${!!busy} onClick=${dismiss}>${t('agents.restore.dismiss')}</button>
+      <button class="btn sm primary" disabled=${!!busy} onClick=${() => run()}>${busy === 'all' ? t('agents.restore.working') : t('agents.restore.all')}</button></span></div>
+    <p class="cm-restore-note">${t('agents.restore.text')}</p>
+    <ul class="cm-cc-list">${entries.map(e => html`<li class="cm-restore-row" key=${e.id}>
+      <${CliMark} mode=${e.mode} size="xs" />
+      <span class="cm-restore-name"><b>${e.name || cliOf(e.mode).label}</b><small>${e.workingDir}</small></span>
+      <button class="btn sm" disabled=${!!busy} onClick=${() => run([e.id])}>${busy === e.id ? t('agents.restore.working') : t('agents.restore.do')}</button>
+    </li>`)}</ul>
+  </section>`;
+}
+
 export function ControlCenter() {
   const order = useStore(agents, s => s.order);
   const sessions = useStore(agents, s => s.sessions);
@@ -214,6 +246,7 @@ export function ControlCenter() {
   const next = (jobs || []).filter(j => j.enabled && j.nextRunAt).sort((a, b) => a.nextRunAt - b.nextRunAt).slice(0, 4);
   const fmt = ms => new Date(ms).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   return html`<div class="cm-scroll"><div class="cm-cc">
+    <${RestoreBanner} />
     <${Sessions} list=${list} loaded=${loaded} />
     <${ServerCard} key=${conn.url} counts=${counts} update=${update} />
     <section class="cm-cc-sec">

@@ -355,3 +355,13 @@ html.touch .cm-term-box{-webkit-text-size-adjust:100%}
 .cm-others{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
 .cm-others button{display:flex;flex-direction:column;align-items:flex-start;width:100%;padding:6px 8px;border-radius:var(--r-sm);text-align:left}
 .cm-others button:hover{background:var(--hover)}
+
+/* sessions coupées par un redémarrage */
+.cm-restore-acts{display:flex;gap:8px;margin-left:auto}
+.cm-restore-note{margin:-4px 0 0;font-size:13px;color:var(--text-3)}
+.cm-restore-row{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 16px}
+.cm-restore-name{flex:1;min-width:0;display:grid}
+.cm-restore-name b{font-weight:500;font-size:14px}
+.cm-restore-name small{font:12px var(--mono);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ses-restore{color:var(--amber)}
+.ses-restore .ico{width:14px;height:14px}

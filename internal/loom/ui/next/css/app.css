@@ -133,6 +133,12 @@ code,pre,kbd,.mono{font-family:var(--mono)}
 .search{display:flex;align-items:center;gap:var(--space-2);color:var(--text-3)}
 .search input{flex:1;min-width:0;width:100%;border:0;outline:0;box-shadow:none;background:transparent;color:var(--text)}
 .btn.select{justify-content:space-between;text-align:left}
+/* déclencheurs de menu déroulant : texte et chevron, sans fond ; le fond
+   n'apparaît qu'au survol et quand le menu est ouvert */
+:is(.btn.select,.ses-filter,.fl-root),:is(.btn.select,.ses-filter,.fl-root):not(:hover):not([aria-expanded="true"]){background:transparent;border-color:transparent;box-shadow:none}
+:is(.btn.select,.ses-filter,.fl-root):hover,:is(.btn.select,.ses-filter,.fl-root)[aria-expanded="true"]{background:var(--hover);border-color:transparent}
+.search .ico{width:14px;height:14px;flex:none}
+.fl-search{margin-bottom:6px}
 .select.fit{width:auto}
 .select>.trunc{flex:1;min-width:0;max-width:100%}
 :is(.select .select-caret,.ses-filter .ico){width:14px;height:14px;flex:none;color:var(--text-3);transition:transform var(--fast)}

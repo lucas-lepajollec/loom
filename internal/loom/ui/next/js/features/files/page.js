@@ -187,7 +187,7 @@ function Tree({ data, current, refresh, onRoot, header }) {
     ${header(html`
       <button class="icon-btn" aria-label=${t('files.new_note')} title=${t('files.new_note')} onClick=${() => newNote(current ? parentOf(current) : '', refresh)}><${Icon} n="edit" /></button>
       <button class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder(current ? parentOf(current) : '', refresh)}><${Icon} n="folder" /></button>`)}
-    <label class="fl-search"><${Icon} n="search" /><input placeholder=${t('files.search')} value=${q} onInput=${e => setQ(e.target.value)} aria-label=${t('files.search')} /></label>
+    <label class="search fl-search"><${Icon} n="search" /><input placeholder=${t('files.search')} value=${q} onInput=${e => setQ(e.target.value)} aria-label=${t('files.search')} /></label>
     <div class="fl-list" role="tree">
       ${nodes.map(n => html`<${TreeRow} key=${n.path} n=${n} depth=${0} current=${current} open=${open} toggle=${toggle} refresh=${refresh} filter=${!!query} />`)}
       ${!nodes.length && html`<p class="fl-empty">${query ? t('files.no_match') : t('files.empty_folder')}</p>`}

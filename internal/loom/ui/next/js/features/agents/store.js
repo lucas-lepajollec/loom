@@ -230,3 +230,13 @@ export function useAgentsPresence() {
     return () => clearInterval(timer);
   }, [ready, configured]);
 }
+
+// Sessions qu'un redémarrage a coupées et que Codeman peut relancer (hors sessions déjà rouvertes).
+export const restorable = s => {
+  if (!(s.restore || []).length) return [];
+  // Le plan désigne une session par son ancien identifiant ou sa conversation ;
+  // une session relancée garde la conversation dans resumeSessionId / claudeSessionId.
+  const live = new Set();
+  for (const x of Object.values(s.sessions || {})) for (const k of [x.id, x.resumeSessionId, x.claudeSessionId]) if (k) live.add(k);
+  return s.restore.filter(e => e && e.id && !live.has(e.id));
+};
