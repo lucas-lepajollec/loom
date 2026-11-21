@@ -1,7 +1,10 @@
 package loom
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
 	"slices"
 	"sync"
 	"time"
@@ -97,4 +100,79 @@ func forgetMachineRefresh(id string) {
 	machineRefresh.Lock()
 	delete(machineRefresh.at, id)
 	machineRefresh.Unlock()
+}
+
+// Node modules are switched from the main Loom, never on the node itself.
+var nodeModuleKeys = map[string]string{
+	"voice":    "node_voice_disabled",
+	"terminal": nodeTerminalDisabledKey, // terminals and files share this trust
+	"observe":  nodeObserveDisabledKey,
+}
+
+// handleNodeModules runs on a node: POST {module, enabled}.
+func handleNodeModules(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		Module  string `json:"module"`
+		Enabled bool   `json:"enabled"`
+	}
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	key, ok := nodeModuleKeys[req.Module]
+	if !ok {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown module"})
+		return
+	}
+	if err := putBool(bkState, key, !req.Enabled); err != nil {
+		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "modules": nodeModules()})
+}
+
+// handleMachineNodeModules runs on the main Loom and forwards the switch.
+func handleMachineNodeModules(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodPost) {
+		return
+	}
+	m, ok := machineForNode(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Module  string `json:"module"`
+		Enabled bool   `json:"enabled"`
+	}
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	if _, known := nodeModuleKeys[req.Module]; !known {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown module"})
+		return
+	}
+	body, _ := json.Marshal(req)
+	var out struct {
+		OK      bool     `json:"ok"`
+		Error   string   `json:"error"`
+		Modules []string `json:"modules"`
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	if err := nodeMachineJSON(ctx, m, http.MethodPost, "/api/node/modules", bytes.NewReader(body), &out); err != nil {
+		sendJSON(w, 502, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	if !out.OK || len(out.Modules) == 0 {
+		msg := out.Error
+		if msg == "" {
+			msg = "update this machine's Loom to change its modules from here"
+		}
+		sendJSON(w, 409, map[string]any{"ok": false, "error": msg})
+		return
+	}
+	updateMachineNode(m.ID, nodeIdentity{Modules: out.Modules})
+	sendJSON(w, 200, map[string]any{"ok": true, "modules": out.Modules})
 }

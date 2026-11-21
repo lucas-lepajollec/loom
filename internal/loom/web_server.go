@@ -189,6 +189,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/machines/{id}/node/migrate", handleMachineNodeMigrate)
 	api("/api/machines/{id}/node", handleMachineNode)
 	api("/api/machines/{id}/node/update", handleMachineNodeUpdate)
+	api("/api/machines/{id}/node/modules", handleMachineNodeModules) // modules du nœud, réglés depuis Loom
 	api("/api/machines/{id}/node/update/apply", handleMachineNodeUpdate)
 	api("/api/machines/{id}/node/update/ping", handleMachineNodeUpdate)
 	api("/api/engine/node/update", handleEngineNodeUpdate)

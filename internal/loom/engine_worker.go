@@ -327,11 +327,11 @@ func newEngineWorkerMuxModules(token string, terminal *nodeTerminalServer) *http
 	})
 	registerVoiceRoutes(api, true)
 	api("/api/node/terminal/ws", terminal.ws)
-	if nodeTerminalEnabled() {
-		for path, h := range map[string]http.HandlerFunc{"/api/files/root": handleFilesRoot, "/api/files/tree": handleFilesTree, "/api/files/list": handleFilesList,
-			"/api/files/read": handleFilesRead, "/api/files/raw": handleFilesRaw, "/api/files/write": handleFilesWrite, "/api/files/op": handleFilesOp} {
-			api(path, h)
-		}
+	api("/api/node/modules", handleNodeModules)
+	// Files share the terminal's trust; the switch is read on every request.
+	for path, h := range map[string]http.HandlerFunc{"/api/files/root": handleFilesRoot, "/api/files/tree": handleFilesTree, "/api/files/list": handleFilesList,
+		"/api/files/read": handleFilesRead, "/api/files/raw": handleFilesRaw, "/api/files/write": handleFilesWrite, "/api/files/op": handleFilesOp} {
+		api(path, nodeFilesGate(h))
 	}
 	api("/api/node/observe", handleNodeObserve)
 	api("/api/node/inventory", handleNodeInventory)
@@ -531,5 +531,15 @@ func preserveNodeFront(next, current map[string]string) {
 	next["PORT"] = current["PORT"]
 	if next["PORT"] == "" {
 		next["PORT"] = "2512"
+	}
+}
+
+func nodeFilesGate(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !nodeTerminalEnabled() {
+			sendJSON(w, 409, map[string]any{"ok": false, "error": "files are turned off on this machine"})
+			return
+		}
+		h(w, r)
 	}
 }

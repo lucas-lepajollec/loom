@@ -59,7 +59,7 @@ func degradedDescriptor(d RuntimeDescriptor) RuntimeDescriptor {
 func projectMachineCapabilities(m RemoteMachine) RemoteMachine {
 	m.Degraded = degradedCapabilities.Snapshot("machine:" + m.ID)
 	m.Modules = slices.DeleteFunc(slices.Clone(m.Modules), func(module string) bool {
-		return module != "engine" && module != "voice" && module != "terminal" && module != "observe"
+		return module != "engine" && module != "voice" && module != "terminal" && module != "observe" && module != "files"
 	})
 	m.Modules = degradedCapabilities.Filter("machine:"+m.ID, m.Modules)
 	return m
