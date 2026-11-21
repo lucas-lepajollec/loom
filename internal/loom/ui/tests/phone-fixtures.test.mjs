@@ -25,3 +25,14 @@ test('phone fixtures refuse generation, login, imports, installs and writes', as
   }
   for (const path of ['/api/estimate']) assert.equal((await read(path, 'POST')).json.ok, true);
 });
+
+test('Agents phone fixtures include connected sessions, history and scheduled runs', async () => {
+  assert.equal((await read('/api/codeman/status')).json.auth, 'ok');
+  const prefix = '/api/codeman/v1';
+  assert.equal((await read(prefix + '/sessions')).json.data.length, 10);
+  const rows = (await read(prefix + '/sessions/unified?limit=500')).json.data.sessions;
+  assert.ok(rows.some(r => r.mode === 'omp'));
+  assert.ok(rows.some(r => r.resumeId));
+  assert.ok((await read(prefix + '/cron/runs')).json.data[0].sessionId);
+  assert.equal((await read(prefix + '/cron/jobs/fixture-job/run', 'POST')).status, 409);
+});

@@ -1,6 +1,7 @@
 package loom
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -49,6 +50,7 @@ type codemanConfig struct {
 }
 
 var codemanMu sync.Mutex
+var codemanVoiceSettingsMu sync.Mutex
 
 func codemanConfigPath() string { return filepath.Join(LoomHome(), "codeman.json") }
 
@@ -409,25 +411,67 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 	// Un corps vide part sans corps : sinon le client Go l'enverrait en
 	// « chunked » et Codeman (Fastify) le refuse faute de Content-Type.
 	var body io.Reader = http.NoBody
+	contentLength := r.ContentLength
 	if r.Body != nil && r.ContentLength != 0 && r.Method != http.MethodGet && r.Method != http.MethodHead {
 		body = http.MaxBytesReader(w, r.Body, codemanBodyLimit)
+	}
+	auth := codemanAuthHeader(c)
+	if clean == "settings" && r.Method == http.MethodPut && body != http.NoBody {
+		raw, readErr := io.ReadAll(body)
+		if readErr != nil {
+			codemanError(w, 400, "INVALID_INPUT", "could not read Codeman settings")
+			return
+		}
+		var patch map[string]json.RawMessage
+		var voice map[string]json.RawMessage
+		if json.Unmarshal(raw, &patch) == nil && json.Unmarshal(patch["voiceSettings"], &voice) == nil && voice != nil {
+			// Codeman replaces the entire voiceSettings object. Merge the
+			// edit here so the saved API key never needs to reach the browser.
+			codemanVoiceSettingsMu.Lock()
+			defer codemanVoiceSettingsMu.Unlock()
+			existing, status, err := codemanReadVoiceSettings(r.Context(), c, auth)
+			if err != nil {
+				if status == http.StatusUnauthorized {
+					codemanError(w, 502, "CODEMAN_AUTH", "Codeman rejected the configured credentials")
+				} else {
+					codemanError(w, 502, "CODEMAN_SETTINGS", "could not read the current Codeman voice settings")
+				}
+				return
+			}
+			for key, value := range voice {
+				if key == "silenceTimeout" && string(value) == "null" {
+					// An omitted timeout uses Codeman's provider default.
+					delete(existing, key)
+				} else {
+					existing[key] = value
+				}
+			}
+			patch["voiceSettings"], _ = json.Marshal(existing)
+			raw, _ = json.Marshal(patch)
+		}
+		body = bytes.NewReader(raw)
+		contentLength = int64(len(raw))
 	}
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, target, body)
 	if err != nil {
 		codemanError(w, 400, "INVALID_INPUT", "invalid Codeman request")
 		return
 	}
-	if r.ContentLength > 0 {
-		req.ContentLength = r.ContentLength
+	if contentLength > 0 {
+		req.ContentLength = contentLength
 	} else if body == http.NoBody {
 		req.ContentLength = 0
 	}
 	for _, h := range codemanForwardRequestHeaders {
+		// Rewritten settings have a different representation from Codeman's.
+		if clean == "settings" && (h == "If-None-Match" || h == "If-Modified-Since" || h == "Range") {
+			continue
+		}
 		if v := r.Header.Get(h); v != "" {
 			req.Header.Set(h, v)
 		}
 	}
-	if auth := codemanAuthHeader(c); auth != "" {
+	if auth != "" {
 		req.Header.Set("Authorization", auth)
 	}
 	// Les envois de fichiers de Codeman exigent une origine identique ou cet
@@ -447,6 +491,10 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 	// navigateur redemanderait le mot de passe de Loom.
 	if resp.StatusCode == http.StatusUnauthorized {
 		codemanError(w, 502, "CODEMAN_AUTH", "Codeman rejected the configured credentials")
+		return
+	}
+	if clean == "settings" && resp.StatusCode == http.StatusOK && r.Method == http.MethodGet {
+		codemanSendSettings(w, resp)
 		return
 	}
 	for _, h := range codemanForwardResponseHeaders {
@@ -483,6 +531,78 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// Codeman normally wraps settings in {success, data}; older versions
+// can send the settings object itself.
+func codemanSettingsData(r io.Reader) (envelope, data map[string]json.RawMessage, err error) {
+	err = json.NewDecoder(io.LimitReader(r, codemanBodyLimit)).Decode(&envelope)
+	if err != nil {
+		return nil, nil, err
+	}
+	data = envelope
+	if value, ok := envelope["data"]; ok {
+		data = nil
+		if err = json.Unmarshal(value, &data); err != nil {
+			return nil, nil, err
+		}
+	}
+	if data == nil || string(envelope["success"]) == "false" {
+		return nil, nil, errors.New("invalid Codeman settings")
+	}
+	return envelope, data, nil
+}
+
+func codemanReadVoiceSettings(ctx context.Context, c codemanConfig, auth string) (map[string]json.RawMessage, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL+"/api/v1/settings", nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+	resp, err := codemanHTTP(c.URL).Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, resp.StatusCode, errors.New("could not read Codeman settings")
+	}
+	_, data, err := codemanSettingsData(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	voice := map[string]json.RawMessage{}
+	if raw, ok := data["voiceSettings"]; ok && string(raw) != "null" {
+		err = json.Unmarshal(raw, &voice)
+	}
+	return voice, resp.StatusCode, err
+}
+
+func codemanSendSettings(w http.ResponseWriter, resp *http.Response) {
+	envelope, data, err := codemanSettingsData(resp.Body)
+	if err != nil {
+		codemanError(w, 502, "CODEMAN_SETTINGS", "could not read Codeman settings")
+		return
+	}
+	if raw, ok := data["voiceSettings"]; ok {
+		var voice map[string]json.RawMessage
+		if json.Unmarshal(raw, &voice) == nil && voice != nil {
+			var key string
+			_ = json.Unmarshal(voice["apiKey"], &key)
+			delete(voice, "apiKey")
+			voice["apiKeySet"], _ = json.Marshal(key != "")
+			data["voiceSettings"], _ = json.Marshal(voice)
+		} else {
+			delete(data, "voiceSettings")
+		}
+		if _, wrapped := envelope["data"]; wrapped {
+			envelope["data"], _ = json.Marshal(data)
+		}
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	web.SendJSON(w, resp.StatusCode, envelope)
 }
 
 var codemanSessionIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)

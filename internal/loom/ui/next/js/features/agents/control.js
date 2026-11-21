@@ -6,19 +6,20 @@ import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { api, cm } from './client.js';
-import { agents, stateOf, sessionList, projectOf, cliOf, capsOf, hasConversation, onDomain } from './store.js';
+import { agents, stateOf, projectOf, cliOf, capsOf, onDomain, loadHistory } from './store.js';
 import { answerApproval, dismissApproval, interrupt } from './actions.js';
 import { StateDot, ago } from './rail.js';
 import { HistoryRow } from './side.js';
 import { CliMark } from './new-session.js';
 import { officialLink, openSession } from './nav.js';
 import { Menu } from '../../ui/controls.js';
-import { get } from '../../core/api.js';
-import { visibleRefresh } from '../../core/poll.js';
 import { ServerSetup, disconnectServer } from './connection.js';
 import { canInstall, InstallCli } from './settings.js';
 import { schedule } from './cron.js';
 import { setViewOf } from './layout.js';
+import { go } from '../../core/state.js';
+
+const PAGE_SIZE = 8;
 
 function ApprovalRow({ a }) {
   const [busy, setBusy] = useState(false);
@@ -39,18 +40,36 @@ function ApprovalRow({ a }) {
     </div></li>`;
 }
 
-function SessionCard({ s }) {
-  const state = stateOf(s);
-  return html`<li class=${cls('cm-cc-card', 'st-' + state)}>
-    <button class="cm-cc-card-main" onClick=${() => openSession(s.id)}>
+function SessionRow({ s, state }) {
+  const activity = s.lastActivityAt || s.createdAt;
+  return html`<li class=${cls('cm-session-row', 'st-' + state)}>
+    <button class="cm-session-open" type="button" onClick=${() => openSession(s.id)}>
       <${CliMark} mode=${s.mode} size="sm" />
-      <span class="grow"><b class="trunc">${s.name || s.id.slice(0, 8)}</b><small class="trunc muted">${projectOf(s.workingDir)} · ${cliOf(s.mode).label}${s.displayModel?.model ? ' · ' + s.displayModel.model : ''}</small></span>
-      <span class="cm-cc-state"><${StateDot} state=${state} />${lt('state', state)}</span></button>
-    <div class="cm-cc-card-f"><span class="muted">${ago(s.lastActivityAt)}</span>
-      ${s.tokens?.total > 0 && html`<span class="muted mono">${Math.round(s.tokens.total / 1000)}k tok</span>`}
-      <span class="grow"></span>
-      ${state === 'working' && html`<button class="btn sm ghost" onClick=${() => interrupt(s.id).catch(e => toast(e.message, 'err'))}><${Icon} n="stop" />${t('agents.composer.interrupt')}</button>`}</div>
+      <span class="cm-session-title">
+        <b class="trunc" title=${s.name}>${s.name || s.id.slice(0, 8)}</b>
+        ${s.workingDir && html`<small class="trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</small>`}
+      </span>
+      <span class="cm-session-meta">
+        <span class="cm-cc-state"><${StateDot} state=${state} /><span>${lt('state', state)}</span></span>
+        ${activity && html`<time datetime=${new Date(activity).toISOString()} title=${new Date(activity).toLocaleString(locale())}>${ago(activity)}</time>`}
+      </span>
+    </button>
+    ${state === 'working' && html`<button class="icon-btn cm-session-stop" type="button"
+      aria-label=${t('agents.composer.interrupt')} title=${t('agents.composer.interrupt')}
+      onClick=${() => interrupt(s.id).catch(e => toast(e.message, 'err'))}><${Icon} n="stop" /></button>`}
   </li>`;
+}
+
+function Sessions({ list, loaded }) {
+  const [expanded, setExpanded] = useState(false);
+  return html`<section class="cm-cc-sec">
+    <h2>${t('agents.cc.board')}</h2>
+    ${list.length ? html`<ul class="cm-session-list" id="cm-live-sessions">
+      ${(expanded ? list : list.slice(0, PAGE_SIZE)).map(({ s, state }) => html`<${SessionRow} key=${s.id} s=${s} state=${state} />`)}
+    </ul>` : html`<p class="cm-admin-empty">${loaded ? t('agents.rail.empty') : t('agents.conn.connecting')}</p>`}
+    ${list.length > PAGE_SIZE && html`<button class="btn sm ghost cm-more" aria-controls="cm-live-sessions"
+      aria-expanded=${expanded} onClick=${() => setExpanded(!expanded)}>${expanded ? t('agents.cc.less') : t('agents.cc.more')}</button>`}
+  </section>`;
 }
 
 function ServerCard({ counts, update }) {
@@ -89,6 +108,7 @@ function ServerCard({ counts, update }) {
       <button class="icon-btn" aria-label=${t('agents.admin.server_menu')} aria-expanded=${!!anchor} onClick=${e => setAnchor(e.currentTarget)}><${Icon} n="more" /></button>
     </div>
     ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[
+      ...(innerWidth > 760 ? [{ label: t('agents.nav.grid'), icon: 'grid', run: () => go('agents', 'grid') }] : []),
       { label: t('agents.setup.change'), icon: 'plug', run: () => setChange(true) },
       { label: t('agents.setup.disconnect'), danger: true, run: disconnectServer },
     ]} />`}
@@ -98,81 +118,71 @@ function ServerCard({ counts, update }) {
   </section>`;
 }
 
-// Only compare account-wide windows or limits for the same model family.
-function usageRows(account) {
-  const groups = new Map();
-  const percent = new Intl.NumberFormat(locale(), { style: 'percent' });
-  for (const limit of account?.limits || []) {
-    if (!['5h', '7d'].includes(limit.window) || !Number.isFinite(limit.used)) continue;
-    const name = [limit.group, limit.label].filter(Boolean).join(' · ');
-    if (!groups.has(name)) groups.set(name, {});
-    groups.get(name)[limit.window] = percent.format(limit.used / 100);
-  }
-  return [...groups].map(([name, values]) => [name, [values['5h'] || '—', values['7d'] || '—'].join(' · ')].filter(Boolean).join(' · '));
-}
-
-function HarnessTable() {
+function HarnessTable({ list, loaded }) {
   const clis = useStore(agents, s => s.clis);
-  const manage = useStore(agents, s => s.settings.cliManagementEnabled === true);
-  const sessions = useStore(agents, s => s.sessions);
-  const loaded = useStore(agents, s => s.loaded);
-  const [accounts, setAccounts] = useState([]);
-  useEffect(() => visibleRefresh(async alive => {
-    const data = await get('/api/quotas', { retryAuth: false, timeout: 45000 });
-    if (alive() && Array.isArray(data?.accounts)) setAccounts(data.accounts);
-  }, 120000), []);
+  const manage = useStore(agents, s => s.settings.cliManagementEnabled === true && (!s.conn.multi_user || s.conn.role !== 'user'));
   const harnesses = clis.filter(c => c.kind !== 'shell');
+  const counts = new Map();
+  for (const { s, state } of list) {
+    if (s.pid != null && !['error', 'stopped'].includes(state)) counts.set(s.mode, (counts.get(s.mode) || 0) + 1);
+  }
   return html`<section class="cm-cc-sec">
     <h2>${t('agents.admin.harness')}</h2>
     ${!harnesses.length ? html`<p class="cm-admin-empty">${loaded ? t('agents.admin.no_registry') : t('agents.conn.connecting')}</p>`
       : html`<table class="cm-harness"><thead><tr>
-        <th>${t('agents.admin.harness')}</th><th>${t('settings.page.version')}</th><th>${t('agents.admin.account')}</th>
-        <th>${t('agents.admin.windows')}</th><th>${t('agents.admin.in_loom')}</th><th aria-label=${t('app.shell.actions')}></th>
-      </tr></thead><tbody>${harnesses.map(c => {
-        const account = accounts.find(a => a.id === (c.id === 'gemini' ? 'antigravity' : c.id));
-        const installedVersion = c.installed !== false && (c.installedVersion || c.version);
-        const observed = !installedVersion && c.installed === true && Object.values(sessions)
-          .filter(s => s.mode === c.id && s.cliVersion).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0]?.cliVersion;
-        const version = installedVersion || (observed ? t('agents.admin.session_version', { v: observed }) : '');
-        const caps = capsOf(c.id);
-        const capability = caps.approvals === 'answer' ? t('agents.admin.cap_answer')
-          : hasConversation(c.id) ? t('agents.admin.cap_terminal') : t('agents.caps.shell');
-        const plan = [account?.plan];
-        if (Number.isFinite(account?.credits)) plan.push(t('agents.admin.credits', { n: account.credits }));
-        if (account?.resets?.exact && account.resets.available > 0) plan.push(t('agents.admin.resets', { n: account.resets.available }));
-        const accountText = plan.filter(Boolean).join(' · ');
-        const usage = usageRows(account);
-        const mobileMeta = [version, accountText, ...usage].filter(Boolean).join(' · ');
-        return html`<tr key=${c.id}>
-          <th scope="row"><span class="cm-harness-name"><${CliMark} mode=${c.id} size="sm" /><span>${c.label}<small class="cm-harness-meta">${mobileMeta || (c.installed === false ? t('agents.new.not_installed') : '')}</small></span></span></th>
-          <td class="cm-harness-version mono">${version || '—'}</td>
-          <td class="cm-harness-account">${accountText || '—'}</td>
-          <td class="cm-harness-usage">${usage.length ? usage.map(row => html`<span class="cm-usage-line" key=${row}>${row}</span>`) : '—'}</td>
-          <td class="cm-harness-caps">${capability}</td>
-          <td class="cm-harness-action">${canInstall(c) ? html`<${InstallCli} cli=${c} manage=${manage} />`
-            : c.installed === false ? t('agents.new.not_installed') : c.enabled === false ? t('agents.cfg.cli.off') : c.installed === true ? t('agents.caps.installed') : ''}</td>
-        </tr>`;
-      })}</tbody></table>`}
+        <th scope="col">${t('agents.admin.harness')}</th>
+        <th scope="col" class="cm-harness-count">${t('agents.admin.active_sessions')}</th>
+        <th scope="col" class="cm-harness-action">${t('agents.admin.installation')}</th>
+      </tr></thead><tbody>${harnesses.map(c => html`<tr key=${c.id}>
+        <th scope="row"><span class="cm-harness-name"><${CliMark} mode=${c.id} size="sm" /><span>${c.label}</span></span></th>
+        <td class="cm-harness-count">${counts.get(c.id) || 0}</td>
+        <td class="cm-harness-action">
+          ${c.installed === true ? t('agents.caps.installed')
+            : canInstall(c) ? html`<${InstallCli} cli=${c} manage=${manage} />`
+            : c.installed === false ? t('agents.new.not_installed') : '—'}
+        </td>
+      </tr>`)}</tbody></table>`}
   </section>`;
 }
 
 const ORDER = ['waiting', 'error', 'limited', 'working', 'starting', 'idle', 'stopped'];
-// Conversations passées que Codeman sait reprendre (dans le même dossier).
-function ResumeList() {
+const timeOf = r => r.lastActivityAt || r.createdAt || 0;
+
+function ResumeList({ sessions }) {
   const unified = useStore(agents, s => s.unified);
-  useStore(agents, s => s.order);
-  const ids = new Set(sessionList().map(s => s.id));
-  const rows = unified.filter(r => !(r.sources || []).includes('live') && !ids.has(r.sessionId))
-    .sort((a, b) => (b.lastActivityAt || 0) - (a.lastActivityAt || 0)).slice(0, 12);
-  if (!rows.length) return null;
+  const total = useStore(agents, s => s.historyTotal);
+  const offset = useStore(agents, s => s.historyOffset);
+  const error = useStore(agents, s => s.historyError);
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [busy, setBusy] = useState(false);
+  const rows = unified.filter(r => r.workingDir && !r.remote && !sessions[r.sessionId] && !r.sources?.includes('live'))
+    .sort((a, b) => timeOf(b) - timeOf(a));
+  const more = offset < total;
+  const showMore = async () => {
+    if (busy) return;
+    if (limit >= rows.length && more) {
+      setBusy(true);
+      const loaded = await loadHistory(true);
+      setBusy(false);
+      if (!loaded) return;
+    }
+    setLimit(limit + PAGE_SIZE);
+  };
   return html`<section class="cm-cc-sec">
     <h2>${t('agents.cc.resume')}</h2>
-    <div class="cm-resume">${rows.map(r => html`<${HistoryRow} key=${r.sessionId} r=${r} />`)}</div>
+    ${error && html`<p class="msg-err" role="alert">${error}</p>`}
+    ${rows.length ? html`<ul class="cm-resume" id="cm-resume-sessions">
+      ${rows.slice(0, limit).map(r => html`<li key=${r.sessionId}><${HistoryRow} r=${r} /></li>`)}
+    </ul>` : !error && html`<p class="cm-admin-empty">${total < 0 ? t('agents.conn.connecting') : t('agents.cc.no_history')}</p>`}
+    ${rows.length === 0 && error && !more && html`<button class="btn sm ghost cm-more" onClick=${() => loadHistory()}>${t('agents.cfg.retry')}</button>`}
+    ${(rows.length > limit || more) && html`<button class="btn sm ghost cm-more" disabled=${busy}
+      aria-controls=${rows.length ? 'cm-resume-sessions' : undefined} onClick=${showMore}>${t('agents.cc.more')}</button>`}
   </section>`;
 }
 
 export function ControlCenter() {
-  useStore(agents, s => [s.order, s.sessions]);
+  const order = useStore(agents, s => s.order);
+  const sessions = useStore(agents, s => s.sessions);
   const approvals = useStore(agents, s => s.approvals);
   const loaded = useStore(agents, s => s.loaded);
   const conn = useStore(agents, s => s.conn);
@@ -195,30 +205,29 @@ export function ControlCenter() {
     const off = onDomain('cron', load);
     return () => { active = false; off(); };
   }, [conn.url, conn.version]);
-  const list = sessionList().sort((a, b) => ORDER.indexOf(stateOf(a)) - ORDER.indexOf(stateOf(b)) || (b.lastActivityAt || 0) - (a.lastActivityAt || 0));
-  const working = list.filter(s => ['working', 'starting'].includes(stateOf(s))).length;
+  const list = order.map(id => sessions[id]).filter(Boolean).map(s => ({ s, state: stateOf(s) }))
+    .sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || timeOf(b.s) - timeOf(a.s));
+  const working = list.filter(({ state }) => state === 'working' || state === 'starting').length;
   const pending = approvals.filter(a => a.kind !== 'idle');
   const counts = loaded ? [t('agents.admin.sessions', { n: list.length }), t('agents.admin.working', { n: working }), t('agents.admin.waiting', { n: pending.length })] : [];
   if (jobs) counts.push(t('agents.admin.scheduled', { n: jobs.filter(j => j.enabled).length }));
   const next = (jobs || []).filter(j => j.enabled && j.nextRunAt).sort((a, b) => a.nextRunAt - b.nextRunAt).slice(0, 4);
   const fmt = ms => new Date(ms).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   return html`<div class="cm-scroll"><div class="cm-cc">
+    <${Sessions} list=${list} loaded=${loaded} />
     <${ServerCard} key=${conn.url} counts=${counts} update=${update} />
     <section class="cm-cc-sec">
       <h2>${t('agents.cc.attention')}</h2>
       ${approvals.length ? html`<ul class="cm-cc-list">${[...pending, ...approvals.filter(a => a.kind === 'idle')].map(a => html`<${ApprovalRow} key=${a.id} a=${a} />`)}</ul>`
         : html`<p class="cm-admin-empty">${loaded ? t('agents.cc.nothing') : t('agents.conn.connecting')}</p>`}
     </section>
-    <${HarnessTable} />
+    <${HarnessTable} list=${list} loaded=${loaded} />
     <section class="cm-cc-sec">
       <div class="cm-section-head"><h2>${t('agents.cc.next')}</h2><a href="#/agents/cron">${t('agents.cc.all_cron')}</a></div>
       ${error && html`<p class="msg-err">${error}</p>`}
       ${next.length ? html`<ul class="cm-next-runs">${next.map(j => html`<li key=${j.id}><b>${j.name}</b><span>${cliOf(j.agentType).label} · ${schedule(j)}</span><time>${fmt(j.nextRunAt)}</time></li>`)}</ul>`
         : !error && html`<p class="cm-admin-empty">${jobs ? t('agents.cc.no_next') : t('agents.conn.connecting')}</p>`}
     </section>
-    <${ResumeList} />
-    <details class="cm-session-board"><summary>${t('agents.cc.board')} · ${list.length}</summary>
-      ${list.length ? html`<ul class="cm-cc-grid">${list.map(s => html`<${SessionCard} key=${s.id} s=${s} />`)}</ul>` : html`<p class="muted">${t('agents.rail.empty')}</p>`}
-    </details>
+    <${ResumeList} sessions=${sessions} />
   </div></div>`;
 }
