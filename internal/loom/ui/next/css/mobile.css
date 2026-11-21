@@ -154,7 +154,11 @@
 .inbox-list .cm-approval-acts{margin-top:4px}
 .inbox-reply,.cm-phone-line{display:flex;flex-direction:row;align-items:center;gap:6px;padding:4px 4px 4px 12px;border:0;border-radius:var(--r-pill);background:var(--surface-2)}
 .inbox-reply{margin-top:10px}
-.inbox-reply input,.cm-phone-line input{flex:1;min-width:0;min-height:44px;border:0;background:none;outline:none}
+.inbox-reply input,.cm-phone-line input{flex:1;min-width:0;min-height:44px;border:0;border-radius:0;background:none;outline:none;box-shadow:none;-webkit-appearance:none;appearance:none;font-size:16px}
+.inbox-reply input:focus,.inbox-reply input:focus-visible,.cm-phone-line input:focus,.cm-phone-line input:focus-visible{outline:none;box-shadow:none}
+.cm-phone-line{padding-left:4px}
+.cm-line-keys{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:var(--r-pill);color:var(--text-2)}
+.cm-line-keys.on{background:var(--surface-3);color:var(--text)}
 .inbox-dismiss{margin-top:8px}
 .inbox-completed{display:grid;gap:8px}
 .inbox-completed .inbox-done{color:var(--green)}
@@ -175,6 +179,7 @@
   :root{--phone-left:max(12px,env(safe-area-inset-left));--phone-right:max(12px,env(safe-area-inset-right));--phone-top:env(safe-area-inset-top);--phone-bottom:env(safe-area-inset-bottom)}
   html,body{-webkit-tap-highlight-color:transparent}
   html.kb-open{--phone-bottom:0px}
+  html.kb-open.ios-browser{--phone-bottom:22px}
   input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea,select,[contenteditable=true]{font-size:16px!important}
   .phone-app{flex-direction:column}
   .app.phone-app .main{min-height:0;padding:0}
@@ -264,9 +269,11 @@
   .phone-composer .send,.inbox-reply .send,.cm-phone-line .send{width:44px;height:44px;flex:none;border-radius:var(--r-pill)}
   .cm-phone-term{flex-direction:column;padding-bottom:var(--phone-bottom)}
   .cm-phone-term .cm-term-box,.cm-boot-term{border-radius:var(--r-lg)}
-  .phone-app .cm-acc{flex-wrap:wrap;gap:2px;overflow:visible;padding:4px var(--phone-right) 4px var(--phone-left);background:transparent}
-  .phone-app .cm-acc button{flex:1 0 auto;min-width:44px;min-height:44px;padding-inline:4px;background:var(--surface-2);color:var(--text);font-family:var(--mono)}
-  .phone-app .cm-acc button.on{background:var(--ink);color:var(--on-ink)}
+  .phone-app .cm-acc{flex-wrap:nowrap;gap:0;overflow-x:auto;padding:0 calc(var(--phone-right) - 2px) 0 calc(var(--phone-left) - 2px);border:0;background:transparent}
+  .phone-app .cm-acc button,.phone-app .cm-acc button.on,.phone-app .cm-acc button:active{flex:none;min-width:44px;height:44px;padding:0 2px;border-radius:0;background:none;color:var(--text);font:500 12px var(--mono)}
+  .phone-app .cm-acc button>span{display:flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border-radius:var(--r-pill);background:var(--surface-2)}
+  .phone-app .cm-acc button:active>span{background:var(--surface-3)}
+  .phone-app .cm-acc button.on>span{background:var(--ink);color:var(--on-ink)}
   .phone-app .cm-acc .cm-acc-break{color:var(--red)}
   .cm-phone-line{width:calc(100% - var(--phone-left) - var(--phone-right));margin:0 auto 8px}
   .phone-app .cm-term:has(.cm-phone-line) .cm-term-state{top:6px}
@@ -324,4 +331,8 @@
   /* Machines : titre à gauche, bouton d'ajout sur la même ligne */
   .phone-management .mc-page .page-head{flex-direction:row;align-items:center;justify-content:space-between;text-align:start}
   .phone-management .mc-page .page-head h1{margin:0}
+}
+@media (max-width:760px){
+  /* Un seul fond du haut en bas, comme les autres écrans du téléphone. */
+  .phone-app .view.cm,.phone-app .cm-term-wrap{background:var(--bg)}
 }

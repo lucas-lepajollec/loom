@@ -23,7 +23,7 @@ export function phoneLayoutIssues() {
     // own bounds, but not the tabs outside its clipped scroll area.
     let clipped = false;
     for (let p = el.parentElement; p && !roots.includes(el); p = p.parentElement) {
-      if (p.matches('.tabs, .sec-tabs, .insp-scroll, .pick-list, .thread, .cm-term-box') && /auto|hidden|scroll/.test(getComputedStyle(p).overflowX)) { clipped = true; break; }
+      if (p.matches('.tabs, .sec-tabs, .insp-scroll, .pick-list, .thread, .cm-term-box, .cm-acc') && /auto|hidden|scroll/.test(getComputedStyle(p).overflowX)) { clipped = true; break; }
     }
     if (!clipped && (r.left < -tolerance || r.right > width + tolerance)) issues.push('outside viewport: ' + name(el));
     if (el.matches('button, .btn') && r.width > width + tolerance) issues.push('button wider than viewport: ' + name(el));
