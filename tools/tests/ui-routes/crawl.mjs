@@ -125,7 +125,8 @@ try {
       try { return route.fulfill({ body: readFileSync(file), contentType: types[ext] || 'application/octet-stream' }); }
       catch (_) { return route.abort(); }
     });
-    page.on('pageerror', e => errors.push(e.message));
+    // La première ligne de pile située dans Loom indique d'où vient l'erreur.
+    page.on('pageerror', e => errors.push(e.message + ((e.stack || '').split('\n').slice(1).find(l => /\/next\//.test(l))?.trim().replace(/^at /, ' @ ') || '')));
     page.on('response', async response => {
       const url = new URL(response.url());
       if (!url.pathname.startsWith('/api/') || url.pathname.startsWith('/api/auth/') || url.pathname === '/api/prefs' || response.request().method() !== 'GET') return;
@@ -219,6 +220,8 @@ try {
         await page.getByRole('menuitem', { name: dictionary['local.page.regler'], exact: true }).waitFor();
         await inspect(page, errors, label + ' model actions');
         await page.keyboard.press('Escape');
+        // The menu sheet animates out; a click during it lands on the sheet.
+        await page.getByRole('menu').waitFor({ state: 'detached' });
         await page.locator('.models-phone-download').click();
         await page.locator('.phone-section-tabs a[href="#/local/hub"][aria-current=page]').waitFor();
         await page.locator('.phone-back-link[href="#/more"]').click();

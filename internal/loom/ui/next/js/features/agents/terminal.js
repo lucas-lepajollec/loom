@@ -5,7 +5,7 @@ import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
 import { html, useEffect, useRef, useState, cls } from '../../core/lib.js';
 import { visibleConnection } from '../../core/poll.js';
-import { loadXterm } from '../../ui/xterm.js';
+import { loadXterm, disposeTerm } from '../../ui/xterm.js';
 import { Icon } from '../../ui/icons.js';
 import { api, sendPrompt, terminalClientId } from './client.js';
 import { agentDraftKey } from './actions.js';
@@ -445,7 +445,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       el.addEventListener('drop', onDrop, true);
       detach = () => { stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart, true); el.removeEventListener('touchmove', onTouchMove, true); el.removeEventListener('touchend', onTouchEnd); el.removeEventListener('touchcancel', onTouchCancel); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
-    return () => { try { saveRef.current?.(); } catch (_) {} alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
+    return () => { try { saveRef.current?.(); } catch (_) {} alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); disposeTerm(term); };
   }, [sessionId, readOnly]);
   // Un volet qui reçoit le focus donne le clavier à son terminal.
   // Sur téléphone, le clavier ne s'ouvre qu'au toucher (comme dans Codeman).
