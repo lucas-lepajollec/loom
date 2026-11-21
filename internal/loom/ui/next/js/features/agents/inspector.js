@@ -192,7 +192,7 @@ function SessionMenu({ s, phone }) {
     { label: t('agents.session.detach'), icon: 'power', run: () => close(false) },
     { label: t('agents.session.close'), icon: 'trash', danger: true, run: () => close(true) },
   ];
-  return html`<button class=${cls(phone ? 'btn sm' : 'icon-btn', menu && 'on')} aria-label=${t('agents.session.actions')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="more" />${phone && t('mobile.session_options')}</button>
+  return html`<button class=${cls(phone ? 'btn sm' : 'icon-btn', menu && 'on')} aria-label=${t('agents.session.actions')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="more" />${phone && t('mobile.session_options_short')}</button>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}`;
 }
 

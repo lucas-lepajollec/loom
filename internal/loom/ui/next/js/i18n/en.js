@@ -30,6 +30,7 @@ export default {
   "mobile.session_folder": "Session folder",
   "mobile.no_folder": "No folder",
   "mobile.session_options": "Session options",
+  "mobile.session_options_short": "Options",
   "mobile.first_message": "First message",
   "mobile.first_message_draft": "Your first message is ready in the composer.",
   "mobile.first_message_uncertain": "Check the terminal before resending your first message. Delivery could not be confirmed.",
