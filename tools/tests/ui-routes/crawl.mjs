@@ -177,6 +177,36 @@ try {
         await page.locator('.models-row .btn.sm:not(.ghost)').first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
       }
+      if (scenario === 'phone-layout' && r === 'agents') {
+        const rows = page.locator('.cm-session-row');
+        await rows.first().waitFor();
+        if (await rows.count() !== 8) throw new Error('Agents overview should show eight live sessions');
+        await page.locator('[aria-controls="cm-live-sessions"]').click();
+        await rows.nth(9).waitFor({ state: 'attached' });
+        if (await rows.count() !== 10) throw new Error('Agents overview did not expand the live list');
+        const past = page.locator('.cm-history-link');
+        await past.first().waitFor();
+        await page.locator('[aria-controls="cm-resume-sessions"]').click();
+        await past.nth(9).waitFor({ state: 'attached' });
+        if (await past.count() !== 10) throw new Error('Agents overview did not expand the history list');
+      }
+      if (scenario === 'phone-layout' && r === 'agents/cron') {
+        await page.locator('.cm-job-t').first().click();
+        await page.locator('#cm-cron-schedule').selectOption('custom');
+        await page.locator('.cm-job-editor input[aria-describedby="cm-cron-expression-hint"]').fill('0 9 * * MON-FRI');
+        if (await page.locator('.cm-editor-foot button[type=submit]').isDisabled()) throw new Error('A supported cron expression could not be saved');
+      }
+      if (scenario === 'phone-layout' && r === 'agents/settings') {
+        await page.locator('.cm-cfg-body .set-group').first().waitFor();
+        const summaries = page.locator('.cm-cfg-body .set-fold > summary');
+        if (await summaries.count()) {
+          await summaries.first().click();
+          await inspect(page, errors, label + ' session defaults');
+          await page.locator('.cm-cfg-picker select').selectOption('notifications');
+          await summaries.last().click();
+          await page.locator('.cm-setting-json input[type=password]').waitFor();
+        }
+      }
       await inspect(page, errors, label + ' degraded');
       if (!['fresh', 'healthy', 'phone-layout'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);
       if (!['fresh', 'healthy', 'phone-layout'].includes(scenario)) {

@@ -1,6 +1,6 @@
 // Pièces de la barre latérale propres à Codeman : l'historique à reprendre et
 // la fenêtre « nouvelle session ». La liste elle-même est dans app/sessions.js.
-import { t } from '../../core/i18n.js';
+import { t, locale } from '../../core/i18n.js';
 import { html, useState, useStore, useEffect } from '../../core/lib.js';
 import { confirm, toast } from '../../ui/dialog.js';
 import { agents, projectOf } from './store.js';
@@ -8,6 +8,7 @@ import { placeSession } from './layout.js';
 import { resumeSession, resumeSupport } from './actions.js';
 import { CliMark, NewSession } from './new-session.js';
 import { openSession } from './nav.js';
+import { ago } from './rail.js';
 
 export function HistoryRow({ r }) {
   const [busy, setBusy] = useState(false);
@@ -19,10 +20,15 @@ export function HistoryRow({ r }) {
     setBusy(true);
     try { openSession(await resumeSession(r)); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
-  return html`<button class="chat-link sub cm-side-hist" disabled=${busy} onClick=${resume} title=${r.workingDir}>
-    <${CliMark} mode=${r.mode || 'claude'} size="xs" />
-    <span>${r.name || (r.firstPrompt ? r.firstPrompt.slice(0, 60) : r.sessionId.slice(0, 8))}</span>
-    ${busy ? html`<span class="spinner"></span>` : html`<small>${projectOf(r.workingDir)}</small>`}</button>`;
+  const activity = r.lastActivityAt || r.createdAt;
+  const title = r.name || r.firstPrompt || r.sessionId.slice(0, 8);
+  return html`<button class="cm-history-link" disabled=${busy} onClick=${resume}>
+    <${CliMark} mode=${r.mode || 'claude'} size="sm" />
+    <span class="cm-session-title"><b class="trunc" title=${title}>${title}</b>
+      <small class="trunc" title=${r.workingDir}>${projectOf(r.workingDir)}</small></span>
+    ${busy ? html`<span class="spinner"></span>`
+      : activity && html`<time datetime=${new Date(activity).toISOString()} title=${new Date(activity).toLocaleString(locale())}>${ago(activity)}</time>`}
+  </button>`;
 }
 
 // Fenêtre « nouvelle session », ouverte depuis la barre latérale, la page ou

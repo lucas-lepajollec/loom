@@ -6,7 +6,8 @@ import { api, gateway, connectEvents } from './client.js';
 
 export const agents = createStore({
   conn: { state: 'idle', configured: false, auth: '', version: '', error: '', ui_url: '', url: '', password_set: false },
-  sessions: {}, order: [], unified: [], clis: [], cases: [], approvals: [], restore: [],
+  sessions: {}, order: [], unified: [], historyOffset: 0, historyTotal: -1, historyError: '',
+  clis: [], cases: [], approvals: [], restore: [],
   live: false, loaded: false,
   // Dernière mesure des quotas d'abonnement (Claude 5 h / 7 j, Codex).
   planUsage: null,
@@ -48,9 +49,9 @@ export function stateOf(s) {
   if (!s) return 'gone';
   if (approvalsFor(s.id).some(a => a.kind !== 'idle')) return 'waiting';
   if (s.status === 'error') return 'error';
-  if (s.pid == null) return Date.now() - (s.createdAt || 0) < 90000 && s.status !== 'stopped' ? 'starting' : 'stopped';
   // Arrêtée sur une limite d'abonnement, Codeman la relancera à la remise à zéro.
   if (s.autoResumeAt && s.autoResumeAt > Date.now()) return 'limited';
+  if (s.pid == null) return Date.now() - (s.createdAt || 0) < 90000 && s.status !== 'stopped' ? 'starting' : 'stopped';
   if (s.isWorking || s.status === 'busy') return 'working';
   return 'idle';
 }
@@ -83,7 +84,19 @@ export async function refreshConnection() {
   try {
     const [cfg, st] = await Promise.all([gateway.config(), gateway.status()]);
     const state = !st.reachable ? 'unreachable' : st.auth === 'ok' ? 'ready' : st.auth === 'rejected' ? (cfg.password_set ? 'rejected' : 'auth') : 'error';
-    agents.set({ conn: { state, configured: !!cfg.configured, auth: st.auth, version: st.version || '', error: st.error || '', ui_url: st.ui_url || '', url: cfg.url, username: cfg.username, password_set: cfg.password_set, multi_user: !!st.multi_user } });
+    const conn = { state, configured: !!cfg.configured, auth: st.auth, version: st.version || '', error: st.error || '', ui_url: st.ui_url || '', url: cfg.url, username: cfg.username, password_set: cfg.password_set, multi_user: !!st.multi_user, role: st.role };
+    const prev = agents.get().conn;
+    if (conn.url !== prev.url || conn.username !== prev.username || conn.role !== prev.role) {
+      historyRevision++;
+      agents.set({
+        conn, sessions: {}, order: [], unified: [], historyOffset: 0, historyTotal: -1, historyError: '',
+        approvals: [], restore: [], clis: [], cases: [], settings: {}, planUsage: null, turns: {}, loaded: false, live: false,
+      });
+      if (stop) {
+        stop();
+        stop = state === 'ready' ? openEventStream() : null;
+      }
+    } else agents.set({ conn });
     return state;
   } catch (e) {
     agents.set({ conn: { ...agents.get().conn, state: 'error', error: e.message } });
@@ -92,12 +105,14 @@ export async function refreshConnection() {
 }
 
 export async function refreshAll() {
-  const [sessions, clis, approvals, unified, restore, cases, status, settings] = await Promise.allSettled([api.sessions(), api.clis(), api.approvals(), api.unified(), api.rebootRestore(), api.cases(), api.status(), api.settings()]);
+  const conn = agents.get().conn;
+  loadHistory().catch(() => {});
+  const [sessions, clis, approvals, restore, cases, status, settings] = await Promise.allSettled([api.sessions(), api.clis(), api.approvals(), api.rebootRestore(), api.cases(), api.status(), api.settings()]);
+  if (!sameServer(conn)) return;
   if (sessions.status === 'fulfilled' && Array.isArray(sessions.value)) setSessions(sessions.value);
   const patch = { loaded: true };
   if (clis.status === 'fulfilled' && Array.isArray(clis.value)) patch.clis = clis.value;
   if (approvals.status === 'fulfilled') patch.approvals = approvals.value?.approvals || [];
-  if (unified.status === 'fulfilled') patch.unified = unified.value?.sessions || [];
   if (restore.status === 'fulfilled') patch.restore = restore.value?.sessions || [];
   if (cases.status === 'fulfilled' && Array.isArray(cases.value)) patch.cases = cases.value;
   if (status.status === 'fulfilled' && status.value?.planUsage) patch.planUsage = status.value.planUsage;
@@ -105,10 +120,33 @@ export async function refreshAll() {
   agents.set(patch);
   if (sessions.status === 'rejected') throw sessions.reason;
 }
-let unifiedTimer;
+const sameServer = conn => {
+  const current = agents.get().conn;
+  return current.state === 'ready' && current.url === conn.url && current.username === conn.username && current.role === conn.role;
+};
+let unifiedTimer, historyRevision = 0;
+export async function loadHistory(more = false) {
+  const revision = ++historyRevision;
+  const { conn, unified, historyOffset } = agents.get();
+  const offset = more ? historyOffset : 0;
+  const current = () => revision === historyRevision && sameServer(conn);
+  try {
+    const data = await api.unified(offset);
+    if (!current()) return false;
+    const rows = data?.sessions || [];
+    const end = offset + rows.length;
+    const byId = new Map((more ? unified : []).map(row => [row.sessionId, row]));
+    for (const row of rows) byId.set(row.sessionId, row);
+    agents.set({ unified: [...byId.values()], historyOffset: end, historyTotal: rows.length ? data?.total ?? end : end, historyError: '' });
+    return true;
+  } catch (e) {
+    if (current()) agents.set({ historyError: e.message });
+    return false;
+  }
+}
 export function refreshUnified() {
   clearTimeout(unifiedTimer);
-  unifiedTimer = setTimeout(() => api.unified().then(r => agents.set({ unified: r?.sessions || [] })).catch(() => {}), 600);
+  unifiedTimer = setTimeout(() => loadHistory().catch(() => {}), 600);
 }
 export async function refreshApprovals() {
   try { const r = await api.approvals(); agents.set({ approvals: r?.approvals || [] }); } catch (_) {}
@@ -129,8 +167,8 @@ function onEvent(name, d) {
     case 'session:deleted': drop(idOf(d)); refreshUnified(); break;
     case 'session:working': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, isWorking: true, status: 'busy' }); break; }
     case 'session:idle': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, isWorking: false, status: 'idle' }); bumpTurn(id); break; }
-    case 'session:exit': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, pid: null, isWorking: false }); bumpTurn(id); break; }
-    case 'session:error': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, lastError: d.error }); break; }
+    case 'session:exit': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, pid: null, isWorking: false, status: 'stopped' }); bumpTurn(id); break; }
+    case 'session:error': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, lastError: d.error, status: 'error' }); break; }
     case 'session:interactive': case 'session:running': { const id = idOf(d); if (id) api.session(id).then(upsert).catch(() => {}); break; }
     case 'session:completion': case 'hook:stop': case 'transcript:complete': case 'hook:prompt_submitted': case 'transcript:tool_end':
       bumpTurn(idOf(d)); break;
@@ -162,15 +200,18 @@ export function onDomain(kind, fn) { listeners[kind].add(fn); return () => liste
 // Une seule connexion SSE pour tout le module, ouverte tant qu'une vue Agents
 // est montée (compteur de références).
 let refs = 0, stop = null;
+function openEventStream() {
+  return connectEvents({
+    onEvent,
+    onOpen: () => { agents.set({ live: true }); refreshAll().catch(() => {}); if (agents.get().conn.state !== 'ready') refreshConnection(); },
+    onDown: code => { agents.set({ live: false }); if (code === 'CODEMAN_AUTH' || code === 'CODEMAN_UNREACHABLE' || /^HTTP/.test(code)) refreshConnection(); },
+  });
+}
 export function useAgentsLive() {
   refs++;
   if (!stop) {
     agents.set({ conn: { ...agents.get().conn, state: agents.get().conn.state === 'ready' ? 'ready' : 'connecting' } });
-    stop = connectEvents({
-      onEvent,
-      onOpen: () => { agents.set({ live: true }); refreshAll().catch(() => {}); if (agents.get().conn.state !== 'ready') refreshConnection(); },
-      onDown: code => { agents.set({ live: false }); if (code === 'CODEMAN_AUTH' || code === 'CODEMAN_UNREACHABLE' || /^HTTP/.test(code)) refreshConnection(); },
-    });
+    stop = openEventStream();
   }
   return () => { if (--refs <= 0) { refs = 0; stop?.(); stop = null; agents.set({ live: false }); } };
 }

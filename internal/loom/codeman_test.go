@@ -221,6 +221,74 @@ func TestCodemanProxyInjectsCredentialsAndKeepsLoomAuthSeparate(t *testing.T) {
 	}
 }
 
+type codemanTestTransport func(*http.Request) (*http.Response, error)
+
+func (f codemanTestTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestCodemanSettingsRedactsAndPreservesVoiceKey(t *testing.T) {
+	testHome(t)
+	if err := saveCodemanConfig(codemanConfig{URL: "http://codeman.test", Username: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sealProviderSecret(codemanSecretID, "synthetic-codeman"); err != nil {
+		t.Fatal(err)
+	}
+	const voiceKey = "synthetic-voice-key"
+	settings := map[string]any{
+		"autoNameSessions": true,
+		"voiceSettings":    map[string]any{"apiKey": voiceKey, "language": "fr", "silenceTimeout": float64(6)},
+	}
+	upstream := codemanClient
+	t.Cleanup(func() { codemanClient = upstream })
+	codemanClient = &http.Client{Transport: codemanTestTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/v1/settings" || r.Header.Get("Authorization") != codemanAuthHeader(loadCodemanConfig()) {
+			t.Errorf("unexpected settings request: %s %s", r.Method, r.URL.Path)
+		}
+		response := httptest.NewRecorder()
+		response.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPut {
+			defer r.Body.Close()
+			var patch map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+				t.Error(err)
+			}
+			for key, value := range patch {
+				settings[key] = value
+			}
+			io.WriteString(response, `{"success":true,"data":{}}`)
+		} else {
+			json.NewEncoder(response).Encode(map[string]any{"success": true, "data": settings})
+		}
+		return response.Result(), nil
+	})}
+	request := func(method, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRequest(method, "/api/codeman/v1/settings", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handleCodemanProxy(w, r)
+		if w.Code != 200 || strings.Contains(w.Body.String(), voiceKey) {
+			t.Fatalf("invalid response to %s settings: HTTP %d", method, w.Code)
+		}
+		return w
+	}
+	before := request(http.MethodGet, "")
+	if before.Header().Get("Cache-Control") != "no-store" ||
+		!strings.Contains(before.Body.String(), `"apiKeySet":true`) ||
+		!strings.Contains(before.Body.String(), `"language":"fr"`) {
+		t.Fatal("saved settings or configured status were missing")
+	}
+	request(http.MethodPut, `{"voiceSettings":{"provider":"deepgram","silenceTimeout":null}}`)
+	voice := settings["voiceSettings"].(map[string]any)
+	if voice["apiKey"] != voiceKey || voice["language"] != "fr" || voice["provider"] != "deepgram" || voice["silenceTimeout"] != nil {
+		t.Fatal("voice patch did not preserve the key, provider or other saved choices")
+	}
+	request(http.MethodPut, `{"voiceSettings":{"apiKey":""}}`)
+	if after := request(http.MethodGet, ""); !strings.Contains(after.Body.String(), `"apiKeySet":false`) {
+		t.Fatal("settings still reported a configured key after clearing it")
+	}
+}
+
 func TestCodemanLaunchFollowsLoomPolicy(t *testing.T) {
 	fake, loom := codemanTestServers(t)
 	if err := sealProviderSecret(codemanSecretID, "synthetic-codeman"); err != nil {

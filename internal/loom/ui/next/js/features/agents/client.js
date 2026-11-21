@@ -58,7 +58,7 @@ export const gateway = {
 // ---------- sessions ----------
 export const api = {
   sessions: () => cm.get('/sessions'),
-  unified: (q = '') => cm.get('/sessions/unified' + (q ? '?q=' + enc(q) : '')),
+  unified: (offset = 0) => cm.get('/sessions/unified?' + new URLSearchParams({ limit: 500, offset })),
   session: id => cm.get('/sessions/' + enc(id)),
   clis: () => cm.get('/clis'),
   cases: () => cm.get('/cases'),
@@ -81,6 +81,8 @@ export const api = {
   upload: (id, file) => { const f = new FormData(); f.append('image', file, file.name); return cm.post('/sessions/' + enc(id) + '/paste-image' + (/^video\//.test(file.type) ? '?kind=video' : ''), f, { timeout: 300000 }); },
   settings: () => cm.get('/settings'),
   saveSettings: patch => cm.put('/settings', patch),
+  saveModelConfig: config => cm.put('/execution/model-config', config),
+  saveCaseOrder: order => cm.put('/cases/order', { order }),
   setCli: (id, enabled) => cm.put('/clis/' + enc(id), { enabled }),
   installCli: id => cm.post('/clis/' + enc(id) + '/install', {}, { timeout: 600000 }),
   tokenStats: () => cm.get('/token-stats'),
@@ -96,6 +98,7 @@ export const api = {
   dismissRestore: () => cm.post('/reboot-restore/dismiss'),
   cronJobs: () => cm.get('/cron/jobs'),
   cronRuns: () => cm.get('/cron/runs'),
+  cronJobRuns: id => cm.get('/cron/jobs/' + enc(id) + '/runs'),
   cronCreate: body => cm.post('/cron/jobs', body),
   cronUpdate: (id, body) => cm.put('/cron/jobs/' + enc(id), body),
   cronEnable: (id, enabled) => cm.put('/cron/jobs/' + enc(id) + '/enabled', { enabled }),
