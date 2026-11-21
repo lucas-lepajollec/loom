@@ -1,6 +1,8 @@
 package loom
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -16,22 +18,24 @@ func marketFixture(t *testing.T, catalog *string) {
 	t.Helper()
 	testHome(t)
 	or := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(*catalog)) }))
-	aa := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("x-api-key") != "good" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		_, _ = w.Write([]byte(`{"intelligence_index_version":5,"pagination":{"has_more":false},"data":[
-			{"slug":"b","name":"B","model_creator":{"name":"Lab"},"evaluations":{"artificial_analysis_intelligence_index":40},"performance_v3":{"mean_output_tokens_per_second":90},"pricing":{"price_1m_input_tokens":1}},
-			{"slug":"a","name":"A","model_creator":{"name":"Lab"},"evaluations":{"artificial_analysis_intelligence_index":70}}]}`))
+	epoch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var buf bytes.Buffer
+		z := zip.NewWriter(&buf)
+		f, _ := z.Create("benchmark_data/epoch_capabilities_index/eci_scores.csv")
+		_, _ = f.Write([]byte("Model,Display name,eci,eci_ci_low,eci_ci_high,date,Organization,Country (of organization),Model accessibility,Accessibility group,model_versions\n" +
+			"B,B,140.5,138,143,2026-01-02,Lab,X,Open weights (unrestricted),Open weights,\n" +
+			"A,A Pro,170.2,168,172,2026-11-01,Lab,X,API access,Closed weights,\n" +
+			"C,,not-a-number,,,2026-01-01,Lab,X,API access,Closed weights,\n"))
+		_ = z.Close()
+		_, _ = w.Write(buf.Bytes())
 	}))
-	oldOR, oldAA := marketOpenRouterURL, marketAAURL
-	marketOpenRouterURL, marketAAURL = or.URL, aa.URL
+	oldOR, oldEpoch := marketOpenRouterURL, marketEpochURL
+	marketOpenRouterURL, marketEpochURL = or.URL, epoch.URL
 	market = &marketCache{}
 	t.Cleanup(func() {
 		or.Close()
-		aa.Close()
-		marketOpenRouterURL, marketAAURL = oldOR, oldAA
+		epoch.Close()
+		marketOpenRouterURL, marketEpochURL = oldOR, oldEpoch
 		market = &marketCache{}
 	})
 }
@@ -71,33 +75,19 @@ func TestMarketCatalogAndNewModels(t *testing.T) {
 	}
 }
 
-// A refused key is not stored; a good one is, and the leaderboard is sorted
-// by intelligence index.
-func TestMarketBenchmarkKey(t *testing.T) {
+// The leaderboard comes from Epoch AI's public archive, without a key,
+// sorted by capabilities index; unreadable rows are skipped.
+func TestMarketEpochIndex(t *testing.T) {
 	catalog := `{"data":[]}`
 	marketFixture(t, &catalog)
-	post := func(body string) int {
-		w := httptest.NewRecorder()
-		handleMarketSettings(w, httptest.NewRequest(http.MethodPost, "/api/market/settings", strings.NewReader(body)))
-		return w.Code
-	}
-	if post(`{"key":"bad"}`) != 400 {
-		t.Fatal("refused key accepted")
-	}
-	if key, _ := readProviderSecret(marketSecretID); key != "" {
-		t.Fatal("refused key stored")
-	}
-	if post(`{"key":"good"}`) != 200 {
-		t.Fatal("good key rejected")
-	}
 	w := httptest.NewRecorder()
 	handleMarket(w, httptest.NewRequest(http.MethodGet, "/api/market", nil))
 	var out struct {
-		HasKey bool         `json:"has_key"`
-		Bench  []benchModel `json:"bench"`
+		Bench      []benchModel `json:"bench"`
+		BenchError string       `json:"bench_error"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &out)
-	if !out.HasKey || len(out.Bench) != 2 || out.Bench[0].Slug != "a" {
+	if out.BenchError != "" || len(out.Bench) != 2 || out.Bench[0].Name != "A Pro" || out.Bench[1].Open != true || *out.Bench[0].Low != 168 {
 		t.Fatalf("bench %+v", out)
 	}
 }

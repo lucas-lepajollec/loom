@@ -93,7 +93,7 @@ const filterTree = (nodes, q) => nodes.flatMap(n => {
 });
 
 // En-tête commun : la machine qui fournit les fichiers et la portée.
-function Source({ scopeNow, onScope, onRoot, refresh, rootLabel, rootPath }) {
+function Source({ scopeNow, onScope, onRoot, refresh, rootLabel, rootPath, actions }) {
   const [machines, setMachines] = useState([]);
   const [roles, setRoles] = useState(null);
   const [menu, setMenu] = useState(null);
@@ -115,6 +115,7 @@ function Source({ scopeNow, onScope, onRoot, refresh, rootLabel, rootPath }) {
     <div class="fl-tree-h">
       <button class="fl-root" title=${rootPath} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="server" />${name}<${Icon} n="chevron" /></button>
       ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
+      <span class="grow"></span>${actions}
     </div>
     <div class="seg fl-scope" role="tablist" aria-label=${t('files.scope')}>
       <button role="tab" aria-selected=${String(scopeNow === 'brain')} onClick=${() => onScope('brain')}>${rootLabel}</button>
@@ -163,7 +164,7 @@ function MachineTree({ current, onSetBrain, header }) {
   useEffect(() => { load(); }, [stamp]);
   const refreshAll = async () => setStamp(x => x + 1);
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
-    ${header}
+    ${header(null)}
     <div class="fl-list" role="tree" key=${stamp}>
       ${top === null ? html`<span class="spinner"></span>` : top.map(n => html`<${LazyRow} key=${n.path} n=${n} depth=${0} current=${current} refreshAll=${refreshAll} onSetBrain=${p => onSetBrain(rootDir, p)} />`)}
     </div>
@@ -185,11 +186,9 @@ function Tree({ data, current, refresh, onRoot, header }) {
   const query = q.trim().toLowerCase();
   const nodes = query ? filterTree(data.tree || [], query) : data.tree || [];
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
-    ${header}
-    <div class="fl-tree-acts">
+    ${header(html`
       <button class="icon-btn" aria-label=${t('files.new_note')} title=${t('files.new_note')} onClick=${() => newNote(current ? parentOf(current) : '', refresh)}><${Icon} n="edit" /></button>
-      <button class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder(current ? parentOf(current) : '', refresh)}><${Icon} n="folder" /></button>
-    </div>
+      <button class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder(current ? parentOf(current) : '', refresh)}><${Icon} n="folder" /></button>`)}
     <label class="fl-search"><${Icon} n="search" /><input placeholder=${t('files.search')} value=${q} onInput=${e => setQ(e.target.value)} aria-label=${t('files.search')} /></label>
     <div class="fl-list" role="tree">
       ${nodes.map(n => html`<${TreeRow} key=${n.path} n=${n} depth=${0} current=${current} open=${open} toggle=${toggle} refresh=${refresh} filter=${!!query} />`)}
@@ -282,7 +281,7 @@ export function FilesPage({ route }) {
   };
   if (!data) return html`<div class="view files"><div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
   const menuBtn = html`<button class="icon-btn only-mobile menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>`;
-  const header = html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} />`;
+  const header = actions => html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} actions=${actions} />`;
   if (scopeNow === 'brain' && (!data.exists || setup)) return html`<div class="view files">${narrow && html`<header class="fl-head">${menuBtn}</header>`}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;
   const showTree = !narrow || !current;
   return html`<div class=${cls('view files', narrow && 'narrow')}>

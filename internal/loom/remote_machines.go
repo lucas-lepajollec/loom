@@ -255,6 +255,7 @@ type remoteMachineInfo struct {
 // POST {machine}: check and save the SSH machine.
 func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
+		refreshNodeMachines(r.Context())
 		list := []remoteMachineInfo{}
 		for _, m := range loadRemoteMachines() {
 			caps := []string{}

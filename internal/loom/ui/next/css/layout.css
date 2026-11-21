@@ -1,0 +1,10 @@
+/* Une seule largeur pour toutes les pages ordinaires : celle d'Activité
+   (1040 px centrés, 40 px de marge, onglets ou titre en haut). Fichiers,
+   discussions et sessions d'agent gardent leur mise en page propre. */
+@media (min-width:761px){
+  .view.page > .page-in.page-in{max-width:1040px;margin-inline:auto;padding:10px 40px 48px}
+  .view.page > .page-in .sec-tabs{margin-top:0}
+  /* même centre que les pages d'agents, qui défilent dans un bloc intérieur */
+  .view.page{scrollbar-gutter:auto}
+  .view.cm > .cm-admin-top.cm-admin-top,.view.cm .cm-scroll > :is(.cm-cc,.cm-cron,.cm-cfg){width:100%;max-width:1040px;margin-inline:auto;padding-inline:40px}
+}

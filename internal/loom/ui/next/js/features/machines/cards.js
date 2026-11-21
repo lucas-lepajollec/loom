@@ -72,9 +72,19 @@ export function machineAgents(machine, clis) {
   return [...installed.values()];
 }
 
-export function AgentName({ cli }) {
+export function AgentName({ cli, version = true }) {
   return html`<span class="machine-agent"><${CliMark} mode=${cli.id} size="xs" /><span>${cli.label || cli.id}</span>
-    ${cli.version && html`<span class="machine-agent-version mono">${cli.version}</span>`}</span>`;
+    ${version && cli.version && html`<span class="machine-agent-version mono">${cli.version}</span>`}</span>`;
+}
+
+export const agentUpdate = cli => (cli.updateAvailable || (cli.latestVersion && cli.version && cli.latestVersion !== cli.version) ? cli.latestVersion || true : '');
+
+// Sur une carte : un seul repère pour tous les agents, les détails disent lesquels.
+function AgentsState({ installed, href }) {
+  const known = installed.some(cli => cli.latestVersion || cli.updateAvailable !== undefined);
+  const outdated = installed.filter(cli => agentUpdate(cli)).length;
+  if (outdated) return html`<a class="machine-agents-state update" href=${href}><i></i>${t('settings.machines.agents_updates', { n: outdated })}</a>`;
+  return known ? html`<span class="machine-agents-state ok"><${Icon} n="check" />${t('settings.machines.agents_uptodate')}</span>` : null;
 }
 
 const hasMetrics = metric => metric && !metric.error && metric.supported !== false;
@@ -239,8 +249,8 @@ export function MachineCard({ machine, metric, roles, clis, test, revision }) {
       })}${!bricks.length && html`<span class="muted">—</span>`}</div>
     </div>
     <div class="machine-card-section">
-      <h3>${t('agents.title')}</h3>
-      ${installed.length ? html`<div class="machine-chips">${installed.map(cli => html`<${AgentName} key=${cli.id} cli=${cli} />`)}</div>`
+      <h3>${t('agents.title')}${installed.length > 0 && html`<${AgentsState} installed=${installed} href=${machineHref(machine.id)} />`}</h3>
+      ${installed.length ? html`<div class="machine-chips">${installed.map(cli => html`<${AgentName} key=${cli.id} cli=${cli} version=${false} />`)}</div>`
         : html`<span class="muted">${t('settings.machines.no_agents')}</span>`}
     </div>
     <${ResourceMeters} metric=${metric} />

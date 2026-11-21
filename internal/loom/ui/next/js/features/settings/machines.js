@@ -100,18 +100,21 @@ export function MachineMigration({ m, onChange }) {
 }
 
 // Les nœuds Loom du réseau local qui répondent à la recherche (sans secret).
-export function Discovered({ onPair }) {
+// La recherche ne part que sur demande : pas de balayage du réseau en boucle.
+export function Discovered({ onPair, extra }) {
   const [nodes, setNodes] = useState(null);
   const [busy, setBusy] = useState(false);
   const scan = async () => { if (scanning.current) return; scanning.current = true; setBusy(true); const r = await get('/api/machines/discover', { timeout: 8000 }).catch(() => null); scanning.current = false; if (alive.current) { setBusy(false); setNodes(r?.nodes || []); } };
   const scanning = useRef(false), alive = useRef(true);
-  useEffect(() => { alive.current = true; scan(); const timer = setInterval(scan, 10000); return () => { alive.current = false; clearInterval(timer); }; }, []);
-  if (nodes === null || (!nodes.length && !busy)) return html`<div class="disc-empty"><button class="btn sm ghost" disabled=${busy} onClick=${scan}><${Icon} n="search" />${busy ? t('machines.disc.scanning') : t('machines.disc.scan')}</button></div>`;
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  if (nodes === null || (!nodes.length && !busy)) return html`<div class="disc-empty"><button class="btn sm ghost" disabled=${busy} onClick=${scan}><${Icon} n="search" />${busy ? t('machines.disc.scanning') : t('machines.disc.scan')}</button>
+    ${nodes && !nodes.length && html`<span class="muted">${t('machines.disc.none')}</span>`}${extra}</div>`;
   return html`<section class="sec"><div class="sec-h"><h2>${t('machines.disc.title')}<${Tip} text=${t('machines.disc.tip')} /></h2><span class="grow"></span>
       <button class="icon-btn" disabled=${busy} aria-label=${t('machines.disc.scan')} onClick=${scan}><${Icon} n="refresh" /></button></div>
     <div class="card bs-list">${nodes.map(n => html`<div class="bs-row" key=${n.id}>
       <span class="mono-tile"><${Icon} n="server" /></span>
       <div class="grow"><div class="bs-name">${n.name}${n.paired && html`<span class="tag">${t('machines.disc.paired_elsewhere')}</span>`}</div><div class="bs-sub"><span class="mono">${n.address}</span><span title=${n.version}>${t('settings.page.loom')} ${shortVersion(n.version)}</span></div></div>
       <button class="btn sm" onClick=${() => onPair({ address: n.address, name: n.name })}>${t('machines.pair.ok')}</button></div>`)}</div>
+    ${extra && html`<div class="disc-empty">${extra}</div>`}
   </section>`;
 }

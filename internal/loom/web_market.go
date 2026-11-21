@@ -1,13 +1,18 @@
 package loom
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,17 +23,17 @@ import (
 // Model watch: what is out there and how good it is. Two public sources:
 //   - OpenRouter's catalogue (no key): every hosted model with its release
 //     time, context, prices and, for open weights, its Hugging Face id.
-//   - Artificial Analysis' free API (the user's own key, 100 requests a day):
-//     intelligence index, output speed, time to first token and prices. Its
-//     data must be credited to Artificial Analysis wherever it is shown.
+//   - Epoch AI's public benchmark archive (no key, CC BY 4.0): the Epoch
+//     Capabilities Index, one score per model combining many benchmarks, with
+//     its confidence interval, release date and weights access. It must be
+//     credited to Epoch AI wherever it is shown.
 // Both are cached, so opening the page never spends the daily quota.
 
 const (
 	openRouterModelsURL  = "https://openrouter.ai/api/v1/models"
-	aaModelsURL          = "https://artificialanalysis.ai/api/v2/language/models/free"
+	epochArchiveURL      = "https://epoch.ai/data/benchmark_data.zip"
 	marketCatalogFor     = 6 * time.Hour
-	marketBenchFor       = 12 * time.Hour
-	marketSecretID       = "market-artificialanalysis"
+	marketBenchFor       = 24 * time.Hour
 	marketSeenKey        = "market_seen_models"
 	marketWatchKey       = "market_watch"
 	marketNewWindowDays  = 30
@@ -38,7 +43,7 @@ const (
 // Tests point these at local servers.
 var (
 	marketOpenRouterURL = openRouterModelsURL
-	marketAAURL         = aaModelsURL
+	marketEpochURL      = epochArchiveURL
 )
 
 type marketModel struct {
@@ -56,15 +61,13 @@ type marketModel struct {
 }
 
 type benchModel struct {
-	Slug         string   `json:"slug"`
-	Name         string   `json:"name"`
-	Creator      string   `json:"creator"`
-	Released     string   `json:"released,omitempty"`
-	Intelligence *float64 `json:"intelligence,omitempty"`
-	Speed        *float64 `json:"speed,omitempty"` // output tokens per second
-	FirstToken   *float64 `json:"first_token,omitempty"`
-	InputPrice   *float64 `json:"input_price,omitempty"`
-	OutputPrice  *float64 `json:"output_price,omitempty"`
+	Name     string   `json:"name"`
+	Creator  string   `json:"creator"`
+	Released string   `json:"released,omitempty"`
+	Score    *float64 `json:"score"` // Epoch Capabilities Index
+	Low      *float64 `json:"low,omitempty"`
+	High     *float64 `json:"high,omitempty"`
+	Open     bool     `json:"open,omitempty"` // open weights
 }
 
 type marketCache struct {
@@ -75,7 +78,6 @@ type marketCache struct {
 	bench      []benchModel
 	benchAt    time.Time
 	benchErr   string
-	benchIndex int
 	refreshing bool
 }
 
@@ -170,57 +172,81 @@ func fetchOpenRouter(ctx context.Context) ([]marketModel, error) {
 	return out, nil
 }
 
-func fetchArtificialAnalysis(ctx context.Context, key string) ([]benchModel, int, error) {
-	var out []benchModel
-	version := 0
-	for page := 1; page <= 3; page++ {
-		var body struct {
-			Version    int `json:"intelligence_index_version"`
-			Pagination struct {
-				HasMore bool `json:"has_more"`
-			} `json:"pagination"`
-			Data []struct {
-				Slug         string `json:"slug"`
-				Name         string `json:"name"`
-				ReleaseDate  string `json:"release_date"`
-				ModelCreator struct {
-					Name string `json:"name"`
-				} `json:"model_creator"`
-				Evaluations struct {
-					Intelligence *float64 `json:"artificial_analysis_intelligence_index"`
-				} `json:"evaluations"`
-				Performance struct {
-					Speed      *float64 `json:"mean_output_tokens_per_second"`
-					FirstToken *float64 `json:"mean_time_to_first_token_seconds"`
-				} `json:"performance_v3"`
-				Pricing struct {
-					Input  *float64 `json:"price_1m_input_tokens"`
-					Output *float64 `json:"price_1m_output_tokens"`
-				} `json:"pricing"`
-			} `json:"data"`
-		}
-		url := marketAAURL
-		if page > 1 {
-			url += fmt.Sprintf("?page=%d", page)
-		}
-		if err := marketHTTP(ctx, url, map[string]string{"x-api-key": key}, &body); err != nil {
-			return nil, 0, err
-		}
-		version = body.Version
-		for _, m := range body.Data {
-			out = append(out, benchModel{Slug: m.Slug, Name: m.Name, Creator: m.ModelCreator.Name, Released: m.ReleaseDate,
-				Intelligence: m.Evaluations.Intelligence, Speed: m.Performance.Speed, FirstToken: m.Performance.FirstToken,
-				InputPrice: m.Pricing.Input, OutputPrice: m.Pricing.Output})
-		}
-		if !body.Pagination.HasMore {
-			break
+func fetchEpoch(ctx context.Context) ([]benchModel, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, marketEpochURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "loom-model-watch")
+	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("the source returned %s", resp.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 40<<20))
+	if err != nil {
+		return nil, err
+	}
+	archive, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		return nil, errors.New("unreadable archive")
+	}
+	var file *zip.File
+	for _, f := range archive.File {
+		if path.Base(f.Name) == "eci_scores.csv" {
+			file = f
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		a, b := out[i].Intelligence, out[j].Intelligence
-		return a != nil && (b == nil || *a > *b)
-	})
-	return out, version, nil
+	if file == nil {
+		return nil, errors.New("the archive has no capabilities index")
+	}
+	rc, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	rows, err := csv.NewReader(io.LimitReader(rc, 8<<20)).ReadAll()
+	if err != nil || len(rows) < 2 {
+		return nil, errors.New("unreadable capabilities index")
+	}
+	col := map[string]int{}
+	for i, name := range rows[0] {
+		col[strings.TrimSpace(name)] = i
+	}
+	cell := func(row []string, name string) string {
+		if i, ok := col[name]; ok && i < len(row) {
+			return strings.TrimSpace(row[i])
+		}
+		return ""
+	}
+	num := func(v string) *float64 {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil
+		}
+		return &f
+	}
+	out := []benchModel{}
+	for _, row := range rows[1:] {
+		name := cell(row, "Display name")
+		if name == "" {
+			name = cell(row, "Model")
+		}
+		score := num(cell(row, "eci"))
+		if name == "" || score == nil {
+			continue
+		}
+		out = append(out, benchModel{Name: name, Creator: cell(row, "Organization"), Released: cell(row, "date"), Score: score,
+			Low: num(cell(row, "eci_ci_low")), High: num(cell(row, "eci_ci_high")), Open: strings.HasPrefix(cell(row, "Accessibility group"), "Open weights")})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("empty capabilities index")
+	}
+	sort.SliceStable(out, func(i, j int) bool { return *out[i].Score > *out[j].Score })
+	return out, nil
 }
 
 // refreshMarket updates whatever is stale. force ignores the cache ages.
@@ -231,8 +257,7 @@ func refreshMarket(ctx context.Context, force bool) {
 		return
 	}
 	needCatalog := force || time.Since(market.catalogAt) > marketCatalogFor
-	key, _ := readProviderSecret(marketSecretID)
-	needBench := key != "" && (force || time.Since(market.benchAt) > marketBenchFor)
+	needBench := force && time.Since(market.benchAt) > time.Hour || time.Since(market.benchAt) > marketBenchFor
 	if !needCatalog && !needBench {
 		market.mu.Unlock()
 		return
@@ -255,13 +280,13 @@ func refreshMarket(ctx context.Context, force bool) {
 		}
 	}
 	if needBench {
-		list, version, err := fetchArtificialAnalysis(ctx, key)
+		list, err := fetchEpoch(ctx)
 		market.mu.Lock()
 		market.benchAt = time.Now()
 		if err != nil {
 			market.benchErr = err.Error()
 		} else {
-			market.bench, market.benchIndex, market.benchErr = list, version, ""
+			market.bench, market.benchErr = list, ""
 		}
 		market.mu.Unlock()
 	}
@@ -325,7 +350,6 @@ func handleMarket(w http.ResponseWriter, r *http.Request) {
 	} else {
 		refreshMarket(r.Context(), false)
 	}
-	key, _ := readProviderSecret(marketSecretID)
 	watch := loadMarketWatch()
 	market.mu.Lock()
 	defer market.mu.Unlock()
@@ -340,46 +364,23 @@ func handleMarket(w http.ResponseWriter, r *http.Request) {
 		"ok": true, "catalog": market.catalog, "new": fresh,
 		"catalog_at": market.catalogAt.UnixMilli(), "catalog_error": market.catalogErr,
 		"bench": market.bench, "bench_at": market.benchAt.UnixMilli(), "bench_error": market.benchErr,
-		"intelligence_index_version": market.benchIndex, "has_key": key != "",
 		"watch": map[string]bool{"notify": watch.Notify, "open_only": watch.OpenOnly},
 	})
 }
 
-// handleMarketSettings: POST {key?, forget_key?, notify?, open_only?}.
+// handleMarketSettings: POST {notify?, open_only?}.
 func handleMarketSettings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
 	var body struct {
-		Key       *string `json:"key"`
-		ForgetKey bool    `json:"forget_key"`
-		Notify    *bool   `json:"notify"`
-		OpenOnly  *bool   `json:"open_only"`
+		Notify   *bool `json:"notify"`
+		OpenOnly *bool `json:"open_only"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
-	}
-	if body.ForgetKey {
-		_ = deleteProviderSecret(marketSecretID)
-		market.mu.Lock()
-		market.bench, market.benchAt, market.benchErr = nil, time.Time{}, ""
-		market.mu.Unlock()
-	}
-	if body.Key != nil && strings.TrimSpace(*body.Key) != "" {
-		key := strings.TrimSpace(*body.Key)
-		if _, _, err := fetchArtificialAnalysis(r.Context(), key); err != nil {
-			sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
-			return
-		}
-		if err := sealProviderSecret(marketSecretID, key); err != nil {
-			sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
-			return
-		}
-		market.mu.Lock()
-		market.benchAt = time.Time{}
-		market.mu.Unlock()
 	}
 	watch := loadMarketWatch()
 	if body.Notify != nil {

@@ -47,7 +47,7 @@
 .market-row{display:grid;align-items:center;gap:8px 10px;min-height:46px;padding:7px 16px}
 .market-row + .market-row{border-top:1px solid var(--line-soft)}
 .market-ranking .market-row{
-  grid-template-columns:minmax(142px,2fr) minmax(70px,1fr) minmax(62px,.85fr) minmax(78px,1fr) repeat(2,minmax(65px,.85fr)) minmax(82px,1fr)
+  grid-template-columns:minmax(0,2.4fr) minmax(90px,.8fr) minmax(110px,.9fr) minmax(110px,.9fr)
 }
 .market-catalogue .market-row{
   grid-template-columns:minmax(0,2.5fr) minmax(96px,1fr) repeat(2,minmax(68px,.7fr))
@@ -131,3 +131,5 @@
   .market-key-form .input{flex:1;min-width:80px}
   .market-delivery{gap:0}
 }
+.market-open{color:var(--green)}
+.market-ranking-meta .note{margin:0;flex:1;min-width:0}
