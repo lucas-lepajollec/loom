@@ -138,7 +138,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       try { fitAddon.fit(); } catch (_) {}
       const snapKey = sessionId + (shell ? ':shell' : '');
       const snap = snapshots.get(snapKey);
-      if (snap && snap.cols === term.cols) term.write(snap.data, () => term.scrollToBottom());
+      if (snap && snap.cols === term.cols) term.write(snap.data, () => { if (alive) term.scrollToBottom(); });
       const saveSnapshot = () => {
         if (!serializer) return;
         try {
