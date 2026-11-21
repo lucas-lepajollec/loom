@@ -111,7 +111,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       if (w.WebglAddon && !glOff()) {
         try {
           webgl = new w.WebglAddon.WebglAddon();
-          webgl.onContextLoss(() => { try { webgl.dispose(); } catch (_) {} webgl = null; markGlOff(); try { fitAddon.fit(); } catch (_) {} });
+          webgl.onContextLoss(() => { const gl = webgl; webgl = null; markGlOff(); setTimeout(() => { if (!alive) return; try { gl?.dispose(); } catch (_) {} try { fitAddon.fit(); } catch (_) {} }, 0); });
           term.loadAddon(webgl);
           // Un redimensionnement lent deux fois de suite (GPU émulé par
           // logiciel) : retour au rendu DOM pour la visite.
@@ -121,8 +121,9 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
             const once = term.onRender(() => {
               once.dispose();
               if (!webgl || performance.now() - t0 < 250 || ++slow < 2) return;
-              try { webgl.dispose(); } catch (_) {}
-              webgl = null; markGlOff(); try { fitAddon.fit(); } catch (_) {}
+              // Hors du rendu en cours : xterm lit encore le moteur GPU pendant ce rappel.
+              const gl = webgl; webgl = null; markGlOff();
+              setTimeout(() => { if (!alive) return; try { gl.dispose(); } catch (_) {} try { fitAddon.fit(); } catch (_) {} }, 0);
             });
           });
         } catch (_) { webgl = null; }

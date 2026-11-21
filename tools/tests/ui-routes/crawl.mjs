@@ -266,6 +266,7 @@ try {
         await page.getByRole('dialog', { name: dictionary['machines.add.title'], exact: true }).waitFor();
         await inspect(page, errors, label + ' machine pairing sheet');
         await page.keyboard.press('Escape');
+        await page.getByRole('dialog', { name: dictionary['machines.add.title'], exact: true }).waitFor({ state: 'detached' });
         await page.locator('.machine-card-link[href="#/machines/' + remote.id + '"]').click();
         await page.locator('.machine-detail .machine-meters [role=meter]').first().waitFor();
         await checkTrigger(page.locator('.machine-detail-controls button[aria-haspopup=menu]'), page.getByRole('menu'));
