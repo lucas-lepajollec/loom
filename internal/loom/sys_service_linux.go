@@ -206,10 +206,10 @@ func directStart() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(LoomHome(), 0o755); err != nil {
+	if err := os.MkdirAll(LoomHome(), 0o700); err != nil {
 		return err
 	}
-	logf, err := os.OpenFile(directLogPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logf, err := os.OpenFile(directLogPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return fmt.Errorf("opening journal: %w", err)
 	}
@@ -268,7 +268,7 @@ func spawnServe(self string, logf *os.File) (int, error) {
 		return 0, fmt.Errorf("starting loom serve: %w", err)
 	}
 	pid := cmd.Process.Pid
-	if err := os.WriteFile(directPidPath(), []byte(strconv.Itoa(pid)), 0o644); err != nil {
+	if err := os.WriteFile(directPidPath(), []byte(strconv.Itoa(pid)), 0o600); err != nil {
 		_ = cmd.Process.Kill()
 		return 0, fmt.Errorf("writing PID: %w", err)
 	}

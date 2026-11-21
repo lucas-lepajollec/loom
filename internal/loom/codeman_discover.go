@@ -361,22 +361,12 @@ func handleCodemanConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	codemanMu.Lock()
 	defer codemanMu.Unlock()
-	if p.Auth == "open" {
-		pass = ""
-		if err := deleteProviderSecret(codemanSecretID); err != nil {
-			sendJSON(w, 500, map[string]any{"ok": false, "error": "could not update the Codeman password"})
-			return
-		}
-	} else if err := sealProviderSecret(codemanSecretID, pass); err != nil {
-		sendJSON(w, 500, map[string]any{"ok": false, "error": "could not store the Codeman password"})
-		return
-	}
 	prev := loadCodemanConfig()
 	ui := prev.UIURL
 	if prev.URL != base {
 		ui = ""
 	}
-	if err := saveCodemanConfig(codemanConfig{URL: base, Username: user, UIURL: ui}); err != nil {
+	if err := updateCodemanConnection(codemanConfig{URL: base, Username: user, UIURL: ui}, pass, p.Auth == "open"); err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": "could not save the Codeman configuration"})
 		return
 	}

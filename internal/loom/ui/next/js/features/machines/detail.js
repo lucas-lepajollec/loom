@@ -16,7 +16,7 @@ import {
   MachineTerminalButton, MachineTerminals, MachineVersion, ResourceMeters, useMachineLoom,
 } from './cards.js';
 
-export const MachinesBack = () => html`<a class="btn ghost machine-back" href="#/machines"><${Icon} n="left" />${t('settings.machines.machines')}</a>`;
+export const MachinesBack = () => html`<a class="btn machine-back" href="#/machines"><${Icon} n="left" />${t('settings.machines.machines')}</a>`;
 
 function MachineSection({ title, children }) {
   return html`<section class="machine-section"><h2>${title}</h2><div class="card">${children}</div></section>`;
@@ -73,7 +73,7 @@ function Bricks({ machine, roles, revision, onChange, codemanStatus }) {
   };
   return html`<${MachineSection} title=${t('settings.machines.bricks')}>
     ${machineBricks(machine, roles).map(brick => html`<div class="machine-row machine-brick-row" key=${brick.id}>
-      <span class="machine-icon"><${Icon} n=${brick.icon} /></span>
+      <span class="logo-mark sm machine-icon" aria-hidden="true"><${Icon} n=${brick.icon} /></span>
       <div class="machine-row-text">
         <b>${brick.label}</b>
         <small class=${cls(brick.provided && 'machine-provides')}>${brick.provided
@@ -84,23 +84,23 @@ function Bricks({ machine, roles, revision, onChange, codemanStatus }) {
           && html`<small>${t('agents.conn.unreachable')}</small>`}
       </div>
       <div class="machine-actions">
-        ${brick.id === 'files' && html`<a class="btn sm ghost" href="#/files">${t('settings.machines.open_files')}</a>`}
+        ${brick.id === 'files' && html`<a class="btn sm" href="#/files">${t('settings.machines.open_files')}</a>`}
         ${brick.id === 'engine' && (brick.provided
-          ? html`<a class="btn sm ghost" href="#/engine">${t('settings.machines.reglages_du_moteur')}</a>
-            ${!isLocal && html`<button class="btn sm ghost" disabled=${!!busy} onClick=${() => assign('engine', true)}>${t('settings.machines.ne_plus_l_utiliser')}</button>`}`
-          : !isLocal && machine.host && html`<button class="btn sm ghost" onClick=${() => setDirect(true)}>${t('settings.machines.link_server')}</button>`)}
-        ${brick.id === 'codeman' && brick.provided && html`<a class="btn sm ghost" href="#/agents">${t('agents.setup.open_agents')}</a>`}
-        <button class=${cls('btn sm', brick.provided && 'used')} disabled=${brick.provided || !!brick.reason || !!busy} onClick=${() => assign(brick.id)}>
-          ${brick.provided && html`<${Icon} n="check" />`}
-          ${brick.provided ? t('settings.machines.machine_used') : busy === brick.id ? t('settings.machines.verification') : t('settings.machines.use_machine')}
-        </button>
+          ? html`<a class="btn sm" href="#/engine">${t('settings.machines.reglages_du_moteur')}</a>
+            ${!isLocal && html`<button class="btn sm" disabled=${!!busy} onClick=${() => assign('engine', true)}>${t('settings.machines.ne_plus_l_utiliser')}</button>`}`
+          : !isLocal && machine.host && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t('settings.machines.link_server')}</button>`)}
+        ${brick.id === 'codeman' && brick.provided && html`<a class="btn sm" href="#/agents">${t('agents.setup.open_agents')}</a>`}
+        ${brick.provided ? html`<span class="state"><i class="dot green"></i>${t('settings.machines.machine_used')}</span>`
+          : html`<button class="btn sm" disabled=${!!brick.reason || !!busy} onClick=${() => assign(brick.id)}>
+            ${busy === brick.id ? t('settings.machines.verification') : t('settings.machines.use_machine')}
+          </button>`}
       </div>
     </div>`)}
   </${MachineSection}>
   ${roles?.engine === target && (isLocal ? !engine : engine && !engine.direct) && html`<${ModelDirs} key=${engine?.url || 'local'} />`}
-  ${direct && html`<${Modal} title=${t('settings.machines.lier_son_serveur_llama_cpp_vllm')} sub=${machine.name} onClose=${() => setDirect(false)}>
-    <div class="machine-dialog"><${DirectEngineForm} start=${'http://' + addressWithPort(machine.host, 8080)} onDone=${() => { setDirect(false); onChange(); }} /></div>
-  </${Modal}>`}
+  ${direct && html`<${DirectEngineForm} start=${'http://' + addressWithPort(machine.host, 8080)}
+    dialog=${{ title: t('settings.machines.lier_son_serveur_llama_cpp_vllm'), sub: machine.name, onClose: () => setDirect(false) }}
+    onDone=${() => { setDirect(false); onChange(); }} />`}
   ${codemanURL && html`<${Modal} title=${t('agents.conn.title')} sub=${machine.name} onClose=${() => { setCodemanURL(''); onChange(); }}>
     <div class="machine-dialog"><${ConnectionPanel} embedded initialUrl=${codemanURL} /></div>
   </${Modal}>`}`;
@@ -203,7 +203,7 @@ function MachineConnection({ machine, node, onChange }) {
       </div>`}`}
     <div class="machine-row">
       <div class="machine-row-text"><b>${t('startup.title')}</b></div>
-      <div class="machine-actions"><a class="btn sm ghost" href="#/settings/startup"><${Icon} n="power" />${t('settings.machines.startup_settings')}</a></div>
+      <div class="machine-actions"><a class="btn sm" href="#/settings/startup"><${Icon} n="power" />${t('settings.machines.startup_settings')}</a></div>
     </div>
     ${pairing && html`<${PairDialog} start=${{ address, machine_id: machine.id }} onClose=${result => { setPairing(false); if (result) onChange(); }} />`}
   </${MachineSection}>`;
@@ -247,7 +247,7 @@ function WorkingFolders({ machine, onChange }) {
         <button class="icon-btn" aria-label=${t('settings.machines.retirer_2') + ' ' + home(folder)} disabled=${busy} onClick=${() => save(folders.filter(path => path !== folder))}><${Icon} n="close" /></button>
       </div>
     </div>`)}
-    <div class="machine-row"><button class="btn sm ghost" disabled=${busy} onClick=${add}><${Icon} n="plus" />${t('settings.machines.ajouter_un_dossier')}</button></div>
+    <div class="machine-row"><button class="btn sm" disabled=${busy} onClick=${add}><${Icon} n="plus" />${t('settings.machines.ajouter_un_dossier')}</button></div>
     ${pick && html`<${FolderPicker} start="" onClose=${() => setPick(false)} onPick=${folder => { setPick(false); save([...folders, folder]); }} />`}
   </${MachineSection}>`;
 }
@@ -278,7 +278,7 @@ export function MachineDetail({ machine, metric, roles, clis, codemanStatus, ter
     <${MachinesBack} />
     <header class="machine-detail-head">
       <div class="machine-detail-identity">
-        <span class="machine-icon"><${Icon} n="server" /></span>
+        <span class="logo-mark machine-icon" aria-hidden="true"><${Icon} n="server" /></span>
         <div class="machine-row-text">
           <h1>${machine.name}</h1>
           <div class="machine-card-tags">

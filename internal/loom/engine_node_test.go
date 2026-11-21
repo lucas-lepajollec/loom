@@ -35,8 +35,8 @@ func fakeNode(t *testing.T, exposed bool) (*httptest.Server, *httptest.Server) {
 		case "/api/node/info":
 			json.NewEncoder(w).Encode(map[string]any{"ok": true, "hostname": "tour", "version": "9", "llm_port": port, "v1_exposed": exposed, "api_key": "v1key", "engine": true})
 		case "/api/models":
- io.WriteString(w, `[{"name":"Distant.gguf","path":"Distant.gguf"}]`)
- case "/api/status":
+			io.WriteString(w, `[{"name":"Distant.gguf","path":"Distant.gguf"}]`)
+		case "/api/status":
 			io.WriteString(w, `{"hostname":"tour","health":true}`)
 		default:
 			w.WriteHeader(404)

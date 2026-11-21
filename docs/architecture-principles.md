@@ -1,7 +1,6 @@
 # Architecture principles
 
-Loom controls; engines execute inference. Local and Cloud share a discussion,
-portable transcript and project context. Engines and loaded models are separate
+Loom controls; engines execute inference. Local and Cloud share a portable discussion transcript. Engines and loaded models are separate
 states. Unsupported capabilities remain explicitly unavailable.
 
 The runtime registry contains local inference and Chat Completions adapters.

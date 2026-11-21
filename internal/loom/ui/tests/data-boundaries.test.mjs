@@ -90,16 +90,13 @@ test('read boundary rejects HTTP, JSON and collection failures in every catalog 
     ['/api/machines', { ok: true, machines: {} }], ['/api/machines', { ok: true, offers: { fixture: {} } }],
     ['/api/voice/models', { models: [{ id: 'tts', languages: {} }] }],
     ['/api/hub/search', { models: {} }], ['/api/hub/model', { files: {} }],
-    ['/api/brain/sources', { sources: {} }], ['/api/brain/memory', { items: {} }],
     ['/api/usage', { quotas: {} }],
-    ['/api/tasks', { tasks: {} }], ['/api/terminals', { terminals: {} }],
+    ['/api/terminals', { terminals: {} }],
     ['/api/engines/vllm/models', { models: {} }], ['/api/bench/queue', { job: { rows: {} } }],
     ['/api/mcp/sources', { sources: [{ servers: {} }] }],
-    ['/api/brain/sources', { sources: [{ include: {} }] }],
-    ['/api/brain/search', { hits: [{ heading: {}, highlights: [] }] }],
     ['/api/startup', { engines: { vllm_models: {} } }],
     ['/api/policy', { rules: [{ conditions: { command_prefixes: {} } }] }],
-    ['/api/providers/models', { models: null }], ['/api/fs/dirs', { ok: true }],
+    ['/api/providers/models', { models: null }],
   ]) {
     h.replies.set(url, { body }); await assert.rejects(h.get(url), /Invalid API data/, url);
   }

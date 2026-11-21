@@ -73,7 +73,7 @@ export function DoctorSettings() {
         ${list.map(c => html`<div class="set-line doc-row" key=${c.id}>
           <div class="set-l"><i class=${'dot ' + (TONE[c.status] || '')}></i><span>${title(c, names)}</span></div>
           <div class="set-c"><span class=${'note' + (c.status === 'fail' ? ' err' : '')}>${detail(c)}</span>
-            ${c.fix && c.fix.href && c.status !== 'ok' && html`<a class="btn sm ghost" href=${c.fix.href}>${t('doctor.fix')}</a>`}</div></div>`)}
+            ${c.fix && c.fix.href && c.status !== 'ok' && html`<a class="btn sm" href=${c.fix.href}>${t('doctor.fix')}</a>`}</div></div>`)}
       </${Group}>`;
     })}
     <${Group} title=${t('doctor.bundle')}>

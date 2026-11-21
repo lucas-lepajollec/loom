@@ -1,5 +1,6 @@
 import { t, locale } from '../../core/i18n.js';
 // Soldes cloud et consommation des discussions Loom.
+import { ListPick } from '../../ui/listpick.js';
 import { Logo } from '../../ui/logo.js';
 import { SectionTabs } from '../../app/sections.js';
 import { html, useState, useStore, fmtTok } from '../../core/lib.js';
@@ -72,18 +73,18 @@ function Price({ m, onSaved }) {
     <${Icon} n="edit" />
     <span>${label}</span>
   </button>
-  ${draft && html`<${Modal} title=${title} sub=${t('usage.page.prix_m_tokens')} onClose=${close}>
-    <form class="usage-price-form" onSubmit=${save}>
+  ${draft && html`<${Modal} title=${title} sub=${t('usage.page.prix_m_tokens')} onClose=${close}
+    foot=${html`<button type="button" class="btn" disabled=${saving} onClick=${close}>${t('ui.dialog.annuler')}</button>
+      <button type="submit" form="usage-price-form" class="btn primary" disabled=${saving}>${t('ui.dialog.enregistrer')}</button>`}>
+    <form id="usage-price-form" class="usage-price-form" onSubmit=${save}>
       <div class="usage-price-fields">
         <label class="field"><span>${t('usage.page.entree_2')}</span><input class="input num" type="number" min="0" max="10000" step="any" required value=${draft.input}
           onInput=${e => setDraft({ ...draft, input: e.target.value })} /></label>
         <label class="field"><span>${t('usage.page.sortie_2')}</span><input class="input num" type="number" min="0" max="10000" step="any" required value=${draft.output}
           onInput=${e => setDraft({ ...draft, output: e.target.value })} /></label>
       </div>
-      <label class="field"><span>${t('usage.activity_currency')}</span><select class="select" value=${draft.currency}
-        onChange=${e => setDraft({ ...draft, currency: e.target.value })}><option>USD</option><option>EUR</option></select></label>
-      <div class="acts"><button type="button" class="btn ghost" disabled=${saving} onClick=${close}>${t('ui.dialog.annuler')}</button>
-        <button type="submit" class="btn primary" disabled=${saving}>${t('ui.dialog.enregistrer')}</button></div>
+      <label class="field"><span>${t('usage.activity_currency')}</span><${ListPick} value=${draft.currency}
+        onChange=${currency => setDraft({ ...draft, currency })} options=${['USD', 'EUR'].map(v => ({ value: v, label: v }))} /></label>
     </form>
   </${Modal}>`}`;
 }

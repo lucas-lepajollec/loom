@@ -2,7 +2,6 @@ import { html } from '../core/lib.js';
 
 // Icônes au trait (24×24, currentColor). Une seule source pour toute l'app.
 const P = {
-  loom: 'M6 3v18M12 3v18M18 3v18M3 7h18M3 12h18M3 17h18',
   plus: 'M12 5v14M5 12h14',
   bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0',
   search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.5-3.5',
@@ -65,3 +64,7 @@ const P = {
 };
 
 export const Icon = ({ n, class: c, size }) => html`<svg class=${'ico ' + (c || '')} viewBox="0 0 24 24" aria-hidden="true" style=${size ? `width:${size}px;height:${size}px` : ''}><path d=${P[n] || P.info} /></svg>`;
+
+// Le logo de Loom (plein, pas un pictogramme au trait).
+const LOOM_MARK = 'M40 64H52H52V104H40A20 20 0 0 1 20 84V84A20 20 0 0 1 40 64ZM116 64H216A20 20 0 0 1 236 84V84A20 20 0 0 1 216 104H116H116V64ZM40 152H140H140V192H40A20 20 0 0 1 20 172V172A20 20 0 0 1 40 152ZM204 152H216A20 20 0 0 1 236 172V172A20 20 0 0 1 216 192H204H204V152ZM64 40A20 20 0 0 1 84 20H84A20 20 0 0 1 104 40V140V140H64ZM64 204V204H104V216A20 20 0 0 1 84 236H84A20 20 0 0 1 64 216ZM152 40A20 20 0 0 1 172 20H172A20 20 0 0 1 192 40V52V52H152ZM152 116V116H192V216A20 20 0 0 1 172 236H172A20 20 0 0 1 152 216Z';
+export const LoomMark = ({ class: c, size }) => html`<svg class=${'loom-mark ' + (c || '')} viewBox="0 0 256 256" aria-hidden="true" style=${size ? `width:${size}px;height:${size}px` : ''}><path fill="currentColor" d=${LOOM_MARK} /></svg>`;

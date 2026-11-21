@@ -449,7 +449,7 @@ func cmdExport(args []string) error {
 	if out == "" {
 		out = exportFilename(ext)
 	}
-	if err := os.WriteFile(out, body, 0o644); err != nil {
+	if err := memWriteFileAtomic(out, body, 0o600); err != nil {
 		return err
 	}
 	conv.mu.Lock()

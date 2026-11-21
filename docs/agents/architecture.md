@@ -20,9 +20,12 @@ browser ── Loom auth + origin check ──▶ Loom gateway ── Basic auth
 | `GET /api/codeman/status` | Reachability, authentication result, version, official UI link for this browser |
 | `GET /api/codeman/discover` | Local Codeman installs (default port, systemd/launchd service, data-dir `.env`, environment) probed in parallel; reports whether a password was found, never the password |
 | `POST /api/codeman/connect`, `POST /api/codeman/disconnect` | Test then save (address, user, sealed password, or the locally found one); forget the connection |
-| `/api/codeman/v1/*` | Relay of any method to `/api/v1/*` with Basic auth added server-side. Browser cookies, `Authorization` and `Origin` are not forwarded. Codeman 401 becomes `502 CODEMAN_AUTH`; unreachable becomes `502 CODEMAN_UNREACHABLE`. `auth/*`, `logout` and `hook-event` are refused. SSE responses are flushed chunk by chunk. Bodies are limited to 64 MB |
+| `/api/codeman/v1/*` | GET, HEAD, POST, PUT, PATCH and DELETE relay to `/api/v1/*` with Basic auth added server-side. Browser cookies, `Authorization` and `Origin` are not forwarded. Codeman 401 becomes `502 CODEMAN_AUTH`; unreachable becomes `502 CODEMAN_UNREACHABLE`. `auth/*`, `logout` and `hook-event` are refused. SSE responses are flushed chunk by chunk. Bodies are limited to 64 MB |
 | `GET/PUT /api/codeman/v1/settings` | The settings response shows whether the Deepgram API key is set. The gateway merges voice edits on the server before forwarding them. A blank `voiceSettings.apiKey` clears the key. A null `voiceSettings.silenceTimeout` restores Codeman’s provider default |
 | `/api/codeman/ws/{id}` | Same-origin WebSocket bridged to Codeman's terminal socket; close codes (4009 ended, 4004 missing) are forwarded |
+
+Changing the saved Codeman server or username clears its previous password.
+The gateway applies route policy after decoding the path and rejects ambiguous separators.
 
 All routes require Loom authentication and Go's cross-origin protection.
 Streams and sockets are bound to the authorizing grant and close when access is

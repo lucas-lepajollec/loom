@@ -25,7 +25,7 @@ func memoryHTTPRequest(t *testing.T, handler http.HandlerFunc, method, body stri
 	handler(w, req)
 	return w
 }
-func TestMarkdownMemoryHTTPMCPAndEncryptedFallback(t *testing.T) {
+func TestMarkdownMemoryMCPAndEncryptedFallback(t *testing.T) {
 	for _, primary := range []bool{false, true} {
 		t.Run(fmt.Sprint(primary), func(t *testing.T) {
 			service := continuityBase(t)
@@ -38,19 +38,13 @@ func TestMarkdownMemoryHTTPMCPAndEncryptedFallback(t *testing.T) {
 			}
 			setMemDEK(make([]byte, 32))
 			t.Cleanup(clearMemDEK)
-			w := memoryHTTPRequest(t, service.memoryHTTP, "POST", `{"scope":"global","name":"Profile","description":"User preferences","type":"user","text":"Prefers concise answers"}`)
-			if w.Code != 200 {
-				t.Fatal(w.Code, w.Body)
+			file, err := service.MemoryWrite(brain.MemoryWrite{Scope: "global", Name: "Profile", Description: "User preferences", Type: "user", Text: "Prefers concise answers"})
+			if err != nil {
+				t.Fatal(err)
 			}
-			var file brain.MemoryFile
-			json.Unmarshal(w.Body.Bytes(), &file)
 			raw, err := os.ReadFile(filepath.Join(dir, "Memory", file.File))
 			if err != nil || looksEncrypted(raw) == primary {
 				t.Fatal("wrong codec", err)
-			}
-			w = memoryHTTPRequest(t, service.memoryHTTP, "GET", "")
-			if w.Code != 200 || !strings.Contains(w.Body.String(), "MEMORY") && !strings.Contains(w.Body.String(), "Profile") {
-				t.Fatal(w.Code, w.Body)
 			}
 			server := brain.MCPServer(service)
 			client := mcp.NewClient(&mcp.Implementation{Name: "fixture", Version: "1"}, nil)
@@ -79,9 +73,8 @@ func TestMarkdownMemoryHTTPMCPAndEncryptedFallback(t *testing.T) {
 				t.Fatal("unsafe MCP read", err)
 			}
 			clearMemDEK()
-			w = memoryHTTPRequest(t, service.memoryHTTP, "GET", "")
-			if w.Code != 423 {
-				t.Fatal("locked", w.Code, w.Body)
+			if _, err := service.MemoryIndex(brain.MemoryIndexRequest{}); err == nil {
+				t.Fatal("locked memory accessible")
 			}
 			setMemDEK(make([]byte, 32))
 		})
@@ -392,17 +385,24 @@ func TestMarkdownMigrationEncryptedFallbackAndAcceptedOnly(t *testing.T) {
 	SetConfigKey("MEM_ENCRYPTED", "on")
 	setMemDEK(make([]byte, 32))
 	t.Cleanup(clearMemDEK)
-	legacy := brain.NewMemoryStore(brain.MemoryStoreOptions{Dir: service.storage.dir, Base: "loom-memory", Encode: encodeMemContent, Decode: decodeMemContent, Available: brainAvailable})
-	profile, err := legacy.Remember(brain.RememberRequest{Class: "semantic", Scope: "global", Text: "Legacy profile", Tags: []string{brain.ProfileTag}, Provenance: brain.MemoryProvenance{Kind: "user"}})
-	if err != nil {
-		t.Fatal(err)
+	writeEncrypted := func(path string, data []byte) {
+		t.Helper()
+		ciphertext, err := encodeMemContent(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := memWriteFileAtomic(filepath.Join(service.storage.dir, path), ciphertext, 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err = legacy.Remember(brain.RememberRequest{Class: "semantic", Scope: "global", Text: "Pending guess", Status: "candidate", Provenance: brain.MemoryProvenance{Kind: "user"}}); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"profile.md", "pending.md"} {
+		data, err := os.ReadFile(filepath.Join("brain", "testdata", "legacy-memory", "semantic", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeEncrypted(filepath.Join("loom-memory", "memory", "semantic", name), data)
 	}
-	if err = service.saveDistilledLocked([]brainDistilledItem{{ID: "accepted", Kind: "fact", Text: "Confirmed fact", Review: "accepted"}, {ID: "pending", Kind: "fact", Text: "Unconfirmed guess", Review: "pending"}}); err != nil {
-		t.Fatal(err)
-	}
+	writeEncrypted("distilled.json", []byte(`[{"id":"accepted","kind":"fact","text":"Confirmed fact","review":"accepted"},{"id":"pending","kind":"fact","text":"Unconfirmed guess","review":"pending"}]`))
 	store, err := service.memoryStore()
 	if err != nil {
 		t.Fatal(err)
@@ -420,7 +420,7 @@ func TestMarkdownMigrationEncryptedFallbackAndAcceptedOnly(t *testing.T) {
 			t.Fatal("fallback memory not encrypted", err)
 		}
 	}
-	old, err := os.ReadFile(filepath.Join(service.storage.dir, "loom-memory", "memory.legacy", "semantic", profile.ID+".md"))
+	old, err := os.ReadFile(filepath.Join(service.storage.dir, "loom-memory", "memory.legacy", "semantic", "profile.md"))
 	if err != nil || !looksEncrypted(old) {
 		t.Fatal("legacy not preserved", err)
 	}

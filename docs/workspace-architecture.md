@@ -2,7 +2,7 @@
 
 ## One discussion, several models
 
-Loom owns the portable transcript, project and shared context. A turn uses Local
+Loom owns the portable transcript and discussion instructions. A turn uses Local
 or Cloud. Loading an engine model changes engine state; choosing it in a
 conversation changes that discussion's route. Never confuse an old native agent
 using a model with direct inference through the same model.
@@ -28,8 +28,7 @@ checks or register an executor.
 ## Context limits and compaction
 
 The first accepted turn freezes static context. Reuse it until configuration
-changes, explicit context refresh or compaction. Retrieval is attached only to
-the outgoing request. Compaction preserves display history and produces a
+changes, explicit context refresh or compaction. Compaction preserves display history and produces a
 portable context snapshot; it cannot transfer native private state. Context
 counts are estimates unless the engine/provider reports actual values.
 
@@ -42,8 +41,8 @@ provider-record plaintext or response diagnostics. A locked vault blocks access.
 
 ## Context ownership and portability
 
-Projects keep a title, workspace, machine, default model and their discussions.
-Brain source files are authoritative; indexes only select bounded context.
+Folders group sessions in the list. Their files and legacy project fields stay outside
+discussion prompts. MCP clients can explicitly retrieve indexed source files.
 Skills and MCP are shared Loom resources, not agent configuration distribution.
 External MCP clients configure the gateway manually with a dedicated token.
 
@@ -62,9 +61,9 @@ unknown metrics preserved. No native subscription quota is polled.
 ## API and persistence boundaries
 
 Authenticated control APIs manage `/api/workspace`, `/api/runtime/sessions`,
-projects, workspaces, tools, Brain and providers. Generic pending requests use
+session folders, workspaces, tools, memory consolidation and providers. Generic pending requests use
 `/api/workspace/sessions/{id}/requests/{request_id}`. Native integration endpoints
-return410 behind the existing auth/origin boundary. Engine nodes reuse focused
+return 410 behind the existing auth/origin boundary. Engine nodes reuse focused
 management handlers without initializing discussion, Brain or provider state.
 
 ## UI and PWA boundary

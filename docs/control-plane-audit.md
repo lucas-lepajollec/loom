@@ -1,4 +1,44 @@
-# Control plane audit — 2026-10-03
+# Control plane review
+
+## Unreleased backend cleanup
+
+### Removed surfaces
+
+| Removed | Retained callers and data |
+| --- | --- |
+| Environment service registration and deletion, reachability checks and matrix, Docker inventory, Proxmox settings, resources and certificate fingerprint probe. The removed `/api/env/` routes were `services`, `services/delete`, `check`, `matrix`, `docker`, `proxmox`, `proxmox/resources` and `proxmox/fingerprint`. Their store, probes and tests were removed. | Machines still supplies inventory, metrics, terminal, voice and engine controls. |
+| `/api/tasks` and `/api/tasks/stream`, their snapshot DTOs, progress calculation, history projections, SSE recorder and page-specific tests. Non-session notification links to the retired page were removed. | Live discussion turns, event replay, policy requests, notifications, Codeman schedules and Activity still have consumers. |
+| `/api/projects/context`, `/api/projects/info` and `/api/context/preferences`. Removed the repository inspector, context-file and directory selection helpers, preference editor, inherited prompt assembly and their editor tests. | Session folders still use `/api/projects`, `/api/projects/rename` and `/api/projects/delete`. Stored folder IDs, transcript paths and legacy metadata remain readable. Discussion instructions, portable history and explicit refresh remain available. |
+| Under `/api/brain/`, removed `sources`, `reindex`, `search`, `pack`, `read`, `distill`, `distilled`, `distilled/delete`, `distilled/review`, `memory` and `memory/delete`. Removed remote Git checkout and sync, page-specific filters, selection, model-assisted distillation, review and mutation tests. | The MCP gateway and retrieval tools still use the source index. Semantic settings control embedding consent and background refresh. Markdown memory, transcripts and consolidation still use the read-side migration for old records. |
+| The previous class-based memory writer, edit, delete, history, filter, touch and import-marking operations and their private DTOs and tests. Removed the distilled JSON writer. | Migration reads fixed legacy-format fixtures, including an encrypted fallback, through the production reader. Old files are archived by the existing migration. |
+| `/api/bench/catalog` and its model catalog filter, obsolete Artificial Analysis credential-header and quota handling, and the corresponding page documentation. | Activity and workers still use benchmark definitions, runs and queues. Model watch reads the public OpenRouter and Epoch AI feeds. |
+| Unreferenced `tools/generate-codex-types.py`, `docs/screenshots/brain.png` and retired page instructions. Removed the empty startup goroutine and unused adapters for process execution/termination, unused Unix detached-process and PID checks, Unix home probing, release lookup, asset naming, update errors, memory filenames, skill slugs, machine lookup and MCP selection validation. Removed unused native-context, test-stream and frozen-turn helpers. | The platform-specific restart and tray paths, historical event readers and migration fixtures still serve supported callers. UI response-shape tables and phone fixtures still mention retired routes. |
+
+### Security findings corrected
+
+| Boundary | Finding and correction |
+| --- | --- |
+| Control and engine relay | Method and install/update policy checks could be skipped by linked-engine dispatch. Action methods now run before routing. The relay authorizes the captured machine before forwarding. Selected-node update check, ping and apply enforce their respective methods. Engine control responses reject redirects, strip upstream cookies and sandbox the returned content. |
+| Files and node modules | Files writes now require POST at both entry points. Directory browsing and workspace creation require the worker terminal/files module. Module changes require an explicit boolean. Drive-relative strings are rejected as remote work directories. |
+| File access | Dot and parent components are checked before path cleaning. Confined reads check the opened descriptor for regular-file type. Note writes use private exclusive temporary files, claim new names without replacing existing notes and use distinct trash names. Listings and tree traversal read bounded batches. |
+| Machine Files relay | Forwarding is restricted to the selected, validated node and one hop. It uses the node credential, drops browser cookies, refuses redirects and applies sandbox and no-sniff headers to returned content. |
+| Credential disclosure | Browser key status and updates expose masked metadata. Explicit generation returns the new credential. The peer handshake requires a control Bearer with no browser Origin. Legacy inference and crawler key fields are filtered from live settings, preset views and responses from older peers. Editing masked settings preserves their stored values. CLI setters stopped echoing supplied keys. |
+| Codeman | Gateway policies and upstream requests now use the same decoded path. Ambiguous paths and unsupported methods are rejected. Settings responses redact the voice key on reads and writes. A saved password is bound to the configured address and account, including reconnect and missing or damaged configuration. Bodies and header waits are bounded and proxied content gets no-store, sandbox and no-sniff protections. |
+| Market feeds | Fixed public source URLs use public-IP validation at dial time, including redirected connections. DNS is resolved once per dial and the client connects to the checked IP. JSON/archive limits and fetch deadlines bound the reads. Failed watch-preference saves are reported. |
+| Local state and request limits | New private application directories, memory, snapshots, preset files, exports, device cache, note files and service logs/PIDs use owner-only modes where the OS implements them. Files writes receive their editor-specific request allowance. The worker inference body limit covers both direct and native backends. |
+
+### Accepted boundaries
+
+- Loom has a single owner. An unconfigured local UI requires both a loopback Host and loopback peer. A configured browser uses its authenticated session and origin checks. The public shell, sign-in state and entry points exist to establish or end a session.
+- Pairing exchanges an expiring, single-use code. Notification answers use scoped action tokens. Terminal and preview access use separate scoped grants. The MCP and inference interfaces have their own credentials. These entry points do not confer general management access.
+- Machine-wide browsing and terminal workspace creation intentionally expose paths available to the service account. The selected Files folder uses `os.Root`. Existing operator-managed folders retain their permissions. Windows access also depends on account ACLs.
+- The owner can configure a LAN or loopback node, engine or Codeman server. Those connections deliberately allow private destinations. The configured peer receives its designated credential. Cleartext LAN HTTP relies on a trusted network. A self-signed Codeman certificate is supported only at a loopback address, which places trust in local processes. Public market fetches have a different trust boundary.
+- An explicit key-issuance operation must hand its new credential to the owner. Pairing and peer handshake similarly need to deliver a credential to the peer. Visible user-authored transcripts, notes, terminal output and preset text may themselves contain sensitive content. They are owner data and do not undergo general secret scanning.
+- A global server write timeout would interrupt quiet but valid SSE, long polls, generation and terminal sessions. Request contexts, stream revocation and operation-specific limits apply. Disk modes on pre-existing shared directory trees are left under operator control.
+
+Regression coverage includes the main and worker muxes, an in-memory legacy peer, Codeman settings and destination changes, private file creation, market address rejection, and encrypted legacy-memory migration. Deployed reverse proxies, real Codeman servers, remote nodes and host ACLs require separate operational verification.
+
+## Historical review — 2026-10-03
 
 > Historical audit evidence: coding harnesses and their integration fixtures
 > described below were retired by the unreleased Local/Cloud transition.

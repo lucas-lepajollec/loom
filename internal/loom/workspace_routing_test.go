@@ -34,7 +34,7 @@ func TestUnifiedDiscussionSwitchesLocalCloudLocalWithoutForking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project, _ := saveProjectContext(ChatProject{Name: "Shared", Instructions: "Same shared instructions"})
+	project, _ := legacyProjectFixture(ChatProject{Name: "Shared", Instructions: "Same shared instructions"})
 	s, err := m.create(project.ID, "", false)
 	if err != nil {
 		t.Fatal(err)

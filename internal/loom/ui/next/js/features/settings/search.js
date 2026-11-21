@@ -1,4 +1,5 @@
 import { html, useState, useEffect } from '../../core/lib.js';
+import { ListPick } from '../../ui/listpick.js';
 import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { Group, Line } from './kit.js';
@@ -28,12 +29,15 @@ export function SearchSettings() {
     finally { setBusy(false); }
   };
   return html`<${Group} title=${t('search.provider')}>
-    <${Line} label=${t('search.provider')} tip=${t('search.provider_tip')}><select class="select" disabled=${busy || loading} value=${v.provider} onChange=${e => { setV({ provider: e.target.value, url: '' }); setKey(''); setRemove(false); setResult(null); }}>
-      <option value="duckduckgo">DuckDuckGo</option><option value="searxng">SearXNG</option><option value="brave">Brave Search</option><option value="tavily">Tavily</option></select></${Line}>
+    <${Line} label=${t('search.provider')} tip=${t('search.provider_tip')}>
+      <${ListPick} disabled=${busy || loading} value=${v.provider} label=${t('search.provider')}
+        options=${[{ value: 'duckduckgo', label: 'DuckDuckGo' }, { value: 'searxng', label: 'SearXNG' }, { value: 'brave', label: 'Brave Search' }, { value: 'tavily', label: 'Tavily' }]}
+        onChange=${provider => { setV({ provider, url: '' }); setKey(''); setRemove(false); setResult(null); }} />
+    </${Line}>
     ${v.provider === 'searxng' && html`<${Line} label=${t('search.url')} tip=${t('search.searx_tip')}><input class="input sm" value=${v.url} placeholder="http://searxng:8080" onInput=${e => setV({ ...v, url: e.target.value })} /></${Line}>`}
     ${v.provider !== 'duckduckgo' && html`<${Line} label=${t('search.key')} tip=${t('search.key_tip')}>
       <input class="input sm" type="password" autocomplete="off" value=${key} placeholder=${v.provider === 'searxng' ? t('settings.page.facultative') : t('search.key')} onInput=${e => { setKey(e.target.value); setRemove(false); }} />
-      ${saved?.provider === v.provider && saved.key_set && !remove && html`<span class="muted">${t('search.key_stored')}</span><button class="btn sm ghost" onClick=${() => { setRemove(true); setKey(''); }}>${t('settings.page.retirer')}</button>`}
+      ${saved?.provider === v.provider && saved.key_set && !remove && html`<span class="muted">${t('search.key_stored')}</span><button class="btn sm" onClick=${() => { setRemove(true); setKey(''); }}>${t('settings.page.retirer')}</button>`}
     </${Line}>`}
     <${Line} label=${t('search.save')}><button class="btn sm" disabled=${busy || loading || !dirty} onClick=${save}>${t('search.save')}</button></${Line}>
     <${Line} label=${t('search.test')} tip=${t('search.test_tip')}><input class="input sm" aria-label=${t('search.query')} value=${query} placeholder=${t('search.query')} onInput=${e => setQuery(e.target.value)} /><button class="btn sm" disabled=${busy || dirty || !query.trim()} onClick=${test}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="search" />`}${t('search.test')}</button></${Line}>

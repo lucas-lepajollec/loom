@@ -13,6 +13,10 @@ import net from 'node:net';
 import { phoneLayoutIssues } from './layout.mjs';
 import { phoneFixtures } from './phone-fixtures.mjs';
 import { validData } from '../../../internal/loom/ui/next/js/core/shape.js';
+import en from '../../../internal/loom/ui/next/js/i18n/en.js';
+import fr from '../../../internal/loom/ui/next/js/i18n/fr.js';
+
+const dictionary = process.env.CRAWL_LANG === 'fr' ? fr : en;
 
 const binary = resolve(process.argv[2] || 'bin/loom');
 const port = await new Promise((ok, reject) => { const s = net.createServer().on('error', reject).listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); }).catch(e => { console.error('UI route crawl cannot start the isolated server: ' + e.message); process.exit(1); });
@@ -76,6 +80,12 @@ try {
   const openPicker = async page => {
     const picker = page.locator('.exec-btn');
     if (await picker.count() && await picker.getAttribute('aria-expanded') !== 'true') await picker.click();
+  };
+  const checkTrigger = async (trigger, popup) => {
+    await trigger.click();
+    await popup.waitFor({ state: 'visible', timeout: 5000 });
+    await trigger.click();
+    await popup.waitFor({ state: 'detached', timeout: 5000 });
   };
   let checks = 0;
   // Chaque cas (moteur, format, scénario, page) tourne dans un contexte de
@@ -152,6 +162,7 @@ try {
       // Exercise the collection consumer that triggered the iPhone
       // crash, and both other catalogs while the engine is unavailable.
       if (r === 'chat') {
+        if (scenario === 'phone-layout') await checkTrigger(page.locator('.exec-btn'), page.locator('.picker'));
         await openPicker(page);
         await page.locator('.picker .seg button').nth(2).click();
       }
@@ -174,8 +185,12 @@ try {
         await page.waitForTimeout(100);
       }
       if (scenario === 'phone-layout' && r === 'cloud') {
-        await page.locator('.models-row .btn.sm:not(.ghost)').first().click(); await page.locator('.dialog').waitFor();
+        await page.locator('.models-row button.btn.sm', { hasText: /^(Connecter|Connect)$/ }).first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
+      }
+      if (scenario === 'phone-layout' && r === 'local') {
+        const trigger = page.locator('.sec-drop .select');
+        if (await trigger.isVisible()) await checkTrigger(trigger, page.getByRole('menu'));
       }
       if (scenario === 'phone-layout' && r === 'agents') {
         const rows = page.locator('.cm-session-row');
@@ -189,10 +204,18 @@ try {
         await page.locator('[aria-controls="cm-resume-sessions"]').click();
         await past.nth(9).waitFor({ state: 'attached' });
         if (await past.count() !== 10) throw new Error('Agents overview did not expand the history list');
+        await checkTrigger(page.locator('.cm-server-actions button[aria-expanded]'), page.getByRole('menu'));
+        await page.evaluate(async () => (await import('/next/js/features/agents/store.js')).agents.set({ creating: {} }));
+        await page.locator('.dialog .cm-cli-grid').waitFor();
+        await inspect(page, errors, label + ' new agent session dialog');
+        await page.locator('.dialog-head .icon-btn').click();
       }
       if (scenario === 'phone-layout' && r === 'agents/cron') {
         await page.locator('.cm-job-t').first().click();
-        await page.locator('#cm-cron-schedule').selectOption('custom');
+        const schedule = page.locator('#cm-cron-schedule');
+        await checkTrigger(schedule, page.getByRole('listbox'));
+        await schedule.click();
+        await page.getByRole('option', { name: dictionary['agents.cron.custom'], exact: true }).click();
         await page.locator('.cm-job-editor input[aria-describedby="cm-cron-expression-hint"]').fill('0 9 * * MON-FRI');
         if (await page.locator('.cm-editor-foot button[type=submit]').isDisabled()) throw new Error('A supported cron expression could not be saved');
       }
@@ -202,7 +225,8 @@ try {
         if (await summaries.count()) {
           await summaries.first().click();
           await inspect(page, errors, label + ' session defaults');
-          await page.locator('.cm-cfg-picker select').selectOption('notifications');
+          await page.locator('.cm-cfg-picker .select').click();
+          await page.getByRole('option', { name: dictionary['agents.cfg.g.notifications'], exact: true }).click();
           await summaries.last().click();
           await page.locator('.cm-setting-json input[type=password]').waitFor();
         }

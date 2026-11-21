@@ -41,7 +41,7 @@ func snapshotMemory(reason string) (string, error) {
 	}
 	id := time.Now().UTC().Format("20060102-150405") + "-" + sanitizeReason(reason)
 	dst := filepath.Join(snapshotsRoot(), id)
-	if err := os.MkdirAll(dst, 0o755); err != nil {
+	if err := os.MkdirAll(dst, 0o700); err != nil {
 		return "", err
 	}
 	for _, e := range entries {
@@ -123,7 +123,7 @@ func restoreSnapshot(id string) error {
 	if _, err := snapshotMemory("avant-restauration"); err != nil {
 		return fmt.Errorf("could not create safety snapshot, restore cancelled: %w", err)
 	}
-	if err := os.MkdirAll(memoryDir(), 0o755); err != nil {
+	if err := os.MkdirAll(memoryDir(), 0o700); err != nil {
 		return err
 	}
 	restored := map[string]bool{}

@@ -17,7 +17,7 @@ test('anchored popovers fit narrow, resized and keyboard-offset viewports', () =
         assert.ok(left >= viewport.left + 8);
         assert.ok(top >= viewport.top + 8);
         assert.ok(left + width <= viewport.left + viewport.width - 8);
-        assert.ok(top + height <= viewport.top + viewport.height - 8);
+        assert.ok(top + Math.min(height, parseFloat(result.maxHeight)) <= viewport.top + viewport.height - 8);
       }
     }
   }
@@ -26,4 +26,17 @@ test('desktop popover keeps its anchor and flips above when there is room', () =
   const viewport = { left: 0, top: 0, width: 1280, height: 800 };
   assert.equal(popoverPosition({ left: 300, top: 50, bottom: 82 }, 420, 500, viewport).top, '88px');
   assert.equal(popoverPosition({ left: 300, top: 650, bottom: 682 }, 420, 500, viewport).top, '142px');
+});
+
+test('a tall menu scrolls without covering its trigger', () => {
+  const viewport = { left: 0, top: 0, width: 320, height: 380 };
+  const anchor = { left: 24, top: 160, bottom: 204 };
+  const menu = popoverPosition(anchor, 260, 300, viewport);
+  assert.equal(menu.top, '210px');
+  assert.equal(menu.maxHeight, '162px');
+  assert.equal(menu.transformOrigin, 'top left');
+  const above = popoverPosition({ ...anchor, top: 200, bottom: 244 }, 260, 300, viewport);
+  assert.equal(above.top, '8px');
+  assert.equal(above.maxHeight, '184px');
+  assert.equal(above.transformOrigin, 'bottom left');
 });

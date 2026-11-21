@@ -23,7 +23,7 @@ function setup() {
       code(code, lang) {
         if (typeof code === 'object') { lang = code.lang; code = code.text; }
         const l = String(lang || '').split(/\s/)[0];
-        return `<div class="code"><div class="code-h"><span>${esc(l || t('chat.md.text'))}</span><button type="button" class="code-copy" data-copy>${esc(t('chat.md.copier'))}</button></div><pre><code>${esc(code)}</code></pre></div>`;
+        return `<div class="code"><div class="code-h"><span>${esc(l || t('chat.md.text'))}</span><button type="button" class="btn sm" data-copy>${esc(t('chat.md.copier'))}</button></div><pre><code>${esc(code)}</code></pre></div>`;
       },
     },
   });

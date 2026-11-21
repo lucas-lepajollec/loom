@@ -238,21 +238,10 @@ func TestMarkdownTranscriptWriteMoveAndSearch(t *testing.T) {
 	}
 }
 func TestMarkdownMigrationReportAndIdempotence(t *testing.T) {
-	legacy, opts := memoryFixture(t)
-	profile := memoryRequest("User likes concise replies.")
-	profile.Tags = []string{ProfileTag}
-	mustRemember(t, legacy, profile)
-	pending := memoryRequest("Pending preference")
-	pending.Status = "candidate"
-	mustRemember(t, legacy, pending)
-	handoff := memoryRequest("Old state")
-	handoff.Class = "working"
-	handoff.Tags = []string{"handoff"}
-	mustRemember(t, legacy, handoff)
-	project := memoryRequest("Project convention")
-	project.Scope = "project:work"
-	project.Tags = []string{ProjectNotesTag}
-	mustRemember(t, legacy, project)
+	opts := MemoryStoreOptions{Dir: t.TempDir(), Base: ".loom"}
+	if err := os.CopyFS(filepath.Join(opts.Dir, opts.Base, "memory"), os.DirFS("testdata/legacy-memory")); err != nil {
+		t.Fatal(err)
+	}
 	s := NewMarkdownStore(MarkdownOptions{Dir: opts.Dir})
 	if err := s.Migrate(opts, nil); err != nil {
 		t.Fatal(err)

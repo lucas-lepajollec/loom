@@ -53,8 +53,6 @@ func readSkillDir(src SkillSource, dir string) (Capability, bool) {
 	return resources.ReadSkillDir(src, dir)
 }
 
-func skillDirSlug(name string) string { return resources.SkillDirSlug(name) }
-
 func scanSkills() []Capability { return resourceLibrary().ScanSkills(skillSources()) }
 
 func writeLoomSkill(c Capability, dir string) (string, error) {

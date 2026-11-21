@@ -3,10 +3,8 @@ package loom
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +23,6 @@ type brainService struct {
 	items          *brain.MarkdownStore
 	itemsDir       string
 	itemsEncrypted bool
-	distillMu      sync.Mutex
 	consolidation  memoryConsolidation
 	transcriptMu   sync.Mutex
 	transcriptTail chan struct{}
@@ -196,174 +193,6 @@ func brainResponse(w http.ResponseWriter, value any, err error) {
 	}
 	sendJSON(w, 200, value)
 }
-func brainFilter(r *http.Request) []string {
-	out := []string{}
-	for _, value := range r.URL.Query()["sources"] {
-		for _, id := range strings.Split(value, ",") {
-			if id = strings.TrimSpace(id); id != "" {
-				out = append(out, id)
-			}
-		}
-	}
-	return out
-}
-func (s *brainService) sources(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
-	if r.Method != "GET" && r.Method != "POST" {
-		w.Header().Set("Allow", "GET, POST")
-		sendJSON(w, 405, map[string]any{"error": "method not allowed"})
-		return
-	}
-	e, err := s.get()
-	if err != nil {
-		brainResponse(w, nil, err)
-		return
-	}
-	if r.Method == "POST" {
-		var req struct {
-			Connector  string   `json:"connector"`
-			Remote     string   `json:"remote"`
-			Branch     string   `json:"branch"`
-			Permission string   `json:"permission"`
-			Primary    bool     `json:"primary"`
-			Secondary  bool     `json:"secondary"`
-			Exclude    []string `json:"exclude"`
-			Action     string   `json:"action"`
-			ID         string   `json:"id"`
-			Label      string   `json:"label"`
-			Path       string   `json:"path"`
-			Kind       string   `json:"kind"`
-			Include    []string `json:"include,omitempty"`
-		}
-		if !workspaceDecode(w, r, &req) {
-			return
-		}
-		if req.Action == "sync" {
-			var source *brain.Source
-			for _, item := range e.Sources() {
-				if item.ID == req.ID && !item.ReadOnly {
-					copy := item
-					source = &copy
-					break
-				}
-			}
-			if source == nil {
-				brainResponse(w, nil, errors.New("second brain not found"))
-				return
-			}
-			if err = syncBrainRemote(r.Context(), *source); err == nil {
-				err = e.Refresh(r.Context())
-			}
-			brainResponse(w, map[string]any{"ok": err == nil, "sources": e.Sources()}, err)
-			return
-		}
-		switch req.Action {
-		case "add", "":
-			if req.ID == "" {
-				// A stable id from the name, unique among sources.
-				base := skillDirSlug(firstNonEmpty(req.Label, filepath.Base(strings.TrimSuffix(req.Remote, "/")), filepath.Base(req.Path)))
-				req.ID = base
-				for i := 2; ; i++ {
-					taken := false
-					for _, existing := range e.Sources() {
-						taken = taken || existing.ID == req.ID
-					}
-					if !taken && req.ID != "conversations" && req.ID != "memory" && req.ID != "distilled" {
-						break
-					}
-					req.ID = fmt.Sprintf("%s-%d", base, i)
-				}
-			}
-			if req.Connector == "git-remote" && strings.TrimSpace(req.Remote) != "" {
-				for _, existing := range e.Sources() {
-					if existing.ID == req.ID && !existing.ReadOnly {
-						req.Path = existing.Path
-						if existing.Remote != strings.TrimSpace(req.Remote) {
-							err = errors.New("unlink this second brain before changing its Git remote")
-						}
-						break
-					}
-				}
-				if err == nil && req.Path == "" {
-					req.Path, err = cloneBrainRemote(r.Context(), req.ID, strings.TrimSpace(req.Remote), strings.TrimSpace(req.Branch))
-				}
-			}
-			if err == nil && req.Primary {
-				req.Permission = "write"
-				req.Secondary = false
-			}
-			if err == nil {
-				err = e.Update(brain.Source{ID: req.ID, Label: req.Label, Path: req.Path, Kind: req.Kind, Include: req.Include, Connector: req.Connector, Remote: strings.TrimSpace(req.Remote), Branch: strings.TrimSpace(req.Branch), Permission: req.Permission, Primary: req.Primary, Secondary: req.Secondary, Exclude: req.Exclude})
-			}
-			// Retain managed checkouts on rejected configuration: reconnect may
-			// have reused an existing repository containing user edits.
-		case "remove":
-			err = e.Remove(req.ID)
-		case "relabel":
-			err = e.Relabel(req.ID, req.Label)
-		default:
-			err = errors.New("action must be add, remove, relabel or sync")
-		}
-		if err != nil {
-			brainResponse(w, nil, err)
-			return
-		}
-		syncPortableMCP()
-	}
-	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources(), "refreshing": e.Refreshing(), "refresh_seconds": 180})
-}
-func (s *brainService) reindex(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, "POST") {
-		return
-	}
-	e, err := s.get()
-	if err != nil {
-		brainResponse(w, nil, err)
-		return
-	}
-	err = e.Refresh(r.Context())
-	// Source-specific errors retain partial results and are also visible in GET sources.
-	if err != nil {
-		sendJSON(w, 200, map[string]any{"ok": false, "sources": e.Sources(), "error": err.Error()})
-		return
-	}
-	sendJSON(w, 200, map[string]any{"ok": true, "sources": e.Sources(), "refreshing": e.Refreshing(), "refresh_seconds": 180})
-}
-func (s *brainService) search(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, "GET") {
-		return
-	}
-	limit := 0
-	if value := r.URL.Query().Get("limit"); value != "" {
-		var err error
-		limit, err = strconv.Atoi(value)
-		if err != nil {
-			brainResponse(w, nil, errors.New("invalid limit"))
-			return
-		}
-	}
-	hits, err := s.SearchContext(r.Context(), brain.SearchRequest{Query: r.URL.Query().Get("query"), ProjectID: r.URL.Query().Get("project_id"), Sources: brainFilter(r), Personal: r.URL.Query().Get("personal") == "true", Limit: limit})
-	brainResponse(w, map[string]any{"hits": hits}, err)
-}
-func (s *brainService) pack(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, "POST") {
-		return
-	}
-	var req brain.PackRequest
-	if !workspaceDecode(w, r, &req) {
-		return
-	}
-	pack, err := s.PackContext(r.Context(), req)
-	brainResponse(w, pack, err)
-}
-func (s *brainService) read(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, "GET") {
-		return
-	}
-	q := r.URL.Query()
-	chunk, err := s.Read(brain.ReadRequest{ChunkID: q.Get("chunk_id"), ProjectID: q.Get("project_id"), Source: q.Get("source"), Path: q.Get("path"), Heading: q["heading"], Sources: brainFilter(r), Personal: q.Get("personal") == "true"})
-	brainResponse(w, chunk, err)
-}
 
 // brainSvc is the process-wide Brain (one index per LOOM_HOME).
 var (
@@ -383,13 +212,11 @@ func theBrain() *brainService {
 
 func registerBrainRoutes(mux *http.ServeMux, ctx context.Context) {
 	s := theBrain()
-	for route, handler := range map[string]http.HandlerFunc{"memory": s.memoryHTTP, "memory/delete": s.memoryDeleteHTTP, "memory/consolidate": s.memoryConsolidateHTTP, "memory/status": s.memoryStatusHTTP, "memory/settings": s.memorySettingsHTTP, "sources": s.sources, "reindex": s.reindex, "search": s.search, "pack": s.pack, "read": s.read, "semantic": s.semanticHTTP, "distill": s.distillHTTP, "distilled": s.distilledHTTP, "distilled/delete": s.deleteDistilledHTTP, "distilled/review": s.reviewDistilledHTTP} {
-		protected := requireWebAuth(handler)
-		mux.HandleFunc("/api/brain/"+route, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Cache-Control", "no-store")
-			protected(w, r)
-		})
-	}
+	api := webAPI(mux)
+	api("/api/brain/memory/consolidate", s.memoryConsolidateHTTP)
+	api("/api/brain/memory/status", s.memoryStatusHTTP)
+	api("/api/brain/memory/settings", s.memorySettingsHTTP)
+	api("/api/brain/semantic", s.semanticHTTP)
 	server := brain.MCPServer(s)
 	server.AddReceivingMiddleware(gatewayPolicyMiddleware(nil))
 	registerMCPTransport(mux, "/mcp/brain", func(*http.Request) *mcp.Server { return server })

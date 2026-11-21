@@ -47,7 +47,7 @@ const (
 // uploadsDir renvoie (en le créant) le dossier de dépôt, dans le workspace agent.
 func uploadsDir() (string, error) {
 	dir := filepath.Join(agentWorkspace(), "uploads")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
 	return dir, nil
@@ -55,8 +55,6 @@ func uploadsDir() (string, error) {
 
 // safeUploadName réduit un nom fourni par le client à un nom de fichier simple :
 // pas de dossier, pas de "..", pas de caractères de contrôle ni de séparateurs.
-// C'est la seule barrière entre un client hostile et une écriture arbitraire sur
-// le disque — l'API écoute sur 0.0.0.0 et n'a pas forcément de clé.
 func safeUploadName(name string) string {
 	// Coupe tout ce qui ressemble à un chemin, dans les deux conventions : un nom
 	// Windows arrive tel quel sur un serveur Linux, où filepath.Base ne verrait

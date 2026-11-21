@@ -2,9 +2,10 @@ import { t, tSource } from '../../core/i18n.js';
 // Paramètres du modèle local. Lit la configuration courante (modèle nu ou
 // preset), l'édite en mémoire, estime la VRAM à chaque changement et applique
 // d'un bloc. Trois niveaux : Essentiel, Avancé, Expert (drapeaux llama.cpp).
+import { ListPick } from '../../ui/listpick.js';
 import { html, useState, useEffect, useRef, useMemo, useStore, cls, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Seg, Switch, Slider, Tip, Menu } from '../../ui/controls.js';
+import { DropdownButton, Seg, Switch, Slider, Tip, Menu } from '../../ui/controls.js';
 import { confirm, prompt, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, refreshStatus, refreshLibrary } from '../../core/state.js';
@@ -17,8 +18,8 @@ const Row = ({ spec, children }) => html`<div class=${cls('prow', spec.stack && 
   <div class="prow-l"><span>${tSource(spec.label) || spec.id}</span>${spec.tip && html`<${Tip} text=${tSource(spec.tip)} />`}</div>
   <div class="prow-c">${children}</div></div>`;
 
-const Select = ({ value, options, onChange }) => html`<select class="select sm" value=${value} onChange=${e => onChange(e.target.value)}>
-  ${options.map(([v, l]) => html`<option value=${v} selected=${String(v) === String(value)}>${tSource(l)}</option>`)}</select>`;
+const Select = ({ value, options, onChange, label }) => html`<${ListPick} class="sm" value=${String(value)} label=${label}
+  options=${options.map(([v, l]) => ({ value: String(v), label: tSource(l) }))} onChange=${onChange} />`;
 
 const Num = ({ value, placeholder, onChange, step }) => html`<input class="input sm num" type="number" step=${step || 'any'} value=${value} placeholder=${placeholder || '—'} onChange=${e => onChange(e.target.value)} />`;
 
@@ -140,16 +141,16 @@ export function ParamsEditor({ src, onSaved, onLoaded }) {
       case 'layers': return html`<div class="slide-row"><${Slider} value=${ngl} min=${p.min} max=${layers} label=${p.label}
         onInput=${v => edit(c => c.set(p.key, v >= layers ? '999' : v))} /><span class="val mono">${!nglRaw && autoFit ? 'auto' : ngl >= layers ? t("inspector.params.tout") : ngl}</span></div>`;
       case 'reasoning': return html`<${Switch} checked=${reasonOn} label=${p.label} onChange=${on => edit(c => c.set(p.key, on ? (caps.thinks ? '' : 'on') : 'off'))} />`;
-      case 'effort': return html`<${Select} value=${cfg.get(p.key)} options=${efforts} onChange=${v => edit(c => { c.set(p.key, v); if (v) c.flag('--jinja', true); })} />`;
+      case 'effort': return html`<${Select} label=${p.label} value=${cfg.get(p.key)} options=${efforts} onChange=${v => edit(c => { c.set(p.key, v); if (v) c.flag('--jinja', true); })} />`;
       case 'vision': return html`<${Switch} checked=${visionOn} label=${p.label} onChange=${on => edit(c => { if (!on) { c.set(p.key, ''); c.flag('--no-mmproj', true); } else { c.flag('--no-mmproj', false); if (caps.mmproj && caps.mmproj.length === 1) c.set(p.key, caps.mmproj[0]); } })} />`;
-      case 'kv': return html`<${Select} value=${cfg.kv()} options=${p.choices} onChange=${v => edit(c => c.setKv(v))} />`;
+      case 'kv': return html`<${Select} label=${p.label} value=${cfg.kv()} options=${p.choices} onChange=${v => edit(c => c.setKv(v))} />`;
       case 'parallel': return html`<${Num} value=${cfg.get(p.key) || cfg.arg('-np')} placeholder=${p.placeholder} step=${p.step} onChange=${v => edit(c => c.set(p.key, v))} />`;
       case 'fit': return html`<${Switch} checked=${/^on$/i.test(cfg.arg('--fit') || cfg.get('FIT'))} label=${p.label} onChange=${on => edit(c => c.setFlagValue(f, on ? 'on' : 'off'))} />`;
       case 'textarea': return html`<textarea class="textarea sm" rows="3" placeholder=${p.placeholder} value=${value} onChange=${e => change(e.target.value)}></textarea>`;
       case 'number': return html`<${Num} value=${value} placeholder=${p.placeholder} step=${p.step} onChange=${change} />`;
       case 'bool': return html`<${Switch} checked=${cfg.flagValue(f) === 'on'} label=${p.label} onChange=${on => edit(c => c.setFlagValue(f, on ? 'on' : ''))} />`;
       case 'enum': return p.choices && p.choices.length
-        ? html`<${Select} value=${value} options=${p.tier === 'expert' ? [['', t("inspector.params.defaut_2")], ...p.choices] : p.choices} onChange=${change} />`
+        ? html`<${Select} label=${p.label} value=${value} options=${p.tier === 'expert' ? [['', t("inspector.params.defaut_2")], ...p.choices] : p.choices} onChange=${change} />`
         : html`<input class="input sm" value=${value} placeholder=${p.default || ''} onChange=${e => change(e.target.value)} />`;
       default: return html`<input class="input sm" value=${value} placeholder=${p.default || ''} onChange=${e => change(e.target.value)} />`;
     }
@@ -217,7 +218,7 @@ export function ParamsEditor({ src, onSaved, onLoaded }) {
       <span class=${cls('insp-state', dirty && 'warn')}>${!src.live ? t("inspector.params.le_moteur_ne_change_pas_tant_que_tu_ne_charges_pas") : dirty ? t("inspector.params.modifications_non_appliquees") : t("inspector.params.applique_au_modele_charge")}</span>
       <div class="insp-acts">
         ${src.live ? html`<button class="btn primary" disabled=${!dirty} onClick=${apply}>${t("inspector.params.appliquer")}</button>` : html`<button class="btn primary" onClick=${loadNow}><${Icon} n="play" />${t("inspector.params.charger")}</button>`}
-        <button class="btn dd" onClick=${e => setMenu(e.currentTarget)}>${t("inspector.params.enregistrer")}<${Icon} n="chevron" /></button>
+        <${DropdownButton} class="fit" open=${menu} onClick=${e => setMenu(e.currentTarget)}>${t("inspector.params.enregistrer")}</${DropdownButton}>
       </div>
       ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${saveMenu} />`}
     </div>`;

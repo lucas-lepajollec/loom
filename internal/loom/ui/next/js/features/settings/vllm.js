@@ -3,6 +3,7 @@ import { t, tSource } from '../../core/i18n.js';
 // et lancé ici ; Loom l'utilise alors comme moteur (lien direct local).
 // Bibliothèque : le cache Hugging Face de cette machine, la recherche sur le
 // Hub avec une estimation de VRAM, et des réglages enregistrés par modèle.
+import { ListPick } from '../../ui/listpick.js';
 import { html, useState, useEffect, useStore, cls, fmtBytes } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Switch, Tip, Empty, Menu } from '../../ui/controls.js';
@@ -33,17 +34,18 @@ function Params({ model, onClose, onStart }) {
   const control = p => {
     const val = v[p.key] == null ? '' : String(v[p.key]);
     if (p.kind === 'bool') return html`<${Switch} label=${tSource(p.label)} checked=${/^(on|true)$/i.test(val || p.default || '')} onChange=${on => set(p.key, on ? 'on' : 'off')} />`;
-    if (p.kind === 'enum') return html`<select class="select sm" value=${val} onChange=${e => set(p.key, e.target.value)}><option value="">${t('inspector.params.defaut_2')}</option>${(p.choices || []).map(([c, l]) => html`<option value=${c}>${l}</option>`)}</select>`;
+    if (p.kind === 'enum') return html`<${ListPick} class="sm" label=${tSource(p.label)} value=${val} onChange=${choice => set(p.key, choice)}
+      options=${[{ value: '', label: t('inspector.params.defaut_2') }, ...(p.choices || []).map(([c, label]) => ({ value: String(c), label }))]} />`;
     if (p.kind === 'number') return html`<input class="input sm num" type="number" step=${p.step || 'any'} min=${p.min} max=${p.max} value=${val} placeholder=${p.default || t('settings.page.auto')} onChange=${e => set(p.key, e.target.value)} />`;
     return html`<input class="input sm mono" value=${val} placeholder=${p.default || 'auto'} onChange=${e => set(p.key, e.target.value)} />`;
   };
   const row = p => html`<div class=${cls('prow', p.dangerous && 'danger')} key=${p.id}><div class="prow-l"><span>${tSource(p.label)}</span>${p.tip && html`<${Tip} text=${tSource(p.tip)} />`}${p.dangerous && html`<span class="tag red">${t('vllm.params.danger')}</span>`}</div><div class="prow-c">${control(p)}</div></div>`;
   const specs = d ? (d.params || []).filter(p => p.available !== false) : [];
   return html`<${Modal} wide title=${t('vllm.params.title')} sub=${model} onClose=${onClose}
-      foot=${html`<button class="btn ghost" onClick=${() => setV({})}>${t('vllm.params.reset')}</button><span class="grow"></span><button class="btn" onClick=${() => save(false)}>${t('vllm.params.save')}</button><button class="btn primary" onClick=${() => save(true)}>${t('vllm.params.save_start')}</button>`}>
+      foot=${html`<button class="btn" onClick=${() => setV({})}>${t('vllm.params.reset')}</button><span class="grow"></span><button class="btn" onClick=${() => save(false)}>${t('vllm.params.save')}</button><button class="btn primary" onClick=${() => save(true)}>${t('vllm.params.save_start')}</button>`}>
     ${!d ? html`<div class="skeleton" style="height:160px"></div>` : html`
       <div class="vl-params">${specs.filter(p => p.tier === 'essential').map(row)}</div>
-      <button class="btn sm ghost" onClick=${() => setMore(!more)}><${Icon} n=${more ? 'chevron' : 'right'} />${t('vllm.params.advanced')}</button>
+      <button class="btn sm" onClick=${() => setMore(!more)}><${Icon} n=${more ? 'chevron' : 'right'} />${t('vllm.params.advanced')}</button>
       ${more && html`<div class="vl-params">${specs.filter(p => p.tier !== 'essential').map(row)}</div>`}
       <p class="note">${t('vllm.params.note')}</p>`}
   </${Modal}>`;
@@ -75,7 +77,8 @@ function Search({ onDownload, busy, enginePicker, initialQuery = '' }) {
   return html`
     <form class="models-toolbar" onSubmit=${e => { e.preventDefault(); search(q, quant); }}><label class="search"><${Icon} n="search" /><input aria-label=${label} placeholder=${label} value=${q} onInput=${e => setQ(e.target.value)} /></label>
       ${enginePicker}
-      <select class="select" aria-label=${t('local.hub.quantisations')} value=${quant} onChange=${e => setQuant(e.target.value)}><option value="">${t('vllm.search.any')}</option><option value="awq">AWQ</option><option value="gptq">GPTQ</option><option value="fp8">FP8</option></select>
+      <${ListPick} label=${t('local.hub.quantisations')} value=${quant} onChange=${setQuant}
+        options=${[{ value: '', label: t('vllm.search.any') }, ...['awq', 'gptq', 'fp8'].map(v => ({ value: v, label: v.toUpperCase() }))]} />
       <button class="btn" type="submit" disabled=${loading}>${loading ? html`<span class="spinner"></span>` : t('resources.brain.chercher')}</button></form>
     ${res && (res.length ? html`<div class="models-card">${res.slice(0, 20).map(m => {
       const [tone, verdict] = verdicts[m.verdict] || verdicts.unknown;
@@ -165,7 +168,7 @@ function DownloadRow({ v }) {
   if (!dl || !(dlActive(dl) || dl.error)) return null;
   return html`<div class="models-card models-row"><div class="models-row-main"><b>${dl.model}</b>
       ${dl.error ? html`<small class="models-warning">${dl.error}</small>` : html`<small>${t('vllm.lib.downloading', { done: fmtBytes(dl.done), total: dl.total ? fmtBytes(dl.total) : '—' })}</small><div class="gauge"><i style=${{ width: (dl.total ? Math.min(100, Math.round(dl.done / dl.total * 100)) : 0) + '%' }}></i></div>`}</div>
-    ${dlActive(dl) && html`<button class="btn sm ghost" onClick=${async () => { await post('/api/engines/vllm/download/cancel', { model: dl.model }); v.reloadDl(); }}>${t('settings.page.annuler')}</button>`}</div>`;
+    ${dlActive(dl) && html`<button class="btn sm" onClick=${async () => { await post('/api/engines/vllm/download/cancel', { model: dl.model }); v.reloadDl(); }}>${t('settings.page.annuler')}</button>`}</div>`;
 }
 
 export function VllmLibraryStatus({ v }) {
@@ -192,10 +195,8 @@ export function VllmLibraryStatus({ v }) {
       <div class="models-row-main"><b>${t('models.engine.state', { engine: 'vLLM', state })}</b>
         <small>${[active && x.model, x.version].filter(Boolean).join(' · ')}</small>
       </div>
-      ${!active && startModel && html`<select class="select models-start-model" aria-label=${t('local.page.modele')} value=${startModel}
-        disabled=${acting || !idle} onChange=${e => setSelected(e.target.value)}>
-        ${choices.map(m => html`<option key=${m.id} value=${m.id}>${m.id}</option>`)}
-      </select>`}
+      ${!active && startModel && html`<${ListPick} class="models-start-model" label=${t('local.page.modele')} value=${startModel}
+        disabled=${acting || !idle} onChange=${setSelected} options=${choices.map(m => ({ value: m.id, label: m.id }))} />`}
       <button class=${cls('btn', !active && 'primary')} disabled=${acting || !active && (!idle || !startModel)} onClick=${toggle}>
         ${active ? t('local.page.arreter') : t('local.page.demarrer')}
       </button>
@@ -231,7 +232,7 @@ export function VllmLibrary({ v, onHub, enginePicker }) {
             <div class="models-actions">
               ${on ? html`<span class=${cls('models-row-state', loading ? 'models-warning' : 'models-good')}>${loading ? t('local.page.chargement') : t('local.page.charge')}</span>`
                 : html`<button class="btn sm" disabled=${!idle} onClick=${() => v.start(m.id)}>${t('local.page.charger')}</button>`}
-              <button class="btn sm ghost" onClick=${() => setParams(m.id)}>${t('local.page.regler')}</button>
+              <button class="btn sm" onClick=${() => setParams(m.id)}>${t('local.page.regler')}</button>
               <button class="icon-btn" aria-label=${t('models.row.actions', { name: m.id })} disabled=${on} onClick=${e => openMenu(e.currentTarget, m)}><${Icon} n="more" /></button>
             </div>
           </div>`;
@@ -292,9 +293,9 @@ export function VLLMEngine() {
         : x.installed ? html`<span class="state">${t('settings.page.installe_arrete')}${x.version ? ' · ' + x.version : ''}</span>`
         : x.missing ? html`<span class="state err">${x.missing}</span>`
         : html`<span class="state">${t('settings.page.non_installe')}</span><button class="btn sm" onClick=${install}>${t('settings.page.installer_vllm')}</button>`}
-      ${x.installed && html`<a class="btn sm ghost" href="#/local" onClick=${() => { try { localStorage.setItem('loom.local.engine', 'vllm'); } catch (_) {} }}>${t('vllm.settings.models')}</a>`}</${Line}>
+      ${x.installed && html`<a class="btn sm" href="#/local" onClick=${() => { try { localStorage.setItem('loom.local.engine', 'vllm'); } catch (_) {} }}>${t('vllm.settings.models')}</a>`}</${Line}>
     ${x.installed && html`<${Line} label=${t('settings.page.mise_a_jour_automatique')} tip=${t('vllm.auto_tip')}>
-      ${idle && html`<button class="btn sm ghost" onClick=${() => v.act({ action: 'update' })}><${Icon} n="refresh" />${t('settings.page.mettre_a_jour')}</button>`}
+      ${idle && html`<button class="btn sm" onClick=${() => v.act({ action: 'update' })}><${Icon} n="refresh" />${t('settings.page.mettre_a_jour')}</button>`}
       <${Switch} label=${t('settings.page.mise_a_jour_automatique')} checked=${!!(x.auto_update && x.auto_update.auto)} onChange=${toggleAuto} /></${Line}>`}
     ${x.error && html`<${Line} label="${t('settings.page.derniere_erreur')}"><span class="state err">${x.error}</span></${Line}>`}
     ${x.job === 'install' || x.job === 'update' ? html`<details class="lc-log" open><summary>${t('settings.page.journal_vllm')}</summary><pre>${(x.log || '').split('\n').slice(-60).join('\n')}</pre></details>` : ''}

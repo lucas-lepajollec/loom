@@ -8,16 +8,6 @@ import (
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
-func awaitFrozenTurn(t *testing.T, m *runtimeSessions, id string) RuntimeSession {
-	t.Helper()
-	awaitCloudFinished(t, m, id)
-	s, _ := m.get(id)
-	if s.Status != "complete" {
-		t.Fatalf("turn: %s %s", s.Status, s.Error)
-	}
-	return s
-}
-
 func TestFrozenContextStaticInvalidation(t *testing.T) {
 	testHome(t)
 	p, err := createProject("First project")

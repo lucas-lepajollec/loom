@@ -229,7 +229,7 @@ export function MachineCard({ machine, metric, roles, clis, test, revision }) {
   const name = machine.name;
   return html`<article class="machine-card" aria-label=${name}>
     <div class="machine-card-head">
-      <span class="machine-icon"><${Icon} n="server" /></span>
+      <span class="logo-mark sm machine-icon" aria-hidden="true"><${Icon} n="server" /></span>
       <div>
         <h2><a href=${machineHref(machine.id)}>${name}</a></h2>
         <div class="machine-card-tags">
@@ -258,7 +258,7 @@ export function MachineCard({ machine, metric, roles, clis, test, revision }) {
       <${MachineVersion} machine=${machine} loom=${loom} />
       <div class="machine-actions">
         <${MachineTerminalButton} machine=${machine} />
-        <a class="btn ghost" href=${machineHref(machine.id)}>${t('settings.machines.details')}<${Icon} n="right" /></a>
+        <a class="btn" href=${machineHref(machine.id)}>${t('settings.machines.details')}<${Icon} n="right" /></a>
       </div>
     </div>
   </article>`;

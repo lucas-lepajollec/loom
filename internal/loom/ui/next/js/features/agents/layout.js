@@ -38,7 +38,6 @@ export const layout = createStore(sanitize(read(KEY, null)), { cells: list, colF
 const commit = patch => { const next = sanitize({ ...layout.get(), ...patch }); layout.set(next); write(KEY, next); };
 
 export const gridOn = () => layout.get().count > 1;
-export const focusedId = () => { const l = layout.get(); return l.count > 1 ? l.cells[l.focus] : null; };
 
 // Vue de chaque session (conversation, terminal, côte à côte), partagée par
 // la vue seule et les volets.

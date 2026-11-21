@@ -116,9 +116,13 @@ func handleNodeModules(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Module  string `json:"module"`
-		Enabled bool   `json:"enabled"`
+		Enabled *bool  `json:"enabled"`
 	}
 	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	if req.Enabled == nil {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "enabled is required"})
 		return
 	}
 	key, ok := nodeModuleKeys[req.Module]
@@ -126,7 +130,7 @@ func handleNodeModules(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "unknown module"})
 		return
 	}
-	if err := putBool(bkState, key, !req.Enabled); err != nil {
+	if err := putBool(bkState, key, !*req.Enabled); err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
@@ -135,7 +139,7 @@ func handleNodeModules(w http.ResponseWriter, r *http.Request) {
 
 // handleMachineNodeModules runs on the main Loom and forwards the switch.
 func handleMachineNodeModules(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, http.MethodPost) {
+	if !workspaceMethod(w, r, http.MethodPost) || !usageVaultAccess(w) {
 		return
 	}
 	m, ok := machineForNode(w, r)
@@ -144,9 +148,13 @@ func handleMachineNodeModules(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Module  string `json:"module"`
-		Enabled bool   `json:"enabled"`
+		Enabled *bool  `json:"enabled"`
 	}
 	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	if req.Enabled == nil {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "enabled is required"})
 		return
 	}
 	if _, known := nodeModuleKeys[req.Module]; !known {

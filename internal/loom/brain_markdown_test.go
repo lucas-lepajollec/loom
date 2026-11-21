@@ -1,7 +1,6 @@
 package loom
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"sync"
@@ -35,18 +34,6 @@ func rememberContextItem(t *testing.T, class, scope, text string) brain.MemoryFi
 	return item
 }
 
-type memoryContextAdapter struct {
-	id  string
-	run func(RuntimeTurn, ChatCallback)
-}
-
-func (a memoryContextAdapter) Descriptor() RuntimeDescriptor {
-	return RuntimeDescriptor{ID: a.id, Name: "Context fixture", Kind: "local", Implemented: true, Capabilities: []string{"chat"}}
-}
-func (a memoryContextAdapter) Run(_ context.Context, turn RuntimeTurn, emit ChatCallback) ([]Message, error) {
-	a.run(turn, emit)
-	return nil, nil
-}
 func continuityBase(t *testing.T) *brainService {
 	t.Helper()
 	testHome(t)

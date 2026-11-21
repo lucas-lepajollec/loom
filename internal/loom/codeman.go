@@ -55,21 +55,32 @@ var codemanVoiceSettingsMu sync.Mutex
 func codemanConfigPath() string { return filepath.Join(LoomHome(), "codeman.json") }
 
 func loadCodemanConfig() codemanConfig {
-	c := codemanConfig{URL: codemanDefaultURL, Username: codemanDefaultUser}
-	b, err := os.ReadFile(codemanConfigPath())
-	if err == nil {
-		var saved codemanConfig
-		if json.Unmarshal(b, &saved) == nil {
-			if saved.URL != "" {
-				c.URL = saved.URL
-			}
-			if saved.Username != "" {
-				c.Username = saved.Username
-			}
-			c.UIURL = saved.UIURL
-		}
+	c := savedCodemanConfig()
+	if c == nil {
+		return codemanConfig{URL: codemanDefaultURL, Username: codemanDefaultUser}
 	}
-	return c
+	return *c
+}
+
+// A missing configuration permits discovery but cannot authorize a stored password.
+func savedCodemanConfig() *codemanConfig {
+	b, err := os.ReadFile(codemanConfigPath())
+	if os.IsNotExist(err) {
+		return nil
+	}
+	var saved codemanConfig
+	if err != nil || json.Unmarshal(b, &saved) != nil {
+		return &codemanConfig{}
+	}
+	base, err := normalizeCodemanURL(saved.URL)
+	if err != nil {
+		return &codemanConfig{}
+	}
+	saved.URL = base
+	if saved.Username == "" {
+		saved.Username = codemanDefaultUser
+	}
+	return &saved
 }
 
 func saveCodemanConfig(c codemanConfig) error {
@@ -102,13 +113,13 @@ func normalizeCodemanURL(raw string) (string, error) {
 		raw = "http://" + raw
 	}
 	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
 		return "", errors.New("invalid Codeman address: use http(s)://host:port")
 	}
-	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Contains(u.Path, "..") || strings.Contains(u.Path, "/api/") {
+	if u.User != nil || u.ForceQuery || strings.ContainsAny(u.Path, "\\?#%\x00\r\n") || u.RawQuery != "" || u.Fragment != "" || strings.Contains(u.Path, "..") || strings.Contains(u.Path, "/api/") {
 		return "", errors.New("invalid Codeman address: no credentials, API path or query")
 	}
-	return u.Scheme + "://" + u.Host + strings.TrimRight(u.Path, "/"), nil
+	return strings.TrimRight(u.String(), "/"), nil
 }
 
 func codemanLoopback(base string) bool {
@@ -135,6 +146,7 @@ var codemanLoopbackTLS = &http.Client{
 		MaxIdleConnsPerHost:   16,
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: time.Second,
+		ResponseHeaderTimeout: 11 * time.Minute,
 	},
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
@@ -147,6 +159,12 @@ func codemanHTTP(base string) *http.Client {
 }
 
 func codemanAuthHeader(c codemanConfig) string {
+	codemanMu.Lock()
+	defer codemanMu.Unlock()
+	active := savedCodemanConfig()
+	if active == nil || c.URL == "" || c.URL != active.URL || c.Username != active.Username {
+		return ""
+	}
 	p := codemanPassword()
 	if p == "" {
 		return ""
@@ -164,6 +182,7 @@ var codemanClient = &http.Client{
 		MaxIdleConnsPerHost:   16,
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: time.Second,
+		ResponseHeaderTimeout: 11 * time.Minute,
 	},
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
@@ -227,19 +246,8 @@ func handleCodemanConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		codemanMu.Lock()
 		defer codemanMu.Unlock()
-		if req.ClearPassword {
-			if err := deleteProviderSecret(codemanSecretID); err != nil {
-				sendJSON(w, 500, map[string]any{"ok": false, "error": "could not remove the Codeman password"})
-				return
-			}
-		} else if req.Password != "" {
-			if err := sealProviderSecret(codemanSecretID, req.Password); err != nil {
-				sendJSON(w, 500, map[string]any{"ok": false, "error": "could not store the Codeman password"})
-				return
-			}
-		}
-		if err := saveCodemanConfig(codemanConfig{URL: base, Username: user, UIURL: ui}); err != nil {
-			sendJSON(w, 500, map[string]any{"ok": false, "error": "could not save the Codeman configuration"})
+		if err := updateCodemanConnection(codemanConfig{URL: base, Username: user, UIURL: ui}, req.Password, req.ClearPassword); err != nil {
+			sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
 		sendJSON(w, 200, map[string]any{"ok": true, "url": base, "username": user, "ui_url": ui, "password_set": codemanPassword() != ""})
@@ -247,6 +255,25 @@ func handleCodemanConfig(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Allow", "GET, POST")
 		sendJSON(w, 405, map[string]any{"ok": false, "error": "method not allowed"})
 	}
+}
+
+// Caller holds codemanMu. Drop the old credential before switching destinations.
+func updateCodemanConnection(next codemanConfig, password string, clear bool) error {
+	old := savedCodemanConfig()
+	if clear || old == nil || old.URL != next.URL || old.Username != next.Username {
+		if err := deleteProviderSecret(codemanSecretID); err != nil {
+			return errors.New("could not remove the Codeman password")
+		}
+	}
+	if err := saveCodemanConfig(next); err != nil {
+		return errors.New("could not save the Codeman configuration")
+	}
+	if !clear && password != "" {
+		if err := sealProviderSecret(codemanSecretID, password); err != nil {
+			return errors.New("could not store the Codeman password")
+		}
+	}
+	return nil
 }
 
 // État de la connexion : joignable, authentification acceptée, version.
@@ -390,21 +417,41 @@ var codemanForwardRequestHeaders = []string{"Content-Type", "Accept", "Range", "
 var codemanForwardResponseHeaders = []string{"Content-Type", "Content-Length", "Content-Disposition", "Content-Range", "Accept-Ranges", "Cache-Control", "Last-Modified", "ETag", "Content-Security-Policy", "X-Content-Type-Options"}
 
 func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
-	rest := strings.TrimPrefix(r.URL.EscapedPath(), "/api/codeman/v1/")
-	clean := strings.TrimPrefix(path.Clean("/"+rest), "/")
-	if rest == "" || clean != strings.TrimSuffix(rest, "/") || strings.Contains(rest, "%2e") || strings.Contains(rest, "%2E") {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	default:
+		w.Header().Set("Allow", "GET, HEAD, POST, PUT, PATCH, DELETE")
+		codemanError(w, 405, "INVALID_INPUT", "method not allowed")
+		return
+	}
+	const prefix = "/api/codeman/v1/"
+	rest, ok := strings.CutPrefix(r.URL.Path, prefix)
+	clean := strings.TrimSuffix(rest, "/")
+	escaped := r.URL.EscapedPath()
+	if !ok || clean == "" || path.Clean("/"+clean) != "/"+clean || strings.ContainsAny(clean, "\\%\x00\r\n") || strings.Contains(strings.ToLower(escaped), "%2f") {
 		codemanError(w, 400, "INVALID_INPUT", "invalid Codeman path")
 		return
 	}
-	if codemanPathBlocked(clean) {
+	// Use the same canonical spelling for authorization and the upstream router.
+	cleanPolicy := strings.ToLower(clean)
+	if codemanPathBlocked(cleanPolicy) {
 		codemanError(w, 403, "FORBIDDEN", "this Codeman route is not available through Loom")
 		return
 	}
-	if !codemanLaunchPolicy(w, r, clean) {
+	if r.ContentLength > codemanBodyLimit {
+		codemanError(w, 413, "INVALID_INPUT", "request too large")
+		return
+	}
+	if r.Body != nil && r.ContentLength != 0 {
+		controller := http.NewResponseController(w)
+		_ = controller.SetReadDeadline(time.Now().Add(5 * time.Minute))
+		defer controller.SetReadDeadline(time.Time{})
+	}
+	if !codemanLaunchPolicy(w, r, cleanPolicy) {
 		return
 	}
 	c := loadCodemanConfig()
-	target := c.URL + "/api/v1/" + rest
+	target := c.URL + "/api/v1/" + (&url.URL{Path: rest}).EscapedPath()
 	if r.URL.RawQuery != "" {
 		target += "?" + r.URL.RawQuery
 	}
@@ -416,7 +463,7 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 		body = http.MaxBytesReader(w, r.Body, codemanBodyLimit)
 	}
 	auth := codemanAuthHeader(c)
-	if clean == "settings" && r.Method == http.MethodPut && body != http.NoBody {
+	if cleanPolicy == "settings" && r.Method == http.MethodPut && body != http.NoBody {
 		raw, readErr := io.ReadAll(body)
 		if readErr != nil {
 			codemanError(w, 400, "INVALID_INPUT", "could not read Codeman settings")
@@ -464,7 +511,7 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, h := range codemanForwardRequestHeaders {
 		// Rewritten settings have a different representation from Codeman's.
-		if clean == "settings" && (h == "If-None-Match" || h == "If-Modified-Since" || h == "Range") {
+		if cleanPolicy == "settings" && (h == "If-None-Match" || h == "If-Modified-Since" || h == "Range") {
 			continue
 		}
 		if v := r.Header.Get(h); v != "" {
@@ -493,8 +540,15 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 		codemanError(w, 502, "CODEMAN_AUTH", "Codeman rejected the configured credentials")
 		return
 	}
-	if clean == "settings" && resp.StatusCode == http.StatusOK && r.Method == http.MethodGet {
-		codemanSendSettings(w, resp)
+	if cleanPolicy == "settings" {
+		switch {
+		case resp.StatusCode == http.StatusNoContent || r.Method == http.MethodHead:
+			w.WriteHeader(resp.StatusCode)
+		case resp.StatusCode >= 200 && resp.StatusCode < 300:
+			codemanSendSettings(w, resp)
+		default:
+			codemanError(w, resp.StatusCode, "CODEMAN_SETTINGS", "Codeman rejected the settings request")
+		}
 		return
 	}
 	for _, h := range codemanForwardResponseHeaders {
@@ -502,9 +556,9 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set(h, v)
 		}
 	}
-	if w.Header().Get("Cache-Control") == "" {
-		w.Header().Set("Cache-Control", "no-store")
-	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Add("Content-Security-Policy", "default-src 'none'; sandbox")
 	streaming := strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream")
 	if streaming {
 		w.Header().Del("Content-Length")

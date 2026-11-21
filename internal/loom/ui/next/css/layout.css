@@ -4,7 +4,9 @@
    discussions et sessions d'agent gardent leur mise en page propre. */
 @media (min-width:761px){
   :root{--page-top:28px}
-  .view.page{scrollbar-gutter:auto}
+  /* la place de la barre de défilement est réservée des deux côtés : le
+     contenu reste centré, que la page défile ou non */
+  .view.page,.view.cm .cm-scroll{scrollbar-gutter:stable both-edges}
   .view.page > .page-in.page-in{max-width:1040px;margin-inline:auto;padding:var(--page-top) 40px 48px}
   .view.page > .page-in.page-in:has(> .sec-tabs){padding-top:0}
   .view.page > .page-in > .sec-tabs.sec-tabs{position:sticky;top:0;z-index:6;flex:none;align-items:flex-end;height:auto;margin-top:0;padding-top:var(--page-top);border:0;background:var(--panel)}

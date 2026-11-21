@@ -55,9 +55,9 @@ function Connect({ provider, entry, onClose }) {
   };
   const list = catalog.filter(m => !q || m.toLowerCase().includes(q.toLowerCase()));
   return html`<${Modal} wide title=${editing ? t("cloud.page.modeles_de") + provider.name : t("cloud.page.connecter_un_fournisseur")} sub=${step === 0 ? t("cloud.page.choisis_un_fournisseur_compatible_chat_completions") : step === 1 ? t("cloud.page.la_cle_reste_en_memoire_cote_serveur_rien_n_est_ecrit_sur_le_disq") : t("cloud.page.choisis_les_modeles_proposes_dans_tes_discussions")} onClose=${onClose}
-      foot=${step === 2 ? html`<span class="grow muted">${t('models.cloud.selected', { n: sel.size })}</span><button class="btn ghost" onClick=${onClose}>${t("cloud.page.annuler")}</button><button class="btn primary" disabled=${busy} onClick=${save}>${t("cloud.page.enregistrer")}</button>`
-        : step === 1 ? html`<button class="btn ghost" onClick=${() => editing ? onClose() : setStep(0)}>${editing ? t("cloud.page.annuler") : t("chat.composer.retour")}</button><button class="btn primary" disabled=${busy} onClick=${detect}>${busy ? html`<span class="spinner"></span>` : ''}${t("cloud.page.detecter_les_modeles")}</button>` : ''}>
-    ${step === 0 && html`<div class="preset-grid">${ALL.map(p => html`<button class="preset-card" onClick=${() => pick(p)}><b>${p.name}</b><span>${p.hint}</span></button>`)}</div>`}
+      foot=${step === 2 ? html`<span class="grow muted">${t('models.cloud.selected', { n: sel.size })}</span><button class="btn" onClick=${onClose}>${t("cloud.page.annuler")}</button><button class="btn primary" disabled=${busy} onClick=${save}>${t("cloud.page.enregistrer")}</button>`
+        : step === 1 ? html`<button class="btn" onClick=${() => editing ? onClose() : setStep(0)}>${editing ? t("cloud.page.annuler") : t("chat.composer.retour")}</button><button class="btn primary" disabled=${busy} onClick=${detect}>${busy ? html`<span class="spinner"></span>` : ''}${t("cloud.page.detecter_les_modeles")}</button>` : ''}>
+    ${step === 0 && html`<div class="preset-grid">${ALL.map(p => html`<button class="btn preset-card" onClick=${() => pick(p)}><b>${p.name}</b><span>${p.hint}</span></button>`)}</div>`}
     ${step === 1 && html`
       ${!editing && html`<label class="field"><span>${t("cloud.page.nom")}</span><input class="input" value=${name} onInput=${e => setName(e.target.value)} placeholder="${t("cloud.page.ex_openrouter")}" /></label>`}
       <label class="field"><span>${t("cloud.page.url_de_base")}</span><input class="input mono" value=${endpoint} readonly=${editing} onInput=${e => setEndpoint(e.target.value)} placeholder="https://api.example.com/v1" /></label>
@@ -74,12 +74,12 @@ function ProviderRow({ e, p, onOpen, onConnect }) {
   const name = p?.name || e.name;
   const state = p ? p.ready ? t('models.cloud.connected') : t('cloud.page.a_reconnecter') : '';
   return html`<div class="models-row">
-    ${e.custom ? html`<span class="mono-tile">+</span>` : html`<${Logo} id=${e.logo} name=${e.name} />`}
+    ${e.custom ? html`<span class="logo-mark sm"><${Icon} n="plus" /></span>` : html`<${Logo} id=${e.logo} name=${e.name} />`}
     <div class="models-row-main">
       <b>${name}</b><small>${[e.hint, state].filter(Boolean).join(' · ')}</small>
     </div>
     ${p && html`<i class=${cls('dot', p.ready ? 'green' : 'amber')} aria-hidden="true"></i>`}
-    ${p ? html`<button class="btn sm ghost" onClick=${onOpen}>${p.ready ? t('cloud.page.gerer') : t('cloud.page.reconnecter')}</button>`
+    ${p ? html`<button class="btn sm" onClick=${onOpen}>${p.ready ? t('cloud.page.gerer') : t('cloud.page.reconnecter')}</button>`
       : html`<button class="btn sm" onClick=${onConnect}>${t('cloud.page.connecter')}</button>`}
   </div>`;
 }
@@ -96,7 +96,7 @@ function ProviderDetail({ p, models, onModels, onForget, onInspect }) {
     <div class="sec-h" style="margin:4px 0 -4px"><h2>${t("cloud.page.modeles")}</h2><button class="btn sm" onClick=${onModels}>${p.ready ? t("cloud.page.choisir_les_modeles") : t("cloud.page.reconnecter")}</button></div>
     <div class="card rows">${list.map(m => html`<div class="row"><span class="grow t mono" ...${inspectTrigger(() => onInspect(m.id), t("cloud.page.inspecter") + m.name)}>${m.name}</span>
       <${Switch} checked=${m.enabled} label=${t("cloud.page.afficher") + m.name + t("cloud.page.dans_le_selecteur_2")} onChange=${v => setVisible(m.id, v)} /></div>`)}</div>
-    <button class="btn ghost" style="align-self:flex-start" onClick=${onForget}><${Icon} n="key" />${t("cloud.page.oublier_la_cle")}</button>
+    <button class="btn" style="align-self:flex-start" onClick=${onForget}><${Icon} n="key" />${t("cloud.page.oublier_la_cle")}</button>
   </div>`;
 }
 

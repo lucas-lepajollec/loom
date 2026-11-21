@@ -48,9 +48,9 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
   const restart = () => api.start(s.id, s.mode === 'shell').then(() => api.session(s.id).then(upsertSession)).catch(e => toast(e.message, 'err'));
   return html`<header class="cm-sh">
     ${narrowView && html`<button class="icon-btn menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>`}
-    <span class="cm-sh-cli"><${CliMark} mode=${s.mode} /><b>${cli.label}</b>${s.displayModel?.model && html`<span class="muted">${s.displayModel.model}</span>`}</span>
+    <span class="cm-sh-cli"><${CliMark} mode=${s.mode} size="sm" /><b>${cli.label}</b>${s.displayModel?.model && html`<span class="muted">${s.displayModel.model}</span>`}</span>
     <span class="cm-sh-sep" aria-hidden="true">/</span>
-    <button class="cm-sh-name trunc" onClick=${rename} title=${t('agents.session.rename')}>${s.name || s.id.slice(0, 8)}</button>
+    <button class="btn sm cm-sh-name" onClick=${rename} title=${t('agents.session.rename')}><span class="trunc">${s.name || s.id.slice(0, 8)}</span></button>
     <span class="grow"></span>
     ${state === 'stopped' ? html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`
       : html`<span class=${'cm-sh-state st-' + state}><${StateDot} state=${state} />${lt('state', state)}</span>`}
@@ -139,7 +139,7 @@ function LayoutPicker({ currentId }) {
   return html`<button class=${cls('icon-btn cm-layout-btn', anchor && 'on')} aria-label=${t('agents.grid.layout')} title=${t('agents.grid.layout') + ' · ' + label(count)}
       aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${ShapeIcon} n=${count} /></button>
     ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${236} class="cm-layout-pop">
-      <div class="cm-layout-grid" role="radiogroup" aria-label=${t('agents.grid.layout')}>${COUNTS.map(n => html`<button key=${n} role="radio" aria-checked=${String(count === n)} class=${cls(count === n && 'on')}
+      <div class="cm-layout-grid" role="radiogroup" aria-label=${t('agents.grid.layout')}>${COUNTS.map(n => html`<button key=${n} role="radio" aria-checked=${String(count === n)} class="btn sm"
         title=${label(n)} aria-label=${label(n)} onClick=${() => { setCount(n, currentId); setAnchor(null); }}><${ShapeIcon} n=${n} /><span>${n}</span></button>`)}</div>
       ${count > 1 && html`<label class="cm-layout-row"><span>${t('agents.insp.title')}</span><${Switch} checked=${insp} onChange=${v => gridInsp.set({ open: v })} /></label>`}
       <p class="cm-layout-hint muted">${t('agents.grid.keys')}</p>

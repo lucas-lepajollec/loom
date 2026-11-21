@@ -3,6 +3,7 @@
 // désactivé par défaut ; aucun texte de discussion n'est envoyé sans l'option
 // « inclure un résumé ». Contrat : docs/notifications.md.
 import { html, useState, useEffect } from '../../core/lib.js';
+import { ListPick } from '../../ui/listpick.js';
 import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { Switch } from '../../ui/controls.js';
@@ -84,8 +85,10 @@ export function NotificationSettings() {
     </${Group}>
     <${Group} title=${t('notify.when')}>
       ${EVENTS.map(ev => html`<${Line} key=${ev} label=${EVENT_LABEL()[ev]}><${Switch} label=${ev} checked=${on(ev)} onChange=${v => toggleEvent(ev, v)} /></${Line}>`)}
-      <${Line} label=${t('notify.long_only')} tip=${t('notify.long_only_tip')}><div class="set-pick"><select class="select" value=${rules.completed_after_seconds} onChange=${e => set('rules.completed_after_seconds', Number(e.target.value))}>
-        ${[0, 60, 120, 300, 600, 1800].map(s => html`<option value=${s}>${s ? t('notify.minutes', { n: s / 60 }) : t('notify.always')}</option>`)}</select></div></${Line}>
+      <${Line} label=${t('notify.long_only')} tip=${t('notify.long_only_tip')}><div class="set-pick">
+        <${ListPick} label=${t('notify.long_only')} value=${Number(rules.completed_after_seconds)} onChange=${s => set('rules.completed_after_seconds', s)}
+          options=${[0, 60, 120, 300, 600, 1800].map(s => ({ value: s, label: s ? t('notify.minutes', { n: s / 60 }) : t('notify.always') }))} />
+      </div></${Line}>
       <${Line} label=${t('notify.summaries')} tip=${t('notify.summaries_tip')}><${Switch} label=${t('notify.summaries')} checked=${rules.include_summaries} onChange=${v => set('rules.include_summaries', v)} /></${Line}>
       <${Line} label=${t('notify.quiet')} tip=${t('notify.quiet_tip')}><${Switch} label=${t('notify.quiet')} checked=${rules.quiet_hours && rules.quiet_hours.enabled} onChange=${v => set('rules.quiet_hours', { ...(rules.quiet_hours || {}), enabled: v, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })} /></${Line}>
       ${rules.quiet_hours && rules.quiet_hours.enabled && html`<${Line} label=${t('notify.quiet_range')}><input class="input" type="time" value=${rules.quiet_hours.start} onInput=${e => set('rules.quiet_hours.start', e.target.value)} style="width:120px" /><span class="muted">→</span><input class="input" type="time" value=${rules.quiet_hours.end} onInput=${e => set('rules.quiet_hours.end', e.target.value)} style="width:120px" /></${Line}>`}

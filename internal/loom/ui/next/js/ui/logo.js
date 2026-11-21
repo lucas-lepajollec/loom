@@ -19,10 +19,9 @@ export function logoId(name) {
   return tail ? ALIAS[tail] || tail : '';
 }
 
-// size : '' (32px), 'sm' (20px) ou 'lg' (42px), comme .mono-tile.
 export function Logo({ id, name, size }) {
   const l = id || logoId(name);
-  return html`<span class=${cls('mono-tile', size)} aria-hidden="true">${!l ? String(name || '?').slice(0, 1).toUpperCase()
+  return html`<span class=${cls('logo-mark', size)} aria-hidden="true">${!l ? String(name || '?').slice(0, 1).toUpperCase()
     : COLOR.has(l) ? html`<img class="logo-img" src=${`/next/logos/${l}-color.svg`} alt="" />`
     : html`<i class="logo" style=${`--logo:url(/next/logos/${l}.svg)`}></i>`}</span>`;
 }

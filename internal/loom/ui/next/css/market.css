@@ -20,9 +20,8 @@
 .market-releases{align-items:stretch}
 .market-release{display:flex;flex-direction:column;gap:10px;padding:14px 16px}
 .market-card-head{display:flex;align-items:center;gap:9px;min-width:0}
-.market-card-head .mono-tile{flex:none}
 .market-name{display:flex;flex:1;flex-direction:column;gap:2px;min-width:0;overflow-wrap:anywhere}
-.market-name h3,.market-key h3{margin:0;font-size:14px;font-weight:600}
+.market-name h3{margin:0;font-size:14px;font-weight:600}
 .market-name b{font-size:13.5px;font-weight:500}
 .market-name small{color:var(--text-3);font-size:12px}
 .market-tags,.market-actions{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;min-width:0}
@@ -77,15 +76,10 @@
 .market-filters + .market-table,.market-filters + .market-empty{border-top:1px solid var(--line-soft)}
 
 /* Watch preferences and key */
-.market-setting,.market-key-head{display:flex;align-items:center;gap:10px 12px;min-height:48px;padding:8px 16px}
-.market-setting + .market-setting,.market-key-head + .market-setting{border-top:1px solid var(--line-soft)}
-.market-setting > span:first-child,.market-key-head > div,.market-delivery > p{flex:1;min-width:0;overflow-wrap:anywhere}
-.market-key-head{flex-wrap:wrap;padding-block:14px}
-.market-key-head > .ico{align-self:flex-start;flex:none;width:18px;height:18px;color:var(--text-3)}
-.market-key-head h3{margin-bottom:4px}
-.market-key-form > label{flex:1 1 auto;font-size:13px;font-weight:500}
-.market-key-form .input{flex:0 1 250px;width:100%;min-width:0}
-.market-key-form > button{flex:none}
+.market-setting{display:flex;align-items:center;gap:10px 12px;min-height:48px;padding:8px 16px}
+.market-setting + .market-setting{border-top:1px solid var(--line-soft)}
+.market-setting > span:first-child,.market-delivery > p{flex:1;min-width:0;overflow-wrap:anywhere}
+
 .market-delivery{flex-wrap:wrap;padding-block:10px}
 
 @media(max-width:1020px){
@@ -105,7 +99,7 @@
 @media(max-width:760px){
   .market-tools{justify-content:flex-start}
   .market-pages .icon-btn,.market-sort .icon-btn{width:44px;height:44px}
-  .market-credit,.market-sort .select,.market-filter,.market-filters .search,.market-filters .select,.market-key-form .input{min-height:44px}
+  .market-credit,.market-sort .select,.market-filter,.market-filters .search,.market-filters .select{min-height:44px}
   .market-releases{gap:0;border-radius:14px;background:var(--surface)}
   .market-release{padding:14px;border-radius:0;background:transparent}
   .market-release + .market-release{border-top:1px solid var(--line-soft)}
@@ -120,15 +114,12 @@
   .market-catalogue .market-value::before{content:attr(data-label);color:var(--text-3);font:12px/1.5 var(--font)}
   .market-filters{gap:6px 10px}
   .market-filters .search,.market-filters .select{flex:1 1 100%}
-  .market-filters .search input,.market-key-form .input{font-size:16px}
+  .market-filters .search input{font-size:16px}
   .market-filter input{width:16px;height:16px}
-  .market-setting,.market-key-head{padding-inline:14px}
+  .market-setting{padding-inline:14px}
   .market-setting{min-height:52px}
-  .market-watch .switch::before{content:"";position:absolute;inset:-13px -7px}
-  .market-key-head > div{flex-basis:calc(100% - 34px)}
-  .market-key-form{flex-wrap:wrap;gap:6px 8px}
-  .market-key-form > label,.market-delivery > p{flex-basis:100%}
-  .market-key-form .input{flex:1;min-width:80px}
+  
+  .market-delivery > p{flex-basis:100%}
   .market-delivery{gap:0}
 }
 .market-open{color:var(--green)}

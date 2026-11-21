@@ -21,6 +21,12 @@ The existing control key remains accepted for automation and remote Loom engine
 links. `/v1` retains its separate inference key. The human access password is
 not accepted as a Bearer token and is not sent to engines or harnesses.
 
+The browser can check masked inference-key status at `/api/apikey`. Explicit
+generation returns the newly issued key once. Engine configuration and preset
+views omit legacy inference and crawler credential fields. A linked Loom can
+retrieve the inference key through `GET /api/node/info` with a machine control
+Bearer and no browser Origin.
+
 ## Local setup and recovery
 
 On the machine running Loom, run:

@@ -129,5 +129,5 @@ func handleNodeExecutionConfig(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, map[string]string{})
 		return
 	}
-	sendJSON(w, 200, ReadConfig())
+	sendJSON(w, 200, publicEngineConfig())
 }

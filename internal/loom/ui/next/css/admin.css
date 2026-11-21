@@ -59,56 +59,18 @@
   color: var(--text-3);
 }
 
-/* Boutons sélecteurs discrets et champs plats sur surface-2 */
 .settings-body .set-c .select,
 .vx-page .set-c .select,
-.settings-body .set-c .lpick-b,
-.vx-page .set-c .lpick-b {
-  height: 32px;
-  padding: 0 28px 0 11px;
-  border: 0;
-  border-radius: 8px;
-  background-color: var(--surface-2);
-  color: var(--text);
-  font-size: 13px;
-  width: auto;
-  max-width: 100%;
-}
-
-.settings-body .set-c .lpick,
-.vx-page .set-c .lpick {
-  width: auto;
-  max-width: 100%;
-}
-
 .settings-body .set-pick,
 .vx-page .set-pick {
   width: auto;
   max-width: 100%;
 }
 
-.settings-body .set-c .input.sm,
-.vx-page .set-c .input.sm {
-  height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.settings-body .set-line.stack .textarea,
-.vx-page .set-line.stack .textarea {
-  border: 0;
-  border-radius: 9px;
-  background: var(--surface-2);
-  padding: 10px 12px;
-}
-
 /* ---------- Réglages : navigation à gauche + colonne de contenu ---------- */
 .settings {
   display: grid;
-  grid-template-columns: 200px minmax(0, 680px);
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: 36px;
   align-items: start;
 }
@@ -122,7 +84,7 @@
 }
 
 .set-nav h1 {
-  margin: 0 0 14px 10px;
+  margin: 0 0 14px;
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -155,34 +117,6 @@
 .settings-body {
   padding-top: 44px;
   gap: 22px;
-}
-
-.adm-dd {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 10px 0 11px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 13px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.adm-dd:hover {
-  background: var(--surface-3);
-}
-
-.adm-dd .ico {
-  width: 13px;
-  height: 13px;
-  color: var(--text-3);
-  flex: none;
 }
 
 .sb-form {
@@ -258,19 +192,7 @@
 }
 
 .machine-icon {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
   color: var(--text-2);
-  background: var(--surface-2);
-}
-
-.machine-icon .ico {
-  width: 17px;
-  height: 17px;
 }
 
 .machine-card-tags,
@@ -477,16 +399,6 @@
   gap: 10px 16px;
 }
 
-.machine-detail-identity .machine-icon {
-  width: 42px;
-  height: 42px;
-}
-
-.machine-detail-identity .machine-icon .ico {
-  width: 20px;
-  height: 20px;
-}
-
 .machine-detail-identity small {
   margin-top: 3px;
 }
@@ -544,14 +456,6 @@
 .machine-row .machine-actions {
   justify-content: flex-end;
   margin-left: auto;
-}
-
-.machine-row .btn.used {
-  border-color: transparent;
-  background: var(--green-bg);
-  color: var(--green);
-  opacity: 1;
-  box-shadow: none;
 }
 
 .machine-file-root {
@@ -654,16 +558,9 @@
     gap: 8px;
   }
 
-  :is(.mc-page, .machine-terminal-page, .machine-dialog) :is(.btn, .icon-btn),
-  .dialog:has(.mx-steps, .machine-dialog) :is(.btn, .icon-btn, .input),
   .terminal-tab a,
   .machine-install > summary {
     min-height: 44px;
-  }
-
-  :is(.mc-page, .machine-terminal-page, .machine-dialog) .icon-btn,
-  .dialog:has(.mx-steps, .machine-dialog) .icon-btn {
-    min-width: 44px;
   }
 
   .mc-page .page-head .acts {
@@ -690,17 +587,6 @@
 }
 
 /* Voice service status */
-.mc-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: none;
-  background: var(--text-4);
-}
-
-.mc-dot.green {
-  background: var(--green);
-}
 
 /* ---------- Voix & Jarvis (deux colonnes) ---------- */
 .vx-engine {
@@ -883,33 +769,9 @@
     flex: 1 1 88px;
     min-height: 44px;
   }
-  .settings-body .set-c .select,
-  .vx-page .set-c .select,
-  .settings-body .set-c .lpick-b,
-  .vx-page .set-c .lpick-b,
-  .adm-dd {
-    min-height: 44px;
-  }
-  .settings-body .btn {
-    min-height: 44px;
-  }
-  .settings-body .btn.sm {
-    min-height: 36px;
-  }
 }
 
 @media (max-width: 760px) {
-  .vx-page :is(.btn, .input, .select, .seg button, .icon-btn),
-  .vx-lib > summary,
-  body:has(.vx-page) :is(.dialog .btn, .lpick-o) {
-    min-height: 44px;
-  }
-
-  .vx-page .icon-btn {
-    min-width: 44px;
-  }
-
-  .vx-page .switch::before,
   .vx-page .tip::before {
     content: "";
     position: absolute;
@@ -920,6 +782,7 @@
   }
 
   .vx-lib > summary {
+    min-height: 44px;
     align-content: center;
   }
 
@@ -928,11 +791,6 @@
     flex-wrap: wrap;
   }
 }
-
-/* un long chemin se coupe au lieu de sortir de l'écran */
-.adm-dd { min-width: 0; }
-.adm-dd > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.set-c:has(> .adm-dd) { min-width: 0; max-width: 100%; }
 
 /* un seul repère de mise à jour pour les agents d'une machine */
 .machine-card-section h3 { display: flex; align-items: center; gap: 8px; }

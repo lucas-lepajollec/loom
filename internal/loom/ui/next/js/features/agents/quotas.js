@@ -3,9 +3,10 @@
 // Loom garde l'historique des mesures et montre les réinitialisations
 // offertes, qu'il n'utilise que sur demande explicite.
 import { t, locale } from '../../core/i18n.js';
+import { ListPick } from '../../ui/listpick.js';
 import { html, useState, useEffect, useRef, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Empty, Seg, Tip, Popover } from '../../ui/controls.js';
+import { DropdownButton, Empty, Menu, Seg, Tip, Popover } from '../../ui/controls.js';
 import { Logo } from '../../ui/logo.js';
 import { get, post } from '../../core/api.js';
 import { visibleRefresh } from '../../core/poll.js';
@@ -52,8 +53,8 @@ function limitName(l, compact = false) {
 
 function AccountMark({ id }) {
   return id === 'claude'
-    ? html`<span class="q-mark q-mark-claude"><${Logo} id="claude" size="xs" /></span>`
-    : html`<span class="q-mark" aria-hidden="true">${TILES[id] || id.slice(0, 1).toUpperCase()}</span>`;
+    ? html`<${Logo} id="claude" size="xs" />`
+    : html`<span class="logo-mark xs mono" aria-hidden="true">${TILES[id] || id.slice(0, 1).toUpperCase()}</span>`;
 }
 
 function Window({ acc, l, samples }) {
@@ -172,14 +173,10 @@ function CodexResets({ reset, refresh }) {
       <button type="button" class="btn sm q-reset-action" onClick=${() => useCodexReset(c, refresh)}>${t('quotas.reset_use_one')}</button>
     </${ResetRow}>`)}
     ${grouped && html`<${ResetRow} id="codex" title=${title} detail=${expiry} class="q-reset-phone">
-      <button type="button" class="btn sm q-reset-action" aria-haspopup="dialog" aria-expanded=${String(!!anchor)}
-        onClick=${e => setAnchor(anchor ? null : e.currentTarget)}>${t('quotas.reset_use_one')}</button>
+      <${DropdownButton} class="sm fit q-reset-action" open=${anchor} onClick=${e => setAnchor(e.currentTarget)}>${t('quotas.reset_use_one')}</${DropdownButton}>
     </${ResetRow}>`}
-    ${anchor && grouped && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${260} class="q-reset-pop">
-      ${credits.map(c => html`<button type="button" key=${c.id} class="item" onClick=${() => { setAnchor(null); anchor.focus(); useCodexReset(c, refresh); }}>
-        <span>${creditTitle(c)}</span>${c.expires_at && html`<small class="muted">${creditExpiry(c)}</small>`}
-      </button>`)}
-    </${Popover}>`}
+    ${anchor && grouped && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} width=${260}
+      items=${credits.map(c => ({ key: c.id, label: creditTitle(c), note: c.expires_at && creditExpiry(c), run: () => useCodexReset(c, refresh) }))} />`}
     ${extra > 0 && html`<p class="muted q-reset-more">${t('quotas.reset_more', { n: extra })}</p>`}`;
 }
 
@@ -304,8 +301,8 @@ function Evolution({ account, samples }) {
   if (!limits.length) return html`<p class="muted q-none">${t('quotas.history_empty')}</p>`;
   const l = limits.find(l => l.id === selected) || limits.find(l => l.window === '7d' && !l.label)
     || limits.find(l => l.window !== '5h') || limits[0];
-  const label = limits.length > 1 ? html`<select class="select sm q-chart-select" aria-label=${t('quotas.history_window')}
-    value=${l.id} onChange=${e => setSelected(e.target.value)}>${byWindow(limits).map(x => html`<option key=${x.id} value=${x.id}>${chartName(x)}</option>`)}</select>`
+  const label = limits.length > 1 ? html`<${ListPick} class="sm q-chart-select" label=${t('quotas.history_window')}
+    value=${l.id} onChange=${setSelected} options=${byWindow(limits).map(x => ({ value: x.id, label: chartName(x) }))} />`
     : html`<span>${chartName(l)}</span>`;
   return html`<div class=${cls('activity-card q-charts', l.window !== '5h' && 'with-daily')}>
     <${WindowChart} acc=${account.id} l=${l} samples=${samples} label=${label} />
@@ -350,27 +347,6 @@ async function loadQuotas() {
   const r = await get('/api/quotas', { retryAuth: false, timeout: 45000 }).catch(() => null);
   if (r && r.ok !== false) lastQuotas = r;
   return lastQuotas;
-}
-export function QuotaPeek() {
-  const live = useStore(agents, s => s.planUsage);
-  const [data, setData] = useState(lastQuotas);
-  const [anchor, setAnchor] = useState(null);
-  useEffect(() => visibleRefresh(async alive => { const r = await loadQuotas(); if (alive() && r) setData(r); }, 120000), []);
-  const accounts = withLive(data?.accounts || [], live).filter(a => (a.limits || []).length);
-  if (!accounts.length) return null;
-  const top = Math.round(Math.max(...accounts.flatMap(a => a.limits.map(l => l.used))));
-  const warn = v => (v >= 90 ? 'red' : v >= 70 ? 'amber' : '');
-  return html`<button class=${cls('icon-btn cm-quota-btn', anchor && 'on', warn(top))} aria-label=${t('quotas.chip')} title=${t('quotas.chip') + ' · ' + top + '%'}
-      aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="gauge" /><i class="cm-quota-dot"></i></button>
-    ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${300} class="cm-quota-pop">
-      ${accounts.map(a => html`<div class="cm-qp-acc" key=${a.id}><b>${accName(a.id)}</b>
-        ${byWindow(a.limits).map(l => html`<div class=${cls('cm-qp-win', warn(l.used))} key=${l.id}>
-          <div class="cm-qp-h"><span>${(l.group ? l.group + ' · ' : '') + limitName(l)}</span><em>${Math.round(l.used)}%</em></div>
-          <div class="cm-qp-bar"><i style=${`width:${Math.min(100, l.used)}%`}></i></div>
-          ${l.reset_at && l.reset_at > Date.now() ? html`<small class="muted">${t('quotas.resets_in', { in: fmtIn(l.reset_at - Date.now()), at: clock(l.reset_at) })}</small>` : ''}
-        </div>`)}</div>`)}
-      <a class="cm-qp-more" href="#/quotas" onClick=${() => setAnchor(null)}>${t('quotas.open')}<${Icon} n="right" /></a>
-    </${Popover}>`}`;
 }
 
 // Quotas de l'abonnement d'un harness, dans le panneau de sa session.
@@ -438,7 +414,7 @@ export function QuotasPage() {
   };
   return html`<${ActivityLayout} title=${t('quotas.title')}>
     ${data === null && !live ? html`<div class="skeleton" style="height:220px"></div>`
-      : !accounts.length ? html`<div class="activity-card"><${Empty} icon="gauge" title=${t('quotas.empty_title')} text=${t('quotas.empty_text')}>${!conn.configured && html`<a class="btn" href="#/settings/agents"><${Icon} n="plug" />${t('quotas.connect')}</a>`}</${Empty}></div>`
+      : !accounts.length ? html`<div class="activity-card"><${Empty} icon="gauge" title=${t('quotas.empty_title')} text=${t('quotas.empty_text')}>${!conn.configured && html`<a class="btn" href="#/agents/settings"><${Icon} n="plug" />${t('quotas.connect')}</a>`}</${Empty}></div>`
       : html`
         ${conn.configured && !ready && html`<p class="note"><i class="dot amber"></i> ${t('quotas.offline')}</p>`}
         <${Resets} accounts=${accounts} codeman=${ready} refresh=${() => setTick(n => n + 1)} />

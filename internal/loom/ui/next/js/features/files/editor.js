@@ -5,7 +5,7 @@
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Menu } from '../../ui/controls.js';
+import { DropdownButton, Menu } from '../../ui/controls.js';
 import { prompt } from '../../ui/dialog.js';
 import { post } from '../../core/api.js';
 import { scopeQuery } from './page.js';
@@ -68,11 +68,11 @@ function Toolbar({ editor, narrow }) {
   const on = (name, attrs) => editor.isActive(name, attrs);
   const level = [1, 2, 3].find(l => on('heading', { level: l }));
   const styleLabel = (BLOCKS.find(b => b.id === (level ? 'h' + level : 'p')) || BLOCKS[0]).label();
-  const btn = (label, active, run, body) => html`<button type="button" class=${cls('fl-tb-b', active && 'on')} aria-label=${label} title=${label} aria-pressed=${String(!!active)}
+  const btn = (label, active, run, body) => html`<button type="button" class="icon-btn fl-tb-b" aria-label=${label} title=${label} aria-pressed=${String(!!active)}
     onMouseDown=${e => e.preventDefault()} onClick=${run}>${body}</button>`;
   const c = () => editor.chain().focus();
   return html`<div class=${cls('fl-toolbar', narrow && 'docked')} role="toolbar" aria-label=${t('files.format')}>
-    <button type="button" class="fl-tb-b fl-tb-style" onMouseDown=${e => e.preventDefault()} onClick=${e => setStyle(e.currentTarget)}>${styleLabel}<${Icon} n="chevron" /></button>
+    <${DropdownButton} class="sm fit" open=${style} onMouseDown=${e => e.preventDefault()} onClick=${e => setStyle(e.currentTarget)}>${styleLabel}</${DropdownButton}>
     ${style && html`<${Menu} anchor=${style} onClose=${() => setStyle(null)} items=${BLOCKS.slice(0, 4).map(b => ({ label: b.label(), icon: (b.id === 'p' ? !level : level === +b.id.slice(1)) ? 'check' : '', run: () => b.run(c()).run() }))} />`}
     <i class="fl-tb-sep"></i>
     ${btn(t('files.bold'), on('bold'), () => c().toggleBold().run(), html`<b>B</b>`)}
@@ -98,8 +98,8 @@ function SlashMenu({ editor, slash, pick, setIndex }) {
   if (!slash) return null;
   const items = slash.items;
   return html`<div class="fl-slash pop" role="listbox" aria-label=${t('files.insert')} style=${`left:${slash.x}px;top:${slash.y}px`}>
-    <span class="fl-slash-h">${t('files.insert')}</span>
-    ${items.length ? items.map((b, i) => html`<button type="button" role="option" aria-selected=${String(i === slash.index)} class=${cls('fl-slash-i', i === slash.index && 'on')}
+    <span class="item-group">${t('files.insert')}</span>
+    ${items.length ? items.map((b, i) => html`<button type="button" role="option" aria-selected=${String(i === slash.index)} class="item fl-slash-i"
         onMouseDown=${e => e.preventDefault()} onMouseMove=${() => setIndex(i)} onClick=${() => pick(b)}>
       <i>${b.mark}</i><span>${b.label()}</span>${b.hint && html`<kbd>${b.hint}</kbd>`}</button>`)
       : html`<span class="fl-slash-none">${t('files.no_block')}</span>`}
@@ -134,7 +134,7 @@ function useSaver({ path, file, onState, onSaved }) {
 
 function Conflict({ onReload, onKeep }) {
   return html`<div class="fl-conflict" role="alert"><${Icon} n="alert" /><span>${t('files.conflict')}</span>
-    <button class="btn sm" onClick=${onReload}>${t('files.reload')}</button><button class="btn sm ghost" onClick=${onKeep}>${t('files.keep_mine')}</button></div>`;
+    <button class="btn sm" onClick=${onReload}>${t('files.reload')}</button><button class="btn sm" onClick=${onKeep}>${t('files.keep_mine')}</button></div>`;
 }
 
 export function NoteEditor({ path, file, raw, onState, onSaved, onReload, narrow }) {

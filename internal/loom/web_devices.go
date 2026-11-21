@@ -111,7 +111,7 @@ func devPersistPut(key string, devs []map[string]any) {
 	m := devPersistLoad()
 	m[key] = devs
 	if b, err := json.MarshalIndent(m, "", "  "); err == nil {
-		_ = os.WriteFile(devPersistPath(), b, 0o644)
+		_ = memWriteFileAtomic(devPersistPath(), b, 0600)
 	}
 }
 
@@ -316,6 +316,6 @@ func invalidateDeviceCache(bin string) {
 		}
 	}
 	if b, err := json.MarshalIndent(m, "", "  "); err == nil {
-		_ = os.WriteFile(devPersistPath(), b, 0644)
+		_ = memWriteFileAtomic(devPersistPath(), b, 0600)
 	}
 }

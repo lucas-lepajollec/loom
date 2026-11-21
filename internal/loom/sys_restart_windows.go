@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/platform"
 )
 
 // Redémarrage propre de l'application après une mise à jour, sous Windows.
@@ -32,7 +34,7 @@ func scheduleAppRestart() (bool, string) {
 	if err != nil {
 		return false, ""
 	}
-	cmd := spawnDetached(exe, restartArg, strconv.Itoa(os.Getpid()))
+	cmd := platform.SpawnDetached(exe, restartArg, strconv.Itoa(os.Getpid()))
 	if err := cmd.Start(); err != nil {
 		return false, ""
 	}
@@ -78,7 +80,7 @@ func cmdRestartAfterUpdate(args []string) error {
 func waitForExit(pid int, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if !pidAlive(pid) {
+		if !processAlive(pid) {
 			time.Sleep(500 * time.Millisecond) // laisser les handles se fermer
 			return
 		}

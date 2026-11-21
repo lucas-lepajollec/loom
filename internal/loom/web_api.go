@@ -282,7 +282,7 @@ func handleRam(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleConfigEnv(w http.ResponseWriter, r *http.Request) {
-	sendJSON(w, 200, ReadConfig())
+	sendJSON(w, 200, publicEngineConfig())
 }
 
 // handleReasoning (POST {effort}) change l'effort de réflexion de la config
@@ -536,7 +536,7 @@ func handlePreset(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 404, map[string]any{"error": "not found"})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"id": id, "name": presetDisplayName(content, id), "content": content})
+	sendJSON(w, 200, map[string]any{"id": id, "name": presetDisplayName(content, id), "content": presetWithoutCredentials(content)})
 }
 
 // presetSaveReq is the preset editor payload. `id` identifies an existing
@@ -682,6 +682,7 @@ func handleAgentToggle(w http.ResponseWriter, r *http.Request) {
 // key?, on?} l'écrit. generate/set/clear redémarrent le moteur ; require n'en
 // génère une (et redémarre) que si l'obligation s'allume sans clé existante.
 func handleAPIKey(w http.ResponseWriter, r *http.Request) {
+	generated := ""
 	if r.Method == http.MethodPost {
 		var req struct {
 			Action string `json:"action"`
@@ -695,7 +696,8 @@ func handleAPIKey(w http.ResponseWriter, r *http.Request) {
 		restart := false
 		switch req.Action {
 		case "generate":
-			if err := writeAPIKey(genAPIKey()); err != nil {
+			generated = genAPIKey()
+			if err := writeAPIKey(generated); err != nil {
 				sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 				return
 			}
@@ -732,15 +734,18 @@ func handleAPIKey(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	k := readAPIKey()
-	sendJSON(w, 200, map[string]any{
+	out := map[string]any{
 		"ok":       true,
 		"set":      k != "",
-		"key":      k,
 		"masked":   maskAPIKey(k),
 		"required": apiKeyRequired(),
 		"port":     LLMPort(),
 		"host":     localIP(),
-	})
+	}
+	if generated != "" {
+		out["key"] = generated
+	}
+	sendJSON(w, 200, out)
 }
 
 // localIP best-effort renvoie l'IPv4 LAN primaire de la machine (l'IP source du

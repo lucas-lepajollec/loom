@@ -38,8 +38,8 @@ export function PairDialog({ start, onClose }) {
   };
   const title = t(step === 1 ? 'machines.add.install' : step === 2 ? 'machines.add.code' : 'machines.add.done');
   return html`<${Modal} title=${t('machines.add.title')} sub=${step + ' / 3 · ' + title} onClose=${busy ? undefined : () => onClose(result)}
-      foot=${step === 3 ? html`<button class="btn primary" onClick=${() => onClose(result)}>${t('machines.add.open')}</button>` : html`<button class="btn ghost" disabled=${busy} onClick=${() => onClose()}>${t('ui.dialog.annuler')}</button>
-        ${step === 2 && html`<button class="btn ghost" disabled=${busy} onClick=${() => setStep(1)}>${t('machines.add.back')}</button>`}
+      foot=${step === 3 ? html`<button class="btn primary" onClick=${() => onClose(result)}>${t('machines.add.open')}</button>` : html`<button class="btn" disabled=${busy} onClick=${() => onClose()}>${t('ui.dialog.annuler')}</button>
+        ${step === 2 && html`<button class="btn" disabled=${busy} onClick=${() => setStep(1)}>${t('machines.add.back')}</button>`}
         <button class="btn primary" disabled=${busy || (step === 2 && (!v.address.trim() || v.code.replace('-', '').length !== 8))} onClick=${() => step === 1 ? setStep(2) : pair(false)}>${busy ? t('settings.machines.verification') : t(step === 1 ? 'machines.add.next' : 'machines.pair.ok')}</button>`}>
     <div class="mx-steps"><div class="mx-step"><span class="mx-n">${step}</span><div class="mx-body"><b>${title}</b>
       ${step === 1 ? html`<p class="note">${t('machines.add.linux')}</p><div class="mx-code"><pre>${NODE_INSTALL}</pre><button class="btn sm" onClick=${async () => { const ok = await copyText(NODE_INSTALL); toast(t(ok ? 'machines.edit.bloc_copie' : 'machines.edit.copie_refusee_selectionne_le_texte'), ok ? '' : 'err'); }}><${Icon} n="copy" />${t('machines.edit.copier')}</button></div><p class="note">${t('machines.add.installs')}</p>`
@@ -93,7 +93,7 @@ export function MachineMigration({ m, onChange }) {
   return html`<div class="machine-migration">
     <span class="muted">${t('machines.migrate.old')}</span>
     <button class="btn sm primary" disabled=${busy} onClick=${migrate}>${t('machines.migrate.install')}</button>
-    <button class="btn sm ghost" disabled=${busy} onClick=${() => setPairing(true)}>${t('machines.migrate.manual')}</button>
+    <button class="btn sm" disabled=${busy} onClick=${() => setPairing(true)}>${t('machines.migrate.manual')}</button>
     ${phase && html`<span role="status">${t(phase === 'pairing' ? 'machines.migrate.pairing' : 'machines.migrate.installing')}</span>`}${error && html`<p class="note err" role="alert">${error}</p>`}
     ${pairing && html`<${PairDialog} start=${{ address: nodeAddress(m), name: m.name, machine_id: m.id }} onClose=${ok => { setPairing(false); if (ok) onChange(); }} />`}
   </div>`;
@@ -107,12 +107,12 @@ export function Discovered({ onPair, extra }) {
   const scan = async () => { if (scanning.current) return; scanning.current = true; setBusy(true); const r = await get('/api/machines/discover', { timeout: 8000 }).catch(() => null); scanning.current = false; if (alive.current) { setBusy(false); setNodes(r?.nodes || []); } };
   const scanning = useRef(false), alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  if (nodes === null || (!nodes.length && !busy)) return html`<div class="disc-empty"><button class="btn sm ghost" disabled=${busy} onClick=${scan}><${Icon} n="search" />${busy ? t('machines.disc.scanning') : t('machines.disc.scan')}</button>
+  if (nodes === null || (!nodes.length && !busy)) return html`<div class="disc-empty"><button class="btn sm" disabled=${busy} onClick=${scan}><${Icon} n="search" />${busy ? t('machines.disc.scanning') : t('machines.disc.scan')}</button>
     ${nodes && !nodes.length && html`<span class="muted">${t('machines.disc.none')}</span>`}${extra}</div>`;
   return html`<section class="sec"><div class="sec-h"><h2>${t('machines.disc.title')}<${Tip} text=${t('machines.disc.tip')} /></h2><span class="grow"></span>
       <button class="icon-btn" disabled=${busy} aria-label=${t('machines.disc.scan')} onClick=${scan}><${Icon} n="refresh" /></button></div>
     <div class="card bs-list">${nodes.map(n => html`<div class="bs-row" key=${n.id}>
-      <span class="mono-tile"><${Icon} n="server" /></span>
+      <span class="logo-mark sm"><${Icon} n="server" /></span>
       <div class="grow"><div class="bs-name">${n.name}${n.paired && html`<span class="tag">${t('machines.disc.paired_elsewhere')}</span>`}</div><div class="bs-sub"><span class="mono">${n.address}</span><span title=${n.version}>${t('settings.page.loom')} ${shortVersion(n.version)}</span></div></div>
       <button class="btn sm" onClick=${() => onPair({ address: n.address, name: n.name })}>${t('machines.pair.ok')}</button></div>`)}</div>
     ${extra && html`<div class="disc-empty">${extra}</div>`}

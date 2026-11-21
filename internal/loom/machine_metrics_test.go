@@ -99,7 +99,8 @@ func TestMachineMetricsCacheSharesInflightAndCancellation(t *testing.T) {
 func seedLocalMetrics(t *testing.T) MachineMetrics {
 	t.Helper()
 	old := localMachineMetricsCache
-	localMachineMetricsCache = &machineMetricsCache{}
+	stamp := time.Now()
+	localMachineMetricsCache = &machineMetricsCache{now: func() time.Time { return stamp }}
 	t.Cleanup(func() { localMachineMetricsCache = old })
 	m := fixtureMachineMetrics(t)
 	_, err := localMachineMetricsCache.get(context.Background(), "local", 2*time.Second, func(context.Context) (any, error) { return m, nil })

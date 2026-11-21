@@ -37,22 +37,51 @@ export function Portal({ children }) {
 }
 
 // Dialogue générique (composant) : scrim + panneau, Échap et clic extérieur ferment.
-export function Modal({ title, sub, onClose, children, foot, wide }) {
-  const box = useRef();
+export const topModal = () => [...document.querySelectorAll('.dialog[aria-modal="true"]')].at(-1);
+
+export function Modal({ title, sub, onClose, children, foot, wide, class: c }) {
+  const box = useRef(), close = useRef(onClose), previous = useRef(document.activeElement);
+  close.current = onClose;
   useEffect(() => {
-    const prev = document.activeElement;
-    const key = e => { if (e.key === 'Escape') { e.stopPropagation(); onClose && onClose(); } };
-    document.addEventListener('keydown', key, true);
-    const f = box.current && box.current.querySelector('input,textarea,select,button.primary');
-    if (f) setTimeout(() => f.focus(), 30);
-    return () => { document.removeEventListener('keydown', key, true); prev && prev.focus && prev.focus(); };
+    const prev = previous.current;
+    const panel = box.current;
+    const key = e => {
+      if (panel !== topModal() || e.defaultPrevented) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        close.current?.();
+      } else if (e.key === 'Tab') {
+        const targets = [...panel.querySelectorAll('button, input, select, textarea, a[href], summary, [tabindex]')]
+          .filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+        const first = targets[0], last = targets.at(-1);
+        const active = document.activeElement;
+        if (!panel.contains(active) || active === panel || active === (e.shiftKey ? first : last)) {
+          e.preventDefault();
+          (e.shiftKey ? last || panel : first || panel).focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', key);
+    const frame = requestAnimationFrame(() => {
+      if (panel !== topModal() || panel.contains(document.activeElement)) return;
+      const field = panel.querySelector('.dialog-body :is(input, textarea, select):not([type="hidden"]):not(:disabled)');
+      const action = panel.querySelector('.dialog-foot .primary:not(:disabled)');
+      (field || action || panel).focus({ preventScroll: true });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', key);
+      const current = topModal();
+      if (prev?.isConnected && (!current || current === panel || current.contains(prev))) prev.focus({ preventScroll: true });
+    };
   }, []);
-  return html`<${Portal}><div class="scrim" onMouseDown=${e => { if (e.target === e.currentTarget) onClose && onClose(); }}>
-    <div class=${cls('dialog', wide && 'wide')} role="dialog" aria-modal="true" aria-label=${title} ref=${box}>
-      <div class="dialog-head"><div style="flex:1;min-width:0"><h2>${title}</h2>${sub && html`<p>${sub}</p>`}</div>
-        ${onClose && html`<button class="icon-btn" aria-label="${t("ui.dialog.fermer")}" onClick=${onClose}><${Icon} n="close" /></button>`}</div>
+  return html`<${Portal}><div class="scrim" onClick=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
+    <div class=${cls('dialog', wide && 'wide', c)} role="dialog" aria-modal="true" aria-label=${title} tabIndex="-1" ref=${box}>
+      <header class="dialog-head"><div><h2>${title}</h2>${sub && html`<p>${sub}</p>`}</div>
+        ${onClose && html`<button type="button" class="icon-btn" aria-label=${t("ui.dialog.fermer")} onClick=${onClose}><${Icon} n="close" /></button>`}</header>
       <div class="dialog-body">${children}</div>
-      ${foot && html`<div class="dialog-foot">${foot}</div>`}
+      ${foot && html`<footer class="dialog-foot">${foot}</footer>`}
     </div></div></${Portal}>`;
 }
 
@@ -60,7 +89,7 @@ function AskDialog({ d }) {
   const [v, setV] = useState((d.input && d.input.value) || '');
   const ok = () => d.close(d.input ? v : true);
   return html`<${Modal} title=${d.title} onClose=${() => d.close(null)}
-    foot=${html`<button class="btn ghost" onClick=${() => d.close(null)}>${t("ui.dialog.annuler")}</button><button class=${cls('btn primary', d.danger && 'danger')} onClick=${ok}>${d.ok || t("ui.dialog.continuer")}</button>`}>
+    foot=${html`<button type="button" class="btn" onClick=${() => d.close(null)}>${t("ui.dialog.annuler")}</button><button type="button" class=${cls('btn primary', d.danger && 'danger')} onClick=${ok}>${d.ok || t("ui.dialog.continuer")}</button>`}>
     ${d.message && html`<p style="margin:0;color:var(--text-2);line-height:1.55">${d.message}</p>`}
     ${d.input && html`<input class="input" type=${d.input.type || 'text'} autocomplete=${d.input.autocomplete} placeholder=${d.input.placeholder || ''} value=${v} onInput=${e => setV(e.target.value)} onKeyDown=${e => e.key === 'Enter' && ok()} />`}
   </${Modal}>`;

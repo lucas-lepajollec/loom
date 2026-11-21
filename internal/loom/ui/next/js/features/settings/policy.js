@@ -67,7 +67,7 @@ export function PolicySettings() {
       <div class="card"><div class="pad"><p class="note">${t('policy.imported_note')}</p></div>
       ${imported.map(r => html`<div class="set-line" key=${r.id}><div class="set-l pol-rule"><span><b>${DECISION_LABEL()[r.decision] || r.decision}</b> · ${subjectLabel(r.subject)}</span><small class="muted">${[scopeLabel(r), cond(r.conditions || {})].filter(Boolean).join(' · ')}</small></div></div>`)}</div></details>`}
     <${Group} title=${t('policy.audit')}>
-      ${audit === null ? html`<div class="set-actions"><button class="btn sm ghost" onClick=${() => get('/api/policy/audit').then(r => setAudit((r.entries || []).slice(-40).reverse())).catch(() => setAudit([]))}>${t('policy.audit_show')}</button></div>`
+      ${audit === null ? html`<div class="set-actions"><button class="btn sm" onClick=${() => get('/api/policy/audit').then(r => setAudit((r.entries || []).slice(-40).reverse())).catch(() => setAudit([]))}>${t('policy.audit_show')}</button></div>`
         : audit.length ? audit.map(e => html`<div class="set-line" key=${e.id}><div class="set-l"><span>${subjectLabel(e.subject)}</span><small class="muted">${new Date(e.at).toLocaleTimeString()}${e.dry_run ? ' · ' + t('policy.dry_run') : ''}</small></div><div class="set-c"><span class="note">${DECISION_LABEL()[e.decision] || e.decision}</span></div></div>`)
         : html`<div class="pad"><p class="note">${t('policy.audit_empty')}</p></div>`}
     </${Group}>`;

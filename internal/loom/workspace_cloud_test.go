@@ -137,7 +137,7 @@ func TestCloudSessionsIsolationConsentPersistenceAndReplay(t *testing.T) {
 	if _, err := m.saveProvider(changed, ""); err == nil {
 		t.Fatal("silently rerouted existing provider")
 	}
-	project, err := saveProjectContext(ChatProject{Name: "Shared", Instructions: "Explicit project context"})
+	project, err := legacyProjectFixture(ChatProject{Name: "Shared", Instructions: "Explicit project context"})
 	if err != nil {
 		t.Fatal(err)
 	}

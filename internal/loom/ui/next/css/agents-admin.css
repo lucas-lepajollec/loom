@@ -36,9 +36,7 @@
 .cm-cmd{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 12px;border-radius:var(--r-sm);background:var(--bg-2);font-size:12.5px}
 .cm-cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap}
 .cm-none-acts,.cm-connect-acts{display:flex;flex-wrap:wrap;gap:8px}
-.cm-link{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;height:30px;padding:0 8px 0 4px;border-radius:var(--r-xs);font-size:13px;color:var(--text-2)}
-.cm-link:hover{background:var(--hover);color:var(--text)}
-.cm-link .ico{width:14px;height:14px}
+.cm-link{align-self:flex-start}
 .cm-other{display:flex;flex-direction:column;gap:10px}
 .cm-manual,.cm-adv{display:flex;flex-direction:column;gap:12px;padding:4px 0 0 20px}
 .cm-inline-field{display:flex;gap:8px}
@@ -145,8 +143,6 @@
 .cm-editor-row{justify-content:space-between}
 .cm-editor-row :is(.input,.select){width:auto;min-width:0;max-width:65%}
 .cm-inline .input{width:120px}
-.cm-job-editor :is(.input,.textarea,.select),.cm-cfg-body :is(.input,.select,.textarea){border-color:transparent;background-color:var(--surface-2);font-size:13px}
-.cm-job-editor :is(.input,.select),.cm-cfg-body :is(.input.sm,.select.sm){height:32px}
 .cm-job-editor .input[type=time]{width:112px}
 .cm-editor-foot,.cm-key-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .cm-job-history{border-top:1px solid var(--line-soft);padding-top:8px}
@@ -154,7 +150,7 @@
 .cm-job-history .cm-editor-row,.cm-job-history .cm-switch,.cm-job-history .field{margin-top:8px}
 
 /* Server settings */
-.cm-cfg{display:grid;grid-template-columns:minmax(148px,190px) minmax(0,680px);align-items:start;gap:36px}
+.cm-cfg{display:grid;grid-template-columns:200px minmax(0,1fr);align-items:start;gap:36px}
 .cm-cfg-nav{position:sticky;top:14px;min-width:0}
 .cm-cfg-links{display:grid;gap:1px}
 .cm-cfg-links button{min-height:32px;padding:4px 10px;border-radius:var(--r-sm);text-align:start;font-size:13.5px;color:var(--text-2)}
@@ -249,12 +245,7 @@
   .cm-setting-control:has(> :nth-child(2)){flex:1 1 100%}
   .cm-gate{padding:24px 0}
   .cm-connect{padding:16px}
-  :is(.cm-cc,.cm-cron,.cm-cfg,.cm-connect,.cm-setup) :is(.btn,.icon-btn,.cm-link,.chip-btn,summary,.input,.select,.seg button,.cm-job-t){min-height:44px}
-  :is(.cm-cc,.cm-cron,.cm-connect) .icon-btn{min-width:44px}
-  :is(.cm-cron,.cm-cfg-body) .switch{width:44px;height:44px;background:none}
-  :is(.cm-cron,.cm-cfg-body) .switch::before{content:"";position:absolute;inset:13px 7px;width:30px;height:18px;border-radius:999px;background:var(--surface-3)}
-  :is(.cm-cron,.cm-cfg-body) .switch[aria-checked="true"]::before{background:var(--ink)}
-  :is(.cm-cron,.cm-cfg-body) .switch::after{top:15px;left:9px}
+  :is(.cm-cc,.cm-cron,.cm-cfg,.cm-connect,.cm-setup) :is(summary,.cm-job-t){min-height:44px}
   :is(.cm-job-history,.cm-settings-extra)>summary{display:list-item;align-content:center}
   .cm-section-head a,.cm-cfg-nav a{display:inline-flex;align-items:center;min-height:44px}
 }
