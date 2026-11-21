@@ -9,7 +9,7 @@ function harness() {
   const replies = new Map();
   const env = { t: x => x, localStorage: { getItem: () => null, removeItem() {} }, innerWidth: 390,
     location: { hash: '#/chat' }, history: {}, document: { hidden: false, addEventListener() {} },
-    addEventListener() {}, setTimeout, clearTimeout, AbortController,
+    addEventListener() {}, isPhone: () => false, setTimeout, clearTimeout, AbortController,
     clearObservations() {}, singleFlight: f => f, visibleRefresh: () => () => {},
     createStore: initial => { let state = initial; return { get: () => state, set: patch => { state = { ...state, ...patch }; } }; },
     fetch: async url => { const r = replies.get(url); if (r instanceof Error) throw r; return new Response(r?.raw ?? JSON.stringify(r?.body ?? []), { status: r?.status ?? 200 }); },

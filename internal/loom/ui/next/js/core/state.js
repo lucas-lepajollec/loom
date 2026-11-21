@@ -5,12 +5,13 @@ import { createStore } from './lib.js';
 import { get } from './api.js';
 import { visibleRefresh, singleFlight } from './poll.js';
 import { validShape, validData } from './shape.js';
+import { isPhone } from './viewport.js';
 
 const observation = url => value => value === null || validData(value, url);
 export const app = createStore({
   route: parseRoute(),
   theme: localStorage.getItem('loom-theme') || 'dark',
-  sideOpen: false, palette: false, inspector: innerWidth > 1100 && localStorage.getItem('loom.next.insp') !== '0',
+  palette: false, inspector: innerWidth > 1100 && localStorage.getItem('loom.next.insp') !== '0', phoneDraft: null, phoneChatRevision: 0,
   status: null, serverInfo: null, gpus: [], ram: null, engineNode: null,
   workspace: null, presets: [], models: [],
   nav: { conversations: [], projects: [], active: '' }, unavailable: {},
@@ -19,7 +20,9 @@ export const app = createStore({
 
 // ---------- routes : #/section/sous-section/id ----------
 export function parseRoute() {
-  const [section, sub, id] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  const [section, sub, id] = location.hash.replace(/^#\/?/, '').split('/').map(part => {
+    try { return decodeURIComponent(part); } catch (_) { return part; }
+  });
   // Machines left the settings: old links and bookmarks keep working.
   if (section === 'settings' && sub === 'machines') {
     history.replaceState(null, '', '#/machines' + (id ? '/' + encodeURIComponent(id) : ''));
@@ -35,20 +38,57 @@ export function parseRoute() {
     history.replaceState(null, '', '#/' + sub);
     return { section: sub, sub: '', id: '' };
   }
-  return { section: section || 'chat', sub: sub || '', id: id || '' };
+  return { section: section || (isPhone() ? 'sessions' : 'chat'), sub: sub || '', id: id || '' };
 }
 export function go(section, sub, id) {
   const hash = '#/' + [section, sub, id].filter(Boolean).map(encodeURIComponent).join('/');
   if (location.hash !== hash) location.hash = hash; else app.set({ route: parseRoute() });
 }
-addEventListener('hashchange', () => app.set({ route: parseRoute(), sideOpen: false }));
+function markBack(available) {
+  if (history.state?.loomBack === undefined) history.replaceState({ ...history.state, loomBack: available }, '');
+}
+if (isPhone()) markBack(false);
+addEventListener('hashchange', () => {
+  const route = parseRoute();
+  if (isPhone()) markBack(true);
+  const phoneDraft = route.section === 'chat' && !route.sub ? app.get().phoneDraft : null;
+  app.set({ route, phoneDraft, inspector: isPhone() ? false : app.get().inspector,
+    voiceMode: route.section === 'chat' ? app.get().voiceMode ?? null : null });
+});
+globalThis.matchMedia?.('(max-width: 760px)').addEventListener('change', () => {
+  if (!location.hash) app.set({ route: parseRoute() });
+});
+
+export function enterPhoneChat(draft) {
+  if (location.hash !== '#/chat') {
+    markBack(false);
+    history.pushState({ loomBack: true }, '', '#/chat');
+  }
+  app.set({ route: parseRoute(), phoneDraft: draft, phoneChatRevision: app.get().phoneChatRevision + 1 });
+}
+
+export function phoneTab({ section, sub }) {
+  if (section === 'sessions' || section === 'inbox' || (section === 'more' && !sub)) return section;
+  if (['quotas', 'usage', 'market'].includes(section)) return 'usage';
+  return '';
+}
+
+export function phoneBack() {
+  if (history.state?.loomBack) return history.back();
+  const { section, sub, id } = app.get().route;
+  const session = section === 'chat' || (section === 'agents' && ['s', 'grid'].includes(sub));
+  const subpage = section === 'files' ? id : ['agents', 'settings'].includes(section) && sub;
+  const parent = session ? 'sessions' : subpage ? section : 'more';
+  history.replaceState({ ...history.state, loomBack: false }, '', '#/' + parent);
+  app.set({ route: parseRoute(), inspector: false, phoneDraft: null, voiceMode: null });
+}
 
 // ---------- thème ----------
 export function setTheme(localT) {
   document.documentElement.dataset.theme = localT;
   try { localStorage.setItem('loom-theme', localT); } catch (_) {}
   const meta = document.querySelector('meta[name=theme-color]');
-  if (meta) meta.content = localT === 'light' ? '#f6f5f2' : '#141413';
+  if (meta) meta.content = localT === 'light' ? '#f3f3f4' : '#09090a';
   app.set({ theme: localT });
 }
 

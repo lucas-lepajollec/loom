@@ -16,7 +16,6 @@ import { Menu } from '../../ui/controls.js';
 import { ServerSetup, disconnectServer } from './connection.js';
 import { canInstall, InstallCli } from './settings.js';
 import { schedule } from './cron.js';
-import { setViewOf } from './layout.js';
 import { go } from '../../core/state.js';
 
 const PAGE_SIZE = 8;
@@ -35,7 +34,7 @@ function ApprovalRow({ a }) {
       ${a.kind !== 'idle' && !terminal && html`${(a.options && a.options.length ? a.options : [{ n: 1, label: t('agents.approval.approve') }]).map(o => html`<button class=${cls('btn sm', o.n === 1 && 'primary')} disabled=${busy}
           onClick=${() => run(a.options && a.options.length ? { action: 'option', option: o.n } : { action: 'approve' })}>${o.label}</button>`)}
         <button class="btn sm danger" disabled=${busy} onClick=${() => run({ action: 'deny' })}>${t('agents.approval.deny')}</button>`}
-      <button class="btn sm" onClick=${() => { if (terminal) setViewOf(a.sessionId, 'term'); openSession(a.sessionId); }}>${terminal ? t('agents.approval.open_terminal') : t('agents.cc.open')}</button>
+      <button class="btn sm" onClick=${() => openSession(a.sessionId, terminal ? 'term' : undefined)}>${terminal ? t('agents.approval.open_terminal') : t('agents.cc.open')}</button>
       <button class="icon-btn" aria-label=${t('agents.approval.dismiss')} onClick=${() => dismissApproval(a).catch(e => toast(e.message, 'err'))}><${Icon} n="close" /></button>
     </div></li>`;
 }

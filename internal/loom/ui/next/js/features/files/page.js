@@ -13,13 +13,10 @@ import { prompt, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go } from '../../core/state.js';
 import { NoteEditor, isNote } from './editor.js';
-
-const narrowQuery = '(max-width: 760px)';
-function useNarrow() {
-  const [n, setN] = useState(() => matchMedia(narrowQuery).matches);
-  useEffect(() => { const m = matchMedia(narrowQuery); const f = () => setN(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f); }, []);
-  return n;
-}
+import { usePhone } from '../../core/viewport.js';
+import { BackButton } from '../../app/phone-nav.js';
+import { usePullRefresh } from '../../app/touch.js';
+import { ago } from '../agents/rail.js';
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
 const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
@@ -161,16 +158,19 @@ function MachineTree({ current, onSetBrain, header }) {
   };
   useEffect(() => { load(); }, [stamp]);
   const refreshAll = async () => setStamp(x => x + 1);
+  const pull = usePullRefresh(refreshAll);
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
-    ${header(null)}
-    <div class="fl-list" role="tree" key=${stamp}>
+    ${header(null, refreshAll)}
+    <div class="fl-list" role="tree" key=${stamp} ...${pull}>
       ${top === null ? html`<span class="spinner"></span>` : top.map(n => html`<${LazyRow} key=${n.path} n=${n} depth=${0} current=${current} refreshAll=${refreshAll} onSetBrain=${p => onSetBrain(rootDir, p)} />`)}
     </div>
     <p class="fl-root-path mono">${rootDir}</p>
   </nav>`;
 }
 
-function Tree({ data, current, refresh, onRoot, header }) {
+const recentlyModified = (nodes, since) => nodes.flatMap(n => n.dir ? recentlyModified(n.children || [], since) : n.modified > since ? [n] : []);
+
+function Tree({ data, current, refresh, header, phone }) {
   const [open, setOpen] = useState(() => new Set(load('loom.files.open', [])));
   const [q, setQ] = useState('');
   // La note ouverte reste visible : ses dossiers parents s'ouvrent.
@@ -183,12 +183,21 @@ function Tree({ data, current, refresh, onRoot, header }) {
   const toggle = p => { const n = new Set(open); n.has(p) ? n.delete(p) : n.add(p); setOpen(n); save('loom.files.open', [...n]); };
   const query = q.trim().toLowerCase();
   const nodes = query ? filterTree(data.tree || [], query) : data.tree || [];
+  const recent = phone && !query ? recentlyModified(nodes, Date.now() - 86400000).sort((a, b) => b.modified - a.modified).slice(0, 4) : [];
+  const pull = usePullRefresh(refresh);
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
     ${header(html`
       <button class="icon-btn" aria-label=${t('files.new_note')} title=${t('files.new_note')} onClick=${() => newNote(current ? parentOf(current) : '', refresh)}><${Icon} n="edit" /></button>
       <button class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder(current ? parentOf(current) : '', refresh)}><${Icon} n="folder" /></button>`)}
     <label class="search fl-search"><${Icon} n="search" /><input placeholder=${t('files.search')} value=${q} onInput=${e => setQ(e.target.value)} aria-label=${t('files.search')} /></label>
-    <div class="fl-list" role="tree">
+    <div class="fl-list" role="tree" ...${pull}>
+      ${recent.length > 0 && html`<section class="fl-recent">
+        <h2>${t('mobile.files_recent')}</h2>
+        ${recent.map(n => html`<a class="phone-link" key=${n.path} href=${'#/files/n/' + encodeURIComponent(n.path)}>
+          <${Icon} n="file" /><span><b class="trunc">${n.name.replace(/\.md$/i, '')}</b><small>${[parentOf(n.path), ago(n.modified)].filter(Boolean).join(' · ')}</small></span><${Icon} n="right" />
+        </a>`)}
+        <h2>${t('files.tree')}</h2>
+      </section>`}
       ${nodes.map(n => html`<${TreeRow} key=${n.path} n=${n} depth=${0} current=${current} open=${open} toggle=${toggle} refresh=${refresh} filter=${!!query} />`)}
       ${!nodes.length && html`<p class="fl-empty">${query ? t('files.no_match') : t('files.empty_folder')}</p>`}
     </div>
@@ -235,7 +244,7 @@ function Viewer({ path, refresh, narrow }) {
   ];
   return html`<section class="fl-view" aria-label=${path}>
     <header class="fl-head">
-      ${narrow && html`<button class="icon-btn" aria-label=${t('files.back')} onClick=${() => go('files')}><${Icon} n="left" /></button>`}
+      ${narrow && html`<${BackButton} />`}
       <span class="fl-crumbs">${crumbs.map((c, i) => html`${i > 0 && html`<i>/</i>`}<span class=${i === crumbs.length - 1 ? 'here' : ''}>${i === crumbs.length - 1 ? c.replace(/\.md$/i, '') : c}</span>`)}</span>
       <span class="grow"></span>
       <span class=${cls('fl-state', state)}>${state === 'saving' ? t('files.saving') : state === 'dirty' ? t('files.unsaved') : state === 'conflict' ? t('files.conflict_short') : file && file.modified ? t('files.saved') : ''}</span>
@@ -251,7 +260,7 @@ function Viewer({ path, refresh, narrow }) {
 }
 
 export function FilesPage({ route }) {
-  const narrow = useNarrow();
+  const narrow = usePhone();
   const [data, setData] = useState(null);
   const [setup, setSetup] = useState(false);
   const scopeNow = route.sub === 'm' ? 'machine' : route.sub === 'n' ? 'brain' : load('loom.files.scope', 'brain');
@@ -270,22 +279,22 @@ export function FilesPage({ route }) {
     const key = 'loom.files.last.' + scopeNow;
     if (current) save(key, current); else if (!narrow) { const last = load(key, ''); if (last) openPath(last); }
   }, [current, scopeNow]);
-  const setScope = v => { save('loom.files.scope', v); scope = v; const last = load('loom.files.last.' + v, ''); go('files', v === 'machine' ? 'm' : 'n', last || undefined); };
+  const setScope = v => { save('loom.files.scope', v); scope = v; const last = narrow ? '' : load('loom.files.last.' + v, ''); go('files', v === 'machine' ? 'm' : 'n', last || undefined); };
   const setBrain = async (rootDir, rel) => {
     const path = (rootDir.replace(/\/+$/, '') + '/' + rel).replace(/^\/\//, '/');
     const r = await post('/api/files/root', { path });
     if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
     toast(t('files.brain_set', { path })); await refresh(); setScope('brain');
   };
-  if (!data) return html`<div class="view files"><div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
-  const menuBtn = html`<button class="icon-btn only-mobile menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>`;
-  const header = actions => html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} actions=${actions} />`;
-  if (scopeNow === 'brain' && (!data.exists || setup)) return html`<div class="view files">${narrow && html`<header class="fl-head">${menuBtn}</header>`}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;
+  const phoneHeader = narrow && html`<header class="fl-head phone-subhead"><${BackButton} /><h1>${t('files.title')}</h1></header>`;
+  if (!data) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
+  const header = (actions, reload = refresh) => html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${narrow ? reload : refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} actions=${actions} />`;
+  if (scopeNow === 'brain' && (!data.exists || setup)) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;
   const showTree = !narrow || !current;
   return html`<div class=${cls('view files', narrow && 'narrow')}>
-    ${narrow && !current && html`<header class="fl-head">${menuBtn}<b>${t('files.title')}</b></header>`}
+    ${!current && phoneHeader}
     ${showTree && (scopeNow === 'machine' ? html`<${MachineTree} key=${'m'} current=${current} onSetBrain=${setBrain} header=${header} />`
-      : html`<${Tree} data=${data} current=${current} refresh=${refresh} onRoot=${() => setSetup(true)} header=${header} />`)}
+      : html`<${Tree} data=${data} current=${current} refresh=${refresh} header=${header} phone=${narrow} />`)}
     ${current ? html`<${Viewer} key=${scopeNow + current} path=${current} refresh=${refresh} narrow=${narrow} />`
       : !narrow && html`<section class="fl-view"><${Empty} icon="file" title=${t('files.pick')} text=${t('files.pick_text')} /></section>`}
   </div>`;

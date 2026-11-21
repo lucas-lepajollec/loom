@@ -16,6 +16,17 @@ self.addEventListener('fetch',function(e){
 
 // A payload-free push wakes the worker even when every tab is closed. Normal
 // same-origin authentication protects pending notices; never cache this reply.
+const inboxURL = '/#/inbox';
+function notificationURL(value) {
+  try {
+    if (typeof value === 'string' && value) {
+      const target = new URL(value, self.location.origin);
+      if (target.origin === self.location.origin) return target.href;
+    }
+  } catch (_) {}
+  return new URL(inboxURL, self.location.origin).href;
+}
+
 self.addEventListener('push', function(e){
   e.waitUntil((async function(){
     let notices = [];
@@ -26,10 +37,9 @@ self.addEventListener('push', function(e){
         if (Array.isArray(data.notifications)) notices = data.notifications;
       }
     } catch (_) {}
-    if (!notices.length) notices = [{title:'Loom',body:'Open Loom to view task updates',url:'/#/tasks',tag:'loom-tasks'}];
+    if (!notices.length) notices = [{title:'Loom',body:'Open Loom to view updates',url:inboxURL,tag:'loom-updates'}];
     for (const notice of notices.slice(-64)) {
-      let url = '/#/tasks';
-      try { if (typeof notice.url === 'string' && notice.url) { const target = new URL(notice.url, self.location.origin); if (target.origin === self.location.origin) url = target.href; } } catch (_) {}
+      const url = notificationURL(notice.url);
       await self.registration.showNotification(notice.title || 'Loom', {
         body: notice.body || 'Task update', tag: notice.tag || 'loom-tasks', renotify:false,
         icon:'/icons/loom-192.png', data:{url}, actions:[{action:'open',title:'Open'}]
@@ -40,13 +50,18 @@ self.addEventListener('push', function(e){
 self.addEventListener('notificationclick', function(e){
   e.notification.close();
   e.waitUntil((async function(){
-    let url = new URL('/#/tasks', self.location.origin).href;
-    try { const raw = e.notification.data?.url; if (typeof raw === 'string' && raw) { const target = new URL(raw, self.location.origin); if (target.origin === self.location.origin) url = target.href; } } catch (_) {}
+    const url = notificationURL(e.notification.data?.url);
     const windows = await self.clients.matchAll({type:'window',includeUncontrolled:true});
+    const exact = windows.find(client => client.url === url);
+    if (exact?.focus) {
+      try { return await exact.focus(); } catch (_) {}
+    }
     for (const client of windows) {
-      if (new URL(client.url).origin !== self.location.origin) continue;
-      if ('navigate' in client) await client.navigate(url);
-      if ('focus' in client) return client.focus();
+      if (new URL(client.url).origin !== self.location.origin || !client.navigate) continue;
+      try {
+        const destination = await client.navigate(url);
+        if (destination?.focus) return await destination.focus();
+      } catch (_) {}
     }
     if (self.clients.openWindow) return self.clients.openWindow(url);
   })());

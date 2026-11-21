@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Loom has a standalone phone layout through 760 px. Sessions, Inbox, Usage,
+  and More sit in the bottom bar. Inbox handles Codeman approvals, quick
+  replies, recent completions, and interrupted-session restore. Discussions
+  and agent conversations use bottom composers and sheets. The agent terminal
+  keeps its key bar within reach. Web Push opens the relevant Inbox card or
+  session. [Setup and notification rules](docs/notifications.md#web-push)
+
 - Loom uses shared button, dropdown, menu, segmented control, and dialog
   styles in both themes. Open menus close when their trigger is pressed
   again. Agent, model, vendor, and machine marks use unframed icons.

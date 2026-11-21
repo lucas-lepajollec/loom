@@ -15,27 +15,7 @@ import { get, post } from '../../core/api.js';
 import { visibleConnection } from '../../core/poll.js';
 import { validShape } from '../../core/shape.js';
 
-// Rééchantillonne le micro en PCM16 16 kHz par blocs de ~100 ms et mesure le niveau.
-const WORKLET = `
-class Pcm16 extends AudioWorkletProcessor {
-  constructor() { super(); this.ratio = sampleRate / 16000; this.acc = 0; this.buf = new Int16Array(1600); this.n = 0; }
-  process(inputs) {
-    const ch = inputs[0] && inputs[0][0];
-    if (!ch) return true;
-    let peak = 0;
-    for (let i = 0; i < ch.length; i++) {
-      const s = ch[i]; const a = s < 0 ? -s : s; if (a > peak) peak = a;
-      this.acc += 1;
-      if (this.acc >= this.ratio) {
-        this.acc -= this.ratio;
-        this.buf[this.n++] = Math.max(-1, Math.min(1, s)) * 0x7fff;
-        if (this.n === this.buf.length) { this.port.postMessage({ pcm: this.buf.buffer, peak }, [this.buf.buffer]); this.buf = new Int16Array(1600); this.n = 0; peak = 0; }
-      }
-    }
-    return true;
-  }
-}
-registerProcessor('loom-pcm16', Pcm16);`;
+import { WORKLET } from './audio.js';
 
 // Découpe un texte en phrases prononçables dès qu'elles sont complètes.
 export function takeSentences(buffer, final) {
@@ -289,8 +269,8 @@ export function VoiceMode({ discussionId, internet = false, onClose }) {
   const label = { starting: t('vm.starting'), listening: t('vm.listening'), thinking: t('vm.thinking'), searching: t('vm.searching'), speaking: t('vm.speaking'), error: t('vm.error') }[phase] || '';
   return html`<div class="voice-mode" role="dialog" aria-label=${t('vm.title')}>
     <button class="icon-btn vm-close" aria-label=${t('vm.close')} onClick=${close}><${Icon} n="close" /></button>
-    ${phase === 'insecure' ? html`<${Insecure} onClose=${() => onClose(false)} />`
-      : phase === 'unavailable' ? html`<div class="vm-msg"><h2>${t('vm.unavailable')}</h2><p>${t('vm.unavailable_note')}</p><a class="btn primary" href="#/voice" onClick=${() => onClose(false)}>${t('vm.open_voice')}</a></div>`
+    ${phase === 'insecure' ? html`<${Insecure} onClose=${() => onClose(false, true)} />`
+      : phase === 'unavailable' ? html`<div class="vm-msg"><h2>${t('vm.unavailable')}</h2><p>${t('vm.unavailable_note')}</p><a class="btn primary" href="#/voice" onClick=${() => onClose(false, true)}>${t('vm.open_voice')}</a></div>`
       : html`<div class="vm-stage"><${Orb} levels=${levels} state=${phase} /><div class="vm-state" aria-live="polite">${label}</div></div>
         <div class="vm-lines" aria-live="polite">${lines.slice(-6).map((l, i) => html`<p key=${i} class=${cls('vm-line', l.who, l.live && 'live')}>${l.text}</p>`)}
           ${error && html`<p class="vm-line err">${error}</p>`}</div>`}

@@ -1,3 +1,7 @@
+import { useRef } from '../core/lib.js';
+import { app, phoneBack, phoneTab } from '../core/state.js';
+import { isPhone } from '../core/viewport.js';
+
 // Écrans tactiles, surtout iOS (Safari, Brave, Chrome : tous WebKit sur iPhone).
 // Loom est une application plein écran : le document lui-même ne doit jamais
 // défiler. iOS le fait pourtant quand le clavier s'ouvre ou qu'une liste
@@ -37,7 +41,7 @@ function touchDebug() {
   const d = e => !e ? '∅' : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).slice(0, 2).join('.') : '') + ((e.textContent || '').trim() ? ' «' + e.textContent.trim().slice(0, 18) + '»' : '');
   const state = () => {
     const vv = window.visualViewport;
-    const layers = document.querySelectorAll('.scrim,.side-scrim,.drawer-scrim,.pop,.insp.open').length;
+    const layers = document.querySelectorAll('.scrim,.drawer-scrim,.pop,.insp.open').length;
     return `scrollY=${Math.round(window.scrollY)} vv=${vv ? [Math.round(vv.offsetTop), Math.round(vv.height), vv.scale.toFixed(2)].join('/') : '-'} inner=${window.innerHeight} layers=${layers} focus=${d(document.activeElement)}`;
   };
   const log = s => { lines.push(s); while (lines.length > 14) lines.shift(); box.textContent = lines.join('\n') + '\n' + state(); };
@@ -69,22 +73,85 @@ function followVisualViewport() {
   const vv = window.visualViewport;
   if (!vv) return;
   const root = document.documentElement;
-  let frame = 0;
+  let frame = 0, tallest = 0, width = 0;
   const apply = () => {
     frame = 0;
+    if (width !== window.innerWidth) { width = window.innerWidth; tallest = 0; }
+    tallest = Math.max(tallest, window.innerHeight);
     root.style.setProperty('--app-h', Math.round(vv.height) + 'px');
     root.style.setProperty('--app-top', Math.round(vv.offsetTop) + 'px');
-    root.classList.toggle('kb-open', vv.height < window.innerHeight - 80);
+    const editing = document.activeElement?.matches('input,textarea,[contenteditable="true"]');
+    root.classList.toggle('kb-open', !!editing && vv.height < tallest - 120);
   };
   const soon = () => { if (!frame) frame = requestAnimationFrame(apply); };
   vv.addEventListener('resize', soon);
   vv.addEventListener('scroll', soon);
   window.addEventListener('orientationchange', soon);
+  document.addEventListener('focusin', soon);
+  document.addEventListener('focusout', soon);
   apply();
+}
+
+function swipeBack() {
+  let origin;
+  const delta = p => [p.clientX - origin.clientX, p.clientY - origin.clientY];
+  document.addEventListener('touchstart', e => {
+    const p = e.touches[0];
+    const inside = e.target.closest('.app,.scrim');
+    const layer = document.querySelector('.scrim,.voice-mode');
+    origin = isPhone() && inside && e.touches.length === 1 && p.clientX <= 24 &&
+      (layer || !phoneTab(app.get().route)) ? p : null;
+  }, { passive: true, capture: true });
+  document.addEventListener('touchmove', e => {
+    if (!origin) return;
+    const [x, y] = delta(e.touches[0]);
+    if (e.touches.length > 1 || Math.abs(y) > 24 && Math.abs(y) > x) { origin = null; return; }
+    if (x > 18 && x > Math.abs(y) * 1.4) {
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+    }
+  }, { passive: false, capture: true });
+  document.addEventListener('touchcancel', () => { origin = null; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (!origin) return;
+    const [x, y] = delta(e.changedTouches[0]);
+    origin = null;
+    if (x < 70 || x < Math.abs(y) * 1.6) return;
+    if (e.cancelable) e.preventDefault();
+    if (document.querySelector('.scrim')) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    else if (document.querySelector('.voice-mode')) document.querySelector('.vm-close')?.click();
+    else phoneBack();
+  }, { passive: false, capture: true });
+}
+
+export function usePullRefresh(refresh) {
+  const origin = useRef(null), pending = useRef(false);
+  return {
+    onTouchStart: e => {
+      const el = e.currentTarget;
+      origin.current = refresh && isPhone() && e.touches.length === 1 && el.scrollTop <= 0 && !pending.current &&
+        !e.target.closest('input,textarea,select,[contenteditable]') ? e.touches[0] : null;
+    },
+    onTouchCancel: () => { origin.current = null; },
+    onTouchMove: e => {
+      const start = origin.current, p = e.touches[0];
+      if (start && (e.touches.length > 1 || p.clientY - start.clientY < -8 || Math.abs(p.clientX - start.clientX) > 40)) origin.current = null;
+    },
+    onTouchEnd: async e => {
+      const start = origin.current, el = e.currentTarget;
+      origin.current = null;
+      if (!start || el.scrollTop > 0 || e.changedTouches[0].clientY - start.clientY < 64) return;
+      pending.current = true;
+      el.setAttribute('aria-busy', 'true');
+      try { await refresh(); } catch (_) {}
+      finally { pending.current = false; el.removeAttribute('aria-busy'); }
+    },
+  };
 }
 
 export function initTouch() {
   touchDebug();
+  swipeBack();
   if (!coarse()) return;
   document.documentElement.classList.add('touch');
   keepDocumentAtTop();

@@ -245,22 +245,26 @@ export async function open(id, soft, quiet) {
 }
 
 // Nouvelle discussion : le chat natif archive la courante et repart à zéro.
-export async function newDiscussion(projectId) {
-  ++epoch; opening = true; if (abort) abort.abort();
+export async function newDiscussion(projectId, { navigate = true } = {}) {
+  const ep = ++epoch; opening = true; if (abort) abort.abort();
   remember('');
   restartNative(false);
   chat.set({ sessionId: '', session: null, context: null, loading: false });
   let r;
   try { r = await post('/api/chat/reset', { project_id: projectId || '' }); }
-  finally { opening = false; if (abort) abort.abort(); }
+  catch (e) { r = { ok: false, error: e.message }; }
+  finally { if (ep === epoch) { opening = false; if (abort) abort.abort(); } }
+  if (ep !== epoch) return false;
+  let ready = !!r.ok;
   if (!r.ok) toast(t("chat.engine.impossible_de_creer_la_discussion"), 'err');
   else if (r.initial_choice) {
     const choice = r.initial_choice;
-    if (choice.kind === 'local') await chooseLocal({ model: choice.engine_value || choice.model, path: choice.model, name: choice.name });
-    else await chooseRemote(choice, { quiet: true });
+    if (choice.kind === 'local') ready = await chooseLocal({ model: choice.engine_value || choice.model, path: choice.model, name: choice.name });
+    else ready = await chooseRemote(choice, { quiet: true });
   }
   refreshNav();
-  go('chat');
+  if (navigate) go('chat');
+  return ready;
 }
 
 // ---------------------------------------------------------------- envoi
@@ -371,17 +375,19 @@ export async function continueSession(projectName) {
 // explicite avant tout envoi vers l'extérieur.
 export async function chooseRemote(choice, { quiet = false } = {}) {
   const st = chat.get();
+  const ep = epoch;
   if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
   const dest = choice.endpoint || choice.provider_name;
   // quiet : choix par défaut d'une discussion neuve, déjà consenti dans les réglages.
   const ok = quiet || await confirm(t("chat.engine.continuer_avec") + choice.name,
     t("chat.engine.le_texte_de_la_discussion_et_le_contexte_du_projet_instructions_e") + dest + t("chat.engine.les_autres_fichiers_les_outils_et_la_memoire_privee_ne_sont_pas_t"), { ok: t("chat.engine.continuer") });
-  if (!ok) return false;
+  if (!ok || ep !== epoch) return false;
   try {
     let id = st.sessionId;
     if (!id) {
       const hist = await get('/api/chat/history');
       const sessions = await get('/api/runtime/sessions');
+      if (ep !== epoch) return false;
       const bound = (sessions.sessions || []).find(s => s.native_archive === hist.active);
       if (bound) id = bound.id;
       else {
@@ -391,10 +397,11 @@ export async function chooseRemote(choice, { quiet = false } = {}) {
         id = created.session.id;
       }
     }
+    if (ep !== epoch) return false;
     const r = await post('/api/runtime/sessions/select', { id, choice_id: choice.id, consent: true });
     if (!r.ok) throw new Error(r.error);
     await refreshNav();
-    return await open(id, true);
+    return ep === epoch && await open(id, true);
   } catch (e) { toast(e.message, 'err'); return false; }
 }
 
@@ -468,7 +475,20 @@ const LAST = 'loom.next.lastChat';
 const remember = id => { try { id ? localStorage.setItem(LAST, id) : localStorage.removeItem(LAST); } catch (_) {} };
 export function init() {
   connectNative();
+  const openLink = async () => {
+    const { section, sub: id } = app.get().route;
+    if (section !== 'chat' || !id) return false;
+    await refreshNav();
+    if (app.get().route.section === 'chat' && app.get().route.sub === id) await open(id);
+    return true;
+  };
+  addEventListener('hashchange', openLink);
+  if (app.get().route.section === 'chat' && app.get().route.sub) { openLink(); return; }
   let last = '';
   try { last = localStorage.getItem(LAST) || ''; } catch (_) {}
-  if (last) get('/api/runtime/sessions?id=' + encodeURIComponent(last)).then(r => { if (r && r.ok) open(last, false, true); else remember(''); }).catch(() => remember(''));
+  const initialEpoch = epoch;
+  if (last) get('/api/runtime/sessions?id=' + encodeURIComponent(last)).then(r => {
+    if (epoch !== initialEpoch || app.get().route.section === 'chat' && app.get().route.sub) return;
+    if (r && r.ok) open(last, false, true); else remember('');
+  }).catch(() => { if (epoch === initialEpoch) remember(''); });
 }

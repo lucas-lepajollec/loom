@@ -8,13 +8,15 @@ import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls, createStore } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Empty, Popover, Switch } from '../../ui/controls.js';
+import { Empty, Popover, Seg, Switch } from '../../ui/controls.js';
 import { prompt, toast } from '../../ui/dialog.js';
 import { Drawer } from '../../ui/drawer.js';
 import { TabNav } from '../../ui/tabnav.js';
-import { app, go } from '../../core/state.js';
+import { go } from '../../core/state.js';
+import { isPhone, usePhone } from '../../core/viewport.js';
+import { BackButton } from '../../app/phone-nav.js';
 import { api } from './client.js';
-import { agents, useAgentsLive, refreshConnection, stateOf, cliOf, upsertSession, hasConversation } from './store.js';
+import { agents, refreshConnection, stateOf, cliOf, projectOf, upsertSession, hasConversation } from './store.js';
 import { renameSession } from './actions.js';
 import { StateDot } from './rail.js';
 import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf } from './layout.js';
@@ -29,13 +31,6 @@ import { CronPage } from './cron.js';
 import { ConnectionPanel } from './connection.js';
 import { openSession } from './nav.js';
 
-const narrow = () => matchMedia('(max-width: 760px)').matches;
-function useNarrow() {
-  const [n, setN] = useState(narrow());
-  useEffect(() => { const m = matchMedia('(max-width: 760px)'); const f = () => setN(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f); }, []);
-  return n;
-}
-
 // En-tête d'une session : le harness et son modèle, le nom, l'état et le
 // bouton du panneau. Tout le reste est dans le panneau, comme pour une
 // discussion.
@@ -46,8 +41,15 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
     if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
   };
   const restart = () => api.start(s.id, s.mode === 'shell').then(() => api.session(s.id).then(upsertSession)).catch(e => toast(e.message, 'err'));
+  if (narrowView) return html`<header class="cm-sh phone-session-head">
+    <${BackButton} />
+    <div class="phone-agent-title">
+      <span><${CliMark} mode=${s.mode} size="xs" /><b class="trunc">${s.name || s.id.slice(0, 8)}</b></span>
+      <small class=${'st-' + state}><${StateDot} state=${state} /><span class="trunc">${[lt('state', state), s.displayModel?.model, s.workingDir && projectOf(s.workingDir)].filter(Boolean).join(' · ')}</span></small>
+    </div>
+    <button type="button" class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} aria-expanded=${String(insp)} onClick=${() => setInsp(!insp)}><${Icon} n="more" /></button>
+  </header>`;
   return html`<header class="cm-sh">
-    ${narrowView && html`<button class="icon-btn menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>`}
     <span class="cm-sh-cli"><${CliMark} mode=${s.mode} size="sm" /><b>${cli.label}</b>${s.displayModel?.model && html`<span class="muted">${s.displayModel.model}</span>`}</span>
     <span class="cm-sh-sep" aria-hidden="true">/</span>
     <button class="btn sm cm-sh-name" onClick=${rename} title=${t('agents.session.rename')}><span class="trunc">${s.name || s.id.slice(0, 8)}</span></button>
@@ -60,18 +62,28 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
 
 function SessionPane({ s, narrowView }) {
   const [view, setViewState] = useState(viewOf(s));
-  const [insp, setInspState] = useState(() => { try { return !narrow() && innerWidth > 1180 && localStorage.getItem('loom.codeman.inspOpen') !== '0'; } catch (_) { return false; } });
+  const [insp, setInspState] = useState(() => { try { return !narrowView && innerWidth > 1180 && localStorage.getItem('loom.codeman.inspOpen') !== '0'; } catch (_) { return false; } });
+  const phoneTerminal = useStore(layout, l => l.phoneTerminal === s.id);
   useEffect(() => { setViewState(viewOf(s)); }, [s.id]);
-  const setView = v => { setViewOf(s.id, v); setViewState(v); };
-  const setInsp = v => { setInspState(v); if (!narrow()) try { localStorage.setItem('loom.codeman.inspOpen', v ? '1' : '0'); } catch (_) {} };
-  const mode = !hasConversation(s.mode) ? 'term' : (narrowView && view === 'split' ? 'chat' : view);
+  useEffect(() => () => { if (layout.get().phoneTerminal === s.id) layout.set({ phoneTerminal: '' }); }, [s.id]);
+  const setView = v => {
+    if (narrowView) layout.set({ phoneTerminal: v === 'term' ? s.id : '' });
+    else { setViewOf(s.id, v); setViewState(v); }
+  };
+  const setInsp = v => { setInspState(v); if (!isPhone()) try { localStorage.setItem('loom.codeman.inspOpen', v ? '1' : '0'); } catch (_) {} };
+  const mode = narrowView ? (phoneTerminal || s.mode === 'shell' ? 'term' : 'chat') : hasConversation(s.mode) ? view : 'term';
   const toTerm = () => setView(narrowView ? 'term' : 'split');
   return html`<div class=${cls('cm-pane', insp && !narrowView && 'with-insp')}>
     <div class="cm-main">
       <${SessionHeader} s=${s} narrowView=${narrowView} insp=${insp} setInsp=${setInsp} />
+      ${narrowView && s.mode !== 'shell' && html`<div class="phone-agent-views">
+        <${Seg} value=${mode} onChange=${setView} label=${t('agents.view.label')} options=${[
+          { value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') },
+        ]} />
+      </div>`}
       <div class=${cls('cm-body', 'v-' + mode)}>
-        ${(mode === 'chat' || mode === 'split') && html`<${Conversation} key=${'c' + s.id} session=${s} onTerminal=${toTerm} terminalVisible=${mode === 'split'} />`}
-        ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} shell=${s.mode === 'shell'} scrollback=${agents.get().settings?.terminalScrollbackLines || 50000} focus=${mode === 'term'} /></div>`}
+        ${(mode === 'chat' || mode === 'split') && html`<${Conversation} key=${'c' + s.id} session=${s} onTerminal=${toTerm} terminalVisible=${mode === 'split'} phone=${narrowView} />`}
+        ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} shell=${s.mode === 'shell'} scrollback=${agents.get().settings?.terminalScrollbackLines || 50000} focus=${mode === 'term'} phoneControls=${narrowView} /></div>`}
       </div>
     </div>
     ${insp && (narrowView ? html`<${Drawer} title=${t('agents.insp.info')} onClose=${() => setInsp(false)}><${Inspector} session=${s} view=${mode} setView=${setView} narrowView /></${Drawer}>`
@@ -103,7 +115,7 @@ function GridArea() {
 const gridInsp = createStore({ open: false });
 
 function Workspace({ route }) {
-  const narrowView = useNarrow();
+  const narrowView = usePhone();
   const id = route.sub === 's' ? route.id : '';
   const session = useStore(agents, s => s.sessions[id] || null);
   const loaded = useStore(agents, s => s.loaded);
@@ -150,10 +162,6 @@ const SUBS = ['', 'cron', 'settings'];
 function Top({ sub }) {
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v), current: sub === v }));
   return html`<header class="cm-admin-top">
-    <div class="cm-admin-phone-head">
-      <button class="icon-btn menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
-      <b>${t('agents.title')}</b>
-    </div>
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
   </header>`;
 }
@@ -163,10 +171,8 @@ export function AgentsPage({ route }) {
   const { state } = conn;
   const ready = state === 'ready';
   useEffect(() => { refreshConnection(); }, []);
-  // Le flux d'événements ne s'ouvre qu'une fois connecté ; sinon on revérifie
-  // régulièrement (Codeman redémarré, mis à jour, réinstallé).
   useEffect(() => {
-    if (ready) return useAgentsLive();
+    if (ready) return;
     const timer = setInterval(() => { if (!document.hidden) refreshConnection(); }, 10000);
     return () => clearInterval(timer);
   }, [ready]);
@@ -180,9 +186,12 @@ export function AgentsPage({ route }) {
     addEventListener('keydown', key, true); return () => removeEventListener('keydown', key, true);
   }, [currentId]);
   const gated = sub !== 'settings' && state !== 'ready';
+  const narrowView = usePhone();
+  const hasSession = useStore(agents, s => !!s.sessions[currentId]);
   const server = conn.url + '\n' + conn.username;
   const gate = html`<div class="cm-gate">${state === 'idle' || state === 'connecting' ? html`<div class="cm-gate-in"><span class="spinner"></span><p class="muted">${t('agents.conn.connecting')}</p></div>` : html`<${ConnectionPanel} gate />`}</div>`;
   return html`<div class="view cm">
+    ${narrowView && work && (!hasSession || gated) && html`<header class="phone-subhead"><${BackButton} /><b>${t('agents.title')}</b></header>`}
     ${!work && html`<${Top} sub=${sub} />`}
     ${gated ? gate
       : work ? html`<${Workspace} route=${route} />`

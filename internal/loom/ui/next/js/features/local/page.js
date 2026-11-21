@@ -45,7 +45,7 @@ function ModelEstimate({ model, 'data-label': label }) {
   </span>`;
 }
 
-async function controlEngine(action) {
+export async function controlEngine(action) {
   const result = await post('/api/' + action, {});
   if (!result.ok) toast(result.out || result.error || t('local.page.action_impossible'), 'err');
   await refreshStatus();

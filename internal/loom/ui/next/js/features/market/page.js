@@ -339,7 +339,7 @@ export function MarketPage() {
     setData(previous => ({ ...previous, watch: { ...previous.watch, ...body } }));
   });
 
-  return html`<${ActivityLayout} title=${t('market.title')}>
+  return html`<${ActivityLayout} title=${t('market.title')} refresh=${() => run('read', () => read(false))}>
     <${Releases} data=${data} busy=${busy} error=${error} refresh=${() => run('refresh', () => read(true))} />
     ${data && html`
       <${Ranking} data=${data} busy=${busy} />

@@ -54,17 +54,22 @@ test('payload-free push fetches authenticated notices with no cache and only Ope
 });
 test('push falls back to a generic notice when normal auth or networking is unavailable',async()=>{
   const {handlers,shown}=pushWorker({failure:true});let done;handlers.push({waitUntil:p=>done=p});await done;
-  assert.equal(shown.length,1);assert.equal(shown[0].title,'Loom');assert.equal(shown[0].options.data.url,'https://loom.test/#/tasks');
+  assert.equal(shown.length,1);assert.equal(shown[0].title,'Loom');assert.equal(shown[0].options.data.url,'https://loom.test/#/inbox');
 });
 test('notification click opens the discussion with all tabs closed; foreign links are rejected',async()=>{
-  for(const [target,expected] of [['https://loom.test/#/chat/d','https://loom.test/#/chat/d'],['https://foreign.test/','https://loom.test/#/tasks']]){
+  for(const [target,expected] of [
+    ['https://loom.test/#/chat/d','https://loom.test/#/chat/d'],
+    ['/#/inbox/approval%2Fid','https://loom.test/#/inbox/approval%2Fid'],
+    ['/#/agents/s/session','https://loom.test/#/agents/s/session'],
+    ['https://foreign.test/','https://loom.test/#/inbox']
+  ]){
     const {handlers,opened}=pushWorker();let done;
     handlers.notificationclick({notification:{data:{url:target},close(){}},waitUntil:p=>done=p});await done;
     assert.deepEqual(opened,[expected]);
   }
 });
 test('notification click navigates an existing Loom tab before focusing it',async()=>{
-  const calls=[],client={url:'https://loom.test/#/chat/other',navigate:async url=>calls.push(url),focus:async()=>calls.push('focus')};
+  const calls=[],client={url:'https://loom.test/#/chat/other',navigate:async url=>{calls.push(url);return client;},focus:async()=>calls.push('focus')};
   const {handlers,opened}=pushWorker({windows:[client]});let done;
   handlers.notificationclick({notification:{data:{url:'https://loom.test/#/chat/d'},close(){}},waitUntil:p=>done=p});await done;
   assert.deepEqual(calls,['https://loom.test/#/chat/d','focus']);assert.deepEqual(opened,[]);

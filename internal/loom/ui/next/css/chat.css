@@ -1,6 +1,5 @@
 /* Discussion : en-tête, fil, messages, composeur, sélecteur, panneau de droite. */
 .grow{flex:1}
-.only-mobile{display:none}
 .chat-view{flex-direction:row;min-width:0}
 .chat-col{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
 .topbar{height:var(--head-h);flex:none;display:flex;align-items:center;gap:8px;padding:0 14px 0 16px;border-bottom:1px solid var(--line-soft)}
@@ -165,8 +164,6 @@
   .insp.open{position:absolute;right:0;top:0;bottom:0;z-index:60;box-shadow:var(--shadow-pop)}
 }
 @media (max-width:720px){
-  .only-mobile{display:inline-flex}
-  .side-scrim{position:fixed;inset:0;z-index:130;background:rgba(8,8,7,.5);animation:in-fade var(--mid)}
   .topbar{padding:0 8px}
   .thread-in{padding:20px 16px}
   .msg-user{max-width:88%}
@@ -177,8 +174,6 @@
   .exec-sub{display:none}
 }
 .composer textarea:focus-visible{box-shadow:none}
-.mobile-bar{display:none}
-@media (max-width:720px){.mobile-bar{display:flex;align-items:center;gap:8px;height:52px;flex:none;padding:0 8px;border-bottom:1px solid var(--line-soft)}.mobile-bar b{font-size:15px}}
 
 /* ===== Mono ===== */
 .chat-view{background:transparent;border:0;box-shadow:none;border-radius:0;gap:8px;overflow:visible}

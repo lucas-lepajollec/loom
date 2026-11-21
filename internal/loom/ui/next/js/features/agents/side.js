@@ -33,7 +33,7 @@ export function HistoryRow({ r }) {
 
 // Fenêtre « nouvelle session », ouverte depuis la barre latérale, la page ou
 // un volet vide de la grille (qui reçoit alors la session).
-export function NewSessionHost() {
+export function NewSessionHost({ phone }) {
   const creating = useStore(agents, s => s.creating);
   useEffect(() => {
     const key = e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'n' && agents.get().conn.state === 'ready') { e.preventDefault(); agents.set({ creating: {} }); } };
@@ -41,6 +41,6 @@ export function NewSessionHost() {
   }, []);
   if (!creating) return null;
   const cell = creating.cell;
-  return html`<${NewSession} preset=${creating.preset} onClose=${() => agents.set({ creating: null })}
+  return html`<${NewSession} preset=${creating.preset} phone=${phone} initialType=${creating.type} folder=${creating.folder} onClose=${() => agents.set({ creating: null })}
     onCreated=${id => { if (cell != null) placeSession(id, cell); openSession(id); }} />`;
 }

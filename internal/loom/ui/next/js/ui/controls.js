@@ -4,7 +4,8 @@ import { t } from '../core/i18n.js';
 import { html, render, useRef, useLayoutEffect, useEffect, useState, cls } from '../core/lib.js';
 import { Icon } from './icons.js';
 import { popoverPosition } from './popover-position.js';
-import { Portal, topModal } from './dialog.js';
+import { Modal, Portal, topModal } from './dialog.js';
+import { usePhone } from '../core/viewport.js';
 
 export function Seg({ value, options, onChange, size, label, class: c }) {
   const box = useRef(), ind = useRef();
@@ -80,7 +81,13 @@ export function Tip({ text }) {
 }
 
 // Popover ancré sous (ou au-dessus de) son déclencheur, fermé par clic extérieur/Échap.
-export function Popover({ anchor, onClose, children, width, place, heightLimit, heightRatio = 1, class: c, role = 'dialog', label }) {
+export function Popover({ sheet, label, children, ...props }) {
+  const phone = usePhone();
+  if (sheet && phone) return html`<${Modal} title=${label} onClose=${props.onClose} class=${props.class} focusField=${false}>${children}</${Modal}>`;
+  return html`<${AnchoredPopover} ...${props} label=${label}>${children}</${AnchoredPopover}>`;
+}
+
+function AnchoredPopover({ anchor, onClose, children, width, place, heightLimit, heightRatio = 1, class: c, role = 'dialog', label }) {
   const box = useRef(), close = useRef(onClose); close.current = onClose;
   const [st, setSt] = useState({ visibility: 'hidden' });
   useLayoutEffect(() => {
@@ -194,8 +201,9 @@ export function Menu({ anchor, onClose, items, label, role = 'menu', ...position
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(it);
   }
-  return html`<${Popover} anchor=${anchor} onClose=${onClose} role="presentation" class="menu" ...${position}>
-    <div role=${role} aria-label=${label || anchor.getAttribute('aria-label') || anchor.labels?.[0]?.textContent.trim() || anchor.textContent.trim() || undefined} ref=${list} onKeyDown=${key}>
+  const name = label || anchor.getAttribute('aria-label') || anchor.labels?.[0]?.textContent.trim() || anchor.textContent.trim() || undefined;
+  return html`<${Popover} anchor=${anchor} onClose=${onClose} role="presentation" class="menu" sheet label=${name} ...${position}>
+    <div role=${role} aria-label=${name} ref=${list} onKeyDown=${key}>
       ${[...groups].map(([group, rows]) => group
         ? html`<div key=${group} role="group" aria-label=${group}><div class="item-group" aria-hidden="true">${group}</div>${rows.map(row)}</div>`
         : rows.map(row))}

@@ -412,7 +412,7 @@ export function QuotasPage() {
     if (a.id === 'antigravity' && a.credits != null) return t('quotas.ai_credits', { n: a.credits, v: a.credits.toLocaleString(locale()) });
     return (a.id === 'claude' && live?.modelDisplayName) || (a.plan ? a.plan[0].toUpperCase() + a.plan.slice(1) : '');
   };
-  return html`<${ActivityLayout} title=${t('quotas.title')}>
+  return html`<${ActivityLayout} title=${t('quotas.title')} refresh=${() => setTick(n => n + 1)}>
     ${data === null && !live ? html`<div class="skeleton" style="height:220px"></div>`
       : !accounts.length ? html`<div class="activity-card"><${Empty} icon="gauge" title=${t('quotas.empty_title')} text=${t('quotas.empty_text')}>${!conn.configured && html`<a class="btn" href="#/agents/settings"><${Icon} n="plug" />${t('quotas.connect')}</a>`}</${Empty}></div>`
       : html`

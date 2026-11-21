@@ -164,9 +164,10 @@ func (m *runtimeSessions) notifications(ctx context.Context) *notificationServic
 		return s
 	}
 	s.started = true
-	s.workers.Add(3)
+	s.workers.Add(4)
 	c, unsubscribe := m.events.Subscribe()
 	go func() { defer s.workers.Done(); s.monitorHealth(ctx) }()
+	go func() { defer s.workers.Done(); s.monitorCodemanPush(ctx) }()
 	go func() {
 		defer s.workers.Done()
 		defer func() { unsubscribe() }()
@@ -417,35 +418,37 @@ func (s *notificationService) deliver(ctx context.Context, c notify.Config, e ev
 		})
 	}
 	if only == "push" || only == "" && c.Push.Enabled {
-		send("push", func() error {
-			s.mu.Lock()
-			s.pending = append(s.pending, m)
-			if len(s.pending) > 64 {
-				s.pending = s.pending[len(s.pending)-64:]
-			}
-			s.mu.Unlock()
-			subs := loadSubs()
-			if len(subs) == 0 {
-				return errors.New("subscribe a secure browser before testing Web Push")
-			}
-			priv, pub, err := vapidKeys()
-			if err != nil {
-				return errors.New("VAPID keys unavailable")
-			}
-			var errs []error
-			for _, sub := range subs {
-				gone, err := notify.SendTickle(ctx, notificationPushClient, sub.Endpoint, c.PublicBaseURL, priv, pub)
-				if gone {
-					removeSub(sub.Endpoint)
-				}
-				if err != nil {
-					errs = append(errs, err)
-				}
-			}
-			return errors.Join(errs...)
-		})
+		send("push", func() error { return s.deliverPush(ctx, c, []notify.Message{m}) })
 	}
 	return errors.Join(failures...)
+}
+
+func (s *notificationService) deliverPush(ctx context.Context, c notify.Config, notices []notify.Message) error {
+	s.mu.Lock()
+	s.pending = append(s.pending, notices...)
+	if len(s.pending) > 64 {
+		s.pending = s.pending[len(s.pending)-64:]
+	}
+	s.mu.Unlock()
+	subs := loadSubs()
+	if len(subs) == 0 {
+		return errors.New("subscribe a secure browser before testing Web Push")
+	}
+	priv, pub, err := vapidKeys()
+	if err != nil {
+		return errors.New("VAPID keys unavailable")
+	}
+	var errs []error
+	for _, sub := range subs {
+		gone, err := notify.SendTickle(ctx, notificationPushClient, sub.Endpoint, c.PublicBaseURL, priv, pub)
+		if gone {
+			removeSub(sub.Endpoint)
+		}
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 func notificationConfigEnvelope(s *notificationService, c notify.Config, r *http.Request) (map[string]any, error) {
 	secure, reason := browserSecure(r)

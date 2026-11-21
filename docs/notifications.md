@@ -86,9 +86,18 @@ signing uses the Go standard library. This slice deliberately sends a
 **payload-free tickle** (RFC 8030), instead of implementing RFC 8291/8188 payload
 encryption. The service worker wakes without a tab, fetches
 `/api/notify/pending` with same-origin credentials and `cache:no-store`, shows a
-notification with **Open** only, and navigates/focuses the discussion link.
+notification with **Open** only, and opens the linked screen. Discussion
+notifications open the discussion. Codeman approval and reply notifications
+open the matching Inbox card. A completed Codeman turn opens its session.
 Pending notices are an in-memory, bounded 24-hour view, never cached or persisted
 as a separate notification inbox. Repeated wakes may redisplay the same tag.
+
+With Web Push enabled and a browser subscribed, Loom observes Codeman's public
+event stream from the server using the saved connection. Agent alerts contain
+generic status text and follow the configured events, completion duration,
+quiet hours, and delivery interval. Completion alerts require Loom to observe
+both the start and the completion signal. Agent approval responses always use
+the authenticated Inbox or session controls.
 
 A password login cookie is required to fetch protected pending notices after
 all tabs close. The worker cannot access in-memory Bearer keys or the browser's

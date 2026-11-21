@@ -24,6 +24,7 @@ function nextName(dir) {
 // (préférence de ce navigateur, activée par défaut).
 export const autoResumeDefault = () => { try { return localStorage.getItem('loom.codeman.autoresume') !== '0'; } catch (_) { return true; } };
 export const setAutoResumeDefault = on => { try { localStorage.setItem('loom.codeman.autoresume', on ? '1' : '0'); } catch (_) {} };
+export const agentDraftKey = id => 'loom.codeman.draft.' + id;
 
 export async function createSession({ mode, workingDir, name, model }) {
   const body = { workingDir, mode, name: (name || '').trim() || nextName(workingDir) };
@@ -36,7 +37,8 @@ export async function createSession({ mode, workingDir, name, model }) {
   const session = created?.session || created;
   if (!session?.id) throw new Error('no session');
   upsertSession(session);
-  await api.start(session.id, mode === 'shell');
+  try { await api.start(session.id, mode === 'shell'); }
+  catch (err) { err.sessionId = session.id; throw err; }
   if (mode === 'claude' && autoResumeDefault()) api.autoResume(session.id, true).catch(() => {});
   api.session(session.id).then(upsertSession).catch(() => {});
   return session.id;

@@ -169,7 +169,7 @@ function InfoTab({ session }) {
 }
 
 // Menu de la session : renommer, relancer, interface Codeman, retirer ou fermer.
-function SessionMenu({ s }) {
+function SessionMenu({ s, phone }) {
   const [menu, setMenu] = useState(null);
   const state = stateOf(s);
   const rename = async () => {
@@ -192,7 +192,7 @@ function SessionMenu({ s }) {
     { label: t('agents.session.detach'), icon: 'power', run: () => close(false) },
     { label: t('agents.session.close'), icon: 'trash', danger: true, run: () => close(true) },
   ];
-  return html`<button class=${cls('icon-btn', menu && 'on')} aria-label=${t('agents.session.actions')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="more" /></button>
+  return html`<button class=${cls(phone ? 'btn sm' : 'icon-btn', menu && 'on')} aria-label=${t('agents.session.actions')} onClick=${e => setMenu(menu ? null : e.currentTarget)}><${Icon} n="more" />${phone && t('mobile.session_options')}</button>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}`;
 }
 
@@ -242,17 +242,18 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
   const views = [{ value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') }, ...(narrowView ? [] : [{ value: 'split', label: t('agents.view.split') }])];
   const link = officialLink(s.id);
   return html`<aside class="cm-insp cm-panel" aria-label=${t('agents.insp.title')}>
-    <header class="cm-panel-h"><b>${t('agents.insp.info')}</b><span class="grow"></span>
+    ${!narrowView && html`<header class="cm-panel-h"><b>${t('agents.insp.info')}</b><span class="grow"></span>
       <${SessionMenu} s=${s} />
-      ${onClose && html`<button class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${onClose}><${Icon} n="close" /></button>`}</header>
+      ${onClose && html`<button class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${onClose}><${Icon} n="close" /></button>`}</header>`}
     <div class="cm-panel-body">
-      ${setView && hasConversation(s.mode) && html`<${Seg} value=${view} options=${views} onChange=${setView} label=${t('agents.view.label')} />`}
+      ${!narrowView && setView && hasConversation(s.mode) && html`<${Seg} value=${view} options=${views} onChange=${setView} label=${t('agents.view.label')} />`}
       <div class="cm-panel-rows">
         <div class="cm-kv"><span>${t('agents.info.cli')}</span><b class="cm-panel-cli"><${CliMark} mode=${s.mode} size="xs" />${c.label}${s.cliVersion ? ' ' + s.cliVersion : ''}</b></div>
         <${ModelRow} s=${s} />
         <div class="cm-kv"><span>${t('agents.info.dir')}</span><b class="mono trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</b></div>
       </div>
       <div class="cm-panel-acts">
+        ${narrowView && html`<${SessionMenu} s=${s} phone />`}
         ${s.mode !== 'shell' && html`<button class="btn sm" disabled=${!!busy} onClick=${shell}>${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}<span>${t('agents.panel.shell')}</span></button>`}
         ${s.mode === 'claude' ? html`
           <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>

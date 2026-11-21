@@ -7,7 +7,8 @@ import { html, useEffect, useRef, useState, cls } from '../../core/lib.js';
 import { visibleConnection } from '../../core/poll.js';
 import { loadXterm } from '../../ui/xterm.js';
 import { Icon } from '../../ui/icons.js';
-import { api, terminalClientId } from './client.js';
+import { api, sendPrompt, terminalClientId } from './client.js';
+import { agentDraftKey } from './actions.js';
 import { toast } from '../../ui/dialog.js';
 import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
 
@@ -45,13 +46,15 @@ export function theme() {
 // de touches apparaît au-dessus du clavier tant qu'il est ouvert sur ce
 // terminal (Ctrl à un coup, Esc, Tab, flèches, fermer le clavier).
 const KEYS = [['Esc', '\x1b'], ['Tab', '\t'], ['↑', '\x1b[A'], ['↓', '\x1b[B'], ['←', '\x1b[D'], ['→', '\x1b[C']];
-function Accessory({ send, ctrl, setCtrl, dismiss }) {
+function Accessory({ send, ctrl, setCtrl, dismiss, persistent, connected }) {
   // pointerdown sans effet par défaut : le terminal garde le clavier.
   const keep = e => e.preventDefault();
   return html`<div class="cm-acc" role="toolbar" aria-label=${t('agents.acc.label')}>
-    <button type="button" class=${cls(ctrl && 'on')} aria-pressed=${String(ctrl)} title=${t('agents.acc.ctrl')} onPointerDown=${keep} onClick=${() => setCtrl(!ctrl)}>Ctrl</button>
-    ${KEYS.map(([label, seq]) => html`<button type="button" key=${label} onPointerDown=${keep} onClick=${() => { setCtrl(false); send(seq); }}>${label}</button>`)}
-    <button type="button" class="cm-acc-hide" aria-label=${t('agents.acc.hide')} title=${t('agents.acc.hide')} onPointerDown=${keep} onClick=${dismiss}><${Icon} n="chevron" /></button>
+    <button type="button" class=${cls(ctrl && 'on')} aria-pressed=${String(ctrl)} title=${t('agents.acc.ctrl')} disabled=${!connected} onPointerDown=${keep} onClick=${() => setCtrl(!ctrl)}>${t('mobile.key_ctrl')}</button>
+    ${KEYS.map(([label, seq], i) => html`<button type="button" key=${label} disabled=${!connected}
+      onPointerDown=${keep} onClick=${() => { setCtrl(false); send(seq); }}>${i === 0 ? t('mobile.key_esc') : i === 1 ? t('mobile.key_tab') : label}</button>`)}
+    ${persistent && html`<button type="button" class="cm-acc-break" disabled=${!connected} onPointerDown=${keep} onClick=${() => { setCtrl(false); send('\x03'); }}>${t('mobile.key_ctrl_c')}</button>`}
+    ${dismiss && html`<button type="button" class="cm-acc-hide" aria-label=${t('agents.acc.hide')} title=${t('agents.acc.hide')} onPointerDown=${keep} onClick=${dismiss}><${Icon} n="chevron" /></button>`}
   </div>`;
 }
 // Ctrl à un coup : la lettre tapée ensuite devient son octet de contrôle.
@@ -60,7 +63,7 @@ const ctrlByte = ch => { const c = ch.toUpperCase().charCodeAt(0); return c >= 6
 const TAIL = 1024 * 1024;
 const historyQuery = (shell, lines) => `full=1&tail=${TAIL}&lines=${lines}` + (shell ? '&alt=recording' : '');
 
-export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true, fontSize = 13, focus = false, readOnly = false, scrollback = 20000, onState }) {
+export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true, fontSize = 13, focus = false, readOnly = false, scrollback = 20000, onState, phoneControls = false }) {
   const box = useRef(), termRef = useRef();
   const [state, setState] = useState('connecting');
   const [busy, setBusy] = useState(false);
@@ -68,7 +71,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   // Taille imposée par un autre écran, plus grande que ce panneau.
   const [foreign, setForeignState] = useState(false);
   const reclaimRef = useRef(null), inputRef = useRef(null), ctrlRef = useRef(false);
-  const phone = viewport() === 'mobile';
+  const phone = phoneControls || viewport() === 'mobile';
   const [typing, setTyping] = useState(false);
   // CLI en plein écran : il garde lui-même son historique, la barre de
   // défilement locale n'aurait presque rien à faire défiler.
@@ -370,12 +373,41 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   // Un volet qui reçoit le focus donne le clavier à son terminal.
   // Sur téléphone, le clavier ne s'ouvre qu'au toucher (comme dans Codeman).
   useEffect(() => { if (focus && !readOnly && !phone) termRef.current?.focus(); }, [focus]);
-  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', phone && typing && 'with-keys', fullscreen && 'cli-fullscreen')}>
+  const showKeys = phone && !readOnly && (typing || phoneControls);
+  const sendKey = d => inputRef.current?.(d);
+  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', showKeys && 'with-keys', fullscreen && 'cli-fullscreen', phoneControls && 'cm-phone-term')}>
     <div class="cm-term-box" ref=${box}></div>
-    ${phone && typing && !readOnly && html`<${Accessory} send=${d => inputRef.current?.(d)} ctrl=${ctrl} setCtrl=${setCtrl} dismiss=${() => termRef.current?.blur()} />`}
+    ${showKeys && html`<${Accessory} send=${sendKey} ctrl=${ctrl} setCtrl=${setCtrl} connected=${state === 'open'} persistent=${phoneControls} dismiss=${typing ? () => termRef.current?.blur() : undefined} />`}
+    ${phoneControls && !readOnly && html`<${TerminalLine} id=${sessionId} connected=${state === 'open'} onChar=${ch => {
+      if (!ctrlRef.current || !sendKey(ctrlByte(ch))) return false;
+      setCtrl(false); return true;
+    }} />`}
     ${busy ? html`<div class="cm-term-state"><span class="spinner"></span>${t('agents.attach.sending')}</div>`
       : over ? html`<div class="cm-term-state"><${Icon} n="upload" />${t('agents.attach.drop')}</div>`
       : foreign && state === 'open' ? html`<button type="button" class="cm-term-state cm-term-foreign" onClick=${() => reclaimRef.current?.()}><${Icon} n="expand" />${t('agents.term.foreign')}</button>`
       : state !== 'open' && html`<div class="cm-term-state"><i class=${cls('dot', state === 'connecting' || state === 'disconnected' ? 'amber' : '')}></i>${lt('term', state)}</div>`}
   </div>`;
+}
+
+function TerminalLine({ id, connected, onChar }) {
+  const draftKey = agentDraftKey(id);
+  const [text, setText] = useState(() => { try { return sessionStorage.getItem(draftKey) || ''; } catch (_) { return ''; } });
+  const [busy, setBusy] = useState(false);
+  const inflight = useRef(false);
+  useEffect(() => { try { text ? sessionStorage.setItem(draftKey, text) : sessionStorage.removeItem(draftKey); } catch (_) {} }, [text]);
+  const send = async e => {
+    e.preventDefault();
+    if (!connected || inflight.current || !text.trim()) return;
+    inflight.current = true; setBusy(true);
+    try { await sendPrompt(id, text); setText(''); }
+    catch (err) { toast(err.code === 'NOT_DELIVERED' ? t('agents.composer.not_delivered') : err.message, 'err'); }
+    finally { inflight.current = false; setBusy(false); }
+  };
+  return html`<form class="composer cm-phone-line" onSubmit=${send}>
+    <input type="text" class="mono" aria-label=${t('mobile.terminal_input')} placeholder=${t('mobile.terminal_input')}
+      enterkeyhint="send" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellcheck="false"
+      value=${text} onInput=${e => setText(e.target.value)}
+      onBeforeInput=${e => { if (e.inputType === 'insertText' && e.data?.length === 1 && onChar(e.data)) e.preventDefault(); }} />
+    <button class="send" type="submit" aria-label=${t('agents.composer.send')} disabled=${!connected || busy || !text.trim()}><${Icon} n="arrowUp" /></button>
+  </form>`;
 }

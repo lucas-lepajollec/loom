@@ -11,14 +11,15 @@ import { get, post } from '../../core/api.js';
 import { app } from '../../core/state.js';
 import { useVisibleRefresh } from './refresh.js';
 import { recall, remember } from '../../core/observations.js';
+import { usePhone } from '../../core/viewport.js';
+import { usePullRefresh } from '../../app/touch.js';
 
-export function ActivityLayout({ title, children }) {
-  return html`<div class="view page activity-view">
-    <header class="activity-mobile-head only-mobile">
-      <button type="button" class="icon-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
-      <b>${t('app.groups.activity')}</b>
-    </header>
-    <div class="page-in activity-in"><${SectionTabs} />${title && html`<h1 class="sr">${title}</h1>`}${children}</div>
+export function ActivityLayout({ title, refresh, children }) {
+  const phone = usePhone();
+  const pull = usePullRefresh(refresh);
+  return html`<div class="view page activity-view" ...${pull}>
+    ${phone && html`<header class="phone-title"><h1>${t('mobile.usage')}</h1></header>`}
+    <div class="page-in activity-in"><${SectionTabs} />${!phone && title && html`<h1 class="sr">${title}</h1>`}${children}</div>
   </div>`;
 }
 
@@ -181,7 +182,7 @@ export function UsagePage() {
   }, 4000, revision);
   const models = data?.models || [];
   const headings = [t('usage.page.modele'), t('usage.page.entree_2'), t('usage.page.sortie_2'), t('usage.page.prix_m_tokens'), t('usage.page.estimation')];
-  return html`<${ActivityLayout} title=${t('app.routes.usage')}>
+  return html`<${ActivityLayout} title=${t('app.routes.usage')} refresh=${refresh}>
     <${Balances} revision=${revision} />
     <section class="activity-section" aria-labelledby="usage-models">
       <div class="activity-heading">

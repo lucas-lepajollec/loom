@@ -2,6 +2,7 @@ import { t } from '../core/i18n.js';
 // Couches globales : dialogues impératifs (ask/confirm), toasts, info-bulles.
 import { html, render, createStore, useStore, useEffect, useLayoutEffect, useRef, useState, cls } from '../core/lib.js';
 import { Icon } from './icons.js';
+import { isPhone } from '../core/viewport.js';
 
 export const layers = createStore({ dialogs: [], toasts: [] });
 let seq = 0;
@@ -39,8 +40,9 @@ export function Portal({ children }) {
 // Dialogue générique (composant) : scrim + panneau, Échap et clic extérieur ferment.
 export const topModal = () => [...document.querySelectorAll('.dialog[aria-modal="true"]')].at(-1);
 
-export function Modal({ title, sub, onClose, children, foot, wide, class: c }) {
+export function Modal({ title, sub, onClose, children, foot, wide, class: c, focusField = true }) {
   const box = useRef(), close = useRef(onClose), previous = useRef(document.activeElement);
+  const gesture = useRef(null);
   close.current = onClose;
   useEffect(() => {
     const prev = previous.current;
@@ -65,7 +67,7 @@ export function Modal({ title, sub, onClose, children, foot, wide, class: c }) {
     document.addEventListener('keydown', key);
     const frame = requestAnimationFrame(() => {
       if (panel !== topModal() || panel.contains(document.activeElement)) return;
-      const field = panel.querySelector('.dialog-body :is(input, textarea, select):not([type="hidden"]):not(:disabled)');
+      const field = (!isPhone() || focusField) && panel.querySelector('.dialog-body :is(input, textarea, select):not([type="hidden"]):not(:disabled)');
       const action = panel.querySelector('.dialog-foot .primary:not(:disabled)');
       (field || action || panel).focus({ preventScroll: true });
     });
@@ -76,9 +78,25 @@ export function Modal({ title, sub, onClose, children, foot, wide, class: c }) {
       if (prev?.isConnected && (!current || current === panel || current.contains(prev))) prev.focus({ preventScroll: true });
     };
   }, []);
+  const reset = () => { gesture.current = null; box.current?.style.removeProperty('--sheet-offset'); };
+  const swipe = {
+    onTouchStart: e => { if (isPhone() && onClose && e.touches.length === 1) gesture.current = e.touches[0].clientY; },
+    onTouchMove: e => {
+      if (gesture.current == null) return;
+      const dy = e.touches[0].clientY - gesture.current;
+      box.current.style.setProperty('--sheet-offset', Math.max(0, dy) + 'px');
+    },
+    onTouchCancel: reset,
+    onTouchEnd: e => {
+      const dismiss = gesture.current != null && e.changedTouches[0].clientY - gesture.current > 64;
+      reset();
+      if (dismiss) onClose();
+    },
+  };
   return html`<${Portal}><div class="scrim" onClick=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
     <div class=${cls('dialog', wide && 'wide', c)} role="dialog" aria-modal="true" aria-label=${title} tabIndex="-1" ref=${box}>
-      <header class="dialog-head"><div><h2>${title}</h2>${sub && html`<p>${sub}</p>`}</div>
+      ${onClose && html`<div class="sheet-grab" aria-hidden="true" ...${swipe}><span></span></div>`}
+      <header class="dialog-head" ...${swipe}><div><h2>${title}</h2>${sub && html`<p>${sub}</p>`}</div>
         ${onClose && html`<button type="button" class="icon-btn" aria-label=${t("ui.dialog.fermer")} onClick=${onClose}><${Icon} n="close" /></button>`}</header>
       <div class="dialog-body">${children}</div>
       ${foot && html`<footer class="dialog-foot">${foot}</footer>`}

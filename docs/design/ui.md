@@ -43,9 +43,11 @@ The component sources are [controls.js](../../internal/loom/ui/next/js/ui/contro
 [tabnav.js](../../internal/loom/ui/next/js/ui/tabnav.js), and
 [logo.js](../../internal/loom/ui/next/js/ui/logo.js).
 
-On phones, use 44 px touch targets and allow control groups and dialog
-actions to wrap. Check at 390 px and 320 px, including long labels and open
-menus. Use the viewport-aware positioning in `Popover` and keep enough
-room for the dialog body to scroll while the header and footer stay visible.
-The route crawl exercises these layouts with deterministic data.
+At widths up to 760 px, use Sessions, Inbox, Usage, and More as the bottom
+tabs. Keep the composer just above the safe area or keyboard. Session headers
+provide a back button and a short title or model selector. Use 44 px touch
+targets, 16 px text fields, and wrap control groups when space is tight.
+Shared dialogs and menus open as bottom sheets. Leave the header and actions
+within reach when the sheet body scrolls. The route crawl checks 390 px and
+320 px layouts with deterministic data and long labels.
 [Phone layout checks](../../tools/tests/ui-routes/layout.mjs)

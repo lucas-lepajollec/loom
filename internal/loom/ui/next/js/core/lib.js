@@ -50,6 +50,7 @@ export function createStore(initial, schema = initial) {
   };
   return {
     get: () => state,
+    flush,
     set(patch) {
       state = { ...state, ...shapePatch(state, typeof patch === 'function' ? patch(state) : patch, schema) };
       if (!queued) {

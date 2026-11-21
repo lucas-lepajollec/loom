@@ -3,8 +3,16 @@ import { t } from '../core/i18n.js';
 // (mêmes classes .insp), posé par-dessus la page.
 import { html, useEffect, useRef } from '../core/lib.js';
 import { Icon } from './icons.js';
+import { Modal } from './dialog.js';
+import { usePhone } from '../core/viewport.js';
 
-export function Drawer({ title, onClose, children }) {
+export function Drawer(props) {
+  const phone = usePhone();
+  return phone ? html`<${Modal} title=${props.title} onClose=${props.onClose} class="drawer-sheet" focusField=${false}>${props.children}</${Modal}>`
+    : html`<${SideDrawer} ...${props} />`;
+}
+
+function SideDrawer({ title, onClose, children }) {
   const box = useRef(), close = useRef(onClose); close.current = onClose;
   useEffect(() => {
     const previous = document.activeElement;
