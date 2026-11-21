@@ -433,8 +433,8 @@ test('mobile Settings opens its index, follows section links and returns without
   assert.equal(nodes(tree, 'nav').length, 1);
   assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
   const links = nodes(tree, 'a');
-  assert.equal(links.length, 10);
-  assert.equal(links.find(n => textOf(n).includes('Agents')).props.href, '#/settings/agents');
+  assert.equal(links.length, 8);
+  for (const moved of ['Agents', 'API']) assert.ok(!links.some(n => textOf(n).trim() === moved), moved + ' lives on its own page');
   assert.equal(links.find(n => textOf(n).includes('Démarrage')).props.href, '#/settings/startup');
   for (const moved of ['Machines', 'Espaces de travail', 'Moteurs']) assert.ok(!links.some(n => textOf(n).includes(moved)), moved + ' lives on its domain page, not in Settings');
   assert.equal(links.find(n => textOf(n).includes('Internet')).props.href, '#/settings/internet');

@@ -1,7 +1,7 @@
 import { t, getLang } from '../../core/i18n.js';
 // Fil de discussion : rendu des éléments produits par le moteur.
 import { html, useState, useEffect, useRef, useMemo, useStore, cls, fmtTok, fmtSecs } from '../../core/lib.js';
-import { Icon } from '../../ui/icons.js';
+import { Icon, LoomMark } from '../../ui/icons.js';
 import { md, plain } from './md.js';
 import { ToolCard, QuietGroup, Plan, Approval, QUIET } from './tools.js';
 import { post } from '../../core/api.js';
@@ -105,8 +105,16 @@ function Gen({ gen, compacting }) {
   const [, tick] = useState(0);
   useEffect(() => { const localT = setInterval(() => tick(x => x + 1), 500); return () => clearInterval(localT); }, []);
   const secs = (Date.now() - gen.start) / 1000;
-  return html`<div class="gen"><span class="gen-mark"><${Icon} n="loom" /></span>
+  return html`<div class="gen"><span class="gen-mark"><${LoomMark} /></span>
     <span>${compacting ? t("chat.messages.compactage_du_contexte") : [fmtSecs(secs), gen.tok ? fmtTok(gen.tok) + ' tok' : ''].filter(Boolean).join(' · ')}</span></div>`;
+}
+
+// Le moteur démarre pour ce message : même ligne que pendant une réponse.
+export function Starting({ starting }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const timer = setInterval(() => tick(x => x + 1), 500); return () => clearInterval(timer); }, []);
+  return html`<div class="gen" role="status"><span class="gen-mark"><${LoomMark} /></span>
+    <span>${t('chat.engine.starting_model', { model: starting.name || '' })} · ${fmtSecs((Date.now() - starting.at) / 1000)}</span></div>`;
 }
 
 // Regroupe les lectures/recherches consécutives d'un harness et ne garde que le

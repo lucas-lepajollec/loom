@@ -132,7 +132,7 @@ export function Composer() {
           : html`<button class="send" aria-label="${t("chat.composer.envoyer")}" disabled=${!!blocked || c.starting || (!text.trim() && !files.length)} onClick=${submit}><${Icon} n="arrowUp" /></button>`}
       </div>
     </div>
-    ${c.starting ? html`<div class="composer-hint" role="status"><span class="spinner sm"></span>${t('chat.engine.starting')}</div>`
+    ${c.starting ? null
       : c.engineError ? html`<div class="composer-hint err" role="alert">${c.engineError}<button class="btn sm" onClick=${submit}>${t('agents.retry')}</button></div>`
       : hint && html`<div class="composer-hint warn">${hint}</div>`}
     ${menu && html`<${Popover} anchor=${menu} onClose=${() => setMenu(null)} place="above" width=${240}>

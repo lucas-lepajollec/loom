@@ -37,8 +37,8 @@
 .thread{flex:1;min-height:0;overflow-y:auto;position:relative;scroll-behavior:auto}
 .thread-in{max-width:760px;margin:0 auto;padding:32px 28px 24px;display:flex;flex-direction:column;gap:18px}
 .welcome{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:24px}
-.welcome-mark{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--line-soft);color:var(--text-2);margin-bottom:6px}
-.welcome-mark .ico{width:26px;height:26px}
+.welcome-mark{display:grid;place-items:center;color:var(--text);margin:6px 0 10px}
+.welcome-mark .loom-mark{width:44px;height:44px}
 .welcome h1{margin:0;font-size:26px;font-weight:600;letter-spacing:-.03em}
 .welcome p{margin:0;max-width:420px;color:var(--text-2);font-size:14.5px}
 .to-end{position:sticky;bottom:12px;left:calc(50% - 18px);width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-pop);color:var(--text-2)}
@@ -101,8 +101,8 @@
 .turn-foot{display:flex;align-items:center;gap:7px;margin-top:-4px;font:11.5px var(--mono);color:var(--text-3)}
 .turn-foot .ico{width:13px;height:13px}
 .gen{display:flex;align-items:center;gap:9px;font:12px var(--mono);color:var(--text-3);animation:in-fade var(--mid)}
-.gen-mark{display:grid;place-items:center;width:22px;height:22px;border-radius:7px;background:var(--surface-2);color:var(--text-2);animation:pulse 1.6s var(--ease) infinite}
-.gen-mark .ico{width:14px;height:14px}
+.gen-mark{display:grid;place-items:center;width:22px;height:22px;color:var(--text-2);animation:pulse 1.6s var(--ease) infinite}
+.gen-mark .loom-mark{width:16px;height:16px}
 
 /* composeur */
 .composer-wrap{flex:none;padding:10px 24px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:7px}
@@ -234,8 +234,6 @@
 .fold.reason .fold-in>.md{border-left-color:var(--line-strong)}
 .turn-foot{color:var(--text-3);font-size:12px}
 .turn-foot .ico{color:var(--text-3)}
-.gen-mark{background:var(--surface-2);color:var(--text-2)}
-.welcome-mark{background:var(--surface-2);border:1px solid var(--line);color:var(--text);box-shadow:none;border-radius:14px}
 .welcome h1{font-size:26px;letter-spacing:-.035em}
 .welcome p{color:var(--text-2)}
 .composer{background:var(--surface);border-color:var(--line-strong);border-radius:18px;box-shadow:0 10px 30px -14px rgba(0,0,0,.6)}

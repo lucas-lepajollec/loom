@@ -438,7 +438,7 @@ export function QuotasPage() {
   };
   return html`<${ActivityLayout} title=${t('quotas.title')}>
     ${data === null && !live ? html`<div class="skeleton" style="height:220px"></div>`
-      : !accounts.length ? html`<div class="activity-card"><${Empty} icon="gauge" title=${t('quotas.empty_title')} text=${t('quotas.empty_text')}>${!conn.configured && html`<a class="btn" href="#/settings/agents"><${Icon} n="plug" />${t('quotas.connect')}</a>`}</${Empty}></div>`
+      : !accounts.length ? html`<div class="activity-card"><${Empty} icon="gauge" title=${t('quotas.empty_title')} text=${t('quotas.empty_text')}>${!conn.configured && html`<a class="btn" href="#/agents/settings"><${Icon} n="plug" />${t('quotas.connect')}</a>`}</${Empty}></div>`
       : html`
         ${conn.configured && !ready && html`<p class="note"><i class="dot amber"></i> ${t('quotas.offline')}</p>`}
         <${Resets} accounts=${accounts} codeman=${ready} refresh=${() => setTick(n => n + 1)} />

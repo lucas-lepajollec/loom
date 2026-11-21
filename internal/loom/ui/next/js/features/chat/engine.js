@@ -267,9 +267,13 @@ export async function newDiscussion(projectId) {
 export async function send(text, opts = {}) {
   const st = chat.get();
   if (st.busy || st.starting) return false;
-  if (needsEngine() && !await ensureEngine()) return false;
-  if (st.mode === 'thread') return sendThread(text, opts);
+  if (st.mode === 'thread') {
+    if (needsEngine() && !await ensureEngine()) return false;
+    return sendThread(text, opts);
+  }
+  // Le message s'affiche tout de suite ; le fil montre le démarrage du moteur.
   push({ k: 'user', text, files: opts.files || [], pending: true });
+  if (needsEngine() && !await ensureEngine()) { dropPending(text); return false; }
   for (let i = 0; i < 3; i++) {
     try {
       const r = await post('/api/chat/send', { message: text, files: opts.files || [], ctx_used: st.ctxUsed, internet: !!opts.internet, mcp: !!opts.mcp });
@@ -439,7 +443,7 @@ export async function ensureEngine() {
   if (status.health && (!target || isLoaded(target))) { if (target) chat.set({ localTarget: null }); return true; }
   const model = target ? target.model : status.model;
   if (!target && !model) { chat.set({ engineError: t('chat.engine.no_model') }); return false; }
-  chat.set({ starting: true, engineError: '' });
+  chat.set({ starting: { at: Date.now(), name: (target && target.name) || String(model || '').split('/').pop().replace(/\.gguf$/i, '') }, engineError: '' });
   try {
     const r = target && target.presetIndex ? await post('/api/switch', { n: target.presetIndex }) : await post('/api/load-model', { model });
     if (!r.ok) throw new Error(r.error || t("chat.engine.chargement_impossible"));

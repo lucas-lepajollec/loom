@@ -108,7 +108,7 @@
 /* ---------- Réglages : navigation à gauche + colonne de contenu ---------- */
 .settings {
   display: grid;
-  grid-template-columns: 200px minmax(0, 680px);
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: 36px;
   align-items: start;
 }
@@ -122,7 +122,7 @@
 }
 
 .set-nav h1 {
-  margin: 0 0 14px 10px;
+  margin: 0 0 14px;
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;

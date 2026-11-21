@@ -154,7 +154,7 @@
 .cm-job-history .cm-editor-row,.cm-job-history .cm-switch,.cm-job-history .field{margin-top:8px}
 
 /* Server settings */
-.cm-cfg{display:grid;grid-template-columns:minmax(148px,190px) minmax(0,680px);align-items:start;gap:36px}
+.cm-cfg{display:grid;grid-template-columns:200px minmax(0,1fr);align-items:start;gap:36px}
 .cm-cfg-nav{position:sticky;top:14px;min-width:0}
 .cm-cfg-links{display:grid;gap:1px}
 .cm-cfg-links button{min-height:32px;padding:4px 10px;border-radius:var(--r-sm);text-align:start;font-size:13.5px;color:var(--text-2)}

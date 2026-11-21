@@ -2,10 +2,10 @@ import { VoiceMode } from '../voice/mode.js';
 import { t } from '../../core/i18n.js';
 // Vue discussion : en-tête (exécution, projet, panneau), fil, composeur.
 import { html, useRef, useEffect, useLayoutEffect, useStore, useState, cls } from '../../core/lib.js';
-import { Icon } from '../../ui/icons.js';
+import { Icon, LoomMark } from '../../ui/icons.js';
 import { app } from '../../core/state.js';
 import { chat, open } from './engine.js';
-import { Messages } from './messages.js';
+import { Messages, Starting } from './messages.js';
 import { Composer } from './composer.js';
 import { Picker, currentExec } from './picker.js';
 import { Inspector } from '../inspector/inspector.js';
@@ -15,6 +15,7 @@ import { go } from '../../core/state.js';
 
 function Thread() {
   const { items, gen, loading, compacting } = useStore(chat, s => s.frozen ? { items: s.frozen, gen: null, loading: false, compacting: false } : { items: s.items, gen: s.gen, loading: s.loading, compacting: s.compacting });
+  const starting = useStore(chat, s => s.starting);
   useStore(app, s => s.status && s.status.model + '|' + s.status.health);
   const { root, sessionId } = useStore(chat, s => ({ root: s.session?.workdir || '', sessionId: s.sessionId }));
   const box = useRef(), stick = useRef(true);
@@ -30,9 +31,9 @@ function Thread() {
   const exec = currentExec();
   return html`<div class="thread" ref=${box} onScroll=${onScroll}>
     ${loading ? html`<div class="thread-in"><div class="skeleton" style="height:44px;width:46%;margin-left:auto"></div><div class="skeleton" style="height:16px;width:80%;margin-top:26px"></div><div class="skeleton" style="height:16px;width:64%;margin-top:10px"></div></div>`
-      : empty ? html`<div class="welcome anim-rise"><${SessionType} /><div class="welcome-mark"><${Icon} n="loom" /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
+      : empty ? html`<div class="welcome anim-rise"><${SessionType} /><div class="welcome-mark"><${LoomMark} /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
           <p>${exec.name ? html`${t("chat.view.la_discussion_part_avec")} <b>${exec.name}</b>${t("chat.view.tu_pourras_changer_de_modele_en_cours_de_route")}` : t("chat.view.choisis_un_modele_local_cloud_ou_un_harness_en_haut_pour_commence")}</p></div>`
-      : html`<div class="thread-in"><${Messages} items=${items} gen=${gen} compacting=${compacting} root=${root} sessionId=${sessionId} /></div>`}
+      : html`<div class="thread-in"><${Messages} items=${items} gen=${gen} compacting=${compacting} root=${root} sessionId=${sessionId} />${starting && html`<${Starting} starting=${starting} />`}</div>`}
     ${showDown && html`<button class="to-end anim-fade" aria-label="${t("chat.view.aller_en_bas")}" onClick=${() => { stick.current = true; const el = box.current; if (el) el.scrollTop = el.scrollHeight; }}><${Icon} n="chevron" /></button>`}
   </div>`;
 }

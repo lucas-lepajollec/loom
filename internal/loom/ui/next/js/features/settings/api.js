@@ -62,6 +62,14 @@ export function ApiSettings({ compact = false, server, children }) {
       await load();
     } finally { setSaving(false); }
   };
+  const requireKey = async on => {
+    setSaving(true);
+    try {
+      const r = await post('/api/apikey', { action: 'require', on });
+      if (r.ok === false) return toast(r.error, 'err');
+      await load();
+    } finally { setSaving(false); }
+  };
   const models = Array.isArray(d?.models) ? d.models : [];
   const sampleModel = (direct ? node.model : models[0]?.id) || 'local';
   const payload = JSON.stringify({ model: sampleModel, messages: [{ role: 'user', content: t('models.api.hello') }] });
@@ -92,6 +100,10 @@ export function ApiSettings({ compact = false, server, children }) {
           <div class="models-row-main"><span>${t('models.api.network')}</span><small>${t('models.api.network_hint')}</small></div>
           ${network}
         </div>
+        ${!managed && !exposed && typeof keyRequired === 'boolean' && html`<div class="models-row">
+          <div class="models-row-main"><span>${t('models.api.key_local')}</span><small>${t('models.api.key_local_hint')}</small></div>
+          <${Switch} checked=${keyRequired} label=${t('models.api.key_local')} disabled=${saving} onChange=${requireKey} />
+        </div>`}
         ${!direct && exposed && d?.firewall === 'ferme' && html`<div class="models-row">
           <div class="models-row-main"><span>${t('settings.page.pare_feu')}</span><small>${d.hint || t('api.firewall', { port: d.port })}</small></div>
         </div>`}

@@ -22,18 +22,14 @@ import { Line, Group } from './kit.js';
 import { LoomUpdates } from './updates.js';
 import { StartupSettings } from './startup.js';
 import { VLLMEngine } from './vllm.js';
-import { ConnectionPanel } from '../agents/connection.js';
-import { ApiSettings } from './api.js';
 import { ListPick } from '../../ui/listpick.js';
 import { FolderPicker } from '../../ui/folder.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['agents', t('agents.title'), 'agent'], ['api', t('api.title'), 'plug'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 // Agents : connexion au serveur Codeman (détection automatique, voir agents/connection.js).
-const AgentsSettings = () => html`<${ConnectionPanel} embedded />`;
 // API compatible OpenAI : adresse, accès réseau, clés et noms de modèles (api.js).
-const ApiSection = () => html`<${ApiSettings} />`;
 
 function usePref() {
   const [p, setP] = useState(null);
@@ -430,11 +426,9 @@ function NetworkAccess() {
   const node = useStore(app, a => a.engineNode);
   const worker = node?.role === 'engine-node';
   const [web, setWeb] = useState(null);
-  const [api, setApi] = useState(null);
   const [busy, setBusy] = useState(false);
   const load = () => Promise.all([
     get('/api/network/web').then(r => setWeb(r.status || null)).catch(() => setWeb(null)),
-    worker ? Promise.resolve(setApi(null)) : get('/api/network').then(r => setApi(r.status || null)).catch(() => setApi(null)),
   ]);
   useEffect(() => { load(); }, [worker]);
   const toggleWeb = async on => {
@@ -452,17 +446,13 @@ function NetworkAccess() {
     const r = await post('/api/network/web', { restart: true });
     toast(r.message || t("settings.page.redemarrage_demande"), r.restarting ? '' : 'err');
   };
-  const toggleApi = async on => { const r = await post('/api/network', { exposed: on }); if (r.ok === false) return toast(r.error, 'err'); load(); };
   return html`<${Group} title="${t("settings.page.acces_reseau")}">
     <${Line} label="${t("settings.page.interface_sur_le_reseau")}" tip="${t("settings.page.mode_serveur_ouvre_loom_depuis_un_autre_appareil_loom_sur_une_vm")}">
       ${web ? html`<${Switch} checked=${web.exposed} disabled=${busy} label="${t("settings.page.interface_sur_le_reseau")}" onChange=${toggleWeb} />` : html`<span class="state">…</span>`}</${Line}>
     ${web && web.exposed && html`<${Line} label="${t("settings.page.adresse")}">${web.url ? html`<code class="mono">${web.url}</code><button class="btn sm ghost" onClick=${async () => toast(await copyText(web.url) ? t("settings.page.adresse_copiee") : t("settings.page.copie_refusee"))}>${t("settings.page.copier")}</button>` : html`<span class="state">${t("settings.page.apres_redemarrage")}</span>`}</${Line}>`}
     ${web && web.restart && html`<${Line} label="${t("settings.page.a_appliquer")}" tip="${t("settings.page.l_adresse_d_ecoute_ne_change_qu_au_redemarrage_de_l_interface_le")}"><span class="state">${t("settings.page.redemarrage_necessaire")}</span><button class="btn sm" onClick=${restart}>${t("settings.page.redemarrer_l_interface")}</button></${Line}>`}
     ${web && web.exposed && web.firewall === 'ferme' && html`<${Line} label="${t("settings.page.pare_feu")}"><span class="state">${t("settings.page.port")} ${web.port} ${t("settings.page.non_autorise_ouvre_le_dans_le_pare_feu_de_la_machine")}</span></${Line}>`}
-    <${Line} label="${t("settings.page.api_v1_sur_le_reseau")}" tip="${t("settings.page.les_logiciels_et_harnesses_d_autres_machines_peuvent_utiliser_tes")}">
-      ${worker ? html`<span class="state">${t('node.network_managed')}</span>` : api ? html`<${Switch} checked=${api.exposed} label="${t("settings.page.api_v1_sur_le_reseau")}" onChange=${toggleApi} />` : html`<span class="state">…</span>`}</${Line}>
-    ${worker && html`<${Line} label="${t("settings.page.adresse_de_l_api")}"><code class="mono">${node.v1}/v1</code></${Line}>`}
-    ${api && api.exposed && html`<${Line} label="${t("settings.page.adresse_de_l_api")}"><code class="mono">${api.url}</code></${Line}>`}
+    <${Line} label=${t('models.api.title')}><a class="btn sm" href="#/engine">${t('settings.page.api_moved')}</a></${Line}>
   </${Group}>`;
 }
 
@@ -490,7 +480,6 @@ function AccessSettings() {
 function Security() {
   const node = useStore(app, a => a.engineNode);
   const worker = node?.role === 'engine-node';
-  const [k, setK] = useState(null);
   const [mem, setMem] = useState(null);
   const [mode, setMode] = useState(null);
   const [snapshots, setSnapshots] = useState(null);
@@ -499,14 +488,12 @@ function Security() {
   const running = useRef(false);
   const load = async () => {
     await Promise.all([
-      worker ? Promise.resolve(setK(null)) : get('/api/apikey').then(setK).catch(() => setK(null)),
       get('/api/mem/health').then(r => setMem(typeof r.encrypted === 'boolean' ? r : null)).catch(() => setMem(null)),
       get('/api/memory').then(r => setMode(r.mode)).catch(() => setMode(null)),
       get('/api/mem/snapshots').then(r => setSnapshots(r.ok ? r.snapshots || [] : null)).catch(() => setSnapshots(null)),
     ]);
   };
   useEffect(() => { load(); }, [worker]);
-  const key = async body => { const r = await post('/api/apikey', body); if (r.ok === false) return toast(r.error, 'err'); setK(r); if (body.action === 'generate' && r.key) { navigator.clipboard && navigator.clipboard.writeText(r.key); toast(t("settings.page.nouvelle_cle_copiee")); } };
   const act = async fn => {
     if (running.current) return;
     running.current = true; setBusy(true);
@@ -554,13 +541,6 @@ function Security() {
   return html`<${HttpsSettings} />
     <${AccessSettings} />
     <${NetworkAccess} />
-    <${Group} title="${t("settings.page.api_v1")}">
-      ${worker ? html`<p class="set-note">${t('node.credentials_managed')}</p>` : html`
-      <${Line} label="${t("settings.page.cle_api_exigee")}" tip="${t("settings.page.les_applications_qui_utilisent_le_serveur_devront_envoyer_cette_c")}"><${Switch} checked=${k && k.required} onChange=${v => key({ action: 'require', on: v })} /></${Line}>
-      <${Line} label="${t("settings.page.cle")}">${k && k.set ? html`<code class="mono">${k.masked}</code><button class="btn sm ghost" onClick=${() => key({ action: 'generate' })}>${t("settings.page.regenerer")}</button><button class="btn sm ghost" onClick=${() => key({ action: 'clear' })}>${t("settings.page.supprimer")}</button>`
-        : html`<button class="btn sm" onClick=${() => key({ action: 'generate' })}>${t("settings.page.creer_une_cle")}</button>`}</${Line}>
-      `}
-    </${Group}>
     <${Group} title="${t("settings.page.memoire_et_donnees")}">
       <${Line} label="${t("settings.page.memoire_des_modeles_locaux")}" tip="${t("settings.page.desactivee_rien_n_est_retenu_entre_les_discussions_sur_demande_le")}">
         ${mode && html`<${Seg} size="sm" value=${mode} onChange=${async v => { await post('/api/memory', { mode: v }); setMode(v); }} options=${[{ value: 'off', label: t("settings.page.desactivee") }, { value: 'ondemand', label: t("settings.page.sur_demande") }]} />`}</${Line}>
@@ -614,11 +594,13 @@ export function SettingsPage({ route }) {
     change(); media.addEventListener('change', change);
     return () => media.removeEventListener('change', change);
   }, []);
+  // Ces panneaux ont rejoint leur page : Agents › Réglages et Moteur et API.
+  useEffect(() => { if (route.sub === 'agents') go('agents', 'settings'); else if (route.sub === 'api') go('engine'); }, [route.sub]);
   const sections = SECTIONS();
   const selected = sections.find(s => s[0] === route.sub);
   const sec = selected ? selected[0] : 'general';
   const detail = !mobile || !!selected;
-  const View = { general: General, internet: Internet, agents: AgentsSettings, api: ApiSection, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
+  const View = { general: General, internet: Internet, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
   return html`<div class="view page"><div class="page-in">
     ${mobile && html`<div class="page-head settings-head"><div>
       ${selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}
