@@ -97,7 +97,7 @@ export function ApiSettings({ compact = false, server, children }) {
         </div>`}
         ${example && html`<div class="models-row models-api-example">
           <details class="models-row-main"><summary>${t('local.page.exemple_curl')}</summary><pre class="mono">${example}</pre></details>
-          <button class="btn sm ghost" aria-label=${t('api.copy', { what: t('local.page.exemple_curl') })} onClick=${() => copy(example, t('local.page.exemple_curl'))}>${t('local.page.copier')}</button>
+          <button class="btn sm" aria-label=${t('api.copy', { what: t('local.page.exemple_curl') })} onClick=${() => copy(example, t('local.page.exemple_curl'))}>${t('local.page.copier')}</button>
         </div>`}
       </div>
     </section>

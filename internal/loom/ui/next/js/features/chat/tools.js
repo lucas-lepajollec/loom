@@ -75,7 +75,7 @@ export function ToolCard({ tool: shown, root }) {
       <${Status} s=${localT.status} />${body && html`<${Icon} n="chevron" class="caret" />`}</button>
     ${open && html`<div class="tc-b">
       ${diffs.map(d => html`<div class="tc-file"><div class="tc-path">${rel(d.path, root)}</div><${Diff} d=${d} /></div>`)}
-      ${localT.truncated && html`<button type="button" class="btn sm ghost tool-more" onClick=${loadFull}>${t('chat.tools.show_full')}</button>`}
+      ${localT.truncated && html`<button type="button" class="btn sm tool-more" onClick=${loadFull}>${t('chat.tools.show_full')}</button>`}
       ${localT.output && html`<pre class="tool-out">${localT.output}</pre>`}
       ${!localT.output && localT.kind === 'execute' && html`<pre class="tool-out muted">${localT.status === 'completed' ? t("chat.tools.aucune_sortie") : ['failed', 'interrupted'].includes(localT.status) ? t('chat.tools.not_run') : t("chat.tools.en_cours")}</pre>`}
     </div>`}
@@ -116,6 +116,6 @@ export function Approval({ a, resolved, root, onAnswer }) {
     ${a.approval_kind === 'plan' && a.message && !resolved && html`<div class="ap-plan">${a.message}</div>`}
     <div class="ap-tool"><${Icon} n=${ico} />${localT.kind === 'execute' ? html`<code>${localT.title}</code>` : html`<span>${localT.title}</span>`}</div>
     ${!resolved && diffs.map(d => html`<div class="tc-file"><div class="tc-path">${rel(d.path, root)}</div><${Diff} d=${d} /></div>`)}
-    ${!resolved && html`<div class="ap-acts">${opts.map(o => html`<button class=${cls('btn sm', o.kind === 'allow_once' && 'primary', o.kind && o.kind.startsWith('reject') && 'ghost')} onClick=${() => onAnswer(o.id)}>${OPT_LABEL[o.kind] || o.name}</button>`)}</div>`}
+    ${!resolved && html`<div class="ap-acts">${opts.map(o => html`<button class=${cls('btn sm', o.kind === 'allow_once' && 'primary')} onClick=${() => onAnswer(o.id)}>${OPT_LABEL[o.kind] || o.name}</button>`)}</div>`}
   </div>`;
 }

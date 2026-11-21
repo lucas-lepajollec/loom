@@ -62,7 +62,7 @@ export function Activity() {
           <${Icon} n=${i.icon} />
           <${row} type=${i.to ? 'button' : undefined} class="act-main" onClick=${open}><b>${i.title}</b><small class=${i.err ? 'err' : ''}>${i.sub}</small>
             ${i.p != null && !i.err && html`<span class="gauge"><i style=${`width:${i.p}%`}></i></span>`}</${row}>
-          ${i.cancel && html`<button class="btn sm ghost" onClick=${async () => { await i.cancel(); setItems(await readActivity()); }}>${i.cancelLabel || t("app.activity.annuler")}</button>`}
+          ${i.cancel && html`<button class="btn sm" onClick=${async () => { await i.cancel(); setItems(await readActivity()); }}>${i.cancelLabel || t("app.activity.annuler")}</button>`}
         </div>`;
       }) : html`<div class="act-empty">${t("app.activity.rien_en_cours")}</div>`}
     </${Popover}>`}`;

@@ -99,7 +99,8 @@ test('picker keeps an execution label next to the same model on local and harnes
   let hook = 0;
   const env = { html, chatShape, validShape, eventShape, t: french, getLang: () => 'fr', executionKey, runtimeKind: id => id === 'pi' ? 'retired' : 'local',
     app: { get: () => appState }, chat: { get: () => state }, Icon: 'Icon', cls: (...v) => v.filter(Boolean).join(' '),
-    baseName: p => String(p || '').split('/').pop(), useStore: (store, select) => select(store.get()), useState: v => [hook++ === 0 ? {} : hook === 2 ? 'local' : v, () => {}], useMemo: f => f(), useRef: () => ({ current: null }), Popover: 'Popover', Seg: 'Seg', fmtBytes: () => '1 GB' };
+    baseName: p => String(p || '').split('/').pop(), useStore: (store, select) => select(store.get()), useState: v => [hook++ === 0 ? {} : hook === 2 ? 'local' : v, () => {}], useMemo: f => f(),
+    DropdownButton: 'DropdownButton', Popover: 'Popover', Seg: 'Seg', fmtBytes: () => '1 GB' };
   const source = fs.readFileSync(new URL('../next/js/features/chat/picker.js', import.meta.url), 'utf8');
   vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.picker = Picker;', env);
   const render = () => { hook = 0; return env.picker(); };
@@ -118,7 +119,7 @@ test('closed Picker does not traverse large model or workspace catalogs', () => 
   const state = { status: null, workspace: { models: untouched }, models: untouched, presets: untouched, unavailable: {} };
   const env = { html: () => null, t: french, getLang: () => 'fr', executionKey, runtimeKind: () => 'local',
     app: { get: () => state }, chat: { get: () => ({ mode: 'native' }) }, Icon: 'Icon', cls: () => '', baseName: String,
-    useStore: (store, select) => select(store.get()), useState: value => [value, () => {}], useMemo: f => f(), useRef: () => ({}) };
+    useStore: (store, select) => select(store.get()), useState: value => [value, () => {}], useMemo: f => f(), DropdownButton: 'DropdownButton' };
   const source = fs.readFileSync(process.env.LOOM_PICKER_BASELINE || new URL('../next/js/features/chat/picker.js', import.meta.url), 'utf8');
   vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.picker = Picker;', env);
   assert.doesNotThrow(() => env.picker());

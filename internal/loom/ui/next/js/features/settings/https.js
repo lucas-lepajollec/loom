@@ -29,7 +29,7 @@ export function HttpsSettings() {
     ${s.error && html`<div class="pad"><p class="note err">${s.error}</p></div>`}
     ${s.enabled && urls.map(u => html`<${Line} key=${u} label=${t('https.address')}><a class="mono" href=${u + location.pathname + location.hash}>${u}</a><button class="icon-btn" aria-label=${t('local.page.copier')} onClick=${() => navigator.clipboard && navigator.clipboard.writeText(u).then(() => toast(t('local.page.copie')))}><${Icon} n="copy" /></button></${Line}>`)}
     ${s.enabled && s.fingerprint_sha256 && html`<${Line} label=${t('https.fingerprint')} tip=${t('https.fingerprint_tip')} stack><code class="mono path">${s.fingerprint_sha256.match(/.{1,2}/g).join(':')}</code></${Line}>`}
-    ${s.enabled && s.mode === 'self-signed' && html`<${Line} label=${t('https.regenerate')} tip=${t('https.regenerate_tip')}><button class="btn sm ghost" disabled=${busy} onClick=${() => save({ regenerate: true })}>${t('https.regenerate_btn')}</button></${Line}>`}
+    ${s.enabled && s.mode === 'self-signed' && html`<${Line} label=${t('https.regenerate')} tip=${t('https.regenerate_tip')}><button class="btn sm" disabled=${busy} onClick=${() => save({ regenerate: true })}>${t('https.regenerate_btn')}</button></${Line}>`}
     ${s.enabled && html`<div class="pad"><p class="note">${t('https.accept_note')}</p></div>`}
   </${Group}>`;
 }

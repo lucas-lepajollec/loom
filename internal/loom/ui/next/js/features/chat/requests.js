@@ -3,6 +3,7 @@
 // Pi), formulaire ou lien (élicitation MCP/ACP). Les autorisations gardent leur
 // propre carte (Approval). Réponse : POST /api/workspace/sessions/{id}/requests/{rid}.
 import { t } from '../../core/i18n.js';
+import { ListPick } from '../../ui/listpick.js';
 import { html, useState, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { post } from '../../core/api.js';
@@ -29,7 +30,7 @@ function Question({ q, value, onChange, single }) {
   return html`<div class="rq-q">
     ${(q.header || !single) && q.header && html`<div class="rq-head">${q.header}</div>`}
     <div class="rq-text">${q.question}</div>
-    ${opts.length > 0 && html`<div class="rq-opts">${opts.map(o => html`<button type="button" class=${cls('rq-opt', picked.includes(o.id) && 'on')} onClick=${() => toggle(o.id)}>
+    ${opts.length > 0 && html`<div class="rq-opts">${opts.map(o => html`<button type="button" class="btn rq-opt" aria-pressed=${String(picked.includes(o.id))} onClick=${() => toggle(o.id)}>
       <b>${o.label}</b>${o.description && html`<small>${o.description}</small>`}</button>`)}</div>`}
     ${(q.free_text || !opts.length) && html`<input class="input" type=${q.secret ? 'password' : 'text'} autocomplete="off" placeholder=${opts.length ? t('chat.request.other') : t('chat.request.answer')}
       value=${other} onInput=${e => onChange(e.target.value ? [...ids, e.target.value] : ids)} />`}
@@ -45,8 +46,9 @@ function SchemaForm({ schema, value, onChange }) {
   return html`<div class="rq-form">${Object.entries(props).map(([k, p]) => {
     const label = html`<span>${p.title || k}${req.has(k) ? ' *' : ''}</span>`;
     if (p.type === 'boolean') return html`<label class="rq-check" key=${k}><input type="checkbox" checked=${!!value[k]} onChange=${e => set(k, e.target.checked)} />${label}</label>`;
-    if (Array.isArray(p.enum)) return html`<label class="field" key=${k}>${label}<select class="input" value=${value[k] ?? ''} onChange=${e => set(k, e.target.value)}>
-      <option value=""></option>${p.enum.map((v, i) => html`<option value=${v}>${(p.enumNames || [])[i] || v}</option>`)}</select></label>`;
+    if (Array.isArray(p.enum)) return html`<label class="field" key=${k}>${label}
+      <${ListPick} value=${String(value[k] ?? '')} onChange=${v => set(k, v)} options=${[{ value: '', label: '—' },
+        ...p.enum.map((v, i) => ({ value: String(v), label: (p.enumNames || [])[i] || String(v) }))]} /></label>`;
     const num = p.type === 'number' || p.type === 'integer';
     return html`<label class="field" key=${k}>${label}${p.description && html`<small>${p.description}</small>`}
       <input class="input" type=${num ? 'number' : p.format === 'email' ? 'email' : 'text'} value=${value[k] ?? ''} onInput=${e => set(k, num ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)} /></label>`;
@@ -77,7 +79,7 @@ export function RequestCard({ r, resolved, sessionId }) {
       ${r.kind === 'user_input'
         ? html`<button class="btn sm primary" disabled=${busy || !ready} onClick=${() => send({ answers: Object.fromEntries(qs.map(q => [q.id, answers[q.id] || []])) })}>${t('chat.request.send')}</button>`
         : html`<button class="btn sm primary" disabled=${busy || !ready} onClick=${() => send(r.url ? { decision: 'accept' } : { decision: 'accept', content })}>${r.url ? t('chat.request.done') : t('chat.request.send')}</button>`}
-      <button class="btn sm ghost" disabled=${busy} onClick=${() => send({ decision: r.kind === 'user_input' ? 'cancel' : 'decline' })}>${t('chat.request.skip')}</button>
+      <button class="btn sm" disabled=${busy} onClick=${() => send({ decision: r.kind === 'user_input' ? 'cancel' : 'decline' })}>${t('chat.request.skip')}</button>
     </div>
   </div>`;
 }

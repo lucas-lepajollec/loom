@@ -1,7 +1,7 @@
 import { t } from '../core/i18n.js';
 // Sélecteur de dossier de travail (côté serveur : /api/fs/dirs ne liste que
 // des dossiers, jamais le contenu des fichiers).
-import { html, useState, useEffect, cls } from '../core/lib.js';
+import { html, useState, useEffect } from '../core/lib.js';
 import { Icon } from './icons.js';
 import { Modal } from './dialog.js';
 import { get } from '../core/api.js';
@@ -22,7 +22,7 @@ export function FolderPicker({ start, onPick, onClose }) {
   const parts = at ? at.path.split('/').filter(Boolean) : [];
   const dirs = ((at && at.dirs) || []).filter(d => !q || d.name.toLowerCase().includes(q.toLowerCase()));
   return html`<${Modal} wide title="${t("ui.folder.dossier_de_travail")}" onClose=${onClose}
-      foot=${html`<span class="grow muted mono trunc" style="font-size:12px">${at ? at.path : ''}</span><button class="btn ghost" onClick=${onClose}>${t("ui.folder.annuler")}</button><button class="btn primary" disabled=${!at} onClick=${() => onPick(at.path)}>${t("ui.folder.choisir_ce_dossier")}</button>`}>
+      foot=${html`<span class="grow muted mono trunc" style="font-size:12px">${at ? at.path : ''}</span><button class="btn" onClick=${onClose}>${t("ui.folder.annuler")}</button><button class="btn primary" disabled=${!at} onClick=${() => onPick(at.path)}>${t("ui.folder.choisir_ce_dossier")}</button>`}>
     <div class="fp-crumbs">
       <button class="fp-crumb" onClick=${() => load('/')}>/</button>
       ${parts.map((p, i) => html`<button class="fp-crumb" onClick=${() => load('/' + parts.slice(0, i + 1).join('/'))}>${p}</button>`)}
@@ -30,8 +30,8 @@ export function FolderPicker({ start, onPick, onClose }) {
     <label class="search"><${Icon} n="search" /><input placeholder="${t("ui.folder.filtrer")}" aria-label="${t("ui.folder.filtrer_les_dossiers")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>
     ${err && html`<p class="note err">${err}</p>`}
     <div class="fp-list">
-      ${at && at.parent && html`<button class="fp-row" onClick=${() => load(at.parent)}><${Icon} n="left" /><span>${t("ui.folder.dossier_parent")}</span></button>`}
-      ${dirs.map(d => html`<button class="fp-row" key=${d.path} onClick=${() => load(d.path)}><${Icon} n="folder" /><span>${d.name}</span>${d.is_git && html`<span class="tag">${t("ui.folder.git")}</span>`}</button>`)}
+      ${at && at.parent && html`<button class="item fp-row" onClick=${() => load(at.parent)}><${Icon} n="left" /><span>${t("ui.folder.dossier_parent")}</span></button>`}
+      ${dirs.map(d => html`<button class="item fp-row" key=${d.path} onClick=${() => load(d.path)}><${Icon} n="folder" /><span>${d.name}</span>${d.is_git && html`<span class="tag">${t("ui.folder.git")}</span>`}</button>`)}
       ${at && !dirs.length && html`<p class="note" style="padding:10px 12px">${t("ui.folder.aucun_sous_dossier")}</p>`}
     </div>
   </${Modal}>`;

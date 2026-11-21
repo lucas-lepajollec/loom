@@ -6,6 +6,7 @@ import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty, Tip } from '../../ui/controls.js';
+import { ListPick } from '../../ui/listpick.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
@@ -120,18 +121,19 @@ function NewTerminal({ onClose, preset }) {
   const pending = useRef(false);
   const submit = async () => { if (pending.current) return; pending.current = true; setBusy(true); try { const localT = await openTerminalWith(v); if (localT) onClose(localT); } finally { pending.current = false; setBusy(false); } };
   return html`<${Modal} title="${t("terminals.page.nouveau_terminal")}" sub="${t("terminals.page.un_shell_sur_cette_machine_ou_une_machine_connectee")}" onClose=${() => onClose()}
-      foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t("terminals.page.annuler")}</button><button class="btn primary" disabled=${busy} onClick=${submit}>${busy ? t("terminals.page.ouverture") : t("terminals.page.ouvrir")}</button>`}>
-    <div class="field"><span>${t("terminals.page.ou")}</span><div class="chips">
-      <button type="button" class=${cls('chip-btn', !remote && 'on')} onClick=${() => setV({ ...v, target: 'local', dir: '' })}><${Icon} n="chip" />${t("terminals.page.cette_machine_2")}</button>
-      ${machines.map(x => html`<button type="button" class=${cls('chip-btn', v.target === x.id && 'on')} onClick=${() => setV({ ...v, target: x.id, dir: x.home || '' })}><${Icon} n="server" />${x.name}</button>`)}
-    </div><small>${machines.length ? '' : t("terminals.page.pour_une_autre_machine")}<a href="#/machines" onClick=${() => onClose()}>${machines.length ? t("terminals.page.gerer_les_machines") : t("terminals.page.reglages_machines")}</a></small></div>
+      foot=${html`<button class="btn" onClick=${() => onClose()}>${t("terminals.page.annuler")}</button><button class="btn primary" disabled=${busy} onClick=${submit}>${busy ? t("terminals.page.ouverture") : t("terminals.page.ouvrir")}</button>`}>
+    <div class="field"><span>${t("terminals.page.ou")}</span>
+      <${ListPick} label=${t("terminals.page.ou")} value=${v.target}
+        options=${[{ value: 'local', label: t("terminals.page.cette_machine_2"), icon: 'chip' }, ...machines.map(x => ({ value: x.id, label: x.name, icon: 'server' }))]}
+        onChange=${target => setV({ ...v, target, dir: machines.find(x => x.id === target)?.home || '' })} />
+      <small>${machines.length ? '' : t("terminals.page.pour_une_autre_machine")}<a href="#/machines" onClick=${() => onClose()}>${machines.length ? t("terminals.page.gerer_les_machines") : t("terminals.page.reglages_machines")}</a></small></div>
     <div class="field"><span>${t("terminals.page.dossier")}</span>
       ${remote ? html`<input class="input mono" placeholder=${(m && m.home) || '/home/moi'} value=${v.dir} onInput=${e => setV({ ...v, dir: e.target.value })} />`
-        : html`<button class="hs-dir" onClick=${() => setPick(true)}><${Icon} n="folder" /><span class="mono trunc">${home(v.dir) || t("terminals.page.dossier_personnel")}</span><span class="muted">${t("terminals.page.changer")}</span></button>`}
-      ${favs.length > 0 && html`<div class="chips">${favs.map(f => html`<button type="button" class=${cls('chip-btn', v.dir === f && 'on')} onClick=${() => setV({ ...v, dir: f })}><${Icon} n="folder" />${f.split('/').pop() || f}</button>`)}</div>`}
-      ${!remote && projects.length > 0 && html`<div class="chips">${projects.map(p => html`<button type="button" class=${cls('chip-btn', v.dir === p.directory && 'on')} onClick=${() => setV({ ...v, dir: p.directory, title: v.title || p.name })}>${p.name}</button>`)}</div>`}</div>
+        : html`<button class="btn hs-dir" onClick=${() => setPick(true)}><${Icon} n="folder" /><span class="mono trunc">${home(v.dir) || t("terminals.page.dossier_personnel")}</span><span class="muted">${t("terminals.page.changer")}</span></button>`}
+      ${favs.length > 0 && html`<div class="chips">${favs.map(f => html`<button type="button" class=${cls('btn sm', v.dir === f && 'on')} onClick=${() => setV({ ...v, dir: f })}><${Icon} n="folder" />${f.split('/').pop() || f}</button>`)}</div>`}
+      ${!remote && projects.length > 0 && html`<div class="chips">${projects.map(p => html`<button type="button" class=${cls('btn sm', v.dir === p.directory && 'on')} onClick=${() => setV({ ...v, dir: p.directory, title: v.title || p.name })}>${p.name}</button>`)}</div>`}</div>
     <div class="field"><span>${t("terminals.page.lancer")}<${Tip} text="${t("terminals.page.rien_un_shell_sinon_la_commande_demarre_dans_le_terminal_par_exem")}" /></span>
-      <div class="chips">${QUICK().map(([c, l]) => html`<button type="button" class=${cls('chip-btn', v.command === c && 'on')} onClick=${() => setV({ ...v, command: c })}>${l}</button>`)}</div>
+      <div class="chips">${QUICK().map(([c, l]) => html`<button type="button" class=${cls('btn sm', v.command === c && 'on')} onClick=${() => setV({ ...v, command: c })}>${l}</button>`)}</div>
       <input class="input mono" placeholder="${t("terminals.page.ou_une_commande_npm_run_dev_htop")}" value=${v.command} onInput=${e => setV({ ...v, command: e.target.value })} /></div>
     <label class="field"><span>${t("terminals.page.nom")}</span><input class="input" placeholder="${t("terminals.page.facultatif")}" value=${v.title} onInput=${e => setV({ ...v, title: e.target.value })} /></label>
     ${pick && html`<${FolderPicker} start=${v.dir} onClose=${() => setPick(false)} onPick=${d => { setPick(false); setV({ ...v, dir: d }); }} />`}
@@ -190,9 +192,9 @@ export function TerminalsPage({ route }) {
   return html`<div class="view page"><div class="page-in wide machine-terminal-page">
     <h1 class="sr">${t("terminals.page.terminaux")}</h1>
     <div class="term-top">
-      <a class="btn ghost machine-back" href="#/machines"><${Icon} n="left" />${t('settings.machines.machines')}</a>
+      <a class="btn machine-back" href="#/machines"><${Icon} n="left" />${t('settings.machines.machines')}</a>
       <span class="grow"></span>
-      <button class="btn ghost" onClick=${() => setPreviews(true)}><${Icon} n="globe" />${t('terminals.page.previews')}</button>
+      <button class="btn" onClick=${() => setPreviews(true)}><${Icon} n="globe" />${t('terminals.page.previews')}</button>
       <button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.nouveau_terminal")}</button>
     </div>
     ${!supported ? html`<${Empty} icon="info" title="${t("terminals.page.pas_encore_disponible_sur_ce_systeme")}" text="${t("terminals.page.les_terminaux_fonctionnent_sous_linux_et_macos_windows_arrive_plu")}" />`

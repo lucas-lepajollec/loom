@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Loom uses shared button, dropdown, menu, segmented control, and dialog
+  styles in both themes. Open menus close when their trigger is pressed
+  again. Agent, model, vendor, and machine marks use unframed icons.
+  See the [interface design guide](docs/design/ui.md).
+
 - Agents shows live sessions first, with current state and activity, plus
   a paged history across the harnesses Codeman reports. The harness table
   shows running session counts and installation status. Scheduled tasks

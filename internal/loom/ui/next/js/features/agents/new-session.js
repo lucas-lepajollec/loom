@@ -11,10 +11,10 @@ import { agents, cliLogo } from './store.js';
 import { createSession, supportsModel } from './actions.js';
 
 export const CliMark = ({ mode, size }) => {
-  if (mode === 'shell') return html`<span class=${cls('mono-tile', size)} aria-hidden="true"><${Icon} n="terminal" /></span>`;
+  if (mode === 'shell') return html`<span class=${cls('logo-mark', size)} aria-hidden="true"><${Icon} n="terminal" /></span>`;
   const c = agents.get().clis.find(x => x.id === mode);
   const logo = cliLogo(mode);
-  return logo ? html`<${Logo} id=${logo} size=${size} />` : html`<span class=${cls('mono-tile cm-badge', size)} aria-hidden="true">${(c && c.shortBadge) || String(mode || '?').slice(0, 2).toUpperCase()}</span>`;
+  return logo ? html`<${Logo} id=${logo} size=${size} />` : html`<span class=${cls('logo-mark mono dim', size)} aria-hidden="true">${(c && c.shortBadge) || String(mode || '?').slice(0, 2).toUpperCase()}</span>`;
 };
 
 function Browser({ start, onPick }) {
@@ -31,7 +31,7 @@ function Browser({ start, onPick }) {
       <span class="mono trunc">${st.path}</span>
       <button class="btn sm" onClick=${() => onPick(st.path)}>${t('agents.new.use_folder')}</button></div>
     ${st.error ? html`<p class="muted">${st.error}</p>` : html`<div class="cm-browse-list">${st.loading ? html`<div class="skeleton" style="height:120px"></div>`
-      : st.entries.length ? st.entries.map(e => html`<button key=${e.path} onClick=${() => go(e.path)}><${Icon} n="folder" /><span class="trunc">${e.name}</span></button>`)
+      : st.entries.length ? st.entries.map(e => html`<button type="button" class="item" key=${e.path} onClick=${() => go(e.path)}><${Icon} n="folder" /><span class="trunc">${e.name}</span></button>`)
       : html`<p class="muted">${t('agents.new.no_subfolders')}</p>`}</div>`}
   </div>`;
 }
@@ -60,20 +60,21 @@ export function NewSession({ onClose, onCreated, preset }) {
     finally { setBusy(false); }
   };
   return html`<${Modal} wide title=${t('agents.new.title')} sub=${t('agents.new.sub')} onClose=${onClose}
-      foot=${html`<button class="btn ghost" onClick=${onClose}>${t('agents.cancel')}</button><button class="btn primary" disabled=${busy || !dir.trim() || (cli && cli.installed === false)} onClick=${submit}>${busy ? t('agents.new.starting') : t('agents.new.start')}</button>`}>
+      foot=${html`<button type="button" class="btn" onClick=${onClose}>${t('agents.cancel')}</button><button type="button" class="btn primary" disabled=${busy || !dir.trim() || (cli && cli.installed === false)} onClick=${submit}>${busy ? t('agents.new.starting') : t('agents.new.start')}</button>`}>
     <div class="field"><span>${t('agents.new.cli')}</span>
-      <div class="cm-cli-grid">${clis.map(c => html`<button type="button" key=${c.id} class=${cls('cm-cli', mode === c.id && 'on', c.installed === false && 'missing')} onClick=${() => { setMode(c.id); setModel(''); }} aria-pressed=${String(mode === c.id)}>
-        <${CliMark} mode=${c.id} size="sm" /><span><b>${c.label}</b>${c.installed === false && html`<small>${t('agents.new.not_installed')}</small>`}</span></button>`)}</div>
+      <div class="cm-cli-grid" role="group" aria-label=${t('agents.new.cli')}>${clis.map(c => html`<button type="button" key=${c.id} class=${cls('btn cm-cli', c.installed === false && 'missing')} onClick=${() => { setMode(c.id); setModel(''); }} aria-pressed=${String(mode === c.id)}>
+        <${CliMark} mode=${c.id} size="sm" /><span class="cm-cli-copy">${c.label}${c.installed === false && html`<small>${t('agents.new.not_installed')}</small>`}</span>
+        ${mode === c.id && html`<${Icon} n="check" class="cm-cli-check" />`}</button>`)}</div>
       ${cli && cli.installed === false && html`<small>${t('agents.new.install_hint')} <code>${cli.installCommand || ''}</code></small>`}</div>
-    <div class="field"><span>${t('agents.new.folder')}</span>
-      <div class="cm-dir"><${Icon} n="folder" /><input class="input mono" value=${dir} placeholder="/home/…/projet" onInput=${e => setDir(e.target.value)} />
-        <button class="btn sm" onClick=${() => setBrowse(!browse)}>${browse ? t('agents.new.hide_browser') : t('agents.new.browse')}</button></div>
-      ${folders.length > 0 && html`<div class="chips">${folders.map(f => html`<button type="button" key=${f} class=${cls('chip-btn', dir === f && 'on')} onClick=${() => setDir(f)} title=${f}>${f.split('/').pop() || f}</button>`)}</div>`}
+    <div class="field"><span><label for="cm-new-session-dir">${t('agents.new.folder')}</label></span>
+      <div class="cm-dir"><${Icon} n="folder" /><input id="cm-new-session-dir" class="input mono" value=${dir} onInput=${e => setDir(e.target.value)} />
+        <button type="button" class="btn" aria-expanded=${String(browse)} onClick=${() => setBrowse(!browse)}>${browse ? t('agents.new.hide_browser') : t('agents.new.browse')}</button></div>
+      ${folders.length > 0 && html`<div class="chips">${folders.map(f => html`<button type="button" key=${f} class="btn sm" aria-pressed=${String(dir === f)} onClick=${() => setDir(f)} title=${f}>${f.split('/').pop() || f}</button>`)}</div>`}
       ${browse && html`<${Browser} start=${dir} onPick=${p => { setDir(p); setBrowse(false); }} />`}</div>
     <div class="cm-row2">
       <label class="field"><span>${t('agents.new.name')}</span><input class="input" value=${name} placeholder=${t('agents.new.name_ph')} onInput=${e => setName(e.target.value)} /></label>
       ${supportsModel(mode) && html`<label class="field"><span>${t('agents.new.model')}</span><input class="input mono" value=${model} placeholder=${t('agents.new.model_ph')} onInput=${e => setModel(e.target.value)} /></label>`}
     </div>
-    <p class="note muted">${t('agents.new.permissions')}</p>
+    <p class="note">${t('agents.new.permissions')}</p>
   </${Modal}>`;
 }

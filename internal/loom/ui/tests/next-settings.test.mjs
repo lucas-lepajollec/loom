@@ -35,7 +35,7 @@ function harness(source, view, overrides = {}) {
   const env = {
     t: french, tSource: s => s, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
-    Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu', shortVersion: v => String(v || ''),
+    Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu', ListPick: 'ListPick', shortVersion: v => String(v || ''),
     Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
     inspectTrigger: () => ({}), baseName: p => (p || '').split('/').pop(),
     useState(initial) {
@@ -242,17 +242,19 @@ test('unknown/single GPU stays read-only; last device and cancelled choice never
 });
 
 test('preset moves preserve the complete filtered catalog, boundaries and failed saves', async () => {
+  const actions = (tree, label) => flatten(tree).filter(n => n.type?.name === 'RowMenu')
+    .flatMap(n => n.props.items).filter(item => item.label === label);
   const h = harness(local, 'Library');
   h.env.state.presets = ['a', 'b', 'c'].map(id => ({ id, name: id }));
   let t = await h.ready();
-  assert.equal(button(t, 'Monter').props.disabled, true);
-  assert.equal(nodes(t, 'button').filter(n => textOf(n) === 'Descendre').at(-1).props.disabled, true);
+  assert.equal(actions(t, 'Monter')[0].disabled, true);
+  assert.equal(actions(t, 'Descendre').at(-1).disabled, true);
   nodes(t, 'input')[0].props.onInput({ target: { value: 'b' } });
-  t = h.render(); assert.equal(nodes(t, 'button').filter(n => textOf(n) === 'Monter').length, 1);
-  await button(t, 'Monter').props.onClick();
+  t = h.render(); assert.equal(actions(t, 'Monter').length, 1);
+  await actions(t, 'Monter')[0].run();
   assert.equal(h.posts[0][0], '/api/presets/order'); assert.deepEqual([...h.posts[0][1].ids], ['b', 'a', 'c']);
   const refreshes = h.refreshed.length;
-  h.env.post = async () => ({ ok: false }); await button(h.render(), 'Descendre').props.onClick();
+  h.env.post = async () => ({ ok: false }); await actions(h.render(), 'Descendre')[0].run();
   assert.equal(h.refreshed.length, refreshes); assert.ok(h.notices.at(-1)[0].includes('non enregistré'));
 });
 
@@ -294,12 +296,12 @@ test('language selector applies immediately and preserves a system prompt draft'
     state: { theme: 'dark' },
   });
   let tree = await h.ready();
-  assert.equal(nodes(tree, 'select')[0].props.value, 'fr');
-  assert.deepEqual(nodes(tree, 'option').map(n => textOf(n)), ['Français', 'English']);
+  assert.equal(nodes(tree, 'ListPick')[0].props.value, 'fr');
+  assert.deepEqual(Array.from(nodes(tree, 'ListPick')[0].props.options, o => o.label), ['Français', 'English']);
   nodes(tree, 'textarea')[0].props.onInput({ target: { value: 'Unsaved prompt' } });
-  await nodes(h.render(), 'select')[0].props.onChange({ target: { value: 'en' } });
+  await nodes(h.render(), 'ListPick')[0].props.onChange('en');
   tree = h.render();
-  assert.equal(nodes(tree, 'select')[0].props.value, 'en');
+  assert.equal(nodes(tree, 'ListPick')[0].props.value, 'en');
   assert.equal(nodes(tree, 'textarea')[0].props.value, 'Unsaved prompt');
   assert.ok(button(tree, 'Save'));
   assert.deepEqual(choices, ['en']);

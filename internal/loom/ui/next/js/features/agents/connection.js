@@ -87,11 +87,11 @@ export function ServerSetup({ onDone, initial }) {
           <p class="muted">${t('agents.setup.install_text')}</p>
           <div class="cm-cmd"><code>${INSTALL}</code><button class="icon-btn" aria-label=${t('agents.setup.copy')} onClick=${() => copyText(INSTALL).then(() => toast(t('agents.copied')))}><${Icon} n="copy" /></button></div>
           <div class="cm-none-acts"><button class="btn" onClick=${scan}><${Icon} n="refresh" />${t('agents.setup.rescan')}</button>
-            <a class="btn ghost" href="https://github.com/Ark0N/Codeman" target="_blank" rel="noopener noreferrer"><${Icon} n="link" />${t('agents.setup.learn')}</a></div>
+            <a class="btn" href="https://github.com/Ark0N/Codeman" target="_blank" rel="noopener noreferrer"><${Icon} n="link" />${t('agents.setup.learn')}</a></div>
         </div>`}
-    ${found !== null && found.length > 0 && html`<button class="cm-link" onClick=${scan}><${Icon} n="refresh" />${t('agents.setup.rescan')}</button>`}
+    ${found !== null && found.length > 0 && html`<button class="btn sm cm-link" onClick=${scan}><${Icon} n="refresh" />${t('agents.setup.rescan')}</button>`}
     <div class="cm-other">
-      <button class="cm-link" aria-expanded=${String(manual)} onClick=${() => setManual(!manual)}><${Icon} n=${manual ? 'chevron' : 'right'} />${t('agents.setup.elsewhere')}</button>
+      <button class="btn sm cm-link" aria-expanded=${String(manual)} onClick=${() => setManual(!manual)}><${Icon} n=${manual ? 'chevron' : 'right'} />${t('agents.setup.elsewhere')}</button>
       ${manual && html`<${Manual} onDone=${onDone} initial=${initial} />`}
     </div>
   </div>`;
@@ -116,11 +116,11 @@ function Connected({ conn, onChange }) {
       <div class="grow"><b>${t('agents.conn.ready', { v: conn.version || '?', user: conn.username || '' })}</b><small class="muted mono">${hostOf(conn.url)}</small></div>
       <a class="btn primary" href="#/agents">${t('agents.setup.open_agents')}</a></div>
     <div class="cm-connect-acts">
-      <button class="btn ghost" onClick=${onChange}><${Icon} n="refresh" />${t('agents.setup.change')}</button>
-      ${conn.ui_url && html`<a class="btn ghost" href=${conn.ui_url + '/'} target="codeman" rel="noopener"><${Icon} n="link" />${t('agents.official')}</a>`}
-      <button class="btn ghost danger" onClick=${disconnectServer}>${t('agents.setup.disconnect')}</button>
+      <button class="btn" onClick=${onChange}><${Icon} n="refresh" />${t('agents.setup.change')}</button>
+      ${conn.ui_url && html`<a class="btn" href=${conn.ui_url + '/'} target="codeman" rel="noopener"><${Icon} n="link" />${t('agents.official')}</a>`}
+      <button class="btn danger" onClick=${disconnectServer}>${t('agents.setup.disconnect')}</button>
     </div>
-    <button class="cm-link" aria-expanded=${String(adv)} onClick=${() => setAdv(!adv)}><${Icon} n=${adv ? 'chevron' : 'right'} />${t('agents.setup.advanced')}</button>
+    <button class="btn sm cm-link" aria-expanded=${String(adv)} onClick=${() => setAdv(!adv)}><${Icon} n=${adv ? 'chevron' : 'right'} />${t('agents.setup.advanced')}</button>
     ${adv && html`<div class="cm-adv">
       <label class="field"><span>${t('agents.conn.ui_url')}</span>
         <div class="cm-inline-field"><input class="input mono" value=${ui} placeholder=${conn.ui_url || 'http://host:3000'} onInput=${e => setUi(e.target.value)} /><button class="btn" onClick=${saveUi}>${t('agents.save')}</button></div>
@@ -167,7 +167,7 @@ export function ConnectionPanel({ gate, embedded, initialUrl }) {
         : html`<${ServerSetup} initial=${conn.configured ? { url: conn.url, username: conn.username } : null} onDone=${() => setChanging(false)} />`}
     ${conn.configured && html`<div class="cm-connect-acts">
       <button class="btn sm" disabled=${testing} onClick=${test}>${t('agents.conn.test')}</button>
-      ${conn.password_set && html`<button class="btn sm ghost danger" onClick=${forget}>${t('agents.conn.forget')}</button>`}
+      ${conn.password_set && html`<button class="btn sm danger" onClick=${forget}>${t('agents.conn.forget')}</button>`}
     </div>`}
     <p class="note muted">${t('agents.conn.security')}</p>
   </div>`;

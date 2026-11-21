@@ -1,4 +1,5 @@
 import { html, useState, useEffect, useRef } from '../../core/lib.js';
+import { ListPick } from '../../ui/listpick.js';
 import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { Icon } from '../../ui/icons.js';
@@ -31,8 +32,9 @@ function PreviewForm({ target = 'local', onClose, onDone }) {
     finally { running.current = false; setBusy(false); }
   };
   return html`<${Modal} title=${t('previews.title')} onClose=${busy ? undefined : onClose}
-    foot=${html`<button class="btn ghost" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || Number(port) < 1024 || Number(port) > 65535} onClick=${open}>${t('previews.open')}</button>`}>
-    <label class="field"><span>${t('workspaces.machine')}</span><select class="select" value=${where} onChange=${e => setWhere(e.target.value)}><option value="local">${t('workspaces.local')}</option>${machines.map(m => html`<option value=${m.id}>${m.name || m.host}</option>`)}</select></label>
+    foot=${html`<button class="btn" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || Number(port) < 1024 || Number(port) > 65535} onClick=${open}>${t('previews.open')}</button>`}>
+    <label class="field"><span>${t('workspaces.machine')}</span><${ListPick} value=${where} onChange=${setWhere}
+      options=${[{ value: 'local', label: t('workspaces.local') }, ...machines.map(m => ({ value: m.id, label: m.name || m.host }))]} /></label>
     <label class="field"><span>${t('previews.port')}</span><input class="input mono" type="number" min="1024" max="65535" value=${port} onInput=${e => setPort(e.target.value)} /></label>
     <p class="note">${t('previews.note')}</p>
   </${Modal}>`;

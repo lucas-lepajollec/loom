@@ -105,7 +105,7 @@ function Gen({ gen, compacting }) {
   const [, tick] = useState(0);
   useEffect(() => { const localT = setInterval(() => tick(x => x + 1), 500); return () => clearInterval(localT); }, []);
   const secs = (Date.now() - gen.start) / 1000;
-  return html`<div class="gen"><span class="gen-mark"><${Icon} n="loom" /></span>
+  return html`<div class="gen"><span class="logo-mark xs gen-mark"><${Icon} n="loom" /></span>
     <span>${compacting ? t("chat.messages.compactage_du_contexte") : [fmtSecs(secs), gen.tok ? fmtTok(gen.tok) + ' tok' : ''].filter(Boolean).join(' · ')}</span></div>`;
 }
 
@@ -191,7 +191,7 @@ function EditableUser({ it, pasted }) {
   if (editing) return html`<div class="msg-user editing">
     <textarea class="input edit-box" rows=${Math.min(12, Math.max(3, text.split('\n').length))} value=${text} onInput=${e => setText(e.target.value)}
       onKeyDown=${e => { if (e.key === 'Escape') setEditing(false); if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { setEditing(false); editLast(text); } }}></textarea>
-    <div class="edit-acts"><span class="muted">${t('chat.edit.note')}</span><button class="btn sm ghost" onClick=${() => setEditing(false)}>${t('chat.edit.cancel')}</button>
+    <div class="edit-acts"><span class="muted">${t('chat.edit.note')}</span><button class="btn sm" onClick=${() => setEditing(false)}>${t('chat.edit.cancel')}</button>
       <button class="btn sm primary" disabled=${busy || !text.trim()} onClick=${() => { setEditing(false); editLast(text); }}>${t('chat.edit.resend')}</button></div></div>`;
   return html`<div class="msg-user can-edit">
     ${pasted.text && html`<div class="bubble">${pasted.text}</div>`}

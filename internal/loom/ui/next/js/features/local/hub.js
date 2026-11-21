@@ -1,6 +1,7 @@
 import { t, getLang } from '../../core/i18n.js';
 // Hub : catalogue GGUF de Hugging Face. Recherche, fiche modèle, quantisations
 // avec compatibilité VRAM, téléchargements suivis, README.
+import { ListPick } from '../../ui/listpick.js';
 import { html, useState, useEffect, useMemo, useStore, cls, fmtBytes } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Seg, Empty } from '../../ui/controls.js';
@@ -88,7 +89,7 @@ function Detail({ id, onBack }) {
         d.author, Number.isFinite(d.downloads) && t('models.hub.downloads', { n: fmtN(d.downloads) }),
         Number.isFinite(d.likes) && t('models.hub.likes', { n: fmtN(d.likes) }), d.license,
       ].filter(Boolean).join(' · ')}</small></div>
-      <a class="btn sm ghost" href=${'https://huggingface.co/' + id} target="_blank" rel="noopener noreferrer">${t('local.hub.hugging_face')}<${Icon} n="right" /></a>
+      <a class="btn sm" href=${'https://huggingface.co/' + id} target="_blank" rel="noopener noreferrer">${t('local.hub.hugging_face')}<${Icon} n="right" /></a>
     </div>
     <section class="models-group">
       <div class="models-section-head"><h2>${t('local.hub.quantisations')}</h2>${vram > 0 && html`<small>${t('local.hub.ta_vram') + (vram / 1024).toFixed(1) + t('environment.page.go')}</small>`}</div>
@@ -114,7 +115,7 @@ function Detail({ id, onBack }) {
         </div>`;
       })}
       ${!files.length && html`<div class="models-row models-empty">${t('local.hub.aucun_modele_gguf')}</div>`}
-      ${files.length > shown.length && html`<div class="models-row"><button class="btn ghost sm" onClick=${() => setShowAll(true)}>${t('models.hub.all_quants', { n: files.length })}</button></div>`}
+      ${files.length > shown.length && html`<div class="models-row"><button class="btn sm" onClick=${() => setShowAll(true)}>${t('models.hub.all_quants', { n: files.length })}</button></div>`}
       </div>
     </section>
     ${readme && html`<div class="card models-card pad readme md" dangerouslySetInnerHTML=${{ __html: readme }}></div>`}`;
@@ -142,16 +143,16 @@ export function Hub({ enginePicker, initialQuery = '' }) {
     return () => { clearTimeout(timer); controller.abort(); };
   }, [q, sort, pipe]);
   if (open) return html`
-    <div class="models-toolbar"><button class="btn sm ghost" onClick=${() => setOpen('')}><${Icon} n="left" />${t('local.hub.catalogue')}</button>${enginePicker}</div>
+    <div class="models-toolbar"><button class="btn sm" onClick=${() => setOpen('')}><${Icon} n="left" />${t('local.hub.catalogue')}</button>${enginePicker}</div>
     <${Detail} key=${open} id=${open} onBack=${() => setOpen('')} />`;
   const label = t('local.hub.rechercher_un_modele_gguf_sur_hugging_face');
   return html`
     <div class="models-toolbar"><label class="search"><${Icon} n="search" /><input aria-label=${label} placeholder=${label} value=${q} onInput=${e => setQ(e.target.value)} /></label>
       ${enginePicker}
       <${Seg} size="sm" value=${pipe} onChange=${setPipe} label=${t('local.hub.type')} options=${PIPES()} />
-      <select class="select" value=${sort} onChange=${e => setSort(e.target.value)} aria-label=${t('local.hub.tri')}>
-        <option value="downloads">${t('local.hub.plus_telecharges')}</option><option value="likes">${t('local.hub.plus_aimes')}</option><option value="lastModified">${t('local.hub.recents')}</option>
-      </select>
+      <${ListPick} value=${sort} onChange=${setSort} label=${t('local.hub.tri')} options=${[
+        { value: 'downloads', label: t('local.hub.plus_telecharges') }, { value: 'likes', label: t('local.hub.plus_aimes') },
+        { value: 'lastModified', label: t('local.hub.recents') }]} />
     </div>
     ${err ? html`<div class="models-card"><${Empty} icon="globe" title=${t('local.hub.hugging_face_injoignable')} text=${err} /></div>`
       : list === null ? html`<div class="skeleton models-loading"></div>`

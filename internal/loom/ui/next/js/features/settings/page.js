@@ -58,7 +58,7 @@ function SecondBrainDialog({ current, onClose, onSaved }) {
     onClose();
   };
   return html`<${Modal} title=${t('settings.brain.title')} sub=${t('settings.brain.folder_sub')} onClose=${busy ? undefined : onClose}
-      foot=${html`<button class="btn ghost" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button>
+      foot=${html`<button class="btn" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button>
         <button class="btn" disabled=${busy || !path.trim()} onClick=${() => apply(false)}>${t('files.use_folder')}</button>
         <button class="btn primary" disabled=${busy || !path.trim()} onClick=${() => apply(true)}>${t('files.create_folder')}</button>`}>
     <div class="sb-form">
@@ -78,9 +78,9 @@ function SecondBrainGroup() {
   const root = info?.root || '';
   return html`<${Group} title=${t('settings.brain.title')}>
     <${Line} label=${t('settings.brain.folder')} sub=${t('settings.brain.folder_sub')}>
-      <button type="button" class="adm-dd mono" onClick=${() => setEditing(true)}>
-        <span>${root ? homePath(root) : t('settings.brain.not_set')}</span>
-        <${Icon} n="chevron" />
+      <button type="button" class="btn mono" aria-haspopup="dialog" onClick=${() => setEditing(true)}>
+        <span class="trunc">${root ? homePath(root) : t('settings.brain.not_set')}</span>
+        <${Icon} n="edit" />
       </button>
     </${Line}>
     ${editing && html`<${SecondBrainDialog} current=${root} onClose=${() => setEditing(false)} onSaved=${next => setInfo({ ...(info || {}), root: next, exists: true })} />`}
@@ -96,10 +96,11 @@ function General() {
   const saveSys = async () => { await post('/api/sysprompt', { text: sys }); toast(t("settings.page.prompt_systeme_enregistre")); };
   return html`
     <${Group} title="${t("settings.page.apparence")}">
-      <${Line} label="${t("settings.page.theme")}"><${Seg} size="sm" value=${theme} onChange=${localT => { setTheme(localT); setPref('theme', localT); }} options=${[{ value: 'dark', label: t("settings.page.sombre") }, { value: 'light', label: t("settings.page.clair") }]} /></${Line}>
-      <${Line} label=${t('settings.language.label')}><select class="select sm" value=${getLang()} onChange=${e => setLang(e.target.value).then(ok => { if (!ok) toast(t('settings.language.save_failed'), 'err'); }).catch(() => toast(t('settings.language.save_failed'), 'err'))}>
-        <option value="fr">Français</option><option value="en">English</option>
-      </select></${Line}>
+      <${Line} label="${t("settings.page.theme")}"><${Seg} size="sm" label=${t('settings.page.theme')} value=${theme} onChange=${localT => { setTheme(localT); setPref('theme', localT); }} options=${[{ value: 'dark', label: t("settings.page.sombre") }, { value: 'light', label: t("settings.page.clair") }]} /></${Line}>
+      <${Line} label=${t('settings.language.label')}><${ListPick} class="sm" label=${t('settings.language.label')} value=${getLang()}
+        options=${[{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]}
+        onChange=${v => setLang(v).then(ok => { if (!ok) toast(t('settings.language.save_failed'), 'err'); }).catch(() => toast(t('settings.language.save_failed'), 'err'))} />
+      </${Line}>
       ${p && html`
         <${Line} label="${t("settings.page.masquer_la_reflexion")}" tip="${t("settings.page.les_blocs_de_reflexion_des_modeles_ne_s_affichent_plus_dans_le_fi")}"><${Switch} checked=${p.hide_reasoning === '1'} onChange=${v => setPref('hide_reasoning', v ? '1' : '0')} /></${Line}>
         <${Line} label="${t("settings.page.masquer_les_appels_d_outils")}"><${Switch} checked=${p.hide_tools === '1'} onChange=${v => setPref('hide_tools', v ? '1' : '0')} /></${Line}>
@@ -205,7 +206,7 @@ function Job({ onDone } = {}) {
   return html`<div class=${cls('job', j.running && 'run', j.error && 'err')}>
     <div class="job-h">${j.running ? html`<span class="spinner"></span>` : j.error ? html`<${Icon} n="alert" />` : html`<${Icon} n="check" />`}
       <b>${j.running ? (tSource(j.phase) || t("settings.page.installation_en_cours")) : j.error ? t("settings.page.echec") + j.error : t("settings.page.termine")}</b>
-      ${!j.running && html`<button class="btn sm ghost" onClick=${async () => { await post('/api/llamacpp/job/dismiss', {}); setJ(null); }}>${t("settings.page.masquer")}</button>`}</div>
+      ${!j.running && html`<button class="btn sm" onClick=${async () => { await post('/api/llamacpp/job/dismiss', {}); setJ(null); }}>${t("settings.page.masquer")}</button>`}</div>
     ${lines && html`<pre class="mono">${lines}</pre>`}</div>`;
 }
 
@@ -231,7 +232,7 @@ const KIND_LABEL = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', get openai() { retu
 
 // Lier un serveur d'inférence par son adresse (llama.cpp, vLLM…) : rien de
 // Loom n'est installé sur sa machine.
-export function DirectEngineForm({ start, onDone }) {
+export function DirectEngineForm({ start, onDone, dialog }) {
   const [f, setF] = useState({ url: start || '', key: '', model: '' });
   const [probe, setProbe] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -249,14 +250,19 @@ export function DirectEngineForm({ start, onDone }) {
     if (!r.ok) return toast(r.error || t("settings.page.liaison_impossible"), 'err');
     toast(KIND_LABEL[r.kind] + t("settings.page.de") + r.hostname + t("settings.page.lie")); await refreshEngineNode(); refreshStatus(); refreshLibrary(); onDone && onDone();
   };
-  return html`<div class="eng-link">
+  const fields = html`
     <p class="note">${t("settings.page.un_serveur_llama_cpp_llama_server_vllm_ou_compatible_openai_qui_t")}</p>
     <label class="field"><span>${t("settings.page.adresse_du_moteur")}</span><input class="input mono" placeholder="http://192.168.1.20:8080" value=${f.url} onInput=${e => { setF({ ...f, url: e.target.value }); setProbe(null); }} /></label>
     <label class="field"><span>${t("settings.page.cle_api_si_le_moteur_en_exige_une")}</span><input class="input mono" type="password" value=${f.key} onInput=${e => { setF({ ...f, key: e.target.value }); setProbe(null); }} /></label>
     ${probe && html`<label class="field"><span>${KIND_LABEL[probe.kind]} · ${probe.models.length} ${t("settings.page.modele")}${probe.models.length > 1 ? 's' : ''}${probe.ctx ? t("settings.page.contexte") + probe.ctx : ''}</span>
-      <select class="select" value=${f.model} onChange=${e => setF({ ...f, model: e.target.value })}>${probe.models.map(m => html`<option value=${m}>${m}</option>`)}</select></label>`}
-    <div class="form-foot"><span class="grow"></span>${onDone && html`<button class="btn ghost" onClick=${onDone}>${t("settings.page.annuler")}</button>`}
-      ${probe ? html`<button class="btn primary" disabled=${busy} onClick=${link}>${t("settings.page.utiliser_ce_moteur")}</button>` : html`<button class="btn primary" disabled=${busy || !f.url} onClick=${identify}>${busy ? t("environment.page.connexion") : t("settings.page.identifier_le_moteur")}</button>`}</div>
+      <${ListPick} value=${f.model} onChange=${model => setF({ ...f, model })}
+        options=${probe.models.map(model => ({ value: model, label: model }))} /></label>`}`;
+  const actions = html`${onDone && html`<button type="button" class="btn" onClick=${onDone}>${t("settings.page.annuler")}</button>`}
+    ${probe ? html`<button type="button" class="btn primary" disabled=${busy} onClick=${link}>${t("settings.page.utiliser_ce_moteur")}</button>`
+      : html`<button type="button" class="btn primary" disabled=${busy || !f.url} onClick=${identify}>${busy ? t("environment.page.connexion") : t("settings.page.identifier_le_moteur")}</button>`}`;
+  if (dialog) return html`<${Modal} ...${dialog} foot=${actions}>${fields}</${Modal}>`;
+  return html`<div class="eng-link">
+    ${fields}<div class="form-foot"><span class="grow"></span>${actions}</div>
   </div>`;
 }
 
@@ -272,8 +278,8 @@ export function EngineLocation() {
   };
   return html`<${Group} title="${t("settings.page.emplacement_du_moteur")}">
     <${Line} label="${t("settings.page.le_moteur_tourne")}" tip="${t("settings.page.sur_cette_machine_sur_une_machine_ou_loom_est_installe_reglages_m")}">
-      ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? KIND_LABEL[node.kind] + t("settings.page.sur") : t("settings.page.sur_2")}<b>${node.hostname}</b></span><button class="btn sm ghost" onClick=${unlink}>${t("settings.page.revenir_a_cette_machine")}</button>`
-        : html`<span class="state">${t("settings.page.sur_cette_machine")}</span>${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.page.lier_un_moteur_par_son_adresse")}</button><a class="btn sm ghost" href="#/machines">${t("settings.page.loom_d_une_autre_machine")}</a>`}`}</${Line}>
+      ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? KIND_LABEL[node.kind] + t("settings.page.sur") : t("settings.page.sur_2")}<b>${node.hostname}</b></span><button class="btn sm" onClick=${unlink}>${t("settings.page.revenir_a_cette_machine")}</button>`
+        : html`<span class="state">${t("settings.page.sur_cette_machine")}</span>${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.page.lier_un_moteur_par_son_adresse")}</button><a class="btn sm" href="#/machines">${t("settings.page.loom_d_une_autre_machine")}</a>`}`}</${Line}>
     ${node && html`<${Line} label="${t("settings.page.adresse")}"><code class="mono">${node.url}</code>${!node.reachable && html`<span class="tag amber">${t("settings.page.injoignable")}</span>`}</${Line}>`}
     ${node && node.direct && html`<${Line} label="${t("settings.page.modele_utilise")}"><code class="mono">${node.model}</code></${Line}>`}
     ${direct && !node && html`<${DirectEngineForm} onDone=${() => setDirect(false)} />`}
@@ -296,7 +302,7 @@ export function Engine() {
       ${lc.reco && html`<div class="set-note">${({ 'linux-cuda': t('welcome.reco.linux-cuda'), 'linux-hip': t('welcome.reco.linux-hip') })[lc.reco.code] || lc.reco.why}</div>`}
       <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/prebuilt', {}, t("settings.page.telechargement_lance"))}>${t("settings.page.binaire_officiel")}</button>
         <button class="btn" onClick=${() => run('/api/llamacpp/install', { dir: '' }, t("settings.page.compilation_lancee"))}>${t("settings.page.compiler_llama_cpp")}</button>
-        <button class="btn ghost" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button></div>
+        <button class="btn" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button></div>
       <${Job} onDone=${load} />
     </${Group}>`;
   const health = lc.health;
@@ -315,8 +321,8 @@ export function Engine() {
       <div class="set-actions">
         ${lc.can_update && html`<button class="btn" onClick=${() => run(updateURL, { clean: false }, t("settings.page.mise_a_jour_lancee"))}><${Icon} n="refresh" />${t("settings.page.mettre_a_jour")}</button>`}
         ${lc.can_update && lc.update_kind === 'git' && health?.healthy === false && html`<button class="btn" onClick=${() => run('/api/llamacpp/update', { clean: true }, t('settings.page.compilation_lancee'))}><${Icon} n="refresh" />${t('engine.rebuild')}</button>`}
-        <button class="btn ghost" onClick=${() => run(checkURL, {}, t("settings.page.verification"))}>${t("settings.page.verifier")}</button>
-        <button class="btn ghost" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button>
+        <button class="btn" onClick=${() => run(checkURL, {}, t("settings.page.verification"))}>${t("settings.page.verifier")}</button>
+        <button class="btn" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button>
       </div>
       <${Job} onDone=${load} />
     </${Group}>`;
@@ -334,9 +340,9 @@ export function ModelDirs() {
     <${Group} title="${t("settings.page.dossiers_de_modeles")}">
       ${dirs && (dirs.dirs || []).map(d => html`<div class="set-line"><div class="set-l"><${Icon} n="folder" /><span class="mono path">${d.path}</span>${d.download && html`<span class="tag blue">${t("settings.page.telechargements")}</span>`}</div>
         <div class="set-c"><span class="muted mono">${d.count} ${t("settings.page.modele")}${d.count > 1 ? 's' : ''}</span>
-          ${!d.download && html`<button class="btn sm ghost" onClick=${() => run('/api/models/dirs', { path: d.path, action: 'download' }, t("settings.page.dossier_de_telechargement_change"))}>${t("settings.page.telecharger_ici")}</button>`}
+          ${!d.download && html`<button class="btn sm" onClick=${() => run('/api/models/dirs', { path: d.path, action: 'download' }, t("settings.page.dossier_de_telechargement_change"))}>${t("settings.page.telecharger_ici")}</button>`}
           ${!d.home && html`<button class="icon-btn" aria-label="${t("settings.page.retirer")}" onClick=${async () => { if (await confirm(t("settings.page.retirer_le_dossier"), t("settings.page.loom_ne_listera_plus_les_modeles_de_ce_dossier_les_fichiers_reste"), { ok: t("settings.page.retirer") })) run('/api/models/dirs', { path: d.path, action: 'remove' }); }}><${Icon} n="close" /></button>`}</div></div>`)}
-      <div class="set-actions"><button class="btn ghost" onClick=${addDir}><${Icon} n="plus" />${t("settings.page.ajouter_un_dossier")}</button></div>
+      <div class="set-actions"><button class="btn" onClick=${addDir}><${Icon} n="plus" />${t("settings.page.ajouter_un_dossier")}</button></div>
     </${Group}>`;
 }
 
@@ -405,7 +411,7 @@ function Internet() {
     <${Line} label="${t('search.enable')}" tip="${t('search.enable_tip')}"><${Switch} checked=${n.enabled} onChange=${v => save({ enabled: v, url: n.url })} /></${Line}>
     <${Line} label="${t("settings.page.moteur")}" tip="${t("settings.page.integre_aucune_installation_crawl4ai_navigateur_headless_pour_les")}"><${Seg} size="sm" value=${n.engine} onChange=${v => save({ engine: v })} options=${[{ value: 'go', label: t("settings.page.integre") }, { value: 'crawl4ai', label: t("settings.page.crawl4ai") }]} /></${Line}>
     ${n.engine === 'crawl4ai' && html`<${Line} label="${t("settings.page.adresse_crawl4ai")}"><input class="input sm" style="width:260px" value=${n.url} placeholder="http://localhost:11235" onChange=${e => save({ url: e.target.value })} /></${Line}>
-      <${Line} label="${t("settings.page.cle_crawl4ai")}">${n.key_set ? html`<span class="muted mono">••••${n.key_hint}</span><button class="btn sm ghost" onClick=${() => save({ key: '' })}>${t("settings.page.retirer")}</button>`
+      <${Line} label="${t("settings.page.cle_crawl4ai")}">${n.key_set ? html`<span class="muted mono">••••${n.key_hint}</span><button class="btn sm" onClick=${() => save({ key: '' })}>${t("settings.page.retirer")}</button>`
         : html`<input class="input sm" type="password" style="width:220px" placeholder="${t("settings.page.facultative")}" onChange=${e => save({ key: e.target.value })} />`}</${Line}>`}
   </${Group}>`;
 }
@@ -414,7 +420,7 @@ function SecretDialog({ title, tip, onClose, onSubmit }) {
   const [value, setValue] = useState('');
   const submit = () => { if (value.trim()) { const secret = value; setValue(''); onSubmit(secret); } };
   return html`<${Modal} title=${title} onClose=${onClose}
-    foot=${html`<button class="btn ghost" onClick=${onClose}>${t("settings.page.annuler")}</button><button class="btn primary" disabled=${!value.trim()} onClick=${submit}>${t("settings.page.continuer")}</button>`}>
+    foot=${html`<button class="btn" onClick=${onClose}>${t("settings.page.annuler")}</button><button class="btn primary" disabled=${!value.trim()} onClick=${submit}>${t("settings.page.continuer")}</button>`}>
     <${Line} label="${t("settings.page.secret")}" tip=${tip}><input class="input" type="password" autocomplete="off" aria-label="${t("settings.page.secret")}" value=${value} onInput=${e => setValue(e.target.value)} onKeyDown=${e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} /></${Line}>
   </${Modal}>`;
 }
@@ -456,7 +462,7 @@ function NetworkAccess() {
   return html`<${Group} title="${t("settings.page.acces_reseau")}">
     <${Line} label="${t("settings.page.interface_sur_le_reseau")}" tip="${t("settings.page.mode_serveur_ouvre_loom_depuis_un_autre_appareil_loom_sur_une_vm")}">
       ${web ? html`<${Switch} checked=${web.exposed} disabled=${busy} label="${t("settings.page.interface_sur_le_reseau")}" onChange=${toggleWeb} />` : html`<span class="state">…</span>`}</${Line}>
-    ${web && web.exposed && html`<${Line} label="${t("settings.page.adresse")}">${web.url ? html`<code class="mono">${web.url}</code><button class="btn sm ghost" onClick=${async () => toast(await copyText(web.url) ? t("settings.page.adresse_copiee") : t("settings.page.copie_refusee"))}>${t("settings.page.copier")}</button>` : html`<span class="state">${t("settings.page.apres_redemarrage")}</span>`}</${Line}>`}
+    ${web && web.exposed && html`<${Line} label="${t("settings.page.adresse")}">${web.url ? html`<code class="mono">${web.url}</code><button class="btn sm" onClick=${async () => toast(await copyText(web.url) ? t("settings.page.adresse_copiee") : t("settings.page.copie_refusee"))}>${t("settings.page.copier")}</button>` : html`<span class="state">${t("settings.page.apres_redemarrage")}</span>`}</${Line}>`}
     ${web && web.restart && html`<${Line} label="${t("settings.page.a_appliquer")}" tip="${t("settings.page.l_adresse_d_ecoute_ne_change_qu_au_redemarrage_de_l_interface_le")}"><span class="state">${t("settings.page.redemarrage_necessaire")}</span><button class="btn sm" onClick=${restart}>${t("settings.page.redemarrer_l_interface")}</button></${Line}>`}
     ${web && web.exposed && web.firewall === 'ferme' && html`<${Line} label="${t("settings.page.pare_feu")}"><span class="state">${t("settings.page.port")} ${web.port} ${t("settings.page.non_autorise_ouvre_le_dans_le_pare_feu_de_la_machine")}</span></${Line}>`}
     <${Line} label="${t("settings.page.api_v1_sur_le_reseau")}" tip="${t("settings.page.les_logiciels_et_harnesses_d_autres_machines_peuvent_utiliser_tes")}">
@@ -479,11 +485,10 @@ function AccessSettings() {
     <${Line} label=${t('access.password')}>
       <span class="state">${status ? status.password_set ? t('access.configured') : t('access.not_set') : '…'}</span>
       ${status && html`<button class="btn sm" onClick=${() => setEditing(true)}>${status.password_set ? t('access.change') : t('access.set')}</button>`}
-      ${status?.password_set && html`<button class="btn sm ghost" onClick=${logout}>${t('access.sign_out')}</button>`}
+      ${status?.password_set && html`<button class="btn sm" onClick=${logout}>${t('access.sign_out')}</button>`}
     </${Line}>
-    ${editing && html`<${Modal} title=${status.password_set ? t('access.change') : t('access.set')} onClose=${() => setEditing(false)}>
-      <${PasswordForm} mode=${status.password_set ? 'change' : 'setup'} onDone=${() => { setEditing(false); location.reload(); }} />
-    </${Modal}>`}
+    ${editing && html`<${PasswordForm} title=${status.password_set ? t('access.change') : t('access.set')} onClose=${() => setEditing(false)}
+      mode=${status.password_set ? 'change' : 'setup'} onDone=${() => { setEditing(false); location.reload(); }} />`}
   </${Group}>`;
 }
 
@@ -557,7 +562,7 @@ function Security() {
     <${Group} title="${t("settings.page.api_v1")}">
       ${worker ? html`<p class="set-note">${t('node.credentials_managed')}</p>` : html`
       <${Line} label="${t("settings.page.cle_api_exigee")}" tip="${t("settings.page.les_applications_qui_utilisent_le_serveur_devront_envoyer_cette_c")}"><${Switch} checked=${k && k.required} onChange=${v => key({ action: 'require', on: v })} /></${Line}>
-      <${Line} label="${t("settings.page.cle")}">${k && k.set ? html`<code class="mono">${k.masked}</code><button class="btn sm ghost" onClick=${() => key({ action: 'generate' })}>${t("settings.page.regenerer")}</button><button class="btn sm ghost" onClick=${() => key({ action: 'clear' })}>${t("settings.page.supprimer")}</button>`
+      <${Line} label="${t("settings.page.cle")}">${k && k.set ? html`<code class="mono">${k.masked}</code><button class="btn sm" onClick=${() => key({ action: 'generate' })}>${t("settings.page.regenerer")}</button><button class="btn sm" onClick=${() => key({ action: 'clear' })}>${t("settings.page.supprimer")}</button>`
         : html`<button class="btn sm" onClick=${() => key({ action: 'generate' })}>${t("settings.page.creer_une_cle")}</button>`}</${Line}>
       `}
     </${Group}>
@@ -569,18 +574,18 @@ function Security() {
           <span class=${'tag ' + (mem.fully ? 'green' : 'amber')}>${!mem.encrypted ? t("settings.page.etat_a_verifier") : mem.fully ? t("settings.page.chiffre") : t("settings.page.chiffrement_partiel")}</span>
           <span class="state">${mem.locked ? t("settings.page.verrouille") : mem.encrypted ? t("settings.page.deverrouille") : t("settings.page.etat_inconnu")}</span>
           ${(mem.locked || !mem.encrypted || !mem.fully) && html`<button class="btn sm" disabled=${blocked} onClick=${() => secret('unlock')}>${t("settings.page.deverrouiller")}</button>`}
-          ${mem.encrypted && !mem.locked && html`<button class="btn sm ghost" disabled=${blocked} onClick=${lock}>${t("settings.page.verrouiller")}</button><button class="btn sm ghost" disabled=${blocked} onClick=${decrypt}>${t("settings.page.dechiffrer")}</button>`}`
+          ${mem.encrypted && !mem.locked && html`<button class="btn sm" disabled=${blocked} onClick=${lock}>${t("settings.page.verrouiller")}</button><button class="btn sm" disabled=${blocked} onClick=${decrypt}>${t("settings.page.dechiffrer")}</button>`}`
           : html`<span class="state">${t("settings.page.en_clair")}</span><button class="btn sm" disabled=${blocked} onClick=${() => secret('encrypt')}>${t("settings.page.activer")}</button>`}</${Line}>
-      ${mem?.encrypted && !mem.locked && html`<${Line} label="${t("settings.page.cle_supplementaire")}" tip="${t("settings.page.ajoute_ou_remplace_le_secret_d_ouverture_supplementaire_du_coffre")}"><button class="btn sm ghost" disabled=${blocked} onClick=${() => secret('addkey')}>${t("settings.page.ajouter_une_cle")}</button></${Line}>`}
-      <${Line} label="${t("settings.page.exporter_la_discussion")}"><button class="btn sm ghost" onClick=${() => download('/api/chat/export?format=md', 'discussion.md').catch(() => toast(t("settings.page.export_impossible"), 'err'))}>${t("settings.page.markdown")}</button><button class="btn sm ghost" onClick=${() => download('/api/chat/export?format=json', 'discussion.json').catch(() => toast(t("settings.page.export_impossible"), 'err'))}>JSON</button></${Line}>
+      ${mem?.encrypted && !mem.locked && html`<${Line} label="${t("settings.page.cle_supplementaire")}" tip="${t("settings.page.ajoute_ou_remplace_le_secret_d_ouverture_supplementaire_du_coffre")}"><button class="btn sm" disabled=${blocked} onClick=${() => secret('addkey')}>${t("settings.page.ajouter_une_cle")}</button></${Line}>`}
+      <${Line} label="${t("settings.page.exporter_la_discussion")}"><button class="btn sm" onClick=${() => download('/api/chat/export?format=md', 'discussion.md').catch(() => toast(t("settings.page.export_impossible"), 'err'))}>${t("settings.page.markdown")}</button><button class="btn sm" onClick=${() => download('/api/chat/export?format=json', 'discussion.json').catch(() => toast(t("settings.page.export_impossible"), 'err'))}>JSON</button></${Line}>
     </${Group}>
     <${Group} title="${t("settings.page.snapshots_locaux")}">
-      <${Line} label="${t("settings.page.sauvegardes")}" tip="${t("settings.page.copies_locales_des_fichiers_memoire_coffre_compris_la_taille_n_es")}"><button class="btn sm ghost" disabled=${blocked} onClick=${load}>${t("settings.page.actualiser")}</button></${Line}>
+      <${Line} label="${t("settings.page.sauvegardes")}" tip="${t("settings.page.copies_locales_des_fichiers_memoire_coffre_compris_la_taille_n_es")}"><button class="btn sm" disabled=${blocked} onClick=${load}>${t("settings.page.actualiser")}</button></${Line}>
       ${snapshots === null ? html`<${Line} label="${t("settings.page.liste")}"><span class="state">${t("settings.page.inconnue")}</span></${Line}>`
         : snapshots.length === 0 ? html`<${Line} label="${t("settings.page.liste")}"><span class="state">${t("settings.page.aucun_snapshot")}</span></${Line}>`
         : snapshots.map(s => html`<${Line} key=${s.id} label=${snapshotDate(s)} tip=${s.reason || t("settings.page.snapshot_local")}>
           <span class="num">${typeof s.size === 'number' && s.size > 0 ? fmtBytes(s.size) : t("settings.page.taille_inconnue")}</span>
-          <button class="btn sm ghost" disabled=${blocked} onClick=${() => restore(s)}>${t("settings.page.restaurer")}</button>
+          <button class="btn sm" disabled=${blocked} onClick=${() => restore(s)}>${t("settings.page.restaurer")}</button>
         </${Line}>`)}
     </${Group}>
     ${secretForm && html`<${SecretDialog} key=${secretForm.action} title=${secretForm.title} tip=${secretForm.tip} onClose=${() => setSecretForm(null)} onSubmit=${submitSecret} />`}`;
