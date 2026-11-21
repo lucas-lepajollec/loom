@@ -44,10 +44,12 @@ export function Modal({ title, sub, onClose, children, foot, wide, class: c, foc
   const box = useRef(), close = useRef(onClose), previous = useRef(document.activeElement);
   const gesture = useRef(null);
   close.current = onClose;
-  useEffect(() => {
-    const prev = previous.current;
-    const panel = box.current;
+  // Le clavier est écouté dès l'affichage (effet synchrone) : un Échap tapé
+  // tout de suite après l'ouverture ferme bien la fenêtre.
+  useLayoutEffect(() => {
     const key = e => {
+      const panel = box.current;
+      if (!panel) return;
       if (panel !== topModal() || e.defaultPrevented) return;
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -65,6 +67,11 @@ export function Modal({ title, sub, onClose, children, foot, wide, class: c, foc
       }
     };
     document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, []);
+  useEffect(() => {
+    const prev = previous.current;
+    const panel = box.current;
     const frame = requestAnimationFrame(() => {
       if (panel !== topModal() || panel.contains(document.activeElement)) return;
       const field = (!isPhone() || focusField) && panel.querySelector('.dialog-body :is(input, textarea, select):not([type="hidden"]):not(:disabled)');
@@ -73,7 +80,6 @@ export function Modal({ title, sub, onClose, children, foot, wide, class: c, foc
     });
     return () => {
       cancelAnimationFrame(frame);
-      document.removeEventListener('keydown', key);
       const current = topModal();
       if (prev?.isConnected && (!current || current === panel || current.contains(prev))) prev.focus({ preventScroll: true });
     };
