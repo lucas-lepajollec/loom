@@ -158,12 +158,18 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         try {
           const r = await api.terminal(sessionId, historyQuery(shell, scrollback + term.rows));
           if (!alive || gen !== screenGen) return;
+          // Position de lecture avant la relecture : en bas, ou à N lignes du bas.
+          const buf = term.buffer.active;
+          const fromBottom = Math.max(0, buf.baseY - buf.viewportY);
           term.reset();
           // Colonnes du pane, lignes du panneau (comme Codeman) : sinon le CLI
           // dessine à une autre largeur et sa ligne de saisie sort du cadre.
           if (Number.isInteger(r?.captureCols) && r.captureCols > 0 && r.captureCols !== term.cols) term.resize(r.captureCols, term.rows);
           drawnCols = term.cols;
-          if (r?.terminalBuffer) term.write(r.terminalBuffer);
+          // L'écriture est asynchrone : la position se rétablit une fois finie
+          // (sinon l'affichage pouvait rester tout en haut de l'historique).
+          const restore = () => { if (!alive) return; const place = () => (fromBottom === 0 ? term.scrollToBottom() : term.scrollToLine(Math.max(0, term.buffer.active.baseY - fromBottom))); place(); requestAnimationFrame(() => alive && place()); };
+          if (r?.terminalBuffer) term.write(r.terminalBuffer, restore); else restore();
           // Pas d'historique tmux : le CLI dessine en plein écran et garde lui-même son historique.
           hollow = r?.paneHistoryLines === 0;
           if (alive) setFullscreen(hollow && !shell);
@@ -172,7 +178,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           if (want && Number.isInteger(r?.captureCols)) setForeign(viewport() === 'desktop' && r.captureCols > want.cols);
         } catch (_) {}
         finally {
-          if (gen === screenGen) { loading = false; const live = held; held = []; for (const d of live) term.write(d); }
+          if (gen === screenGen) { loading = false; const live = held; held = []; for (const d of live) term.write(d); if (live.length && term.buffer.active.viewportY >= term.buffer.active.baseY - 1) term.write('', () => term.scrollToBottom()); }
         }
       };
       stopConn = visibleConnection(async owner => {

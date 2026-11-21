@@ -10,7 +10,7 @@ import { prompt, confirm, toast } from '../ui/dialog.js';
 import { get, post } from '../core/api.js';
 import { app, go, refreshNav } from '../core/state.js';
 import { chat, open, newDiscussion } from '../features/chat/engine.js';
-import { agents, stateOf, sessionList, useAgentsPresence } from '../features/agents/store.js';
+import { agents, stateOf, sessionList, useAgentsPresence, restorable } from '../features/agents/store.js';
 import { closeSession, renameSession } from '../features/agents/actions.js';
 import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
@@ -175,6 +175,7 @@ export function Sessions() {
   const toggleFolder = id => { const n = new Set(openFolders); n.has(id) ? n.delete(id) : n.add(id); setOpenFolders(n); save('loom.next.proj', [...n]); };
   const agentsOn = conn.configured;
   const ready = conn.state === 'ready';
+  const cut = useStore(agents, restorable);
 
   const chats = filter === 'agents' ? [] : nav.conversations.map(c => ({ kind: 'chat', id: c.id, c, title: c.title || t('app.shell.nouvelle_discussion'), folder: c.project_id || '', pinned: !!c.fav, at: c.updated_at || c.saved_at || 0 }));
   const live = filter === 'chats' || !agentsOn ? [] : sessionList().map(s => ({ kind: 'agent', id: s.id, s, title: s.name || s.id.slice(0, 8), folder: folderMap[s.id] || '', pinned: false, at: s.lastActivityAt || s.createdAt || 0 }));
@@ -206,6 +207,7 @@ export function Sessions() {
     </div>
     ${fmenu && html`<${Menu} anchor=${fmenu} onClose=${() => setFmenu(null)} items=${filterItems} />`}
     <div class=${cls('side-list', overLoose && 'drop-on')} ...${dropZone('', setOverLoose)}>
+      ${agentsOn && ready && cut.length > 0 && filter !== 'chats' && html`<a class="chat-link sub ses-restore" href="#/agents"><${Icon} n="refresh" /><span>${t('agents.restore.side', { n: cut.length })}</span></a>`}
       ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${inFolder(p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} isCurrent=${isCurrent} />`)}
       ${loose.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} />`)}
       ${!all.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}

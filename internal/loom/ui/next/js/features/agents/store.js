@@ -230,3 +230,6 @@ export function useAgentsPresence() {
     return () => clearInterval(timer);
   }, [ready, configured]);
 }
+
+// Sessions qu'un redémarrage a coupées et que Codeman peut relancer (hors sessions déjà rouvertes).
+export const restorable = s => (s.restore || []).filter(e => e && e.id && !s.sessions[e.id]);
