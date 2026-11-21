@@ -5,12 +5,17 @@ import { Icon } from '../../ui/icons.js';
 import { Tip } from '../../ui/controls.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
-import { refreshWorkspace, refreshEngineNode } from '../../core/state.js';
+import { app, refreshWorkspace, refreshEngineNode } from '../../core/state.js';
 import { copyText } from '../../ui/clipboard.js';
 
 // Appairage : sur la machine, `loom node pair` affiche un code à usage unique ;
 // ici on donne son adresse (ou on la choisit parmi celles trouvées) et le code.
-const NODE_INSTALL = 'curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh -s -- --node --listen lan';
+// Le nœud installé suit la version de ce Loom : une version de développement
+// installe la version de développement du nœud (codes d'appairage, modules…).
+const nodeInstall = () => {
+  const dev = /-dev|edge/.test(app.get().serverInfo?.version || '');
+  return 'curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | ' + (dev ? 'LOOM_VERSION=edge ' : '') + 'sh -s -- --node --listen lan';
+};
 export function addressWithPort(host, port) {
   const bare = host.replace(/^\[|\]$/g, '');
   return (bare.includes(':') ? '[' + bare + ']' : bare) + ':' + port;
@@ -42,7 +47,7 @@ export function PairDialog({ start, onClose }) {
         ${step === 2 && html`<button class="btn" disabled=${busy} onClick=${() => setStep(1)}>${t('machines.add.back')}</button>`}
         <button class="btn primary" disabled=${busy || (step === 2 && (!v.address.trim() || v.code.replace('-', '').length !== 8))} onClick=${() => step === 1 ? setStep(2) : pair(false)}>${busy ? t('settings.machines.verification') : t(step === 1 ? 'machines.add.next' : 'machines.pair.ok')}</button>`}>
     <div class="mx-steps"><div class="mx-step"><span class="mx-n">${step}</span><div class="mx-body"><b>${title}</b>
-      ${step === 1 ? html`<p class="note">${t('machines.add.linux')}</p><div class="mx-code"><pre>${NODE_INSTALL}</pre><button class="btn sm" onClick=${async () => { const ok = await copyText(NODE_INSTALL); toast(t(ok ? 'machines.edit.bloc_copie' : 'machines.edit.copie_refusee_selectionne_le_texte'), ok ? '' : 'err'); }}><${Icon} n="copy" />${t('machines.edit.copier')}</button></div><p class="note">${t('machines.add.installs')}</p>`
+      ${step === 1 ? html`<p class="note">${t('machines.add.linux')}</p><div class="mx-code"><pre>${nodeInstall()}</pre><button class="btn sm" onClick=${async () => { const ok = await copyText(nodeInstall()); toast(t(ok ? 'machines.edit.bloc_copie' : 'machines.edit.copie_refusee_selectionne_le_texte'), ok ? '' : 'err'); }}><${Icon} n="copy" />${t('machines.edit.copier')}</button></div><p class="note">${t('machines.add.installs')}</p>`
       : step === 2 ? html`<${Discovered} onPair=${n => setV(old => ({ ...old, address: n.address }))} />
         <label class="field"><span>${t('machines.pair.address')}</span><input class="input mono" value=${v.address} placeholder="192.168.1.20:2511" onInput=${e => setV({ ...v, address: e.target.value })} /></label>
         <label class="field"><span>${t('machines.pair.code')}</span><input class="input mono pair-code" value=${v.code} placeholder="K7QM-4XPA" autocomplete="one-time-code" onInput=${e => setV({ ...v, code: fmt(e.target.value) })} /></label>

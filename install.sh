@@ -233,8 +233,14 @@ if [ "$MODE" = "node" ]; then
   if [ "$NODE_SERVICE" = 1 ] && [ "$NODE_START" = 1 ]; then
     echo ""
     echo "=========================================================================="
-    # Older node binaries lack --if-unpaired; a missing code never fails the install.
-    if "$TARGET" node pair -h 2>&1 | grep -q -- 'if-unpaired'; then
+    # Older node binaries lack --if-unpaired, and releases before pairing codes
+    # lack `node pair`; a missing code never fails the install.
+    if ! "$TARGET" node 2>&1 | grep -q 'pair'; then
+      echo "This release has no pairing codes. A Loom development build pairs with the development node:"
+      echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | LOOM_VERSION=edge sh -s -- --node --listen lan"
+      echo "=========================================================================="
+      exit 0
+    elif "$TARGET" node pair -h 2>&1 | grep -q -- 'if-unpaired'; then
       set -- node pair --if-unpaired
     else
       set -- node pair
