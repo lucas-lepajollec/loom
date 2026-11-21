@@ -34,7 +34,7 @@ export default {
   "mobile.first_message": "Premier message",
   "mobile.first_message_draft": "Ton premier message est prêt dans le champ de saisie.",
   "mobile.first_message_uncertain": "Vérifie le terminal avant de renvoyer ton premier message. La transmission reste incertaine.",
-  "mobile.key_esc": "Échap",
+  "mobile.key_esc": "Esc",
   "mobile.key_tab": "Tab",
   "mobile.key_ctrl": "Ctrl",
   "mobile.key_ctrl_c": "Ctrl-C",

@@ -73,6 +73,11 @@ function followVisualViewport() {
   const vv = window.visualViewport;
   if (!vv) return;
   const root = document.documentElement;
+  // Safari sur iPhone (pas l'app installée) pose sa barre d'adresse au-dessus
+  // du clavier, par-dessus le bas de la zone visible : on garde de la marge.
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  root.classList.toggle('ios-browser', ios && !standalone);
   let frame = 0, tallest = 0, width = 0;
   const apply = () => {
     frame = 0;

@@ -30,9 +30,11 @@ function fontsReady(size) {
 }
 
 export function theme() {
+  // Téléphone : le terminal prend le fond de l'écran, sans bande plus claire.
+  const bg = cssVar(viewport() === 'mobile' ? '--bg' : '--bg-2') || '#0c0c0e';
   return {
-    background: cssVar('--bg-2') || '#0c0c0e', foreground: cssVar('--text') || '#ededef', cursor: cssVar('--text-2') || '#a1a1aa',
-    cursorAccent: cssVar('--bg-2') || '#0c0c0e', selectionBackground: 'rgba(127,127,127,.32)',
+    background: bg, foreground: cssVar('--text') || '#ededef', cursor: cssVar('--text-2') || '#a1a1aa',
+    cursorAccent: bg, selectionBackground: 'rgba(127,127,127,.32)',
   };
 }
 
@@ -49,11 +51,15 @@ const KEYS = [['Esc', '\x1b'], ['Tab', '\t'], ['↑', '\x1b[A'], ['↓', '\x1b[B
 function Accessory({ send, ctrl, setCtrl, dismiss, persistent, connected }) {
   // pointerdown sans effet par défaut : le terminal garde le clavier.
   const keep = e => e.preventDefault();
+  // Le libellé est dans un <span> : sur téléphone, la pastille visible reste
+  // petite et le bouton garde une zone de toucher de 44 px.
   return html`<div class="cm-acc" role="toolbar" aria-label=${t('agents.acc.label')}>
-    <button type="button" class=${cls(ctrl && 'on')} aria-pressed=${String(ctrl)} title=${t('agents.acc.ctrl')} disabled=${!connected} onPointerDown=${keep} onClick=${() => setCtrl(!ctrl)}>${t('mobile.key_ctrl')}</button>
-    ${KEYS.map(([label, seq], i) => html`<button type="button" key=${label} disabled=${!connected}
-      onPointerDown=${keep} onClick=${() => { setCtrl(false); send(seq); }}>${i === 0 ? t('mobile.key_esc') : i === 1 ? t('mobile.key_tab') : label}</button>`)}
-    ${persistent && html`<button type="button" class="cm-acc-break" disabled=${!connected} onPointerDown=${keep} onClick=${() => { setCtrl(false); send('\x03'); }}>${t('mobile.key_ctrl_c')}</button>`}
+    ${persistent && html`<button type="button" class="cm-acc-break" disabled=${!connected} onPointerDown=${keep} onClick=${() => { setCtrl(false); send('\x03'); }}><span>${t('mobile.key_ctrl_c')}</span></button>`}
+    ${KEYS.slice(0, 2).map(([label, seq], i) => html`<button type="button" key=${label} disabled=${!connected}
+      onPointerDown=${keep} onClick=${() => { setCtrl(false); send(seq); }}><span>${i === 0 ? t('mobile.key_esc') : t('mobile.key_tab')}</span></button>`)}
+    <button type="button" class=${cls(ctrl && 'on')} aria-pressed=${String(ctrl)} title=${t('agents.acc.ctrl')} disabled=${!connected} onPointerDown=${keep} onClick=${() => setCtrl(!ctrl)}><span>${t('mobile.key_ctrl')}</span></button>
+    ${KEYS.slice(2).map(([label, seq]) => html`<button type="button" key=${label} disabled=${!connected}
+      onPointerDown=${keep} onClick=${() => { setCtrl(false); send(seq); }}><span>${label}</span></button>`)}
     ${dismiss && html`<button type="button" class="cm-acc-hide" aria-label=${t('agents.acc.hide')} title=${t('agents.acc.hide')} onPointerDown=${keep} onClick=${dismiss}><${Icon} n="chevron" /></button>`}
   </div>`;
 }
@@ -450,12 +456,15 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   // Un volet qui reçoit le focus donne le clavier à son terminal.
   // Sur téléphone, le clavier ne s'ouvre qu'au toucher (comme dans Codeman).
   useEffect(() => { if (focus && !readOnly && !phone) termRef.current?.focus(); }, [focus]);
-  const showKeys = phone && !readOnly && (typing || phoneControls);
+  // Avec le champ de saisie (téléphone), les touches restent repliées derrière
+  // le bouton clavier du champ : une seule ligne, seulement sur demande.
+  const [keysOpen, setKeysOpen] = useState(false);
+  const showKeys = phone && !readOnly && (typing || (phoneControls && keysOpen));
   const sendKey = d => inputRef.current?.(d);
   return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', showKeys && 'with-keys', fullscreen && 'cli-fullscreen', phoneControls && 'cm-phone-term')}>
     <div class="cm-term-box" ref=${box}></div>
     ${showKeys && html`<${Accessory} send=${sendKey} ctrl=${ctrl} setCtrl=${setCtrl} connected=${state === 'open'} persistent=${phoneControls} dismiss=${typing ? () => termRef.current?.blur() : undefined} />`}
-    ${phoneControls && !readOnly && html`<${TerminalLine} id=${sessionId} connected=${state === 'open'} onChar=${ch => {
+    ${phoneControls && !readOnly && html`<${TerminalLine} id=${sessionId} connected=${state === 'open'} keys=${keysOpen} onKeys=${() => setKeysOpen(v => !v)} onChar=${ch => {
       if (!ctrlRef.current || !sendKey(ctrlByte(ch))) return false;
       setCtrl(false); return true;
     }} />`}
@@ -466,7 +475,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
   </div>`;
 }
 
-function TerminalLine({ id, connected, onChar }) {
+function TerminalLine({ id, connected, keys, onKeys, onChar }) {
   const draftKey = agentDraftKey(id);
   const [text, setText] = useState(() => { try { return sessionStorage.getItem(draftKey) || ''; } catch (_) { return ''; } });
   const [busy, setBusy] = useState(false);
@@ -481,7 +490,9 @@ function TerminalLine({ id, connected, onChar }) {
     finally { inflight.current = false; setBusy(false); }
   };
   return html`<form class="composer cm-phone-line" onSubmit=${send}>
-    <input type="text" class="mono" aria-label=${t('mobile.terminal_input')} placeholder=${t('mobile.terminal_input')}
+    <button type="button" class=${cls('cm-line-keys', keys && 'on')} aria-label=${t('agents.acc.label')} aria-pressed=${String(!!keys)}
+      onPointerDown=${e => e.preventDefault()} onClick=${onKeys}><${Icon} n="keyboard" /></button>
+    <input type="text" aria-label=${t('mobile.terminal_input')} placeholder=${t('mobile.terminal_input')}
       enterkeyhint="send" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellcheck="false"
       value=${text} onInput=${e => setText(e.target.value)}
       onBeforeInput=${e => { if (e.inputType === 'insertText' && e.data?.length === 1 && onChar(e.data)) e.preventDefault(); }} />

@@ -357,6 +357,7 @@ try {
       if (phone && scenario === 'phone-layout' && r === 'agents/s/fixture-session-0') {
         await page.locator('.cm-conv .cm-approval').waitFor();
         await page.getByRole('tab', { name: dictionary['agents.view.terminal'], exact: true }).click();
+        await page.locator('.cm-line-keys').click();
         await page.locator('.cm-acc').getByRole('button', { name: dictionary['mobile.key_ctrl_c'], exact: true }).waitFor();
         await inspect(page, errors, label + ' terminal');
         await page.getByRole('tab', { name: dictionary['agents.view.chat'], exact: true }).click();
