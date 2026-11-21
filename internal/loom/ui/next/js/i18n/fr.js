@@ -30,6 +30,7 @@ export default {
   "mobile.session_folder": "Dossier de session",
   "mobile.no_folder": "Sans dossier",
   "mobile.session_options": "Options de la session",
+  "mobile.session_options_short": "Options",
   "mobile.first_message": "Premier message",
   "mobile.first_message_draft": "Ton premier message est prêt dans le champ de saisie.",
   "mobile.first_message_uncertain": "Vérifie le terminal avant de renvoyer ton premier message. La transmission reste incertaine.",
