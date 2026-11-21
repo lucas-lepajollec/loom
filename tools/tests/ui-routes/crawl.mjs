@@ -111,7 +111,9 @@ try {
   const runCase = async (browser, { name, form, context, scenario, r }) => {
     // Fresh browser state per route/scenario: guards, observations,
     // pending requests and service workers never leak between cases.
-    const ctx = await browser.newContext(context);
+    // Service workers are blocked: once one controls the page, WebKit sends
+    // requests through it and Playwright's route fixtures no longer apply.
+    const ctx = await browser.newContext({ ...context, serviceWorkers: 'block' });
     const fixturePhone = phoneFixtures(ws, remote);
     let degraded = !['fresh', 'healthy', 'phone-layout'].includes(scenario), successfulReads = 0, injected = 0;
     const page = await ctx.newPage(), errors = [];
