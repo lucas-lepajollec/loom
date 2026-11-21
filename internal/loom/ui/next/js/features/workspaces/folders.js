@@ -44,7 +44,7 @@ function FolderForm({ target, current, editing, onClose, onDone, choose }) {
     finally { running.current = false; setBusy(false); }
   };
   return html`<${Modal} title=${editing ? t('workspaces.edit') : t('workspaces.new')} onClose=${busy ? undefined : onClose}
-    foot=${html`<button class="btn ghost" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !path.trim() || ((save || def) && !name.trim())} onClick=${submit}>${t('ui.dialog.enregistrer')}</button>`}>
+    foot=${html`<button class="btn" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !path.trim() || ((save || def) && !name.trim())} onClick=${submit}>${t('ui.dialog.enregistrer')}</button>`}>
     <form class="ws-form" onSubmit=${submit}>
       <label class="field"><span>${t('workspaces.path')}</span>
         <div class="field-row"><input class="input" aria-label=${t('workspaces.path')} value=${path} onInput=${e => setPath(e.target.value)} placeholder=${t('workspaces.absolute_path')} />${target === 'local' && html`<button type="button" class="btn" title=${t('workspaces.browse')} aria-label=${t('workspaces.browse')} onClick=${() => setPick(true)}><${Icon} n="folder" /></button>`}</div></label>
@@ -74,7 +74,7 @@ export function WorkspacePicker({ target = 'local', current = '', onPick, inheri
   return html`<div class="workspace-picker">
     <${ListPick} label=${t('workspaces.title')} disabled=${busy || !target} value=${items.find(w => w.path === current)?.id || ''} onChange=${v => v ? select(v) : onPick({ path: '' })}
       options=${[{ value: '', label: current || (inheritDefault && inherited ? inherited.name + ' · ' + t('workspaces.default') : t('workspaces.choose')), disabled: !inheritDefault }, ...items.map(w => ({ value: w.id, label: w.name + (w.default ? ' · ' + t('workspaces.default') : '') }))]} />
-    <button class="btn ghost sm" onClick=${() => setForm(true)}>${t('workspaces.new')}</button>
+    <button class="btn sm" onClick=${() => setForm(true)}>${t('workspaces.new')}</button>
     ${form && html`<${FolderForm} target=${target} current=${current} choose onClose=${() => setForm(false)} onDone=${async w => { const picked = await onPick(w); if (picked === false) return false; await refresh(); }} />`}
   </div>`;
 }
@@ -85,7 +85,7 @@ function WorkspaceCard({ w, busy, onEdit, onAction }) {
   const items = [{ icon: 'edit', label: t('workspaces.edit'), run: onEdit }, ...(!w.default ? [{ icon: 'star', label: t('workspaces.make_default'), run: () => onAction('default', w) }] : []),
     ...(!w.managed ? ['-', { icon: 'trash', label: t('workspaces.remove'), danger: true, run: () => onAction('remove', w) }] : [])];
   return html`<div class="mcard ws-card">
-    <div class="mcard-h"><span class="mx-ico"><${Icon} n="folder" /></span><span class="grow"><b>${w.name}</b><small class="mono" title=${w.path}>${home(w.path)}</small></span>
+    <div class="mcard-h"><span class="logo-mark sm mx-ico" aria-hidden="true"><${Icon} n="folder" /></span><span class="grow"><b>${w.name}</b><small class="mono" title=${w.path}>${home(w.path)}</small></span>
       <button class="icon-btn" disabled=${busy} aria-label=${t('brain.src.actions')} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button></div>
     <div class="ws-card-f">${w.default ? html`<span class="tag">${t('workspaces.default')}</span>` : html`<span class="muted">${t('workspaces.saved')}</span>`}${w.managed && html`<span class="muted">${t('workspaces.managed')}</span>`}</div>
     ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${items} />`}
@@ -112,7 +112,7 @@ function MachineWorkspaces({ target, title, sub }) {
     ${title && html`<div class="sec-h"><h2>${title}</h2>${sub && html`<span class="muted mono ws-sub">${sub}</span>`}</div>`}
     ${items === null ? html`<div class="skeleton" style="height:96px"></div>` : html`<div class="mcards">
       ${items.map(w => html`<${WorkspaceCard} key=${w.id} w=${w} busy=${busy} onEdit=${() => setForm(w)} onAction=${action} />`)}
-      <button type="button" class="mcard add" onClick=${() => setForm({})}><${Icon} n="plus" /><span>${t('workspaces.add')}</span></button>
+      <button type="button" class="btn mcard-add" onClick=${() => setForm({})}><${Icon} n="plus" /><span>${t('workspaces.add')}</span></button>
     </div>`}
     ${form && html`<${FolderForm} target=${target} editing=${form.id ? form : null} onClose=${() => setForm(null)} onDone=${refresh} />`}
   </section>`;

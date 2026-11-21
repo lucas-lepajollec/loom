@@ -1,6 +1,7 @@
 // Codeman's settings are server-wide. Scalar fields save independently;
 // Codeman replaces nested settings objects, so edits to them are serialized.
 import { t, locale } from '../../core/i18n.js';
+import { ListPick } from '../../ui/listpick.js';
 import { html, useState, useEffect, useLayoutEffect, useRef, useStore } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Switch } from '../../ui/controls.js';
@@ -45,9 +46,8 @@ function TextField({ value, placeholder, label, mono, onSave, type = 'text', min
 
 function Select({ value, options, onChange, label, disabled }) {
   const list = options.some(([v]) => v === value) ? options : [[value, value], ...options];
-  return html`<select class="select sm" value=${value} aria-label=${label} disabled=${disabled} onChange=${e => onChange(e.target.value)}>
-    ${list.map(([v, l]) => html`<option key=${v} value=${v}>${l}</option>`)}
-  </select>`;
+  return html`<${ListPick} class="sm" value=${String(value)} label=${label} disabled=${disabled} onChange=${onChange}
+    options=${list.map(([v, l]) => ({ value: String(v), label: l }))} />`;
 }
 
 function Line({ label, tip, cli, children }) {
@@ -92,7 +92,7 @@ function VoiceKey({ configured, onSave, disabled }) {
         placeholder=${configured ? t('agents.cfg.voice_key_set') : t('agents.cfg.voice_key_empty')} onInput=${e => setDraft(e.target.value)} />
     </label>
     <div class="cm-key-actions">
-      ${configured && html`<button class="btn sm ghost danger" type="button" disabled=${disabled} onClick=${remove}>${t('agents.cfg.voice_key_clear')}</button>`}
+      ${configured && html`<button class="btn sm danger" type="button" disabled=${disabled} onClick=${remove}>${t('agents.cfg.voice_key_clear')}</button>`}
       <button class="btn sm" type="button" disabled=${disabled || !draft.trim()} onClick=${() => { onSave(draft.trim()); setDraft(''); }}>${t('agents.save')}</button>
     </div>
   </div>`;
@@ -480,9 +480,8 @@ export function CodemanSettings() {
       <div class="cm-cfg-links">${groups.map(([id, label]) => html`<button key=${id}
         disabled=${!connected && id !== 'connection'} aria-current=${selected === id ? 'true' : undefined} onClick=${() => setGroup(id)}>${label}</button>`)}</div>
       <label class="cm-cfg-picker"><span>${t('agents.admin.groups')}</span>
-        <select class="select" value=${selected} onChange=${e => setGroup(e.target.value)}>
-          ${groups.map(([id, label]) => html`<option key=${id} value=${id} disabled=${!connected && id !== 'connection'}>${label}</option>`)}
-        </select></label>
+        <${ListPick} value=${selected} onChange=${setGroup}
+          options=${groups.map(([value, label]) => ({ value, label, disabled: !connected && value !== 'connection' }))} /></label>
       <p>${t('agents.cfg.lead')}</p>
       ${link && html`<a href=${link} target="codeman" rel="noopener">${t('agents.official')} <${Icon} n="link" /></a>`}
     </nav>

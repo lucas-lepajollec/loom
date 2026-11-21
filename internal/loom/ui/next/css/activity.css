@@ -33,14 +33,12 @@
 .q-reset-phone,.q-reset-short{display:none}
 .q-paused-row{width:100%;border-radius:inherit;text-align:left}
 .q-paused-row:hover{background:var(--hover)}
-.q-paused-row > span:not(.mono-tile){display:flex;flex:1;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:2px 12px;min-width:0;overflow-wrap:anywhere}
+.q-paused-row > span:not(.logo-mark){display:flex;flex:1;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:2px 12px;min-width:0;overflow-wrap:anywhere}
 .q-paused-row b{font-weight:500}
 .q-paused-row .ico{color:var(--text-3)}
 
 /* Account cards */
 .q-limits-title{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-.q-mark{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:4px;background:var(--surface-3);color:var(--text);font:600 8px var(--mono)}
-.q-mark-claude{background:transparent}
 .q-acc{display:flex;flex-direction:column;gap:14px;padding:16px}
 .q-acc-h{display:flex;align-items:center;gap:8px;min-width:0}
 .q-acc-h h3{flex:1;min-width:0;margin:0;font-size:14px;font-weight:600;overflow-wrap:anywhere}
@@ -72,7 +70,7 @@
 .q-chart{display:flex;flex-direction:column;gap:8px;min-width:0;margin:0}
 .q-chart-head,.q-chart-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;font-size:13px}
 .q-chart-head{min-height:28px;overflow-wrap:anywhere}
-.q-chart-head .q-chart-select{flex:0 1 auto;width:auto;min-width:0;max-width:100%;background-color:var(--surface-2);font-size:13px}
+.q-chart-head .q-chart-select{flex:0 1 auto;width:auto}
 .q-chart-value{margin-left:auto;color:var(--quota-tone,var(--text-3));font-variant-numeric:tabular-nums}
 .q-chart-plot{width:100%;color:var(--quota-tone,var(--text))}
 .q-chart-plot.has-window{height:120px}
@@ -127,7 +125,7 @@
 .usage-t .usage-cost{flex-direction:column;align-items:flex-end}
 .usage-t .usage-cost small{font-weight:400;line-height:1.3}
 .activity-view .q-tokens .tr{grid-template-columns:minmax(0,1.5fr) repeat(4,minmax(0,1fr))}
-.usage-t .usage-price{max-width:100%;height:auto;min-height:28px;text-align:start;white-space:normal;box-shadow:none}
+.usage-t .usage-price{text-align:start}
 .usage-price .ico{flex:none;width:13px;height:13px;color:var(--text-3)}
 .usage-price span{min-width:0;overflow-wrap:anywhere}
 .q-day{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -155,9 +153,8 @@
   .activity-in > .sec-tabs a{flex:1;justify-content:center;min-width:0;min-height:44px;padding:0 4px;border-radius:9px;font-size:14px;text-align:center;white-space:normal}
   .activity-in > .sec-tabs a[aria-current="page"]{box-shadow:none;background:var(--surface-3)}
   .activity-heading h2,.q-limits-title{padding-inline:4px;color:var(--text-3);font-size:13px;font-weight:500}
-  .activity-in .btn,.usage-price-form :is(.btn,.input,.select){min-height:44px}
   .activity-heading .seg{max-width:100%;flex-wrap:wrap}
-  .activity-heading .seg.sm button{min-height:44px;height:auto;padding-inline:8px}
+  .activity-heading .seg.sm button{padding-inline:8px}
   .activity-in .tip::before{content:"";position:absolute;inset:-15px}
   .activity-card,.activity-view .table.card{border-radius:14px}
   .activity-grid{grid-template-columns:minmax(0,1fr)}
@@ -171,10 +168,6 @@
   .q-reset-phone{display:flex}
   .q-reset-short{display:inline}
   .q-reset-desktop,.q-reset-text{display:none}
-  .q-reset-pop .item{min-height:44px;align-items:center;flex-wrap:wrap;gap:2px 8px}
-  .q-reset-pop .item small{white-space:normal}
-  .q-mark{width:20px;height:20px;border-radius:5px;font-size:9px}
-  .q-reset-row .q-mark-claude .mono-tile{width:18px;height:18px}
   .q-limits-title{position:static;width:auto;height:auto;margin:0;overflow:visible;clip-path:none}
   .q-accs{gap:0;border-radius:14px;background:var(--surface)}
   .q-accs .q-acc{gap:10px;padding:14px;border-radius:0;background:transparent}
@@ -189,7 +182,6 @@
   .q-win-f .q-win-desktop + .q-pace::before{content:none}
   .q-charts{padding:14px}
   .q-charts.with-daily > .q-chart + .q-chart{padding-top:12px;border-top:1px solid var(--line-soft)}
-  .q-chart-head .q-chart-select{min-height:44px}
   .q-day-bars{gap:4px}
   .usage-balances{gap:0;border-radius:14px;background:var(--surface)}
   .usage-balances > .usage-balance{padding:10px 14px 14px;border-radius:0;background:transparent}
@@ -197,7 +189,6 @@
   .usage-balance-head .icon-btn{width:44px;height:44px}
   .activity-view .usage-t .tr:not(.th){padding:12px 14px;row-gap:8px}
   .activity-view .usage-t .tr [data-label]{align-self:start}
-  .usage-price-form .acts{gap:8px}
 }
 @media(max-width:720px){
   .main:has(> .activity-view) > .mobile-bar{display:none}

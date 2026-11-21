@@ -1,11 +1,12 @@
 import { getLang, t } from '../../core/i18n.js';
+import { ListPick } from '../../ui/listpick.js';
 import { html, useState, useEffect, useRef, useStore, cls, fmtBytes, baseName } from '../../core/lib.js';
 import { get, post } from '../../core/api.js';
 import { app, go, engineState, refreshLibrary, refreshStatus, refreshEngineNode } from '../../core/state.js';
 import { visibleRefresh } from '../../core/poll.js';
 import { groupOf } from '../../app/sections.js';
 import { Icon } from '../../ui/icons.js';
-import { Menu, Popover, Empty, Tip, Seg } from '../../ui/controls.js';
+import { Menu, Empty, Tip, Seg } from '../../ui/controls.js';
 import { TabNav } from '../../ui/tabnav.js';
 import { confirm, toast, Modal } from '../../ui/dialog.js';
 import { Drawer, inspectTrigger } from '../../ui/drawer.js';
@@ -101,9 +102,8 @@ function LibraryStatus({ onUnload }) {
       <button class=${cls('btn', !status?.active && 'primary')} disabled=${!!pending || unavailable || !status} onClick=${toggle}>
         ${status?.active ? t('local.page.arreter') : t('local.page.demarrer')}
       </button>
-      ${status?.active && !unavailable && (status.model || status.via_api) && html`<${RowMenu} name=${name || kind}>
-        <button class="item" onClick=${onUnload}>${t('local.page.decharger')}</button>
-      </${RowMenu}>`}
+      ${status?.active && !unavailable && (status.model || status.via_api) && html`<${RowMenu} name=${name || kind}
+        items=${[{ label: t('local.page.decharger'), run: onUnload }]} />`}
     </div>
   </section>`;
 }
@@ -122,22 +122,20 @@ function NewPreset({ models, onClose, onCreated }) {
     onCreated({ id: r.id, name: name.trim(), model });
   };
   return html`<${Modal} title=${t('local.page.nouveau_preset')} sub=${t('local.page.choisis_le_modele_tu_regleras_ensuite_ses_parametres_dans_le_pann')} onClose=${onClose}
-      foot=${html`<button class="btn ghost" onClick=${onClose}>${t('local.page.annuler')}</button><button class="btn primary" disabled=${busy || !name.trim() || !model} onClick=${create}>${t('local.page.creer')}</button>`}>
+      foot=${html`<button class="btn" onClick=${onClose}>${t('local.page.annuler')}</button><button class="btn primary" disabled=${busy || !name.trim() || !model} onClick=${create}>${t('local.page.creer')}</button>`}>
     <label class="field"><span>${t('local.page.nom')}</span><input class="input" autofocus placeholder=${t('local.page.ex_qwen_27b_long_contexte')} value=${name} onInput=${e => setName(e.target.value)} onKeyDown=${e => e.key === 'Enter' && create()} /></label>
-    <label class="field"><span>${t('local.page.modele')}</span><select class="select" value=${model} onChange=${e => setModel(e.target.value)}>
-      ${models.map(m => html`<option key=${m.path} value=${m.value || m.path}>${modelName(m.name)}</option>`)}</select></label>
+    <label class="field"><span>${t('local.page.modele')}</span>
+      <${ListPick} value=${model} onChange=${setModel} disabled=${!models.length}
+        options=${models.map(m => ({ value: m.value || m.path, label: modelName(m.name) }))} /></label>
     ${!models.length && html`<p class="note">${t('local.page.aucun_modele_dans_la_bibliotheque_telecharge_en_un_depuis_le_hub')}</p>`}
   </${Modal}>`;
 }
 
-function RowMenu({ name, children }) {
+function RowMenu({ name, items }) {
   const [anchor, setAnchor] = useState(null);
-  const close = () => setAnchor(null);
-  return html`<button class="icon-btn" aria-label=${t('models.row.actions', { name })}
-    aria-haspopup="dialog" aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
-    ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} class="models-menu">
-      <div onClick=${e => { if (e.target.closest('button')) close(); }}>${children}</div>
-    </${Popover}>`}`;
+  return html`<button type="button" class="icon-btn" aria-label=${t('models.row.actions', { name })}
+    aria-haspopup="menu" aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(e.currentTarget)}><${Icon} n="more" /></button>
+    ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${items} />`}`;
 }
 
 function Library({ enginePicker }) {
@@ -267,13 +265,12 @@ function Library({ enginePicker }) {
             <div class="models-actions">
               ${on ? html`<span class=${stateClass}>${modelState}</span><button class="btn sm" onClick=${unload}>${t('local.page.decharger')}</button>`
                 : html`<button class="btn sm" onClick=${() => loadPreset(p)}>${t('local.page.charger')}</button>`}
-              <button class="btn sm ghost" onClick=${() => openPreset(p)}>${t('local.page.regler')}</button>
-              <${RowMenu} name=${p.name}>
-                <button class="item" disabled=${ordering || index === 0} onClick=${() => movePreset(p, -1)}>${t('local.page.monter')}</button>
-                <button class="item" disabled=${ordering || index === presets.length - 1} onClick=${() => movePreset(p, 1)}>${t('local.page.descendre')}</button>
-                <hr />
-                <button class="item danger" onClick=${() => removePreset(p)}><${Icon} n="trash" />${t('local.page.supprimer')}</button>
-              </${RowMenu}>
+              <button class="btn sm" onClick=${() => openPreset(p)}>${t('local.page.regler')}</button>
+              <${RowMenu} name=${p.name} items=${[
+                { label: t('local.page.monter'), disabled: ordering || index === 0, run: () => movePreset(p, -1) },
+                { label: t('local.page.descendre'), disabled: ordering || index === presets.length - 1, run: () => movePreset(p, 1) },
+                '-', { label: t('local.page.supprimer'), icon: 'trash', danger: true, run: () => removePreset(p) },
+              ]} />
             </div>
           </div>`;
         }) : html`<div class="models-row models-empty">${unavailable.presets ? t('engine.na.unreachable') : query
@@ -302,7 +299,7 @@ function Library({ enginePicker }) {
             <div class="models-actions">
               ${on ? html`<span class=${stateClass}>${modelState}</span>`
                 : html`<button class="btn sm" onClick=${() => load('/api/load-model', { model: m.value || m.path }, name)}>${t('local.page.charger')}</button>`}
-              <button class="btn sm ghost" onClick=${() => openModel(m)}>${t('local.page.regler')}</button>
+              <button class="btn sm" onClick=${() => openModel(m)}>${t('local.page.regler')}</button>
               <button class="icon-btn" aria-label=${t('models.row.actions', { name })} onClick=${e => setMenu({ anchor: e.currentTarget, items: [
                 ...(on ? [{ label: t('local.page.decharger'), run: unload }, '-'] : []),
                 { label: t('local.page.supprimer_le_fichier'), icon: 'trash', danger: true, run: () => remove(m) },
@@ -420,7 +417,7 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
       ${location}
       ${!direct && html`<div class="models-row">
         <span class="models-row-main">${t('local.page.journal_du_moteur')}</span>
-        <button class="btn sm ghost" onClick=${showLog}>${t('models.engine.show_log')}</button>
+        <button class="btn sm" onClick=${showLog}>${t('models.engine.show_log')}</button>
       </div>`}
     </div>
     ${error && html`<div class="alert red"><${Icon} n="alert" /><span>${error}</span></div>`}

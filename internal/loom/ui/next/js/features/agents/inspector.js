@@ -7,7 +7,7 @@ import { lt } from './labels.js';
 import { t, locale } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Switch, Empty, Seg, Menu } from '../../ui/controls.js';
+import { DropdownButton, Switch, Empty, Seg, Menu } from '../../ui/controls.js';
 import { Modal, toast, prompt, confirm } from '../../ui/dialog.js';
 import { copyText } from '../../ui/clipboard.js';
 import { api, sendPrompt } from './client.js';
@@ -34,7 +34,7 @@ function useRead(read, deps) {
   return [st, run];
 }
 
-const Failed = ({ error, retry }) => html`<div class="cm-insp-err"><${Icon} n="alert" /><span>${error}</span><button class="btn sm ghost" onClick=${() => retry()}>${t('agents.retry')}</button></div>`;
+const Failed = ({ error, retry }) => html`<div class="cm-insp-err"><${Icon} n="alert" /><span>${error}</span><button class="btn sm" onClick=${() => retry()}>${t('agents.retry')}</button></div>`;
 const Loading = () => html`<div class="skeleton" style="height:18px"></div><div class="skeleton" style="height:18px;width:70%"></div>`;
 
 function ActivityTab({ id }) {
@@ -96,7 +96,7 @@ function FileModal({ id, path, onClose }) {
   const [st] = useRead(() => api.fileContent(id, path), [path]);
   const content = st.data?.content || '';
   return html`<${Modal} wide title=${path} onClose=${onClose}
-      foot=${html`<button class="btn ghost" onClick=${() => copyText(path)}>${t('agents.files.copy_path')}</button>`}>
+      foot=${html`<button class="btn" onClick=${() => copyText(path)}>${t('agents.files.copy_path')}</button>`}>
     ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="muted">${st.error}</p>`
       : typeof st.data?.content !== 'string' ? html`<p class="muted">${t('agents.files.binary')}</p>`
       : html`<pre class="cm-file">${content}</pre>`}
@@ -156,7 +156,7 @@ function InfoTab({ session }) {
     ${session.tokens?.total > 0 && html`<${Row} k=${t('agents.info.tokens')}>${fmtTok(session.tokens.input)} ↓ · ${fmtTok(session.tokens.output)} ↑</${Row}>`}
     ${session.totalCost > 0 && html`<${Row} k=${t('agents.info.cost')}>$${session.totalCost.toFixed(2)}</${Row}>`}
     ${pc && html`<${Row} k=${t('agents.info.cache')}>${pc.warm ? t('agents.info.cache_warm', { ttl: pc.ttl || '' }) : t('agents.info.cache_cold')}${typeof pc.hitRatio === 'number' ? ' · ' + Math.round(pc.hitRatio * 100) + '%' : ''}</${Row}>`}
-    <${Row} k=${t('agents.info.id')}><button class="cm-copy mono" onClick=${() => copyText(session.id).then(() => toast(t('agents.copied')))}>${session.id.slice(0, 8)}…</button></${Row}>
+    <${Row} k=${t('agents.info.id')}><button class="btn sm mono" onClick=${() => copyText(session.id).then(() => toast(t('agents.copied')))}>${session.id.slice(0, 8)}…</button></${Row}>
     ${session.mode === 'claude' && html`<div class="cm-switches">
       <label class="cm-switch"><span><b>${t('agents.info.auto_resume')}</b><small>${session.autoResumeAt > Date.now() ? t('agents.info.auto_resume_at', { at: when(session.autoResumeAt) }) : t('agents.info.auto_resume_hint')}</small></span>
         <${Switch} checked=${!!session.autoResumeEnabled} disabled=${busy} onChange=${v => toggle((id, on) => api.autoResume(id, on).then(r => upsertSession({ id, autoResumeEnabled: on, autoResumeAt: r?.autoResume?.resumeAt ?? (on ? session.autoResumeAt : null) })), v)} label=${t('agents.info.auto_resume')} /></label>
@@ -214,7 +214,7 @@ function ModelRow({ s }) {
   const send = cmd => sendPrompt(s.id, cmd).then(() => toast(t('agents.panel.sent', { cmd }))).catch(e => toast(e.message, 'err'));
   if (s.mode !== 'claude') return model ? html`<div class="cm-kv"><span>${t('agents.info.model')}</span><b>${model}</b></div>` : null;
   return html`<div class="cm-kv"><span>${t('agents.info.model')}</span>
-    <button class="btn sm dd" onClick=${e => setMenu(e.currentTarget)}>${model || t('agents.new.model_ph')}<${Icon} n="chevron" /></button>
+    <${DropdownButton} class="sm fit" open=${menu} onClick=${e => setMenu(e.currentTarget)}><span class="trunc">${model || t('agents.new.model_ph')}</span></${DropdownButton}>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${CLAUDE_MODELS.map(m => ({ label: m[0].toUpperCase() + m.slice(1), icon: model.toLowerCase().includes(m) ? 'check' : '', run: () => send('/model ' + m) }))} />`}</div>`;
 }
 
@@ -253,11 +253,11 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
         <div class="cm-kv"><span>${t('agents.info.dir')}</span><b class="mono trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</b></div>
       </div>
       <div class="cm-panel-acts">
-        ${s.mode !== 'shell' && html`<button disabled=${!!busy} onClick=${shell}>${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}<span>${t('agents.panel.shell')}</span></button>`}
+        ${s.mode !== 'shell' && html`<button class="btn sm" disabled=${!!busy} onClick=${shell}>${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}<span>${t('agents.panel.shell')}</span></button>`}
         ${s.mode === 'claude' ? html`
-          <button disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>
-          <button disabled=${!!busy} onClick=${() => slash('/clear', true)}><${Icon} n="refresh" /><span>${t('agents.panel.clear')}</span></button>`
-        : link ? html`<button onClick=${() => window.open(link, 'codeman')}><${Icon} n="link" /><span>${t('agents.panel.codeman')}</span></button>` : ''}
+          <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>
+          <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/clear', true)}><${Icon} n="refresh" /><span>${t('agents.panel.clear')}</span></button>`
+        : link ? html`<a class="btn sm" href=${link} target="codeman" rel="noopener"><${Icon} n="link" /><span>${t('agents.panel.codeman')}</span></a>` : ''}
       </div>
       <${HarnessQuota} mode=${s.mode} />
       <div class="cm-panel-secs">

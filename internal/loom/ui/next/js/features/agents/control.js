@@ -34,7 +34,7 @@ function ApprovalRow({ a }) {
     <div class="cm-cc-appr-a">
       ${a.kind !== 'idle' && !terminal && html`${(a.options && a.options.length ? a.options : [{ n: 1, label: t('agents.approval.approve') }]).map(o => html`<button class=${cls('btn sm', o.n === 1 && 'primary')} disabled=${busy}
           onClick=${() => run(a.options && a.options.length ? { action: 'option', option: o.n } : { action: 'approve' })}>${o.label}</button>`)}
-        <button class="btn sm ghost danger" disabled=${busy} onClick=${() => run({ action: 'deny' })}>${t('agents.approval.deny')}</button>`}
+        <button class="btn sm danger" disabled=${busy} onClick=${() => run({ action: 'deny' })}>${t('agents.approval.deny')}</button>`}
       <button class="btn sm" onClick=${() => { if (terminal) setViewOf(a.sessionId, 'term'); openSession(a.sessionId); }}>${terminal ? t('agents.approval.open_terminal') : t('agents.cc.open')}</button>
       <button class="icon-btn" aria-label=${t('agents.approval.dismiss')} onClick=${() => dismissApproval(a).catch(e => toast(e.message, 'err'))}><${Icon} n="close" /></button>
     </div></li>`;
@@ -67,7 +67,7 @@ function Sessions({ list, loaded }) {
     ${list.length ? html`<ul class="cm-session-list" id="cm-live-sessions">
       ${(expanded ? list : list.slice(0, PAGE_SIZE)).map(({ s, state }) => html`<${SessionRow} key=${s.id} s=${s} state=${state} />`)}
     </ul>` : html`<p class="cm-admin-empty">${loaded ? t('agents.rail.empty') : t('agents.conn.connecting')}</p>`}
-    ${list.length > PAGE_SIZE && html`<button class="btn sm ghost cm-more" aria-controls="cm-live-sessions"
+    ${list.length > PAGE_SIZE && html`<button class="btn sm cm-more" aria-controls="cm-live-sessions"
       aria-expanded=${expanded} onClick=${() => setExpanded(!expanded)}>${expanded ? t('agents.cc.less') : t('agents.cc.more')}</button>`}
   </section>`;
 }
@@ -174,8 +174,8 @@ function ResumeList({ sessions }) {
     ${rows.length ? html`<ul class="cm-resume" id="cm-resume-sessions">
       ${rows.slice(0, limit).map(r => html`<li key=${r.sessionId}><${HistoryRow} r=${r} /></li>`)}
     </ul>` : !error && html`<p class="cm-admin-empty">${total < 0 ? t('agents.conn.connecting') : t('agents.cc.no_history')}</p>`}
-    ${rows.length === 0 && error && !more && html`<button class="btn sm ghost cm-more" onClick=${() => loadHistory()}>${t('agents.cfg.retry')}</button>`}
-    ${(rows.length > limit || more) && html`<button class="btn sm ghost cm-more" disabled=${busy}
+    ${rows.length === 0 && error && !more && html`<button class="btn sm cm-more" onClick=${() => loadHistory()}>${t('agents.cfg.retry')}</button>`}
+    ${(rows.length > limit || more) && html`<button class="btn sm cm-more" disabled=${busy}
       aria-controls=${rows.length ? 'cm-resume-sessions' : undefined} onClick=${showMore}>${t('agents.cc.more')}</button>`}
   </section>`;
 }

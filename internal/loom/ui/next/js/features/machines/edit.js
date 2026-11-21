@@ -50,7 +50,7 @@ export function MachineDialog({ machine, onClose }) {
     toast(r.machine.name + t("machines.edit.connectee")); await refreshWorkspace(); onClose(r.machine);
   };
   if (paired) return html`<${Modal} title=${t('environment.page.modifier_prefix') + machine.name} onClose=${() => onClose()}
-    foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t('machines.edit.annuler')}</button>
+    foot=${html`<button class="btn" onClick=${() => onClose()}>${t('machines.edit.annuler')}</button>
       <button class="btn primary" disabled=${!!busy || !v.name.trim()} onClick=${save}>
         ${busy ? t('settings.machines.verification') : t('machines.edit.enregistrer_machine')}
       </button>`}>
@@ -58,7 +58,7 @@ export function MachineDialog({ machine, onClose }) {
   </${Modal}>`;
   const ready = v.host.trim() && v.user.trim();
   return html`<${Modal} wide title=${machine ? t("environment.page.modifier_prefix") + machine.name : t("machines.edit.connecter_une_machine")} sub="${t("machines.edit.un_autre_ordinateur_ou_tournent_des_harnesses_joint_en_ssh")}" onClose=${() => onClose()}
-      foot=${html`<button class="btn ghost" onClick=${() => onClose()}>${t("machines.edit.annuler")}</button>
+      foot=${html`<button class="btn" onClick=${() => onClose()}>${t("machines.edit.annuler")}</button>
         ${check && check.ok ? html`<button class="btn primary" disabled=${!!busy} onClick=${save}>${busy === 'save' ? t("environment.page.connexion") : t("machines.edit.enregistrer_machine")}</button>`
           : html`<button class="btn primary" disabled=${!!busy || !ready} onClick=${test}>${busy === 'check' ? t("machines.edit.test") : t("machines.edit.tester_la_connexion")}</button>`}`}>
     <div class="mx-steps">

@@ -1,9 +1,5 @@
 /* Responsive overrides follow the desktop surface rules. Keep Loom's tokens and
    components; let content wrap rather than clipping whole pages. */
-.pop{z-index:160;min-width:0;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto}
-.picker{overflow:hidden}
-.pick-top,.pick-foot{flex-shrink:0}
-.pick-list{min-height:0}
 .settings-back{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);margin-bottom:12px;font-size:13px}
 
 @media(max-width:1100px) and (min-width:721px){
@@ -34,8 +30,6 @@
   .card,.pad{min-width:0}
   .pad{padding:16px}
   .input,.textarea,.select{max-width:100%;min-width:0}
-  .tabs{overflow-x:auto;flex-wrap:nowrap}
-  .tabs>button{flex-shrink:0}
   .acts,.form-foot{flex-wrap:wrap}
   .state{white-space:normal;overflow-wrap:anywhere}
   .settings{display:block}
@@ -51,29 +45,20 @@
   .set-line.stack{padding:14px}
   .set-line.stack .set-c>div{flex-wrap:wrap;gap:8px}
   .set-actions{padding:12px 14px}
-  .pick-foot{flex-wrap:wrap;gap:8px}
-  .pick-foot>span{flex-basis:100%}
-  .pick-row{min-width:0}
   .pick-top .seg button{padding-left:8px;padding-right:8px;min-width:0}
   .req{grid-template-columns:minmax(0,1fr) auto;gap:8px}
   .brain-search{flex-wrap:wrap}
   .brain-search>.input{flex-basis:100%}
-  .dialog-head{padding:16px 16px 6px;min-width:0}
-  .dialog-body{padding:12px 16px;min-height:0}
-  .dialog-foot{padding:12px 16px 16px;flex-wrap:wrap}
-  .dialog-head h2,.dialog-head p{overflow-wrap:anywhere}
   .tipbox{max-width:calc(100vw - 16px)}
   .topbar>.grow{display:none}
   .mobile-bar,.topbar{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
   .page-in{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
-  .pick-top input,.input,.textarea,.select,.composer textarea{font-size:16px}
+  .composer textarea{font-size:16px}
   .term-view{height:60dvh}
   .cl-bar{flex-wrap:wrap}
   .cl-bar .search{width:100%;min-width:0}
   .local-strip .v{white-space:normal;flex-wrap:wrap}
   .cell-main b{overflow-wrap:anywhere}
-  .scrim{padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
-  .dialog{max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
   .brain-search>.search{flex:1 1 100%;min-width:0}
   .bs-row{align-items:flex-start;padding:12px 10px 12px 14px}
   .workspace-picker{align-items:stretch;flex-direction:column}
@@ -97,25 +82,16 @@
 @media(max-width:720px){
   .page-head{flex-wrap:wrap}
   .page-head .acts>.btn{flex:1 1 auto}
-  .btn{max-width:100%;height:auto;min-height:32px;white-space:normal;overflow-wrap:anywhere;padding-top:4px;padding-bottom:4px}
-  .btn.sm{height:auto;min-height:28px;padding-top:3px;padding-bottom:3px}
-  .btn.lg{height:auto;min-height:40px}
-  .icon-btn,.switch,.dot,.mono-tile,.tip{flex-shrink:0}
+  .btn{overflow-wrap:anywhere}
+  .dot,.tip{flex-shrink:0}
   .pill,.tag,.state{flex-shrink:0;max-width:100%;white-space:normal;overflow-wrap:break-word}
   .pill{height:auto;min-height:24px;padding-top:2px;padding-bottom:2px}
   .tag{height:auto;min-height:20px;padding-top:2px;padding-bottom:2px}
   h1,h2,h3,h4,.row .t,.row .s,.cell-main{min-width:0;overflow-wrap:anywhere}
   .sec-h>h2{flex:1 1 180px;min-width:0}
   .sec-h>.seg{max-width:100%;min-width:0}
-  .seg{flex-wrap:wrap;max-width:100%;min-width:0}
-  .seg .ind{display:none}
-  .seg button,.seg.sm button{flex:1 1 auto;min-width:0;max-width:100%;height:auto;min-height:26px;white-space:normal;overflow-wrap:anywhere;padding-top:3px;padding-bottom:3px}
-  .seg button{border-radius:99px}
-  .seg button[aria-selected="true"]{background:var(--surface-2)}
-  .tabs{flex-wrap:wrap;overflow:visible}
   .sec-tabs{width:100%;min-width:0;gap:20px}
   .sec-tabs a{height:44px;font-size:15px}
-  .tabs>button{min-width:0;max-width:100%;height:auto;min-height:38px;white-space:normal;overflow-wrap:anywhere}
   .acts{max-width:100%;min-width:0;flex-wrap:wrap}
   .toolbar>.grow{flex-basis:100%;min-width:0}
   .toolbar .search{min-width:0;max-width:100%}.field.inline{flex:1 1 160px;min-width:0}
@@ -129,12 +105,8 @@
   .set-l>span{min-width:0}
   .set-line:has(.set-c>:not(.switch))>.set-l{flex-basis:100%}
   .set-c{max-width:100%;min-width:0}
-  .dialog-head>.grow{min-width:0}
-  .dialog-head>.icon-btn{flex:none}
-  .dialog-body .acts,.dialog-foot{align-items:stretch}
-  .dialog-body .acts>.btn,.dialog-foot>.btn{flex:1 1 160px}
+  .dialog-body .acts{align-items:stretch}
   .dialog-body code,.dialog-body pre,.lc-log pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
-  .pop .item{max-width:100%;white-space:normal;overflow-wrap:anywhere;height:auto;min-height:32px}
   .mx-fields{grid-template-columns:minmax(0,1fr)}
 
   /* Object headers share one phone grid: identity + refresh, then state,

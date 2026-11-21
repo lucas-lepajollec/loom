@@ -3,9 +3,9 @@ import { t, getLang } from '../../core/i18n.js';
 // local, cloud), les presets, les modèles locaux puis ceux de chaque
 // fournisseur cloud. La discussion reste la même quel que soit le choix.
 import { Logo } from '../../ui/logo.js';
-import { html, useState, useRef, useStore, useMemo, cls, fmtBytes, baseName } from '../../core/lib.js';
+import { html, useState, useStore, useMemo, cls, fmtBytes, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Seg, Popover } from '../../ui/controls.js';
+import { DropdownButton, Seg, Popover } from '../../ui/controls.js';
 import { app, go, refreshLibrary, refreshWorkspace, runtimeKind } from '../../core/state.js';
 import { chat, chooseLocal, chooseRemote } from './engine.js';
 import { executionKey } from './execution.js';
@@ -47,11 +47,11 @@ function grouped(rows) {
 export const EXEC_TAG = { local: ['Local', 'blue'], cloud: ['Cloud', 'violet'], retired: ['Archive', 'amber'] };
 
 function Row({ title, sub, right, active, loaded, nested, onPick }) {
-  return html`<button type="button" class=${cls('pick-row', active && 'active', nested && 'nested')} onClick=${onPick}>
+  return html`<button type="button" class=${cls('item pick-row', active && 'active')} aria-pressed=${String(!!active)} onClick=${onPick}>
     ${!nested && html`<span class=${cls('dot', loaded ? 'green' : '')}></span>`}
     <span class="pick-txt"><b>${title}</b>${sub && html`<small>${sub}</small>`}</span>
     ${right && html`<span class="pick-right">${right}</span>`}
-    ${active && html`<${Icon} n="check" class="pick-check" />`}
+    ${active && html`<${Icon} n="check" class="item-check" />`}
   </button>`;
 }
 
@@ -62,12 +62,9 @@ export function Picker() {
   const cur = currentExec();
   const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
-  const btn = useRef();
-
-  const toggle = () => {
-    if (anchor) { setAnchor(null); return; }
+  const open = e => {
     refreshLibrary(); refreshWorkspace();
-    setTab('all'); setQ(''); setAnchor(btn.current);
+    setTab('all'); setQ(''); setAnchor(e.currentTarget);
   };
   const close = () => setAnchor(null);
   const wsModels = (workspace && workspace.models) || [];
@@ -96,11 +93,10 @@ export function Picker() {
   const presetsShown = shownLocal.filter(r => r.preset), weightsShown = shownLocal.filter(r => !r.preset);
 
   const extra = cur.kind === 'local' ? quantOf(status && (status.model_name || status.model)) : cur.sub;
-  return html`<button type="button" class=${cls('exec-btn', anchor && 'open')} ref=${btn} onClick=${toggle} aria-haspopup="dialog" aria-expanded=${String(!!anchor)}>
+  return html`<${DropdownButton} class="exec-btn" popup="dialog" open=${anchor} onClick=${open}>
       ${cur.name ? html`<i class=${cls('dot', cur.kind !== 'local' || (status && status.health) ? 'green' : '')}></i><b>${cur.name}</b><span class="exec-sub"><span class="exec-route">${tag}</span>${extra ? ' · ' + extra : ''}</span>` : html`<b>${t("chat.picker.choisir_un_modele")}</b>`}
-      <${Icon} n="chevron" class="exec-caret" />
-    </button>
-    ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} width=${430} heightLimit=${560} heightRatio=${0.75} class="picker">
+    </${DropdownButton}>
+    ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} label=${t('chat.picker.choisir_un_modele')} width=${430} heightLimit=${560} heightRatio=${0.75} class="picker">
       <div class="pick-top">
         <label class="search pick-q"><${Icon} n="search" /><input autofocus placeholder="${t("chat.picker.rechercher_un_modele_un_preset_un_harness")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>
         <${Seg} value=${tab} onChange=${setTab} label="${t("chat.picker.type_d_execution")}" options=${[
@@ -119,9 +115,8 @@ export function Picker() {
             </div>`)}`}
       </div>
       <div class="pick-foot">
-        <button type="button" onClick=${() => { close(); app.set({ newPreset: true }); go('local'); }}>${t("chat.picker.nouveau_preset")}</button>
-        <span class="grow"></span>
-        <button type="button" onClick=${() => { close(); go(tab === 'cloud' ? 'cloud' : 'local'); }}>${t('chat.picker.manage_models')}</button></div>
+        <button class="btn sm" type="button" onClick=${() => { close(); app.set({ newPreset: true }); go('local'); }}>${t("chat.picker.nouveau_preset")}</button>
+        <button class="btn sm" type="button" onClick=${() => { close(); go(tab === 'cloud' ? 'cloud' : 'local'); }}>${t('chat.picker.manage_models')}</button></div>
     </${Popover}>`}`;
 }
 

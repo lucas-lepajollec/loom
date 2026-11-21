@@ -8,7 +8,7 @@
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Menu, Empty } from '../../ui/controls.js';
+import { DropdownButton, Menu, Seg, Empty } from '../../ui/controls.js';
 import { prompt, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go } from '../../core/state.js';
@@ -113,14 +113,12 @@ function Source({ scopeNow, onScope, onRoot, refresh, rootLabel, rootPath, actio
   ];
   return html`<div class="fl-source">
     <div class="fl-tree-h">
-      <button class="fl-root" title=${rootPath} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="server" />${name}<${Icon} n="chevron" /></button>
+      <${DropdownButton} class="sm fit" open=${menu} title=${rootPath} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="server" /><span class="trunc">${name}</span></${DropdownButton}>
       ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
       <span class="grow"></span>${actions}
     </div>
-    <div class="seg fl-scope" role="tablist" aria-label=${t('files.scope')}>
-      <button role="tab" aria-selected=${String(scopeNow === 'brain')} onClick=${() => onScope('brain')}>${rootLabel}</button>
-      <button role="tab" aria-selected=${String(scopeNow === 'machine')} onClick=${() => onScope('machine')}>${t('files.whole_machine')}</button>
-    </div>
+    <${Seg} class="fl-scope" size="sm" label=${t('files.scope')} value=${scopeNow} onChange=${onScope}
+      options=${[{ value: 'brain', label: rootLabel }, { value: 'machine', label: t('files.whole_machine') }]} />
   </div>`;
 }
 

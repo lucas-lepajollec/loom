@@ -259,7 +259,7 @@ function MachineVoice({ machine, machines, chooseMachine, switching, focusJarvis
         ${e.installed && !ready && html`<p class="note vx-hint">${t('voice.choose_models')}</p>`}
         ${svc.error && html`<div class="pad"><p class="note err">${svc.error}</p></div>`}
         ${!e.installed && requires}
-        ${dl.running && html`<${Line} label=${PHASE()[dl.phase] || dl.phase}><span class="mono muted">${dl.artifact} ${dl.total ? Math.round(dl.received * 100 / dl.total) + ' %' : ''}</span><button type="button" class="btn sm ghost" onClick=${() => act('cancel', '/api/voice/download/cancel', {})}>${t('ui.dialog.annuler')}</button></${Line}>`}
+        ${dl.running && html`<${Line} label=${PHASE()[dl.phase] || dl.phase}><span class="mono muted">${dl.artifact} ${dl.total ? Math.round(dl.received * 100 / dl.total) + ' %' : ''}</span><button type="button" class="btn sm" onClick=${() => act('cancel', '/api/voice/download/cancel', {})}>${t('ui.dialog.annuler')}</button></${Line}>`}
         <${Line} label=${t('voice.where')} tip=${t('voice.machine_tip')}>
           <div class="set-pick"><${ListPick} label=${t('voice.machine')} value=${machine} disabled=${switching || !!busy || testBusy} onChange=${chooseMachine} options=${(machines.length ? machines : [{ id: machine, name: machineLabel }]).map(m => ({ value: m.id, label: m.id === 'local' ? t('settings.machines.cette_machine_2') : m.name }))} /></div>
         </${Line}>
@@ -271,7 +271,7 @@ function MachineVoice({ machine, machines, chooseMachine, switching, focusJarvis
           <div class="vx-sec-h"><h2>${t('voice.speech')}</h2></div>
           <div class="card">
             ${packs.length > 0 && html`<${Line} label=${t('voice.installed_pack')} sub=${installedPack ? (PACK()[installedPack.pack?.id] || installedPack.pack?.id) : t('voice.pack_none')}>
-              <button type="button" class="btn sm ghost" onClick=${() => setShowPacks(true)}>${installedPack ? t('voice.pack_change') : t('voice.choose_pack')}</button>
+              <button type="button" class="btn sm" onClick=${() => setShowPacks(true)}>${installedPack ? t('voice.pack_change') : t('voice.choose_pack')}</button>
             </${Line}>`}
             ${ready && html`<${Line} label=${t('voice.sample_label')} stack>
               <div class="vx-preview">
@@ -315,7 +315,7 @@ function MachineVoice({ machine, machines, chooseMachine, switching, focusJarvis
           <div class="card">${models.filter(m => !kind || m.kind === kind).map(m => html`<div class="set-line" key=${m.id}>
             <div class="set-l vx-model"><span><b>${m.id}</b> <span class="tag">${KIND()[m.kind] || m.kind}</span>${[cfg.stt, cfg.tts, cfg.vad].includes(m.id) && html` <span class="tag green">${t('voice.in_use')}</span>`}${m.streaming && html` <span class="tag">${t('voice.streaming')}</span>`}</span><small class="muted">${[(m.languages || []).join(', '), m.family, fmtSize(m.installed ? m.disk_bytes : m.size)].filter(Boolean).join(' · ')}</small></div>
             <div class="set-c">${m.installed ? html`<button class="icon-btn" aria-label=${t('settings.page.supprimer')} disabled=${!!busy || svc.running} onClick=${async () => { if (await confirm(t('voice.delete_title', { id: m.id }), t('voice.delete_text'), { ok: t('settings.page.supprimer'), danger: true })) act('del', '/api/voice/models/delete', { id: m.id }); }}><${Icon} n="trash" /></button>`
-              : html`<button class="btn sm ghost" disabled=${!!busy || dl.running || !m.installable} onClick=${() => act('dl', '/api/voice/models/download', { id: m.id })}><${Icon} n="download" />${t('voice.download')}</button>`}</div></div>`)}</div>
+              : html`<button class="btn sm" disabled=${!!busy || dl.running || !m.installable} onClick=${() => act('dl', '/api/voice/models/download', { id: m.id })}><${Icon} n="download" />${t('voice.download')}</button>`}</div></div>`)}</div>
         </details>
       </div>`}
 

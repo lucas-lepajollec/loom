@@ -10,6 +10,7 @@
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
+import { Modal } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { visibleConnection } from '../../core/poll.js';
 import { validShape } from '../../core/shape.js';
@@ -293,8 +294,9 @@ export function VoiceMode({ discussionId, internet = false, onClose }) {
       : html`<div class="vm-stage"><${Orb} levels=${levels} state=${phase} /><div class="vm-state" aria-live="polite">${label}</div></div>
         <div class="vm-lines" aria-live="polite">${lines.slice(-6).map((l, i) => html`<p key=${i} class=${cls('vm-line', l.who, l.live && 'live')}>${l.text}</p>`)}
           ${error && html`<p class="vm-line err">${error}</p>`}</div>`}
-    ${ending && html`<div class="vm-end"><div class="card pad"><b>${t('vm.keep_title')}</b><p class="note">${t('vm.keep_note')}</p>
-      <div class="set-actions"><button class="btn primary" onClick=${() => finish(true)}>${t('vm.keep')}</button><button class="btn ghost" onClick=${() => finish(false)}>${t('vm.discard')}</button></div></div></div>`}
+    ${ending && html`<${Modal} title=${t('vm.keep_title')} sub=${t('vm.keep_note')} onClose=${() => setEnding(false)}
+      foot=${html`<button class="btn" onClick=${() => finish(false)}>${t('vm.discard')}</button>
+        <button class="btn primary" onClick=${() => finish(true)}>${t('vm.keep')}</button>`} />`}
   </div>`;
 }
 

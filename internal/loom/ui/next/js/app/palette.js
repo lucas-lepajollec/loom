@@ -1,9 +1,10 @@
 import { t, getLang } from '../core/i18n.js';
 // Palette de recherche (Ctrl K) : pages, discussions, modèles et
 // actions au même endroit. Flèches pour naviguer, Entrée pour ouvrir.
-import { html, useState, useEffect, useRef, useStore, useMemo, cls, baseName } from '../core/lib.js';
+import { html, useState, useEffect, useRef, useStore, useMemo } from '../core/lib.js';
 import { Icon } from '../ui/icons.js';
 import { Logo } from '../ui/logo.js';
+import { Modal } from '../ui/dialog.js';
 import { app, go, setTheme } from '../core/state.js';
 import { open, newDiscussion, chooseLocal, chooseRemote } from '../features/chat/engine.js';
 import { vendorOf } from '../features/chat/picker.js';
@@ -15,8 +16,8 @@ export const openPalette = () => app.set({ palette: true });
 function entries(s) {
   const out = [];
   const add = (group, e) => out.push({ group, ...e });
-  add('Actions', { icon: 'plus', title: t("app.palette.nouvelle_discussion"), hint: t("app.palette.ctrl_maj_o"), run: () => newDiscussion() });
-  add('Actions', { icon: s.theme === 'light' ? 'moon' : 'sun', title: s.theme === 'light' ? t("app.palette.passer_en_theme_sombre") : t("app.palette.passer_en_theme_clair"), run: () => setTheme(s.theme === 'light' ? 'dark' : 'light') });
+  add(t('app.shell.actions'), { icon: 'plus', title: t("app.palette.nouvelle_discussion"), hint: t("app.palette.ctrl_maj_o"), run: () => newDiscussion() });
+  add(t('app.shell.actions'), { icon: s.theme === 'light' ? 'moon' : 'sun', title: s.theme === 'light' ? t("app.palette.passer_en_theme_sombre") : t("app.palette.passer_en_theme_clair"), run: () => setTheme(s.theme === 'light' ? 'dark' : 'light') });
   for (const r of NAV_ITEMS) add(t("app.palette.pages"), { icon: r.nav.icon, title: r.nav.label, run: () => { location.hash = r.href; } });
   add(t("app.palette.pages"), { icon: 'gear', title: t("app.palette.reglages"), run: () => go('settings') });
   for (const c of s.nav.conversations) add(t("app.palette.discussions"), { icon: 'chat', title: c.title || t("app.palette.nouvelle_discussion"), run: () => { open(c.id); go('chat'); } });
@@ -48,21 +49,21 @@ export function Palette() {
     if (ev.key === 'ArrowDown') { ev.preventDefault(); setI(Math.min(shown.length - 1, i + 1)); }
     else if (ev.key === 'ArrowUp') { ev.preventDefault(); setI(Math.max(0, i - 1)); }
     else if (ev.key === 'Enter' && shown[i]) { ev.preventDefault(); run(shown[i]); }
-    else if (ev.key === 'Escape') { ev.preventDefault(); close(); }
   };
   let last = '';
-  return html`<div class="scrim palette-scrim" onMouseDown=${e => e.target === e.currentTarget && close()}>
-    <div class="palette" role="dialog" aria-modal="true" aria-label="${t("app.palette.rechercher")}">
-      <label class="palette-in"><${Icon} n="search" /><input autofocus placeholder="${t("app.palette.rechercher_une_discussion_un_modele_une_page")}" value=${q}
-        onInput=${e => { setQ(e.target.value); setI(0); }} onKeyDown=${key} role="combobox" aria-expanded="true" aria-controls="palette-list" /></label>
+  return html`<${Modal} class="palette" title=${t("app.palette.rechercher")} onClose=${close}
+    foot=${html`<div class="palette-hints"><span><span class="kbd">↑</span><span class="kbd">↓</span> ${t("app.palette.naviguer")}</span><span><span class="kbd">${t("app.palette.entree")}</span> ${t("app.palette.ouvrir")}</span><span><span class="kbd">${t("app.palette.echap")}</span> ${t("app.palette.fermer")}</span></div>`}>
+      <label class="search"><${Icon} n="search" /><input aria-label=${t("app.palette.rechercher")} placeholder=${t("app.palette.rechercher_une_discussion_un_modele_une_page")} value=${q}
+        onInput=${e => { setQ(e.target.value); setI(0); }} onKeyDown=${key} role="combobox" aria-expanded="true" aria-controls="palette-list"
+        aria-activedescendant=${shown[i] ? 'palette-option-' + i : undefined} /></label>
       <div class="palette-list" id="palette-list" role="listbox" ref=${list}>
         ${shown.length ? shown.map((e, n) => {
-          const head = e.group !== last ? (last = e.group, html`<div class="palette-g">${e.group}</div>`) : '';
-          return html`${head}<button type="button" role="option" aria-selected=${String(n === i)} class=${cls('palette-row', n === i && 'on')} onMouseMove=${() => n !== i && setI(n)} onClick=${() => run(e)}>
+          const head = e.group !== last ? (last = e.group, html`<div class="item-group">${e.group}</div>`) : '';
+          return html`${head}<button type="button" id=${'palette-option-' + n} role="option" tabIndex="-1"
+            aria-selected=${String(n === i)} class="item palette-row" onMouseMove=${() => n !== i && setI(n)} onClick=${() => run(e)}>
             ${e.logo ? html`<${Logo} name=${e.logo} size="xs" />` : html`<${Icon} n=${e.icon} />`}
             <span class="t">${e.title}</span>${e.sub && html`<span class="s">${e.sub}</span>`}${e.hint && html`<span class="kbd">${e.hint}</span>`}</button>`;
         }) : html`<div class="palette-empty">${t("app.palette.aucun_resultat_pour")} ${q} ».</div>`}
       </div>
-      <div class="palette-foot"><span><span class="kbd">↑</span><span class="kbd">↓</span> ${t("app.palette.naviguer")}</span><span><span class="kbd">${t("app.palette.entree")}</span> ${t("app.palette.ouvrir")}</span><span><span class="kbd">${t("app.palette.echap")}</span> ${t("app.palette.fermer")}</span></div>
-    </div></div>`;
+    </${Modal}>`;
 }

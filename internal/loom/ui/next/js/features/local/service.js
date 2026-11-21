@@ -44,12 +44,10 @@ export function EngineSlots({ server }) {
       <div class="models-row-main"><span>${label}</span><small>${t('models.engine.slots_hint')}</small>
         ${slots[0]?.ctx > 0 && html`<small>${Math.round(slots[0].ctx / 1024)}${t('local.page.k_de_contexte_par_slot')}</small>`}
       </div>
-      ${server?.np_supported === false ? html`<a class="btn sm ghost" href="#/local">${t('node.vllm_parameters')}</a>`
+      ${server?.np_supported === false ? html`<a class="btn sm" href="#/local">${t('node.vllm_parameters')}</a>`
         : server && html`<div class="models-actions">
-          <select class="select models-slots-picker" value=${value} aria-label=${label} disabled=${busy} onChange=${e => setDraft(e.target.value)}>
-            ${!value && html`<option value="" disabled>—</option>`}
-            ${Array.from({ length: 32 }, (_, i) => html`<option key=${i + 1} value=${String(i + 1)}>${i + 1}</option>`)}
-          </select>
+          <${ListPick} class="models-slots-picker" value=${value} label=${label} disabled=${busy} onChange=${setDraft}
+            options=${Array.from({ length: 32 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} />
           ${draft !== null && html`<button class="btn sm" disabled=${busy} onClick=${save}>${t('local.page.appliquer')}</button>`}
         </div>`}
     </div>
@@ -198,7 +196,7 @@ function KeyForm({ k, models, onClose }) {
   const choices = [...new Set([...models, ...v.allowed_models])];
   const toggleModel = m => set({ allowed_models: v.allowed_models.includes(m) ? v.allowed_models.filter(x => x !== m) : [...v.allowed_models, m] });
   return html`<${Modal} title=${k ? t('engine.keys.edit') : t('engine.keys.new')} onClose=${busy ? undefined : onClose}
-      foot=${html`<button class="btn ghost" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !v.name.trim()} onClick=${save}>${k ? t('ui.dialog.enregistrer') : t('engine.keys.create')}</button>`}>
+      foot=${html`<button class="btn" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button><button class="btn primary" disabled=${busy || !v.name.trim()} onClick=${save}>${k ? t('ui.dialog.enregistrer') : t('engine.keys.create')}</button>`}>
     <div class="ws-form">
       <label class="field"><span>${t('engine.keys.name')}</span><input class="input" value=${v.name} placeholder=${t('engine.keys.name_ph')} onInput=${e => set({ name: e.target.value })} /></label>
       <label class="field"><span>${t('engine.keys.priority')}<${Tip} text=${t('engine.keys.priority_tip')} /></span><${ListPick} label=${t('engine.keys.priority')} value=${v.priority} onChange=${priority => set({ priority })} options=${[{ value: 'interactive', label: t('engine.keys.interactive') }, { value: 'background', label: t('engine.keys.background') }]} /></label>
@@ -206,7 +204,7 @@ function KeyForm({ k, models, onClose }) {
         <label class="field"><span>${t('engine.keys.concurrency')}</span><input class="input num" type="number" min="0" max="64" value=${v.max_concurrency} onInput=${e => set({ max_concurrency: +e.target.value || 0 })} /><small>${t('engine.keys.zero')}</small></label>
         <label class="field"><span>${t('engine.keys.rpm')}</span><input class="input num" type="number" min="0" max="10000" value=${v.requests_per_minute} onInput=${e => set({ requests_per_minute: +e.target.value || 0 })} /><small>${t('engine.keys.zero')}</small></label>
       </div>
-      ${choices.length > 0 && html`<div class="field"><span>${t('engine.keys.models')}</span><div class="chips">${choices.map(m => html`<button type="button" key=${m} class=${cls('chip-btn', v.allowed_models.includes(m) && 'on')} aria-pressed=${String(v.allowed_models.includes(m))} onClick=${() => toggleModel(m)}>${m}</button>`)}</div><small>${v.allowed_models.length ? t('engine.keys.models_some', { n: v.allowed_models.length }) : t('engine.keys.models_all')}</small></div>`}
+      ${choices.length > 0 && html`<div class="field"><span>${t('engine.keys.models')}</span><div class="chips">${choices.map(m => html`<button type="button" key=${m} class=${cls('btn sm', v.allowed_models.includes(m) && 'on')} aria-pressed=${String(v.allowed_models.includes(m))} onClick=${() => toggleModel(m)}>${m}</button>`)}</div><small>${v.allowed_models.length ? t('engine.keys.models_some', { n: v.allowed_models.length }) : t('engine.keys.models_all')}</small></div>`}
     </div></${Modal}>`;
 }
 
@@ -240,8 +238,8 @@ function KeyRow({ k, compact, onEdit, onChanged }) {
   return html`<div class=${compact ? 'models-row' : 'bs-row'}>
     ${compact ? html`<div class="models-row-main"><span>${name}${legacy}</span><small>${summary.join(' · ')}</small>
       ${u?.last_error && html`<small class="models-warning" title=${u.last_error}>${t('resources.brain.erreur')}</small>`}</div>
-      <div class="models-actions"><button class="btn sm ghost" onClick=${() => onEdit(k)}>${t('memory.edit_short')}</button>${more}</div>`
-      : html`<span class="mono-tile"><${Icon} n="key" /></span>
+      <div class="models-actions"><button class="btn sm" onClick=${() => onEdit(k)}>${t('memory.edit_short')}</button>${more}</div>`
+      : html`<span class="logo-mark sm"><${Icon} n="key" /></span>
         <div class="grow"><div class="bs-name">${name}${legacy}</div><div class="bs-sub">${summary.map(text => html`<span>${text}</span>`)}
           ${u?.last_error && html`<span class="bs-state err" title=${u.last_error}>${t('resources.brain.erreur')}</span>`}</div></div>${more}`}
     ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[

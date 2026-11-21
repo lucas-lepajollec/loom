@@ -1,5 +1,6 @@
 // Codeman stores scheduled jobs and reports session startup and prompt delivery.
 import { lt } from './labels.js';
+import { ListPick } from '../../ui/listpick.js';
 import { t, locale } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
@@ -142,16 +143,18 @@ function JobForm({ job, onClose, onSaved, onDelete }) {
     finally { setBusy(false); }
   };
   const folders = [...new Set([...cases.filter(c => c.location !== 'remote').map(c => c.path), ...unified.filter(r => !r.remote).map(r => r.workingDir)].filter(Boolean))];
+  const harnesses = clis.map(c => ({ value: c.id, label: c.label }));
+  if (v.agentType && !clis.some(c => c.id === v.agentType)) {
+    harnesses.unshift({ value: v.agentType, label: cliOf(v.agentType).label });
+  }
   return html`<aside class="cm-job-editor" aria-label=${title}>
     <form onSubmit=${submit}>
       <div class="cm-section-head"><h2>${job ? job.name : title}</h2>
-        ${job && html`<button type="button" class="btn sm ghost danger" disabled=${busy} onClick=${remove}>${t('agents.cron.delete')}</button>`}</div>
+        ${job && html`<button type="button" class="btn sm danger" disabled=${busy} onClick=${remove}>${t('agents.cron.delete')}</button>`}</div>
       <label class="field"><span>${t('agents.cron.name')}</span><input class="input" maxlength="200" value=${v.name} onInput=${e => set({ name: e.target.value })} required /></label>
-      <label class="cm-editor-row"><span>${t('agents.cron.harness')}</span><select class="select" value=${v.agentType} onChange=${e => set({ agentType: e.target.value })} required>
-        ${!v.agentType && html`<option value="">${t('agents.cron.pick_harness')}</option>`}
-        ${v.agentType && !clis.some(c => c.id === v.agentType) && html`<option value=${v.agentType}>${cliOf(v.agentType).label}</option>`}
-        ${clis.map(c => html`<option key=${c.id} value=${c.id}>${c.label}</option>`)}
-      </select></label>
+      <label class="cm-editor-row"><span>${t('agents.cron.harness')}</span>
+        <${ListPick} value=${v.agentType} placeholder=${t('agents.cron.pick_harness')} options=${harnesses} onChange=${agentType => set({ agentType })} />
+      </label>
       <label class="cm-editor-row"><span>${t('agents.new.folder')}</span><input class="input mono" value=${v.workingDir} onInput=${e => set({ workingDir: e.target.value })} list="cm-cron-dirs" required />
         <datalist id="cm-cron-dirs">${folders.map(dir => html`<option key=${dir} value=${dir} />`)}</datalist></label>
       ${v.agentType === 'shell' && html`<label class="field"><span>${t('agents.cron.command')}</span><input class="input mono" maxlength="2000" value=${v.launchCommand} onInput=${e => set({ launchCommand: e.target.value })} /></label>`}
@@ -161,13 +164,12 @@ function JobForm({ job, onClose, onSaved, onDelete }) {
           : html`<input id="cm-cron-prompt" class="input mono" placeholder="/…/prompt.md" value=${v.promptFilePath} onInput=${e => set({ promptFilePath: e.target.value })} required /><small>${t('agents.cron.file_hint')}</small>`}</div>
       <div class="field">
         <label for="cm-cron-schedule">${t('agents.cron.when')}</label>
-        <select id="cm-cron-schedule" class="select" value=${v.scheduleType} onChange=${e => set({ scheduleType: e.target.value })}>
-          ${SCHEDULE_TYPES.map(type => html`<option key=${type} value=${type}>${lt('cronType', type)}</option>`)}
-          <option value="custom">${t('agents.cron.custom')}</option>
-        </select>
+        <${ListPick} id="cm-cron-schedule" value=${v.scheduleType} onChange=${scheduleType => set({ scheduleType })}
+          options=${[...SCHEDULE_TYPES.map(type => ({ value: type, label: lt('cronType', type) })),
+            { value: 'custom', label: t('agents.cron.custom') }]} />
         ${v.scheduleType === 'once' && html`<input class="input" aria-label=${t('agents.cron.when')} type="datetime-local" value=${Number.isFinite(v.runAt) ? localInput(v.runAt) : ''} onInput=${e => set({ runAt: new Date(e.target.value).getTime() })} required />`}
         ${v.scheduleType === 'interval' && html`<div class="cm-inline"><input class="input" aria-label=${t('agents.cron.minutes')} type="number" min="1" max="525600" value=${v.intervalMinutes} onInput=${e => set({ intervalMinutes: e.target.value })} required /><span class="muted">${t('agents.cron.minutes')}</span></div>`}
-        ${v.scheduleType === 'weekly' && html`<div class="chips" role="group" aria-label=${t('agents.cron.days')}>${DAYS.map(d => html`<button key=${d} type="button" aria-pressed=${v.weeklyDays.includes(d)} class=${cls('chip-btn', v.weeklyDays.includes(d) && 'on')} onClick=${() => set({ weeklyDays: v.weeklyDays.includes(d) ? v.weeklyDays.filter(x => x !== d) : [...v.weeklyDays, d] })}>${dayName(d, 'short')}</button>`)}</div>`}
+        ${v.scheduleType === 'weekly' && html`<div class="chips" role="group" aria-label=${t('agents.cron.days')}>${DAYS.map(d => html`<button key=${d} type="button" aria-pressed=${v.weeklyDays.includes(d)} class=${cls('btn sm', v.weeklyDays.includes(d) && 'on')} onClick=${() => set({ weeklyDays: v.weeklyDays.includes(d) ? v.weeklyDays.filter(x => x !== d) : [...v.weeklyDays, d] })}>${dayName(d, 'short')}</button>`)}</div>`}
         ${['daily', 'weekly'].includes(v.scheduleType) && html`<input class="input" aria-label=${t('agents.admin.time')} type="time"
           value=${v[v.scheduleType + 'Time'].padStart(5, '0')} onInput=${e => set({ [v.scheduleType + 'Time']: e.target.value })} required />`}
         ${custom && html`<input class="input mono" aria-label=${t('agents.cron.custom')} aria-describedby="cm-cron-expression-hint"
@@ -178,17 +180,21 @@ function JobForm({ job, onClose, onSaved, onDelete }) {
         ${!['once', 'interval'].includes(v.scheduleType) && html`<small>${t('agents.cron.server_time')}</small>`}
       </div>
       <details class="cm-job-history"><summary>${t('agents.cron.options')}</summary>
-        <label class="cm-editor-row"><span>${t('agents.cron.input')}</span><select class="select" value=${v.inputMode} onChange=${e => set({ inputMode: e.target.value })}>
-          <option value="paste">${t('agents.cron.input_paste')}</option><option value="typed">${t('agents.cron.input_typed')}</option></select></label>
-        <label class="cm-editor-row"><span>${t('agents.cron.concurrency')}</span><select class="select" value=${v.concurrencyPolicy} onChange=${e => set({ concurrencyPolicy: e.target.value })}>
-          <option value="skip_if_same_agent_running">${t('agents.cron.skip')}</option><option value="warn_only">${t('agents.cron.warn')}</option></select></label>
+        <label class="cm-editor-row"><span>${t('agents.cron.input')}</span>
+          <${ListPick} value=${v.inputMode} onChange=${inputMode => set({ inputMode })}
+            options=${[{ value: 'paste', label: t('agents.cron.input_paste') }, { value: 'typed', label: t('agents.cron.input_typed') }]} />
+        </label>
+        <label class="cm-editor-row"><span>${t('agents.cron.concurrency')}</span>
+          <${ListPick} value=${v.concurrencyPolicy} onChange=${concurrencyPolicy => set({ concurrencyPolicy })}
+            options=${[{ value: 'skip_if_same_agent_running', label: t('agents.cron.skip') }, { value: 'warn_only', label: t('agents.cron.warn') }]} />
+        </label>
         ${!job && html`<label class="cm-switch"><span>${t('agents.cron.enabled')}</span><${Switch} checked=${v.enabled} onChange=${enabled => set({ enabled })} label=${t('agents.cron.enabled')} /></label>`}
         ${v.scheduleType !== 'once' && html`<label class="cm-switch"><span><b>${t('agents.cron.autoclose')}</b><small>${t('agents.cron.autoclose_hint')}</small></span>
           <${Switch} checked=${v.autoClosePreviousSession} onChange=${autoClosePreviousSession => set({ autoClosePreviousSession })} label=${t('agents.cron.autoclose')} /></label>`}
         <label class="field"><span>${t('agents.cron.notes')}</span><input class="input" maxlength="2000" value=${v.notes} onInput=${e => set({ notes: e.target.value })} /></label>
       </details>
       ${error && html`<p role="alert" class="msg-err">${error}</p>`}
-      <div class="cm-editor-foot"><button type="button" class="btn ghost" disabled=${busy} onClick=${onClose}>${t('agents.cancel')}</button>
+      <div class="cm-editor-foot"><button type="button" class="btn" disabled=${busy} onClick=${onClose}>${t('agents.cancel')}</button>
         <button type="submit" class="btn primary" disabled=${busy || !valid}>${t('agents.save')}</button></div>
     </form>
     ${job && html`<details class="cm-job-history" onToggle=${e => setHistoryOpen(e.currentTarget.open)}><summary>${t('agents.cc.runs')}</summary>
@@ -224,7 +230,7 @@ function Runs({ jobs, runs }) {
       </span>
       ${run.errorMessage && html`<small class="cm-run-err">${run.errorMessage}</small>`}
     </div>
-    ${run.sessionId && html`<a class="btn sm ghost" href=${'#/agents/s/' + encodeURIComponent(run.sessionId)} onClick=${e => open(e, run.sessionId)}>${t('agents.cc.open')}</a>`}
+    ${run.sessionId && html`<a class="btn sm" href=${'#/agents/s/' + encodeURIComponent(run.sessionId)} onClick=${e => open(e, run.sessionId)}>${t('agents.cc.open')}</a>`}
   </li>`)}</ul>`;
 }
 

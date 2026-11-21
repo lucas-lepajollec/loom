@@ -1,4 +1,5 @@
 import { ActivityLayout } from '../usage/page.js';
+import { ListPick } from '../../ui/listpick.js';
 import { useVisibleRefresh } from '../usage/refresh.js';
 import { get, post } from '../../core/api.js';
 import { t, locale } from '../../core/i18n.js';
@@ -164,10 +165,9 @@ function Leaderboard({ models, loading }) {
   return html`<div class="activity-card market-list">
     <div class="market-list-top market-rank-tools">
       <div class="market-sort">
-        <select class="select" aria-label=${t('market.sort_by')} value=${sort.key}
-          onChange=${e => sortBy(columns.find(column => column.key === e.target.value))}>
-          ${columns.map(column => html`<option key=${column.key} value=${column.key}>${column.label}</option>`)}
-        </select>
+        <${ListPick} label=${t('market.sort_by')} value=${sort.key}
+          onChange=${key => sortBy(columns.find(column => column.key === key))}
+          options=${columns.map(column => ({ value: column.key, label: column.label }))} />
         <button class="icon-btn" type="button" aria-label=${directionLabel} title=${directionLabel} onClick=${() => sortBy(chosen)}>
           <${Icon} n="arrowUp" class=${sort.descending ? 'market-down' : ''} />
         </button>
@@ -233,8 +233,8 @@ function Catalogue({ models }) {
       && (!term || [model.name, model.id, model.creator, model.hf_id].some(value => value?.toLocaleLowerCase(lang).includes(term)))),
   [models, selectedCreator, openOnly, freeOnly, term, lang]);
   const page = usePage(filtered, 18);
-  const filter = setter => e => {
-    setter(e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+  const filter = setter => value => {
+    setter(value);
     page.set(0);
   };
   const searchLabel = t('market.search');
@@ -244,14 +244,12 @@ function Catalogue({ models }) {
     <div class="activity-card market-list">
       <div class="market-filters">
         <label class="search">
-          <${Icon} n="search" /><input type="search" aria-label=${searchLabel} placeholder=${searchLabel} value=${query} onInput=${filter(setQuery)} />
+          <${Icon} n="search" /><input type="search" aria-label=${searchLabel} placeholder=${searchLabel} value=${query} onInput=${e => filter(setQuery)(e.target.value)} />
         </label>
-        <select class="select" aria-label=${t('market.creator')} value=${selectedCreator} onChange=${filter(setCreator)}>
-          <option value="">${t('market.all_creators')}</option>
-          ${creators.map(name => html`<option key=${name} value=${name}>${name}</option>`)}
-        </select>
-        <label class="market-filter"><input type="checkbox" checked=${openOnly} onChange=${filter(setOpenOnly)} />${t('market.open_only')}</label>
-        <label class="market-filter"><input type="checkbox" checked=${freeOnly} onChange=${filter(setFreeOnly)} />${t('market.free_only')}</label>
+        <${ListPick} label=${t('market.creator')} value=${selectedCreator} onChange=${filter(setCreator)}
+          options=${[{ value: '', label: t('market.all_creators') }, ...creators.map(name => ({ value: name, label: name }))]} />
+        <label class="market-filter"><input type="checkbox" checked=${openOnly} onChange=${e => filter(setOpenOnly)(e.target.checked)} />${t('market.open_only')}</label>
+        <label class="market-filter"><input type="checkbox" checked=${freeOnly} onChange=${e => filter(setFreeOnly)(e.target.checked)} />${t('market.free_only')}</label>
       </div>
       ${page.last > 0 && html`<div class="market-list-top"><${PageButtons} page=${page} label=${t('market.catalogue')} /></div>`}
       ${filtered.length ? html`<div class="market-table market-catalogue" role="table" aria-labelledby="market-catalogue">

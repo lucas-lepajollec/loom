@@ -6,7 +6,8 @@ import { t, getLang, setLang } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, cls, fmtBytes } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
-import { toast } from '../../ui/dialog.js';
+import { Seg } from '../../ui/controls.js';
+import { Modal, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshLibrary, refreshStatus, refreshWorkspace, refreshEngineNode } from '../../core/state.js';
 import { DirectEngineForm } from '../settings/page.js';
@@ -48,17 +49,26 @@ function finish(next) {
   if (next) next();
 }
 
-function Hello({ onNext }) {
+function SetupStep({ step, onClose, title, sub, foot, children }) {
+  return html`<${Modal} class="onboard" title=${title} sub=${sub} onClose=${onClose} foot=${foot}>
+    ${step > 0 && step < STEPS.length - 1 && html`<div class="wl-steps" aria-hidden="true">${STEPS.slice(1, -1).map((_, i) =>
+      html`<i class=${cls(i + 1 < step && 'past', i + 1 === step && 'now')}></i>`)}</div>`}
+    ${children}
+  </${Modal}>`;
+}
+
+const stepActions = (onBack, onNext) => html`<button class="btn" onClick=${onBack}>${t('welcome.back')}</button>
+  <button class="btn primary" onClick=${onNext}>${t('welcome.next')}<${Icon} n="right" /></button>`;
+
+function Hello({ frame, onNext }) {
   const lang = getLang();
-  return html`<div class="wl-body">
-    <span class="wl-mark"><svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="t"></path></svg></span>
-    <h1>${t('welcome.hello.title')}</h1>
-    <p class="wl-lead">${t('welcome.hello.lead')}</p>
-    <div class="wl-langs" role="radiogroup" aria-label="Langue / Language">
-      ${[['fr', 'Français'], ['en', 'English']].map(([v, l]) => html`<button type="button" role="radio" aria-checked=${String(lang === v)} class=${cls('wl-lang', lang === v && 'on')} onClick=${() => setLang(v)}>${l}</button>`)}
-    </div>
-    <div class="wl-foot"><button class="btn ghost" onClick=${() => finish()}>${t('welcome.skip')}</button><span class="grow"></span><button class="btn primary" onClick=${onNext}>${t('welcome.hello.start')}<${Icon} n="right" /></button></div>
-  </div>`;
+  return html`<${SetupStep} ...${frame} title=${t('welcome.hello.title')} sub=${t('welcome.hello.lead')}
+    foot=${html`<button class="btn" onClick=${() => finish()}>${t('welcome.skip')}</button>
+      <button class="btn primary" onClick=${onNext}>${t('welcome.hello.start')}<${Icon} n="right" /></button>`}>
+    <span class="logo-mark lg"><${Icon} n="loom" /></span>
+    <${Seg} label=${t('settings.language.label')} value=${lang} onChange=${setLang}
+      options=${[{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]} />
+  </${SetupStep}>`;
 }
 
 function useMachine() {
@@ -72,20 +82,17 @@ function useMachine() {
 const vramMiB = m => Math.max(0, ...(m.gpus || []).map(g => g.total || 0));
 const osName = os => ({ linux: 'Linux', darwin: 'macOS', windows: 'Windows' })[os] || os || '—';
 
-function Machine({ m, onNext, onBack }) {
+function Machine({ frame, m, onNext, onBack }) {
   const vram = vramMiB(m);
-  return html`<div class="wl-body">
-    <h2>${t('welcome.machine.title')}</h2>
-    <p class="wl-lead">${t('welcome.machine.lead')}</p>
+  return html`<${SetupStep} ...${frame} title=${t('welcome.machine.title')} sub=${t('welcome.machine.lead')} foot=${stepActions(onBack, onNext)}>
     <div class="card rows">
-      <div class="row"><span class="mx-ico"><${Icon} n="server" /></span><div class="grow"><div class="t">${m.host || t('app.shell.cette_machine')}</div><div class="s">${osName(m.lc.os)} · ${m.lc.arch || ''}</div></div></div>
-      <div class="row"><span class="mx-ico"><${Icon} n="chip" /></span><div class="grow"><div class="t">${t('welcome.machine.memory')}</div><div class="s">${m.ram ? fmtBytes(m.ram.total * 1048576) : '—'}</div></div></div>
-      ${m.gpus.length ? m.gpus.map(g => html`<div class="row"><span class="mx-ico"><${Icon} n="gauge" /></span><div class="grow"><div class="t">${g.name}</div><div class="s">${t('welcome.machine.vram', { size: fmtBytes(g.total * 1048576) })}</div></div><span class="tag green">${t('welcome.machine.gpu_ok')}</span></div>`)
-        : html`<div class="row"><span class="mx-ico"><${Icon} n="gauge" /></span><div class="grow"><div class="t">${t('welcome.machine.no_gpu')}</div><div class="s">${t('welcome.machine.no_gpu_text')}</div></div></div>`}
+      <div class="row"><span class="logo-mark sm mx-ico"><${Icon} n="server" /></span><div class="grow"><div class="t">${m.host || t('app.shell.cette_machine')}</div><div class="s">${osName(m.lc.os)} · ${m.lc.arch || ''}</div></div></div>
+      <div class="row"><span class="logo-mark sm mx-ico"><${Icon} n="chip" /></span><div class="grow"><div class="t">${t('welcome.machine.memory')}</div><div class="s">${m.ram ? fmtBytes(m.ram.total * 1048576) : '—'}</div></div></div>
+      ${m.gpus.length ? m.gpus.map(g => html`<div class="row"><span class="logo-mark sm mx-ico"><${Icon} n="gauge" /></span><div class="grow"><div class="t">${g.name}</div><div class="s">${t('welcome.machine.vram', { size: fmtBytes(g.total * 1048576) })}</div></div><span class="tag green">${t('welcome.machine.gpu_ok')}</span></div>`)
+        : html`<div class="row"><span class="logo-mark sm mx-ico"><${Icon} n="gauge" /></span><div class="grow"><div class="t">${t('welcome.machine.no_gpu')}</div><div class="s">${t('welcome.machine.no_gpu_text')}</div></div></div>`}
     </div>
     <p class="note">${vram >= 12000 ? t('welcome.machine.big') : vram >= 6000 ? t('welcome.machine.mid') : vram ? t('welcome.machine.small') : t('welcome.machine.cpu')}</p>
-    <div class="wl-foot"><button class="btn ghost" onClick=${onBack}>${t('welcome.back')}</button><span class="grow"></span><button class="btn primary" onClick=${onNext}>${t('welcome.next')}<${Icon} n="right" /></button></div>
-  </div>`;
+  </${SetupStep}>`;
 }
 
 // Installation de llama.cpp : binaire officiel ou compilation selon la
@@ -116,7 +123,7 @@ function LlamaInstall({ lc, onReady }) {
   return html`<div class="wl-job">
     ${lc.reco && lc.reco.why && html`<p class="note">${({ 'linux-cuda': t('welcome.reco.linux-cuda'), 'linux-hip': t('welcome.reco.linux-hip') })[lc.reco.code] || lc.reco.why}</p>`}
     <div class="wl-acts"><button class="btn primary" onClick=${() => run(compile)}>${compile ? t('welcome.engine.compile') : t('welcome.engine.download')}</button>
-      <button class="btn ghost" onClick=${() => run(!compile)}>${compile ? t('welcome.engine.download_instead') : t('welcome.engine.compile_instead')}</button></div>
+      <button class="btn" onClick=${() => run(!compile)}>${compile ? t('welcome.engine.download_instead') : t('welcome.engine.compile_instead')}</button></div>
   </div>`;
 }
 
@@ -134,7 +141,7 @@ function VllmInstall({ onReady }) {
     <div class="wl-acts"><button class="btn primary" onClick=${async () => { const r = await post('/api/engines/vllm', { action: 'install' }); if (!r.ok) return toast(r.error, 'err'); load(); }}>${t('settings.page.installer_vllm')}</button></div></div>`;
 }
 
-function Engine({ m, choice, setChoice, onNext, onBack }) {
+function Engine({ frame, m, choice, setChoice, onNext, onBack }) {
   const [ready, setReady] = useState(false);
   const linux = m.lc.os === 'linux', nvidia = (m.gpus || []).some(g => /nvidia/i.test(g.name));
   const opts = [
@@ -144,24 +151,23 @@ function Engine({ m, choice, setChoice, onNext, onBack }) {
     { id: 'none', name: t('welcome.engine.none'), text: t('welcome.engine.none_text') },
   ];
   const canGo = choice === 'none' || (choice === 'llama' && (llamaReady(m.lc) || ready)) || (choice === 'vllm' && ready) || (choice === 'link' && ready);
-  return html`<div class="wl-body">
-    <h2>${t('welcome.engine.title')}</h2>
-    <p class="wl-lead">${t('welcome.engine.lead')}</p>
-    <div class="wl-opts" role="radiogroup">${opts.map(o => html`<button type="button" role="radio" aria-checked=${String(choice === o.id)} disabled=${!!o.off} class=${cls('wl-opt', choice === o.id && 'on')} onClick=${() => { setChoice(o.id); setReady(false); }}>
-      <span class="wl-radio"></span><span class="grow"><b>${o.name}${o.tag && html` <span class="tag">${o.tag}</span>`}${o.done && html` <span class="tag green">${t('welcome.engine.installed')}</span>`}</b><small>${o.off || o.text}</small></span></button>`)}</div>
+  return html`<${SetupStep} ...${frame} title=${t('welcome.engine.title')} sub=${t('welcome.engine.lead')}
+    foot=${html`<button class="btn" onClick=${onBack}>${t('welcome.back')}</button>
+      ${!canGo && choice !== 'none' && html`<button class="btn" onClick=${() => onNext(true)}>${t('welcome.later')}</button>`}
+      <button class="btn primary" disabled=${!canGo} onClick=${() => onNext()}>${t('welcome.next')}<${Icon} n="right" /></button>`}>
+    <div class="wl-opts" role="radiogroup">${opts.map(o => html`<button type="button" role="radio" aria-checked=${String(choice === o.id)} disabled=${!!o.off} class="btn wl-opt" onClick=${() => { setChoice(o.id); setReady(false); }}>
+      <span class="grow"><b>${o.name}${o.tag && html` <span class="tag">${o.tag}</span>`}${o.done && html` <span class="tag green">${t('welcome.engine.installed')}</span>`}</b><small>${o.off || o.text}</small></span>
+      ${choice === o.id && html`<${Icon} n="check" />`}</button>`)}</div>
     ${choice === 'llama' && !llamaReady(m.lc) && html`<${LlamaInstall} lc=${m.lc} onReady=${() => setReady(true)} />`}
     ${choice === 'llama' && (llamaReady(m.lc) || ready) && html`<p class="note">${t('welcome.engine.llama_ready')}</p>`}
     ${choice === 'vllm' && html`<${VllmInstall} onReady=${() => setReady(true)} />`}
     ${choice === 'link' && (ready ? html`<p class="note">${t('welcome.engine.linked')}</p>` : html`<${DirectEngineForm} onDone=${() => { refreshEngineNode(); setReady(true); }} />`)}
-    <div class="wl-foot"><button class="btn ghost" onClick=${onBack}>${t('welcome.back')}</button><span class="grow"></span>
-      ${!canGo && choice !== 'none' && html`<button class="btn ghost" onClick=${() => onNext(true)}>${t('welcome.later')}</button>`}
-      <button class="btn primary" disabled=${!canGo} onClick=${() => onNext()}>${t('welcome.next')}<${Icon} n="right" /></button></div>
-  </div>`;
+  </${SetupStep}>`;
 }
 
 // Premier modèle : les modèles qui tiennent dans la mémoire GPU (ou la moitié
 // de la RAM sans GPU), le plus gros d'entre eux sous 10 Go étant recommandé.
-function Model({ m, onNext, onBack }) {
+function Model({ frame, m, onNext, onBack }) {
   const budget = (vramMiB(m) || (m.ram ? m.ram.total / 2 : 4096)) * 1048576 * 0.85;
   const fit = MODELS.filter(x => x.size * 1.15 <= budget);
   const reco = fit.filter(x => x.size < 10e9).slice(-1)[0];
@@ -186,41 +192,34 @@ function Model({ m, onNext, onBack }) {
     setDl({ filename: r.filename || pick.url.split('/').pop(), done: 0, total: pick.size });
   };
   const pct = dl && dl.total ? Math.round(dl.done / dl.total * 100) : 0;
-  return html`<div class="wl-body">
-    <h2>${t('welcome.model.title')}</h2>
-    <p class="wl-lead">${t('welcome.model.lead')}</p>
-    <div class="wl-opts" role="radiogroup">${MODELS.map(x => { const ok = fit.includes(x); return html`<button type="button" role="radio" aria-checked=${String(sel === x.id)} disabled=${!!dl} class=${cls('wl-opt', 'sm', sel === x.id && 'on', !ok && 'dim')} onClick=${() => setSel(x.id)}>
-      <span class="wl-radio"></span><${Logo} name=${x.vendor} size="sm" /><span class="grow"><b>${x.name}${reco && reco.id === x.id && html` <span class="tag">${t('welcome.engine.recommended')}</span>`}</b><small>${fmtBytes(x.size)} · ${ok ? t('welcome.model.fits') : t('welcome.model.tight')}</small></span></button>`; })}</div>
+  return html`<${SetupStep} ...${frame} title=${t('welcome.model.title')} sub=${t('welcome.model.lead')}
+    foot=${html`<button class="btn" onClick=${onBack}>${t('welcome.back')}</button>
+      ${!dl ? html`<button class="btn" onClick=${onNext}>${t('welcome.later')}</button><button class="btn primary" onClick=${start}><${Icon} n="download" />${t('welcome.model.download')}</button>`
+        : html`<button class="btn primary" onClick=${onNext}>${dl.finished ? t('welcome.next') : t('welcome.model.continue')}<${Icon} n="right" /></button>`}`}>
+    <div class="wl-opts" role="radiogroup">${MODELS.map(x => { const ok = fit.includes(x); return html`<button type="button" role="radio" aria-checked=${String(sel === x.id)} disabled=${!!dl} class=${cls('btn sm wl-opt', !ok && 'dim')} onClick=${() => setSel(x.id)}>
+      <${Logo} name=${x.vendor} size="sm" /><span class="grow"><b>${x.name}${reco && reco.id === x.id && html` <span class="tag">${t('welcome.engine.recommended')}</span>`}</b><small>${fmtBytes(x.size)} · ${ok ? t('welcome.model.fits') : t('welcome.model.tight')}</small></span>
+      ${sel === x.id && html`<${Icon} n="check" />`}</button>`; })}</div>
     ${dl && html`<div class="wl-job">${dl.error ? html`<p class="note err">${dl.error}</p>` : dl.finished ? html`<p class="note">${t('welcome.model.done', { name: pick.name })}</p>`
       : html`<div class="state">${t('welcome.model.downloading', { done: fmtBytes(dl.done), total: fmtBytes(dl.total) })}</div><div class="meter"><i style=${`width:${pct}%;background:var(--text)`}></i></div>`}</div>`}
     <p class="note">${t('welcome.model.more')}</p>
-    <div class="wl-foot"><button class="btn ghost" onClick=${onBack}>${t('welcome.back')}</button><span class="grow"></span>
-      ${!dl ? html`<button class="btn ghost" onClick=${onNext}>${t('welcome.later')}</button><button class="btn primary" onClick=${start}><${Icon} n="download" />${t('welcome.model.download')}</button>`
-        : html`<button class="btn primary" onClick=${onNext}>${dl.finished ? t('welcome.next') : t('welcome.model.continue')}<${Icon} n="right" /></button>`}</div>
-  </div>`;
+  </${SetupStep}>`;
 }
 
-function Tools({ onNext, onBack }) {
-  const ws = useStore(app, x => x.workspace);
+function Tools({ frame, onNext, onBack }) {
   useEffect(() => { refreshWorkspace(); }, []);
-  return html`<div class="wl-body">
-    <h2>${t('welcome.tools.title')}</h2>
-    <p class="wl-lead">${t('welcome.tools.lead')}</p>
+  return html`<${SetupStep} ...${frame} title=${t('welcome.tools.title')} sub=${t('welcome.tools.lead')} foot=${stepActions(onBack, onNext)}>
     <div class="card rows">
-      <div class="row"><span class="mx-ico"><${Icon} n="cloud" /></span><div class="grow"><div class="t">${t('welcome.tools.cloud')}</div><div class="s">${t('welcome.tools.cloud_text')}</div></div><button class="btn sm ghost" onClick=${() => finish(() => go('cloud'))}>${t('welcome.tools.connect')}</button></div>
-      <div class="row"><span class="mx-ico"><${Icon} n="server" /></span><div class="grow"><div class="t">${t('welcome.tools.machines')}</div><div class="s">${t('welcome.tools.machines_text')}</div></div><button class="btn sm ghost" onClick=${() => finish(() => go('machines'))}>${t('welcome.tools.add')}</button></div>
+      <div class="row"><span class="logo-mark sm mx-ico"><${Icon} n="cloud" /></span><div class="grow"><div class="t">${t('welcome.tools.cloud')}</div><div class="s">${t('welcome.tools.cloud_text')}</div></div><button class="btn sm" onClick=${() => finish(() => go('cloud'))}>${t('welcome.tools.connect')}</button></div>
+      <div class="row"><span class="logo-mark sm mx-ico"><${Icon} n="server" /></span><div class="grow"><div class="t">${t('welcome.tools.machines')}</div><div class="s">${t('welcome.tools.machines_text')}</div></div><button class="btn sm" onClick=${() => finish(() => go('machines'))}>${t('welcome.tools.add')}</button></div>
     </div>
-    <div class="wl-foot"><button class="btn ghost" onClick=${onBack}>${t('welcome.back')}</button><span class="grow"></span><button class="btn primary" onClick=${onNext}>${t('welcome.next')}<${Icon} n="right" /></button></div>
-  </div>`;
+  </${SetupStep}>`;
 }
 
-function Done() {
-  return html`<div class="wl-body">
-    <span class="wl-mark ok"><${Icon} n="check" /></span>
-    <h1>${t('welcome.done.title')}</h1>
-    <p class="wl-lead">${t('welcome.done.lead')}</p>
-    <div class="wl-foot"><button class="btn primary" onClick=${() => finish(() => { go('chat'); newDiscussion(); })}>${t('welcome.done.chat')}</button></div>
-  </div>`;
+function Done({ frame }) {
+  return html`<${SetupStep} ...${frame} title=${t('welcome.done.title')} sub=${t('welcome.done.lead')}
+    foot=${html`<button class="btn primary" onClick=${() => finish(() => { go('chat'); newDiscussion(); })}>${t('welcome.done.chat')}</button>`}>
+    <span class="logo-mark wl-done"><${Icon} n="check" /></span>
+  </${SetupStep}>`;
 }
 
 export function Welcome() {
@@ -237,17 +236,16 @@ export function Welcome() {
     return Math.min(n, STEPS.length - 1);
   });
   const back = () => setStep(s => { let n = s - 1; if (STEPS[n] === 'model' && choice !== 'llama') n--; return Math.max(0, n); });
-  return html`<div class="onboard" role="dialog" aria-modal="true" aria-label=${t('welcome.hello.title')}>
-    <div class="wl-card anim-rise" key=${name}>
-      ${step > 0 && step < STEPS.length - 1 && html`<div class="wl-steps" aria-hidden="true">${STEPS.slice(1, -1).map((s, i) => html`<i class=${cls(i + 1 < step && 'past', i + 1 === step && 'now')}></i>`)}</div>`}
-      ${!m && step > 0 ? html`<div class="skeleton" style="height:240px"></div>`
-        : name === 'hello' ? html`<${Hello} onNext=${() => next()} />`
-        : name === 'machine' ? html`<${Machine} m=${m} onNext=${() => next()} onBack=${back} />`
-        : name === 'workspace' ? html`<div class="wl-body"><h1>${t('workspaces.title')}</h1><p class="wl-lead">${t('workspaces.welcome')}</p><${WorkspaceManager} fixedTarget="local" /><div class="wl-foot"><button class="btn ghost" onClick=${back}>${t('welcome.back')}</button><span class="grow"></span><button class="btn primary" onClick=${() => next()}>${t('welcome.next')}<${Icon} n="right" /></button></div></div>`
-        : name === 'engine' ? html`<${Engine} m=${m} choice=${choice} setChoice=${setChoice} onNext=${later => next(later === true)} onBack=${back} />`
-        : name === 'model' ? html`<${Model} m=${m} onNext=${() => next()} onBack=${back} />`
-        : name === 'tools' ? html`<${Tools} onNext=${() => next()} onBack=${back} />`
-        : html`<${Done} />`}
-    </div>
-  </div>`;
+  const frame = { step, onClose: () => app.set({ welcome: false }) };
+  const forward = () => next();
+  if (!m && step > 0) return html`<${SetupStep} ...${frame} title=${t('welcome.hello.title')}><div class="skeleton" style="height:240px"></div></${SetupStep}>`;
+  if (name === 'hello') return html`<${Hello} frame=${frame} onNext=${forward} />`;
+  if (name === 'machine') return html`<${Machine} frame=${frame} m=${m} onNext=${forward} onBack=${back} />`;
+  if (name === 'workspace') return html`<${SetupStep} ...${frame} title=${t('workspaces.title')} sub=${t('workspaces.welcome')} foot=${stepActions(back, forward)}>
+    <${WorkspaceManager} fixedTarget="local" />
+  </${SetupStep}>`;
+  if (name === 'engine') return html`<${Engine} frame=${frame} m=${m} choice=${choice} setChoice=${setChoice} onNext=${next} onBack=${back} />`;
+  if (name === 'model') return html`<${Model} frame=${frame} m=${m} onNext=${forward} onBack=${back} />`;
+  if (name === 'tools') return html`<${Tools} frame=${frame} onNext=${forward} onBack=${back} />`;
+  return html`<${Done} frame=${frame} />`;
 }
