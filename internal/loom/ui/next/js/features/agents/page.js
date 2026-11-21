@@ -149,7 +149,7 @@ function LayoutPicker({ currentId }) {
 const SUBS = ['', 'cron', 'settings'];
 function Top({ sub }) {
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v), current: sub === v }));
-  return html`<header class=${cls('cm-admin-top', !sub && 'overview')}>
+  return html`<header class="cm-admin-top">
     <div class="cm-admin-phone-head">
       <button class="icon-btn menu-btn" aria-label=${t('app.main.menu')} onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button>
       <b>${t('agents.title')}</b>
@@ -159,7 +159,8 @@ function Top({ sub }) {
 }
 
 export function AgentsPage({ route }) {
-  const state = useStore(agents, s => s.conn.state);
+  const conn = useStore(agents, s => s.conn);
+  const { state } = conn;
   const ready = state === 'ready';
   useEffect(() => { refreshConnection(); }, []);
   // Le flux d'événements ne s'ouvre qu'une fois connecté ; sinon on revérifie
@@ -179,13 +180,14 @@ export function AgentsPage({ route }) {
     addEventListener('keydown', key, true); return () => removeEventListener('keydown', key, true);
   }, [currentId]);
   const gated = sub !== 'settings' && state !== 'ready';
+  const server = conn.url + '\n' + conn.username;
   const gate = html`<div class="cm-gate">${state === 'idle' || state === 'connecting' ? html`<div class="cm-gate-in"><span class="spinner"></span><p class="muted">${t('agents.conn.connecting')}</p></div>` : html`<${ConnectionPanel} gate />`}</div>`;
   return html`<div class="view cm">
     ${!work && html`<${Top} sub=${sub} />`}
     ${gated ? gate
       : work ? html`<${Workspace} route=${route} />`
-      : sub === 'cron' ? html`<${CronPage} />`
+      : sub === 'cron' ? html`<${CronPage} key=${server} />`
       : sub === 'settings' ? html`<div class="cm-scroll"><${CodemanSettings} /></div>`
-      : html`<${ControlCenter} />`}
+      : html`<${ControlCenter} key=${server} />`}
   </div>`;
 }

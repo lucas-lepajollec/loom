@@ -236,6 +236,43 @@ p.models-row-meta {
   margin: 0;
 }
 
+/* Bibliothèque */
+.models-library .models-toolbar {
+  gap: 10px 12px;
+}
+
+.models-library .models-group {
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.models-library .models-section-head h2 {
+  font-size: 16px;
+}
+
+.models-library .models-row {
+  min-height: 70px;
+  padding-block: 14px;
+}
+
+.models-library .models-row-main {
+  gap: 5px;
+}
+
+.models-library .models-status {
+  min-height: 82px;
+  gap: 12px 18px;
+}
+
+.models-library .models-status b {
+  font-size: 16px;
+}
+
+.models-library .models-start-model {
+  width: auto;
+  max-width: 40%;
+}
+
 .models-engine-grid {
   display: grid;
   align-items: start;
@@ -293,7 +330,25 @@ p.models-row-meta {
 
 .models-engine-maintenance {
   grid-column: 1 / -1;
-  gap: 12px;
+}
+
+.models-engine-maintenance > .models-group {
+  gap: 14px;
+  padding: 8px 16px 16px;
+}
+
+.models-tuning {
+  border-top: 1px solid var(--line-soft);
+}
+
+.models-extra.models-engine-maintenance > summary,
+.models-tuning > summary {
+  padding-block: 14px;
+  font-size: 14px;
+}
+
+.models-extra.models-engine-maintenance > summary {
+  font-weight: 500;
 }
 
 .models-engine-maintenance .eng-list {
@@ -319,7 +374,7 @@ p.models-row-meta {
   display: block;
 }
 
-.models-api-example summary, .models-extra summary {
+.models-api-example summary, .models-extra > summary {
   cursor: pointer;
 }
 
@@ -333,7 +388,7 @@ p.models-row-meta {
   font-size: 12px;
 }
 
-.models-extra summary {
+.models-extra > summary {
   padding: 10px 16px;
   color: var(--text-2);
   font-size: 13px;
@@ -419,7 +474,7 @@ p.models-row-meta {
   .models-layout .select,
   .models-layout .models-toolbar .search,
   .models-layout .seg button,
-  .models-layout .models-extra summary,
+  .models-layout .models-extra > summary,
   .models-layout .models-api-example summary,
   .models-layout .set-fold > summary {
     min-height: 44px;
@@ -482,6 +537,21 @@ p.models-row-meta {
     width: auto;
   }
 
+  .models-library .models-row-main[role="button"] {
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .models-library .models-status:has(.models-start-model) .models-row-main {
+    flex-basis: calc(100% - 40px);
+  }
+
+  .models-library .models-start-model {
+    flex: 1 1 140px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .models-toolbar > .search {
     flex-basis: 100%;
   }
@@ -494,7 +564,7 @@ p.models-row-meta {
     align-content: center;
   }
 
-  .models-extra summary {
+  .models-extra > summary {
     align-content: center;
   }
 }

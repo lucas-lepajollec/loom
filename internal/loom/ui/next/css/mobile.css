@@ -110,7 +110,8 @@
   .seg{flex-wrap:wrap;max-width:100%;min-width:0}
   .seg .ind{display:none}
   .seg button,.seg.sm button{flex:1 1 auto;min-width:0;max-width:100%;height:auto;min-height:26px;white-space:normal;overflow-wrap:anywhere;padding-top:3px;padding-bottom:3px}
-  .seg button[aria-selected="true"]{background:var(--surface-3)}
+  .seg button{border-radius:99px}
+  .seg button[aria-selected="true"]{background:var(--surface-2)}
   .tabs{flex-wrap:wrap;overflow:visible}
   .sec-tabs{width:100%;min-width:0;gap:20px}
   .sec-tabs a{height:44px;font-size:15px}

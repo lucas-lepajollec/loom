@@ -21,12 +21,12 @@ test('local execution resolves engine paths and aliases without guessing from fi
 function engine({ choices = [model], selectError, openError, loadError } = {}) {
   const calls = [], notices = [];
   let session = { id: 'same-discussion', runtime_id: 'pi', provider_name: 'Pi', model: 'loom:gemma.gguf', messages: [{ role: 'user', content: 'keep' }] };
-  const appState = { unavailable: {}, workspace: { models: [] }, status: { model: 'gemma.gguf', health: true }, nav: { conversations: [] } };
+  const appState = { unavailable: {}, workspace: { models: [] }, status: { model: 'other.gguf', health: true }, nav: { conversations: [] } };
   const env = {
     chatShape, validShape, eventShape, t: french, localChoice, createStore: state => ({ get: () => state, set: patch => Object.assign(state, patch) }),
     document: { addEventListener() {} }, app: { get: () => appState },
     localStorage: { setItem() {}, removeItem() {} }, setTimeout: () => {}, Date, Map, Set,
-    toast: (...args) => notices.push(args), refreshNav: async () => {},
+    toast: (...args) => notices.push(args), refreshNav: async () => {}, refreshStatus: async () => {}, runtimeKind: id => (id === 'llama.cpp' ? 'local' : 'cloud'),
     refreshWorkspace: async () => ({ ok: true, models: choices }),
     get: async path => { calls.push(path); return openError ? { ok: false, error: openError } : { ok: true, session, context: { revision: 'local' } }; },
     post: async (path, body) => {
@@ -46,7 +46,7 @@ function engine({ choices = [model], selectError, openError, loadError } = {}) {
   return { env, calls, notices };
 }
 
-test('Pi plus Gemma to direct Gemma changes runtime before engine loading and retains discussion identity', async () => {
+test('Pi plus Gemma to direct Gemma changes runtime and keeps the model for the first message', async () => {
   const h = engine();
   assert.equal(await h.env.choose({ path: model.model, model: 'gemma.gguf', name: 'Gemma' }), true);
   const state = h.env.store.get();
@@ -57,7 +57,9 @@ test('Pi plus Gemma to direct Gemma changes runtime before engine loading and re
   assert.equal(state.frozen[0].text, 'keep');
   assert.equal(h.calls[0][0], '/api/runtime/sessions/select');
   assert.equal(h.calls[0][1].choice_id, model.id);
-  assert.equal(h.calls.at(-1)[0], '/api/load-model');
+  // Choosing never loads the engine: the model loads when a message is sent.
+  assert.equal(h.calls.some(c => Array.isArray(c) && c[0] === '/api/load-model'), false);
+  assert.equal(state.localTarget.model, 'gemma.gguf');
 });
 
 test('a missing choice or failed switch cannot silently load a model while retaining Pi', async () => {
@@ -72,10 +74,11 @@ test('a missing choice or failed switch cannot silently load a model while retai
 
 test('failed loading is reported with the selected direct execution, never labeled as Pi', async () => {
   const h = engine({ loadError: 'engine refused model' });
-  assert.equal(await h.env.choose({ path: model.model, model: 'gemma.gguf', name: 'Gemma' }), false);
+  assert.equal(await h.env.choose({ path: model.model, model: 'gemma.gguf', name: 'Gemma' }, { load: true }), false);
   assert.equal(h.env.store.get().mode, 'native');
   assert.equal(h.env.store.get().session.runtime_id, 'llama.cpp');
-  assert.equal(h.notices.at(-1)[0], 'engine refused model');
+  assert.equal(h.env.store.get().engineError, 'engine refused model');
+  assert.equal(h.env.store.get().starting, false);
 });
 
 test('execution identity distinguishes the same model across harnesses and cloud providers', () => {

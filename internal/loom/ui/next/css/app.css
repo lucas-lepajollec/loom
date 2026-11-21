@@ -111,14 +111,18 @@ code,pre,kbd,.mono{font-family:var(--mono)}
 .lbl{font-size:11.5px;font-weight:500;color:var(--text-3);letter-spacing:.01em}
 
 /* segmented */
-.seg{position:relative;display:flex;gap:2px;padding:3px;border-radius:var(--r);background:var(--surface-2)}
-.seg button{position:relative;z-index:1;flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;padding:0 10px;border-radius:7px;font-size:13px;color:var(--text-3);transition:color var(--mid)}
-.seg button:hover{color:var(--text-2)}
+/* choix exclusif : des options en texte, l'option choisie sur une pastille
+   discrète ; pas de cadre autour */
+.seg{position:relative;display:flex;gap:2px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.seg button{position:relative;z-index:1;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border-radius:99px;font-size:13px;color:var(--text-3);transition:color var(--mid),background var(--mid)}
+.seg button:hover{color:var(--text)}
 .seg button[aria-selected="true"]{color:var(--text);font-weight:500}
 .seg .n{font:500 11px var(--mono);color:var(--text-4)}
-.seg .ind{position:absolute;z-index:0;top:3px;bottom:3px;left:0;border-radius:7px;background:var(--surface-3);transition:transform var(--mid) var(--out),width var(--mid) var(--out)}
-[data-theme="light"] .seg .ind{background:var(--surface);box-shadow:0 0 0 1px var(--line),0 1px 2px rgba(0,0,0,.05)}
-.seg.sm button{height:24px;font-size:12px;padding:0 8px}
+.seg .ind{position:absolute;z-index:0;top:0;bottom:0;left:0;border-radius:99px;background:var(--surface-2);box-shadow:none;transition:transform var(--mid) var(--out),width var(--mid) var(--out)}
+[data-theme="light"] .seg .ind{background:var(--surface-2);box-shadow:none}
+.seg.sm button{height:26px;font-size:12.5px;padding:0 10px}
+.seg.lg button{height:36px;padding:0 16px;font-size:14px;gap:8px}
+.seg.lg button .ico{width:16px;height:16px}
 
 /* onglets soulignés */
 .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line-soft);overflow-x:auto;scrollbar-width:none}
@@ -281,10 +285,6 @@ html,body{letter-spacing:-.011em;font-size:13.5px}
 .card{border-radius:var(--r-lg);border:1px solid var(--line);background:var(--surface);box-shadow:none}
 .tip{width:14px;height:14px;border:0;background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--text-3);font-size:8.5px}
 .tip:hover{color:var(--text);box-shadow:inset 0 0 0 1px var(--text-3)}
-.seg{background:var(--bg-2);box-shadow:inset 0 0 0 1px var(--line);border-radius:var(--r-sm);padding:2px}
-.seg button{height:26px;font-size:12.5px;border-radius:6px}
-.seg .ind{top:2px;bottom:2px;border-radius:6px;background:var(--surface-3);box-shadow:inset 0 0 0 1px var(--line)}
-[data-theme="light"] .seg .ind{background:#fff;box-shadow:0 1px 2px rgba(9,9,11,.1),0 0 0 1px var(--line)}
 .tabs{gap:4px;border-bottom:0}
 .tabs button{height:30px;padding:0 11px;border-radius:var(--r-sm);font-size:13px;color:var(--text-2);transition:color var(--mid),background-color var(--fast)}
 .tabs button:hover{background:var(--hover);color:var(--text)}
@@ -390,11 +390,6 @@ html,body{letter-spacing:-.011em;font-size:13.5px}
 :focus-visible{box-shadow:0 0 0 2px var(--line-strong)}
 .input:focus,.textarea:focus,.select:focus{box-shadow:none;border-color:var(--line-strong)}
 /* sélecteurs segmentés : un conteneur, un indicateur, même rayon partout */
-.seg{padding:2px;gap:0;border:1px solid var(--line);background:var(--bg-2);border-radius:8px}
-.seg .ind{left:0;top:2px;bottom:2px;border-radius:6px;background:var(--surface-3);border:0}
-[data-theme="light"] .seg .ind{background:var(--panel);box-shadow:0 0 0 1px var(--line)}
-.seg button{height:26px;border-radius:6px;color:var(--text-3)}
-.seg button[aria-selected="true"]{color:var(--text)}
 .seg .n{font:400 11px var(--font);color:var(--text-4)}
 .tabs button[aria-selected="true"]{box-shadow:none;background:var(--surface-2)}
 /* nouvelle session : une entrée comme les pages, sans fond */

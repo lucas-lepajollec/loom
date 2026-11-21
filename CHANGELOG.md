@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Agents shows live sessions first, with current state and activity, plus
+  a paged history across the harnesses Codeman reports. The harness table
+  shows running session counts and installation status. Scheduled tasks
+  now show the next run and launch result, and accept daily or weekly cron
+  expressions. Agents settings cover Codeman’s stored preferences, with
+  a write-only Deepgram key field.
+
 - Updates: GitHub allows 60 anonymous API requests per hour per network.
   Loom now keeps a release lookup for 10 minutes (30 for llama.cpp), and once
   GitHub reports the limit it stops asking until the reset and says when to

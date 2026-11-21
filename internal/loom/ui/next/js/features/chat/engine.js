@@ -5,12 +5,14 @@ import { chatShape, validShape, eventShape } from '../../core/shape.js';
 import { createStore } from '../../core/lib.js';
 import { get, post, stream } from '../../core/api.js';
 import { toast, confirm } from '../../ui/dialog.js';
-import { refreshNav, refreshWorkspace, go, app } from '../../core/state.js';
+import { refreshNav, refreshWorkspace, refreshStatus, runtimeKind, go, app } from '../../core/state.js';
 
 export const chat = createStore({
   mode: 'native', sessionId: '', session: null, context: null,
   items: [], frozen: null, busy: false, replaying: true, loading: true,
   ctxUsed: 0, compactCount: 0, gen: null, runningTask: '', notice: '',
+  // Modèle local choisi mais pas encore chargé : il ne se charge qu'à l'envoi.
+  localTarget: null, starting: false, engineError: '',
 }, chatShape);
 
 let lastSeq = 0, abort = null, epoch = 0, opening = false, turn;
@@ -264,8 +266,9 @@ export async function newDiscussion(projectId) {
 // ---------------------------------------------------------------- envoi
 export async function send(text, opts = {}) {
   const st = chat.get();
+  if (st.busy || st.starting) return false;
+  if (needsEngine() && !await ensureEngine()) return false;
   if (st.mode === 'thread') return sendThread(text, opts);
-  if (st.busy) return false;
   push({ k: 'user', text, files: opts.files || [], pending: true });
   for (let i = 0; i < 3; i++) {
     try {
@@ -393,7 +396,7 @@ export async function chooseRemote(choice, { quiet = false } = {}) {
 
 // Choix local : dans une discussion commune on bascule d'abord sa route vers ce
 // modèle, puis on charge le modèle/preset dans le moteur.
-export async function chooseLocal(target) {
+export async function chooseLocal(target, { load = false } = {}) {
   const st = chat.get();
   if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
   try {
@@ -406,12 +409,54 @@ export async function chooseLocal(target) {
       if (!r.ok) { toast(r.error, 'err'); return false; }
       if (!await open(st.sessionId, true)) return false;
     }
-    const r = target.presetIndex ? await post('/api/switch', { n: target.presetIndex }) : await post('/api/load-model', { model: target.model });
-    if (!r.ok) { toast(r.error || t("chat.engine.chargement_impossible"), 'err'); return false; }
-    toast(t("chat.engine.chargement_de") + target.name + '…');
+    // Le choix est retenu ; le moteur ne charge ce modèle qu'au premier envoi.
+    chat.set({ localTarget: isLoaded(target) ? null : target, engineError: '' });
+    if (load) return ensureEngine();
     refreshNav();
     return true;
   } catch (e) { toast(e.message, 'err'); return false; }
+}
+
+const sameModel = (a, b) => !!a && !!b && String(a).split('/').pop().replace(/\.gguf$/i, '') === String(b).split('/').pop().replace(/\.gguf$/i, '');
+function isLoaded(target) {
+  const st = app.get().status;
+  if (!st || !st.health || !target) return false;
+  return target.presetIndex ? !!st.preset_name && st.preset_name === target.name : !st.preset_id && (sameModel(st.model, target.model) || sameModel(st.model, target.path));
+}
+// Une discussion avec le moteur local : directe ou session « local ».
+function needsEngine() {
+  const c = chat.get();
+  if (c.mode !== 'thread') return true;
+  return !!(c.session && c.session.runtime_id && runtimeKind(c.session.runtime_id) === 'local');
+}
+
+// Démarre le moteur avec le modèle choisi (ou le dernier) et attend qu'il réponde.
+export async function ensureEngine() {
+  const c = chat.get();
+  const status = app.get().status || {};
+  const sessionModel = c.mode === 'thread' && c.session && c.session.model;
+  const target = c.localTarget || (sessionModel ? { model: sessionModel, name: sessionModel } : null);
+  if (status.health && (!target || isLoaded(target))) { if (target) chat.set({ localTarget: null }); return true; }
+  const model = target ? target.model : status.model;
+  if (!target && !model) { chat.set({ engineError: t('chat.engine.no_model') }); return false; }
+  chat.set({ starting: true, engineError: '' });
+  try {
+    const r = target && target.presetIndex ? await post('/api/switch', { n: target.presetIndex }) : await post('/api/load-model', { model });
+    if (!r.ok) throw new Error(r.error || t("chat.engine.chargement_impossible"));
+    const deadline = Date.now() + 10 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await sleep(1500);
+      await refreshStatus();
+      const s = app.get().status || {};
+      if (s.load_error) throw new Error(s.load_error);
+      if (s.health) { chat.set({ starting: false, localTarget: null }); refreshNav(); return true; }
+      if (!s.active && Date.now() > deadline - 9.5 * 60 * 1000) throw new Error(t('chat.engine.start_failed'));
+    }
+    throw new Error(t('chat.engine.start_timeout'));
+  } catch (e) {
+    chat.set({ starting: false, engineError: e.message || t('chat.engine.start_failed') });
+    return false;
+  }
 }
 
 // La dernière discussion commune ouverte est rouverte au rechargement.

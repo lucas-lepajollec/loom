@@ -21,6 +21,7 @@ browser ── Loom auth + origin check ──▶ Loom gateway ── Basic auth
 | `GET /api/codeman/discover` | Local Codeman installs (default port, systemd/launchd service, data-dir `.env`, environment) probed in parallel; reports whether a password was found, never the password |
 | `POST /api/codeman/connect`, `POST /api/codeman/disconnect` | Test then save (address, user, sealed password, or the locally found one); forget the connection |
 | `/api/codeman/v1/*` | Relay of any method to `/api/v1/*` with Basic auth added server-side. Browser cookies, `Authorization` and `Origin` are not forwarded. Codeman 401 becomes `502 CODEMAN_AUTH`; unreachable becomes `502 CODEMAN_UNREACHABLE`. `auth/*`, `logout` and `hook-event` are refused. SSE responses are flushed chunk by chunk. Bodies are limited to 64 MB |
+| `GET/PUT /api/codeman/v1/settings` | The settings response shows whether the Deepgram API key is set. The gateway merges voice edits on the server before forwarding them. A blank `voiceSettings.apiKey` clears the key. A null `voiceSettings.silenceTimeout` restores Codeman’s provider default |
 | `/api/codeman/ws/{id}` | Same-origin WebSocket bridged to Codeman's terminal socket; close codes (4009 ended, 4004 missing) are forwarded |
 
 All routes require Loom authentication and Go's cross-origin protection.
@@ -43,12 +44,18 @@ allowed by default and adjustable in Settings → Permissions.
 | `layout.js`, `grid.js` | Per-device layout (1, 2, 3, 4 or 6 panes, cells, focus, zoom, divider fractions) and the tmux-like grid |
 | `rail.js` | Full list (home screen, phone): sessions by folder, history, search, reboot restore |
 | `attach.js` | Pasted images and dropped files: upload to Codeman, path inserted in the prompt or typed in the terminal |
-| `settings.js` | Codeman server settings (`/settings`, `/clis`) and the connection |
+| `settings.js` | Codeman server settings, CLI management, and the connection. Settings use `/settings`, `/cases/order` and `/execution/model-config` |
 | `quotas.js` | Activity → Quotas: one card per subscription (`/api/quotas`, read from the CLIs by `quota_accounts.go` and from Codeman), resets on offer, Loom's sampled history, Codeman token stats |
 | `conversation.js` | Transcript blocks, activity folds, approvals, composer, live screen before the first identifiable prompt |
 | `terminal.js` | xterm.js terminal: screen read, WebSocket attach, resize, reconnect |
 | `inspector.js` | Activity, Git, files, subagents, session options |
 | `control.js`, `cron.js`, `connection.js`, `new-session.js` | Control center, scheduling, connection, new session |
+
+The overview shows live sessions first and pages through Codeman’s unified
+history. Scheduled tasks use Codeman’s once, interval, daily and weekly
+schedules. The cron expression field converts fixed daily and weekly times
+into those API fields before saving. Run statuses describe the launch and
+prompt delivery.
 
 The module uses Loom's tokens and components (`.composer`, `.thread`, `.seg`,
 `Modal`, `Drawer`, `TabNav`), its i18n dictionaries and its CSS layering

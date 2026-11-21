@@ -21,6 +21,7 @@ export function currentExec() {
     const model = baseName(s.model).replace(/-(low|medium|high|xhigh)$/, '').replace(/^[\w.-]+:(?=.)/, '').replace(/\.gguf$/i, '');
     return model && model !== 'default' ? { kind, name: model, sub: s.provider_name } : { kind, name: s.provider_name || s.runtime_id, sub: t("chat.picker.modele_par_defaut") };
   }
+  if (c.localTarget) return { kind: 'local', name: c.localTarget.name || baseName(c.localTarget.model || '').replace(/\.gguf$/i, ''), sub: c.localTarget.presetIndex ? 'preset' : '' };
   const st = app.get().status;
   if (st && st.model) return { kind: 'local', name: st.preset_name || baseName(st.model_name || st.model).replace(/\.gguf$/i, ''), sub: st.preset_name ? 'preset' : '' };
   return { kind: 'local', name: '', sub: '' };
@@ -76,9 +77,10 @@ export function Picker() {
     if (!anchor) return { local: [], cloud: [] };
     const visible = new Map(wsModels.filter(m => m.kind === 'local').flatMap(m => [[m.model, m.enabled], [m.engine_value || m.model, m.enabled]]));
     const weights = (models || []).filter(m => !/mmproj/i.test(m.name) && visible.get(m.path || m.value) !== false);
+    const pending = chat.get().localTarget;
     const local = [
-      ...(presets || []).map((p, i) => ({ id: 'p' + p.id, preset: true, title: p.name || p.id, sub: p.model ? baseName(p.model).replace(/\.gguf$/i, '') : '', active: cur.kind === 'local' && status && status.preset_id === p.id, loaded: status && status.preset_id === p.id && status.health, run: () => chooseLocal({ presetIndex: i + 1, name: p.name, model: p.model }) })),
-      ...weights.map(m => ({ id: 'm' + m.path, title: m.name.replace(/\.gguf$/i, ''), sub: [quantOf(m.name), fmtBytes(m.size), m.shards > 1 ? m.shards + t("chat.picker.fichiers") : '', status && status.health && (status.model === m.path || status.model === (m.value || m.path)) ? t('chat.picker.loaded') : ''].filter(Boolean).join(' · '), active: cur.kind === 'local' && status && status.health && (status.model === m.path || status.model === (m.value || m.path)) && !status.preset_id, loaded: status && status.health && (status.model === m.path || status.model === (m.value || m.path)), run: () => chooseLocal({ path: m.path, model: m.value || m.path, name: m.name }) })),
+      ...(presets || []).map((p, i) => ({ id: 'p' + p.id, preset: true, title: p.name || p.id, sub: p.model ? baseName(p.model).replace(/\.gguf$/i, '') : '', active: cur.kind === 'local' && (pending ? pending.presetIndex === i + 1 : status && status.preset_id === p.id), loaded: status && status.preset_id === p.id && status.health, run: () => chooseLocal({ presetIndex: i + 1, name: p.name, model: p.model }) })),
+      ...weights.map(m => ({ id: 'm' + m.path, title: m.name.replace(/\.gguf$/i, ''), sub: [quantOf(m.name), fmtBytes(m.size), m.shards > 1 ? m.shards + t("chat.picker.fichiers") : '', status && status.health && (status.model === m.path || status.model === (m.value || m.path)) ? t('chat.picker.loaded') : ''].filter(Boolean).join(' · '), active: cur.kind === 'local' && (pending ? !pending.presetIndex && (pending.model === (m.value || m.path) || pending.path === m.path) : status && (status.model === m.path || status.model === (m.value || m.path)) && !status.preset_id), loaded: status && status.health && (status.model === m.path || status.model === (m.value || m.path)), run: () => chooseLocal({ path: m.path, model: m.value || m.path, name: m.name }) })),
     ];
     const cloud = wsModels.filter(m => m.kind === 'cloud' && m.enabled).map(m => ({ id: m.id, title: m.name, sub: '', group: m.provider_name, vendorKey: m.model, active: cur.kind === 'cloud' && chat.get().session && chat.get().session.provider_id === m.provider_id && chat.get().session.model === m.model, run: () => chooseRemote(m) }));
     return { local, cloud };

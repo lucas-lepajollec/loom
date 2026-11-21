@@ -205,21 +205,15 @@
 .ses-row>.more{position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0}
 .ses-row:hover>.more,.ses-row:focus-visible>.more,.ses-row:has(:focus-visible)>.more{opacity:1}
 .ses-row:is(:hover,:focus-visible,:has(:focus-visible))>:is(.ses-when,.dot,.run){visibility:hidden}
-.cm-resume{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:2px 12px}
-.cm-resume .chat-link{min-height:36px;padding:0 10px;gap:10px}
-.cm-resume .chat-link small{margin-left:auto}
 .ses-folder-h small{flex:none;font-size:11.5px;color:var(--text-4)}
 .ses-folder-in .chat-link{padding-left:22px}
 .ses-folder.drop-on,.ses .side-list.drop-on{border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line-strong)}
 .ses-empty{margin:4px 10px;font-size:12.5px;color:var(--text-4)}
-.cm-side-hist small{flex:none;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--text-4)}
-.cm-side-hist span{color:var(--text-3)}
 .cm-side-more{margin-top:2px}
 .cm-side-more .ico:first-child{width:14px;height:14px}
 .cm-grid-h{min-height:48px}
 .cm-grid-h b{font-size:14px;font-weight:600}
-.welcome-type{width:240px;margin-bottom:8px}
-.welcome-type .seg{width:100%}.welcome-type .seg button{flex:1}
+.welcome-type{display:flex;justify-content:center;margin-bottom:10px}
 
 /* disposition et quotas dans la barre du module */
 .cm-layout-btn{width:32px;height:32px}

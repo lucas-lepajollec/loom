@@ -9,7 +9,7 @@ function fixture({ failPreview, problem, route = {}, failSend } = {}) {
   const calls = [];
   const session = { id: 'discussion', runtime_id: 'pi', model: 'deepseek-flash', project_id: 'project', status: 'idle' };
   const env = { chatShape, validShape, eventShape, t: french, Map, Set, Date, setTimeout, crypto: { randomUUID: () => 'request-fixture' },
-    document: { addEventListener() {} }, toast() {},
+    document: { addEventListener() {} }, toast() {}, runtimeKind: () => 'cloud', refreshStatus: async () => {},
     createStore: state => ({ get: () => state, set: patch => Object.assign(state, patch) }),
     app: { get: () => ({ workspace: { projects: [{ id: 'project', brain_budget: 0, brain_sources: [] }] } }) },
     post: async (path, body) => {

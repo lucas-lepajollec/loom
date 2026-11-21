@@ -11,7 +11,7 @@ function reducer() {
   const context = vm.createContext({
     chatShape, validShape, eventShape, t: french,
     createStore: state => ({ get: () => state, set: patch => Object.assign(state, patch) }),
-    document: { addEventListener() {} }, refreshNav() {}, toast() {},
+    document: { addEventListener() {} }, refreshNav() {}, toast() {}, runtimeKind: () => 'cloud', refreshStatus: async () => {},
     setTimeout, Date, Map, Set,
   });
   vm.runInContext(source + '\nglobalThis.store = chat; globalThis.event = onEvent;', context);
