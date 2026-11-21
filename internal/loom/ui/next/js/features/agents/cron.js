@@ -5,7 +5,7 @@ import { t, locale } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Switch, Empty, Seg } from '../../ui/controls.js';
-import { confirm, toast } from '../../ui/dialog.js';
+import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { api } from './client.js';
 import { agents, cliOf, onDomain, projectOf, upsertSession } from './store.js';
 import { openSession } from './nav.js';
@@ -46,7 +46,7 @@ const localInput = ms => {
 };
 const SCHEDULE_TYPES = ['once', 'interval', 'daily', 'weekly'];
 
-function JobForm({ job, onClose, onSaved, onDelete }) {
+function JobForm({ job, onClose, onSaved, onDelete, phone }) {
   const registry = useStore(agents, s => s.clis);
   const sessions = useStore(agents, s => s.sessions);
   const unified = useStore(agents, s => s.unified);
@@ -147,10 +147,14 @@ function JobForm({ job, onClose, onSaved, onDelete }) {
   if (v.agentType && !clis.some(c => c.id === v.agentType)) {
     harnesses.unshift({ value: v.agentType, label: cliOf(v.agentType).label });
   }
-  return html`<aside class="cm-job-editor" aria-label=${title}>
-    <form onSubmit=${submit}>
-      <div class="cm-section-head"><h2>${job ? job.name : title}</h2>
-        ${job && html`<button type="button" class="btn sm danger" disabled=${busy} onClick=${remove}>${t('agents.cron.delete')}</button>`}</div>
+  const formId = 'cm-job-form';
+  const actions = html`<button type="button" class="btn" disabled=${busy} onClick=${onClose}>${t('agents.cancel')}</button>
+    <button type="submit" form=${formId} class="btn primary" disabled=${busy || !valid}>${t('agents.save')}</button>`;
+  const bodyForm = html`
+    <form id=${formId} onSubmit=${submit}>
+      ${(!phone || job) && html`<div class="cm-section-head">
+        ${!phone && html`<h2>${job ? job.name : title}</h2>`}
+        ${job && html`<button type="button" class="btn sm danger" disabled=${busy} onClick=${remove}>${t('agents.cron.delete')}</button>`}</div>`}
       <label class="field"><span>${t('agents.cron.name')}</span><input class="input" maxlength="200" value=${v.name} onInput=${e => set({ name: e.target.value })} required /></label>
       <label class="cm-editor-row"><span>${t('agents.cron.harness')}</span>
         <${ListPick} value=${v.agentType} placeholder=${t('agents.cron.pick_harness')} options=${harnesses} onChange=${agentType => set({ agentType })} />
@@ -194,13 +198,16 @@ function JobForm({ job, onClose, onSaved, onDelete }) {
         <label class="field"><span>${t('agents.cron.notes')}</span><input class="input" maxlength="2000" value=${v.notes} onInput=${e => set({ notes: e.target.value })} /></label>
       </details>
       ${error && html`<p role="alert" class="msg-err">${error}</p>`}
-      <div class="cm-editor-foot"><button type="button" class="btn" disabled=${busy} onClick=${onClose}>${t('agents.cancel')}</button>
-        <button type="submit" class="btn primary" disabled=${busy || !valid}>${t('agents.save')}</button></div>
+      ${!phone && html`<div class="cm-editor-foot">${actions}</div>`}
     </form>
     ${job && html`<details class="cm-job-history" onToggle=${e => setHistoryOpen(e.currentTarget.open)}><summary>${t('agents.cc.runs')}</summary>
       ${runsError && html`<p role="alert" class="msg-err">${runsError}</p>`}
-      ${runs ? html`<${Runs} runs=${runs} />` : !runsError && html`<span class="spinner"></span>`}</details>`}
-  </aside>`;
+      ${runs ? html`<${Runs} runs=${runs} />` : !runsError && html`<span class="spinner"></span>`}</details>`}`;
+  if (phone) return html`<${Modal} title=${job ? job.name : title} onClose=${() => { if (!busy) onClose(); }}
+    class="cm-job-sheet" foot=${actions} focusField=${false}>
+    <div class="cm-job-editor">${bodyForm}</div>
+  </${Modal}>`;
+  return html`<aside class="cm-job-editor" aria-label=${title}>${bodyForm}</aside>`;
 }
 
 function Runs({ jobs, runs }) {
@@ -236,7 +243,7 @@ function Runs({ jobs, runs }) {
 
 const NEW_JOB = Symbol('new job');
 
-export function CronPage() {
+export function CronPage({ phone }) {
   const live = useStore(agents, s => s.live);
   const [jobs, setJobs] = useState(null);
   const [runs, setRuns] = useState(null);
@@ -295,9 +302,12 @@ export function CronPage() {
     setSelection(current => current === selection ? null : current);
     load();
   };
-  return html`<div class="cm-scroll"><div class=${cls('cm-cron', editing && 'editing')}>
+  const jobForm = editing && html`<${JobForm} key=${job?.id || 'new'} job=${job} phone=${phone}
+    onClose=${() => setSelection(null)} onDelete=${deleted} onSaved=${saved} />`;
+  const Heading = phone ? 'h2' : 'h1';
+  return html`<div class="cm-scroll"><div class=${cls('cm-cron', editing && !phone && 'editing')}>
     <section class="cm-cron-list">
-      <div class="cm-cron-h"><div><h1>${t('agents.cron.title')}</h1><p>${t('agents.admin.cron_lead')}</p></div>
+      <div class="cm-cron-h"><div><${Heading}>${t('agents.cron.title')}</${Heading}><p>${t('agents.admin.cron_lead')}</p></div>
         <button class="btn primary" onClick=${() => setSelection(NEW_JOB)}><${Icon} n="plus" />${t('agents.cron.new')}</button></div>
       ${jobsError && html`<p role="alert" class="msg-err">${jobsError}</p>`}
       ${jobs === null ? !jobsError && html`<div class="skeleton cm-admin-loading"></div>`
@@ -323,7 +333,6 @@ export function CronPage() {
         ${runs ? html`<${Runs} jobs=${jobs || []} runs=${runs} />` : !runsError && html`<div class="skeleton cm-admin-loading"></div>`}
       </section>
     </section>
-    ${editing && html`<div ref=${editor} class="cm-editor-pane"><${JobForm} key=${job?.id || 'new'} job=${job}
-      onClose=${() => setSelection(null)} onDelete=${deleted} onSaved=${saved} /></div>`}
+    ${editing && (phone ? jobForm : html`<div ref=${editor} class="cm-editor-pane">${jobForm}</div>`)}
   </div></div>`;
 }

@@ -44,22 +44,22 @@ function CloudPanel() {
   </div>`;
 }
 
-export function Inspector({ open, onClose }) {
+export function Inspector({ open, onClose, phone }) {
   useStore(app, a => a.status && a.status.model);
   // currentExec() dépend de la discussion et du registre des runtimes (chargé après).
   useStore(chat, c => (c.mode || '') + ':' + ((c.session && c.session.runtime_id) || ''));
   useStore(app, a => a.workspace && a.workspace.runtimes);
   const exec = currentExec();
   const title = exec.kind === 'local' ? t("inspector.inspector.parametres") : exec.kind === 'cloud' ? t("inspector.inspector.modele") : t("inspector.inspector.session");
+  const content = exec.kind === 'local' ? html`<${LocalParams} />` : exec.kind === 'cloud' ? html`<${CloudPanel} />` : html`<p class="note">${t('runtime.retired')}</p>`;
+  if (phone) return open ? html`<${Modal} title=${title} onClose=${onClose} class="chat-inspector-sheet" focusField=${false}>${content}</${Modal}>` : null;
   return html`<aside class=${cls('insp', open && 'open')} aria-label="${t("inspector.inspector.panneau")}" aria-hidden=${String(!open)}>
     <div class="insp-in">
       <header class="insp-head">
         <b class="insp-title">${title}</b>
         <button class="icon-btn" aria-label="${t("inspector.inspector.fermer_le_panneau")}" onClick=${onClose}><${Icon} n="close" /></button>
       </header>
-      <div class="insp-scroll" key=${exec.kind}>
-        ${exec.kind === 'local' ? html`<${LocalParams} />` : exec.kind === 'cloud' ? html`<${CloudPanel} />` : html`<p class="note">${t('runtime.retired')}</p>`}
-      </div>
+      <div class="insp-scroll" key=${exec.kind}>${content}</div>
     </div>
   </aside>`;
 }

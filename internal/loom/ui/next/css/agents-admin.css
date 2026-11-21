@@ -49,7 +49,7 @@
 
 .cm-admin-top{flex:none}
 .cm-admin-top .sec-tabs{height:42px;margin:0;border:0}
-.cm-admin-phone-head,.cm-cfg-picker{display:none}
+.cm-cfg-picker{display:none}
 .cm-admin-top+.cm-scroll{container-type:inline-size;scrollbar-gutter:auto}
 .cm-admin-loading{height:120px}
 
@@ -197,44 +197,40 @@
 }
 
 @media(max-width:760px){
-  .cm-admin-top,.cm-cc,.cm-cron,.cm-cfg{padding-inline:16px}
-  .cm-admin-top{padding-top:env(safe-area-inset-top)}
-  .cm-admin-phone-head{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;margin:0 -6px 6px;text-align:center;font-size:16px}
-  .cm-admin-phone-head .icon-btn{width:44px;height:44px}
-  .cm-admin-top .sec-drop{display:none}
-  .cm-admin-top .sec-tabs{display:flex!important;align-items:stretch;gap:2px;height:auto;padding:3px;border-radius:11px;background:var(--surface-2)}
-  .cm-admin-top .sec-tabs a{flex:1;min-width:0;height:44px;justify-content:center;white-space:normal;text-align:center;padding:0 3px;font-size:14px}
-  .cm-admin-top .sec-tabs [aria-current]{background:var(--surface-3);border-radius:9px}
-  .cm-admin-top .sec-pill{display:none}
-  .cm-cc,.cm-cron,.cm-cfg{padding-block:14px 36px}
+  .cm-admin-top,.cm-cc,.cm-cron,.cm-cfg{padding-inline:var(--manage-left,16px) var(--manage-right,16px)}
+  .cm-cc,.cm-cron,.cm-cfg{padding-block:12px calc(32px + var(--phone-bottom))}
   .cm-cc{gap:16px}
-  .cm-cc-sec h2{color:var(--text-3);font-size:13px;font-weight:500}
+  .cm-cc-sec h2{margin-inline-start:4px;color:var(--text-2);font-size:14px;font-weight:500}
   .cm-session-row{grid-template-columns:minmax(0,1fr) 48px}
   .cm-session-open,.cm-history-link{gap:8px;min-height:56px;padding-inline:12px}
   .cm-session-open{padding-right:52px}
   .cm-session-meta{grid-template-columns:minmax(0,1fr);gap:3px;max-width:88px}
   .cm-session-meta time{justify-self:end}
   .cm-cc-state{justify-content:flex-end;text-align:end;gap:4px}
-  .cm-server{padding:12px;gap:8px}
-  .cm-server-actions{width:100%;justify-content:flex-end}
-  .cm-server-actions>.muted{flex:1 1 78px;overflow-wrap:anywhere}
-  .cm-server-link{width:44px;padding:0}
-  .cm-server-link span{display:none}
-  .cm-server-link .ico{display:block}
+  .cm-server{flex-wrap:nowrap;padding:12px 12px 12px 16px;gap:8px;border-radius:var(--r-xl)}
+  .cm-server-info{min-width:0}
+  .cm-server-info b{font-size:16px}
+  .cm-server-actions{flex:none}
   .cm-cc-appr{flex-wrap:wrap;gap:8px}
   .cm-cc-appr-t{min-width:50%}
   .cm-cc-appr-a{justify-content:flex-start}
-  .cm-harness :is(th,td){padding:6px}
-  .cm-harness tr>:first-child{padding-left:12px}
-  .cm-harness tr>:last-child{padding-right:12px}
-  .cm-harness-name{gap:6px}
-  .cm-next-runs li{grid-template-columns:minmax(0,1fr) auto;gap:2px 8px}
+  .cm-harness-list{list-style:none;margin:0;padding:0;background:var(--surface)}
+  .cm-harness-list,.cm-next-runs{border-radius:var(--r-xl)}
+  .cm-harness-list li{
+    display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;
+    min-height:56px;padding:6px 14px;overflow-wrap:anywhere;
+  }
+  .cm-harness-list li+li{border-top:1px solid var(--line-soft)}
+  .cm-harness-name{flex:1 1 100px;min-width:0;gap:8px}
+  .cm-harness-active,.cm-harness-install{color:var(--text-2);font-size:13px}
+  .cm-next-runs li{grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;min-height:56px}
   .cm-next-runs span{grid-column:1;grid-row:2}
   .cm-next-runs time{grid-row:1 / span 2;grid-column:2}
   .cm-cron.editing,.cm-cfg{grid-template-columns:minmax(0,1fr);gap:18px}
+  .cm-cron-h h2{margin:0;font-size:20px;line-height:1.25}
   .cm-job{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:start;gap:2px 8px;padding:8px}
   .cm-job-run{grid-column:2;justify-self:start;margin-left:30px}
-  .cm-job-editor{padding:14px}
+  .cm-job-sheet .cm-job-editor{padding:0;background:transparent}
   .cm-job-editor .input[type=datetime-local]{min-width:0;max-width:100%}
   .cm-cfg-nav{position:static}
   .cm-cfg-nav p,.cm-cfg-nav a{margin-inline:0}
@@ -245,7 +241,7 @@
   .cm-setting-control:has(> :nth-child(2)){flex:1 1 100%}
   .cm-gate{padding:24px 0}
   .cm-connect{padding:16px}
-  :is(.cm-cc,.cm-cron,.cm-cfg,.cm-connect,.cm-setup) :is(summary,.cm-job-t){min-height:44px}
+  :is(.cm-cc,.cm-cron,.cm-cfg,.cm-connect,.cm-setup,.cm-job-sheet) :is(summary,.cm-job-t){min-height:44px}
   :is(.cm-job-history,.cm-settings-extra)>summary{display:list-item;align-content:center}
   .cm-section-head a,.cm-cfg-nav a{display:inline-flex;align-items:center;min-height:44px}
 }

@@ -33,7 +33,8 @@ const runtime = { capabilities: strings, degraded: rows, filesystem_policies: st
 const project = { capability_ids: strings, mcp_servers: strings, brain_sources: strings };
 const choice = { reasoning_efforts: strings };
 const workspace = { models: list(choice), runtimes: list(runtime), providers: list({ models: strings }), projects: list(project), capabilities: rows, sessions: list(session) };
-export const chatShape = { items: rows, frozen: rows, session: optional(session), context: optional(context), gen: null };
+export const chatShape = { items: rows, frozen: rows, session: optional(session), context: optional(context), gen: null,
+  starting: value => value === false || validShape(value, { at: 0, name: '' }) };
 // Only the flat form fields rendered by RequestCard are interpreted. Arbitrary
 // tool payloads and the rest of a harness's JSON schema stay opaque.
 const form = { required: strings, properties: value => value == null || isObject(value) && Object.values(value).every(v => validShape(v, { title: '', description: '', enum: list(value => value === null || ['string', 'number', 'boolean'].includes(typeof value)), enumNames: strings })) };

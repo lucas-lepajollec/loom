@@ -16,8 +16,14 @@ import { AgentsPage } from '../features/agents/page.js';
 import { QuotasPage } from '../features/agents/quotas.js';
 import { FilesPage } from '../features/files/page.js';
 import { GROUPS } from './sections.js';
+import { SessionsPage } from './sessions.js';
+import { InboxPage } from './inbox.js';
+import { MorePage } from './more.js';
 
 export const ROUTES = [
+  { id: 'sessions', page: SessionsPage },
+  { id: 'inbox', page: InboxPage },
+  { id: 'more', page: MorePage },
   { id: 'chat', page: ChatView },
   { id: 'agents', page: AgentsPage },
   { id: 'local', page: LocalPage },

@@ -7,7 +7,7 @@ import { api, gateway, connectEvents } from './client.js';
 export const agents = createStore({
   conn: { state: 'idle', configured: false, auth: '', version: '', error: '', ui_url: '', url: '', password_set: false },
   sessions: {}, order: [], unified: [], historyOffset: 0, historyTotal: -1, historyError: '',
-  clis: [], cases: [], approvals: [], restore: [],
+  clis: [], cases: [], approvals: [], restore: [], completed: {},
   live: false, loaded: false,
   // Dernière mesure des quotas d'abonnement (Claude 5 h / 7 j, Codex).
   planUsage: null,
@@ -76,7 +76,8 @@ function drop(id) {
   const st = agents.get();
   if (!st.sessions[id]) return;
   const sessions = { ...st.sessions }; delete sessions[id];
-  agents.set({ sessions, order: st.order.filter(x => x !== id), approvals: st.approvals.filter(a => a.sessionId !== id) });
+  const completed = { ...st.completed }; delete completed[id];
+  agents.set({ sessions, completed, order: st.order.filter(x => x !== id), approvals: st.approvals.filter(a => a.sessionId !== id) });
 }
 function bumpTurn(id) { const t = agents.get().turns; agents.set({ turns: { ...t, [id]: (t[id] || 0) + 1 } }); }
 
@@ -90,7 +91,7 @@ export async function refreshConnection() {
       historyRevision++;
       agents.set({
         conn, sessions: {}, order: [], unified: [], historyOffset: 0, historyTotal: -1, historyError: '',
-        approvals: [], restore: [], clis: [], cases: [], settings: {}, planUsage: null, turns: {}, loaded: false, live: false,
+        approvals: [], restore: [], clis: [], cases: [], settings: {}, planUsage: null, turns: {}, completed: {}, loaded: false, live: false,
       });
       if (stop) {
         stop();
@@ -152,6 +153,14 @@ export function refreshUnified() {
 // ---------- événements ----------
 const sessionFrom = d => d && (d.session && d.session.id ? d.session : d.id ? d : null);
 const idOf = d => d && (d.id || d.sessionId || d.session?.id);
+export const recentCompletionMs = 24 * 60 * 60 * 1000;
+function recordCompletion(id) {
+  if (!id) return;
+  const now = Date.now();
+  const completed = Object.fromEntries(Object.entries(agents.get().completed).filter(([, at]) => now - at < recentCompletionMs));
+  agents.set({ completed: { ...completed, [id]: now } });
+}
+
 function onEvent(name, d) {
   switch (name) {
     case 'session:created': {
@@ -167,7 +176,11 @@ function onEvent(name, d) {
     case 'session:exit': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, pid: null, isWorking: false, status: 'stopped' }); bumpTurn(id); break; }
     case 'session:error': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, lastError: d.error, status: 'error' }); break; }
     case 'session:interactive': case 'session:running': { const id = idOf(d); if (id) api.session(id).then(upsert).catch(() => {}); break; }
-    case 'session:completion': case 'hook:stop': case 'transcript:complete': case 'hook:prompt_submitted': case 'transcript:tool_end':
+    case 'session:completion': case 'hook:stop': case 'transcript:complete': {
+      const id = d?.sessionId || idOf(d);
+      recordCompletion(id); bumpTurn(id); break;
+    }
+    case 'hook:prompt_submitted': case 'transcript:tool_end':
       bumpTurn(idOf(d)); break;
     case 'approval:pending': {
       const a = d?.id ? d : d?.item;

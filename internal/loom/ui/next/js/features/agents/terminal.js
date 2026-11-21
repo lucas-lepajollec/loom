@@ -7,7 +7,8 @@ import { html, useEffect, useRef, useState, cls } from '../../core/lib.js';
 import { visibleConnection } from '../../core/poll.js';
 import { loadXterm } from '../../ui/xterm.js';
 import { Icon } from '../../ui/icons.js';
-import { api, terminalClientId } from './client.js';
+import { api, sendPrompt, terminalClientId } from './client.js';
+import { agentDraftKey } from './actions.js';
 import { toast } from '../../ui/dialog.js';
 import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
 
@@ -45,30 +46,39 @@ export function theme() {
 // de touches apparaît au-dessus du clavier tant qu'il est ouvert sur ce
 // terminal (Ctrl à un coup, Esc, Tab, flèches, fermer le clavier).
 const KEYS = [['Esc', '\x1b'], ['Tab', '\t'], ['↑', '\x1b[A'], ['↓', '\x1b[B'], ['←', '\x1b[D'], ['→', '\x1b[C']];
-function Accessory({ send, ctrl, setCtrl, dismiss }) {
+function Accessory({ send, ctrl, setCtrl, dismiss, persistent, connected }) {
   // pointerdown sans effet par défaut : le terminal garde le clavier.
   const keep = e => e.preventDefault();
   return html`<div class="cm-acc" role="toolbar" aria-label=${t('agents.acc.label')}>
-    <button type="button" class=${cls(ctrl && 'on')} aria-pressed=${String(ctrl)} title=${t('agents.acc.ctrl')} onPointerDown=${keep} onClick=${() => setCtrl(!ctrl)}>Ctrl</button>
-    ${KEYS.map(([label, seq]) => html`<button type="button" key=${label} onPointerDown=${keep} onClick=${() => { setCtrl(false); send(seq); }}>${label}</button>`)}
-    <button type="button" class="cm-acc-hide" aria-label=${t('agents.acc.hide')} title=${t('agents.acc.hide')} onPointerDown=${keep} onClick=${dismiss}><${Icon} n="chevron" /></button>
+    <button type="button" class=${cls(ctrl && 'on')} aria-pressed=${String(ctrl)} title=${t('agents.acc.ctrl')} disabled=${!connected} onPointerDown=${keep} onClick=${() => setCtrl(!ctrl)}>${t('mobile.key_ctrl')}</button>
+    ${KEYS.map(([label, seq], i) => html`<button type="button" key=${label} disabled=${!connected}
+      onPointerDown=${keep} onClick=${() => { setCtrl(false); send(seq); }}>${i === 0 ? t('mobile.key_esc') : i === 1 ? t('mobile.key_tab') : label}</button>`)}
+    ${persistent && html`<button type="button" class="cm-acc-break" disabled=${!connected} onPointerDown=${keep} onClick=${() => { setCtrl(false); send('\x03'); }}>${t('mobile.key_ctrl_c')}</button>`}
+    ${dismiss && html`<button type="button" class="cm-acc-hide" aria-label=${t('agents.acc.hide')} title=${t('agents.acc.hide')} onPointerDown=${keep} onClick=${dismiss}><${Icon} n="chevron" /></button>`}
   </div>`;
 }
 // Ctrl à un coup : la lettre tapée ensuite devient son octet de contrôle.
 const ctrlByte = ch => { const c = ch.toUpperCase().charCodeAt(0); return c >= 64 && c <= 95 ? String.fromCharCode(c - 64) : ch === ' ' ? '\x00' : ch === '?' ? '\x7f' : ch; };
 
 const TAIL = 1024 * 1024;
+// Instantané de l'écran par session : rouvrir une session l'affiche aussitôt,
+// puis l'historique à jour le remplace.
+const snapshots = new Map();
+// Rendu GPU coupé pour la visite si le navigateur a perdu le contexte WebGL
+// ou s'il s'est montré lent (rendu logiciel), comme Codeman.
+const glOff = () => { try { return sessionStorage.getItem('loom.term.nogl') === '1'; } catch (_) { return false; } };
+const markGlOff = () => { try { sessionStorage.setItem('loom.term.nogl', '1'); } catch (_) {} };
 const historyQuery = (shell, lines) => `full=1&tail=${TAIL}&lines=${lines}` + (shell ? '&alt=recording' : '');
 
-export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true, fontSize = 13, focus = false, readOnly = false, scrollback = 20000, onState }) {
+export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true, fontSize = 13, focus = false, readOnly = false, scrollback = 20000, onState, phoneControls = false }) {
   const box = useRef(), termRef = useRef();
   const [state, setState] = useState('connecting');
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
   // Taille imposée par un autre écran, plus grande que ce panneau.
   const [foreign, setForeignState] = useState(false);
-  const reclaimRef = useRef(null), inputRef = useRef(null), ctrlRef = useRef(false);
-  const phone = viewport() === 'mobile';
+  const reclaimRef = useRef(null), inputRef = useRef(null), ctrlRef = useRef(false), saveRef = useRef(null);
+  const phone = phoneControls || viewport() === 'mobile';
   const [typing, setTyping] = useState(false);
   // CLI en plein écran : il garde lui-même son historique, la barre de
   // défilement locale n'aurait presque rien à faire défiler.
@@ -95,7 +105,61 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       fitAddon = new w.FitAddon.FitAddon();
       term.loadAddon(fitAddon);
       term.open(box.current);
+      // Rendu GPU (WebGL) comme Codeman ; si le contexte est perdu, retour au
+      // rendu DOM pour la visite. Largeurs Unicode 11 pour les emojis.
+      let webgl = null;
+      if (w.WebglAddon && !glOff()) {
+        try {
+          webgl = new w.WebglAddon.WebglAddon();
+          webgl.onContextLoss(() => { const gl = webgl; webgl = null; markGlOff(); setTimeout(() => { if (!alive) return; try { gl?.dispose(); } catch (_) {} try { fitAddon.fit(); } catch (_) {} }, 0); });
+          term.loadAddon(webgl);
+          // Un redimensionnement lent deux fois de suite (GPU émulé par
+          // logiciel) : retour au rendu DOM pour la visite.
+          let slow = 0;
+          term.onResize(() => {
+            const t0 = performance.now();
+            const once = term.onRender(() => {
+              once.dispose();
+              if (!webgl || performance.now() - t0 < 250 || ++slow < 2) return;
+              // Hors du rendu en cours : xterm lit encore le moteur GPU pendant ce rappel.
+              const gl = webgl; webgl = null; markGlOff();
+              setTimeout(() => { if (!alive) return; try { gl.dispose(); } catch (_) {} try { fitAddon.fit(); } catch (_) {} }, 0);
+            });
+          });
+        } catch (_) { webgl = null; }
+      }
+      if (w.Unicode11Addon) try { term.loadAddon(new w.Unicode11Addon.Unicode11Addon()); term.unicode.activeVersion = '11'; } catch (_) {}
+      let serializer = null;
+      if (w.SerializeAddon) try { serializer = new w.SerializeAddon.SerializeAddon(); term.loadAddon(serializer); } catch (_) { serializer = null; }
+      // Écho prédictif (xterm-zerolag-input, le moteur de Codeman) : la touche
+      // part au CLI comme avant, son caractère s'affiche sans attendre l'écho.
+      let predictor = null;
+      if (!readOnly && w.XtermZerolagInput?.PredictiveEchoAddon) try { predictor = new w.XtermZerolagInput.PredictiveEchoAddon(); term.loadAddon(predictor); } catch (_) { predictor = null; }
       try { fitAddon.fit(); } catch (_) {}
+      const snapKey = sessionId + (shell ? ':shell' : '');
+      const snap = snapshots.get(snapKey);
+      if (snap && snap.cols === term.cols) term.write(snap.data, () => { if (alive) term.scrollToBottom(); });
+      const saveSnapshot = () => {
+        if (!serializer) return;
+        try {
+          snapshots.delete(snapKey);
+          snapshots.set(snapKey, { data: serializer.serialize({ scrollback: 3000 }), cols: term.cols });
+          while (snapshots.size > 12) snapshots.delete(snapshots.keys().next().value);
+        } catch (_) {}
+      };
+      saveRef.current = saveSnapshot;
+      // Le flux en direct s'écrit au plus une fois par image, et pas avant que
+      // l'écriture précédente soit analysée (contrôle du débit).
+      let outQ = [], outBusy = false, outFrame = 0;
+      const outFlush = () => {
+        outFrame = 0;
+        if (!alive || outBusy || !outQ.length) return;
+        const data = outQ.length === 1 ? outQ[0] : outQ.join('');
+        outQ = []; outBusy = true;
+        term.write(data, () => { outBusy = false; if (outQ.length) outSchedule(); });
+      };
+      const outSchedule = () => { if (!outFrame) outFrame = document.hidden ? setTimeout(outFlush, 100) : requestAnimationFrame(outFlush); };
+      const output = d => { outQ.push(d); outSchedule(); };
       // Sur téléphone, toucher le terminal n'ouvre pas le clavier (la barre
       // de saisie s'en charge), et le bas du terminal (là où le CLI attend
       // sa saisie) reste visible quand le pane est plus haut que l'écran.
@@ -169,7 +233,13 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           // L'écriture est asynchrone : la position se rétablit une fois finie
           // (sinon l'affichage pouvait rester tout en haut de l'historique).
           const restore = () => { if (!alive) return; const place = () => (fromBottom === 0 ? term.scrollToBottom() : term.scrollToLine(Math.max(0, term.buffer.active.baseY - fromBottom))); place(); requestAnimationFrame(() => alive && place()); };
-          if (r?.terminalBuffer) term.write(r.terminalBuffer, restore); else restore();
+          predictor?.clearPredictions();
+          // Une seule écriture : xterm.js la découpe déjà lui-même dans le temps
+          // (le découper en plus faisait geler l'écran avec le rendu GPU).
+          const data = r?.terminalBuffer || '';
+          await new Promise(done => (data ? term.write(data, done) : done()));
+          if (!alive || gen !== screenGen) return;
+          restore();
           // Pas d'historique tmux : le CLI dessine en plein écran et garde lui-même son historique.
           hollow = r?.paneHistoryLines === 0;
           if (alive) setFullscreen(hollow && !shell);
@@ -178,7 +248,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           if (want && Number.isInteger(r?.captureCols)) setForeign(viewport() === 'desktop' && r.captureCols > want.cols);
         } catch (_) {}
         finally {
-          if (gen === screenGen) { loading = false; const live = held; held = []; for (const d of live) term.write(d); if (live.length && term.buffer.active.viewportY >= term.buffer.active.baseY - 1) term.write('', () => term.scrollToBottom()); }
+          if (gen === screenGen) { loading = false; const live = held; held = []; if (live.length) output(live.join('')); }
         }
       };
       stopConn = visibleConnection(async owner => {
@@ -193,7 +263,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         socket.onmessage = e => {
           if (!owner.alive() || typeof e.data !== 'string') return;
           let m; try { m = JSON.parse(e.data); } catch (_) { return; }
-          if (m.t === 'o' && typeof m.d === 'string') { if (loading) held.push(m.d); else term.write(m.d); }
+          if (m.t === 'o' && typeof m.d === 'string') { if (loading) held.push(m.d); else output(m.d); }
           else if (m.t === 'c') term.clear();
           else if (m.t === 'r') loadScreen();
           // Géométrie réellement retenue par le pane (arbitrage entre appareils).
@@ -225,13 +295,23 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       // Le terminal où l'on clique reprend sa taille (plusieurs écrans
       // partagent le même pane ; Codeman suit le dernier qui la demande).
       term.textarea?.addEventListener('focus', () => reclaim(true));
-      term.onData(d => { if (readOnly || ws?.readyState !== 1) return; reclaim(); if (ctrlRef.current && d.length === 1) { d = ctrlByte(d); setCtrl(false); } ws.send(JSON.stringify({ t: 'i', d })); });
+      term.onData(d => {
+        if (readOnly || ws?.readyState !== 1) return;
+        reclaim();
+        if (ctrlRef.current && d.length === 1) { d = ctrlByte(d); setCtrl(false); }
+        if (predictor) {
+          const cps = Array.from(d);
+          if (cps.length === 1) { const cp = cps[0].codePointAt(0); if (cp === 0x7f) predictor.predictBackspace(); else if (cp >= 0x20) predictor.predictChar(d); else predictor.clearPredictions(); }
+          else predictor.clearPredictions();
+        }
+        ws.send(JSON.stringify({ t: 'i', d }));
+      });
       const onBack = () => { if (!document.hidden && box.current?.offsetParent) reclaim(isForeign); };
       box.current.addEventListener('pointerdown', onBack);
       window.addEventListener('focus', onBack);
       document.addEventListener('visibilitychange', onBack);
       ro = new ResizeObserver(refit); ro.observe(box.current);
-      inputRef.current = d => { if (readOnly || ws?.readyState !== 1) return false; reclaim(); ws.send(JSON.stringify({ t: 'i', d })); return true; };
+      inputRef.current = d => { if (readOnly || ws?.readyState !== 1) return false; reclaim(); predictor?.clearPredictions(); ws.send(JSON.stringify({ t: 'i', d })); return true; };
       // Une image collée ou un fichier déposé part vers Codeman ; son chemin
       // est tapé dans le terminal, comme dans l'interface officielle.
       const attach = async files => {
@@ -365,17 +445,46 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       el.addEventListener('drop', onDrop, true);
       detach = () => { stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart, true); el.removeEventListener('touchmove', onTouchMove, true); el.removeEventListener('touchend', onTouchEnd); el.removeEventListener('touchcancel', onTouchCancel); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
-    return () => { alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
+    return () => { try { saveRef.current?.(); } catch (_) {} alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); term?.dispose(); };
   }, [sessionId, readOnly]);
   // Un volet qui reçoit le focus donne le clavier à son terminal.
   // Sur téléphone, le clavier ne s'ouvre qu'au toucher (comme dans Codeman).
   useEffect(() => { if (focus && !readOnly && !phone) termRef.current?.focus(); }, [focus]);
-  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', phone && typing && 'with-keys', fullscreen && 'cli-fullscreen')}>
+  const showKeys = phone && !readOnly && (typing || phoneControls);
+  const sendKey = d => inputRef.current?.(d);
+  return html`<div class=${cls('cm-term', 'cm-term-' + state, over && 'drop-on', showKeys && 'with-keys', fullscreen && 'cli-fullscreen', phoneControls && 'cm-phone-term')}>
     <div class="cm-term-box" ref=${box}></div>
-    ${phone && typing && !readOnly && html`<${Accessory} send=${d => inputRef.current?.(d)} ctrl=${ctrl} setCtrl=${setCtrl} dismiss=${() => termRef.current?.blur()} />`}
+    ${showKeys && html`<${Accessory} send=${sendKey} ctrl=${ctrl} setCtrl=${setCtrl} connected=${state === 'open'} persistent=${phoneControls} dismiss=${typing ? () => termRef.current?.blur() : undefined} />`}
+    ${phoneControls && !readOnly && html`<${TerminalLine} id=${sessionId} connected=${state === 'open'} onChar=${ch => {
+      if (!ctrlRef.current || !sendKey(ctrlByte(ch))) return false;
+      setCtrl(false); return true;
+    }} />`}
     ${busy ? html`<div class="cm-term-state"><span class="spinner"></span>${t('agents.attach.sending')}</div>`
       : over ? html`<div class="cm-term-state"><${Icon} n="upload" />${t('agents.attach.drop')}</div>`
       : foreign && state === 'open' ? html`<button type="button" class="cm-term-state cm-term-foreign" onClick=${() => reclaimRef.current?.()}><${Icon} n="expand" />${t('agents.term.foreign')}</button>`
       : state !== 'open' && html`<div class="cm-term-state"><i class=${cls('dot', state === 'connecting' || state === 'disconnected' ? 'amber' : '')}></i>${lt('term', state)}</div>`}
   </div>`;
+}
+
+function TerminalLine({ id, connected, onChar }) {
+  const draftKey = agentDraftKey(id);
+  const [text, setText] = useState(() => { try { return sessionStorage.getItem(draftKey) || ''; } catch (_) { return ''; } });
+  const [busy, setBusy] = useState(false);
+  const inflight = useRef(false);
+  useEffect(() => { try { text ? sessionStorage.setItem(draftKey, text) : sessionStorage.removeItem(draftKey); } catch (_) {} }, [text]);
+  const send = async e => {
+    e.preventDefault();
+    if (!connected || inflight.current || !text.trim()) return;
+    inflight.current = true; setBusy(true);
+    try { await sendPrompt(id, text); setText(''); }
+    catch (err) { toast(err.code === 'NOT_DELIVERED' ? t('agents.composer.not_delivered') : err.message, 'err'); }
+    finally { inflight.current = false; setBusy(false); }
+  };
+  return html`<form class="composer cm-phone-line" onSubmit=${send}>
+    <input type="text" class="mono" aria-label=${t('mobile.terminal_input')} placeholder=${t('mobile.terminal_input')}
+      enterkeyhint="send" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellcheck="false"
+      value=${text} onInput=${e => setText(e.target.value)}
+      onBeforeInput=${e => { if (e.inputType === 'insertText' && e.data?.length === 1 && onChar(e.data)) e.preventDefault(); }} />
+    <button class="send" type="submit" aria-label=${t('agents.composer.send')} disabled=${!connected || busy || !text.trim()}><${Icon} n="arrowUp" /></button>
+  </form>`;
 }

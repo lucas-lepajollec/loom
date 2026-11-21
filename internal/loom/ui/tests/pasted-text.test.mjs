@@ -39,7 +39,7 @@ function composer(mode = 'thread', accepted = false) {
     runtimeCaps: () => [], runtimeKind: () => 'cloud', get: async () => ({}), Tip: 'Tip', currentExec: () => ({ name: 'Fixture' }), slashEntries: () => [],
     chat: { get: () => ({ mode, busy: false, session: { runtime_id: 'openai-compatible', workdir: '/fixture' } }) },
     app: { get: () => ({ status: { health: true, model: 'fixture.gguf' } }) },
-    useStore: (store, select) => select(store.get()), useEffect() {},
+    useStore: (store, select) => select(store.get()), useEffect() {}, useLayoutEffect() {}, useDictation: () => ({}),
     useState: init => { const i = stateIndex++; if (!(i in states)) states[i] = init; return [states[i], value => { states[i] = typeof value === 'function' ? value(states[i]) : value; }]; },
     useRef: init => { const i = refIndex++; return refs[i] ||= { current: init }; },
     Icon: 'Icon', Popover: 'Popover', cls: (...v) => v.filter(Boolean).join(' '),

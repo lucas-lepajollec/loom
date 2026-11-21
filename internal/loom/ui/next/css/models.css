@@ -431,7 +431,7 @@ p.models-row-meta {
 
 @media (max-width: 760px) {
   .models-page .models-layout {
-    gap: 16px;
+    gap: 14px;
     padding: 8px max(12px, env(safe-area-inset-right)) 32px max(12px, env(safe-area-inset-left));
   }
 
@@ -465,6 +465,17 @@ p.models-row-meta {
     min-height: 44px;
     justify-content: center;
   }
+
+  .models-library .models-group { gap: 8px; margin-top: 0; }
+  .models-library .models-section-head { align-items: center; padding-inline: 4px; }
+  .models-library .models-section-head h2 { font-size: 14px; color: var(--text-2); }
+  .models-library .models-compact-row { min-height: 58px; padding-block: 6px; }
+  .models-compact-row .models-row-main b { font-size: 15px; }
+  .models-library :is(.models-card, .models-status) { border-radius: var(--r-xl); }
+  .models-status .models-row-main b { font-size: 16px; font-weight: 600; }
+  .models-status .models-actions { gap: 2px; }
+  .models-status .btn, .models-phone-download { border-radius: var(--r-pill); }
+  .models-phone-download { width: 100%; min-height: 48px; font-size: 15px; }
 
   .models-library .models-status:has(.models-start-model) .models-row-main {
     flex-basis: calc(100% - 40px);

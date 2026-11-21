@@ -190,23 +190,3 @@
   .activity-view .usage-t .tr:not(.th){padding:12px 14px;row-gap:8px}
   .activity-view .usage-t .tr [data-label]{align-self:start}
 }
-@media(max-width:720px){
-  .main:has(> .activity-view) > .mobile-bar{display:none}
-  .view.page.activity-view{scrollbar-gutter:auto}
-  .activity-mobile-head{
-    position:sticky;
-    z-index:2;
-    top:0;
-    display:grid;
-    grid-template-columns:44px minmax(0,1fr) 44px;
-    flex:none;
-    align-items:center;
-    min-height:calc(44px + env(safe-area-inset-top));
-    padding:env(safe-area-inset-top) max(6px,env(safe-area-inset-right)) 0 max(6px,env(safe-area-inset-left));
-    background:var(--panel);
-  }
-  .activity-mobile-head .icon-btn{width:44px;height:44px;color:var(--text)}
-  .activity-mobile-head .ico{width:20px;height:20px}
-  .activity-mobile-head b{text-align:center;font-size:16px;font-weight:600}
-  .activity-in{padding-top:0}
-}

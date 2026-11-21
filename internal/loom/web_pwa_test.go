@@ -34,7 +34,7 @@ func TestPWAPublicAssetsMatchManifest(t *testing.T) {
 			Purpose string
 		}
 	}
-	if json.Unmarshal(manifest, &parsed) != nil || parsed.ID != "/" || parsed.StartURL != "/#chat" || len(parsed.Icons) != 3 {
+	if json.Unmarshal(manifest, &parsed) != nil || parsed.ID != "/" || parsed.StartURL != "/" || len(parsed.Icons) != 3 {
 		t.Fatal("invalid manifest")
 	}
 	for _, icon := range parsed.Icons {

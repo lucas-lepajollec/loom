@@ -196,7 +196,7 @@ function ResourceMeter({ label, value, text, detail }) {
   </div>`;
 }
 
-export function ResourceMeters({ metric, detailed = false }) {
+function resourceRows(metric, detailed) {
   const rows = [];
   const memory = (label, used, total, detail) => {
     if (total > 0 && Number.isFinite(used)) {
@@ -216,17 +216,45 @@ export function ResourceMeters({ metric, detailed = false }) {
     }
     if (detailed) memory(t('machines.metrics.disk'), metric.disk?.used, metric.disk?.total, metric.disk?.path);
   }
+  return rows;
+}
+
+export function ResourceMeters({ metric, detailed = false }) {
+  const rows = resourceRows(metric, detailed);
   return rows.length
     ? html`<div class="machine-meters">${rows.map((row, index) => html`<${ResourceMeter} key=${index} ...${row} />`)}</div>`
     : html`<p class="machine-note muted" title=${metric?.error}>${t('machines.metrics.none')}</p>`;
 }
 
-export function MachineCard({ machine, metric, roles, clis, test, revision }) {
+function MachineChips({ bricks }) {
+  return html`<span class="machine-chips">${bricks.map(brick => {
+    const state = brick.provided ? t('settings.machines.brick_provides') : t('settings.machines.brick_available');
+    return html`<span class=${cls('machine-chip', brick.provided && 'provided')} title=${state} key=${brick.id}>
+      <${Icon} n=${brick.icon} />${brick.label}<span class="sr">${' · ' + state}</span>
+    </span>`;
+  })}${!bricks.length && html`<span class="muted">—</span>`}</span>`;
+}
+
+export function MachineCard({ machine, metric, roles, clis, test, revision, phone }) {
   const loom = useMachineLoom(machine, metric, revision);
   const specs = machineSpecs(machine, metric);
   const bricks = machineBricks(machine, roles).filter(brick => !brick.reason);
-  const installed = machineAgents(machine, clis);
   const name = machine.name;
+  if (phone) {
+    const stats = resourceRows(metric, false);
+    return html`<a class="machine-card machine-card-link" href=${machineHref(machine.id)}>
+      <div class="machine-card-head">
+        <div class="machine-row-text"><h2>${name}</h2>
+          ${specs && html`<small>${specs}</small>`}
+          ${machine.id === 'local' && html`<small>${t('settings.machines.interface')}</small>`}
+        </div>
+        <${MachineStatus} machine=${machine} metric=${metric} loom=${loom} test=${test} />
+      </div>
+      <${MachineChips} bricks=${bricks} />
+      ${stats.length > 0 && html`<div class="machine-card-stats">${stats.map(({ label, text }) => html`<span key=${label}>${label} ${text}</span>`)}</div>`}
+    </a>`;
+  }
+  const installed = machineAgents(machine, clis);
   return html`<article class="machine-card" aria-label=${name}>
     <div class="machine-card-head">
       <span class="logo-mark sm machine-icon" aria-hidden="true"><${Icon} n="server" /></span>
@@ -241,12 +269,7 @@ export function MachineCard({ machine, metric, roles, clis, test, revision }) {
     <p class="machine-specs" title=${specs}>${specs || '—'}</p>
     <div class="machine-card-section">
       <h3>${t('settings.machines.bricks')}</h3>
-      <div class="machine-chips">${bricks.map(brick => {
-        const state = brick.provided ? t('settings.machines.brick_provides') : t('settings.machines.brick_available');
-        return html`<span class=${cls('machine-chip', brick.provided && 'provided')} title=${state} key=${brick.id}>
-          <${Icon} n=${brick.icon} />${brick.label}<span class="sr">${' · ' + state}</span>
-        </span>`;
-      })}${!bricks.length && html`<span class="muted">—</span>`}</div>
+      <${MachineChips} bricks=${bricks} />
     </div>
     <div class="machine-card-section">
       <h3>${t('agents.title')}${installed.length > 0 && html`<${AgentsState} installed=${installed} href=${machineHref(machine.id)} />`}</h3>
@@ -264,10 +287,9 @@ export function MachineCard({ machine, metric, roles, clis, test, revision }) {
   </article>`;
 }
 
-export function MachineTerminals({ terminals, names, machine }) {
-  return html`<section class="machine-section">
-    <h2>${t('settings.machines.open_terminals')} ${terminals.length > 0 && html`<span class="count">${terminals.length}</span>`}</h2>
-    <div class="card">
+export function MachineTerminals({ terminals, names, machine, fold }) {
+  const title = t('settings.machines.open_terminals');
+  const rows = html`
       ${terminals.map(term => html`<a class="machine-row machine-terminal-link" key=${term.id} href=${'#/terminals/' + encodeURIComponent(term.id)}>
         <${Icon} n="terminal" />
         <span class="machine-row-text"><b>${term.title}</b><small>${[names.get(term.target) || term.target, term.dir && home(term.dir)].filter(Boolean).join(' · ')}</small></span>
@@ -277,6 +299,14 @@ export function MachineTerminals({ terminals, names, machine }) {
       ${!terminals.length && html`<p class="machine-section-note muted">${t('settings.machines.no_open_terminals')}</p>`}
       ${machine && !canOpenTerminal(machine) && html`<p class="machine-section-note muted">${machine.id === 'local'
         ? t('terminals.page.pas_encore_disponible_sur_ce_systeme') : t('machines.node.terminals_ssh')}</p>`}
-    </div>
+    `;
+  if (fold) return html`<details class="machine-section card machine-terminal-fold">
+    <summary class="phone-link"><${Icon} n="terminal" /><span><b>${title}</b></span>
+      <small class="count">${terminals.length}</small><${Icon} n="right" /></summary>
+    ${rows}
+  </details>`;
+  return html`<section class="machine-section">
+    <h2>${title} ${terminals.length > 0 && html`<span class="count">${terminals.length}</span>`}</h2>
+    <div class="card">${rows}</div>
   </section>`;
 }

@@ -55,10 +55,11 @@ function Row({ title, sub, right, active, loaded, nested, onPick }) {
   </button>`;
 }
 
-export function Picker() {
+export function Picker({ phone } = {}) {
   const [anchor, setAnchor] = useState(null);
   const { status, workspace, models, presets, unavailable } = useStore(app, s => ({ status: s.status, workspace: s.workspace, models: s.models, presets: s.presets, unavailable: s.unavailable }));
   const route = useStore(chat, executionKey);
+  const pending = useStore(chat, s => s.localTarget);
   const cur = currentExec();
   const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
@@ -74,14 +75,13 @@ export function Picker() {
     if (!anchor) return { local: [], cloud: [] };
     const visible = new Map(wsModels.filter(m => m.kind === 'local').flatMap(m => [[m.model, m.enabled], [m.engine_value || m.model, m.enabled]]));
     const weights = (models || []).filter(m => !/mmproj/i.test(m.name) && visible.get(m.path || m.value) !== false);
-    const pending = chat.get().localTarget;
     const local = [
       ...(presets || []).map((p, i) => ({ id: 'p' + p.id, preset: true, title: p.name || p.id, sub: p.model ? baseName(p.model).replace(/\.gguf$/i, '') : '', active: cur.kind === 'local' && (pending ? pending.presetIndex === i + 1 : status && status.preset_id === p.id), loaded: status && status.preset_id === p.id && status.health, run: () => chooseLocal({ presetIndex: i + 1, name: p.name, model: p.model }) })),
       ...weights.map(m => ({ id: 'm' + m.path, title: m.name.replace(/\.gguf$/i, ''), sub: [quantOf(m.name), fmtBytes(m.size), m.shards > 1 ? m.shards + t("chat.picker.fichiers") : '', status && status.health && (status.model === m.path || status.model === (m.value || m.path)) ? t('chat.picker.loaded') : ''].filter(Boolean).join(' · '), active: cur.kind === 'local' && (pending ? !pending.presetIndex && (pending.model === (m.value || m.path) || pending.path === m.path) : status && (status.model === m.path || status.model === (m.value || m.path)) && !status.preset_id), loaded: status && status.health && (status.model === m.path || status.model === (m.value || m.path)), run: () => chooseLocal({ path: m.path, model: m.value || m.path, name: m.name }) })),
     ];
     const cloud = wsModels.filter(m => m.kind === 'cloud' && m.enabled).map(m => ({ id: m.id, title: m.name, sub: '', group: m.provider_name, vendorKey: m.model, active: cur.kind === 'cloud' && chat.get().session && chat.get().session.provider_id === m.provider_id && chat.get().session.model === m.model, run: () => chooseRemote(m) }));
     return { local, cloud };
-  }, [anchor, status, workspace, models, presets, route, cur.kind, cur.name, getLang()]);
+  }, [anchor, status, workspace, models, presets, pending, route, cur.kind, cur.name, getLang()]);
 
   const pick = list => list.filter(r => match(r.title + ' ' + r.sub + ' ' + (r.group || '')));
   const shownLocal = tab === 'cloud' ? [] : pick(lists.local), shownCloud = tab === 'local' ? [] : pick(lists.cloud);
@@ -96,9 +96,9 @@ export function Picker() {
   return html`<${DropdownButton} class="exec-btn" popup="dialog" open=${anchor} onClick=${open}>
       ${cur.name ? html`<i class=${cls('dot', cur.kind !== 'local' || (status && status.health) ? 'green' : '')}></i><b>${cur.name}</b><span class="exec-sub"><span class="exec-route">${tag}</span>${extra ? ' · ' + extra : ''}</span>` : html`<b>${t("chat.picker.choisir_un_modele")}</b>`}
     </${DropdownButton}>
-    ${anchor && html`<${Popover} anchor=${anchor} onClose=${close} label=${t('chat.picker.choisir_un_modele')} width=${430} heightLimit=${560} heightRatio=${0.75} class="picker">
+    ${anchor && html`<${Popover} sheet anchor=${anchor} onClose=${close} label=${t('chat.picker.choisir_un_modele')} width=${430} heightLimit=${560} heightRatio=${0.75} class="picker">
       <div class="pick-top">
-        <label class="search pick-q"><${Icon} n="search" /><input autofocus placeholder="${t("chat.picker.rechercher_un_modele_un_preset_un_harness")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>
+        <label class="search pick-q"><${Icon} n="search" /><input autofocus=${!phone} aria-label=${t('mobile.search_models')} placeholder="${t("chat.picker.rechercher_un_modele_un_preset_un_harness")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>
         <${Seg} value=${tab} onChange=${setTab} label="${t("chat.picker.type_d_execution")}" options=${[
           { value: 'all', label: t('chat.picker.all') },
           { value: 'local', label: t("chat.picker.local"), count: lists.local.length },

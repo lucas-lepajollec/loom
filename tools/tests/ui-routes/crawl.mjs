@@ -48,12 +48,11 @@ try {
   await fetch(base + 'api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarded: '1', lang: process.env.CRAWL_LANG || 'en' }) });
   const ws = await (await fetch(base + 'api/workspace')).json();
   const runtimes = (ws.runtimes || []).map(r => r.id);
-  let routes = ['chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'terminals', 'local/hub', 'voice', 'jarvis',
+  let routes = ['sessions', 'inbox', 'more', 'more/jarvis', 'chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'terminals', 'local/hub', 'voice', 'jarvis',
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
-    'files', 'usage', 'quotas', 'market', 'agents', 'agents/cron', 'agents/settings',
+    'files', 'usage', 'quotas', 'market', 'agents', 'agents/s/fixture-session-0', 'agents/cron', 'agents/settings',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
   if (process.env.CRAWL_ROUTES) routes = routes.filter(r => new RegExp(process.env.CRAWL_ROUTES).test(r));
-  const fixturePhone = phoneFixtures(ws, remote);
   const fixtureSessions = ['cloud'].map(kind => ({ id: 'fixture-' + kind, title: 'Synthetic ' + kind + ' discussion', runtime_id: kind === 'cloud' ? 'openai-compatible' : 'fixture-agent', provider_id: 'fixture', provider_name: kind === 'cloud' ? 'Fixture cloud' : 'Fixture agent', model: 'fixture-model', status: 'idle', messages: [], turns: [], message_count: 1 }));
   const scenarios = ['fresh', 'healthy', 'phone-layout', '401', '502', 'malformed-json', 'wrong-shape', 'abort', 'offline', 'engine-unreachable'];
   const inspect = async (page, errors, label) => {
@@ -84,9 +83,26 @@ try {
   const checkTrigger = async (trigger, popup) => {
     await trigger.click();
     await popup.waitFor({ state: 'visible', timeout: 5000 });
-    await trigger.click();
+    const sheet = await popup.evaluate(el => {
+      const dialog = el.closest('.dialog'), scrim = dialog?.parentElement;
+      const bounds = scrim?.getBoundingClientRect();
+      return bounds ? { x: bounds.left + bounds.width / 2, y: bounds.top + 2 } : null;
+    });
+    if (sheet) await popup.page().mouse.click(sheet.x, sheet.y);
+    else await trigger.click();
     await popup.waitFor({ state: 'detached', timeout: 5000 });
   };
+  const swipe = (locator, from, to) => locator.evaluate((el, [start, end]) => {
+    const touch = (type, point) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const p = { clientX: point[0], clientY: point[1] };
+      Object.defineProperties(event, { touches: { value: type === 'touchend' ? [] : [p] }, changedTouches: { value: [p] } });
+      el.dispatchEvent(event);
+    };
+    touch('touchstart', start);
+    touch('touchmove', end);
+    touch('touchend', end);
+  }, [from, to]);
   let checks = 0;
   // Chaque cas (moteur, format, scénario, page) tourne dans un contexte de
   // navigateur neuf : les cas sont indépendants, donc exécutés en parallèle
@@ -95,7 +111,10 @@ try {
   const runCase = async (browser, { name, form, context, scenario, r }) => {
     // Fresh browser state per route/scenario: guards, observations,
     // pending requests and service workers never leak between cases.
-    const ctx = await browser.newContext(context);
+    // Service workers are blocked: once one controls the page, WebKit sends
+    // requests through it and Playwright's route fixtures no longer apply.
+    const ctx = await browser.newContext({ ...context, serviceWorkers: 'block' });
+    const fixturePhone = phoneFixtures(ws, remote);
     let degraded = !['fresh', 'healthy', 'phone-layout'].includes(scenario), successfulReads = 0, injected = 0;
     const page = await ctx.newPage(), errors = [];
     if (process.env.CRAWL_BASELINE_UI) await page.route('**/next/**', route => {
@@ -157,7 +176,8 @@ try {
     });
     const label = `${name}/${form}/${scenario} #/${r}`;
     try {
-      await page.goto(base + '#/' + r);
+      const phone = form !== 'desktop';
+      await page.goto(r === 'sessions' && phone && scenario === 'fresh' ? base : base + '#/' + r);
       await page.waitForTimeout(600);
       // Exercise the collection consumer that triggered the iPhone
       // crash, and both other catalogs while the engine is unavailable.
@@ -188,11 +208,27 @@ try {
         await page.locator('.models-row button.btn.sm', { hasText: /^(Connecter|Connect)$/ }).first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
       }
-      if (scenario === 'phone-layout' && r === 'local') {
-        const trigger = page.locator('.sec-drop .select');
-        if (await trigger.isVisible()) await checkTrigger(trigger, page.getByRole('menu'));
+      if (phone && scenario === 'phone-layout' && r === 'local') {
+        const chips = page.locator('.phone-section-tabs a');
+        await chips.last().waitFor();
+        if (await chips.count() !== 5 || await chips.first().getAttribute('aria-current') !== 'page') throw new Error('Missing model sections');
+        const rows = page.locator('.models-compact-row');
+        await rows.nth(1).waitFor();
+        await checkTrigger(rows.first().locator('[aria-haspopup="menu"]'), page.getByRole('menu'));
+        await rows.last().locator('[aria-haspopup="menu"]').click();
+        await page.getByRole('menuitem', { name: dictionary['local.page.regler'], exact: true }).waitFor();
+        await inspect(page, errors, label + ' model actions');
+        await page.keyboard.press('Escape');
+        await page.locator('.models-phone-download').click();
+        await page.locator('.phone-section-tabs a[href="#/local/hub"][aria-current=page]').waitFor();
+        await page.locator('.phone-back-link[href="#/more"]').click();
+        await page.locator('.more-links').waitFor();
       }
       if (scenario === 'phone-layout' && r === 'agents') {
+        if (phone) {
+          await page.locator('.cm-harness-list li').first().waitFor();
+          await page.locator('.cm-next-runs li').first().waitFor();
+        }
         const rows = page.locator('.cm-session-row');
         await rows.first().waitFor();
         if (await rows.count() !== 8) throw new Error('Agents overview should show eight live sessions');
@@ -217,7 +253,36 @@ try {
         await schedule.click();
         await page.getByRole('option', { name: dictionary['agents.cron.custom'], exact: true }).click();
         await page.locator('.cm-job-editor input[aria-describedby="cm-cron-expression-hint"]').fill('0 9 * * MON-FRI');
-        if (await page.locator('.cm-editor-foot button[type=submit]').isDisabled()) throw new Error('A supported cron expression could not be saved');
+        const submit = page.locator(phone ? '.cm-job-sheet .dialog-foot button[type=submit]' : '.cm-editor-foot button[type=submit]');
+        if (await submit.isDisabled()) throw new Error('A supported cron expression could not be saved');
+        if (phone) {
+          await inspect(page, errors, label + ' schedule editor sheet');
+          await page.keyboard.press('Escape');
+          await page.locator('.cm-job-sheet').waitFor({ state: 'detached' });
+        }
+      }
+      if (phone && scenario === 'phone-layout' && r === 'machines') {
+        await page.locator('.machine-add').click();
+        await page.getByRole('dialog', { name: dictionary['machines.add.title'], exact: true }).waitFor();
+        await inspect(page, errors, label + ' machine pairing sheet');
+        await page.keyboard.press('Escape');
+        await page.getByRole('dialog', { name: dictionary['machines.add.title'], exact: true }).waitFor({ state: 'detached' });
+        await page.locator('.machine-card-link[href="#/machines/' + remote.id + '"]').click();
+        await page.locator('.machine-detail .machine-meters [role=meter]').first().waitFor();
+        await checkTrigger(page.locator('.machine-detail-controls button[aria-haspopup=menu]'), page.getByRole('menu'));
+        await inspect(page, errors, label + ' machine detail');
+        await page.locator('.phone-back-link[href="#/machines"]').click();
+        await page.locator('.machine-card-link').first().waitFor();
+      }
+      if (phone && scenario === 'phone-layout' && r === 'settings') {
+        await page.locator('.phone-settings').waitFor();
+        await inspect(page, errors, label + ' quick settings');
+        await checkTrigger(page.getByRole('button', { name: dictionary['settings.language.label'], exact: true }), page.getByRole('listbox'));
+        await page.locator('.phone-setting-link[href="#/settings/notifications"]').click();
+        await page.locator('.phone-back-link[href="#/settings"]').click();
+        await page.locator('.phone-settings').waitFor();
+        await page.locator('.phone-back-link[href="#/more"]').click();
+        await page.locator('.phone-tabs a[href="#/more"][aria-current=page]').waitFor();
       }
       if (scenario === 'phone-layout' && r === 'agents/settings') {
         await page.locator('.cm-cfg-body .set-group').first().waitFor();
@@ -230,6 +295,75 @@ try {
           await summaries.last().click();
           await page.locator('.cm-setting-json input[type=password]').waitFor();
         }
+      }
+      if (phone && scenario === 'phone-layout' && r === 'sessions') {
+        const tabBar = page.locator('.phone-tabs');
+        const tabs = await tabBar.locator('a').evaluateAll(items => items.map(a => a.getAttribute('href')));
+        if (tabs.join(',') !== '#/sessions,#/inbox,#/quotas,#/more') throw new Error('Wrong phone tabs or order');
+        await tabBar.locator('.phone-badge', { hasText: '2' }).waitFor();
+        await page.getByRole('tab', { name: dictionary['side.filter_chats'], exact: true }).click();
+        if (await page.locator('.phone-session-row .logo-mark').count()) throw new Error('Discussion filter retained an agent');
+        await page.getByRole('tab', { name: dictionary['mobile.all'], exact: true }).click();
+        const refreshed = page.waitForRequest(req => req.url().endsWith('/api/chat/history'));
+        await swipe(page.locator('.phone-session-list'), [100, 180], [100, 280]);
+        await refreshed;
+        await page.getByRole('button', { name: dictionary['app.palette.rechercher'], exact: true }).click();
+        const search = page.locator('.palette');
+        await search.waitFor();
+        if (await tabBar.isVisible()) throw new Error('Tab bar is visible behind the search sheet');
+        await swipe(search.locator('.sheet-grab'), [100, 530], [100, 640]);
+        await search.waitFor({ state: 'detached' });
+        await page.getByRole('button', { name: dictionary['side.new_session'], exact: true }).click();
+        const newSession = page.locator('.phone-new-session');
+        await newSession.locator('.phone-session-types button').nth(1).click();
+        await newSession.locator('.cm-cli-grid').waitFor();
+        await newSession.getByRole('textbox', { name: dictionary['mobile.first_message'] }).waitFor();
+        await newSession.getByRole('button', { name: dictionary['mobile.session_folder'], exact: true }).click();
+        const folders = page.getByRole('listbox', { name: dictionary['mobile.session_folder'], exact: true });
+        await folders.getByRole('option').last().click();
+        await folders.waitFor({ state: 'detached' });
+        await inspect(page, errors, label + ' phone launch sheet');
+        await newSession.locator('.dialog-head .icon-btn').click();
+        await page.locator('.phone-quick button').click();
+        await page.waitForFunction(() => document.activeElement === document.querySelector('.phone-composer textarea'));
+        const aboveBottom = await page.locator('.phone-composer').evaluate(el => el.parentElement.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom);
+        if (aboveBottom > 2) throw new Error('An empty discussion should keep its composer at the bottom');
+        if (await tabBar.isVisible()) throw new Error('Tab bar is visible in a discussion');
+        await swipe(page.locator('.chat-view'), [10, 180], [105, 182]);
+        await page.locator('.phone-session-list').waitFor();
+      }
+      if (phone && scenario === 'phone-layout' && r === 'inbox') {
+        await page.evaluate(() => { location.hash = '#/inbox/fixture-approval'; });
+        const selected = page.locator('.inbox-item[data-current]');
+        await selected.waitFor();
+        await page.waitForFunction(() => document.activeElement === document.querySelector('.inbox-item[data-current]'));
+        await page.locator('.inbox-completed').waitFor();
+        await page.locator('.cm-restore').waitFor();
+        const approval = page.waitForRequest(req => req.url().endsWith('/approvals/fixture-approval/answer'));
+        await selected.getByRole('button', { name: dictionary['agents.approval.deny'], exact: true }).click();
+        if ((await approval).postDataJSON().action !== 'deny') throw new Error('Phone approval used the wrong action');
+        await selected.waitFor({ state: 'detached' });
+        const reply = page.locator('.inbox-reply');
+        await reply.locator('input').fill('Review the test report');
+        const prompt = page.waitForRequest(req => req.url().endsWith('/sessions/fixture-session-4/input'));
+        await reply.locator('button').click();
+        if ((await prompt).postDataJSON().input !== 'Review the test report\r') throw new Error('Quick reply did not deliver the draft');
+        await reply.waitFor({ state: 'detached' });
+      }
+      if (phone && scenario === 'phone-layout' && r === 'agents/s/fixture-session-0') {
+        await page.locator('.cm-conv .cm-approval').waitFor();
+        await page.getByRole('tab', { name: dictionary['agents.view.terminal'], exact: true }).click();
+        await page.locator('.cm-acc').getByRole('button', { name: dictionary['mobile.key_ctrl_c'], exact: true }).waitFor();
+        await inspect(page, errors, label + ' terminal');
+        await page.getByRole('tab', { name: dictionary['agents.view.chat'], exact: true }).click();
+        await page.locator('.phone-session-head button').last().click();
+        await page.locator('.drawer-sheet .cm-panel').waitFor();
+        await inspect(page, errors, label + ' agent inspector');
+      }
+      if (phone && scenario === 'phone-layout' && r === 'more') {
+        await page.locator('.more-links a[href="#/files"]').click();
+        await page.locator('.files .phone-back').click();
+        await page.locator('.more-links').waitFor();
       }
       await inspect(page, errors, label + ' degraded');
       if (!['fresh', 'healthy', 'phone-layout'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);

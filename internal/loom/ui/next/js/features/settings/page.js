@@ -2,7 +2,7 @@ import { shortVersion } from '../../core/version.js';
 import { HttpsSettings } from './https.js';
 import { PolicySettings } from './policy.js';
 import { DoctorSettings } from './doctor.js';
-import { NotificationSettings } from './notifications.js';
+import { NotificationSettings, readNotificationSettings } from './notifications.js';
 import { t, locale, getLang, setLang, tSource } from '../../core/i18n.js';
 // Réglages : Général, Moteur, Internet, Sécurité, À propos. Une ligne par
 // réglage, l'explication en ⓘ, jamais en paragraphe sous chaque option.
@@ -15,7 +15,8 @@ import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { get, post, download, authStatus, authAction } from '../../core/api.js';
 import { PasswordForm } from '../../app/access.js';
 import { copyText } from '../../ui/clipboard.js';
-import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav, refreshEngineNode } from '../../core/state.js';
+import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav, refreshEngineNode, refreshWorkspace } from '../../core/state.js';
+import { usePhone } from '../../core/viewport.js';
 import { liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { Line, Group } from './kit.js';
@@ -25,7 +26,7 @@ import { VLLMEngine } from './vllm.js';
 import { ListPick } from '../../ui/listpick.js';
 import { FolderPicker } from '../../ui/folder.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', 'Internet', 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', t('settings.page.internet'), 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
 
 // Agents : connexion au serveur Codeman (détection automatique, voir agents/connection.js).
@@ -83,7 +84,18 @@ function SecondBrainGroup() {
   </${Group}>`;
 }
 
-function General() {
+const themeLine = (theme, setPref) => html`<${Line} label=${t('settings.page.theme')}>
+  <${Seg} size="sm" label=${t('settings.page.theme')} value=${theme} onChange=${value => { setTheme(value); setPref('theme', value); }}
+    options=${[{ value: 'dark', label: t('settings.page.sombre') }, { value: 'light', label: t('settings.page.clair') }]} />
+</${Line}>`;
+
+const languageLine = () => html`<${Line} label=${t('settings.language.label')}>
+  <${ListPick} class="sm" label=${t('settings.language.label')} value=${getLang()}
+    options=${[{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]}
+    onChange=${v => setLang(v).then(ok => { if (!ok) toast(t('settings.language.save_failed'), 'err'); }).catch(() => toast(t('settings.language.save_failed'), 'err'))} />
+</${Line}>`;
+
+function General({ phone }) {
   const theme = useStore(app, s => s.theme);
   const [p, setPref] = usePref();
   const [sys, setSys] = useState(null);
@@ -92,11 +104,8 @@ function General() {
   const saveSys = async () => { await post('/api/sysprompt', { text: sys }); toast(t("settings.page.prompt_systeme_enregistre")); };
   return html`
     <${Group} title="${t("settings.page.apparence")}">
-      <${Line} label="${t("settings.page.theme")}"><${Seg} size="sm" label=${t('settings.page.theme')} value=${theme} onChange=${localT => { setTheme(localT); setPref('theme', localT); }} options=${[{ value: 'dark', label: t("settings.page.sombre") }, { value: 'light', label: t("settings.page.clair") }]} /></${Line}>
-      <${Line} label=${t('settings.language.label')}><${ListPick} class="sm" label=${t('settings.language.label')} value=${getLang()}
-        options=${[{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]}
-        onChange=${v => setLang(v).then(ok => { if (!ok) toast(t('settings.language.save_failed'), 'err'); }).catch(() => toast(t('settings.language.save_failed'), 'err'))} />
-      </${Line}>
+      ${!phone && themeLine(theme, setPref)}
+      ${!phone && languageLine()}
       ${p && html`
         <${Line} label="${t("settings.page.masquer_la_reflexion")}" tip="${t("settings.page.les_blocs_de_reflexion_des_modeles_ne_s_affichent_plus_dans_le_fi")}"><${Switch} checked=${p.hide_reasoning === '1'} onChange=${v => setPref('hide_reasoning', v ? '1' : '0')} /></${Line}>
         <${Line} label="${t("settings.page.masquer_les_appels_d_outils")}"><${Switch} checked=${p.hide_tools === '1'} onChange=${v => setPref('hide_tools', v ? '1' : '0')} /></${Line}>
@@ -104,8 +113,7 @@ function General() {
     </${Group}>
     <${SecondBrainGroup} />
     <${Group} title="${t("settings.page.discussions")}">
-      <${DefaultChoice} />
-      <${PushNotifications} />
+      ${!phone && html`<${DefaultChoice} /><${PushNotifications} />`}
       ${agent && html`<${Line} label="${t("settings.page.compactage_automatique")}" tip="${t("settings.page.vers_75_du_contexte_les_anciens_tours_sont_resumes_pour_laisser_d")}">
         <${Switch} checked=${agent.compact} onChange=${async v => { await post('/api/agent/compact', { on: v }); setAgent({ ...agent, compact: v }); }} /></${Line}>`}
       <${Line} label="${t("settings.page.prompt_systeme_global")}" tip="${t("settings.page.envoye_a_tous_les_modeles_locaux_sauf_si_un_modele_ou_un_preset_a")}" stack>
@@ -117,22 +125,30 @@ function General() {
 
 // Modèle ou agent d'une discussion neuve. Le défaut d'un projet passe avant ;
 // une discussion existante ne change jamais de modèle.
-function DefaultChoice() {
+function DefaultChoice({ phone }) {
   const ws = useStore(app, s => s.workspace);
   const [v, setV] = useState(null);
   useEffect(() => { get('/api/chat/settings').then(r => setV(r.default_choice || '')).catch(() => setV('')); }, []);
-  if (v === null) return null;
+  if (v === null && !phone) return null;
   const kinds = { local: t('settings.default.local'), cloud: t('settings.default.cloud') };
   const options = [{ value: '', label: t('settings.default.none') }, ...((ws && ws.models) || []).filter(m => m.enabled !== false && kinds[m.kind] && (m.kind === 'local' || m.ready)).map(m => ({ value: m.id, label: m.name, note: m.provider_name || '', group: kinds[m.kind] }))];
-  const save = async x => { const r = await post('/api/chat/settings', { default_choice: x }).catch(e => ({ ok: false, error: e.message })); if (r.ok === false) return toast(r.error, 'err'); setV(x); toast(t('settings.default.saved')); };
-  return html`<${Line} label=${t('settings.default.label')} tip=${t('settings.default.tip')}><div class="set-pick"><${ListPick} label=${t('settings.default.label')} value=${v} onChange=${save} options=${options} /></div></${Line}>`;
+  const save = async x => {
+    const r = await post('/api/chat/settings', { default_choice: x }).catch(e => ({ ok: false, error: e.message }));
+    if (r.ok === false) return toast(r.error, 'err');
+    setV(x);
+    if (phone) refreshWorkspace();
+    toast(t('settings.default.saved'));
+  };
+  return html`<${Line} label=${t('settings.default.label')} tip=${!phone && t('settings.default.tip')}><div class="set-pick">
+    <${ListPick} label=${t('settings.default.label')} value=${v} onChange=${save} options=${options} disabled=${v === null} />
+  </div></${Line}>`;
 }
 
-function PushNotifications() {
+function PushNotifications({ phone }) {
   const supported = window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const [checked, setChecked] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState("settings.page.une_notification_a_chaque_reponse_terminee_meme_si_loom_est_ferme");
+  const [note, setNote] = useState(null);
   const running = useRef(false);
   const register = () => navigator.serviceWorker.register('/sw.js', { scope: '/' });
   useEffect(() => {
@@ -176,7 +192,7 @@ function PushNotifications() {
         }
       }
       setChecked(want);
-      setNote("settings.page.une_notification_a_chaque_reponse_terminee_meme_si_loom_est_ferme");
+      setNote(null);
       toast(want ? t("settings.page.notifications_activees") : t("settings.page.notifications_desactivees"));
     } catch (_) {
       if (created) await created.unsubscribe().catch(() => {});
@@ -186,10 +202,12 @@ function PushNotifications() {
   };
   const tip = !window.isSecureContext ? t("settings.page.les_notifications_exigent_https_ou_une_adresse_locale_securisee")
     : !supported ? (/iphone|ipad|ipod/i.test(navigator.userAgent) ? t("settings.page.sur_iphone_ou_ipad_ajoute_loom_a_l_ecran_d_accueil_et_ouvre_le_de") : t("settings.page.ce_navigateur_ne_prend_pas_en_charge_les_notifications"))
-    : Notification.permission === 'denied' ? t("settings.page.notifications_bloquees_autorise_les_dans_les_reglages_du_navigate") : t(note);
-  return html`<${Line} label="${t("settings.page.notifications")}" tip=${tip}>
-    ${supported && checked === null && html`<span class="state">${t("settings.page.etat_inconnu")}</span>`}
-    <${Switch} label="${t("settings.page.notifications")}" checked=${checked === true} disabled=${!supported || checked === null || busy} onChange=${toggle} />
+    : Notification.permission === 'denied' ? t("settings.page.notifications_bloquees_autorise_les_dans_les_reglages_du_navigate")
+    : note ? t(note) : phone ? t('mobile.device_notifications_hint') : t('settings.page.une_notification_a_chaque_reponse_terminee_meme_si_loom_est_ferme');
+  const label = phone ? t('mobile.device_notifications') : t('settings.page.notifications');
+  return html`<${Line} label=${label} tip=${!phone && tip} sub=${phone && tip}>
+    ${!phone && supported && checked === null && html`<span class="state">${t("settings.page.etat_inconnu")}</span>`}
+    <${Switch} label=${label} checked=${checked === true} disabled=${!supported || checked === null || busy} onChange=${toggle} />
   </${Line}>`;
 }
 
@@ -571,29 +589,57 @@ function About() {
     ${paths && html`<${Group} title=${remote ? t('settings.about.engine_paths', { machine: engineName }) : t("settings.page.emplacements")}>${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
 }
 
-// Match the drawer breakpoint; the index does not mount a hidden settings form.
-export function SettingsPage({ route }) {
-  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width:720px)').matches);
+function PhoneSettings({ sections }) {
+  const theme = useStore(app, s => s.theme);
+  const version = useStore(app, s => s.serverInfo?.version);
+  const [, setPref] = usePref();
+  const [quiet, setQuiet] = useState(null);
   useEffect(() => {
-    const media = window.matchMedia('(max-width:720px)');
-    const change = () => setMobile(media.matches);
-    change(); media.addEventListener('change', change);
-    return () => media.removeEventListener('change', change);
+    const controller = new AbortController();
+    readNotificationSettings({ signal: controller.signal, retryAuth: false }).then(r => {
+      if (r.ok && !controller.signal.aborted) setQuiet(r.config?.rules?.quiet_hours);
+    }).catch(() => {});
+    return () => controller.abort();
   }, []);
-  // Ces panneaux ont rejoint leur page : Agents › Réglages et Moteur et API.
-  useEffect(() => { if (route.sub === 'agents') go('agents', 'settings'); else if (route.sub === 'api') go('engine'); }, [route.sub]);
+  const link = (id, value) => {
+    const [, label] = sections.find(section => section[0] === id);
+    return html`<a key=${id} href=${'#/settings/' + id} class="phone-link phone-setting-link">
+      <span>${label}</span>${value && html`<small>${value}</small>`}<${Icon} n="right" />
+    </a>`;
+  };
+  const quietLabel = quiet?.enabled && quiet.start && quiet.end && `${t('notify.quiet')} ${quiet.start} – ${quiet.end}`;
+  return html`<div class="set-body settings-body phone-settings">
+    <${Group}>${themeLine(theme, setPref)}<${DefaultChoice} phone />${languageLine()}${link('general')}</${Group}>
+    <${Group}><${PushNotifications} phone />${link('notifications', quietLabel)}</${Group}>
+    <nav aria-label=${t('settings.page.reglages')}><${Group}>
+      ${['internet', 'startup', 'policy', 'security', 'doctor'].map(id => link(id))}
+      ${link('about', shortVersion(version))}
+    </${Group}></nav>
+  </div>`;
+}
+
+export function SettingsPage({ route }) {
+  const phone = usePhone();
   const sections = SECTIONS();
   const selected = sections.find(s => s[0] === route.sub);
   const sec = selected ? selected[0] : 'general';
-  const detail = !mobile || !!selected;
+  useEffect(() => {
+    if (route.sub === 'agents') go('agents', 'settings');
+    else if (route.sub === 'api') go('engine');
+    else if (phone && route.sub && !selected) go('settings');
+  }, [route.sub, phone]);
   const View = { general: General, internet: Internet, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
+  if (phone) return html`<div class="view page"><div class="page-in settings-page">
+    <h1 class="phone-management-title">${selected ? selected[1] : t('settings.page.reglages')}</h1>
+    ${selected ? html`<div class="set-body settings-body" key=${sec}><${View} route=${route} phone /></div>`
+      : html`<${PhoneSettings} sections=${sections} />`}
+  </div></div>`;
   return html`<div class="view page"><div class="page-in">
-    ${mobile && html`<div class="page-head settings-head"><div>
-      ${selected && html`<a class="settings-back" href="#/settings"><${Icon} n="left" />${t("settings.page.reglages")}</a>`}
-      <h1>${selected ? selected[1] : t("settings.page.reglages")}</h1></div></div>`}
     <div class="settings">
-      ${(!mobile || !selected) && html`<nav class="set-nav" aria-label=${t("settings.page.reglages")}>${!mobile && html`<h1>${t("settings.page.reglages")}</h1>`}${sections.map(([id, label, ico]) => html`<a href=${'#/settings/' + id} aria-current=${!mobile && id === sec ? 'page' : undefined}><${Icon} n=${ico} /><span>${label}</span>${mobile && html`<${Icon} n="right" />`}</a>`)}</nav>`}
-      ${detail && html`<div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>`}
+      <nav class="set-nav" aria-label=${t("settings.page.reglages")}><h1>${t("settings.page.reglages")}</h1>
+        ${sections.map(([id, label, ico]) => html`<a key=${id} href=${'#/settings/' + id} aria-current=${id === sec ? 'page' : undefined}><${Icon} n=${ico} /><span>${label}</span></a>`)}
+      </nav>
+      <div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>
     </div>
   </div></div>`;
 }

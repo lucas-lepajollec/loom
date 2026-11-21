@@ -12,7 +12,7 @@ async function read(path, method = 'GET') {
   return { ...result, continued };
 }
 test('populated phone fixtures respect UI observation contracts', async () => {
-  for (const path of ['/api/workspace', '/api/machines', '/api/models', '/api/chat/history', '/api/runtime/sessions', '/api/usage', '/api/usage/providers', '/api/workspaces']) {
+  for (const path of ['/api/workspace', '/api/machines', '/api/machines/metrics', '/api/models', '/api/presets', '/api/chat/history', '/api/runtime/sessions', '/api/usage', '/api/usage/providers', '/api/workspaces']) {
     const response = await read(path); assert.ok(response.json, path); assert.ok(validData(response.json, path), path);
   }
   const workspace = (await read('/api/workspace')).json;

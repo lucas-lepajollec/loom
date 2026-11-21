@@ -3,6 +3,7 @@ import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { visibleRefresh } from '../../core/poll.js';
 import { go } from '../../core/state.js';
+import { usePhone } from '../../core/viewport.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
@@ -68,6 +69,7 @@ function useMachines() {
 }
 
 export function MachinesPage({ route }) {
+  const phone = usePhone();
   const { remote, setRemote, local, roles, metrics, terminals, codeman, error, revision, reload } = useMachines();
   const [pair, setPair] = useState(null);
   const [edit, setEdit] = useState(null);
@@ -117,26 +119,27 @@ export function MachinesPage({ route }) {
   });
 
   return html`<div class="view page"><div class=${target ? 'page-in mc-page machine-detail' : 'page-in mc-page'}>
-    ${target ? machine ? html`<${MachineDetail} key=${machine.id} ...${observations(machine)} names=${names}
+    ${target ? machine ? html`<${MachineDetail} key=${machine.id} ...${observations(machine)} names=${names} phone=${phone}
         terminals=${open.filter(term => term.target === machine.id)}
         codemanStatus=${codeman?.provider === machine.id ? codeman.status : null}
         onTest=${() => testMachine(machine)} onEdit=${() => setEdit({ machine })} onChange=${reload} />`
-      : html`<${MachinesBack} />
+      : html`${!phone && html`<${MachinesBack} />`}
         ${remote === null && !error ? html`<div class="skeleton machine-loading"></div>`
           : html`<${Empty} icon="server" title=${error ? t('settings.machines.load_failed') : t('settings.machines.machine_introuvable')} text=${error} />`}`
     : html`<div class="page-head">
-      <h1>${t('settings.machines.machines')}</h1>
+      <h1 class=${phone ? 'phone-management-title' : undefined}>${t('settings.machines.machines')}</h1>
       <div class="acts">
-        <button class="btn primary" onClick=${() => setPair({})}><${Icon} n="plus" />${t('machines.add.title')}</button>
+        <button class=${phone ? 'icon-btn machine-add' : 'btn primary'} aria-label=${phone ? t('machines.add.title') : undefined}
+          onClick=${() => setPair({})}><${Icon} n="plus" />${!phone && t('machines.add.title')}</button>
       </div>
     </div>
     <div class="machine-grid">
-      ${machines.map(machine => html`<${MachineCard} key=${machine.id} ...${observations(machine)} />`)}
+      ${machines.map(machine => html`<${MachineCard} key=${machine.id} ...${observations(machine)} phone=${phone} />`)}
     </div>
     ${error && html`<div class="machine-row machine-load-error" role="status"><div class="machine-row-text">
       <b>${t('settings.machines.load_failed')}</b><small>${error}</small></div><button class="btn sm" onClick=${reload}>${t('agents.retry')}</button>
     </div>`}
-    ${open.length > 0 && html`<${MachineTerminals} terminals=${open} names=${names} />`}
+    ${(phone ? terminals : open.length > 0) && html`<${MachineTerminals} terminals=${open} names=${names} fold=${phone} />`}
     ${!pair && html`<${Discovered} onPair=${setPair} extra=${html`<button class="btn sm" title=${t('settings.machines.ssh_add_tip')} onClick=${() => setEdit({ machine: null })}><${Icon} n="terminal" />${t('settings.machines.ssh_add_plain')}</button>`} />`}`}
     ${pair && html`<${PairDialog} start=${pair} onClose=${result => {
       setPair(null);

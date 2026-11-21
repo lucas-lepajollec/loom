@@ -55,8 +55,9 @@ test('the real terminal view reattaches after mobile resume without opening a pr
     useRef: () => ({ current: {} }), useState: v => [v, () => {}], useEffect: fn => effects.push(fn),
     visibleConnection: (connect, delay) => module.connection(connect, delay, env),
     post: async (...args) => { posts.push(args); return { ok: true, ticket: 'synthetic' }; },
+    loadXterm: () => Promise.resolve(context.window),
   };
-  vm.runInNewContext(terminalSource.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nxtermReady = Promise.resolve(window); globalThis.view = TermView;', context);
+  vm.runInNewContext(terminalSource.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.view = TermView;', context);
   context.view({ t: { id: 'existing', title: 'Shell', running: true } });
   const stop = effects[0](); await settle(); assert.equal(sockets.length, 1);
   const oldMessage = sockets[0].onmessage;
@@ -73,6 +74,7 @@ test('Voice rejects malformed frames and reconnects without replaying a turn or 
   const source = fs.readFileSync(process.env.LOOM_VOICE_BASELINE || new URL('../next/js/features/voice/mode.js', import.meta.url), 'utf8');
   const env = surface(), sockets = [], effects = [], posts = [], states = []; let microphones = 0, buffers = 0, cursor = 0, turns = 0;
   const { validShape } = await import('../next/js/core/shape.js');
+  const { WORKLET } = await import('../next/js/features/voice/audio.js');
   class Audio {
     audioWorklet = { addModule: async () => {} }; destination = {}; currentTime = 0;
     createMediaStreamSource() { return { connect() {} }; }
@@ -81,7 +83,7 @@ test('Voice rejects malformed frames and reconnects without replaying a turn or 
     createBufferSource() { return { connect() {}, start() {}, stop() {} }; }
     resume() { return Promise.resolve(); } suspend() { return Promise.resolve(); } close() { return Promise.resolve(); }
   }
-  const context = { ...env, validShape, ArrayBuffer, TextDecoder, html: () => null, t: x => x, Icon: 'Icon', cls: () => '', Blob,
+  const context = { ...env, validShape, WORKLET, ArrayBuffer, TextDecoder, html: () => null, t: x => x, Icon: 'Icon', cls: () => '', Blob,
     URL: { createObjectURL: () => 'synthetic-worklet', revokeObjectURL() {} },
     window: { isSecureContext: true, AudioContext: Audio },
     navigator: { mediaDevices: { getUserMedia: async () => { microphones++; return { getTracks: () => [{ stop() {} }] }; } } },

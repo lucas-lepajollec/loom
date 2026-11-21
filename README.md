@@ -9,7 +9,7 @@
   <img src="docs/screenshots/chat.png" alt="Loom discussion with an execution selector and contextual side panel" width="1200" />
 </div>
 
-Loom is a single Go binary with a web UI. Run local inference or connect cloud providers in the same discussion, and drive Codeman agent sessions from the same session list. A [Files page](docs/files.md) edits the folder your agents work in. The interface defaults to English; French is available in Settings and the first-run guide. On phones, Settings opens a section menu with a back link; model selection, model metrics and Environment tables adapt to the available screen width. The free [mobile layout audit](docs/mobile-layout-audit.md) documents checks at 390 px and 320 px and remaining browser acceptance.
+Loom is a single Go binary with a web UI. Run local inference or connect cloud providers in the same discussion, and drive Codeman agent sessions from the same session list. A [Files page](docs/files.md) edits the folder your agents work in. The interface defaults to English, with French in Settings and the first-run guide. On phones, use **Sessions**, **Inbox**, **Usage**, and **More** along the bottom. Open Files and Jarvis from More, or answer a waiting agent directly from Inbox. [Phone layout checks](docs/mobile-layout-audit.md)
 
 Local speech management (Jarvis 6.1) uses sherpa-onnx 1.13.8 on this machine
 or a paired node's `voice` module. It provides verified engine/model downloads,
@@ -79,7 +79,7 @@ with function-call support can use the opt-in search tool. See [web search](docs
 
 **Bench** compares local engines and configured cloud APIs with the same prompt, without tools or project context. Results retain responses and distinguish engine timings from API observations. See [Bench](docs/bench.md). The **OpenAI-compatible `/v1` server** exposes `/v1/models` and `/v1/chat/completions` for other applications; local router requests use native slots and temporary parameter overrides without changing saved settings. [Engine service](docs/engines.md#engine-as-a-service) adds stream-safe model swaps, background priorities, idle VRAM unload and named API keys with limits and usage.
 
-The UI also provides a **PWA** shell where the browser supports installation. HTTPS is required outside loopback. Offline mode shows a public fallback; it does not provide offline inference or queue messages.
+Install Loom as a standalone web app from your browser’s home-screen or install menu on iPhone or Android. HTTPS is required outside loopback. Offline mode displays a public fallback. Inference and sending messages require a connection to Loom. [Web Push setup](docs/notifications.md#web-push)
 
 API failures retain the last valid shared UI data and mark unavailable catalogs.
 Mobile resume refreshes observations and reconnects discussion, terminal

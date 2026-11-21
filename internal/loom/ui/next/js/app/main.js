@@ -2,9 +2,10 @@ import { t } from '../core/i18n.js';
 import { html, render, useStore, cls } from '../core/lib.js';
 import { Component } from 'preact';
 import { Icon } from '../ui/icons.js';
-import { app, startPolling, setTheme } from '../core/state.js';
+import { app, phoneParent, phoneTab, startPolling, setTheme } from '../core/state.js';
+import { usePhone } from '../core/viewport.js';
 import { Layers } from '../ui/dialog.js';
-import { Sidebar } from './shell.js';
+import { Sidebar, useShortcuts } from './shell.js';
 import { init as initChat } from '../features/chat/engine.js';
 import { Placeholder } from './placeholder.js';
 import { pageFor } from './routes.js';
@@ -14,6 +15,11 @@ import { Welcome, initWelcome } from '../features/onboarding/welcome.js';
 import { authStatus } from '../core/api.js';
 import { AccessScreen } from './access.js';
 import { initTouch } from './touch.js';
+import { BackButton, PhoneBackLink, PhoneTabs } from './phone-nav.js';
+import { groupOf } from './sections.js';
+import { agents, useAgentsPresence } from '../features/agents/store.js';
+import { NewSessionHost } from '../features/agents/side.js';
+import { inboxItems } from './inbox.js';
 
 
 // Une page qui plante pendant son affichage ne doit pas laisser Preact au milieu
@@ -29,7 +35,7 @@ class PageGuard extends Component {
   render() {
     const e = this.state.error;
     if (!e) return this.props.children;
-    return html`<div class="view page"><div class="page-in"><div class="card pad page-crash">
+    return html`<div class="view page">${this.props.back && html`<header class="phone-subhead"><${BackButton} /></header>`}<div class="page-in"><div class="card pad page-crash">
       <h3>${t('app.crash.title')}</h3><p class="note">${t('app.crash.note')}</p>
       <pre class="mono">${String(e && e.message || e).slice(0, 400)}${e && e.stack ? '\n' + String(e.stack).split('\n').slice(1, 4).join('\n') : ''}</pre>
       <button class="btn" onClick=${() => this.setState({ error: null })}>${t('app.crash.retry')}</button></div></div></div>`;
@@ -59,21 +65,35 @@ const ownScript = file => { try { const u = new URL(file, location.href); return
 window.addEventListener('error', e => { if (e.error && ownScript(e.filename)) reportClientError(e.error); });
 window.addEventListener('unhandledrejection', e => { const r = e.reason; if (r && r.name !== 'AbortError') reportClientError(r); });
 
-function Main() {
-  const route = useStore(app, s => s.route);
+function Main({ route, phone }) {
   const Page = pageFor(route.section) || Placeholder;
-  return html`<main class="main">
-    ${!['chat', 'agents', 'files'].includes(route.section) && html`<div class="mobile-bar only-mobile"><button class="icon-btn menu-btn" aria-label="${t("app.main.menu")}" onClick=${() => app.set({ sideOpen: true })}><${Icon} n="menu" /></button><b>${t("app.main.loom")}</b></div>`}
-    <${PageGuard} key=${route.section} name=${route.section} sub=${route.sub || ''}><${Page} route=${route} /></${PageGuard}></main>`;
+  const parent = phone && phoneParent(route);
+  const group = parent && groupOf(route.section);
+  const title = group?.id === 'models' || group?.id === 'agents' ? group.label : '';
+  const ownHeader = ['chat', 'files'].includes(route.section) || route.section === 'agents' && ['s', 'grid'].includes(route.sub)
+    || route.section === 'more' && route.sub === 'jarvis';
+  return html`<main class=${cls('main', parent && 'phone-management')}>
+    ${parent ? html`<header class="phone-management-head"><${PhoneBackLink} parent=${parent} />
+      ${title && html`<h1 class="phone-management-title">${title}</h1>`}</header>`
+    : phone && !phoneTab(route) && !ownHeader && html`<header class="phone-subhead"><${BackButton} /></header>`}
+    <${PageGuard} key=${route.section} name=${route.section} sub=${route.sub || ''} back=${phone && ownHeader}><${Page} route=${route} /></${PageGuard}></main>`;
 }
 
 function App() {
-  const sideOpen = useStore(app, s => s.sideOpen);
-  return html`<div class=${cls('app', sideOpen && 'side-open')}>
-    <${Sidebar} />
-    ${sideOpen && html`<div class="side-scrim only-mobile" onClick=${() => app.set({ sideOpen: false })}></div>`}
-    <${Main} />
+  const route = useStore(app, s => s.route);
+  const phone = usePhone();
+  const count = useStore(agents, s => {
+    const { approvals, replies } = inboxItems(s);
+    return approvals.length + replies.length;
+  });
+  useAgentsPresence();
+  useShortcuts(phone);
+  return html`<div class=${cls('app', phone && 'phone-app')}>
+    ${!phone && html`<${Sidebar} />`}
+    <${Main} route=${route} phone=${phone} />
+    ${phone && html`<${PhoneTabs} route=${route} count=${count} />`}
     <${Palette} />
+    <${NewSessionHost} phone=${phone} />
     <${Layers} />
     <${Welcome} />
   </div>`;
@@ -87,6 +107,7 @@ async function boot() {
     if (!status.authenticated) { render(html`<${AccessScreen} status=${status} onDone=${boot} />`, root); return; }
     render(html`<${App} />`, root);
     initLang(); startPolling(); initChat(); initWelcome();
+    if (window.isSecureContext) navigator.serviceWorker?.register('/sw.js', { scope: '/' }).catch(() => {});
   } catch (_) {
     render(html`<div class="welcome" style="min-height:100dvh"><h1>Loom</h1><p role="alert">${t('access.unavailable')}</p><button class="btn" onClick=${boot}>${t('access.retry')}</button></div>`, root);
   }

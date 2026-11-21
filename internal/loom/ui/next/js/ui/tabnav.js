@@ -6,7 +6,7 @@ import { DropdownButton, Menu } from './controls.js';
 
 const last = new Map();
 
-export function TabNav({ id, label, tabs }) {
+export function TabNav({ id, label, tabs, phoneChips = false }) {
   const nav = useRef(), pill = useRef();
   useLayoutEffect(() => {
     const n = nav.current, p = pill.current;
@@ -21,8 +21,9 @@ export function TabNav({ id, label, tabs }) {
       requestAnimationFrame(() => requestAnimationFrame(() => { p.style.transition = ''; place(to); }));
     }
     last.set(id, to);
-  }, [tabs.map(tab => tab.current ? tab.href : '').join('|')]);
+  }, [phoneChips, tabs.map(tab => tab.current ? tab.href : '').join('|')]);
   const cur = tabs.find(tab => tab.current) || tabs[0];
+  if (phoneChips) return html`<nav class="phone-section-tabs" aria-label=${label}>${tabs.map(tab => html`<a key=${tab.href} href=${tab.href} aria-current=${tab.current ? 'page' : undefined}>${tab.label}</a>`)}</nav>`;
   return html`<${TabDrop} label=${label} tabs=${tabs} cur=${cur} /><nav class="sec-tabs" ref=${nav} aria-label=${label}><span class="sec-pill" ref=${pill} aria-hidden="true"></span>${tabs.map(tab => html`<a key=${tab.href} href=${tab.href} aria-current=${tab.current ? 'page' : undefined}>${tab.label}</a>`)}</nav>`;
 }
 

@@ -9,18 +9,26 @@ export function phoneLayoutIssues() {
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && !!el.getClientRects().length;
   };
   const name = el => el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().replace(/\s+/g, '.') : '') + ' ' + el.textContent.trim().slice(0, 70);
-  const roots = [...document.querySelectorAll('.view, .dialog, .pop, .tipbox')].filter(visible);
+  const roots = [...document.querySelectorAll('.view, .dialog, .pop, .tipbox, .phone-tabs, .phone-management-head')].filter(visible);
   const elements = [...new Set(roots.flatMap(el => [el, ...el.querySelectorAll('*')]))].filter(visible);
+  const touchTargets = [
+    '.phone-tabs a', '.phone-back', '.phone-title button', '.phone-row-open', '.phone-link',
+    '.phone-composer .send', '.inbox-reply .send', '.cm-phone-line .send', '.cm-acc button',
+    '.phone-back-link', '.phone-section-tabs a', '.machine-card-link', '.machine-add', '.models-compact-row [role=button]',
+    '.phone-management [aria-haspopup=menu].icon-btn', '.phone-settings :is(.seg button, .select, .switch)',
+  ].join(', ');
   for (const el of elements) {
     const r = el.getBoundingClientRect();
     // Exclude intentionally hidden drawer/tab strip content. Check the strip's
     // own bounds, but not the tabs outside its clipped scroll area.
     let clipped = false;
     for (let p = el.parentElement; p && !roots.includes(el); p = p.parentElement) {
-      if (p.matches('.tabs, .sec-tabs, .insp-scroll, .pick-list, .thread') && /auto|hidden|scroll/.test(getComputedStyle(p).overflowX)) { clipped = true; break; }
+      if (p.matches('.tabs, .sec-tabs, .insp-scroll, .pick-list, .thread, .cm-term-box') && /auto|hidden|scroll/.test(getComputedStyle(p).overflowX)) { clipped = true; break; }
     }
     if (!clipped && (r.left < -tolerance || r.right > width + tolerance)) issues.push('outside viewport: ' + name(el));
     if (el.matches('button, .btn') && r.width > width + tolerance) issues.push('button wider than viewport: ' + name(el));
+    if (el.matches(touchTargets) &&
+        (r.width < 44 - tolerance || r.height < 44 - tolerance)) issues.push('touch target below 44px: ' + name(el));
     if (el.matches('h1,h2,h3,h4,.pill,.state,.tag,.btn,button,.am-head span')) {
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       for (let n; (n = walker.nextNode());) {

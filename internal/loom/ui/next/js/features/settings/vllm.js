@@ -6,7 +6,8 @@ import { t, tSource } from '../../core/i18n.js';
 import { ListPick } from '../../ui/listpick.js';
 import { html, useState, useEffect, useStore, cls, fmtBytes } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Switch, Tip, Empty, Menu } from '../../ui/controls.js';
+import { Switch, Tip, Empty, OverflowMenu } from '../../ui/controls.js';
+import { inspectTrigger } from '../../ui/drawer.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, refreshEngineNode, refreshLibrary, refreshStatus } from '../../core/state.js';
@@ -204,22 +205,21 @@ export function VllmLibraryStatus({ v }) {
 }
 
 // Local › Bibliothèque (vLLM) : modèles Hugging Face présents sur la machine.
-export function VllmLibrary({ v, onHub, enginePicker }) {
+export function VllmLibrary({ v, onHub, enginePicker, phone, defaultModel }) {
   const [params, setParams] = useState(null);
   const [q, setQ] = useState('');
-  const [menu, setMenu] = useState(null);
   const x = v.x;
   const idle = x.installed && !x.running && !x.job;
   const loading = x.job === 'start';
   const matches = (v.lib || []).filter(m => m.id?.toLowerCase().includes(q.trim().toLowerCase()));
   const servable = matches.filter(m => m.servable), others = matches.filter(m => !m.servable);
   const remove = m => v.remove(m);
-  const openMenu = (anchor, m) => setMenu({ anchor, items: [{ label: t('vllm.lib.delete'), icon: 'trash', danger: true, run: () => remove(m) }] });
+  const deleteItem = m => ({ label: t('vllm.lib.delete'), icon: 'trash', danger: true, run: () => remove(m) });
   const filter = t('models.library.filter_models');
   return html`
     <${VllmLibraryStatus} v=${v} />
     <div class="models-toolbar"><label class="search"><${Icon} n="search" /><input aria-label=${filter} placeholder=${filter} value=${q} onInput=${e => setQ(e.target.value)} /></label>
-      ${enginePicker}<a class="btn primary" href="#/local/hub">${t('local.page.telecharger_un_modele')}</a>
+      ${enginePicker}${!phone && html`<a class="btn primary" href="#/local/hub">${t('local.page.telecharger_un_modele')}</a>`}
     </div>
     <${DownloadRow} v=${v} />
     <section class="models-group">
@@ -227,17 +227,26 @@ export function VllmLibrary({ v, onHub, enginePicker }) {
       ${v.lib === null ? html`<div class="skeleton models-loading"></div>` : html`<div class="models-card">
         ${servable.length ? servable.map(m => {
           const on = x.model === m.id && (x.running || loading);
-          return html`<div class="models-row" key=${m.id}>
-            <div class="models-row-main"><b>${m.id}</b><small>${fmtBytes(m.size)}</small></div>
-            <div class="models-actions">
-              ${on ? html`<span class=${cls('models-row-state', loading ? 'models-warning' : 'models-good')}>${loading ? t('local.page.chargement') : t('local.page.charge')}</span>`
-                : html`<button class="btn sm" disabled=${!idle} onClick=${() => v.start(m.id)}>${t('local.page.charger')}</button>`}
-              <button class="btn sm" onClick=${() => setParams(m.id)}>${t('local.page.regler')}</button>
-              <button class="icon-btn" aria-label=${t('models.row.actions', { name: m.id })} disabled=${on} onClick=${e => openMenu(e.currentTarget, m)}><${Icon} n="more" /></button>
+          const edit = () => setParams(m.id);
+          const start = () => v.start(m.id);
+          const state = on && html`<span class=${cls('models-row-state', loading ? 'models-warning' : 'models-good')}>${loading ? t('local.page.chargement') : t('local.page.charge')}</span>`;
+          const items = phone ? [
+            { label: t('local.page.charger'), disabled: !idle, run: start },
+            { label: t('local.page.regler'), run: edit }, '-', { ...deleteItem(m), disabled: on },
+          ] : [deleteItem(m)];
+          return html`<div class=${cls('models-row', phone && 'models-compact-row')} key=${m.id}>
+            <div class="models-row-main" ...${phone ? inspectTrigger(edit, t('local.page.regler_2') + m.id) : {}}>
+              <b>${m.id}</b><small>${fmtBytes(m.size)}${m.id === defaultModel && ' · ' + t('settings.default.label')}</small>
+              ${phone && state}
+            </div>
+            <div class=${phone ? '' : 'models-actions'}>
+              ${!phone && html`${on ? state : html`<button class="btn sm" disabled=${!idle} onClick=${start}>${t('local.page.charger')}</button>`}
+                <button class="btn sm" onClick=${edit}>${t('local.page.regler')}</button>`}
+              <${OverflowMenu} label=${t('models.row.actions', { name: m.id })} disabled=${!phone && on} items=${items} />
             </div>
           </div>`;
         }) : html`<${Empty} icon="download" title=${q ? t('local.page.aucun_resultat') : t('vllm.lib.empty_title')} text=${q ? t('local.page.essaie_un_autre_filtre') : t('vllm.lib.empty')}>
-          ${!q && html`<button class="btn" onClick=${onHub}>${t('vllm.lib.add')}</button>`}
+          ${!phone && !q && html`<button class="btn" onClick=${onHub}>${t('vllm.lib.add')}</button>`}
         </${Empty}>`}
       </div>`}
     </section>
@@ -248,7 +257,7 @@ export function VllmLibrary({ v, onHub, enginePicker }) {
       </div>`)}
     </details>`}
     ${v.cache && html`<p class="models-row-meta">${t('vllm.lib.cache')} <code class="mono">${v.cache.replace(/^\/home\/[^/]+/, '~')}</code></p>`}
-    ${menu && html`<${Menu} anchor=${menu.anchor} items=${menu.items} onClose=${() => setMenu(null)} />`}
+    ${phone && html`<a class="btn models-phone-download" href="#/local/hub">${t('local.page.telecharger_un_modele')}</a>`}
     ${params && html`<${Params} model=${params} onClose=${() => setParams(null)} onStart=${v.start} />`}`;
 }
 

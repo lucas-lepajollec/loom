@@ -553,10 +553,84 @@
   }
 
   .mc-page .page-head {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    align-items: center;
   }
+
+  .machine-card-link {
+    padding: 14px 16px;
+    border-radius: var(--r-xl);
+    color: var(--text);
+  }
+
+  .machine-card-link:hover { background: var(--surface-2); }
+  .machine-card-link h2 { margin: 0; font-size: 16px; }
+  .machine-card-link .machine-chip {
+    min-height: 26px;
+    padding-inline: 8px;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+  }
+  .machine-card-link .machine-chip.provided {
+    border-color: var(--line-strong);
+    background: var(--surface-3);
+    color: var(--text);
+  }
+  .machine-card-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    color: var(--text-2);
+    font-size: 13px;
+  }
+  .machine-card-stats > span { overflow-wrap: anywhere; }
+
+  .machine-terminal-fold > summary { min-height: 54px; list-style: none; cursor: pointer; }
+  .machine-terminal-fold > summary::-webkit-details-marker { display: none; }
+  .machine-terminal-fold[open] > summary > .ico:last-child { transform: rotate(90deg); }
+  .machine-terminal-fold .machine-terminal-link:first-of-type { border-top: 1px solid var(--line-soft); }
+
+  .machine-detail-head { align-items: stretch; flex-direction: column; }
+  .machine-detail-controls { display: block; }
+  .machine-detail-controls .machine-actions { display: flex; flex-wrap: nowrap; }
+  .machine-detail-controls .machine-actions > .btn { flex: 1; }
+  .machine-detail-controls .machine-actions > :is(.btn, .icon-btn),
+  .mc-page .machine-add {
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+  }
+  .machine-detail-controls .machine-actions > :is(.btn, .icon-btn):hover,
+  .mc-page .machine-add:hover { background: var(--surface-3); }
+  .machine-detail .machine-section > h2 {
+    margin-inline-start: 4px;
+    color: var(--text-2);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .mc-page :is(.machine-section .card, .machine-terminal-fold) { border-radius: var(--r-xl); }
+  .machine-resource-body .machine-meters { grid-template-columns: minmax(0, 1fr); }
+
+  .settings-page > .settings-body { padding-top: 14px; }
+  .phone-settings { gap: 14px; }
+  .phone-settings .card { border-radius: var(--r-xl); }
+  .phone-settings .set-line { min-height: 54px; gap: 8px; flex-wrap: nowrap; }
+  .phone-settings .set-l { flex: 1; font-size: 15px; }
+  .phone-settings .set-line:has(.set-c > :not(.switch)) > .set-l { flex-basis: 0; }
+  .phone-settings .set-line .set-c { flex: 0 1 auto; max-width: 58%; justify-content: flex-end; }
+  .phone-settings .set-line:has(.seg) .set-c { flex-basis: auto; }
+  .phone-settings .set-line .set-c > * { min-width: 0; max-width: 100%; }
+  .phone-settings .set-c > .switch { min-width: var(--touch-target); }
+  .phone-settings .set-c .select { color: var(--text-2); }
+  .phone-settings a.phone-setting-link {
+    min-height: 54px;
+    padding-inline: 16px;
+    border-radius: var(--r-xl);
+    color: var(--text);
+    font-size: 15px;
+  }
+  .phone-settings .phone-setting-link > small { max-width: 48%; text-align: end; }
+  .phone-setting-link:not(:first-child) { border-top: 1px solid var(--line-soft); }
 
   .terminal-tab a,
   .machine-install > summary {
@@ -564,11 +638,8 @@
   }
 
   .mc-page .page-head .acts {
-    justify-content: flex-start;
-  }
-
-  .mc-page .page-head .acts > .btn {
-    flex: 1 1 auto;
+    width: auto;
+    flex: none;
   }
 
   .machine-row,
@@ -580,6 +651,9 @@
     flex-basis: 100%;
     justify-content: flex-start;
   }
+
+  .machine-row.machine-brick-row { flex-wrap: nowrap; gap: 8px; }
+  .machine-brick-row .machine-actions { flex-basis: auto; justify-content: flex-end; }
 
   .machine-terminal-page .term-view {
     height: 60dvh;

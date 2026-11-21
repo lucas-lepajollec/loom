@@ -24,6 +24,10 @@ browser ── Loom auth + origin check ──▶ Loom gateway ── Basic auth
 | `GET/PUT /api/codeman/v1/settings` | The settings response shows whether the Deepgram API key is set. The gateway merges voice edits on the server before forwarding them. A blank `voiceSettings.apiKey` clears the key. A null `voiceSettings.silenceTimeout` restores Codeman’s provider default |
 | `/api/codeman/ws/{id}` | Same-origin WebSocket bridged to Codeman's terminal socket; close codes (4009 ended, 4004 missing) are forwarded |
 
+Loom also reads Codeman's public event stream on the server when Loom Web Push
+is enabled and has a subscriber. Approval and completion alerts link to the
+phone's Inbox or session. [Notification rules](../notifications.md#web-push)
+
 Changing the saved Codeman server or username clears its previous password.
 The gateway applies route policy after decoding the path and rejects ambiguous separators.
 
@@ -39,7 +43,7 @@ allowed by default and adjustable in Settings → Permissions.
 | File | Responsibility |
 | --- | --- |
 | `client.js` | Only network module: envelope unwrapping, errors, gateway config, SSE reader, prompt idempotence (`clientId` per page load, monotonic `seq`) |
-| `store.js` | Domain state: connection, sessions, history, CLI registry, approvals, plan usage, Codeman settings; SSE reducers; per-CLI capability table; derived session state; app-wide presence (`useAgentsPresence`) used by the sidebar |
+| `store.js` | Domain state: connection, sessions, history, CLI registry, approvals, completed turns, plan usage, and Codeman settings. SSE reducers and app-wide presence (`useAgentsPresence`) |
 | `actions.js` | Intentions → official calls: create, resume, interrupt, close, rename, answer approvals |
 | `labels.js` | Literal translation keys for variable values |
 | `page.js`, `nav.js` | Route `#/agents[/s/<id>|/control|/cron|/settings]` (`/grid` opens the grid), single view or grid, layout picker, quota chip, session header |
