@@ -133,7 +133,8 @@
 .phone-link{padding:8px 12px;border-radius:var(--r-lg)}
 .phone-link>.ico,.phone-row-open>.ico{width:21px;height:21px;flex:none;color:var(--text-2)}
 .phone-link>.ico:last-child,.phone-row-open>.ico:last-child{width:16px;height:16px}
-.phone-link>span,.phone-row-open>span{flex:1;min-width:0}
+.phone-link>span:not(.logo-mark),.phone-row-open>span:not(.logo-mark){flex:1;min-width:0}
+.phone-link>.logo-mark,.phone-row-open>.logo-mark{flex:none;--mark-size:22px}
 .phone-link b,.phone-row-open b{display:block;font-size:15px;font-weight:550;overflow-wrap:anywhere}
 .phone-link small,.phone-row-open small,.inbox-item-head small{display:block;color:var(--text-2);font-size:12px;overflow-wrap:anywhere}
 .phone-session-row .phone-row-state{display:inline-flex;align-items:center;gap:5px;max-width:40%;text-align:end}
@@ -165,7 +166,8 @@
 .phone-engine{display:flex;align-items:center;gap:8px}
 .phone-engine .phone-row-open{padding:0}
 .phone-engine .btn{flex:none;max-width:45%;white-space:normal}
-.more-links{display:grid}
+.more-links{display:grid;margin-top:12px;border-radius:var(--r-xl);background:var(--surface);overflow:hidden}
+.more-links .phone-link{border-radius:0}
 .more-links .phone-link{min-height:54px}
 .more-links .phone-link+.phone-link{border-top:1px solid var(--line-soft)}
 
@@ -314,3 +316,12 @@
   .fl-recent h2:last-child{margin-top:10px}
 }
 @keyframes in-phone-sheet{from{translate:0 100%}to{translate:0 0}}
+
+/* lignes d'un groupe : pas d'arrondi propre, un simple trait entre elles */
+.phone-settings .card .phone-link,.phone-settings .phone-setting-link{border-radius:0}
+.phone-settings .card>:is(.phone-link,.set-line)+:is(.phone-link,.set-line){border-top:1px solid var(--line-soft)}
+@media (max-width:760px){
+  /* Machines : titre à gauche, bouton d'ajout sur la même ligne */
+  .phone-management .mc-page .page-head{flex-direction:row;align-items:center;justify-content:space-between;text-align:start}
+  .phone-management .mc-page .page-head h1{margin:0}
+}

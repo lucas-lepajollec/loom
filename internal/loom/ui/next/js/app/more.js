@@ -30,8 +30,8 @@ function EngineStatus({ node, vllm }) {
   };
   return html`<section class="phone-engine" aria-label=${t('local.page.moteur')}>
     <a class="phone-row-open" href="#/engine"><i class=${cls('dot', tone)}></i><span>
-      <b>${t('models.engine.state', { engine: kind, state: label })}</b>
-      ${model && html`<small>${t('models.library.loaded', { name: model })}</small>`}
+      <b>${label}</b>
+      <small>${[kind, node?.hostname || app.get().serverInfo?.hostname, model].filter(Boolean).join(' · ')}</small>
     </span></a>
     ${!direct && html`<button type="button" class=${cls('btn', !running && 'primary')} onClick=${toggle} disabled=${busy || !status || unavailable}>
       ${running ? t('local.page.arreter') : t('local.page.demarrer')}
