@@ -500,3 +500,7 @@
 .turn-acts{display:inline-flex;gap:2px;margin:0 6px 0 -6px}
 .turn-acts .icon-btn{width:26px;height:26px}
 .turn-acts .icon-btn .ico{width:14px;height:14px}
+/* moteur : démarrage automatique à l'envoi */
+.composer-hint[role="status"],.composer-hint.err{display:flex!important;align-items:center;justify-content:center;gap:10px;font-family:var(--font);font-size:12.5px}
+.composer-hint.err{color:var(--red)}
+.composer-hint.err .btn{color:var(--text)}

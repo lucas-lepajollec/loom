@@ -42,8 +42,8 @@ function Thread() {
 function SessionType() {
   const conn = useStore(agents, s => s.conn);
   const pick = v => { if (v !== 'agent') return; if (conn.state === 'ready') agents.set({ creating: {} }); else go('agents', 'settings'); };
-  return html`<div class="welcome-type"><${Seg} value="chat" onChange=${pick} label=${t('side.session_type')}
-    options=${[{ value: 'chat', label: t('side.type_chat') }, { value: 'agent', label: t('side.type_agent') }]} /></div>`;
+  return html`<div class="welcome-type"><${Seg} value="chat" size="lg" onChange=${pick} label=${t('side.session_type')}
+    options=${[{ value: 'chat', label: html`<${Icon} n="chat" />${t('side.type_chat')}` }, { value: 'agent', label: html`<${Icon} n="agent" />${t('side.type_agent')}` }]} /></div>`;
 }
 
 // Titre de la discussion à côté du modèle, comme le nom d'une session d'agent.

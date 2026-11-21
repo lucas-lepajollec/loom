@@ -218,8 +218,7 @@
 .cm-side-more .ico:first-child{width:14px;height:14px}
 .cm-grid-h{min-height:48px}
 .cm-grid-h b{font-size:14px;font-weight:600}
-.welcome-type{width:240px;margin-bottom:8px}
-.welcome-type .seg{width:100%}.welcome-type .seg button{flex:1}
+.welcome-type{display:flex;justify-content:center;margin-bottom:10px}
 
 /* disposition et quotas dans la barre du module */
 .cm-layout-btn{width:32px;height:32px}

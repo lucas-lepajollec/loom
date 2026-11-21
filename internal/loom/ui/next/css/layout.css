@@ -16,3 +16,7 @@
   .view.cm > .cm-admin-top.cm-admin-top{padding-top:var(--page-top)}
   .view.cm > .cm-admin-top.cm-admin-top,.view.cm .cm-scroll > :is(.cm-cc,.cm-cron,.cm-cfg){width:100%;max-width:1040px;margin-inline:auto;padding-inline:40px}
 }
+
+/* barres de recherche : le champ n'a pas de cadre propre quand on tape,
+   seule la barre marque le focus */
+:is(.search, .fl-search) input:is(:focus, :focus-visible){outline:0;box-shadow:none}

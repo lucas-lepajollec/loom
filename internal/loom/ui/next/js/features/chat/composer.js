@@ -71,7 +71,8 @@ export function Composer() {
   useEffect(() => { const el = ta.current; if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 240) + 'px'; }, [text]);
 
   let blocked = '';
-  if (native && status && !status.health) blocked = status.load_error ? t("chat.composer.le_modele_n_a_pas_pu_se_charger") : !status.active ? t("chat.composer.moteur_arrete_charge_un_modele_pour_commencer") : status.model ? t("chat.composer.chargement_du_modele") : t("chat.composer.choisis_un_modele_pour_commencer");
+  // Le moteur démarre tout seul à l'envoi : seul l'absence de modèle bloque.
+  if (native && !c.localTarget && status && !status.model) blocked = t("chat.composer.choisis_un_modele_pour_commencer");
   if (!native && c.session && !c.session.runtime_id) blocked = t("chat.composer.choisis_un_modele_pour_cette_discussion");
   if (!native && c.session && runtimeKind(c.session.runtime_id) === 'retired') blocked = t('runtime.retired');
   if (c.context && c.context.problem) blocked = c.context.problem;
@@ -80,7 +81,7 @@ export function Composer() {
   const submit = async () => {
     const localT = pastedMessage(text, files);
     if (!localT && !files.length) return;
-    if (c.busy || blocked || submitting.current) return;
+    if (c.busy || c.starting || blocked || submitting.current) return;
     const uploaded = files.filter(f => f.path);
     if (new TextEncoder().encode(localT).length > MAX_MESSAGE_BYTES) { toast(t('chat.composer.text_too_large'), 'err'); return; }
     submitting.current = true;
@@ -128,10 +129,12 @@ export function Composer() {
         ${size ? html`<button class=${cls('ctx', pct >= 85 && 'hot')} title=${t("chat.composer.contexte_utilise") + used + ' / ' + size + ' tokens'} onClick=${native ? compact : compactSession}>
           <span class="ctx-ring" style=${`--p:${pct}`}></span><span>${fmtTok(used)} / ${fmtTok(size)}</span></button>` : ''}
         ${c.busy ? html`<button class="send stop" aria-label="${t("chat.composer.arreter")}" onClick=${stop}><${Icon} n="stop" /></button>`
-          : html`<button class="send" aria-label="${t("chat.composer.envoyer")}" disabled=${!!blocked || (!text.trim() && !files.length)} onClick=${submit}><${Icon} n="arrowUp" /></button>`}
+          : html`<button class="send" aria-label="${t("chat.composer.envoyer")}" disabled=${!!blocked || c.starting || (!text.trim() && !files.length)} onClick=${submit}><${Icon} n="arrowUp" /></button>`}
       </div>
     </div>
-    ${hint && html`<div class="composer-hint warn">${hint}</div>`}
+    ${c.starting ? html`<div class="composer-hint" role="status"><span class="spinner sm"></span>${t('chat.engine.starting')}</div>`
+      : c.engineError ? html`<div class="composer-hint err" role="alert">${c.engineError}<button class="btn sm" onClick=${submit}>${t('agents.retry')}</button></div>`
+      : hint && html`<div class="composer-hint warn">${hint}</div>`}
     ${menu && html`<${Popover} anchor=${menu} onClose=${() => setMenu(null)} place="above" width=${240}>
       <button class="item" disabled=${webOn === false} onClick=${() => toggleTool('internet')}><${Icon} n="globe" />${t("chat.composer.recherche_web")}<${Tip} text=${webOn === false ? t('chat.tools.web_off') : t('chat.tools.web_tip')} /><span class="grow"></span>${tools.internet && webOn !== false && html`<${Icon} n="check" />`}</button>
       ${toolList.includes('mcp') && html`<button class="item" onClick=${() => toggleTool('mcp')}><${Icon} n="plug" />${t("chat.composer.outils_mcp")}<${Tip} text=${t('chat.tools.mcp_tip')} /><span class="grow"></span>${tools.mcp && html`<${Icon} n="check" />`}</button>`}
