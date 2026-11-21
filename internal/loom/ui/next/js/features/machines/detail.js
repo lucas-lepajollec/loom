@@ -3,7 +3,7 @@ import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshEngineNode, refreshLibrary, refreshStatus, refreshWorkspace } from '../../core/state.js';
 import { Icon } from '../../ui/icons.js';
-import { Menu } from '../../ui/controls.js';
+import { Menu, Switch } from '../../ui/controls.js';
 import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { api as codemanAPI } from '../agents/client.js';
@@ -106,6 +106,30 @@ function Bricks({ machine, roles, revision, onChange, codemanStatus }) {
   </${Modal}>`}`;
 }
 
+// Les modules du nœud se règlent ici, depuis Loom : jamais sur la machine.
+function NodeModuleSwitches({ machine, modules, onChange }) {
+  const [busy, setBusy] = useState('');
+  const [local, setLocal] = useState(null);
+  const current = local || modules;
+  const rows = [
+    ['voice', t('settings.machines.brick_voice'), t('machines.module.voice_hint')],
+    ['terminal', t('machines.module.terminal_files'), t('machines.module.terminal_hint')],
+    ['observe', t('machines.module.observe'), t('machines.module.observe_hint')],
+  ];
+  const toggle = async (id, enabled) => {
+    setBusy(id);
+    const r = await post('/api/machines/' + encodeURIComponent(machine.id) + '/node/modules', { module: id, enabled }).catch(e => ({ ok: false, error: e.message }));
+    setBusy('');
+    if (!r.ok) return toast(r.error || t('common.error'), 'err');
+    setLocal(r.modules);
+    onChange();
+  };
+  return rows.map(([id, label, hint]) => html`<div class="machine-row" key=${id}>
+    <div class="machine-row-text"><b>${label}</b><small>${hint}</small></div>
+    <${Switch} label=${label} checked=${current.includes(id)} disabled=${!!busy} onChange=${value => toggle(id, value)} />
+  </div>`);
+}
+
 function MachineAgents({ machine, clis, onChange }) {
   const installed = machineAgents(machine, clis);
   const installable = clis.filter(cli => canInstall(cli) && !installed.some(installedCli => installedCli.id === cli.id));
@@ -172,10 +196,11 @@ function MachineConnection({ machine, node, onChange }) {
         <div class="machine-row-text"><b>${t('node.address')}</b><small class="mono">${node?.url || (machine.node_id ? '—' : t('machines.node.not_paired'))}</small></div>
         ${!legacySSH && html`<div class="machine-actions"><button class="btn sm" onClick=${() => setPairing(true)}>${linked ? t('machines.node.repair') : t('machines.pair.ok')}</button></div>`}
       </div>
-      <div class="machine-row">
+      ${linked ? html`<${NodeModuleSwitches} machine=${machine} modules=${machine.modules || node?.modules || []} onChange=${onChange} />`
+        : html`<div class="machine-row">
         <div class="machine-row-text"><b>${t('settings.machines.node_modules')}</b></div>
         <${NodeModules} modules=${node?.modules || machine.modules} />
-      </div>`}
+      </div>`}`}
     <div class="machine-row">
       <div class="machine-row-text"><b>${t('startup.title')}</b></div>
       <div class="machine-actions"><a class="btn sm ghost" href="#/settings/startup"><${Icon} n="power" />${t('settings.machines.startup_settings')}</a></div>

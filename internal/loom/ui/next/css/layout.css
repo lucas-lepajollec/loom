@@ -1,10 +1,18 @@
-/* Une seule largeur pour toutes les pages ordinaires : celle d'Activité
-   (1040 px centrés, 40 px de marge, onglets ou titre en haut). Fichiers,
+/* Une seule largeur et une seule hauteur pour toutes les pages ordinaires :
+   1040 px centrés, 40 px de marge latérale, le même espace en haut. Les
+   onglets d'une page restent fixes en haut, comme ceux d'Agents. Fichiers,
    discussions et sessions d'agent gardent leur mise en page propre. */
 @media (min-width:761px){
-  .view.page > .page-in.page-in{max-width:1040px;margin-inline:auto;padding:10px 40px 48px}
-  .view.page > .page-in .sec-tabs{margin-top:0}
-  /* même centre que les pages d'agents, qui défilent dans un bloc intérieur */
+  :root{--page-top:28px}
   .view.page{scrollbar-gutter:auto}
+  .view.page > .page-in.page-in{max-width:1040px;margin-inline:auto;padding:var(--page-top) 40px 48px}
+  .view.page > .page-in.page-in:has(> .sec-tabs){padding-top:0}
+  .view.page > .page-in > .sec-tabs.sec-tabs{position:sticky;top:0;z-index:6;flex:none;align-items:flex-end;height:auto;margin-top:0;padding-top:var(--page-top);border:0;background:var(--panel)}
+  .view.page > .page-in > .sec-tabs a{height:42px}
+  /* onglet courant : le même trait partout */
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs .sec-pill{display:none}
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs{gap:24px}
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs a[aria-current="page"]{color:var(--text);box-shadow:inset 0 -2px var(--text)}
+  .view.cm > .cm-admin-top.cm-admin-top{padding-top:var(--page-top)}
   .view.cm > .cm-admin-top.cm-admin-top,.view.cm .cm-scroll > :is(.cm-cc,.cm-cron,.cm-cfg){width:100%;max-width:1040px;margin-inline:auto;padding-inline:40px}
 }

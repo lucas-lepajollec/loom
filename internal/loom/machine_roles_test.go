@@ -100,3 +100,45 @@ func TestNodeModulesFollowTheNode(t *testing.T) {
 		t.Fatalf("files still unavailable: %v", err)
 	}
 }
+
+// The main Loom switches a node's modules; the listing then shows files.
+func TestNodeModulesSwitchedFromMain(t *testing.T) {
+	testHome(t)
+	node := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer node-key" || r.URL.Path != "/api/node/modules" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		handleNodeModules(w, r) // same process: stands in for the node
+	}))
+	defer node.Close()
+	m := RemoteMachine{ID: "tower", Name: "Tower", Host: "127.0.0.1", NodeID: "n1", Modules: []string{"engine"}}
+	if err := putStoreJSON(bkState, remoteMachinesState, []RemoteMachine{m}); err != nil {
+		t.Fatal(err)
+	}
+	if err := putStoreJSON(bkState, machineNodePrefix+m.ID, engineNode{URL: node.URL, WebKey: "node-key", Role: "engine-node", Handshake: nodeHandshake}); err != nil {
+		t.Fatal(err)
+	}
+	post := func(body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/api/machines/tower/node/modules", strings.NewReader(body))
+		r.SetPathValue("id", "tower")
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handleMachineNodeModules(w, r)
+		return w
+	}
+	if w := post(`{"module":"voice","enabled":false}`); w.Code != 200 || nodeVoiceEnabled() {
+		t.Fatalf("voice not switched off: %d %s", w.Code, w.Body.String())
+	}
+	if w := post(`{"module":"terminal","enabled":true}`); w.Code != 200 {
+		t.Fatalf("terminal: %d %s", w.Code, w.Body.String())
+	}
+	if post(`{"module":"engine","enabled":false}`).Code != 400 {
+		t.Fatal("engine switched off")
+	}
+	w := httptest.NewRecorder()
+	handleRemoteMachines(w, httptest.NewRequest(http.MethodGet, "/api/machines", nil))
+	if !strings.Contains(w.Body.String(), `"files"`) || strings.Contains(w.Body.String(), `"voice"`) {
+		t.Fatalf("listing %s", w.Body.String())
+	}
+}
