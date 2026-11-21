@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"github.com/lucas-lepajollec/loom/internal/loom/discussion"
 )
 
@@ -17,7 +15,7 @@ import (
 // memory, queries and native-reported settings never enter this hash.
 func frozenContextRevision(s RuntimeSession) string {
 	// Upgrade old class-based snapshots once; subsequent file edits stay frozen.
-	tuple := []any{"markdown-memory-v1", s.ID, s.ProjectID, s.Instructions, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.FilesystemPolicy, s.MCPServers, s.ContinuedFrom, len(s.Compactions), discussion.PortableRevision(s.FrozenSnapshot, s.PortableMessages)}
+	tuple := []any{"discussion-instructions-v2", s.ID, s.ProjectID, s.Instructions, s.RuntimeID, s.ProviderID, s.Endpoint, s.Model, s.ReasoningEffort, s.Workdir, s.AdditionalDirs, s.Permission, s.FilesystemPolicy, s.MCPServers, s.ContinuedFrom, len(s.Compactions), discussion.PortableRevision(s.FrozenSnapshot, s.PortableMessages)}
 	if p, ok := getProject(s.ProjectID); ok {
 		// Project configuration is static; working state lives in Brain memory.
 		if p.Continuity != nil {
@@ -31,32 +29,16 @@ func frozenContextRevision(s RuntimeSession) string {
 			tuple = append(tuple, id, ok, skill.Name, skill.Instructions)
 		}
 	}
-	var preferences sharedPreferences
-	getStoreJSON(bkState, sharedPreferencesKey, &preferences)
-	tuple = append(tuple, preferences)
-	for _, part := range primarySecondBrainParts() {
-		tuple = append(tuple, part.text)
-	}
 	encoded, _ := json.Marshal(tuple)
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:])
 }
 
 func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
-	// Reading still validates accessible selected sources. Their mutable contents
-	// do not affect the revision or replace a valid snapshot.
-	captureQuery := query
-	for _, message := range s.Messages {
-		if message.Role == "user" {
-			captureQuery = msgText(message)
-			break
-		}
-	}
-	c := assembleDiscussionContextParts(s, "", false)
+	c := assembleDiscussionContext(s)
 	snapshot := discussion.CloneFrozenSnapshot(s.FrozenSnapshot)
 	revision := frozenContextRevision(s)
 	if snapshot.FrozenRevision == "" || snapshot.FrozenRevision != revision {
-		c = assembleDiscussionContextParts(s, captureQuery, false)
 		for i := range c.Items {
 			c.Items[i].Frozen = true
 		}
@@ -77,32 +59,6 @@ func discussionContextFor(s RuntimeSession, query string) DiscussionContext {
 	}
 	c.BrainCitations = nil
 	c.Snapshot = snapshot
-	if loomTranscript(s) && strings.TrimSpace(query) != "" {
-		fresh := assembleDiscussionContext(s, query)
-		if fresh.Problem != "" {
-			c.Problem = fresh.Problem
-		}
-		extra := DiscussionContext{Budget: discussion.ContextBudget{ByKind: map[string]int{}}}
-		for _, item := range fresh.Items {
-			if item.Kind != "brain_passage" || strings.Contains(c.System, item.Text) {
-				continue
-			}
-			item.Frozen = false
-			appendContextPart(&extra, contextPart{text: item.Text, separator: "\n\n", item: item})
-			c.BrainCitations = append(c.BrainCitations, item.Label)
-		}
-		c.Extras = extra.System
-		if c.Extras != "" {
-			// Delimiters are sent too; charge their framing to the first extra item.
-			framing := brain.Tokens("<loom-context>\n"+c.Extras+"\n</loom-context>\n\n") - brain.Tokens(c.Extras)
-			extra.Items[0].Tokens += framing
-			extra.Budget.ByKind[extra.Items[0].Kind] += framing
-			c.Items = append(c.Items, extra.Items...)
-			for kind, tokens := range extra.Budget.ByKind {
-				c.Budget.ByKind[kind] += tokens
-			}
-		}
-	}
 	c.EstimatedTokens = 0
 	for _, item := range c.Items {
 		c.EstimatedTokens += item.Tokens

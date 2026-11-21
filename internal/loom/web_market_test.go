@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,25 +18,30 @@ import (
 func marketFixture(t *testing.T, catalog *string) {
 	t.Helper()
 	testHome(t)
-	or := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(*catalog)) }))
-	epoch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var buf bytes.Buffer
-		z := zip.NewWriter(&buf)
-		f, _ := z.Create("benchmark_data/epoch_capabilities_index/eci_scores.csv")
-		_, _ = f.Write([]byte("Model,Display name,eci,eci_ci_low,eci_ci_high,date,Organization,Country (of organization),Model accessibility,Accessibility group,model_versions\n" +
-			"B,B,140.5,138,143,2026-01-02,Lab,X,Open weights (unrestricted),Open weights,\n" +
-			"A,A Pro,170.2,168,172,2026-11-01,Lab,X,API access,Closed weights,\n" +
-			"C,,not-a-number,,,2026-01-01,Lab,X,API access,Closed weights,\n"))
-		_ = z.Close()
-		_, _ = w.Write(buf.Bytes())
-	}))
-	oldOR, oldEpoch := marketOpenRouterURL, marketEpochURL
-	marketOpenRouterURL, marketEpochURL = or.URL, epoch.URL
+	var buf bytes.Buffer
+	z := zip.NewWriter(&buf)
+	f, _ := z.Create("benchmark_data/epoch_capabilities_index/eci_scores.csv")
+	_, _ = f.Write([]byte("Model,Display name,eci,eci_ci_low,eci_ci_high,date,Organization,Country (of organization),Model accessibility,Accessibility group,model_versions\n" +
+		"B,B,140.5,138,143,2026-01-02,Lab,X,Open weights (unrestricted),Open weights,\n" +
+		"A,A Pro,170.2,168,172,2026-11-01,Lab,X,API access,Closed weights,\n" +
+		"C,,not-a-number,,,2026-01-01,Lab,X,API access,Closed weights,\n"))
+	_ = z.Close()
+	old := marketTransport
+	marketTransport = codemanTestTransport(func(req *http.Request) (*http.Response, error) {
+		w := httptest.NewRecorder()
+		switch req.URL.String() {
+		case openRouterModelsURL:
+			w.WriteString(*catalog)
+		case epochArchiveURL:
+			w.Write(buf.Bytes())
+		default:
+			return nil, fmt.Errorf("unexpected market URL %s", req.URL)
+		}
+		return w.Result(), nil
+	})
 	market = &marketCache{}
 	t.Cleanup(func() {
-		or.Close()
-		epoch.Close()
-		marketOpenRouterURL, marketEpochURL = oldOR, oldEpoch
+		marketTransport = old
 		market = &marketCache{}
 	})
 }

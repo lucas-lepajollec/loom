@@ -5,10 +5,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
@@ -70,11 +68,11 @@ func (s *brainService) memoryStore() (*brain.MarkdownStore, error) {
 		}
 		return id, nil
 	}}
-	legacy := brain.MemoryStoreOptions{Dir: dir, Base: ".loom", Available: brainAvailable}
+	legacy := brain.MemoryStoreOptions{Dir: dir, Base: ".loom"}
 	if !primary {
 		opts.Encode, opts.Decode = encodeMemContent, decodeMemContent
 		legacy.Dir, legacy.Base = s.storage.dir, "loom-memory"
-		legacy.Encode, legacy.Decode = encodeMemContent, decodeMemContent
+		legacy.Decode = decodeMemContent
 	}
 	store := brain.NewMarkdownStore(opts)
 	imported, err := s.importDistilledMemory()
@@ -83,7 +81,7 @@ func (s *brainService) memoryStore() (*brain.MarkdownStore, error) {
 	}
 	others := []brain.MemoryStoreOptions{}
 	if primary {
-		others = append(others, brain.MemoryStoreOptions{Dir: s.storage.dir, Base: "loom-memory", Encode: encodeMemContent, Decode: decodeMemContent, Available: brainAvailable})
+		others = append(others, brain.MemoryStoreOptions{Dir: s.storage.dir, Base: "loom-memory", Decode: decodeMemContent})
 	}
 	if err = store.Migrate(legacy, imported, others...); err != nil {
 		return nil, err
@@ -92,8 +90,6 @@ func (s *brainService) memoryStore() (*brain.MarkdownStore, error) {
 	return store, nil
 }
 func (s *brainService) importDistilledMemory() ([]brain.MemoryItem, error) {
-	s.distillMu.Lock()
-	defer s.distillMu.Unlock()
 	distilled, err := s.loadDistilledLocked()
 	if err != nil {
 		return nil, err
@@ -179,46 +175,6 @@ func (s *brainService) refreshMemoryIndex() {
 		}
 	}()
 }
-func (s *brainService) memoryHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		store, err := s.memoryStore()
-		if err != nil {
-			brainResponse(w, nil, err)
-			return
-		}
-		scope := r.URL.Query().Get("scope")
-		if scope == "" {
-			scope = "global"
-		}
-		out, err := store.List(scope)
-		brainResponse(w, out, err)
-		return
-	}
-	if !workspaceMethod(w, r, "POST") {
-		return
-	}
-	var req brain.MemoryWrite
-	if !workspaceDecode(w, r, &req) {
-		return
-	}
-	item, err := s.MemoryWrite(req)
-	brainResponse(w, item, err)
-}
-func (s *brainService) memoryDeleteHTTP(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, "POST") {
-		return
-	}
-	var req brain.MemoryRead
-	if !workspaceDecode(w, r, &req) {
-		return
-	}
-	brainResponse(w, map[string]bool{"ok": true}, s.MemoryDelete(req))
-}
-
-// Transcript writes are serialized to preserve event order. Their snapshots
-// are cloned before enqueueing, away from session locks and model execution.
-var transcriptJobs sync.WaitGroup
-
 func (s *brainService) brainIndexExclusions() []string {
 	out := s.skillsIndexExclusions()
 	sources, err := s.storage.LoadSources()

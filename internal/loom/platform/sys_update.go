@@ -92,8 +92,6 @@ const (
 // EdgeTitlePrefix starts the edge pre-release title, followed by its version.
 const EdgeTitlePrefix = "edge "
 
-func FetchLatestRelease() (*Release, error) { return FetchRelease(ChannelStable) }
-
 // FetchRelease returns the newest release of a channel. For the edge channel the
 // version comes from the release title and replaces the moving "edge" tag, so
 // callers compare and verify it exactly like a stable release.

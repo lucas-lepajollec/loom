@@ -28,22 +28,6 @@ func cloneEventMap(m map[string]any) map[string]any {
 	}
 	return out
 }
-func validateMCPSelection(names []string) error {
-	if len(names) > 128 {
-		return errors.New("maximum 128 MCP servers")
-	}
-	defs, err := LoadMCPConfig()
-	if err != nil {
-		return errors.New("MCP definitions unavailable")
-	}
-	for _, n := range names {
-		if _, ok := defs[n]; !ok {
-			return errors.New("selected MCP server not found")
-		}
-	}
-	return nil
-}
-
 func hasName(list []string, name string) bool { return slices.Contains(list, name) }
 
 // Used only to label preserved historical agent turns, never to execute them.

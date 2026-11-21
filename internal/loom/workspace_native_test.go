@@ -106,7 +106,7 @@ func TestNativeBridgePreservesRichLocalArchiveAndAddsCloudText(t *testing.T) {
 	if string(sourceJSON) != string(originalJSON) || len(original.Messages) != 3 {
 		t.Fatal("source archive mutated")
 	}
-	if got := nativeDiscussionContext(active.NativeArchive, ""); !strings.Contains(got, s.Instructions) {
+	if got := discussionContext(nativeContextSession(active.NativeArchive, "")).System; !strings.Contains(got, s.Instructions) {
 		t.Fatal("discussion instruction missing from native context")
 	}
 	again, err := m.activateLocal(s.ID, c)

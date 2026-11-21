@@ -68,7 +68,7 @@ func lcSave(force bool) {
 
 // lcSaveLine ajoute une ligne au journal sur disque (append, pas de réécriture).
 func lcSaveLine(line string) {
-	f, err := os.OpenFile(lcJobLogPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(lcJobLogPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return
 	}

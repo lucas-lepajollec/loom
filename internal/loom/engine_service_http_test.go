@@ -13,8 +13,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/lucas-lepajollec/loom/internal/loom/engine/llamacpp"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/engine/llamacpp"
 )
 
 type engineServiceHTTPFixture struct {
@@ -48,7 +49,7 @@ func serviceHTTPFixture(t *testing.T) *engineServiceHTTPFixture {
 	}
 	f := &engineServiceHTTPFixture{router: &fakeRouter{iniDir: home, status: map[string]string{}}, streamStarted: make(chan struct{}), streamEnd: make(chan struct{})}
 	old := http.DefaultTransport
-	http.DefaultTransport = envRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+	http.DefaultTransport = codemanTestTransport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasPrefix(r.URL.Path, "/loom/") {
 			rec := httptest.NewRecorder()
 			f.front.ServeHTTP(rec, r)
@@ -522,7 +523,7 @@ func TestEngineServiceBenchRowUsesQueueAndPriority(t *testing.T) {
 	// Dispatch front requests through the fake transport, just as web/serve use
 	// separate processes. No management load is allowed before the old drain.
 	transport := http.DefaultTransport
-	http.DefaultTransport = envRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+	http.DefaultTransport = codemanTestTransport(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Host == "127.0.0.1:8081" && r.URL.Path == "/v1/chat/completions" {
 			rec := httptest.NewRecorder()
 			f.front.ServeHTTP(rec, r)
@@ -585,7 +586,7 @@ func TestEngineServiceSingleIdleStopsOnlyOwnedChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	transport := http.DefaultTransport
-	http.DefaultTransport = envRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+	http.DefaultTransport = codemanTestTransport(func(r *http.Request) (*http.Response, error) {
 		raw := `{}`
 		if r.URL.Path == "/health" {
 			raw = `{"status":"ok"}`

@@ -45,7 +45,7 @@ func (s *MarkdownStore) Migrate(legacyOpts MemoryStoreOptions, extra []MemoryIte
 			return e
 		}
 		defer legacyRoot.Close()
-		legacy := NewMemoryStore(opts)
+		legacy := &legacyMemoryReader{opts: opts}
 		if e = legacy.scan(legacyRoot); e != nil {
 			return e
 		}

@@ -29,7 +29,7 @@ synthesis, and the benchmark reports the measured first PCM separately.
 
 ## Why Loom
 
-- Keep a discussion and its project context when switching models .
+- Keep the discussion history when switching models.
 - Manage engines, model libraries and parameters without rebuilding the inference stack.
 - See tool permissions, usage and machine state in one workspace.
 - Keep data locally and choose when to share it with an external destination.
@@ -48,55 +48,26 @@ Link a running **llama-server, vLLM or OpenAI-compatible server** by address, wi
 
 **Cloud** connects Chat Completions-compatible providers, retrieves their model catalogs on request and controls model visibility. Keys can be remembered in the OS keychain. Catalog discovery does not guarantee that every listed model supports chat.
 
-## Discussions and projects
+## Sessions and folders
 
-Choose Local or Cloud for each discussion turn. Projects hold a title, a machine,
-a workspace, default model and shared context; their discussions supply project
-memory. Frozen context and explicit refresh keep continuity predictable. Historic
-agent discussions remain readable but require choosing a Local or Cloud model
-before continuing. See [workspace architecture](docs/workspace-architecture.md)
-and [migration](docs/harness-retirement.md).
+Choose a Local or Cloud model for a discussion, or open an agent session on the
+connected Codeman server. Folders group both kinds of sessions. A discussion
+uses its own instructions and history. Moving it between folders does not send
+folder metadata or files to a model. Archived agent transcripts remain readable.
+See [workspace architecture](docs/workspace-architecture.md) and [migration](docs/harness-retirement.md).
 
-## Brain and shared context
+## Memory and MCP
 
-Discussions freeze their system context at the first accepted turn and reuse it
-until static configuration changes or compaction. Local/Cloud retrieval is added
-only to the outgoing message.
-`POST /api/runtime/sessions/refresh-context {"id":"discussion-id"}` invalidates
-the snapshot for the next turn. See the [frozen snapshot contract](docs/brain.md#frozen-discussion-snapshot).
+Loom keeps Markdown memory, discussion transcripts and background consolidation.
+External clients can use the authenticated retrieval and memory tools at
+`/mcp/brain` or the gateway at `/mcp/loom`. Configure each client manually.
+See [memory and retrieval](docs/brain.md) and [MCP files](docs/mcp-files.md).
 
-**Brain** searches local sources with BM25 and builds cited context within a token budget. Optional semantic search uses a local CPU embedding model or a connected provider with explicit consent. Distillation extracts decisions, facts, todos and preferences on request, with links back to source messages and individual deletion.
-
-Developers can run the [free offline retrieval benchmark](docs/brain-retrieval-benchmark.md)
-with `sh tools/brain-retrieval/run.sh`: evidence recall, final prepared-context
-presence and a fixed CI regression baseline, with zero model calls.
-
-Memory lives as native Markdown in the primary second brain: global `Memory/`,
-project `Projects/<slug>/memory/`, each with a bounded `MEMORY.md` index. Loom
-writes verbatim discussions under `Discussions/` and consolidates paused work
-with one background model call, using the discussion route or an explicitly
-configured fallback. Frozen context contains indexes, a bounded user profile
-and first-message topic matches. HTTP/MCP tools maintain the same files agents
-can edit directly; the encrypted fallback remains available. See the
-[memory format and APIs](docs/brain.md#markdown-memory-in-the-primary-brain) and
-[consolidation settings](docs/brain.md#background-memory-consolidation).
-
-Select Brain sources for a project or expose its authenticated MCP tools to external MCP clients at **`/mcp/brain`**. Loom must remain running; the browser can be closed. Personal sources require explicit selection and opt-in. See [Brain](docs/brain.md) and [MCP configuration](docs/mcp-files.md).
-
-External MCP clients can connect manually to **`/mcp/loom`**, using a dedicated
-gateway token. Loom no longer modifies their configuration or manages native
-accounts. Portable MCP definitions travel with the primary Brain and import
-disabled. See [MCP gateway](docs/brain.md#loom-mcp-gateway).
-
-<img src="docs/screenshots/brain.png" alt="Brain search, semantic indexing and distilled memory" width="1000" />
-
-## Terminals and environment
+## Terminals
 
 Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, locally, over SSH or through a paired node’s terminal module. Sessions survive closing a browser tab and replay recent output while Loom is running. See [terminals](docs/terminals.md).
 
 <img src="docs/screenshots/terminals.png" alt="Local and SSH terminal sessions in Loom" width="1000" />
-
-**Environment** tracks declared services, checks reachability from Loom and connected machines, observes Docker containers per machine with opt-in, and reads Proxmox resources with a token in the OS keychain. Self-signed certificates require explicitly confirmed pinning. See the [Environment API](docs/architecture.md#environment-api-roadmap-step-6).
 
 ## Usage, benchmarks and API
 
@@ -111,11 +82,11 @@ with function-call support can use the opt-in search tool. See [web search](docs
 The UI also provides a **PWA** shell where the browser supports installation. HTTPS is required outside loopback. Offline mode shows a public fallback; it does not provide offline inference or queue messages.
 
 API failures retain the last valid shared UI data and mark unavailable catalogs.
-Mobile resume refreshes observations and reconnects discussion, task, terminal
+Mobile resume refreshes observations and reconnects discussion, terminal
 and voice streams. See [UI data boundaries and recovery](docs/ui-data-boundaries.md)
 for the contracts, regression checks and browser validation limits.
 
-The unreleased Tasks/Notifications backend keeps model work and pending approvals running with every browser closed. Opt-in ntfy actions can answer an offered choice from a phone; webhooks and secure-context Web Push observe task events. All channels default off. See [notifications](docs/notifications.md) for setup and the Tasks/Settings UI API contracts.
+The notification service keeps model work and pending approvals running with every browser closed. Opt-in ntfy actions can answer an offered choice from a phone; webhooks and secure-context Web Push observe task events. All channels default off. See [notifications](docs/notifications.md) for setup and the event and settings APIs.
 
 The phase 4b backend adds [central capability policy](docs/policy.md), canonical confirmations and a bounded audit, plus [Loom Doctor](docs/doctor.md), degraded feature fields and opt-in redacted support bundles. These documents include the exact API contracts for the separate Settings and Doctor UI work.
 
@@ -151,13 +122,13 @@ Local inference needs an engine: install one from Loom or link an existing serve
 1. Run `loom web 2510` (or `./bin/loom web 2510` after a source build).
 2. Open [http://localhost:2510](http://localhost:2510).
 3. Follow the first-run guide: choose a language, review detected hardware, choose the default workspace, install or link an engine, or continue with cloud only. The llama.cpp path offers a first GGUF model sized to available memory; vLLM models are managed in **Local**.
-4. Create a discussion and choose its execution target. Confirm external sharing when prompted. Attach a project when you need a working folder or shared context.
+4. Create a discussion and choose its execution target. Confirm external sharing when prompted. Use folders to organize the session list.
 
 Reopen the guide from **Settings › About**. The guide currently offers vLLM only on detected Linux/NVIDIA systems; supported AMD/ROCm setups install it from **Settings › Engines**.
 
 <img src="docs/screenshots/welcome.png" alt="First-run guide with language, hardware and engine setup" width="1000" />
 
-## Development previews and second brains
+## Development previews
 
 To test the current checkout on a phone before a release, use `make dev` with
 isolated development data, then `make dev DEV_HOST=<computer-LAN-address>` after
@@ -166,11 +137,9 @@ source edits; no commit or release is required. See [phone testing](CONTRIBUTING
 
 **Terminals › Application previews** opens an HTTP development server on Loom or a saved SSH machine, including assets and WebSocket/HMR, through a separate authenticated browser origin. VM clients must be able to reach the preview listener; HTTPS setups need a separate preview origin. See [development previews](docs/development-previews.md).
 
-**Brain** brings sources/context, memory, skills and MCP together. Link multiple second brains from folders, Git checkouts, Obsidian vaults or already mounted WebDAV directories. Sources remain canonical and are read-only; Brain indexes selected text with provenance. Include/exclude rules and explicit personal-source opt-in control retrieval. Direct remote synchronization is not implemented. Skills can live in the primary second brain and be selected for Loom context or read through Brain MCP tools. See [Brain](docs/brain.md).
-
 ## Configuration
 
-- Use **Settings** for engines, machines, network access, vault, snapshots and language; use **Cloud** and **Harnesses** for their connections and resources.
+- Use **Settings** for engines, machines, network access, vault, snapshots and language; use **Cloud** and **Agents** for their connections.
 - `loom where` shows resolved paths; `loom edit` edits engine configuration. `LOOM_HOME` selects the data root. Defaults follow `/etc/default/loom` when present, then XDG/`~/.local/share/loom` on Unix; Windows uses `%ProgramData%\loom` with platform fallbacks.
 - Configuration, discussions and preferences live in `LOOM_HOME/loom.db`. Models can live in selected external folders. MCP definitions live in editable `LOOM_HOME/mcp.json`; see [MCP files](docs/mcp-files.md).
 - `.env.local` and `.env` in the current working directory fill unset variables; exported values take precedence. Keep local development data in ignored `.project-local/`.

@@ -1,54 +1,13 @@
 package loom
 
 import (
-	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 )
-
-func TestManagedBrainReconnectReusesMatchingCheckout(t *testing.T) {
-	testHome(t)
-	dst := filepath.Join(managedBrainSourcesDir(), "knowledge")
-	if err := os.MkdirAll(dst, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range [][]string{{"init", dst}, {"-C", dst, "remote", "add", "origin", "https://forge.example/user/brain.git"}} {
-		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %s: %v", args, out, err)
-		}
-	}
-	got, err := cloneBrainRemote(context.Background(), "knowledge", "https://forge.example/user/brain.git", "")
-	if err != nil || got != dst {
-		t.Fatalf("matching checkout was not reused: %q %v", got, err)
-	}
-	if _, err = cloneBrainRemote(context.Background(), "knowledge", "https://forge.example/other/brain.git", ""); err == nil {
-		t.Fatal("checkout for a different remote was reused")
-	}
-}
-
-func TestBrainRemoteValidationRejectsCredentialAndOptionInjection(t *testing.T) {
-	for _, tc := range []struct {
-		remote string
-		branch string
-		ok     bool
-	}{
-		{"https://forge.example/user/brain.git", "main", true},
-		{"ssh://git@forge.example/user/brain.git", "notes/main", true},
-		{"git@forge.example:user/brain.git", "", true},
-		{"https://token@forge.example/user/brain.git", "", false},
-		{"git@-oProxyCommand=bad:user/brain.git", "", false},
-		{"https://forge.example/user/brain.git", "-upload-pack=bad", false},
-	} {
-		if err := validateBrainRemote(tc.remote, tc.branch); (err == nil) != tc.ok {
-			t.Errorf("validateBrainRemote(%q, %q) = %v, want ok=%v", tc.remote, tc.branch, err, tc.ok)
-		}
-	}
-}
 
 func TestPrimarySecondBrainWriteIsConfined(t *testing.T) {
 	testHome(t)
@@ -113,14 +72,5 @@ func TestPrimarySecondBrainWriteIsConfined(t *testing.T) {
 	}
 	if !names["brain_write"] || !names["brain_edit"] {
 		t.Fatal("writable primary brain tools missing")
-	}
-}
-
-func TestManagedBrainRejectsPathIDsBeforeClone(t *testing.T) {
-	testHome(t)
-	for _, id := range []string{"../outside", "/tmp/outside", ".", "memory"} {
-		if _, err := cloneBrainRemote(context.Background(), id, "https://forge.example/user/brain.git", ""); err == nil {
-			t.Fatalf("unsafe managed source id accepted: %q", id)
-		}
 	}
 }

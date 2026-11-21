@@ -108,7 +108,6 @@ func cmdSetWebKey(args []string) error {
 			return err
 		}
 		key = "loom-web-" + hex.EncodeToString(buf)
-		fmt.Printf("%s generated key: %s\n", green("[ok]"), bold(key))
 	case args[0] == "" || args[0] == "off" || args[0] == "none":
 		key = ""
 	default:
@@ -122,7 +121,9 @@ func cmdSetWebKey(args []string) error {
 		return nil
 	}
 	fmt.Printf("%s control key saved\n", green("[ok]"))
-	fmt.Printf("       clients must send: %s\n", dim("Authorization: Bearer "+key))
+	if len(args) == 0 {
+		fmt.Printf("%s generated key: %s\n", green("[ok]"), bold(key))
+	}
 	fmt.Printf("       (restart 'loom web' if the web server is already running — not required, read dynamically)\n")
 	return nil
 }

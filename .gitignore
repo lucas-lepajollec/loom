@@ -18,6 +18,9 @@
 *.pid
 .api_key
 .web_key
+/node.token
+/codeman.json
+/secrets/
 /config.env
 /router-models.ini
 
@@ -34,7 +37,7 @@ AGENTS.override.md
 .env.local
 .env.*.local
 tools/tests/ui-routes/node_modules/
-tools/brain-retrieval/__pycache__/
+__pycache__/
 
 # Dépendances du bundle de l éditeur (tools/editor/build.sh)
 /tools/editor/node_modules/

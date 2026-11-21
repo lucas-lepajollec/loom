@@ -507,4 +507,12 @@ func TestNodeTerminalInitOptOut(t *testing.T) {
 	}
 }
 
-func nodeTestGet(mux http.Handler,path,token string)*httptest.ResponseRecorder{r:=httptest.NewRequest("GET",path,nil);if token!=""{r.Header.Set("Authorization","Bearer "+token)};w:=httptest.NewRecorder();mux.ServeHTTP(w,r);return w}
+func nodeTestGet(mux http.Handler, path, token string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest("GET", path, nil)
+	if token != "" {
+		r.Header.Set("Authorization", "Bearer "+token)
+	}
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	return w
+}

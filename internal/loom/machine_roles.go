@@ -25,12 +25,13 @@ func filesMachine() string {
 	return "local"
 }
 
-var filesProxyClient = &http.Client{Timeout: 60 * time.Second}
-
 // proxyFiles forwards a files request to the machine that holds the files
 // brick, or to the one named by ?machine= (to look at another machine's
 // files without moving the brick). It returns false when the files are local.
 func proxyFiles(w http.ResponseWriter, r *http.Request) bool {
+	if isEngineWorker() {
+		return false
+	}
 	machine := filesMachine()
 	if m := strings.TrimSpace(r.URL.Query().Get("machine")); m != "" {
 		machine = m
@@ -43,10 +44,14 @@ func proxyFiles(w http.ResponseWriter, r *http.Request) bool {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": "files machine unavailable: " + err.Error()})
 		return true
 	}
-	target := strings.TrimRight(access.URL, "/") + r.URL.Path
-	if r.URL.RawQuery != "" {
-		target += "?" + r.URL.RawQuery
+	base, _, err := cleanNodeURL(access.URL)
+	if err != nil {
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "invalid files machine address"})
+		return true
 	}
+	query := r.URL.Query()
+	query.Set("machine", "local")
+	target := base + r.URL.Path + "?" + query.Encode()
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, r.Method, target, http.MaxBytesReader(w, r.Body, filesMaxText+8192))
@@ -58,13 +63,20 @@ func proxyFiles(w http.ResponseWriter, r *http.Request) bool {
 	if ct := r.Header.Get("Content-Type"); ct != "" {
 		req.Header.Set("Content-Type", ct)
 	}
-	resp, err := filesProxyClient.Do(req)
+	client := http.Client{Transport: nodeClient.Transport, CheckRedirect: nodeClient.CheckRedirect}
+	resp, err := client.Do(req)
 	if err != nil {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": "files machine unreachable"})
 		return true
 	}
 	defer resp.Body.Close()
-	for _, h := range []string{"Content-Type", "Content-Disposition", "Content-Security-Policy", "X-Content-Type-Options", "Last-Modified"} {
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		sendJSON(w, 502, map[string]any{"ok": false, "error": "files machine redirected the request"})
+		return true
+	}
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	for _, h := range []string{"Content-Type", "Content-Disposition", "Last-Modified"} {
 		if v := resp.Header.Get(h); v != "" {
 			w.Header().Set(h, v)
 		}

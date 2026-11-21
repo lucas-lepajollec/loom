@@ -1,4 +1,4 @@
-# Tasks and notifications (phase 4a)
+# Discussion events and notifications
 
 Phase 4b adds [central Policy](policy.md) decisions for opt-in summaries and
 canonical capability approvals. Policy confirmations reuse these Tasks/request
@@ -8,7 +8,7 @@ feature/reason and backend UI shapes are described in [Doctor](doctor.md).
 
 Loom executes Local/Cloud turns on the server, independently of SSE
 subscribers. Closing every tab does not stop a turn or cancel an approval.
-Harness turns have no cloud request timeout. Pending requests and completed
+Pending requests and completed
 results use the existing discussion session records; there is no separate task
 store. Stop, model timeout and server shutdown still cancel execution. A daemon
 restart marks unfinished work interrupted; this slice does not resume processes
@@ -28,8 +28,7 @@ frame, credential or hidden reasoning is sent. Offered decision labels remain
 visible on action buttons. Titles themselves may contain personal information.
 The most recent update per task is retained during a burst. Delivery batches
 are limited to one per configured rate window (10 seconds by default, bounded
-to 64 tasks). Several tasks become a count-only digest linking to Tasks; open it
-to see and answer all pending requests. Network errors are exposed by channel
+to 64 tasks). Several tasks become a count-only digest linking to Loom. Open a discussion to answer its pending requests. Network errors are exposed by channel
 in `last_errors`; delivery is best effort, with no persistent retry queue.
 
 ## ntfy on an iPhone
@@ -121,60 +120,18 @@ tokens, notification credentials or receiver response bodies. Complex answers
 continue to use `POST /api/workspace/sessions/{id}/requests/{request_id}` with
 normal Loom authentication and the canonical RequestAnswer schema.
 
-## Tasks UI contract
-
-`GET /api/tasks` and each `data:` frame of `GET /api/tasks/stream` have the same
-JSON shape. SSE sends an initial snapshot, lifecycle updates and a one-second
-elapsed/activity refresh; a slow subscriber reconnects to a fresh snapshot.
-Both endpoints require normal authentication and an unlocked vault. Times are
-Unix milliseconds; elapsed is seconds. Active tasks come first, then up to 100
-finished turns from the last 24 hours, newest first. Unknown historical start
-or finish times are not fabricated; records without a usable time are omitted.
-One task identifies one turn (`discussion_id:started_at`), not the discussion.
-
-```json
-{
-  "ok": true,
-  "tasks": [{
-    "id": "d:1791540000000",
-    "discussion_id": "d",
-    "title": "Project work",
-    "project_id": "p",
-    "executor": "codex",
-    "model": "native-model-id",
-    "status": "waiting_input",
-    "started_at": 1791540000000,
-    "elapsed_seconds": 3600,
-    "last_activity_at": 1791543600000,
-    "last_activity_text": "Waiting for user",
-    "steps_started": 3,
-    "steps_completed": 2,
-    "requests": [{"id":"codex:r","kind":"user_input","summary":"Choose a target"}]
-  }],
-  "recent_window_seconds": 86400,
-  "recent_limit": 100
-}
-```
-
-`status` is `running`, `waiting_input`, `waiting_approval`, `done`, `failed`, or
-`cancelled`. `finished_at` is omitted for active turns and present for finished
-ones. Requests are always an array; they contain only id/kind/summary. Fetch the
-normal discussion endpoint for full canonical questions/options, then use the
-existing request-answer endpoint. Step counts reflect observed tool/item
-lifecycle events, not hidden reasoning or a predicted total. Step counts are
-`null` for older records without phase 4 observations. Activity text is
-an intentionally generic progress label, not an excerpt of the answer.
+## Event history
 
 `GET /api/events?since=<decimal-id>` returns
 `{"ok":true,"events":[],"latest":42,"gap":false}`. The ring retains 512 events.
 IDs and the ring are process-local. `gap:true` means the cursor is too old or
-beyond the current head; refresh Tasks. Event fields: `id`, `at`, `type`, `title`,
+beyond the current head. Read a fresh event snapshot. Event fields: `id`, `at`, `type`, `title`,
 `status`; optional `task_id`, `discussion_id`, `machine_id`, `request_id`,
 `request_kind`, `summary`, `duration_seconds`, `count`. Titles/summaries are
 truncated to 120 characters. Types: `task.started`, `task.waiting`,
 `task.resumed`, `task.completed`, `task.failed`, `node.offline`, `node.online`,
 `engine.down`. Cancelled/unsaved turns use `task.failed` with their actual status;
-restart interruptions appear as failed Tasks snapshots. Node transitions use existing observations plus a read-only
+Node transitions use existing observations plus a read-only
 30-second paired-node ping owned by the server lifecycle. The first observation
 establishes a baseline. Engine outages are emitted on changes in existing
 engine health observations; no inference/model load is started by monitoring.
@@ -218,8 +175,7 @@ Omit either secret field to preserve it; an empty string deletes it.
 `token_set`/`secret_set` from clients are ignored. The response is the same
 redacted envelope as GET. `token_ttl_seconds` is 60–86400, `rate_seconds` 1–3600,
 and `completed_after_seconds` 0–86400. Push enablement requires secure context
-and an HTTPS public base URL. There is no Settings page implementation in this
-backend slice; these contracts are for the design owner's UI.
+and an HTTPS public base URL.
 
 Tests: `POST /api/notify/test {"channel":"ntfy"}` (or `webhook`, `push`) returns
 `{"ok":true}` on accepted delivery, 502 with a sanitized error on failure.

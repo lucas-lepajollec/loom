@@ -11,8 +11,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
-	"time"
 
 	"golang.org/x/term"
 )
@@ -26,36 +24,6 @@ func DefaultLoomHome() string {
 		return filepath.Join(home, ".local", "share", "loom")
 	}
 	return filepath.Join(os.TempDir(), "loom")
-}
-
-func unixHome(name string) string {
-	if runtime.GOOS != "darwin" || os.Geteuid() == 0 {
-		return "/etc/" + name
-	}
-	if isWritableDir("/etc/" + name) {
-		return "/etc/" + name // installé par `sudo loom install` puis chown à l'utilisateur
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, "Library", "Application Support", name)
-	}
-	return "/etc/" + name
-}
-
-// isWritableDir teste qu'un dossier existe ET qu'on peut y écrire (le seul test
-// fiable : les permissions POSIX seules ignorent ACL, SIP, volumes read-only).
-func isWritableDir(dir string) bool {
-	fi, err := os.Stat(dir)
-	if err != nil || !fi.IsDir() {
-		return false
-	}
-	probe := filepath.Join(dir, ".loom-write-test")
-	f, err := os.OpenFile(probe, os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return false
-	}
-	f.Close()
-	_ = os.Remove(probe)
-	return true
 }
 
 // defaultEditor is used by `loom edit` when $EDITOR is unset.
@@ -149,13 +117,6 @@ func CudaPathEnv(toolkitDir string) []string { return nil }
 // already on PATH (/usr/bin, /usr/local/bin), unlike Windows.
 func RefreshToolPath() {}
 
-// execServer replaces the current process with llama-server (so systemd
-// supervises llama-server directly, as the old start.sh did with `exec`).
-// args[0] must be the binary path.
-func ExecServer(bin string, args []string) error {
-	return syscall.Exec(bin, args, os.Environ())
-}
-
 // newShellCmd builds the command used by the run_shell tool. The second return
 // value is a cleanup func the caller must defer (a no-op here; on Windows it
 // removes the temporary .bat file — see the Windows twin).
@@ -218,40 +179,4 @@ func RamUsageMB() (used, total int) {
 		availableBytes = totalBytes
 	}
 	return int((totalBytes - availableBytes) / (1024 * 1024)), int(totalBytes / (1024 * 1024))
-}
-
-// --- Supervision de processus détachés (worker de lien, service en mode
-// utilisateur). Pendant Unix de sys_platform_windows.go.
-
-// spawnDetached prépare une commande qui survivra à la mort de Loom : Setsid la
-// place dans une nouvelle session, donc elle n'est pas tuée avec notre groupe.
-func SpawnDetached(name string, args ...string) *exec.Cmd {
-	cmd := exec.Command(name, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	return cmd
-}
-
-// pidAlive : le signal 0 ne tue rien, il teste juste l'existence du process.
-func PidAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	return syscall.Kill(pid, 0) == nil
-}
-
-// killTree arrête le process ET ses enfants. Setsid ayant fait de lui un chef de
-// groupe, un PID négatif vise le groupe entier ; SIGKILL en dernier recours.
-func KillTree(pid int) {
-	if pid <= 0 {
-		return
-	}
-	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-		_ = syscall.Kill(pid, syscall.SIGTERM)
-	}
-	for i := 0; i < 30 && PidAlive(pid); i++ {
-		time.Sleep(100 * time.Millisecond)
-	}
-	if PidAlive(pid) {
-		_ = syscall.Kill(-pid, syscall.SIGKILL)
-	}
 }

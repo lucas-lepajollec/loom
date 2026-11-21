@@ -19,6 +19,27 @@ import (
 // changements de preset, qui remplacent la configuration en bloc.
 func readAPIKey() string { return getStr(bkState, "api_key") }
 
+// Legacy databases and hand-written presets may still contain credentials.
+func publicEngineConfig() map[string]string {
+	cfg := ReadConfig() // returns a caller-owned snapshot
+	delete(cfg, "API_KEY")
+	delete(cfg, "CRAWL4AI_KEY")
+	return cfg
+}
+
+func presetWithoutCredentials(content string) string {
+	lines := strings.Split(content, "\n")
+	public := lines[:0]
+	for _, line := range lines {
+		key, _, ok := strings.Cut(strings.TrimPrefix(strings.TrimSpace(line), "export "), "=")
+		if ok && (strings.TrimSpace(key) == "API_KEY" || strings.TrimSpace(key) == "CRAWL4AI_KEY") {
+			continue
+		}
+		public = append(public, line)
+	}
+	return strings.Join(public, "\n")
+}
+
 func apiKeyRequired() bool { return getStr(bkState, "api_key_required") == "1" }
 
 // setAPIKeyRequired pose ou retire l'obligation d'une clé Bearer. Allumer
@@ -90,7 +111,7 @@ func maskAPIKey(k string) string {
 		return ""
 	}
 	if len(k) <= 12 {
-		return "…" + k[len(k)-2:]
+		return "…"
 	}
 	return k[:8] + "…" + k[len(k)-4:]
 }
@@ -107,7 +128,6 @@ func cmdSetAPIKey(args []string) error {
 	switch {
 	case len(args) == 0:
 		key = genAPIKey()
-		fmt.Printf("%s generated key: %s\n", green("[ok]"), bold(key))
 	case args[0] == "" || args[0] == "off" || args[0] == "none":
 		key = ""
 	default:
@@ -120,7 +140,9 @@ func cmdSetAPIKey(args []string) error {
 		fmt.Printf("%s API_KEY removed — open server (no authentication)\n", yellow("[info]"))
 	} else {
 		fmt.Printf("%s API_KEY saved\n", green("[ok]"))
-		fmt.Printf("       clients must send: %s\n", dim("Authorization: Bearer "+key))
+		if len(args) == 0 {
+			fmt.Printf("%s generated key: %s\n", green("[ok]"), bold(key))
+		}
 	}
 	fmt.Print(dim("[info] restart the service to apply? [Y/n] "))
 	sc := bufio.NewScanner(os.Stdin)

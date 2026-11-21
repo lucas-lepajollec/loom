@@ -32,12 +32,12 @@ func adoptUserLoomHome() {
 		missing = append(missing, d)
 	}
 	for i := len(missing) - 1; i >= 0; i-- {
-		if os.Mkdir(missing[i], 0o755) == nil {
+		if os.Mkdir(missing[i], 0o700) == nil {
 			_ = os.Chown(missing[i], uid, gid)
 		}
 	}
 	for _, d := range dataDirs() {
-		if _, err := os.Stat(d); os.IsNotExist(err) && os.MkdirAll(d, 0o755) == nil {
+		if _, err := os.Stat(d); os.IsNotExist(err) && os.MkdirAll(d, 0o700) == nil {
 			_ = os.Chown(d, uid, gid)
 		}
 	}

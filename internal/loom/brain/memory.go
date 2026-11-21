@@ -3,7 +3,6 @@ package brain
 import (
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"math"
 	"regexp"
 	"strings"
@@ -37,52 +36,6 @@ type MemoryProvenance struct {
 	Note         string `json:"note,omitempty" yaml:"note,omitempty"`
 }
 
-// Optional scores distinguish an explicit zero from the creation defaults.
-type RememberRequest struct {
-	ID         string           `json:"id,omitempty" jsonschema:"optional stable id; generated when omitted"`
-	Class      string           `json:"class" jsonschema:"memory class: working, session, episodic, semantic, procedural or reflex"`
-	Scope      string           `json:"scope" jsonschema:"global or project:, machine:, agent:, task: followed by a nonempty id"`
-	Text       string           `json:"text" jsonschema:"plain text or Markdown; nonempty, at most 8192 UTF-8 bytes"`
-	Tags       []string         `json:"tags,omitempty"`
-	Importance *float64         `json:"importance,omitempty" jsonschema:"score from 0 to 1; default 0.5"`
-	Confidence *float64         `json:"confidence,omitempty" jsonschema:"score from 0 to 1; default 0.7"`
-	Provenance MemoryProvenance `json:"provenance"`
-	Supersedes []string         `json:"supersedes,omitempty"`
-	Status     string           `json:"status,omitempty" jsonschema:"status: active (default), candidate, superseded, uncertain or expired"`
-}
-type MemoryPatch struct {
-	Text       *string   `json:"text,omitempty"`
-	Tags       *[]string `json:"tags,omitempty"`
-	Importance *float64  `json:"importance,omitempty" jsonschema:"score from 0 to 1"`
-	Confidence *float64  `json:"confidence,omitempty" jsonschema:"score from 0 to 1"`
-	Status     *string   `json:"status,omitempty" jsonschema:"status: active, candidate, superseded, uncertain or expired"`
-	Scope      *string   `json:"scope,omitempty"`
-}
-type UpdateMemoryRequest struct {
-	ID        string      `json:"id"`
-	Patch     MemoryPatch `json:"patch"`
-	Supersede bool        `json:"supersede,omitempty" jsonschema:"create a successor when normalized text changes; retain the old item as superseded"`
-}
-type ForgetMemoryRequest struct {
-	ID string `json:"id"`
-}
-type MemoryFilter struct {
-	Classes []string `json:"classes,omitempty" jsonschema:"memory classes to include; omit for all"`
-	Scopes  []string `json:"scopes,omitempty" jsonschema:"scope ids to include; project scopes also include global"`
-	Status  string   `json:"status,omitempty" jsonschema:"status: active (default), candidate, superseded, uncertain, expired or all"`
-	Query   string   `json:"query,omitempty" jsonschema:"case-insensitive substring of item text"`
-	Limit   int      `json:"limit,omitempty" jsonschema:"nonnegative integer"`
-}
-type MemoryResult struct {
-	OK   bool       `json:"ok"`
-	Item MemoryItem `json:"item"`
-}
-type MemoryList struct {
-	OK        bool         `json:"ok"`
-	Items     []MemoryItem `json:"items"`
-	Malformed int          `json:"malformed"`
-}
-
 func contains(values []string, value string) bool {
 	for _, v := range values {
 		if v == value {
@@ -100,22 +53,6 @@ func validScope(scope string) bool {
 }
 func normalizedMemoryText(text string) string {
 	return strings.ToLower(strings.Join(strings.Fields(text), " "))
-}
-
-// coreNoteLimit refuses a profile or project-notes write past its size, with
-// the space to free, so the writer condenses the note instead of losing it.
-func coreNoteLimit(item MemoryItem) error {
-	limit, name := 0, ""
-	switch {
-	case contains(item.Tags, ProfileTag):
-		limit, name = ProfileLimit, "user profile"
-	case contains(item.Tags, ProjectNotesTag):
-		limit, name = ProjectNotesLimit, "project notes"
-	}
-	if n := utf8.RuneCountInString(item.Text); limit > 0 && n > limit {
-		return fmt.Errorf("%s is full: %d/%d characters; condense or remove %d characters and retry", name, n, limit, n-limit)
-	}
-	return nil
 }
 
 func validateMemory(item MemoryItem) error {
@@ -164,21 +101,3 @@ func validateMemory(item MemoryItem) error {
 	return nil
 }
 func newMemoryID() string { return "mem_" + rand.Text() }
-func cloneMemory(item MemoryItem) MemoryItem {
-	item.Tags = append([]string{}, item.Tags...)
-	item.Supersedes = append([]string{}, item.Supersedes...)
-	if item.Provenance.MessageIndex != nil {
-		index := *item.Provenance.MessageIndex
-		item.Provenance.MessageIndex = &index
-	}
-	return item
-}
-
-func sameContinuityIdentity(a, b MemoryItem) bool {
-	for _, tag := range []string{"session-summary", "project-state", "discussion-state"} {
-		if contains(a.Tags, tag) || contains(b.Tags, tag) {
-			return contains(a.Tags, tag) && contains(b.Tags, tag) && (tag == "project-state" || a.Provenance.DiscussionID == b.Provenance.DiscussionID)
-		}
-	}
-	return true
-}

@@ -24,10 +24,10 @@ compatibility for automation, independently of browser cookies and `/v1` keys.
                                        │ HTTP /api/* (+ SSE)
 ┌──────────────────────────── Go server (loom web) ─────────────────────────┐
 │ web/        HTTP primitives, auth, public assets, SSE/WebSocket helpers  │
-│ discussion/ Loom-owned conversations, routing, shared context, usage      │
+│ discussion/ Loom-owned conversations, routing, instructions, usage        │
 │ runtime/    RuntimeAdapter registry: local · openai-compatible             │
 │ engine/     llama.cpp router helpers; vLLM lifecycle stays in loom       │
-│ resources/  projects, skills, MCP definitions (shared across runtimes)    │
+│ resources/  folders, skills , MCP definitions (shared across runtimes)    │
 │ tools/      internet, MCP client, memory tools for the local tool loop    │
 │ store/      bbolt + encryption + snapshots                                │
 │ platform/   service/install/tray/paths/update/network per OS              │
@@ -36,7 +36,7 @@ compatibility for automation, independently of browser cookies and `/v1` keys.
    llama-server (router)   cloud Chat Completions
 ```
 
-Ownership rule: **Loom owns intent, persistence and the shared context;
+Ownership rule: **Loom owns intent, persistence and discussion context;
 engines and providers own inference.**
 
 ## 2. Core contracts (the only things the core knows)
@@ -149,50 +149,6 @@ The common discussion adapter uses Chat Completions today (`runtime/openai/`, wi
 the Loom adapter). A provider with a different
 protocol (Anthropic Messages, Responses API) is a new `runtime/` adapter, not a
 branch inside the existing one. Harness model-source routing in
-### Environment API (roadmap step 6)
-
-`env_*.go` owns declared services and optional observations, independently of
-discussion execution. All `/api/env/*` routes use the control-key middleware
-(`Authorization: Bearer …` when configured), never the inference API key.
-Responses are `no-store`. The Environment page exposes these services,
-reachability matrices, Docker observations and Proxmox resources. Resources
-are read on request; automatic service discovery remains future work.
-
-| Route | Request and response |
-| --- | --- |
-| `GET /api/env/services` | `{ok, services: [{id,name,url,machine,kind,notes}]}` |
-| `POST /api/env/services` | A service object; creates an ID when empty or replaces that ID. Returns `{ok,service}`. `machine` defaults to `local`, otherwise a saved SSH machine ID; `kind` is `web`, `api`, `db` or `other`. |
-| `POST /api/env/services/delete` | `{id}` → `{ok}`; unknown ID returns 404. |
-| `POST /api/env/docker` | `{machine,enabled}` explicitly enables/disables observation per machine (off by default). |
-| `GET /api/env/docker?machine=local` | `{ok,machine,enabled,containers:[{name,image,state,status,ports}],error}`. Runs `docker ps -a --format '{{json .}}'` only when enabled; local execution uses argv, SSH uses Loom's key and existing PATH preamble. Missing Docker, permissions and unreachable machines return a per-machine error with HTTP 200. |
-| `GET/POST /api/env/proxmox` | GET returns `{ok,config:{enabled,url,token_id,fingerprint}}`. POST accepts these config fields plus optional `token_secret` and `confirm_fingerprint`. An empty/omitted secret keeps the existing keychain entry. A new/changed nonempty fingerprint requires `confirm_fingerprint:true`. |
-| `GET /api/env/proxmox/resources` | `{ok,enabled,resources:[{vmid,name,node,type,status,cpu,maxmem,mem,uptime}]}`; only `node`, `qemu` and `lxc` from `/api2/json/cluster/resources`. Unreported numeric fields are null. Provider errors return 502 (unavailable keychain: 503). |
-| `POST /api/env/check` | `{target,from}` → `{from,ok,status,latency_ms,error}`. `from` defaults to `local`, otherwise a saved machine ID. `target` is an HTTP(S) URL without embedded credentials, or `host:port` (IPv6: `[host]:port`). |
-| `GET /api/env/matrix` | `{ok,results:[{service_id,target,from,ok,status,latency_ms,error}]}` for every service from Loom and every saved machine, including unreachable machines. |
-
-Services (at most 256) and provider settings are stored in Loom's database;
-the Proxmox token secret is stored **only** in the OS keychain through the
-existing keyring helpers, with a separate Environment identity. Failure to
-save it is reported; there is no file or in-memory persistence fallback.
-Proxmox requires an HTTPS origin and uses normal OS certificate verification
-unless the user explicitly confirms a SHA-256 leaf certificate fingerprint
-(hex, optionally colon-separated). Pinning checks that exact certificate and
-its validity period on every connection; certificate changes are rejected.
-The pin supplies identity verification in place of CA/hostname verification.
-Obtain and verify the fingerprint independently before confirming it. Redirects
-are never followed and provider error bodies are never returned.
-
-Checks use a five-second timeout, HTTP GET without following redirects, or TCP
-dial. HTTP 2xx/3xx is `ok`; other status codes are retained with an error.
-Successful TCP checks have `status:0`. SSH HTTP checks use curl with
-`--max-time 5`; when curl is absent, bash `/dev/tcp` tests only the socket,
-also reported as `status:0`. Remote observation/checks require a POSIX shell
-(and curl or bash for checks); Loom itself builds on Linux, macOS and Windows.
-Matrices use eight workers and a shared eight-check concurrency limit per web
-router, with a twenty-second overall deadline. Unfinished cells retain their
-service/source and report cancellation/deadline errors. Reachability describes
-the machine's network path, not a model tool’s permission boundary.
-
 ## 3. Data ownership
 
 | Data | Owner | Store |
@@ -226,7 +182,7 @@ js/core/              lib (Preact/htm, store, format helpers) · api · state
 js/ui/                kit: icons, dialog/toast, controls (Seg, Tabs, Switch, Slider, Tip, Popover, Menu, Empty)
 js/app/               main, shell (sidebar), routes.js (registry), placeholder
 js/features/<name>/   one folder per domain: chat, inspector, local, cloud,
-                      bench, resources, usage, settings, projects, environment, terminals, onboarding
+                      agents, files, machines, usage, settings, terminals, onboarding
 logos/                provider logos (lobehub, MIT), used by ui/logo.js
 ```
 
@@ -255,4 +211,4 @@ and runtime orchestration stay in their adapters. New project setup does not
 require this legacy metadata. Native import provenance belongs to
 `discussion.NativeImport`; Brain's `PathPrefixes` scope is enforced by lexical,
 semantic and read/pack paths.
-See [workspace continuity](workspace-architecture.md#continuity-consolidation-unreleased).
+See [workspace continuity](workspace-architecture.md#context-ownership-and-portability).

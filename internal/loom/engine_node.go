@@ -173,8 +173,16 @@ func engineContextSize() int {
 // GET (control key required): what a linking Loom needs. Only served when this
 // Loom is protected by a control key, since it hands out the /v1 key.
 func handleNodeInfo(w http.ResponseWriter, r *http.Request) {
-	if !webKeyConfigured() {
-		sendJSON(w, 403, map[string]any{"ok": false, "error": "this Loom has no control key: enable network access from Settings › Network access"})
+	if !workspaceMethod(w, r, http.MethodGet) {
+		return
+	}
+	hash, err := webKeyHashErr()
+	if err != nil {
+		webAuthUnavailable(w)
+		return
+	}
+	if hash == "" || !checkBearer(r, hash) || r.Header.Get("Origin") != "" {
+		sendJSON(w, 403, map[string]any{"ok": false, "error": "machine access requires the Loom control key"})
 		return
 	}
 	host, _ := os.Hostname()
@@ -332,7 +340,9 @@ func nodeAware(path string, local http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		proxyEngineNode(w, r, n)
+		if allowControlAction(w, r, path, n) {
+			proxyEngineNode(w, r, n)
+		}
 	}
 }
 
@@ -451,6 +461,7 @@ func proxyEngineNode(w http.ResponseWriter, r *http.Request, n *engineNode) {
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.FlushInterval = -1
+	proxy.Transport = nodeClient.Transport
 	base := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		base(req)
@@ -459,21 +470,62 @@ func proxyEngineNode(w http.ResponseWriter, r *http.Request, n *engineNode) {
 		req.Header.Del("Cookie")
 		req.Header.Del("Origin")
 		req.Header.Del("Referer")
+		req.Header.Del("Accept-Encoding")
 	}
-	if n.Role == "engine-node" && r.URL.Path == "/api/server" {
+	path := r.URL.Path
+	showNewKey := false
+	if path == "/api/apikey" && r.Method == http.MethodPost && r.Body != nil {
+		// The control middleware has already bounded and validated the body.
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+		r.Body.Close()
+		if err != nil {
+			sendJSON(w, 400, map[string]any{"error": "invalid key action"})
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		var action struct{ Action string }
+		showNewKey = json.Unmarshal(body, &action) == nil && action.Action == "generate"
+	}
+	if n.Role == "engine-node" && path == "/api/server" || path == "/api/config" || path == "/api/apikey" || path == "/api/preset" || path == "/api/naked/remember" {
 		proxy.ModifyResponse = func(resp *http.Response) error {
-			if resp.StatusCode != http.StatusOK {
+			if r.Method == http.MethodHead || resp.StatusCode == http.StatusNoContent {
 				return nil
 			}
 			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				body := []byte(`{"ok":false,"error":"upstream settings unavailable"}`)
+				resp.Body = io.NopCloser(bytes.NewReader(body))
+				resp.ContentLength = int64(len(body))
+				resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+				resp.Header.Set("Content-Type", "application/json")
+				return nil
+			}
 			var status map[string]any
 			if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&status); err != nil {
 				return err
 			}
-			// A TLS reverse proxy or SSH tunnel can differ from the worker listener.
-			// Show the negotiated client endpoint, never a private backend address.
-			endpoint := strings.TrimRight(n.V1, "/") + "/v1"
-			status["url"], status["url_local"] = endpoint, endpoint
+			if status == nil {
+				return errors.New("invalid upstream settings")
+			}
+			switch path {
+			case "/api/server":
+				endpoint := strings.TrimRight(n.V1, "/") + "/v1"
+				status["url"], status["url_local"] = endpoint, endpoint
+			case "/api/config":
+				delete(status, "API_KEY")
+				delete(status, "CRAWL4AI_KEY")
+			case "/api/apikey":
+				if key, ok := status["key"].(string); ok {
+					status["masked"] = maskAPIKey(key)
+				}
+				if !showNewKey {
+					delete(status, "key")
+				}
+			default:
+				if content, ok := status["content"].(string); ok {
+					status["content"] = presetWithoutCredentials(content)
+				}
+			}
 			body, err := json.Marshal(status)
 			if err != nil {
 				return err
@@ -503,6 +555,31 @@ func proxyEngineNode(w http.ResponseWriter, r *http.Request, n *engineNode) {
 			return nil
 		}
 	}
+	translate := proxy.ModifyResponse
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		if resp.StatusCode >= 300 && resp.StatusCode < 400 && resp.StatusCode != http.StatusNotModified {
+			return errors.New("engine control request redirected")
+		}
+		headers := make(http.Header)
+		allowed := []string{"Content-Type", "Content-Length", "Content-Disposition", "Content-Encoding", "Content-Range", "Accept-Ranges", "Last-Modified", "ETag", "Allow", "Retry-After", "Vary", "X-Accel-Buffering"}
+		if resp.StatusCode == http.StatusSwitchingProtocols {
+			// The voice relay uses this reverse proxy for its WebSocket handshake.
+			allowed = append(allowed, "Connection", "Upgrade", "Sec-WebSocket-Accept", "Sec-WebSocket-Protocol", "Sec-WebSocket-Extensions")
+		}
+		for _, name := range allowed {
+			if values := resp.Header.Values(name); len(values) != 0 {
+				headers[http.CanonicalHeaderKey(name)] = values
+			}
+		}
+		resp.Header = headers
+		resp.Header.Set("Cache-Control", "no-store")
+		resp.Header.Set("X-Content-Type-Options", "nosniff")
+		resp.Header.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		if translate != nil {
+			return translate(resp)
+		}
+		return nil
+	}
 	proxy.ServeHTTP(w, r)
 }
 
@@ -522,6 +599,13 @@ func handleEngineNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		path = "/api/ping"
 	default:
 		http.NotFound(w, r)
+		return
+	}
+	method := http.MethodGet
+	if path == "/api/update/apply" {
+		method = http.MethodPost
+	}
+	if !workspaceMethod(w, r, method) || !allowControlAction(w, r, r.URL.Path, n) {
 		return
 	}
 	cloned := r.Clone(r.Context())

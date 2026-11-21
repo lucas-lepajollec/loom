@@ -96,7 +96,7 @@ func writeMemFile(name string, plain []byte) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(memoryDir(), 0o755); err != nil {
+	if err := os.MkdirAll(memoryDir(), 0o700); err != nil {
 		return err
 	}
 	// .bak de la version précédente (best-effort) : filet en cas de pépin juste
@@ -116,7 +116,7 @@ func writeMemPlain(name string, plain []byte) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(memoryDir(), 0o755); err != nil {
+	if err := os.MkdirAll(memoryDir(), 0o700); err != nil {
 		return err
 	}
 	if old, err := os.ReadFile(p); err == nil {

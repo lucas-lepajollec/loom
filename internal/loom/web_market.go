@@ -27,7 +27,7 @@ import (
 //     Capabilities Index, one score per model combining many benchmarks, with
 //     its confidence interval, release date and weights access. It must be
 //     credited to Epoch AI wherever it is shown.
-// Both are cached, so opening the page never spends the daily quota.
+// Both feeds are cached between refreshes.
 
 const (
 	openRouterModelsURL  = "https://openrouter.ai/api/v1/models"
@@ -40,11 +40,9 @@ const (
 	marketMaxCatalogSize = 4000
 )
 
-// Tests point these at local servers.
-var (
-	marketOpenRouterURL = openRouterModelsURL
-	marketEpochURL      = epochArchiveURL
-)
+var marketTransport http.RoundTripper = &http.Transport{
+	DialContext: publicWebDial, ForceAttemptHTTP2: true, TLSHandshakeTimeout: 10 * time.Second, IdleConnTimeout: 90 * time.Second,
+}
 
 type marketModel struct {
 	ID          string  `json:"id"`
@@ -94,27 +92,19 @@ func loadMarketWatch() marketWatch {
 	return w
 }
 
-func marketHTTP(ctx context.Context, url string, header map[string]string, into any) error {
+func marketHTTP(ctx context.Context, url string, into any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "loom-model-watch")
-	for k, v := range header {
-		req.Header.Set(k, v)
-	}
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: marketTransport, Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	switch {
-	case resp.StatusCode == http.StatusUnauthorized:
-		return errors.New("the key was refused")
-	case resp.StatusCode == http.StatusTooManyRequests:
-		return errors.New("the daily quota of this key is used up; try again tomorrow")
-	case resp.StatusCode != http.StatusOK:
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("the source returned %s", resp.Status)
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(into)
@@ -146,7 +136,7 @@ func fetchOpenRouter(ctx context.Context) ([]marketModel, error) {
 			} `json:"pricing"`
 		} `json:"data"`
 	}
-	if err := marketHTTP(ctx, marketOpenRouterURL, nil, &body); err != nil {
+	if err := marketHTTP(ctx, openRouterModelsURL, &body); err != nil {
 		return nil, err
 	}
 	out := make([]marketModel, 0, len(body.Data))
@@ -173,12 +163,12 @@ func fetchOpenRouter(ctx context.Context) ([]marketModel, error) {
 }
 
 func fetchEpoch(ctx context.Context) ([]benchModel, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, marketEpochURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, epochArchiveURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "loom-model-watch")
-	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: marketTransport, Timeout: 60 * time.Second}).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -389,6 +379,9 @@ func handleMarketSettings(w http.ResponseWriter, r *http.Request) {
 	if body.OpenOnly != nil {
 		watch.OpenOnly = *body.OpenOnly
 	}
-	_ = putStoreJSON(bkState, marketWatchKey, watch)
+	if err := putStoreJSON(bkState, marketWatchKey, watch); err != nil {
+		sendJSON(w, 500, map[string]any{"ok": false, "error": "could not save market settings"})
+		return
+	}
 	sendJSON(w, 200, map[string]any{"ok": true})
 }
