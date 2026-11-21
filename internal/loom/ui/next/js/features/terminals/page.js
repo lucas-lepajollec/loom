@@ -12,7 +12,7 @@ import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
 import { visibleConnection } from '../../core/poll.js';
 import { PreviewPanel } from '../previews/panel.js';
-import { loadXterm } from '../../ui/xterm.js';
+import { loadXterm, disposeTerm } from '../../ui/xterm.js';
 import { app, go } from '../../core/state.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
@@ -86,7 +86,7 @@ export function TermView({ t: localT, machineName, onExit }) {
       term.onData(d => { if (ws?.readyState === 1) ws.send(d); });
       ro = new ResizeObserver(size); ro.observe(box.current);
     })().catch(() => setState('erreur'));
-    return () => { alive = false; ro && ro.disconnect(); stopConnection && stopConnection(); term && term.dispose(); };
+    return () => { alive = false; ro && ro.disconnect(); stopConnection && stopConnection(); disposeTerm(term); };
   }, [localT.id]);
   const label = { connexion: t('terminals.status.connecting'), ouvert: t('terminals.status.open'), finished: t('terminals.status.finished'), disconnected: t('terminals.status.disconnected'), introuvable: t('common.not_found'), erreur: t('common.error') }[state] || state;
   return html`<div class="term-view" aria-label=${localT.title + ' · ' + (machineName || localT.target)}>

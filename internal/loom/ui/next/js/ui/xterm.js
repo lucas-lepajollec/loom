@@ -19,3 +19,14 @@ export function loadXterm() {
   });
   return xtermReady;
 }
+
+// xterm 5.5 : un rafraîchissement déjà planifié peut lire la taille du rendu
+// juste après dispose(), alors que le rendu est retiré ; il garde la dernière taille.
+export function disposeTerm(term) {
+  if (!term) return;
+  const render = term._core?._renderService;
+  let size = null;
+  try { size = render?.dimensions; } catch (_) {}
+  try { term.dispose(); } catch (_) {}
+  if (render && size) try { Object.defineProperty(render, 'dimensions', { configurable: true, get: () => size }); } catch (_) {}
+}
