@@ -195,8 +195,8 @@ func (s *notificationService) monitorCodemanPush(ctx context.Context) {
 				continue
 			}
 			if frames == nil && !now.Before(reconnect) {
-				var streamCtx context.Context
-				streamCtx, cancel = context.WithCancel(ctx)
+				streamCtx, stop := context.WithCancel(ctx)
+				cancel = stop
 				stream := make(chan codemanPushFrame, 16)
 				frames, reconnect = stream, now.Add(5*time.Second)
 				go readCodemanPush(streamCtx, server, auth, stream)
