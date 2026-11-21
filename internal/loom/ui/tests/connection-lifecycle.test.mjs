@@ -55,8 +55,9 @@ test('the real terminal view reattaches after mobile resume without opening a pr
     useRef: () => ({ current: {} }), useState: v => [v, () => {}], useEffect: fn => effects.push(fn),
     visibleConnection: (connect, delay) => module.connection(connect, delay, env),
     post: async (...args) => { posts.push(args); return { ok: true, ticket: 'synthetic' }; },
+    loadXterm: () => Promise.resolve(context.window),
   };
-  vm.runInNewContext(terminalSource.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nxtermReady = Promise.resolve(window); globalThis.view = TermView;', context);
+  vm.runInNewContext(terminalSource.replace(/^import .*;\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.view = TermView;', context);
   context.view({ t: { id: 'existing', title: 'Shell', running: true } });
   const stop = effects[0](); await settle(); assert.equal(sockets.length, 1);
   const oldMessage = sockets[0].onmessage;

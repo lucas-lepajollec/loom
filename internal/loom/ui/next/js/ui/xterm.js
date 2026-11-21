@@ -10,7 +10,10 @@ export function loadXterm() {
     css.rel = 'stylesheet'; css.href = '/next/vendor/xterm/xterm.css';
     document.head.appendChild(css);
     const load = src => new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });
-    Promise.all([styled, load('/next/vendor/xterm/xterm.js').then(() => load('/next/vendor/xterm/addon-fit.js'))])
+    // Rendu GPU (WebGL), largeurs Unicode 11 (emojis), instantanés (serialize) et
+    // écho prédictif (zerolag-input), comme le terminal de Codeman. Un module manquant ne bloque pas le terminal.
+    const addons = () => Promise.all(['addon-fit', 'addon-webgl', 'addon-unicode11', 'addon-serialize', 'zerolag-input'].map(n => load('/next/vendor/xterm/' + n + '.js').catch(() => null)));
+    Promise.all([styled, load('/next/vendor/xterm/xterm.js').then(addons)])
       .then(() => new Promise(ok => requestAnimationFrame(ok)))
       .then(() => res(window), err => { xtermReady = null; rej(err); });
   });

@@ -12,23 +12,11 @@ import { FolderPicker } from '../../ui/folder.js';
 import { get, post } from '../../core/api.js';
 import { visibleConnection } from '../../core/poll.js';
 import { PreviewPanel } from '../previews/panel.js';
+import { loadXterm } from '../../ui/xterm.js';
 import { app, go } from '../../core/state.js';
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
 const terminalHref = id => '#/terminals/' + encodeURIComponent(id);
-
-// xterm.js (MIT, vendor/xterm) n'est chargé que sur cette page.
-let xtermReady = null;
-function loadXterm() {
-  if (!xtermReady) xtermReady = new Promise((res, rej) => {
-    const css = document.createElement('link');
-    css.rel = 'stylesheet'; css.href = '/next/vendor/xterm/xterm.css';
-    document.head.appendChild(css);
-    const load = src => new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });
-    load('/next/vendor/xterm/xterm.js').then(() => load('/next/vendor/xterm/addon-fit.js')).then(() => res(window), rej);
-  });
-  return xtermReady;
-}
 
 // Ouvre un terminal et y emmène l'utilisateur (projets, harnesses, machines).
 const opening = new Map();
@@ -70,6 +58,9 @@ export function TermView({ t: localT, machineName, onExit }) {
       fit = new w.FitAddon.FitAddon();
       term.loadAddon(fit);
       term.open(box.current);
+      // Rendu GPU et largeurs Unicode 11, comme le terminal des agents.
+      if (w.WebglAddon) try { const gl = new w.WebglAddon.WebglAddon(); gl.onContextLoss(() => { try { gl.dispose(); } catch (_) {} }); term.loadAddon(gl); } catch (_) {}
+      if (w.Unicode11Addon) try { term.loadAddon(new w.Unicode11Addon.Unicode11Addon()); term.unicode.activeVersion = '11'; } catch (_) {}
       fit.fit();
       if (!localT.running) { setState('finished'); }
       const size = () => { try { fit.fit(); if (ws?.readyState === 1) ws.send(JSON.stringify({ resize: [term.cols, term.rows] })); } catch (_) {} };
