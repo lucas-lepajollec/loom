@@ -642,88 +642,24 @@
   flex-wrap: wrap;
 }
 
-/* Terminals opened from Machines */
-.machine-terminal-page .machine-back {
-  margin-bottom: 10px;
-}
-
-.terminal-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 6px;
-  margin-top: 14px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.terminal-tab {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  max-width: min(100%, 260px);
-  padding-right: 4px;
-  border-radius: 8px 8px 0 0;
-  color: var(--text-3);
-}
-
-.terminal-tab.current {
-  color: var(--text);
-  background: var(--surface);
-  box-shadow: inset 0 -2px var(--text);
-}
-
-.terminal-tab:hover {
-  background: var(--surface-2);
-}
-
-.terminal-tab a {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 5px 8px;
-  min-height: 42px;
-  color: inherit;
-}
-
-.terminal-tab a > span {
-  display: grid;
-  min-width: 0;
-}
-
-.terminal-tab b,
-.terminal-tab small,
-.machine-terminal-page .term-head b {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.terminal-tab b {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.terminal-tab small {
-  color: var(--text-3);
-  font-size: 11.5px;
-}
-
-.terminal-tab .icon-btn {
-  flex: none;
-}
-
-.machine-terminal-page .term-view {
-  height: clamp(360px, calc(100dvh - 230px), 850px);
-  margin-top: 10px;
-}
-
-.machine-terminal-page .term-head b {
-  max-width: 50%;
-}
-
-.machine-terminal-page .term-box {
-  overflow: hidden;
-}
+/* Terminals opened from Machines: one line of actions, light tabs, the
+   terminal itself without a window bar */
+.term-top { display: flex; align-items: center; gap: 8px; }
+.term-top .machine-back { margin-left: -10px; color: var(--text-2); }
+.terminal-tabs { display: flex; gap: 4px; margin-top: 14px; overflow-x: auto; scrollbar-width: none; }
+.terminal-tab { position: relative; display: flex; align-items: center; flex: none; max-width: 240px; border-radius: 8px; color: var(--text-3); }
+.terminal-tab:hover { color: var(--text-2); background: var(--hover); }
+.terminal-tab.current { color: var(--text); background: var(--surface-2); }
+.terminal-tab a { display: flex; align-items: center; gap: 7px; min-width: 0; height: 32px; padding: 0 30px 0 10px; color: inherit; font-size: 13px; text-decoration: none; }
+.terminal-tab a .dot { width: 6px; height: 6px; flex: none; }
+.terminal-tab b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-tab small { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+.terminal-tab .icon-btn { position: absolute; right: 3px; width: 24px; height: 24px; opacity: 0; }
+.terminal-tab .icon-btn .ico { width: 13px; height: 13px; }
+.terminal-tab:is(:hover, .current, :focus-within) .icon-btn { opacity: 1; }
+.machine-terminal-page .term-view { position: relative; height: clamp(360px, calc(100dvh - 170px), 900px); margin-top: 10px; border: 0; border-radius: 12px; }
+.machine-terminal-page .term-box { overflow: hidden; padding: 12px 6px 6px 14px; }
+.term-state { position: absolute; top: 10px; right: 12px; z-index: 2; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
 
 @media (max-width: 760px) {
   .mc-page {
@@ -734,8 +670,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .mc-page .page-head,
-  .machine-terminal-page .page-head {
+  .mc-page .page-head {
     align-items: flex-start;
     flex-direction: column;
     gap: 8px;
@@ -753,8 +688,7 @@
     min-width: 44px;
   }
 
-  .mc-page .page-head .acts,
-  .machine-terminal-page .page-head .acts {
+  .mc-page .page-head .acts {
     justify-content: flex-start;
   }
 
@@ -938,3 +872,11 @@
 .adm-dd { min-width: 0; }
 .adm-dd > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .set-c:has(> .adm-dd) { min-width: 0; max-width: 100%; }
+
+/* un seul repère de mise à jour pour les agents d'une machine */
+.machine-card-section h3 { display: flex; align-items: center; gap: 8px; }
+.machine-agents-state { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-size: 12px; font-weight: 400; color: var(--text-3); text-decoration: none; }
+.machine-agents-state .ico { width: 12px; height: 12px; color: var(--green); }
+.machine-agents-state.update { color: var(--amber); }
+.machine-agents-state.update i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.machine-agents-state.update:hover { text-decoration: underline; }

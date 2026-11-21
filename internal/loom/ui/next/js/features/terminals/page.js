@@ -96,9 +96,9 @@ export function TermView({ t: localT, machineName, onExit }) {
     })().catch(() => setState('erreur'));
     return () => { alive = false; ro && ro.disconnect(); stopConnection && stopConnection(); term && term.dispose(); };
   }, [localT.id]);
-  return html`<div class="term-view">
-    <div class="term-head"><b>${localT.title}</b><span class="muted mono trunc">${machineName || (localT.target === 'local' ? t("terminals.page.cette_machine") : localT.target)} · ${home(localT.dir) || '~'}${localT.command ? ' · ' + localT.command : ''}</span>
-      <span class="grow"></span><span class=${cls('state', state === 'ouvert' && 'ok')}><i class=${'dot ' + (state === 'ouvert' ? 'green' : '')}></i>${{ connexion: t('terminals.status.connecting'), ouvert: t('terminals.status.open'), finished: t('terminals.status.finished'), disconnected: t('terminals.status.disconnected'), introuvable: t('common.not_found'), erreur: t('common.error') }[state] || state}</span></div>
+  const label = { connexion: t('terminals.status.connecting'), ouvert: t('terminals.status.open'), finished: t('terminals.status.finished'), disconnected: t('terminals.status.disconnected'), introuvable: t('common.not_found'), erreur: t('common.error') }[state] || state;
+  return html`<div class="term-view" aria-label=${localT.title + ' · ' + (machineName || localT.target)}>
+    ${state !== 'ouvert' && html`<span class="term-state" role="status">${label}</span>`}
     <div class="term-box" ref=${box}></div>
   </div>`;
 }
@@ -142,6 +142,7 @@ export function TerminalsPage({ route }) {
   const [list, setList] = useState(null);
   const [supported, setSupported] = useState(true);
   const [dlg, setDlg] = useState(false);
+  const [previews, setPreviews] = useState(false);
   const [machines, setMachines] = useState([]);
   const [local, setLocal] = useState(null);
   const read = useRef(0);
@@ -179,32 +180,34 @@ export function TerminalsPage({ route }) {
     if (localT.running && !await confirm(t("terminals.page.fermer_le_terminal"), t("terminals.page.le_processus_en_cours") + (localT.command || t('agents.quick.shell')) + t("terminals.page.sera_arrete"), { ok: t("terminals.page.fermer"), danger: true })) return;
     const result = await post('/api/terminals/close', { id: localT.id });
     if (!result.ok && result.status !== 404) return toast(result.error || t('common.error'), 'err');
-    setList(old => old?.filter(term => term.id !== localT.id));
-    if (localT.id === route.sub && location.hash === terminalHref(localT.id)) {
-      const remaining = list.filter(term => term.id !== localT.id);
-      go('terminals', remaining.at(-1)?.id);
-    }
+    const remaining = (list || []).filter(term => term.id !== localT.id);
+    setList(remaining);
+    // Plus aucun terminal : retour aux machines.
+    if (!remaining.length) return go('machines');
+    if (localT.id === cur?.id) go('terminals', remaining.at(-1)?.id);
     load();
   };
   return html`<div class="view page"><div class="page-in wide machine-terminal-page">
-    <a class="btn ghost machine-back" href="#/machines"><${Icon} n="left" />${t('settings.machines.machines')}</a>
-    <div class="page-head"><h1>${t("terminals.page.terminaux")}</h1>
-      <div class="acts"><button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.nouveau_terminal")}</button></div></div>
+    <h1 class="sr">${t("terminals.page.terminaux")}</h1>
+    <div class="term-top">
+      <a class="btn ghost machine-back" href="#/machines"><${Icon} n="left" />${t('settings.machines.machines')}</a>
+      <span class="grow"></span>
+      <button class="btn ghost" onClick=${() => setPreviews(true)}><${Icon} n="globe" />${t('terminals.page.previews')}</button>
+      <button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.nouveau_terminal")}</button>
+    </div>
     ${!supported ? html`<${Empty} icon="info" title="${t("terminals.page.pas_encore_disponible_sur_ce_systeme")}" text="${t("terminals.page.les_terminaux_fonctionnent_sous_linux_et_macos_windows_arrive_plu")}" />`
       : !list ? html`<div class="skeleton" style="height:320px"></div>`
       : !list.length ? html`<${Empty} icon="terminal" title="${t("terminals.page.aucun_terminal_ouvert")}" text="${t("terminals.page.un_terminal_reste_ouvert_meme_si_tu_fermes_l_onglet_tu_le_retrouv")}"><button class="btn" onClick=${() => setDlg(true)}>${t("terminals.page.ouvrir_un_terminal")}</button></${Empty}>`
       : html`<nav class="terminal-tabs" aria-label=${t('settings.machines.open_terminals')}>
           ${list.map(term => html`<div class=${cls('terminal-tab', cur?.id === term.id && 'current')} key=${term.id}>
-            <a href=${terminalHref(term.id)} aria-current=${cur?.id === term.id ? 'page' : undefined}>
-              <i class=${cls('dot', term.running && 'green')}></i><span>
-                <b title=${term.title}>${term.title}</b><small>${names.get(term.target) || term.target}</small>
-              </span>
+            <a href=${terminalHref(term.id)} aria-current=${cur?.id === term.id ? 'page' : undefined} title=${term.title + ' · ' + (names.get(term.target) || term.target)}>
+              <i class=${cls('dot', term.running && 'green')}></i><b>${term.title}</b><small>${names.get(term.target) || term.target}</small>
             </a>
             <button class="icon-btn" aria-label=${t("terminals.page.fermer_2") + term.title} onClick=${() => close(term)}><${Icon} n="close" /></button>
           </div>`)}
         </nav>
         ${cur && html`<${TermView} key=${cur.id} t=${cur} machineName=${names.get(cur.target) || cur.target} onExit=${load} />`}`}
-    ${supported && html`<div class="term-previews"><${PreviewPanel} target=${cur?.target || 'local'} /></div>`}
+    ${previews && html`<${Modal} title=${t('previews.title')} onClose=${() => setPreviews(false)}><${PreviewPanel} target=${cur?.target || 'local'} /></${Modal}>`}
     ${dlg && html`<${NewTerminal} onClose=${() => { setDlg(false); load(); }} />`}
   </div></div>`;
 }

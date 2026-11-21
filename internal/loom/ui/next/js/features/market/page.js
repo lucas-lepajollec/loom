@@ -8,8 +8,8 @@ import { Empty, Switch } from '../../ui/controls.js';
 import { Icon } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
 
-const AA_URL = 'https://artificialanalysis.ai';
-// OpenRouter and up to three Artificial Analysis pages may be fetched in sequence.
+const EPOCH_URL = 'https://epoch.ai/benchmarks/eci';
+// OpenRouter and Epoch AI's archive may be fetched in sequence.
 const REQUEST_TIMEOUT = 125000;
 const EMPTY = [];
 const DASH = '—';
@@ -24,22 +24,15 @@ const modelShape = {
   id: '', name: '', creator: '', created: 0, context: 0, input_price: 0, output_price: 0, hf_id: '', free: false,
 };
 const nullableNumber = n => n === null || Number.isFinite(n);
-const scoreShape = {
-  slug: '', name: '', creator: '', released: '', intelligence: nullableNumber, speed: nullableNumber,
-  first_token: nullableNumber, input_price: nullableNumber, output_price: nullableNumber,
-};
+const scoreShape = { name: '', creator: '', released: '', score: nullableNumber };
 const nullableRows = shape => value => value === null || validShape(value, [shape]);
 const responseShape = {
-  catalog: nullableRows(modelShape), new: nullableRows(modelShape), bench: nullableRows(scoreShape), has_key: false,
-  catalog_at: 0, catalog_error: '', bench_at: 0, bench_error: '', intelligence_index_version: 0,
+  catalog: nullableRows(modelShape), new: nullableRows(modelShape), bench: nullableRows(scoreShape),
+  catalog_at: 0, catalog_error: '', bench_at: 0, bench_error: '',
   watch: { notify: false, open_only: false },
 };
 
-function sourceError(error) {
-  if (error === 'the key was refused') return t('market.key_refused');
-  if (error === 'the daily quota of this key is used up; try again tomorrow') return t('market.key_quota');
-  return error;
-}
+const sourceError = error => error;
 
 function RefreshTime({ at, failed }) {
   const date = new Date(at);
@@ -137,12 +130,9 @@ function Releases({ data, busy, error, refresh }) {
 }
 
 const rankingColumns = () => [
-  { key: 'name', label: t('usage.page.modele'), value: m => m.name || m.slug || null },
-  { key: 'intelligence', label: t('market.intelligence'), value: m => m.intelligence, format: n => number(n, 2), descending: true },
-  { key: 'speed', label: t('market.speed'), value: m => nonnegative(m.speed), format: n => t('market.tok_per_second', { n: number(n, 1) }), descending: true },
-  { key: 'first_token', label: t('market.first_token'), value: m => nonnegative(m.first_token), format: n => t('market.seconds', { n: number(n, 2) }) },
-  { key: 'input_price', label: t('market.input_price'), value: m => nonnegative(m.input_price), format: usd },
-  { key: 'output_price', label: t('market.output_price'), value: m => nonnegative(m.output_price), format: usd },
+  { key: 'name', label: t('usage.page.modele'), value: m => m.name || null },
+  { key: 'score', label: t('market.eci'), value: m => m.score, format: (n, m) => html`<span title=${Number.isFinite(m.low) && Number.isFinite(m.high) ? t('market.eci_range', { low: number(m.low, 1), high: number(m.high, 1) }) : undefined}>${number(n, 1)}</span>`, descending: true },
+  { key: 'open', label: t('market.weights'), value: m => (m.open ? 1 : 0), format: (n, m) => m.open ? html`<span class="market-open">${t('market.open_weights')}</span>` : html`<span class="muted">${t('market.closed_weights')}</span>`, descending: true },
   { key: 'released', label: t('market.release_date'), value: m => timestamp(m.released), format: at => html`<${ModelDate} at=${at} />`, descending: true },
 ];
 
@@ -155,12 +145,13 @@ function compare(a, b, descending) {
 }
 
 function Leaderboard({ models, loading }) {
-  const [sort, setSort] = useState({ key: 'intelligence', descending: true });
+  const [sort, setSort] = useState({ key: 'score', descending: true });
+  const [openOnly, setOpenOnly] = useState(false);
   const columns = rankingColumns();
   const chosen = columns.find(column => column.key === sort.key);
-  const ranked = useMemo(() => [...models].sort((a, b) => compare(a.intelligence, b.intelligence, true))
-    .map((model, index) => ({ ...model, rank: Number.isFinite(model.intelligence) ? index + 1 : null })), [models]);
-  const sorted = [...ranked].sort((a, b) => compare(chosen.value(a), chosen.value(b), sort.descending));
+  const ranked = useMemo(() => [...models].sort((a, b) => compare(a.score, b.score, true))
+    .map((model, index) => ({ ...model, rank: Number.isFinite(model.score) ? index + 1 : null })), [models]);
+  const sorted = ranked.filter(model => !openOnly || model.open).sort((a, b) => compare(chosen.value(a), chosen.value(b), sort.descending));
   const page = usePage(sorted, 12);
   const sortBy = column => {
     setSort({ key: column.key, descending: column.key === sort.key ? !sort.descending : !!column.descending });
@@ -181,6 +172,8 @@ function Leaderboard({ models, loading }) {
           <${Icon} n="arrowUp" class=${sort.descending ? 'market-down' : ''} />
         </button>
       </div>
+      <label class="market-filter"><input type="checkbox" checked=${openOnly} onChange=${e => { setOpenOnly(e.target.checked); page.set(0); }} />${t('market.open_only')}</label>
+      <span class="grow"></span>
       <${PageButtons} page=${page} label=${t('market.ranking')} />
     </div>
     <div class="market-table market-ranking" role="table" aria-labelledby="market-ranking">
@@ -192,17 +185,17 @@ function Leaderboard({ models, loading }) {
           </button>
         </span>`)}
       </div>
-      ${page.rows.map(model => html`<div class=${model.rank && model.rank <= 3 ? 'market-row market-top-three' : 'market-row'} role="row" key=${model.slug}>
+      ${page.rows.map(model => html`<div class=${model.rank && model.rank <= 3 ? 'market-row market-top-three' : 'market-row'} role="row" key=${model.name}>
         <span class="market-card-head" role="rowheader">
           <span class="market-rank" aria-label=${model.rank ? t('market.rank', { n: number(model.rank) }) : undefined}>
             ${model.rank ? number(model.rank) : DASH}
           </span>
-          <span class="market-name"><b>${model.name || model.slug}</b>${model.creator && html`<small>${model.creator}</small>`}</span>
+          <span class="market-name"><b>${model.name}</b>${model.creator && html`<small>${model.creator}</small>`}</span>
         </span>
         ${columns.slice(1).map(column => {
           const value = column.value(model);
           return html`<span class="market-value num" role="cell" data-label=${column.label} key=${column.key}>
-            ${Number.isFinite(value) ? column.format(value) : DASH}
+            ${Number.isFinite(value) ? column.format(value, model) : DASH}
           </span>`;
         })}
       </div>`)}
@@ -210,47 +203,18 @@ function Leaderboard({ models, loading }) {
   </div>`;
 }
 
-function KeySetup({ busy, error, save }) {
-  const [key, setKey] = useState('');
-  const submit = e => {
-    e.preventDefault();
-    if (key.trim()) save({ key: key.trim() }, 'key');
-  };
-  return html`<div class="activity-card market-key">
-    <div class="market-key-head">
-      <${Icon} n="key" />
-      <div><h3>${t('market.key_setup')}</h3><p class="note" id="market-key-note">${t('market.key_hint')}</p></div>
-      <a class="btn sm" href=${AA_URL} target="_blank" rel="noopener noreferrer">${t('market.get_key')}<${Icon} n="right" /></a>
-    </div>
-    <form class="market-setting market-key-form" onSubmit=${submit}>
-      <label for="market-key">${t('market.api_key')}</label>
-      <input class="input" id="market-key" type="password" autocomplete="off" spellcheck="false" required maxlength="2000"
-        value=${key} disabled=${busy === 'key'} aria-invalid=${error ? 'true' : undefined}
-        aria-describedby=${error ? 'market-key-note market-key-error' : 'market-key-note'} onInput=${e => setKey(e.target.value)} />
-      <button class="btn sm primary" type="submit" disabled=${!!busy || !key.trim()}>
-        ${busy === 'key' ? t('market.validating_key') : t('ui.dialog.enregistrer')}
-      </button>
-    </form>
-    ${error && html`<p id="market-key-error" class="note err market-setting" role="alert">${error}</p>`}
-  </div>`;
-}
-
-function Ranking({ data, busy, error, save }) {
+function Ranking({ data, busy }) {
   return html`<section class="activity-section" aria-labelledby="market-ranking">
     <div class="activity-heading">
       <h2 id="market-ranking">${t('market.ranking')}</h2>
-      ${data.has_key && html`<a class="market-credit" href=${AA_URL} target="_blank" rel="noopener noreferrer">${t('market.aa_credit')}</a>`}
+      <a class="market-credit" href=${EPOCH_URL} target="_blank" rel="noopener noreferrer">${t('market.epoch_credit')}</a>
     </div>
-    ${data.has_key ? html`
-      <div class="market-ranking-meta">
-        <div><${RefreshTime} at=${data.bench_at} failed=${data.bench_error} />
-          ${data.intelligence_index_version > 0 && html`<small>${t('market.index_version', { n: data.intelligence_index_version })}</small>`}</div>
-        <button class="btn sm ghost" type="button" disabled=${!!busy} onClick=${() => save({ forget_key: true }, 'key')}>${t('market.remove_key')}</button>
-      </div>
-      ${data.bench_error && html`<p class="note err" role="alert">${t('market.aa_error', { error: sourceError(data.bench_error) })}</p>`}
-      ${error && html`<p class="note err" role="alert">${error}</p>`}
-      <${Leaderboard} models=${data.bench || EMPTY} loading=${!!busy && !(data.bench_at > 0) && !data.bench_error} />
-    ` : html`<${KeySetup} busy=${busy} error=${error} save=${save} />`}
+    <div class="market-ranking-meta">
+      <p class="note">${t('market.eci_hint')}</p>
+      <${RefreshTime} at=${data.bench_at} failed=${data.bench_error} />
+    </div>
+    ${data.bench_error && html`<p class="note err" role="alert">${t('market.epoch_error', { error: sourceError(data.bench_error) })}</p>`}
+    <${Leaderboard} models=${data.bench || EMPTY} loading=${!!busy && !(data.bench_at > 0) && !data.bench_error} />
   </section>`;
 }
 
@@ -332,7 +296,6 @@ export function MarketPage() {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [keyError, setKeyError] = useState('');
   const [watchError, setWatchError] = useState('');
   const pending = useRef(false);
 
@@ -353,7 +316,7 @@ export function MarketPage() {
       const result = force ? await post('/api/market', {}, options) : await get('/api/market', options);
       if (result?.ok === false) throw new Error(result.error || t('common.error'));
       if (!validShape(result, responseShape) || !['catalog', 'new', 'bench'].every(field => field in result)
-          || typeof result.has_key !== 'boolean' || typeof result.watch?.notify !== 'boolean' || typeof result.watch?.open_only !== 'boolean') {
+          || typeof result.watch?.notify !== 'boolean' || typeof result.watch?.open_only !== 'boolean') {
         throw new Error(t('market.invalid_data'));
       }
       if (!alive()) return;
@@ -367,7 +330,7 @@ export function MarketPage() {
   useVisibleRefresh(alive => run('read', () => read(false, alive), alive), 60000);
 
   const save = (body, action) => run(action, async () => {
-    const setFailure = action === 'key' ? setKeyError : setWatchError;
+    const setFailure = setWatchError;
     setFailure('');
     const result = await post('/api/market/settings', body, { timeout: REQUEST_TIMEOUT });
     if (!result.ok) {
@@ -375,20 +338,13 @@ export function MarketPage() {
       setFailure(t('market.save_failed', { error }));
       return;
     }
-    if (action === 'watch') {
-      setData(previous => ({ ...previous, watch: { ...previous.watch, ...body } }));
-      return;
-    }
-    setData(previous => ({
-      ...previous, has_key: !!body.key, bench: null, bench_at: 0, bench_error: '', intelligence_index_version: 0,
-    }));
-    if (body.key) await read(false);
+    setData(previous => ({ ...previous, watch: { ...previous.watch, ...body } }));
   });
 
   return html`<${ActivityLayout} title=${t('market.title')}>
     <${Releases} data=${data} busy=${busy} error=${error} refresh=${() => run('refresh', () => read(true))} />
     ${data && html`
-      <${Ranking} data=${data} busy=${busy} error=${keyError} save=${save} />
+      <${Ranking} data=${data} busy=${busy} />
       <${Catalogue} models=${data.catalog || EMPTY} />
       <${WatchSettings} watch=${data.watch} busy=${busy} error=${watchError} save=${save} />
     `}

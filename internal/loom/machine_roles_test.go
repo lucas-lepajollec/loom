@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // When the files brick lives on a paired machine, files requests go to its
@@ -65,5 +66,37 @@ func TestFilesBrickOnAnotherMachine(t *testing.T) {
 	handleFilesRoot(w, httptest.NewRequest(http.MethodGet, "/api/files/root?machine=tower", nil))
 	if w.Code != 200 || !strings.HasPrefix(seen, "/api/files/root") {
 		t.Fatalf("machine query not proxied: %d %s", w.Code, seen)
+	}
+}
+
+// A node that gained modules after pairing (an update, voice enabled) is
+// read again when machines are listed.
+func TestNodeModulesFollowTheNode(t *testing.T) {
+	testHome(t)
+	node := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer node-key" || r.URL.Path != "/api/node/info" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true,"version":"0.2.11","handshake":1,"modules":["engine","voice","terminal","files"]}`))
+	}))
+	defer node.Close()
+	m := RemoteMachine{ID: "tower", Name: "Tower", Host: "127.0.0.1", NodeID: "n1", Modules: []string{"engine", "terminal"}}
+	if err := putStoreJSON(bkState, remoteMachinesState, []RemoteMachine{m}); err != nil {
+		t.Fatal(err)
+	}
+	if err := putStoreJSON(bkState, machineNodePrefix+m.ID, engineNode{URL: node.URL, WebKey: "node-key", Role: "engine-node", Handshake: nodeHandshake}); err != nil {
+		t.Fatal(err)
+	}
+	machineRefresh.Lock()
+	machineRefresh.at = map[string]time.Time{}
+	machineRefresh.Unlock()
+	handleRemoteMachines(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/machines", nil))
+	got := loadRemoteMachines()[0].Modules
+	if strings.Join(got, ",") != "engine,voice,terminal,files" {
+		t.Fatalf("modules %v", got)
+	}
+	if _, err := nodeMachineAccessForModule("tower", "files"); err != nil {
+		t.Fatalf("files still unavailable: %v", err)
 	}
 }

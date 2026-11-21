@@ -127,7 +127,6 @@ export function MachinesPage({ route }) {
     : html`<div class="page-head">
       <h1>${t('settings.machines.machines')}</h1>
       <div class="acts">
-        <button class="btn ghost" onClick=${() => setEdit({ machine: null })}><${Icon} n="terminal" />${t('settings.machines.ssh_add')}</button>
         <button class="btn primary" onClick=${() => setPair({})}><${Icon} n="plus" />${t('machines.add.title')}</button>
       </div>
     </div>
@@ -138,7 +137,7 @@ export function MachinesPage({ route }) {
       <b>${t('settings.machines.load_failed')}</b><small>${error}</small></div><button class="btn sm" onClick=${reload}>${t('agents.retry')}</button>
     </div>`}
     ${open.length > 0 && html`<${MachineTerminals} terminals=${open} names=${names} />`}
-    ${!pair && html`<${Discovered} onPair=${setPair} />`}`}
+    ${!pair && html`<${Discovered} onPair=${setPair} extra=${html`<button class="btn sm ghost" title=${t('settings.machines.ssh_add_tip')} onClick=${() => setEdit({ machine: null })}><${Icon} n="terminal" />${t('settings.machines.ssh_add_plain')}</button>`} />`}`}
     ${pair && html`<${PairDialog} start=${pair} onClose=${result => {
       setPair(null);
       if (result?.id) { saveMachine(result); reload(); go('machines', result.id); }

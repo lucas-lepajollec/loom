@@ -135,9 +135,9 @@ function MachineAgents({ machine, clis, onChange }) {
       const next = cli.latestVersion && cli.latestVersion !== cli.version ? cli.latestVersion : '';
       return html`<div class="machine-row" key=${cli.id}>
         <${AgentName} cli=${cli} />
-        ${cli.installCommand && (cli.updateAvailable || next) && html`<div class="machine-actions">
+        ${cli.installCommand && (cli.updateAvailable || next) ? html`<div class="machine-actions">
           <button class="btn sm" disabled=${!!busy} onClick=${() => install(cli)}>${t('settings.page.mettre_a_jour')}${next ? ' · ' + next : ''}</button>
-        </div>`}
+        </div>` : cli.latestVersion && html`<span class="machine-agents-state ok"><${Icon} n="check" />${t('settings.machines.agents_uptodate')}</span>`}
       </div>`;
     })}
     ${!installed.length && html`<p class="machine-section-note muted">${t('settings.machines.no_agents')}</p>`}

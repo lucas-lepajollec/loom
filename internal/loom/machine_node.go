@@ -138,6 +138,9 @@ func handleMachineNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/api/machines/"+m.ID+"/node/update")
+	if path != "" {
+		forgetMachineRefresh(m.ID)
+	}
 	switch path {
 	case "":
 		if !workspaceMethod(w, r, http.MethodGet) {

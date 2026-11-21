@@ -513,7 +513,9 @@ test('discovery uses the advertised full address once and node modules are read-
   let selected;
   const h = harness(nodeMachines, 'Discovered', nodeMachineEnv);
   h.data['/api/machines/discover'] = { nodes: [{ id: 'node', name: 'GPU', address: 'http://192.168.1.20:2511', port: 2511, version: '0.1.4' }] };
-  const tree = await h.ready({ onPair: n => { selected = n; } });
+  const props = { onPair: n => { selected = n; } };
+  await button(await h.ready(props), 'Chercher sur le réseau').props.onClick();
+  const tree = await h.ready(props);
   button(tree, 'Appairer').props.onClick();
   assert.equal(selected.address, 'http://192.168.1.20:2511');
   assert.ok(!textOf(tree).includes('2511:2511'));
