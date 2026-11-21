@@ -51,3 +51,11 @@ Shared dialogs and menus open as bottom sheets. Leave the header and actions
 within reach when the sheet body scrolls. The route crawl checks 390 px and
 320 px layouts with deterministic data and long labels.
 [Phone layout checks](../../tools/tests/ui-routes/layout.mjs)
+
+From More, Models and Agents use wrapping section chips. Models groups the
+engine, presets, and library, and puts row actions in overflow sheets.
+Agents leads with Codeman status, harnesses, and upcoming runs. Machine cards
+open a detail page with terminal access and resource meters. Settings offers
+quick preferences and a notification switch for the current device, with
+links to the full settings pages. Use a named back link to the parent page
+throughout these views.

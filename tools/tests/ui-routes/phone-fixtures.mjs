@@ -52,9 +52,16 @@ export function phoneFixtures(ws, remote) {
   };
   const localModel = { name: 'synthetic-model-with-a-long-name-Q4_K_M.gguf', path: '/synthetic-model-library/model.gguf', dir: '/synthetic-model-library', size: 1073741824 };
   const observations = {
-    '/api/workspace': { ...ws, runtimes: ws.runtimes.filter(r => ['local', 'cloud'].includes(r.kind)), models: [{ id: 'fixture-cloud', name: model, model, kind: 'cloud', runtime_id: 'openai-compatible', provider_id: 'fixture', provider_name: 'Fixture cloud', enabled: true, ready: true }], projects, providers },
+    '/api/workspace': { ...ws, runtimes: ws.runtimes.filter(r => ['local', 'cloud'].includes(r.kind)), models: [
+      { id: 'fixture-cloud', name: model, model, kind: 'cloud', runtime_id: 'openai-compatible', provider_id: 'fixture', provider_name: 'Fixture cloud', enabled: true, ready: true },
+      { id: 'fixture-local', name: localModel.name, model: localModel.path, kind: 'local', runtime_id: 'llama.cpp', enabled: true, ready: true },
+    ], chat: { default_choice: 'fixture-local' }, projects, providers },
+    '/api/chat/settings': { ok: true, default_choice: 'fixture-local' },
     '/api/machines': { ok: true, machines: [remote] },
+    '/api/machines/local': { ok: true, hostname: 'Fixture workstation', os: 'Linux' },
+    '/api/machines/metrics': { ok: true, metrics: { [remote.id]: { cpu: 27, cores: 4, ram_total: 8 * 1024 ** 3, ram_used: 2 * 1024 ** 3 } } },
     '/api/models': [localModel],
+    '/api/presets': [{ id: 'fixture-preset', name: 'A preset with a long title', model: localModel.path, ctx: 4096 }],
     '/api/chat/history': { ok: true, projects, conversations: [] },
     '/api/usage': { ok: true, quotas: [], models: [{ runtime_id: 'openai-compatible', name: model, provider: 'Fixture cloud', turns: 2, reported_turns: 2, usage: { prompt_tokens: 1000, completion_tokens: 200 }, price: { input: 1, output: 2 } }] },
     '/api/usage/providers': { ok: true, providers: [] },

@@ -13,12 +13,13 @@ import { Line, Group } from './kit.js';
 const EVENTS = ['task.waiting', 'task.completed', 'task.failed', 'node.offline', 'engine.down', 'model.new'];
 const EVENT_LABEL = () => ({ 'task.waiting': t('notify.ev.task_waiting'), 'task.completed': t('notify.ev.task_completed'), 'task.failed': t('notify.ev.task_failed'), 'node.offline': t('notify.ev.node_offline'), 'engine.down': t('notify.ev.engine_down'), 'model.new': t('notify.ev.model_new') });
 const secure = () => (window.isSecureContext ? 'true' : 'false');
+export const readNotificationSettings = options => get('/api/notify?secure=' + secure(), options);
 
 export function NotificationSettings() {
   const [env, setEnv] = useState(null), [cfg, setCfg] = useState(null);
   const [ntfyToken, setNtfyToken] = useState(null), [hookSecret, setHookSecret] = useState(null);
   const [busy, setBusy] = useState(''), [dirty, setDirty] = useState(false);
-  const load = () => get('/api/notify?secure=' + secure()).then(r => { if (r.ok) { setEnv(r); setCfg(r.config); setDirty(false); setNtfyToken(null); setHookSecret(null); } }).catch(() => {});
+  const load = () => readNotificationSettings().then(r => { if (r.ok) { setEnv(r); setCfg(r.config); setDirty(false); setNtfyToken(null); setHookSecret(null); } }).catch(() => {});
   useEffect(() => { load(); }, []);
   if (!cfg) return html`<${Group} title=${t('notify.title')}><div class="pad"><p class="note">${t('startup.loading')}</p></div></${Group}>`;
   const set = (path, value) => {

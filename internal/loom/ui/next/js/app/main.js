@@ -2,7 +2,7 @@ import { t } from '../core/i18n.js';
 import { html, render, useStore, cls } from '../core/lib.js';
 import { Component } from 'preact';
 import { Icon } from '../ui/icons.js';
-import { app, phoneTab, startPolling, setTheme } from '../core/state.js';
+import { app, phoneParent, phoneTab, startPolling, setTheme } from '../core/state.js';
 import { usePhone } from '../core/viewport.js';
 import { Layers } from '../ui/dialog.js';
 import { Sidebar, useShortcuts } from './shell.js';
@@ -15,7 +15,8 @@ import { Welcome, initWelcome } from '../features/onboarding/welcome.js';
 import { authStatus } from '../core/api.js';
 import { AccessScreen } from './access.js';
 import { initTouch } from './touch.js';
-import { BackButton, PhoneTabs } from './phone-nav.js';
+import { BackButton, PhoneBackLink, PhoneTabs } from './phone-nav.js';
+import { groupOf } from './sections.js';
 import { agents, useAgentsPresence } from '../features/agents/store.js';
 import { NewSessionHost } from '../features/agents/side.js';
 import { inboxItems } from './inbox.js';
@@ -66,10 +67,15 @@ window.addEventListener('unhandledrejection', e => { const r = e.reason; if (r &
 
 function Main({ route, phone }) {
   const Page = pageFor(route.section) || Placeholder;
+  const parent = phone && phoneParent(route);
+  const group = parent && groupOf(route.section);
+  const title = group?.id === 'models' || group?.id === 'agents' ? group.label : '';
   const ownHeader = ['chat', 'files'].includes(route.section) || route.section === 'agents' && ['s', 'grid'].includes(route.sub)
     || route.section === 'more' && route.sub === 'jarvis';
-  return html`<main class="main">
-    ${phone && !phoneTab(route) && !ownHeader && html`<header class="phone-subhead"><${BackButton} /></header>`}
+  return html`<main class=${cls('main', parent && 'phone-management')}>
+    ${parent ? html`<header class="phone-management-head"><${PhoneBackLink} parent=${parent} />
+      ${title && html`<h1 class="phone-management-title">${title}</h1>`}</header>`
+    : phone && !phoneTab(route) && !ownHeader && html`<header class="phone-subhead"><${BackButton} /></header>`}
     <${PageGuard} key=${route.section} name=${route.section} sub=${route.sub || ''} back=${phone && ownHeader}><${Page} route=${route} /></${PageGuard}></main>`;
 }
 

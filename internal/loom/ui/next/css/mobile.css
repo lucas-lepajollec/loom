@@ -1,6 +1,5 @@
 /* Responsive overrides follow the desktop surface rules. Keep Loom's tokens and
    components; let content wrap rather than clipping whole pages. */
-.settings-back{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);margin-bottom:12px;font-size:13px}
 
 @media(max-width:1100px) and (min-width:761px){
   .page-in{padding:28px 24px 48px}
@@ -179,6 +178,46 @@
   .app.phone-app .main{min-height:0;padding:0}
   .phone-title{padding:calc(14px + var(--phone-top)) max(18px,var(--phone-right)) 8px max(18px,var(--phone-left))}
   .phone-subhead{flex:none;display:flex;align-items:center;min-height:calc(44px + var(--phone-top));padding:var(--phone-top) var(--phone-right) 0 var(--phone-left)}
+  .phone-management{
+    --manage-left:max(16px,var(--phone-left));
+    --manage-right:max(16px,var(--phone-right));
+  }
+  .phone-management-head{
+    flex:none;
+    padding:var(--phone-top) var(--manage-right) 0 var(--manage-left);
+  }
+  .phone-back-link{
+    display:inline-flex;align-items:center;gap:4px;
+    min-width:var(--touch-target);min-height:var(--touch-target);
+    color:var(--text-2);font-size:15px;
+  }
+  .phone-back-link:hover{color:var(--text)}
+  .phone-management h1.phone-management-title{
+    margin:0;
+    font-size:30px;font-weight:700;line-height:1.18;letter-spacing:-.03em;
+  }
+  .phone-management>.view{border:0;border-radius:0;box-shadow:none;background:var(--bg);scrollbar-gutter:auto}
+  .phone-management>.view.page>.page-in{
+    padding:0 var(--manage-right) calc(32px + var(--phone-bottom)) var(--manage-left);
+  }
+  .phone-management .page-in>h1.sr{display:none}
+  .phone-management :is(.btn,.seg button){min-width:var(--touch-target)}
+  .phone-section-tabs{
+    display:flex;flex-wrap:wrap;gap:2px;
+    min-width:0;padding-block:6px 2px;
+  }
+  .phone-section-tabs a{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:var(--touch-target);min-height:var(--touch-target);max-width:100%;
+    padding-inline:9px;border-radius:var(--r-pill);
+    color:var(--text-2);font-size:14px;font-weight:500;
+    text-align:center;overflow-wrap:anywhere;
+  }
+  .phone-section-tabs a:is(:hover,[aria-current=page]){background:var(--surface-2);color:var(--text)}
+  .phone-management .tip::before{
+    content:"";position:absolute;top:50%;left:50%;
+    width:44px;height:44px;transform:translate(-50%,-50%);
+  }
   .phone-scroll,.phone-filters,.phone-quick{padding-left:var(--phone-left);padding-right:var(--phone-right)}
   .phone-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));flex:none;z-index:1;padding:4px var(--phone-right) calc(4px + var(--phone-bottom)) var(--phone-left);border-top:1px solid var(--line-soft);background:var(--bg)}
   .phone-tabs a{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;color:var(--text-2);font-size:11px;font-weight:500}

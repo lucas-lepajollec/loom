@@ -4,6 +4,7 @@
 import { html, useStore } from '../core/lib.js';
 import { t } from '../core/i18n.js';
 import { app } from '../core/state.js';
+import { usePhone } from '../core/viewport.js';
 import { TabNav } from '../ui/tabnav.js';
 
 export const GROUPS = [
@@ -25,13 +26,16 @@ export const groupOf = section => GROUPS.find(g => g.tabs.some(([id]) => id === 
 
 export function SectionTabs() {
   const { section, sub } = useStore(app, s => ({ section: s.route.section, sub: s.route.sub }));
+  const phone = usePhone();
   const group = groupOf(section);
   const tabs = group ? group.tabs.filter(([, label]) => label) : [];
   if (tabs.length < 2) return null;
   // Un onglet peut viser une sous-page (« local/hub ») : il l'emporte alors.
   const exact = section + (sub ? '/' + sub : '');
-  const here = tabs.some(([id]) => id === exact) ? exact : section;
-  return html`<${TabNav} id=${group.id} label=${group.label} tabs=${tabs.map(([id, label]) => ({ href: '#/' + id, label: label(), current: id === here }))} />`;
+  const phoneChips = phone && group.id === 'models';
+  const here = tabs.some(([id]) => id === exact) ? exact : phoneChips && section === 'jarvis' ? 'voice' : section;
+  return html`<${TabNav} id=${group.id} label=${group.label} phoneChips=${phoneChips}
+    tabs=${tabs.map(([id, label]) => ({ href: '#/' + id, label: phoneChips && id === 'engine' ? t('local.page.moteur') : label(), current: id === here }))} />`;
 }
 
 // Une page de groupe qui accueille un ancien panneau des réglages.

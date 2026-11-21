@@ -190,7 +190,7 @@ export function Menu({ anchor, onClose, items, label, role = 'menu', ...position
       <span class="item-label"><span class="item-title">${it.label}</span>${it.note && html`<small>${it.note}</small>`}</span>
       ${(it.selected || it.current) && html`<${Icon} n="check" class="item-check" />`}`;
     return it.href
-      ? html`<a key=${it.href} ...${props} href=${it.href} aria-current=${it.current ? 'page' : undefined} onClick=${restore}>${content}</a>`
+      ? html`<a key=${it.href} ...${props} href=${it.href} target=${it.target} rel=${it.rel} aria-current=${it.current ? 'page' : undefined} onClick=${restore}>${content}</a>`
       : html`<button key=${it.key ?? i} type="button" ...${props} disabled=${it.disabled}
           aria-selected=${role === 'listbox' ? String(!!it.selected) : undefined}
           onClick=${() => { restore(); it.run(); }}>${content}</button>`;
@@ -209,6 +209,13 @@ export function Menu({ anchor, onClose, items, label, role = 'menu', ...position
         : rows.map(row))}
     </div>
   </${Popover}>`;
+}
+
+export function OverflowMenu({ label, items, disabled }) {
+  const [anchor, setAnchor] = useState(null);
+  return html`<button type="button" class="icon-btn" aria-label=${label} disabled=${disabled}
+    aria-haspopup="menu" aria-expanded=${!!anchor} onClick=${e => setAnchor(e.currentTarget)}><${Icon} n="more" /></button>
+    ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${items} />`}`;
 }
 
 export const Empty = ({ icon, title, text, children }) => html`<div class="empty anim-rise"><${Icon} n=${icon || 'info'} /><h3>${title}</h3>${text && html`<p>${text}</p>`}${children}</div>`;

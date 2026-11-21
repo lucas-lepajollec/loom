@@ -39,6 +39,9 @@ export default {
   "mobile.key_ctrl_c": "Ctrl-C",
   "mobile.terminal_input": "Type in the terminal…",
   "mobile.files_recent": "Recently modified",
+  "mobile.active_agents": { "one": "{n} active", "other": "{n} active" },
+  "mobile.device_notifications": "Notifications on this phone",
+  "mobile.device_notifications_hint": "Receive alerts when an agent needs your reply and for other enabled events.",
 
 "common.command": "Command",
 "common.refresh": "Refresh",
@@ -1175,6 +1178,7 @@ export default {
   "settings.about.engine_paths": "Engine locations ({machine})",
   "settings.page.general": "General",
   "settings.page.machines": "Machines",
+  "settings.page.internet": "Internet",
   "settings.page.moteurs": "Engines",
   "settings.page.securite_et_donnees": "Security and data",
   "settings.page.a_propos": "About",

@@ -206,11 +206,27 @@ try {
         await page.locator('.models-row button.btn.sm', { hasText: /^(Connecter|Connect)$/ }).first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
       }
-      if (scenario === 'phone-layout' && r === 'local') {
-        const trigger = page.locator('.sec-drop .select');
-        if (await trigger.isVisible()) await checkTrigger(trigger, page.getByRole('menu'));
+      if (phone && scenario === 'phone-layout' && r === 'local') {
+        const chips = page.locator('.phone-section-tabs a');
+        await chips.last().waitFor();
+        if (await chips.count() !== 5 || await chips.first().getAttribute('aria-current') !== 'page') throw new Error('Missing model sections');
+        const rows = page.locator('.models-compact-row');
+        await rows.nth(1).waitFor();
+        await checkTrigger(rows.first().locator('[aria-haspopup="menu"]'), page.getByRole('menu'));
+        await rows.last().locator('[aria-haspopup="menu"]').click();
+        await page.getByRole('menuitem', { name: dictionary['local.page.regler'], exact: true }).waitFor();
+        await inspect(page, errors, label + ' model actions');
+        await page.keyboard.press('Escape');
+        await page.locator('.models-phone-download').click();
+        await page.locator('.phone-section-tabs a[href="#/local/hub"][aria-current=page]').waitFor();
+        await page.locator('.phone-back-link[href="#/more"]').click();
+        await page.locator('.more-links').waitFor();
       }
       if (scenario === 'phone-layout' && r === 'agents') {
+        if (phone) {
+          await page.locator('.cm-harness-list li').first().waitFor();
+          await page.locator('.cm-next-runs li').first().waitFor();
+        }
         const rows = page.locator('.cm-session-row');
         await rows.first().waitFor();
         if (await rows.count() !== 8) throw new Error('Agents overview should show eight live sessions');
@@ -235,7 +251,35 @@ try {
         await schedule.click();
         await page.getByRole('option', { name: dictionary['agents.cron.custom'], exact: true }).click();
         await page.locator('.cm-job-editor input[aria-describedby="cm-cron-expression-hint"]').fill('0 9 * * MON-FRI');
-        if (await page.locator('.cm-editor-foot button[type=submit]').isDisabled()) throw new Error('A supported cron expression could not be saved');
+        const submit = page.locator(phone ? '.cm-job-sheet .dialog-foot button[type=submit]' : '.cm-editor-foot button[type=submit]');
+        if (await submit.isDisabled()) throw new Error('A supported cron expression could not be saved');
+        if (phone) {
+          await inspect(page, errors, label + ' schedule editor sheet');
+          await page.keyboard.press('Escape');
+          await page.locator('.cm-job-sheet').waitFor({ state: 'detached' });
+        }
+      }
+      if (phone && scenario === 'phone-layout' && r === 'machines') {
+        await page.locator('.machine-add').click();
+        await page.getByRole('dialog', { name: dictionary['machines.add.title'], exact: true }).waitFor();
+        await inspect(page, errors, label + ' machine pairing sheet');
+        await page.keyboard.press('Escape');
+        await page.locator('.machine-card-link[href="#/machines/' + remote.id + '"]').click();
+        await page.locator('.machine-detail .machine-meters [role=meter]').first().waitFor();
+        await checkTrigger(page.locator('.machine-detail-controls button[aria-haspopup=menu]'), page.getByRole('menu'));
+        await inspect(page, errors, label + ' machine detail');
+        await page.locator('.phone-back-link[href="#/machines"]').click();
+        await page.locator('.machine-card-link').first().waitFor();
+      }
+      if (phone && scenario === 'phone-layout' && r === 'settings') {
+        await page.locator('.phone-settings').waitFor();
+        await inspect(page, errors, label + ' quick settings');
+        await checkTrigger(page.getByRole('button', { name: dictionary['settings.language.label'], exact: true }), page.getByRole('listbox'));
+        await page.locator('.phone-setting-link[href="#/settings/notifications"]').click();
+        await page.locator('.phone-back-link[href="#/settings"]').click();
+        await page.locator('.phone-settings').waitFor();
+        await page.locator('.phone-back-link[href="#/more"]').click();
+        await page.locator('.phone-tabs a[href="#/more"][aria-current=page]').waitFor();
       }
       if (scenario === 'phone-layout' && r === 'agents/settings') {
         await page.locator('.cm-cfg-body .set-group').first().waitFor();

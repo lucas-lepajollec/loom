@@ -3,7 +3,7 @@ import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { app, go, refreshEngineNode, refreshLibrary, refreshStatus, refreshWorkspace } from '../../core/state.js';
 import { Icon } from '../../ui/icons.js';
-import { Menu, Switch } from '../../ui/controls.js';
+import { OverflowMenu, Switch } from '../../ui/controls.js';
 import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
 import { FolderPicker } from '../../ui/folder.js';
 import { api as codemanAPI } from '../agents/client.js';
@@ -39,9 +39,8 @@ function FilesRoot({ machine, available, revision }) {
   </div>`;
 }
 
-function Bricks({ machine, roles, revision, onChange, codemanStatus }) {
+function Bricks({ machine, roles, revision, onChange, codemanStatus, phone }) {
   const isLocal = machine.id === 'local';
-  const engine = useStore(app, s => s.engineNode);
   const [busy, setBusy] = useState('');
   const [direct, setDirect] = useState(false);
   const [codemanURL, setCodemanURL] = useState('');
@@ -72,32 +71,41 @@ function Bricks({ machine, roles, revision, onChange, codemanStatus }) {
     }
   };
   return html`<${MachineSection} title=${t('settings.machines.bricks')}>
-    ${machineBricks(machine, roles).map(brick => html`<div class="machine-row machine-brick-row" key=${brick.id}>
-      <span class="logo-mark sm machine-icon" aria-hidden="true"><${Icon} n=${brick.icon} /></span>
-      <div class="machine-row-text">
-        <b>${brick.label}</b>
-        <small class=${cls(brick.provided && 'machine-provides')}>${brick.provided
-          ? t('settings.machines.brick_provides') : brick.reason ? t('settings.machines.brick_unavailable') : t('settings.machines.brick_available')}</small>
-        ${brick.reason && html`<small>${brick.reason}</small>`}
-        ${brick.id === 'files' && html`<${FilesRoot} machine=${target} available=${!brick.reason} revision=${revision} />`}
-        ${brick.id === 'codeman' && brick.provided && codemanStatus?.auth !== 'ok' && codemanStatus
-          && html`<small>${t('agents.conn.unreachable')}</small>`}
-      </div>
-      <div class="machine-actions">
-        ${brick.id === 'files' && html`<a class="btn sm" href="#/files">${t('settings.machines.open_files')}</a>`}
-        ${brick.id === 'engine' && (brick.provided
-          ? html`<a class="btn sm" href="#/engine">${t('settings.machines.reglages_du_moteur')}</a>
-            ${!isLocal && html`<button class="btn sm" disabled=${!!busy} onClick=${() => assign('engine', true)}>${t('settings.machines.ne_plus_l_utiliser')}</button>`}`
-          : !isLocal && machine.host && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t('settings.machines.link_server')}</button>`)}
-        ${brick.id === 'codeman' && brick.provided && html`<a class="btn sm" href="#/agents">${t('agents.setup.open_agents')}</a>`}
-        ${brick.provided ? html`<span class="state"><i class="dot green"></i>${t('settings.machines.machine_used')}</span>`
-          : html`<button class="btn sm" disabled=${!!brick.reason || !!busy} onClick=${() => assign(brick.id)}>
-            ${busy === brick.id ? t('settings.machines.verification') : t('settings.machines.use_machine')}
-          </button>`}
-      </div>
-    </div>`)}
+    ${machineBricks(machine, roles).map(brick => {
+      const actions = [];
+      if (brick.id === 'files') actions.push({ href: '#/files', label: t('settings.machines.open_files') });
+      if (brick.id === 'codeman' && brick.provided) actions.push({ href: '#/agents', label: t('agents.setup.open_agents') });
+      if (brick.id === 'engine' && brick.provided) {
+        actions.push({ href: '#/engine', label: t('settings.machines.reglages_du_moteur') });
+        if (!isLocal) actions.push({ label: t('settings.machines.ne_plus_l_utiliser'), disabled: !!busy, run: () => assign('engine', true) });
+      }
+      if (brick.id === 'engine' && !brick.provided && !isLocal && machine.host) {
+        actions.push({ label: t('settings.machines.link_server'), run: () => setDirect(true) });
+      }
+      const use = brick.provided ? !phone && html`<span class="state"><i class="dot green"></i>${t('settings.machines.machine_used')}</span>`
+        : html`<button class="btn sm" disabled=${!!brick.reason || !!busy} onClick=${() => assign(brick.id)}>
+          ${busy === brick.id ? t('settings.machines.verification') : phone ? t('resources.sem.use') : t('settings.machines.use_machine')}
+        </button>`;
+      return html`<div class="machine-row machine-brick-row" key=${brick.id}>
+        ${!phone && html`<span class="logo-mark sm machine-icon" aria-hidden="true"><${Icon} n=${brick.icon} /></span>`}
+        <div class="machine-row-text">
+          <b>${brick.label}</b>
+          <small class=${cls(brick.provided && 'machine-provides')}>${brick.provided
+            ? phone ? t('settings.machines.machine_used') : t('settings.machines.brick_provides')
+            : brick.reason ? t('settings.machines.brick_unavailable') : t('settings.machines.brick_available')}</small>
+          ${brick.reason && html`<small>${brick.reason}</small>`}
+          ${brick.id === 'files' && html`<${FilesRoot} machine=${target} available=${!brick.reason} revision=${revision} />`}
+          ${brick.id === 'codeman' && brick.provided && codemanStatus?.auth !== 'ok' && codemanStatus
+            && html`<small>${t('agents.conn.unreachable')}</small>`}
+        </div>
+        <div class="machine-actions">
+          ${phone ? html`${use}${actions.length > 0 && html`<${OverflowMenu} label=${t('models.row.actions', { name: brick.label })} items=${actions} />`}`
+            : html`${actions.map(action => action.href ? html`<a class="btn sm" href=${action.href}>${action.label}</a>`
+              : html`<button class="btn sm" disabled=${action.disabled} onClick=${action.run}>${action.label}</button>`)}${use}`}
+        </div>
+      </div>`;
+    })}
   </${MachineSection}>
-  ${roles?.engine === target && (isLocal ? !engine : engine && !engine.direct) && html`<${ModelDirs} key=${engine?.url || 'local'} />`}
   ${direct && html`<${DirectEngineForm} start=${'http://' + addressWithPort(machine.host, 8080)}
     dialog=${{ title: t('settings.machines.lier_son_serveur_llama_cpp_vllm'), sub: machine.name, onClose: () => setDirect(false) }}
     onDone=${() => { setDirect(false); onChange(); }} />`}
@@ -252,9 +260,9 @@ function WorkingFolders({ machine, onChange }) {
   </${MachineSection}>`;
 }
 
-export function MachineDetail({ machine, metric, roles, clis, codemanStatus, terminals, names, test, onTest, onEdit, onChange, revision }) {
+export function MachineDetail({ machine, metric, roles, clis, codemanStatus, terminals, names, test, onTest, onEdit, onChange, revision, phone }) {
   const loom = useMachineLoom(machine, metric, revision, true);
-  const [anchor, setAnchor] = useState(null);
+  const engine = useStore(app, s => s.engineNode);
   const isLocal = machine.id === 'local';
   const address = isLocal ? location.host : loom.node?.url || machine.host;
   const remove = async () => {
@@ -274,34 +282,38 @@ export function MachineDetail({ machine, metric, roles, clis, codemanStatus, ter
     '-',
     { icon: 'trash', label: t('settings.machines.retirer_2'), danger: true, run: remove },
   ];
+  const resources = html`<${MachineSection} title=${t('settings.machines.resources')}><div class="machine-resource-body"><${ResourceMeters} metric=${metric} detailed /></div></${MachineSection}>`;
+  const version = html`<${MachineVersion} machine=${machine} loom=${loom} />`;
   return html`
-    <${MachinesBack} />
+    ${!phone && html`<${MachinesBack} />`}
     <header class="machine-detail-head">
       <div class="machine-detail-identity">
-        <span class="logo-mark machine-icon" aria-hidden="true"><${Icon} n="server" /></span>
+        ${!phone && html`<span class="logo-mark machine-icon" aria-hidden="true"><${Icon} n="server" /></span>`}
         <div class="machine-row-text">
-          <h1>${machine.name}</h1>
+          <h1 class=${phone ? 'phone-management-title' : undefined}>${machine.name}</h1>
           <div class="machine-card-tags">
-            ${isLocal && html`<span class="machine-interface">${t('settings.machines.interface')}</span>`}
+            ${isLocal && !phone && html`<span class="machine-interface">${t('settings.machines.interface')}</span>`}
             <${MachineStatus} machine=${machine} metric=${metric} loom=${loom} test=${test} />
+            ${phone && version}
             ${!isLocal && html`<span class="tag" title=${machine.user ? t('machines.ssh.card_note') : t('machines.pair.card_note')}>${machine.user ? t('machines.link.ssh') : t('machines.link.paired')}</span>`}
           </div>
           <small class="mono">${[address, machine.os].filter(Boolean).join(' · ')}</small>
         </div>
       </div>
       <div class="machine-detail-controls">
-        <${MachineVersion} machine=${machine} loom=${loom} />
+        ${!phone && version}
         <div class="machine-actions">
           <${MachineTerminalButton} machine=${machine} />
-          <button class="icon-btn" type="button" aria-label=${t('settings.machines.more_actions')} aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="more" /></button>
-          ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${items} />`}
+          <${OverflowMenu} label=${t('settings.machines.more_actions')} items=${items} />
         </div>
       </div>
     </header>
-    <${Bricks} machine=${machine} roles=${roles} revision=${revision} onChange=${onChange} codemanStatus=${codemanStatus} />
+    <${Bricks} machine=${machine} roles=${roles} revision=${revision} onChange=${onChange} codemanStatus=${codemanStatus} phone=${phone} />
+    ${phone && resources}
+    ${roles?.engine === machine.id && (isLocal ? !engine : engine && !engine.direct) && html`<${ModelDirs} key=${engine?.url || 'local'} />`}
     <${MachineAgents} machine=${machine} clis=${clis} onChange=${onChange} />
     <${MachineConnection} machine=${machine} node=${loom.node} onChange=${onChange} />
-    <${MachineSection} title=${t('settings.machines.resources')}><div class="machine-resource-body"><${ResourceMeters} metric=${metric} detailed /></div></${MachineSection}>
+    ${!phone && resources}
     <${WorkingFolders} machine=${machine} onChange=${onChange} />
     <${MachineTerminals} machine=${machine} terminals=${terminals} names=${names} />
   `;

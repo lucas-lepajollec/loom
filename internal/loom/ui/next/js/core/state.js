@@ -73,12 +73,21 @@ export function phoneTab({ section, sub }) {
   return '';
 }
 
+export function phoneParent({ section, sub }) {
+  if (section === 'machines' && sub) return 'machines';
+  if (section === 'settings' && sub) return 'settings';
+  if (section === 'agents' && ['s', 'grid'].includes(sub)) return '';
+  return ['local', 'cloud', 'voice', 'jarvis', 'engine', 'agents', 'machines', 'settings'].includes(section) ? 'more' : '';
+}
+
 export function phoneBack() {
+  const route = app.get().route;
+  const destination = phoneParent(route);
+  if (destination) return go(destination);
   if (history.state?.loomBack) return history.back();
-  const { section, sub, id } = app.get().route;
+  const { section, sub, id } = route;
   const session = section === 'chat' || (section === 'agents' && ['s', 'grid'].includes(sub));
-  const subpage = section === 'files' ? id : ['agents', 'settings'].includes(section) && sub;
-  const parent = session ? 'sessions' : subpage ? section : 'more';
+  const parent = session ? 'sessions' : section === 'files' && id ? 'files' : 'more';
   history.replaceState({ ...history.state, loomBack: false }, '', '#/' + parent);
   app.set({ route: parseRoute(), inspector: false, phoneDraft: null, voiceMode: null });
 }

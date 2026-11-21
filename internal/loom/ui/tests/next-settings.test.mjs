@@ -48,7 +48,7 @@ function harness(source, view, overrides = {}) {
       const i = cursor++, old = slots[i];
       if (!old || deps.some((v, j) => !Object.is(v, old[j]))) { slots[i] = deps; effects.push(fn); }
     },
-    useStore: (_store, select) => select(env.state),
+    useStore: (_store, select) => select(env.state), usePhone: () => false,
     state: { status: null, models: [], presets: [] }, app: { get: () => ({}), set: () => {} },
     vendorOf: () => 'Autres', Logo: 'Logo', Modal: 'Modal',
     navigator: { userAgent: 'Synthetic browser' }, window: { isSecureContext: false },
@@ -428,13 +428,21 @@ test('each saved machine node updates through its own endpoint, independent of t
   }
 });
 
-test('mobile Settings opens its index, follows section links and returns without mounting hidden forms', () => {
-  let media = { matches: true, addEventListener: (_name, fn) => media.change = fn, removeEventListener: () => {} };
-  const h = harness(settings, 'SettingsPage', { window: { matchMedia: () => media }, WorkspaceManager: 'WorkspaceManager', MachinesSettings: 'MachinesSettings', StartupSettings: 'StartupSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings' });
+test('mobile Settings opens quick controls and links to each settings detail', () => {
+  let phone = true;
+  const h = harness(settings, 'SettingsPage', { usePhone: () => phone });
   let tree = h.render({ route: { sub: '' } });
-  assert.equal(nodes(tree, 'nav').length, 1);
-  assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
-  const links = nodes(tree, 'a');
+  const home = flatten(tree).find(n => n.type?.name === 'PhoneSettings');
+  assert.ok(home);
+  assert.ok(!flatten(tree).some(n => n.type?.name === 'General'));
+  const index = harness(settings, 'PhoneSettings', { AbortController, readNotificationSettings: async () => ({ ok: false }) });
+  const page = index.render(home.props);
+  assert.equal(nodes(page, 'nav').length, 1);
+  assert.equal(nodes(page, 'Seg').length, 1);
+  assert.equal(nodes(page, 'ListPick').length, 1);
+  assert.ok(flatten(page).some(n => n.type?.name === 'DefaultChoice' && n.props.phone));
+  assert.ok(flatten(page).some(n => n.type?.name === 'PushNotifications' && n.props.phone));
+  const links = nodes(page, 'a');
   assert.equal(links.length, 8);
   for (const moved of ['Agents', 'API']) assert.ok(!links.some(n => textOf(n).trim() === moved), moved + ' lives on its own page');
   assert.equal(links.find(n => textOf(n).includes('Démarrage')).props.href, '#/settings/startup');
@@ -442,12 +450,11 @@ test('mobile Settings opens its index, follows section links and returns without
   assert.equal(links.find(n => textOf(n).includes('Internet')).props.href, '#/settings/internet');
   tree = h.render({ route: { sub: 'internet' } });
   assert.equal(nodes(tree, 'nav').length, 0);
-  assert.equal(nodes(tree, 'a')[0].props.href, '#/settings');
+  assert.ok(flatten(tree).some(n => n.type?.name === 'Internet'));
   assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Internet');
   tree = h.render({ route: { sub: 'unknown' } });
-  assert.equal(nodes(tree, 'nav').length, 1);
-  assert.equal(flatten(tree).filter(n => n.props?.class === 'set-body').length, 0);
-  media.matches = false; media.change();
+  assert.ok(flatten(tree).some(n => n.type?.name === 'PhoneSettings'));
+  phone = false;
   tree = h.render({ route: { sub: 'internet' } });
   assert.equal(nodes(tree, 'nav').length, 1);
   assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Réglages');

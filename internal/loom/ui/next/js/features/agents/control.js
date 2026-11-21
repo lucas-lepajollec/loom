@@ -71,7 +71,7 @@ function Sessions({ list, loaded }) {
   </section>`;
 }
 
-function ServerCard({ counts, update }) {
+function ServerCard({ counts, update, phone }) {
   const conn = useStore(agents, s => s.conn);
   const live = useStore(agents, s => s.live);
   const [anchor, setAnchor] = useState(null);
@@ -94,20 +94,25 @@ function ServerCard({ counts, update }) {
   const version = conn.version || update?.currentVersion || '';
   const host = conn.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const status = live ? t('agents.admin.connected', { host }) : [host, t('agents.conn.connecting')].filter(Boolean).join(' · ');
+  const updateStatus = update?.updateAvailable ? t('agents.admin.available', { v: update.latestVersion })
+    : update?.updateAvailable === false && !update.error && update.latestVersion ? t('agents.admin.current') : '';
+  const updateLabel = submitted ? t('agents.admin.update_started') : t('agents.admin.update');
   return html`<section class="cm-server">
     <i class=${cls('dot', live ? 'green' : 'amber')}></i>
     <div class="cm-server-info"><b>${t('agents.admin.server', { v: version })}</b>
-      <small>${[status, ...counts].join(' · ')}</small></div>
+      <small>${[status, ...counts].join(' · ')}</small>
+      ${phone && updateStatus && html`<small>${updateStatus}</small>`}</div>
     <div class="cm-server-actions">
-      ${update?.updateAvailable && html`<span class="muted">${t('agents.admin.available', { v: update.latestVersion })}</span>`}
-      ${update?.updateAvailable === false && !update.error && update.latestVersion && html`<span class="muted">${t('agents.admin.current')}</span>`}
-      ${canUpdate && html`<button class="btn sm primary" disabled=${updating || submitted} onClick=${apply}>
-        ${submitted ? t('agents.admin.update_started') : t('agents.admin.update')}</button>`}
-      ${link && html`<a class="btn sm cm-server-link" href=${link} target="codeman" rel="noopener" aria-label=${t('agents.official')} title=${t('agents.official')}><span>${t('agents.official')}</span><${Icon} n="link" /></a>`}
-      <button class="icon-btn" aria-label=${t('agents.admin.server_menu')} aria-expanded=${!!anchor} onClick=${e => setAnchor(e.currentTarget)}><${Icon} n="more" /></button>
+      ${!phone && html`
+        ${updateStatus && html`<span class="muted">${updateStatus}</span>`}
+        ${canUpdate && html`<button class="btn sm primary" disabled=${updating || submitted} onClick=${apply}>${updateLabel}</button>`}
+        ${link && html`<a class="btn sm cm-server-link" href=${link} target="codeman" rel="noopener" aria-label=${t('agents.official')} title=${t('agents.official')}><span>${t('agents.official')}</span><${Icon} n="link" /></a>`}`}
+      <button class="icon-btn" aria-label=${t('agents.admin.server_menu')} aria-haspopup="menu" aria-expanded=${!!anchor} onClick=${e => setAnchor(e.currentTarget)}><${Icon} n="more" /></button>
     </div>
     ${anchor && html`<${Menu} anchor=${anchor} onClose=${() => setAnchor(null)} items=${[
-      ...(innerWidth > 760 ? [{ label: t('agents.nav.grid'), icon: 'grid', run: () => go('agents', 'grid') }] : []),
+      ...(!phone ? [{ label: t('agents.nav.grid'), icon: 'grid', run: () => go('agents', 'grid') }] : []),
+      ...(phone && link ? [{ label: t('agents.official'), icon: 'link', href: link, target: 'codeman', rel: 'noopener' }] : []),
+      ...(phone && canUpdate ? [{ label: updateLabel, icon: 'download', disabled: updating || submitted, run: apply }] : []),
       { label: t('agents.setup.change'), icon: 'plug', run: () => setChange(true) },
       { label: t('agents.setup.disconnect'), danger: true, run: disconnectServer },
     ]} />`}
@@ -117,7 +122,7 @@ function ServerCard({ counts, update }) {
   </section>`;
 }
 
-function HarnessTable({ list, loaded }) {
+function HarnessTable({ list, loaded, phone }) {
   const clis = useStore(agents, s => s.clis);
   const manage = useStore(agents, s => s.settings.cliManagementEnabled === true && (!s.conn.multi_user || s.conn.role !== 'user'));
   const harnesses = clis.filter(c => c.kind !== 'shell');
@@ -125,9 +130,18 @@ function HarnessTable({ list, loaded }) {
   for (const { s, state } of list) {
     if (s.pid != null && !['error', 'stopped'].includes(state)) counts.set(s.mode, (counts.get(s.mode) || 0) + 1);
   }
+  const installation = cli => cli.installed === true ? t('agents.caps.installed')
+    : canInstall(cli) ? html`<${InstallCli} cli=${cli} manage=${manage} />`
+    : cli.installed === false ? t('agents.new.not_installed') : '—';
   return html`<section class="cm-cc-sec">
     <h2>${t('agents.admin.harness')}</h2>
     ${!harnesses.length ? html`<p class="cm-admin-empty">${loaded ? t('agents.admin.no_registry') : t('agents.conn.connecting')}</p>`
+      : phone ? html`<ul class="cm-harness-list">${harnesses.map(c => {
+        const count = counts.get(c.id) || 0;
+        return html`<li key=${c.id}><span class="cm-harness-name"><${CliMark} mode=${c.id} size="sm" /><span>${c.label}</span></span>
+          ${(c.installed === true || count > 0) && html`<span class="cm-harness-active">${t('mobile.active_agents', { n: count })}</span>`}
+          ${c.installed !== true && html`<span class="cm-harness-install">${installation(c)}</span>`}</li>`;
+      })}</ul>`
       : html`<table class="cm-harness"><thead><tr>
         <th scope="col">${t('agents.admin.harness')}</th>
         <th scope="col" class="cm-harness-count">${t('agents.admin.active_sessions')}</th>
@@ -135,11 +149,7 @@ function HarnessTable({ list, loaded }) {
       </tr></thead><tbody>${harnesses.map(c => html`<tr key=${c.id}>
         <th scope="row"><span class="cm-harness-name"><${CliMark} mode=${c.id} size="sm" /><span>${c.label}</span></span></th>
         <td class="cm-harness-count">${counts.get(c.id) || 0}</td>
-        <td class="cm-harness-action">
-          ${c.installed === true ? t('agents.caps.installed')
-            : canInstall(c) ? html`<${InstallCli} cli=${c} manage=${manage} />`
-            : c.installed === false ? t('agents.new.not_installed') : '—'}
-        </td>
+        <td class="cm-harness-action">${installation(c)}</td>
       </tr>`)}</tbody></table>`}
   </section>`;
 }
@@ -211,7 +221,7 @@ export function RestoreBanner() {
   </section>`;
 }
 
-export function ControlCenter() {
+export function ControlCenter({ phone }) {
   const order = useStore(agents, s => s.order);
   const sessions = useStore(agents, s => s.sessions);
   const approvals = useStore(agents, s => s.approvals);
@@ -244,22 +254,25 @@ export function ControlCenter() {
   if (jobs) counts.push(t('agents.admin.scheduled', { n: jobs.filter(j => j.enabled).length }));
   const next = (jobs || []).filter(j => j.enabled && j.nextRunAt).sort((a, b) => a.nextRunAt - b.nextRunAt).slice(0, 4);
   const fmt = ms => new Date(ms).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-  return html`<div class="cm-scroll"><div class="cm-cc">
-    <${RestoreBanner} />
-    <${Sessions} list=${list} loaded=${loaded} />
-    <${ServerCard} key=${conn.url} counts=${counts} update=${update} />
-    <section class="cm-cc-sec">
+  const liveSections = html`<${RestoreBanner} key="restore" /><${Sessions} key="live" list=${list} loaded=${loaded} />`;
+  const attention = html`<section class="cm-cc-sec" key="attention">
       <h2>${t('agents.cc.attention')}</h2>
       ${approvals.length ? html`<ul class="cm-cc-list">${[...pending, ...approvals.filter(a => a.kind === 'idle')].map(a => html`<${ApprovalRow} key=${a.id} a=${a} />`)}</ul>`
         : html`<p class="cm-admin-empty">${loaded ? t('agents.cc.nothing') : t('agents.conn.connecting')}</p>`}
-    </section>
-    <${HarnessTable} list=${list} loaded=${loaded} />
+    </section>`;
+  return html`<div class="cm-scroll"><div class="cm-cc">
+    ${!phone && liveSections}
+    <${ServerCard} key=${conn.url} counts=${counts} update=${update} phone=${phone} />
+    ${!phone && attention}
+    <${HarnessTable} list=${list} loaded=${loaded} phone=${phone} />
     <section class="cm-cc-sec">
       <div class="cm-section-head"><h2>${t('agents.cc.next')}</h2><a href="#/agents/cron">${t('agents.cc.all_cron')}</a></div>
       ${error && html`<p class="msg-err">${error}</p>`}
       ${next.length ? html`<ul class="cm-next-runs">${next.map(j => html`<li key=${j.id}><b>${j.name}</b><span>${cliOf(j.agentType).label} · ${schedule(j)}</span><time>${fmt(j.nextRunAt)}</time></li>`)}</ul>`
         : !error && html`<p class="cm-admin-empty">${jobs ? t('agents.cc.no_next') : t('agents.conn.connecting')}</p>`}
     </section>
+    ${phone && liveSections}
+    ${phone && attention}
     <${ResumeList} sessions=${sessions} />
   </div></div>`;
 }

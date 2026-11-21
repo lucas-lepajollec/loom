@@ -7,6 +7,12 @@ export function BackButton() {
   return html`<button type="button" class="icon-btn phone-back" aria-label=${t('mobile.back')} onClick=${phoneBack}><${Icon} n="left" /></button>`;
 }
 
+export function PhoneBackLink({ parent }) {
+  const label = parent === 'machines' ? t('settings.machines.machines')
+    : parent === 'settings' ? t('settings.page.reglages') : t('mobile.more');
+  return html`<a class="phone-back-link" href=${'#/' + parent}><${Icon} n="left" />${label}</a>`;
+}
+
 export function PhoneTabs({ route, count }) {
   const active = phoneTab(route);
   if (!active) return null;

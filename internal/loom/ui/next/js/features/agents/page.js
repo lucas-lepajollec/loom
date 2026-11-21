@@ -159,10 +159,10 @@ function LayoutPicker({ currentId }) {
 }
 
 const SUBS = ['', 'cron', 'settings'];
-function Top({ sub }) {
+function Top({ sub, phone }) {
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v), current: sub === v }));
   return html`<header class="cm-admin-top">
-    <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} />
+    <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} phoneChips=${phone} />
   </header>`;
 }
 
@@ -192,11 +192,11 @@ export function AgentsPage({ route }) {
   const gate = html`<div class="cm-gate">${state === 'idle' || state === 'connecting' ? html`<div class="cm-gate-in"><span class="spinner"></span><p class="muted">${t('agents.conn.connecting')}</p></div>` : html`<${ConnectionPanel} gate />`}</div>`;
   return html`<div class="view cm">
     ${narrowView && work && (!hasSession || gated) && html`<header class="phone-subhead"><${BackButton} /><b>${t('agents.title')}</b></header>`}
-    ${!work && html`<${Top} sub=${sub} />`}
+    ${!work && html`<${Top} sub=${sub} phone=${narrowView} />`}
     ${gated ? gate
       : work ? html`<${Workspace} route=${route} />`
-      : sub === 'cron' ? html`<${CronPage} key=${server} />`
+      : sub === 'cron' ? html`<${CronPage} key=${server} phone=${narrowView} />`
       : sub === 'settings' ? html`<div class="cm-scroll"><${CodemanSettings} /></div>`
-      : html`<${ControlCenter} key=${server} />`}
+      : html`<${ControlCenter} key=${server} phone=${narrowView} />`}
   </div>`;
 }
