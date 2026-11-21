@@ -148,9 +148,6 @@ export function refreshUnified() {
   clearTimeout(unifiedTimer);
   unifiedTimer = setTimeout(() => loadHistory().catch(() => {}), 600);
 }
-export async function refreshApprovals() {
-  try { const r = await api.approvals(); agents.set({ approvals: r?.approvals || [] }); } catch (_) {}
-}
 
 // ---------- événements ----------
 const sessionFrom = d => d && (d.session && d.session.id ? d.session : d.id ? d : null);

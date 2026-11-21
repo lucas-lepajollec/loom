@@ -185,7 +185,7 @@ try {
         await page.waitForTimeout(100);
       }
       if (scenario === 'phone-layout' && r === 'cloud') {
-        await page.locator('.models-row button.btn.sm').first().click(); await page.locator('.dialog').waitFor();
+        await page.locator('.models-row button.btn.sm', { hasText: /^(Connecter|Connect)$/ }).first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
       }
       if (scenario === 'phone-layout' && r === 'local') {

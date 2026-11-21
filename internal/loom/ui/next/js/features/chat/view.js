@@ -56,7 +56,6 @@ function ChatTitle() {
 }
 
 // Le mode vocal remplace la discussion le temps de l'échange avec Jarvis.
-function voiceDiscussion() { return chat.get().sessionId || (app.get().nav && app.get().nav.active) || ''; }
 export function ChatView() {
   const insp = useStore(app, s => s.inspector);
   const toggle = () => { const v = !app.get().inspector; if (innerWidth > 1100) { try { localStorage.setItem('loom.next.insp', v ? '1' : '0'); } catch (_) {} } app.set({ inspector: v }); };

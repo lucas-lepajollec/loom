@@ -7,7 +7,6 @@ export function validShape(value, shape) {
   if (isObject(shape)) return isObject(value) && Object.entries(shape).every(([k, s]) => !(k in value) || validShape(value[k], s));
   return shape === null ? value === null || isObject(value) : typeof value === typeof shape;
 }
-
 // Partial store writes preserve each last valid field, including nested lists.
 export function shapePatch(previous, patch, schema = previous) {
   if (!isObject(patch)) return {};
@@ -18,7 +17,6 @@ export function shapePatch(previous, patch, schema = previous) {
   }
   return accepted;
 }
-
 // Explicit read contracts; opaque model/tool payloads and JSON schemas are not
 // recursively interpreted as Loom collections. Null optional Go slices remain
 // valid (consumers already use an empty list for those fields).
@@ -54,31 +52,27 @@ const shapes = {
   '/api/machines/local': { gpus: rows, harnesses: strings }, '/api/machines/metrics': { metrics: null },
   '/api/machines/discover': { nodes: rows }, '/api/machines/folders': { folders: strings },
   '/api/terminals': { terminals: rows }, '/api/previews': { previews: rows },
-  '/api/tasks': { tasks: list(value => validShape(value, { status: '', requests: rows }) && typeof value.status === 'string') },
   '/api/server': { slots: optional({ items: rows }) }, '/api/voice/download/status': { download: null },
   '/api/voice': { engine: null, config: null, service: null, download: null },
   '/api/voice/packs': { packs: rows }, '/api/voice/models': { models: list({ id: '', languages: strings }) },
   '/api/voice/node': { machines: rows }, '/api/voice/jarvis': { routes: rows, voice: null },
   '/api/usage': { models: rows, quotas: list({ windows: rows }) }, '/api/usage/providers': { providers: rows },
-  '/api/brain/sources': { sources: list({ include: strings, exclude: strings }) }, '/api/brain/search': { hits: list({ heading: strings, highlights: rows, snippet: '' }) }, '/api/brain/read': { heading: strings, text: '' },
-  '/api/brain/memory': { items: list({ name: '', description: '', text: '' }) }, '/api/brain/memory/status': { last_operations: rows }, '/api/brain/semantic': { models: rows },
-  '/api/skills/home': { detected: rows }, '/api/skills/home/adopt': { copied: strings, conflicts: strings },
+'/api/brain/memory/status': { last_operations: rows }, '/api/brain/semantic': { models: rows },
+  '/api/skills/home': { detected: rows },
   '/api/skills/sources': { sources: rows, suggested: rows },
   '/api/mcp': { servers: list(value => validShape(value, { args: strings, tools: rows, disabled: strings }) && typeof value.name === 'string') },
   '/api/mcp/portable': { servers: rows }, '/api/mcp/gateway': {}, '/api/mcp/sources': { sources: list({ servers: list({ env_names: strings, header_names: strings }) }), suggested: rows }, '/api/mcp/sources/adopt': { env_to_fill: strings },
   '/api/engine/params': { params: list({ choices: list([]) }) }, '/api/model-caps': { mmproj: strings, effort: strings },
   '/api/hub/search': { models: list(value => validShape(value, {}) && typeof value.id === 'string') }, '/api/hub/model': { files: list(value => validShape(value, {}) && typeof value.name === 'string') }, '/api/models/dirs': { dirs: rows },
-  '/api/env/services': { services: rows }, '/api/env/matrix': { results: rows }, '/api/env/docker': { containers: rows }, '/api/env/proxmox/resources': { resources: rows },
-  '/api/bench/tests': { tests: rows }, '/api/bench/catalog': { models: list(choice) }, '/api/bench/queue': { job: optional({ rows }), rows }, '/api/bench/runs': { runs: list({ rows }) },
+  '/api/bench/tests': { tests: rows },'/api/bench/queue': { job: optional({ rows }), rows }, '/api/bench/runs': { runs: list({ rows }) },
   '/api/engines/vllm': { job: '', download: null }, '/api/engines/vllm/download': { download: null }, '/api/engines/vllm/models': { models: rows }, '/api/engines/vllm/hub/search': { models: rows }, '/api/engines/vllm/params': { params: list({ choices: list([]) }), values: {} },
   '/api/policy': { rules: list(value => validShape(value, { conditions: optional({ command_prefixes: strings }) }) && typeof value.id === 'string') }, '/api/policy/audit': { entries: rows }, '/api/doctor/run': { checks: rows },
-  '/api/startup': { services: rows, engines: optional({ vllm_models: strings }) }, '/api/https': { urls: strings }, '/api/fs/dirs': { dirs: list({ name: '' }), path: '' },
+  '/api/startup': { services: rows, engines: optional({ vllm_models: strings }) }, '/api/https': { urls: strings },
   '/api/mem/snapshots': { snapshots: rows }, '/api/llamacpp/job': { lines: strings }, '/api/prefs': { prefs: {} },
   '/api/discussion/events': eventShape,
   '/api/runtime/sessions/preview': { preview: optional({ messages: rows, context: optional(context) }) },
   '/api/notify': { config: optional({ rules: optional({ events: strings }) }) },
   '/api/backends/devices': { devices: rows },
-  '/api/context/preferences': { selection: optional({ page: '', external: false }) },
 };
 export function validData(value, url = '') {
   if (value?.ok === false) return false;
@@ -87,7 +81,7 @@ export function validData(value, url = '') {
   // GET and link/unlink return the selected node. Preserve both contracts.
   if (path === '/api/engine/node' && isObject(value) && !('remote' in value) && typeof value.kind === 'string') return validShape(value.models, ['']);
   let shape = shapes[path] || {};
-  const required = { '/api/workspace': ['models', 'runtimes', 'projects', 'providers', 'capabilities'], '/api/status': ['active'], '/api/ping': ['version'], '/api/engine/node': ['remote'], '/api/chat/history': ['conversations', 'projects'], '/api/usage': ['models', 'quotas'], '/api/usage/providers': ['providers'], '/api/engines/vllm/models': ['models', 'cache'], '/api/engines/vllm/download': ['download'], '/api/tasks': ['tasks'], '/api/fs/dirs': ['path', 'dirs'] }[path];
+  const required = { '/api/workspace': ['models', 'runtimes', 'projects', 'providers', 'capabilities'], '/api/status': ['active'], '/api/ping': ['version'], '/api/engine/node': ['remote'], '/api/chat/history': ['conversations', 'projects'], '/api/usage': ['models', 'quotas'], '/api/usage/providers': ['providers'], '/api/engines/vllm/models': ['models', 'cache'], '/api/engines/vllm/download': ['download'] }[path];
   if (required && (!isObject(value) || !required.every(k => k in value))) return false;
   if (path === '/api/runtime/sessions' && (!isObject(value) || !('session' in value || 'sessions' in value))) return false;
   if (/^\/api\/runtime\/sessions\/(create|select|local|configure|continue|compact|import)$/.test(path)) shape = shapes['/api/runtime/sessions'];

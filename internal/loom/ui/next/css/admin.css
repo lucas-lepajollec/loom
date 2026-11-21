@@ -587,17 +587,6 @@
 }
 
 /* Voice service status */
-.mc-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: none;
-  background: var(--text-4);
-}
-
-.mc-dot.green {
-  background: var(--green);
-}
 
 /* ---------- Voix & Jarvis (deux colonnes) ---------- */
 .vx-engine {

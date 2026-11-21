@@ -262,25 +262,6 @@ export function DirectEngineForm({ start, onDone, dialog }) {
   </div>`;
 }
 
-// Où tourne le moteur : sur cette machine, celui d'un autre Loom (Réglages ›
-// Machines) ou un serveur d'inférence lié directement par son adresse.
-export function EngineLocation() {
-  const node = useStore(app, a => a.engineNode);
-  const [direct, setDirect] = useState(false);
-  const unlink = async () => {
-    if (!await confirm(t("settings.page.revenir_au_moteur_de_cette_machine"), t("settings.page.loom_n_utilisera_plus_le_moteur_de") + node.hostname + t("settings.page.rien_n_est_modifie_sur_cette_machine_la"), { ok: t("settings.page.revenir") })) return;
-    await post('/api/engine/node', { unlink: true });
-    await refreshEngineNode(); refreshStatus(); refreshLibrary();
-  };
-  return html`<${Group} title="${t("settings.page.emplacement_du_moteur")}">
-    <${Line} label="${t("settings.page.le_moteur_tourne")}" tip="${t("settings.page.sur_cette_machine_sur_une_machine_ou_loom_est_installe_reglages_m")}">
-      ${node ? html`<span class="state"><i class=${'dot ' + (node.reachable ? 'green' : 'red')}></i>${node.direct ? KIND_LABEL[node.kind] + t("settings.page.sur") : t("settings.page.sur_2")}<b>${node.hostname}</b></span><button class="btn sm" onClick=${unlink}>${t("settings.page.revenir_a_cette_machine")}</button>`
-        : html`<span class="state">${t("settings.page.sur_cette_machine")}</span>${!direct && html`<button class="btn sm" onClick=${() => setDirect(true)}>${t("settings.page.lier_un_moteur_par_son_adresse")}</button><a class="btn sm" href="#/machines">${t("settings.page.loom_d_une_autre_machine")}</a>`}`}</${Line}>
-    ${node && html`<${Line} label="${t("settings.page.adresse")}"><code class="mono">${node.url}</code>${!node.reachable && html`<span class="tag amber">${t("settings.page.injoignable")}</span>`}</${Line}>`}
-    ${node && node.direct && html`<${Line} label="${t("settings.page.modele_utilise")}"><code class="mono">${node.model}</code></${Line}>`}
-    ${direct && !node && html`<${DirectEngineForm} onDone=${() => setDirect(false)} />`}
-  </${Group}>`;
-}
 
 export function Engine() {
   const node = useStore(app, a => a.engineNode);

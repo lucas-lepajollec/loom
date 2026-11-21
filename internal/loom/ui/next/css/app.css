@@ -70,8 +70,7 @@ code,pre,kbd,.mono{font-family:var(--mono)}
 @keyframes caret{50%{opacity:0}}
 .anim-rise{animation:in-rise var(--slow) var(--out) both}
 .anim-fade{animation:in-fade var(--mid) var(--ease) both}
-.stagger>*{animation:in-rise var(--slow) var(--out) both}
-.stagger>*:nth-child(2){animation-delay:30ms}.stagger>*:nth-child(3){animation-delay:60ms}.stagger>*:nth-child(4){animation-delay:90ms}.stagger>*:nth-child(5){animation-delay:120ms}.stagger>*:nth-child(n+6){animation-delay:150ms}
+
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:1ms!important;animation-delay:0ms!important;transition-duration:1ms!important}}
 
 /* ---------- primitives ---------- */
@@ -251,20 +250,15 @@ html.touch .app{position:fixed;left:0;right:0;top:var(--app-top,0);height:var(--
 .row .grow{flex:1;min-width:0}
 .row .t{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .s{font-size:12.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+
 .kv{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:13.5px}
 .kv:first-child{border-top:0}
 .kv>span:first-child{color:var(--text-2)}
-.stat b{display:block;font:500 20px var(--mono);letter-spacing:-.02em}
-.stat span{font-size:12px;color:var(--text-3)}
 
-@media (max-width:1100px){.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:720px){
   .side{position:fixed;z-index:140;inset:0 auto 0 0;width:min(86vw,300px);transform:translateX(-100%);box-shadow:var(--shadow-pop)}
   .app.side-open .side{transform:none}
   .page-in{padding:20px 16px 48px}
-  .grid2,.grid3{grid-template-columns:1fr}
   .page-head{flex-direction:column;align-items:flex-start}
 }
 
@@ -287,7 +281,7 @@ html.touch .app{position:fixed;left:0;right:0;top:var(--app-top,0);height:var(--
 .page-head h1{font-size:var(--text-title);letter-spacing:-.025em}
 .page-head p{color:var(--text-2);font-size:13.5px}
 .sec-h h2{font-size:14px}
-.stat b{font-size:18px;font-weight:600}
+
 .kbd{display:inline-flex;align-items:center;height:17px;padding:0 4px;border-radius:4px;border:1px solid var(--line-strong);border-bottom-width:2px;font:500 10.5px var(--mono);color:var(--text-3)}
 .logo-mark{--mark-size:24px;display:inline-grid;place-items:center;flex:none;width:var(--mark-size);height:var(--mark-size);font-size:var(--text-control);font-weight:600;line-height:1}
 .logo-mark.xs{--mark-size:14px;font-size:8px}
@@ -301,7 +295,7 @@ html.touch .app{position:fixed;left:0;right:0;top:var(--app-top,0);height:var(--
 .gauge.over>i{background:var(--text-3)}
 .state{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-2);white-space:nowrap}
 /* Chiffres : police du texte en chiffres tabulaires ; le mono reste pour le code et les chemins. */
-.tr .mono,.stat b,.turn-foot,.engine-card .meta,.ctx,.gen,.vram-h b,.pick-right,.req .mono,.slot .mono,.est,.count,.qw-h b,.hc-foot,.dl-prog .mono,.input.num,.composer-hint,.insp-model span,.kv .mono:not(.trunc),.num{font-family:var(--font);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tr .mono,.turn-foot,.engine-card .meta,.ctx,.gen,.vram-h b,.pick-right,.req .mono,.slot .mono,.est,.count,.input.num,.composer-hint,.insp-model span,.kv .mono:not(.trunc),.num{font-family:var(--font);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 
 /* coquille : fond + panneaux posés */
 .app{background:var(--bg)}

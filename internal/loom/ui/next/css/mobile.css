@@ -10,7 +10,6 @@
 @media(max-width:900px){.preset-grid,.split{grid-template-columns:minmax(0,1fr)}}
 
 @media(max-width:720px){
-  .cl-grid{grid-template-columns:minmax(0,1fr)}
   .side{background:var(--panel);border-right:1px solid var(--line);visibility:hidden;padding-top:calc(12px + env(safe-area-inset-top));padding-left:max(12px,env(safe-area-inset-left))}
   .app.side-open .side{visibility:visible}
   .mobile-bar{background:var(--panel);height:calc(52px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top)}
@@ -26,7 +25,6 @@
   .page-head p,.note{overflow-wrap:anywhere}
   .sec-h{gap:8px;flex-wrap:wrap}
   .sec-h>.input,.sec-h>.select{width:100%;max-width:100%;min-width:0}
-  .grid2,.grid3,.hub-grid{grid-template-columns:minmax(0,1fr)}
   .card,.pad{min-width:0}
   .pad{padding:16px}
   .input,.textarea,.select{max-width:100%;min-width:0}
@@ -47,19 +45,15 @@
   .set-actions{padding:12px 14px}
   .pick-top .seg button{padding-left:8px;padding-right:8px;min-width:0}
   .req{grid-template-columns:minmax(0,1fr) auto;gap:8px}
-  .brain-search{flex-wrap:wrap}
-  .brain-search>.input{flex-basis:100%}
+  
   .tipbox{max-width:calc(100vw - 16px)}
   .topbar>.grow{display:none}
   .mobile-bar,.topbar{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
   .page-in{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
   .composer textarea{font-size:16px}
   .term-view{height:60dvh}
-  .cl-bar{flex-wrap:wrap}
-  .cl-bar .search{width:100%;min-width:0}
-  .local-strip .v{white-space:normal;flex-wrap:wrap}
+  
   .cell-main b{overflow-wrap:anywhere}
-  .brain-search>.search{flex:1 1 100%;min-width:0}
   .bs-row{align-items:flex-start;padding:12px 10px 12px 14px}
   .workspace-picker{align-items:stretch;flex-direction:column}
   .workspace-picker .btn{align-self:flex-start}

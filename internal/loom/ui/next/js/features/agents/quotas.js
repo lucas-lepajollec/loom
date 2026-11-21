@@ -348,27 +348,6 @@ async function loadQuotas() {
   if (r && r.ok !== false) lastQuotas = r;
   return lastQuotas;
 }
-export function QuotaPeek() {
-  const live = useStore(agents, s => s.planUsage);
-  const [data, setData] = useState(lastQuotas);
-  const [anchor, setAnchor] = useState(null);
-  useEffect(() => visibleRefresh(async alive => { const r = await loadQuotas(); if (alive() && r) setData(r); }, 120000), []);
-  const accounts = withLive(data?.accounts || [], live).filter(a => (a.limits || []).length);
-  if (!accounts.length) return null;
-  const top = Math.round(Math.max(...accounts.flatMap(a => a.limits.map(l => l.used))));
-  const warn = v => (v >= 90 ? 'red' : v >= 70 ? 'amber' : '');
-  return html`<button class=${cls('icon-btn cm-quota-btn', anchor && 'on', warn(top))} aria-label=${t('quotas.chip')} title=${t('quotas.chip') + ' · ' + top + '%'}
-      aria-expanded=${String(!!anchor)} onClick=${e => setAnchor(anchor ? null : e.currentTarget)}><${Icon} n="gauge" /><i class="cm-quota-dot"></i></button>
-    ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${300} class="cm-quota-pop">
-      ${accounts.map(a => html`<div class="cm-qp-acc" key=${a.id}><b>${accName(a.id)}</b>
-        ${byWindow(a.limits).map(l => html`<div class=${cls('cm-qp-win', warn(l.used))} key=${l.id}>
-          <div class="cm-qp-h"><span>${(l.group ? l.group + ' · ' : '') + limitName(l)}</span><em>${Math.round(l.used)}%</em></div>
-          <div class="cm-qp-bar"><i style=${`width:${Math.min(100, l.used)}%`}></i></div>
-          ${l.reset_at && l.reset_at > Date.now() ? html`<small class="muted">${t('quotas.resets_in', { in: fmtIn(l.reset_at - Date.now()), at: clock(l.reset_at) })}</small>` : ''}
-        </div>`)}</div>`)}
-      <a class="cm-qp-more" href="#/quotas" onClick=${() => setAnchor(null)}>${t('quotas.open')}<${Icon} n="right" /></a>
-    </${Popover}>`}`;
-}
 
 // Quotas de l'abonnement d'un harness, dans le panneau de sa session.
 const ACCOUNT_OF = { claude: 'claude', codex: 'codex', antigravity: 'antigravity', gemini: 'antigravity', copilot: 'copilot' };

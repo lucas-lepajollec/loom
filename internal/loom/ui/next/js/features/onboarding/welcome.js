@@ -4,7 +4,7 @@ import { t, getLang, setLang } from '../../core/i18n.js';
 // cloud. Il ne s'affiche qu'une fois sur une installation neuve ; Réglages ›
 // À propos permet de le relancer.
 import { html, useState, useEffect, useStore, cls, fmtBytes } from '../../core/lib.js';
-import { Icon } from '../../ui/icons.js';
+import { Icon, LoomMark } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
 import { Seg } from '../../ui/controls.js';
 import { Modal, toast } from '../../ui/dialog.js';

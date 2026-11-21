@@ -84,4 +84,3 @@ export const fmtTok = n => { n = Math.max(0, Math.round(n || 0)); const u = n >=
 export const fmtBytes = b => { if (!b) return '—'; const g = b / 1073741824; return g >= 1 ? g.toFixed(1) + t('common.units.gb') : (b / 1048576).toFixed(0) + t('common.units.mb'); };
 export const fmtSecs = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60; return h ? h + 'h ' + String(m).padStart(2, '0') + 'm' : m ? m + 'm ' + String(r).padStart(2, '0') + 's' : r + 's'; };
 export const baseName = p => String(p || '').split(/[\\/]/).pop();
-export const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
