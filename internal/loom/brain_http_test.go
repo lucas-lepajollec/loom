@@ -83,7 +83,7 @@ func (t brainMuxTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	t.mux.ServeHTTP(w, r)
 	return w.Result(), nil
 }
-func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
+func TestBrainAuthAndStreamableMCP(t *testing.T) {
 	testHome(t)
 	if err := storeWebKey("brain-test-key"); err != nil {
 		t.Fatal(err)
@@ -101,7 +101,7 @@ func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
 		mux.ServeHTTP(w, req)
 		return w
 	}
-	for _, route := range []string{"/api/brain/sources", "/api/brain/search", "/api/brain/read", "/api/brain/pack", "/api/brain/reindex", "/mcp/brain"} {
+	for _, route := range []string{"/api/brain/memory/settings", "/mcp/brain", "/mcp/loom"} {
 		for _, key := range []string{"", "wrong"} {
 			if w := call("GET", route, "", key); w.Code != 401 {
 				t.Fatalf("unprotected %s: %d", route, w.Code)
@@ -112,46 +112,15 @@ func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Déploiement\nUnicorn context"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	definition := map[string]any{"action": "add", "id": "project", "label": "Project", "path": dir, "kind": "context", "permission": "write", "primary": true, "include": []string{"**/*.md"}}
-	body, _ := json.Marshal(definition)
-	w := call("POST", "/api/brain/sources", string(body), "brain-test-key")
-	if w.Code != 200 {
-		t.Fatal(w.Body.String())
+	e, err := theBrain().get()
+	if err != nil {
+		t.Fatal(err)
 	}
-	w = call("POST", "/api/brain/reindex", "", "brain-test-key")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `"ok":true`) {
-		t.Fatal(w.Body.String())
+	if err := e.Update(brain.Source{ID: "project", Label: "Project", Path: dir, Kind: "context", Permission: "write", Primary: true}); err != nil {
+		t.Fatal(err)
 	}
-	w = call("GET", "/api/brain/search?query=deploiement&sources=project", "", "brain-test-key")
-	var result brain.SearchResult
-	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || len(result.Hits) != 1 {
-		t.Fatalf("search: %s %v", w.Body, err)
-	}
-	w = call("GET", "/api/brain/read?chunk_id="+result.Hits[0].ChunkID, "", "brain-test-key")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "Unicorn") {
-		t.Fatal(w.Body.String())
-	}
-	w = call("POST", "/api/brain/pack", `{"query":"unicorn","budget_tokens":100,"sources":["project"]}`, "brain-test-key")
-	var pack brain.Pack
-	if err := json.Unmarshal(w.Body.Bytes(), &pack); err != nil || pack.TokensUsed > 100 || len(pack.Citations) != 1 {
-		t.Fatalf("pack: %s %v", w.Body, err)
-	}
-	if w.Header().Get("Cache-Control") != "no-store" {
-		t.Fatal("context cacheable")
-	}
-	w = call("POST", "/api/brain/sources", `{"action":"relabel","id":"project","label":"Renamed"}`, "brain-test-key")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "Renamed") {
-		t.Fatal(w.Body.String())
-	}
-	// Relabelling preserves the index immediately.
-	w = call("GET", "/api/brain/search?query=unicorn&sources=project", "", "brain-test-key")
-	if !strings.Contains(w.Body.String(), "notes.md") {
-		t.Fatal("relabel discarded index")
-	}
-	for _, request := range [][3]string{{"POST", "/api/brain/pack", `{"query":"unicorn","budget_tokens":8001}`}, {"POST", "/api/brain/sources", `{"action":"remove","id":"memory"}`}, {"GET", "/api/brain/search?limit=oops", ""}, {"POST", "/api/brain/pack", `{"unknown":true}`}} {
-		if w := call(request[0], request[1], request[2], "brain-test-key"); w.Code != 400 {
-			t.Fatalf("invalid request: %d %s", w.Code, w.Body)
-		}
+	if err := e.Refresh(t.Context()); err != nil {
+		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -176,14 +145,7 @@ func TestBrainHTTPAuthCRUDPackAndStreamableMCP(t *testing.T) {
 	if b, readErr := os.ReadFile(filepath.Join(dir, "durable", "decision.md")); readErr != nil || !strings.Contains(string(b), "Keep it durable") {
 		t.Fatalf("streamable write file: %q %v", b, readErr)
 	}
-	w = call("POST", "/api/brain/sources", `{"action":"remove","id":"project"}`, "brain-test-key")
-	if w.Code != 200 {
-		t.Fatal(w.Body.String())
-	}
-	w = call("GET", "/api/brain/search?query=unicorn", "", "brain-test-key")
-	if strings.Contains(w.Body.String(), "notes.md") {
-		t.Fatal("removed source exposed")
-	}
+
 }
 
 func TestBrainLoomStorageBuiltinsAndVaultLock(t *testing.T) {

@@ -60,7 +60,7 @@ func isPreservedKey(key string) bool {
 // à la configuration active (clés « appareil » ignorées), triés par nom.
 func ListPresets() ([]Preset, error) {
 	dir := presetsDir()
-	_ = os.MkdirAll(dir, 0o755)
+	_ = os.MkdirAll(dir, 0700)
 	cfgNow := ReadConfig()
 	cur := configFingerprint(cfgNow)
 	modelLoaded := strings.TrimSpace(cfgNow["MODEL"]) != ""
@@ -255,7 +255,7 @@ func safePresetPath(name string) (string, error) {
 // moteur mourait sur « BIN non défini ».
 // Les bascules agent/internet/oai/tâches sont déjà dans bkState.
 var preservedKeys = []string{
-	"BIN", "MEM_MODE", "CRAWL4AI_URL", "WEB_ENGINE", "CUDA_VISIBLE_DEVICES", "HOST",
+	"API_KEY", "CRAWL4AI_KEY", "BIN", "MEM_MODE", "CRAWL4AI_URL", "WEB_ENGINE", "CUDA_VISIBLE_DEVICES", "HOST",
 	"MEM_ENCRYPTED", "BACKUP_AUTO", "COMPACT", "MACHINES", "NP", webHostKey,
 	chatDefaultChoiceKey, "MODELS_MAX", "ENGINE_IDLE_UNLOAD", "ENGINE_SWAP_WAIT", "ENGINE_INTERACTIVE_GRACE",
 }
@@ -567,16 +567,27 @@ func SavePreset(id, name, content string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		_ = os.MkdirAll(filepath.Dir(p), 0o755)
-		return newID, os.WriteFile(p, []byte(content), 0o644)
+		_ = os.MkdirAll(filepath.Dir(p), 0700)
+		return newID, os.WriteFile(p, []byte(content), 0600)
 	}
 	p, err := safePresetPath(id)
 	if err != nil {
 		return "", err
 	}
-	_ = os.MkdirAll(filepath.Dir(p), 0o755)
-	old, _ := os.ReadFile(p)
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+	_ = os.MkdirAll(filepath.Dir(p), 0700)
+	old, err := os.ReadFile(p)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	before, after := parseEnv(string(old)), parseEnv(content)
+	for _, key := range []string{"API_KEY", "CRAWL4AI_KEY"} {
+		if value, had := before[key]; had {
+			if _, supplied := after[key]; !supplied {
+				content = strings.TrimRight(content, "\n") + "\n" + formatEnv(map[string]string{key: value})
+			}
+		}
+	}
+	if err := memWriteFileAtomic(p, []byte(content), 0600); err != nil {
 		return "", err
 	}
 	// Modifier le preset ACTIF le désélectionne : le fichier enregistré diverge

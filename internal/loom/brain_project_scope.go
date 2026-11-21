@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// project_id is an optional read scope for Brain HTTP/MCP calls. It uses the
-// same selected sources and individual transcript references as the prompt.
+// project_id is an optional read scope for MCP retrieval. It limits conversation results to
+// transcripts belonging to the selected folder or its saved references.
 func scopedBrainProject(id string, sources []string, paths map[string][]string) ([]string, map[string][]string, error) {
 	if id == "" {
 		return sources, paths, nil

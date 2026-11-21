@@ -33,6 +33,15 @@ func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
 		if path == "/api/chat" || path == "/api/discussion/events" || path == "/api/voice/stream" {
 			handler = revocableControlStream(handler)
 		}
+		handler = nodeAware(path, handler)
+		if path == "/api/update/apply" || path == "/api/machines/{id}/node/update/apply" || path == "/api/machines/{id}/node/migrate" {
+			next := handler
+			handler = func(w http.ResponseWriter, r *http.Request) {
+				if allowControlAction(w, r, path, nil) {
+					next(w, r)
+				}
+			}
+		}
 		if controlActionRequiresPost(path) {
 			next := handler
 			handler = func(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +50,7 @@ func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {
 				}
 			}
 		}
-		mux.HandleFunc(path, requireWebAuth(controlRequests(path, nodeAware(path, handler))))
+		mux.HandleFunc(path, requireWebAuth(controlRequests(path, handler)))
 	}
 }
 
@@ -65,7 +74,7 @@ func controlActionRequiresPost(path string) bool {
 		"/api/mcp/save", "/api/mcp/delete", "/api/mcp/toggle", "/api/mcp/tool", "/api/mcp/test",
 		"/api/mem/save", "/api/mem/delete", "/api/mem/encrypt", "/api/mem/decrypt", "/api/mem/unlock", "/api/mem/addkey":
 		return true
-	case "/api/chat/send", "/api/chat/upload", "/api/chat/history/restore", "/api/chat/history/delete",
+	case "/api/files/write", "/api/files/op", "/api/chat/send", "/api/chat/upload", "/api/chat/history/restore", "/api/chat/history/delete",
 		"/api/chat/history/rename", "/api/chat/history/fav", "/api/chat/history/move",
 		"/api/projects/rename", "/api/projects/delete", "/api/bench/tests/delete":
 		return true

@@ -236,7 +236,7 @@ func saveVault(v *keyVault) error {
 	}
 	var errs []string
 	okAny := false
-	if err := os.MkdirAll(memoryDir(), 0o755); err == nil {
+	if err := os.MkdirAll(memoryDir(), 0o700); err == nil {
 		if err := memWriteFileAtomic(vaultPathPrimary(), data, 0o600); err == nil {
 			okAny = true
 		} else {

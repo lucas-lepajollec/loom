@@ -38,8 +38,6 @@ const (
 
 var errAlreadyApplied = tools.ErrAlreadyApplied
 
-func memFileName(name string) (string, error) { return tools.MemFileName(name) }
-
 func MemList() []MemPage { return nativeMemory().MemList() }
 
 func MemSearch(query string, limit int) []MemHit { return nativeMemory().MemSearch(query, limit) }

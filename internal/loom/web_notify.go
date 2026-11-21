@@ -308,7 +308,7 @@ func (s *notificationService) message(c notify.Config, e events.Event, summaryAl
 	}
 	e = notify.Redact(e, summaries)
 	base := strings.TrimRight(c.PublicBaseURL, "/")
-	link := base + "/#/tasks"
+	link := base + "/"
 	if e.DiscussionID != "" {
 		link = base + "/#/chat/" + url.PathEscape(e.DiscussionID)
 	}

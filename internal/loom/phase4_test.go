@@ -94,7 +94,6 @@ func TestBackgroundTurnPhoneNotificationAnswerAndPersistence(t *testing.T) {
 	mux := http.NewServeMux()
 	api := func(p string, h http.HandlerFunc) { mux.HandleFunc(p, requireWebAuth(h)) }
 	registerNotifications(mux, api, ctx)
-	api("/api/tasks", handleTasks)
 	api("/api/events", handleDomainEvents)
 	if err := storeWebKey("control-fixture"); err != nil {
 		t.Fatal(err)
@@ -152,18 +151,14 @@ func TestBackgroundTurnPhoneNotificationAnswerAndPersistence(t *testing.T) {
 	if !getStoreJSON(bkRuntimeSessions, session.ID, &stored) || len(stored.PendingRequests) != 1 {
 		t.Fatal("request not persisted")
 	}
-	tasks := m.tasks(time.Now())
-	if len(tasks) != 1 || tasks[0].Status != "waiting_input" || len(tasks[0].Requests) != 1 {
-		t.Fatal(tasks)
-	}
 	tokenURL := payload.Actions[1].URL
 	// A capability cannot authorize any other API, either as a cookie or Bearer.
-	forbidden := httptest.NewRequest("GET", "/api/tasks", nil)
+	forbidden := httptest.NewRequest("GET", "/api/events", nil)
 	forbidden.Header.Set("Authorization", "Bearer "+strings.TrimPrefix(tokenURL, "https://loom.test/api/notify/answer/"))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, forbidden)
 	if w.Code != 401 {
-		t.Fatal("action token authorized Tasks", w.Code)
+		t.Fatal("action token authorized events", w.Code)
 	}
 	w = httptest.NewRecorder()
 	req := httptest.NewRequest("POST", tokenURL, strings.NewReader(`{"answers":{"target":["a"]}}`))
@@ -205,10 +200,7 @@ func TestBackgroundTurnPhoneNotificationAnswerAndPersistence(t *testing.T) {
 			t.Fatal(types)
 		}
 	}
-	tasks = m.tasks(time.Now())
-	if len(tasks) != 1 || tasks[0].Status != "done" || tasks[0].FinishedAt == 0 {
-		t.Fatal("recent completion missing", tasks)
-	}
+
 }
 func TestNotificationConfigSecretsSecureContextAndVAPIDPersistence(t *testing.T) {
 	home := testHome(t)
@@ -308,32 +300,9 @@ func TestOfferedNotificationActionsAndHealthEvents(t *testing.T) {
 		t.Fatal(list)
 	}
 }
-func TestTasksRetentionBoundsAndEventCursor(t *testing.T) {
+func TestDomainEventCursor(t *testing.T) {
 	testHome(t)
 	m := newRuntimeSessions()
-	now := time.Now()
-	session, err := m.create("", "", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	session.Status = "complete"
-	for i := 0; i < 130; i++ {
-		finish := now.Add(-time.Duration(i) * time.Minute).UnixMilli()
-		session.Turns = append(session.Turns, RuntimeTurnRecord{StartedAt: finish - 1000, FinishedAt: finish, Outcome: "done", RuntimeID: "fixture", Model: "model"})
-	}
-	session.Turns = append(session.Turns, RuntimeTurnRecord{StartedAt: now.Add(-49 * time.Hour).UnixMilli(), FinishedAt: now.Add(-48 * time.Hour).UnixMilli(), Outcome: "failed"})
-	if err := putStoreJSON(bkRuntimeSessions, session.ID, session); err != nil {
-		t.Fatal(err)
-	}
-	list := m.tasks(now)
-	if len(list) != 100 {
-		t.Fatal("recent bound", len(list))
-	}
-	for _, task := range list {
-		if task.ElapsedSeconds != 1 || task.Requests == nil || task.Status != "done" {
-			t.Fatal(task)
-		}
-	}
 	original := workspaceSessions
 	workspaceSessions = m
 	defer func() { workspaceSessions = original }()
@@ -381,7 +350,7 @@ func (a nativePhoneFixture) Run(ctx context.Context, turn RuntimeTurn, emit Chat
 	emit(StreamEvent{Content: "Native background result"})
 	return nil, nil
 }
-func TestNativeTurnWithoutSubscriberPersistsAndAppearsInTasks(t *testing.T) {
+func TestNativeTurnWithoutSubscriberPersistsAndPublishesEvents(t *testing.T) {
 	testHome(t)
 	setConfig(t, "MODEL=fixture.gguf\nCTX=4096\n")
 	m := newRuntimeSessions()
@@ -413,10 +382,6 @@ func TestNativeTurnWithoutSubscriberPersistsAndAppearsInTasks(t *testing.T) {
 	<-a.started
 	disconnect()
 	<-done
-	tasks := m.tasks(time.Now())
-	if len(tasks) != 1 || tasks[0].Status != "running" {
-		t.Fatal("original native discussion missing", tasks)
-	}
 	close(a.gate)
 	deadline := time.Now().Add(3 * time.Second)
 	saved := false
@@ -430,10 +395,6 @@ func TestNativeTurnWithoutSubscriberPersistsAndAppearsInTasks(t *testing.T) {
 	}
 	if !saved {
 		t.Fatal("native result not persisted with closed tab")
-	}
-	tasks = m.tasks(time.Now())
-	if len(tasks) != 1 || tasks[0].Status != "done" || tasks[0].FinishedAt == 0 {
-		t.Fatal("native completion missing", tasks)
 	}
 	for time.Now().Before(deadline) {
 		list, _, _ := m.events.Snapshot(0)
@@ -516,79 +477,6 @@ func TestNtfyLargeApprovalSplitsOfferedButtons(t *testing.T) {
 	}
 	if count != 2 || options != 4 {
 		t.Fatal("offered choices lost", count, options)
-	}
-}
-
-type taskStreamRecorder struct {
-	header http.Header
-	frames chan string
-}
-
-func (w *taskStreamRecorder) Header() http.Header { return w.header }
-func (w *taskStreamRecorder) WriteHeader(int)     {}
-func (w *taskStreamRecorder) Write(b []byte) (int, error) {
-	select {
-	case w.frames <- string(b):
-	default:
-	}
-	return len(b), nil
-}
-func (w *taskStreamRecorder) Flush() {}
-func TestTasksStreamSnapshotsAndDisconnect(t *testing.T) {
-	testHome(t)
-	m := newRuntimeSessions()
-	original := workspaceSessions
-	workspaceSessions = m
-	defer func() { workspaceSessions = original }()
-	session, err := m.create("", "", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	session.Status = "running"
-	session.Turns = []RuntimeTurnRecord{{StartedAt: time.Now().Add(-time.Hour).UnixMilli(), ActivityAt: time.Now().UnixMilli(), ActivityText: "Working", RuntimeID: "fixture", StepsStarted: 2}}
-	m.runs[session.ID] = &runtimeRun{session: session, cancel: func() {}}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	w := &taskStreamRecorder{header: http.Header{}, frames: make(chan string, 8)}
-	done := make(chan bool, 1)
-	go func() {
-		handleTasksStream(w, httptest.NewRequest("GET", "https://loom.test/api/tasks/stream", nil).WithContext(ctx))
-		done <- true
-	}()
-	select {
-	case frame := <-w.frames:
-		if !strings.Contains(frame, `"status":"running"`) || !strings.Contains(frame, `"steps_started":2`) {
-			t.Fatal(frame)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("missing initial task snapshot")
-	}
-	m.mu.Lock()
-	m.runs[session.ID].session.PendingRequests = []agent.AgentRequest{{ID: "pi:question", Kind: "user_input", Message: "Question"}}
-	m.mu.Unlock()
-	m.events.Publish(events.Event{Type: events.TaskWaiting})
-	select {
-	case frame := <-w.frames:
-		if !strings.Contains(frame, `"status":"waiting_input"`) {
-			t.Fatal(frame)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("no lifecycle snapshot")
-	}
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("task stream did not disconnect")
-	}
-	m.mu.Lock()
-	running := m.runs[session.ID] != nil
-	m.mu.Unlock()
-	if !running {
-		t.Fatal("task SSE disconnect stopped work")
-	}
-	if w.header.Get("Cache-Control") != "no-store" {
-		t.Fatal("task snapshots cacheable")
 	}
 }
 

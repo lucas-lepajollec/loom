@@ -74,13 +74,12 @@ func cleanRel(p string) (string, error) {
 	if strings.HasPrefix(p, "/") || strings.ContainsRune(p, 0) {
 		return "", errors.New("invalid path")
 	}
-	clean := path.Clean(p)
-	for _, seg := range strings.Split(clean, "/") {
+	for _, seg := range strings.Split(p, "/") {
 		if seg == ".." || strings.HasPrefix(seg, ".") {
 			return "", errors.New("invalid path")
 		}
 	}
-	return clean, nil
+	return path.Clean(p), nil
 }
 
 // machineRootDir is where whole-machine browsing starts: the filesystem root
@@ -123,41 +122,27 @@ type fileNode struct {
 }
 
 func filesTree(root *os.Root) ([]*fileNode, bool, error) {
-	byDir := map[string]*fileNode{".": {Path: ".", Dir: true}}
+	top := &fileNode{Path: ".", Dir: true}
+	queue := []*fileNode{top}
 	count, truncated := 0, false
-	err := fs.WalkDir(root.FS(), ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil || p == "." {
-			return nil
-		}
-		name := d.Name()
-		if strings.HasPrefix(name, ".") || name == "node_modules" {
-			if d.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if count >= filesMaxEntries {
-			truncated = true
-			return fs.SkipAll
-		}
-		count++
-		info, err := d.Info()
+	for len(queue) > 0 && !truncated {
+		dir := queue[0]
+		queue = queue[1:]
+		children, more, err := listFileNodes(root, dir.Path, filesMaxEntries-count, true)
 		if err != nil {
-			return nil
+			if dir == top {
+				return nil, false, err
+			}
+			continue
 		}
-		n := &fileNode{Name: name, Path: p, Dir: d.IsDir(), Modified: info.ModTime().UnixMilli()}
-		if !n.Dir {
-			n.Size = info.Size()
-			n.Outside = changedOutside(p, info.ModTime())
+		dir.Children, truncated = children, more
+		count += len(children)
+		for _, n := range children {
+			if n.Dir {
+				queue = append(queue, n)
+			}
 		}
-		if parent := byDir[path.Dir(p)]; parent != nil {
-			parent.Children = append(parent.Children, n)
-		}
-		if n.Dir {
-			byDir[p] = n
-		}
-		return nil
-	})
+	}
 	var sortNodes func([]*fileNode)
 	sortNodes = func(list []*fileNode) {
 		sort.Slice(list, func(i, j int) bool {
@@ -178,9 +163,8 @@ func filesTree(root *os.Root) ([]*fileNode, bool, error) {
 			}
 		}
 	}
-	top := byDir["."].Children
-	sortNodes(top)
-	return top, truncated, err
+	sortNodes(top.Children)
+	return top.Children, truncated, nil
 }
 
 func filesError(w http.ResponseWriter, err error) {
@@ -219,7 +203,7 @@ func handleFilesRoot(w http.ResponseWriter, r *http.Request) {
 		}
 		if dir != "" {
 			if body.Create {
-				if err := os.MkdirAll(dir, 0o755); err != nil {
+				if err := os.MkdirAll(dir, 0o700); err != nil {
 					filesError(w, err)
 					return
 				}
@@ -279,7 +263,7 @@ func handleFilesRead(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	info, err := f.Stat()
-	if err != nil || info.IsDir() {
+	if err != nil || !info.Mode().IsRegular() {
 		filesError(w, errors.New("not a file"))
 		return
 	}
@@ -294,7 +278,9 @@ func handleFilesRead(w http.ResponseWriter, r *http.Request) {
 		filesError(w, err)
 		return
 	}
-	if !utf8.Valid(data) || strings.ContainsRune(string(data), 0) {
+	if len(data) > filesMaxText {
+		out["too_large"] = true
+	} else if !utf8.Valid(data) || strings.ContainsRune(string(data), 0) {
 		out["binary"] = true
 	} else {
 		out["content"] = string(data)
@@ -326,7 +312,7 @@ func handleFilesRaw(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	info, err := f.Stat()
-	if err != nil || info.IsDir() || info.Size() > filesMaxRaw {
+	if err != nil || !info.Mode().IsRegular() || info.Size() > filesMaxRaw {
 		http.NotFound(w, r)
 		return
 	}
@@ -370,8 +356,8 @@ func handleFilesWrite(w http.ResponseWriter, r *http.Request) {
 	defer root.Close()
 	info, statErr := root.Stat(rel)
 	switch {
-	case statErr == nil && info.IsDir():
-		filesError(w, errors.New("a folder has this name"))
+	case statErr == nil && !info.Mode().IsRegular():
+		filesError(w, errors.New("destination is not a regular file"))
 		return
 	case statErr == nil && body.Create:
 		filesError(w, fs.ErrExist)
@@ -384,19 +370,33 @@ func handleFilesWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dir := path.Dir(rel); dir != "." {
-		if err := root.MkdirAll(dir, 0o755); err != nil {
+		if err := root.MkdirAll(dir, 0o700); err != nil {
 			filesError(w, err)
 			return
 		}
 	}
 	// Write next to the file, then rename: a reader never sees half a note.
 	tmp := path.Join(path.Dir(rel), ".loom-"+randomID(8)+".tmp")
-	if err := root.WriteFile(tmp, []byte(body.Content), 0o644); err != nil {
+	f, err := root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
 		filesError(w, err)
 		return
 	}
-	if err := root.Rename(tmp, rel); err != nil {
-		_ = root.Remove(tmp)
+	defer root.Remove(tmp)
+	_, err = io.WriteString(f, body.Content)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		filesError(w, err)
+		return
+	}
+	if body.Create {
+		err = installNewNote(root, tmp, rel)
+	} else {
+		err = root.Rename(tmp, rel)
+	}
+	if err != nil {
 		filesError(w, err)
 		return
 	}
@@ -407,6 +407,25 @@ func handleFilesWrite(w http.ResponseWriter, r *http.Request) {
 	}
 	noteLoomWrite(rel, info.ModTime())
 	sendJSON(w, 200, map[string]any{"ok": true, "path": rel, "modified": info.ModTime().UnixMilli()})
+}
+
+// Publish a complete note without overwriting an existing entry. On volumes
+// without hard links, reserve the destination exclusively before renaming.
+func installNewNote(root *os.Root, tmp, rel string) error {
+	if err := root.Link(tmp, rel); err == nil || errors.Is(err, fs.ErrExist) {
+		return err
+	}
+	f, err := root.OpenFile(rel, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	if err = f.Close(); err == nil {
+		err = root.Rename(tmp, rel)
+	}
+	if err != nil {
+		_ = root.Remove(rel)
+	}
+	return err
 }
 
 // handleFilesOp: POST {op: mkdir|rename|delete, path, to}. Delete moves the
@@ -445,7 +464,7 @@ func handleFilesOp(w http.ResponseWriter, r *http.Request) {
 			filesError(w, fs.ErrExist)
 			return
 		}
-		err = root.MkdirAll(rel, 0o755)
+		err = root.MkdirAll(rel, 0o700)
 	case "rename":
 		to, terr := cleanRel(body.To)
 		if terr != nil || to == "." {
@@ -457,14 +476,14 @@ func handleFilesOp(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if dir := path.Dir(to); dir != "." {
-			if err = root.MkdirAll(dir, 0o755); err != nil {
+			if err = root.MkdirAll(dir, 0o700); err != nil {
 				break
 			}
 		}
 		err = root.Rename(rel, to)
 	case "delete":
-		if err = root.MkdirAll(filesTrash, 0o755); err == nil {
-			err = root.Rename(rel, path.Join(filesTrash, time.Now().Format("20060102-150405")+"-"+path.Base(rel)))
+		if err = root.MkdirAll(filesTrash, 0o700); err == nil {
+			err = root.Rename(rel, path.Join(filesTrash, time.Now().Format("20060102-150405")+"-"+randomID(8)+"-"+path.Base(rel)))
 		}
 	default:
 		err = errors.New("unknown operation")
@@ -493,44 +512,10 @@ func handleFilesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer root.Close()
-	f, err := root.Open(rel)
+	out, _, err := listFileNodes(root, rel, filesMaxEntries, false)
 	if err != nil {
 		filesError(w, err)
 		return
-	}
-	entries, err := f.ReadDir(-1)
-	f.Close()
-	if err != nil {
-		filesError(w, err)
-		return
-	}
-	out := []*fileNode{}
-	for _, e := range entries {
-		name := e.Name()
-		if strings.HasPrefix(name, ".") || name == "node_modules" {
-			continue
-		}
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		p := name
-		if rel != "." {
-			p = rel + "/" + name
-		}
-		n := &fileNode{Name: name, Path: p, Dir: e.IsDir(), Modified: info.ModTime().UnixMilli()}
-		if e.Type()&os.ModeSymlink != 0 {
-			if target, err := root.Stat(p); err == nil && target.IsDir() {
-				n.Dir = true
-			}
-		}
-		if !n.Dir {
-			n.Size = info.Size()
-		}
-		out = append(out, n)
-		if len(out) >= filesMaxEntries {
-			break
-		}
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Dir != out[j].Dir {
@@ -539,4 +524,56 @@ func handleFilesList(w http.ResponseWriter, r *http.Request) {
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
 	sendJSON(w, 200, map[string]any{"ok": true, "root": dir, "path": rel, "entries": out})
+}
+
+// Read directory batches so the listing limit also bounds allocation for a single large folder.
+// Tree traversal skips symlink directories. The interactive listing lets the owner follow an in-root link.
+func listFileNodes(root *os.Root, rel string, limit int, tree bool) ([]*fileNode, bool, error) {
+	f, err := confinedOpenRead(root, rel)
+	if err != nil {
+		return nil, false, err
+	}
+	defer f.Close()
+	out := []*fileNode{}
+	for {
+		entries, err := f.ReadDir(128)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, false, err
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if strings.HasPrefix(name, ".") || name == "node_modules" {
+				continue
+			}
+			if len(out) >= limit {
+				return out, true, nil
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			p := name
+			if rel != "." {
+				p = rel + "/" + name
+			}
+			n := &fileNode{Name: name, Path: p, Dir: e.IsDir(), Modified: info.ModTime().UnixMilli()}
+			if !tree && e.Type()&os.ModeSymlink != 0 {
+				if target, err := root.Stat(p); err == nil && target.IsDir() {
+					n.Dir = true
+				}
+			}
+			if !n.Dir {
+				n.Size = info.Size()
+				if tree {
+					n.Outside = changedOutside(p, info.ModTime())
+				}
+			}
+			out = append(out, n)
+
+		}
+	}
+	return out, false, nil
 }

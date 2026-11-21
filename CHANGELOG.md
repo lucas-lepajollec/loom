@@ -6,6 +6,19 @@
   styles in both themes. Open menus close when their trigger is pressed
   again. Agent, model, vendor, and machine marks use unframed icons.
   See the [interface design guide](docs/design/ui.md).
+- Retired the Environment API, Tasks snapshots and stream, project context
+  editor and repo inspection, shared preference editor, benchmark picker
+  catalog and standalone Brain page endpoints. Folder CRUD, session events,
+  node benchmarks, MCP retrieval, transcripts and consolidation remain available.
+- Files writes require POST. New private notes and state use owner-only
+  permissions. Remote Files requests stay on the selected node. Market feeds
+  use public network destinations. Node folder and workspace access follows
+  the terminal module switch.
+- Browser API-key status returns a masked value. Machine handshakes require a
+  control bearer. Engine configuration and preset views omit stored credentials.
+  Remote install and update actions check policy before dispatch. The Codeman
+  gateway binds credentials to their saved server and account and redacts
+  voice keys from settings reads and writes.
 
 - Agents shows live sessions first, with current state and activity, plus
   a paged history across the harnesses Codeman reports. The harness table

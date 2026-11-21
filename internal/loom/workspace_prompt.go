@@ -55,11 +55,7 @@ func appendContextPart(c *DiscussionContext, part contextPart) {
 	c.Budget.ByKind[part.item.Kind] += part.item.Tokens
 }
 
-func assembleDiscussionContext(s RuntimeSession, query string) DiscussionContext {
-	return assembleDiscussionContextParts(s, query, true)
-}
-
-func assembleDiscussionContextParts(s RuntimeSession, query string, notes bool) DiscussionContext {
+func assembleDiscussionContext(s RuntimeSession) DiscussionContext {
 	c := DiscussionContext{MCPServers: s.MCPServers, ProjectID: s.ProjectID, Discussion: s.Instructions, Skills: []Capability{}, Items: []discussion.ContextItem{}}
 	c.Budget.ByKind = map[string]int{}
 	add := func(kind, label, source, reason, text string) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 )
@@ -118,6 +119,10 @@ func nativeTranscript(a convArchive, model string) brain.Transcript {
 	flush()
 	return t
 }
+
+// Wait for queued transcript writes before shutdown.
+var transcriptJobs sync.WaitGroup
+
 func (s *brainService) queueTranscript(t brain.Transcript) {
 	s.transcriptMu.Lock()
 	previous := s.transcriptTail

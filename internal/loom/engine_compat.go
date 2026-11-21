@@ -121,7 +121,7 @@ func buildLlamaServerArgsWithRuntime(cfg map[string]string, runtimeGet func(stri
 
 	// Make sure llama-server can find its bundled shared libraries (the .so/.dll
 	// neighbours of the binary). This is platform-specific: LD_LIBRARY_PATH on
-	// Linux, PATH on Windows — handled inside execServer.
+	// Linux, PATH on Windows.
 	if prepareEnvironment {
 		setLibraryPath(filepath.Dir(bin))
 	}

@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -100,19 +99,6 @@ func TotalRAMGB() float64 {
 		return 0
 	}
 	return float64(m.ullTotalPhys) / (1024 * 1024 * 1024)
-}
-
-// execServer runs llama-server as a child process and waits for it. Windows has
-// no exec() that replaces the current image, so `loom serve` stays alive as the
-// parent (this is the detached process the service supervisor tracks).
-// args[0] is the binary path; the rest are its arguments.
-func ExecServer(bin string, args []string) error {
-	cmd := HideCmd(exec.Command(bin, args[1:]...)) // pas de console pour llama-server (mode app)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
-	return cmd.Run()
 }
 
 // autoInstallTool installs a missing build tool via winget (bundled with Windows
@@ -241,17 +227,6 @@ func SpawnDetached(name string, args ...string) *exec.Cmd {
 		CreationFlags: CreateNewProcessGroup | DetachedProcess | CreateNoWindow,
 	}
 	return cmd
-}
-
-// pidAlive : alias de processAlive (API commune avec Unix).
-func PidAlive(pid int) bool { return ProcessAlive(pid) }
-
-// killTree arrête le process et toute sa descendance (taskkill /T).
-func KillTree(pid int) {
-	if pid <= 0 {
-		return
-	}
-	_ = HideCmd(exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/T", "/F")).Run()
 }
 
 // wingetIDs maps a tool's command name to its winget package ID.

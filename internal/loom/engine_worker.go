@@ -335,8 +335,8 @@ func newEngineWorkerMuxModules(token string, terminal *nodeTerminalServer) *http
 	}
 	api("/api/node/observe", handleNodeObserve)
 	api("/api/node/inventory", handleNodeInventory)
-	api("/api/node/folders", handleNodeFolders)
-	api("/api/node/workspace", handleNodeWorkspace)
+	api("/api/node/folders", nodeFilesGate(handleNodeFolders))
+	api("/api/node/workspace", nodeFilesGate(handleNodeWorkspace))
 	api("/api/ping", handlePing)
 	api("/api/update", handleUpdateCheck)
 	api("/api/update/apply", handleUpdateApply)
@@ -387,6 +387,14 @@ func newEngineWorkerMuxModules(token string, terminal *nodeTerminalServer) *http
 }
 
 func serveNodeInference(w http.ResponseWriter, r *http.Request) {
+	const maxInferenceBody = 32 << 20
+	if r.ContentLength > maxInferenceBody {
+		sendJSON(w, 413, map[string]any{"error": "inference request too large"})
+		return
+	}
+	if r.Body != nil {
+		r.Body = http.MaxBytesReader(w, r.Body, maxInferenceBody)
+	}
 	if n := currentEngineNode(); n == nil && r.Method == http.MethodGet && (r.URL.Path == "/v1/models" || r.URL.Path == "/v1/models/") {
 		oaiWriteJSON(w, 200, oaiModelsJSON())
 		return
@@ -394,7 +402,7 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 	// Loom's alias names the selected model. vLLM expects its native ID;
 	// leave every other request field and explicit model ID intact.
 	if n := currentEngineNode(); n != nil && n.Direct && r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/") {
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 32<<20))
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			sendJSON(w, 413, map[string]any{"error": "inference request too large"})
 			return

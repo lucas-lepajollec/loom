@@ -223,8 +223,8 @@ func TestPhase4bEngineConfirmationBindsDestination(t *testing.T) {
 	}()
 	var pending RuntimeSession
 	for ctx.Err() == nil {
-		for _, task := range m.tasks(time.Now()) {
-			s, _ := m.get(task.DiscussionID)
+		for id := range allKV(bkRuntimeSessions) {
+			s, _ := m.get(id)
 			if len(s.PendingRequests) > 0 {
 				pending = s
 				break
@@ -272,9 +272,9 @@ func TestPhase4bNotificationSummaryWaitsForConfirmation(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	var session RuntimeSession
 	for time.Now().Before(deadline) {
-		for _, task := range m.tasks(time.Now()) {
-			if task.Status == "waiting_approval" {
-				session, _ = m.get(task.DiscussionID)
+		for id := range allKV(bkRuntimeSessions) {
+			if s, ok := m.get(id); ok && len(s.PendingRequests) > 0 {
+				session = s
 			}
 		}
 		if len(session.PendingRequests) > 0 {
@@ -389,8 +389,8 @@ func TestPhase4bStandaloneCanonicalTask(t *testing.T) {
 	}()
 	var pending RuntimeSession
 	for ctx.Err() == nil {
-		for _, task := range m.tasks(time.Now()) {
-			s, _ := m.get(task.DiscussionID)
+		for id := range allKV(bkRuntimeSessions) {
+			s, _ := m.get(id)
 			if len(s.PendingRequests) > 0 {
 				pending = s
 				break
@@ -404,16 +404,13 @@ func TestPhase4bStandaloneCanonicalTask(t *testing.T) {
 	if pending.ID == "" {
 		t.Fatal("no canonical policy task")
 	}
-	if len(m.tasks(time.Now())) != 1 || m.tasks(time.Now())[0].Status != "waiting_approval" {
-		t.Fatal(m.tasks(time.Now()))
-	}
 	if err := m.answerRequest(pending.ID, pending.PendingRequests[0].ID, agent.RequestAnswer{Decision: "allow_once"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if task := m.tasks(time.Now())[0]; task.Status != "done" {
+	if task, ok := m.get(pending.ID); !ok || task.Status != "complete" {
 		t.Fatal(task)
 	}
 }

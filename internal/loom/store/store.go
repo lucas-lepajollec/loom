@@ -68,7 +68,7 @@ var dbMu sync.Mutex
 func withDB(path string, fn func(*bolt.DB) error) error {
 	dbMu.Lock()
 	defer dbMu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	d, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 5 * time.Second})

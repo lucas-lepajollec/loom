@@ -20,12 +20,13 @@ and can be changed from the page.
 
 ## API
 
-All routes need an authenticated session; writes also need the usual
-same-origin request headers.
+The control access rules apply to every route. Browser writes require POST
+and pass the same-origin check.
 
 | Route | Purpose |
 | --- | --- |
 | `GET/POST /api/files/root` | Read or choose the folder (`{path, create}`) |
+| `GET /api/files/list?path=` | List a single directory in the selected scope |
 | `GET /api/files/tree` | Folder tree with sizes, times and the outside-change flag |
 | `GET /api/files/read?path=` | Text of a file (2 MiB at most) |
 | `GET /api/files/raw?path=` | Bytes of an image; other types download as attachments |
@@ -34,4 +35,11 @@ same-origin request headers.
 
 Paths are relative to the folder. Absolute paths, `..`, hidden segments and
 symlinks leading outside the folder are refused: every access goes through Go's
-`os.Root`.
+`os.Root`. New notes and directories use owner-only permissions.
+
+Machine browsing selects `scope=machine` for listing, reading, raw content,
+writes and file operations. The root is the filesystem root on Unix and the
+account's home on Windows. It is an owner operation with the service account's
+filesystem permissions. A paired machine can be selected by its saved ID.
+Loom contacts that node directly with its machine credential. Disabling the
+node terminal module also disables Files, directory browsing and workspace creation.

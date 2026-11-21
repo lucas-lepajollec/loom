@@ -21,7 +21,7 @@ func dataDirs() []string {
 // jamais écrasée.
 func provisionDataDir() error {
 	for _, d := range dataDirs() {
-		if err := os.MkdirAll(d, 0o755); err != nil {
+		if err := os.MkdirAll(d, 0o700); err != nil {
 			return err
 		}
 	}

@@ -3,7 +3,6 @@ package brain
 import "strings"
 
 const ProfileTag, ProjectNotesTag = "user-profile", "project-notes"
-const ProfileLimit, ProjectNotesLimit = 1400, 2200
 
 func ContextQuery(query string) string {
 	query = strings.TrimSpace(query)

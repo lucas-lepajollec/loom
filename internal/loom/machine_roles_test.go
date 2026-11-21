@@ -46,7 +46,7 @@ func TestFilesBrickOnAnotherMachine(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 	handleFilesTree(w, httptest.NewRequest(http.MethodGet, "/api/files/tree?scope=machine", nil))
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "/srv/brain") || seen != "/api/files/tree?scope=machine" {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "/srv/brain") || seen != "/api/files/tree?machine=local&scope=machine" {
 		t.Fatalf("not proxied: %d %s (%s)", w.Code, w.Body.String(), seen)
 	}
 	w = httptest.NewRecorder()

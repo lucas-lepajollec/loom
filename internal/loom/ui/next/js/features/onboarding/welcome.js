@@ -65,7 +65,7 @@ function Hello({ frame, onNext }) {
   return html`<${SetupStep} ...${frame} title=${t('welcome.hello.title')} sub=${t('welcome.hello.lead')}
     foot=${html`<button class="btn" onClick=${() => finish()}>${t('welcome.skip')}</button>
       <button class="btn primary" onClick=${onNext}>${t('welcome.hello.start')}<${Icon} n="right" /></button>`}>
-    <span class="logo-mark lg"><${Icon} n="loom" /></span>
+    <span class="logo-mark lg"><${LoomMark} /></span>
     <${Seg} label=${t('settings.language.label')} value=${lang} onChange=${setLang}
       options=${[{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]} />
   </${SetupStep}>`;

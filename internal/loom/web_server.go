@@ -41,8 +41,6 @@ func cmdWeb(args []string) error {
 	webBound.host, webBound.port = host, port
 	// Only once the port is ours: these write to Loom's data.
 	loadRememberedProviderKeys()
-	go func() {
-	}()
 	go engineAutoLoop()
 	go vllmAutoLoop()
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
@@ -115,7 +113,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	registerWebAssets(mux)
 	registerWebLogin(mux)
 	registerRetiredIntegrations(mux)
-	api := policyAPI(webAPI(mux))
+	api := webAPI(mux)
 	registerCodemanRoutes(mux, api)
 	api("/api/policy", handlePolicy)
 	api("/api/policy/evaluate", handlePolicyEvaluate)
@@ -124,19 +122,16 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/doctor/run", handleDoctorRun)
 	api("/api/doctor/bundle", handleDoctorBundle)
 	registerNotifications(mux, api, brainCtx)
-	api("/api/market", handleMarket)                  // veille des modèles (OpenRouter, Artificial Analysis)
-	api("/api/market/settings", handleMarketSettings) // clé Artificial Analysis, alertes
+	api("/api/market", handleMarket)
+	api("/api/market/settings", handleMarketSettings)
 	if brainCtx != nil {
 		go watchMarket(brainCtx)
 	}
-	api("/api/tasks", handleTasks)
-	api("/api/tasks/stream", handleTasksStream)
 	api("/api/events", handleDomainEvents)
 	registerEngineControlRoutes(api)
 	registerVoiceRoutes(api, false)
 	registerJarvisRoutes(api)
 	api("/api/https", handleHTTPS)
-	newEnvironment().register(api)
 	api("/api/ping", handlePing)
 	api("/api/workspace", handleWorkspace)
 	api("/api/workspace/sessions/{id}/requests/{request_id}", handleDiscussionRequest)
@@ -169,8 +164,6 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/runtime/sessions/refresh-context", handleRuntimeSessionRefreshContext)
 	api("/api/runtime/sessions/continue", handleRuntimeSessionContinue)
 	api("/api/runtime/sessions/delete", handleRuntimeSessionDelete)
-	api("/api/projects/context", handleProjectContext)
-	api("/api/projects/info", handleProjectInfo)
 	api("/api/capabilities/save", handleCapabilitySave)
 	api("/api/capabilities/delete", handleCapabilityDelete)
 	api("/api/skills/home", handleSkillsHome)
@@ -245,7 +238,6 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/tools/toggle", handleAgentToggle)
 	api("/api/skills", handleAgent)
 	api("/api/skills/toggle", handleAgentToggle)
-	api("/api/context/preferences", handleSharedPreferences)
 	api("/api/mem", handleMem)
 	api("/api/mem/save", handleMemSave)
 	api("/api/mem/delete", handleMemDelete)
@@ -258,7 +250,6 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/mem/snapshots", handleMemSnapshots) // liste + restauration des snapshots locaux
 	api("/api/bench", handleBench)
 	api("/api/bench/last", handleBenchLast)
-	api("/api/bench/catalog", handleBenchCatalog)
 	api("/api/bench/tests", handleBenchTests)
 	api("/api/bench/tests/delete", handleBenchTestsDelete)
 	api("/api/bench/queue", handleBenchQueue)

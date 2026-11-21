@@ -17,7 +17,7 @@ func TestDiscussionContextConfigurePreservesHistoryAndRoute(t *testing.T) {
 	testHome(t)
 	m := newRuntimeSessions()
 	skill, _ := saveCapability(Capability{Name: "Review", Instructions: "Check edge cases."})
-	project, _ := saveProjectContext(ChatProject{Name: "Shared", Instructions: "Be precise.", Directory: t.TempDir(), CapabilityIDs: []string{skill.ID}})
+	project, _ := legacyProjectFixture(ChatProject{Name: "Shared", Instructions: "Be precise.", Directory: t.TempDir(), CapabilityIDs: []string{skill.ID}})
 	s, _ := m.create("", "", false)
 	s.Messages = []Message{{Role: "user", Content: "Original question"}, {Role: "assistant", Content: "Original reply"}}
 	s.Turns = []RuntimeTurnRecord{{MessageIndex: 1, RuntimeID: "llama.cpp", Model: "original"}}
@@ -88,7 +88,7 @@ func TestDiscussionPreviewMatchesWireAndRejectsStaleContext(t *testing.T) {
 	defer srv.Close()
 	provider, _ := m.saveProvider(CloudProvider{Name: "Fixture", Endpoint: srv.URL, Model: "fixture"}, "fake-key")
 	skill, _ := saveCapability(Capability{Name: "Shared", Instructions: "Original instruction"})
-	project, _ := saveProjectContext(ChatProject{Name: "Work", CapabilityIDs: []string{skill.ID}})
+	project, _ := legacyProjectFixture(ChatProject{Name: "Work", CapabilityIDs: []string{skill.ID}})
 	s, _ := m.create(project.ID, provider.ID, true)
 	if _, err := m.configureDiscussion(s.ID, "My title", project.ID, "Additional context", discussionContext(s).Revision, false); err == nil {
 		t.Fatal("cloud context changed without consent")

@@ -266,35 +266,6 @@ func (m *runtimeSessions) syncNativeArchive(a *convArchive) {
 	}
 }
 
-func nativeDiscussionContext(archiveID, projectID string) string {
-	for id := range allKV(bkRuntimeSessions) {
-		s, ok := workspaceSessions.get(id)
-		if !ok {
-			continue
-		}
-		if s.NativeArchive == archiveID && s.RuntimeID == "llama.cpp" {
-			return discussionContext(s).System
-		}
-	}
-	return projectContext(projectID)
-}
-
-// The native path uses the current draft exactly once, like every other
-// executor. Selected preferences or projects that became unreadable block send.
-func nativePreparedContext(archiveID, projectID, query string) (string, error) {
-	c, err := nativePreparedDiscussionContext(archiveID, projectID, query)
-	return c.System, err
-}
-
-func nativePreparedDiscussionContext(archiveID, projectID, query string) (DiscussionContext, error) {
-	session := nativeContextSession(archiveID, projectID)
-	c := discussionContextFor(session, query)
-	if c.Problem != "" {
-		return c, errors.New(c.Problem)
-	}
-	return c, nil
-}
-
 func nativeContextSession(archiveID, projectID string) RuntimeSession {
 	session := RuntimeSession{ID: archiveID, RuntimeID: "llama.cpp", ProjectID: projectID, Model: ReadConfig()["MODEL"]}
 	for id := range allKV(bkRuntimeSessions) {

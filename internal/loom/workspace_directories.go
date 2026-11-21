@@ -2,10 +2,12 @@ package loom
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 )
 
@@ -24,7 +26,8 @@ func localWorkdir(path string) (string, error) {
 	return filepath.Clean(path), nil
 }
 func remoteWorkdir(path string) (string, error) {
-	if path == "" || len(path) > 4096 || strings.ContainsAny(path, "\x00\r\n") || !(strings.HasPrefix(path, "/") || len(path) > 2 && path[1] == ':') {
+	driveAbsolute := len(path) >= 3 && (path[0] >= 'A' && path[0] <= 'Z' || path[0] >= 'a' && path[0] <= 'z') && path[1] == ':' && (path[2] == '/' || path[2] == '\\')
+	if path == "" || len(path) > 4096 || strings.ContainsAny(path, "\x00\r\n") || !(strings.HasPrefix(path, "/") || driveAbsolute) {
 		return "", errors.New("absolute directory required")
 	}
 	return path, nil
@@ -52,17 +55,32 @@ func handleNodeFolders(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	entries, err := os.ReadDir(dir)
+	f, err := os.Open(dir)
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "node directory cannot be read"})
 		return
 	}
+	defer f.Close()
 	folders := []string{}
-	for _, e := range entries {
-		if e.IsDir() {
-			folders = append(folders, filepath.Join(dir, e.Name()))
+	for len(folders) < filesMaxEntries {
+		entries, err := f.ReadDir(128)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "node directory cannot be read"})
+			return
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				folders = append(folders, filepath.Join(dir, e.Name()))
+				if len(folders) == filesMaxEntries {
+					break
+				}
+			}
 		}
 	}
+	sort.Strings(folders)
 	sendJSON(w, 200, map[string]any{"ok": true, "path": dir, "parent": filepath.Dir(dir), "folders": folders})
 }
 func handleNodeWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +97,7 @@ func handleNodeWorkspace(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "absolute directory required"})
 		return
 	}
-	if err := os.MkdirAll(req.Path, 0755); err != nil {
+	if err := os.MkdirAll(req.Path, 0700); err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "node workspace cannot be created"})
 		return
 	}

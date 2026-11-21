@@ -21,6 +21,9 @@ func controlRequests(path string, next http.HandlerFunc) http.HandlerFunc {
 		if r.Method == http.MethodPost && r.Body != nil {
 			limit := int64(1 << 20)
 			deadline := 30 * time.Second
+			if path == "/api/files/write" {
+				limit = filesMaxText + 4096
+			}
 			if path == "/api/voice/test/stt" {
 				limit = 2 << 20
 			}

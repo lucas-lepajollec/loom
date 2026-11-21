@@ -495,60 +495,58 @@ func nativePolicyBroker(b *agent.RequestBroker, s RuntimeSession) {
 		return agent.RequestAnswer{}, false, nil
 	}
 }
-func policyAPI(register func(string, http.HandlerFunc)) func(string, http.HandlerFunc) {
-	return func(path string, handler http.HandlerFunc) {
-		register(path, func(w http.ResponseWriter, r *http.Request) {
-			subject := ""
-			linked := currentEngineNode()
-			remoteEngine := linked != nil && !linked.Direct
-			if r.Method == http.MethodPost {
-				if strings.HasSuffix(path, "/node/migrate") || remoteEngine && (path == "/api/llamacpp/install" || path == "/api/llamacpp/install-custom" || path == "/api/llamacpp/prebuilt") {
-					subject = "node.install"
-				}
-				if strings.HasSuffix(path, "/update/apply") || remoteEngine && path == "/api/llamacpp/update" {
-					subject = "node.update"
-				}
-				if remoteEngine && path == "/api/engines/vllm" && r.Body != nil {
-					raw, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
-					_ = r.Body.Close()
-					if err != nil || len(raw) > 1<<20 {
-						sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid action body"})
-						return
-					}
-					r.Body = io.NopCloser(bytes.NewReader(raw))
-					var req struct {
-						Action string `json:"action"`
-					}
-					if json.Unmarshal(raw, &req) == nil && (req.Action == "install" || req.Action == "update") {
-						subject = "node." + req.Action
-					}
-				}
+
+// Authorize against the same linked node the relay will contact.
+func allowControlAction(w http.ResponseWriter, r *http.Request, path string, linked *engineNode) bool {
+	subject := ""
+
+	remoteEngine := linked != nil && !linked.Direct
+	if r.Method == http.MethodPost {
+		if strings.HasSuffix(path, "/node/migrate") || remoteEngine && (path == "/api/llamacpp/install" || path == "/api/llamacpp/install-custom" || path == "/api/llamacpp/prebuilt") {
+			subject = "node.install"
+		}
+		if strings.HasSuffix(path, "/update/apply") || remoteEngine && path == "/api/llamacpp/update" {
+			subject = "node.update"
+		}
+		if remoteEngine && path == "/api/engines/vllm" && r.Body != nil {
+			raw, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
+			_ = r.Body.Close()
+			if err != nil || len(raw) > 1<<20 {
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "invalid action body"})
+				return false
 			}
-			if subject != "" {
-				machine := r.PathValue("id")
-				if machine == "" {
-					machine = "local"
-				}
-				if remoteEngine && (strings.HasPrefix(path, "/api/llamacpp/") || path == "/api/engines/vllm" || strings.HasPrefix(path, "/api/engine/node/update")) {
-					machine = currentEngineCapabilityOwner()
-					for _, saved := range loadRemoteMachines() {
-						if node := savedMachineNode(saved); node != nil && node.URL == linked.URL {
-							machine = saved.ID
-							break
-						}
-					}
-				}
-				if !usageVaultAccess(w) {
-					return
-				}
-				if err := workspaceSessions.authorizePolicy(r.Context(), policy.Input{Subject: subject, MachineID: machine, Fallback: policy.Allow}, false); err != nil {
-					sendJSON(w, 403, map[string]any{"ok": false, "error": err.Error()})
-					return
-				}
+			r.Body = io.NopCloser(bytes.NewReader(raw))
+			var req struct {
+				Action string `json:"action"`
 			}
-			handler(w, r)
-		})
+			if json.Unmarshal(raw, &req) == nil && (req.Action == "install" || req.Action == "update") {
+				subject = "node." + req.Action
+			}
+		}
 	}
+	if subject != "" {
+		machine := r.PathValue("id")
+		if machine == "" {
+			machine = "local"
+		}
+		if remoteEngine && (strings.HasPrefix(path, "/api/llamacpp/") || path == "/api/engines/vllm" || strings.HasPrefix(path, "/api/engine/node/update")) {
+			machine = engineCapabilityOwner(linked)
+			for _, saved := range loadRemoteMachines() {
+				if node := savedMachineNode(saved); node != nil && node.URL == linked.URL {
+					machine = saved.ID
+					break
+				}
+			}
+		}
+		if !usageVaultAccess(w) {
+			return false
+		}
+		if err := workspaceSessions.authorizePolicy(r.Context(), policy.Input{Subject: subject, MachineID: machine, Fallback: policy.Allow}, false); err != nil {
+			sendJSON(w, 403, map[string]any{"ok": false, "error": err.Error()})
+			return false
+		}
+	}
+	return true
 }
 
 // Every Loom-owned model POST, including compaction/Brain helpers, consults

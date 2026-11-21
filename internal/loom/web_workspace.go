@@ -16,22 +16,6 @@ func handleWorkspace(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleProjectContext(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, http.MethodPost) {
-		return
-	}
-	var p ChatProject
-	if !workspaceDecode(w, r, &p) {
-		return
-	}
-	saved, err := saveProjectContext(p)
-	if err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-	sendJSON(w, 200, map[string]any{"ok": true, "project": saved})
-}
-
 func handleCapabilitySave(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodPost) {
 		return

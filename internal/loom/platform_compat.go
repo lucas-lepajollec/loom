@@ -29,19 +29,12 @@ func totalRAMGB() float64               { return platform.TotalRAMGB() }
 func autoInstallTool(name string) error { return platform.AutoInstallTool(name) }
 func refreshToolPath()                  { platform.RefreshToolPath() }
 func cudaPathEnv(dir string) []string   { return platform.CudaPathEnv(dir) }
-func execServer(bin string, args []string) error {
-	return platform.ExecServer(bin, args)
-}
+
 func newShellCmd(ctx context.Context, command string) (*exec.Cmd, func()) {
 	return platform.NewShellCmd(ctx, command)
 }
-func ramUsageMB() (int, int) { return platform.RamUsageMB() }
-func spawnDetached(name string, args ...string) *exec.Cmd {
-	return platform.SpawnDetached(name, args...)
-}
-func pidAlive(pid int) bool                  { return platform.PidAlive(pid) }
+func ramUsageMB() (int, int)                 { return platform.RamUsageMB() }
 func processAlive(pid int) bool              { return platform.ProcessAlive(pid) }
-func killTree(pid int)                       { platform.KillTree(pid) }
 func tailFile(path string, n int) string     { return platform.TailFile(path, n) }
 func engineCmdlineOwned(cmdline string) bool { return platform.EngineCmdlineOwned(cmdline) }
 func diskFreeAt(dir string) int64            { return platform.DiskFreeAt(dir) }
@@ -72,11 +65,8 @@ func firewallState(port int) string      { return platform.FirewallState(port, f
 func firewallManualHint(port int) string { return platform.FirewallManualHint(port) }
 
 func updateAssetName() string                          { return platform.UpdateAssetName() }
-func assetNameFor(goos, goarch string) string          { return platform.AssetNameFor(goos, goarch) }
 func pickAsset(rel *ghRelease) (string, string, int64) { return platform.PickAsset(rel) }
 func ensureV(s string) string                          { return platform.EnsureV(s) }
-func fetchLatestRelease() (*ghRelease, error)          { return platform.FetchRelease(updateChannel()) }
-func updatePermissionError(exe string) error           { return platform.UpdatePermissionError(exe) }
 func checkUpdateWritable(exe string) error             { return platform.CheckUpdateWritable(exe) }
 func downloadTo(url, dst string) error                 { return platform.DownloadTo(url, dst) }
 func verifyChecksum(rel *ghRelease, asset, path string) error {
