@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +60,8 @@ func resolveNodeListener(listen string) (string, error) {
 	return listen, nil
 }
 
+var nodeUnitListenRe = regexp.MustCompile(`--listen "(?:[^"\\]|\\.)*"`)
+
 func changeNodeListener(home, listen string) error {
 	config, err := os.UserConfigDir()
 	if err != nil {
@@ -73,10 +76,6 @@ func changeNodeListener(home, listen string) error {
 	if old == "" {
 		old = defaultNodeListen
 	}
-	oldValue, err := nodeUnitValue(old)
-	if err != nil {
-		return err
-	}
 	newValue, err := nodeUnitValue(listen)
 	if err != nil {
 		return err
@@ -85,9 +84,16 @@ func changeNodeListener(home, listen string) error {
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(string(previous), "--home "+homeValue) || !strings.Contains(string(previous), "--listen "+oldValue) {
-		return errors.New("existing node unit does not match this home/listener; use its configured --home or reinstall the node")
+	if !strings.Contains(string(previous), "--home "+homeValue) {
+		return errors.New("existing node unit does not match this home; use its configured --home or reinstall the node")
 	}
+	// The unit is the truth: the stored listener can lag behind it (an
+	// installer that resolved "lan" to an address, or an earlier reinstall).
+	current := nodeUnitListenRe.FindString(string(previous))
+	if current == "" {
+		return errors.New("existing node unit has no listener; reinstall the node")
+	}
+	oldValue := strings.TrimPrefix(current, "--listen ")
 	body := strings.Replace(string(previous), "--listen "+oldValue, "--listen "+newValue, 1)
 	restore := func() {
 		_ = os.WriteFile(path, previous, 0644)

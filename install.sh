@@ -223,6 +223,10 @@ if [ "$MODE" = "node" ]; then
   trap 'rm -rf "$TMP_DIR"' EXIT
   echo "Loom Node installed: $TARGET"
   echo "Listener: ${NODE_LISTEN:-saved listener or 127.0.0.1:2511} (choose --listen for LAN/VPN)"
+  case "${NODE_LISTEN:-}" in
+    ""|127.*|localhost:*|"[::1]":*) ;;
+    *) echo "Other machines must reach port ${NODE_LISTEN##*:}/tcp: if a firewall is active (ufw), an administrator can run: sudo ufw allow ${NODE_LISTEN##*:}/tcp" ;;
+  esac
   if [ "$NODE_SERVICE" = 0 ]; then
     echo "Start: $TARGET node serve --listen '${NODE_LISTEN:-127.0.0.1:2511}' (add --home if configured). Stop a foreground node before reinstalling."
   else

@@ -127,3 +127,38 @@ func TestNodeListenPreservesInstalledExecutableAndRollsBack(t *testing.T) {
 		t.Fatal("failed listener change not restored")
 	}
 }
+
+func TestNodeListenFollowsTheUnitWhenStoredListenerIsStale(t *testing.T) {
+	testHome(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	config, _ := os.UserConfigDir()
+	unitDir := filepath.Join(config, "systemd", "user")
+	if err := os.MkdirAll(unitDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(unitDir, "loom-node.service")
+	unit, err := engineWorkerUnit("/node/loom", LoomHome(), "192.168.0.200:2511")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(unit), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// The installer resolved "lan" into the unit; the stored value says otherwise.
+	_ = putStr(bkState, "node_listener", "lan")
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "systemctl"), []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := changeNodeListener(LoomHome(), "192.168.0.200:2550"); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.ReadFile(path)
+	if !strings.Contains(string(after), `--listen "192.168.0.200:2550"`) || strings.Contains(string(after), "2511") || getStr(bkState, "node_listener") != "192.168.0.200:2550" {
+		t.Fatal(string(after))
+	}
+	if err := changeNodeListener(t.TempDir(), "192.168.0.200:2551"); err == nil {
+		t.Fatal("another home accepted")
+	}
+}
