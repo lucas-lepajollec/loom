@@ -107,6 +107,11 @@ The per-rule `migrated` field is optional and omitted when false. Document
 `migrated` is forced to true on save. Invalid documents return HTTP 400;
 unreadable/corrupt policy fails closed and returns HTTP 503 on GET/save failure.
 
+`GET /api/policy/pending` lists the confirmations waiting outside a discussion
+(for instance an agent's gateway call), with `session_id`, `request_id`,
+`subject`, `created_at` and a memory-only `detail`; see
+[agent access](agent-access.md) for answering them.
+
 `POST /api/policy/evaluate` is a dry run: it never starts a tool, sends data or
 opens an interaction. All optional input fields are shown here:
 

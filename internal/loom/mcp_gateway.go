@@ -65,7 +65,7 @@ type gatewayStatusResult struct {
 }
 
 func gatewayServer(reader brain.Reader) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "loom-gateway", Version: Version}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: "loom-gateway", Version: Version}, &mcp.ServerOptions{Instructions: agentGuide})
 	brain.RegisterMCPTools(server, reader)
 	registerLoomAgentTools(server)
 	// Upstreams: the person's MCP servers, then Codeman's agent tools started
@@ -106,8 +106,30 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 		}
 		return nil, gatewayStatusResult{status}, err
 	})
-	server.AddReceivingMiddleware(gatewayPolicyMiddleware(subjects))
+	server.AddReceivingMiddleware(gatewayUsageMiddleware, gatewayPolicyMiddleware(subjects))
 	return server
+}
+
+// gatewayUsageMiddleware remembers which agent client last used the gateway.
+// The client names itself in the handshake (older protocol) or in each
+// request (2026-07-28 protocol); both reach the session's InitializeParams.
+func gatewayUsageMiddleware(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		var info *mcp.Implementation
+		if p, ok := req.GetParams().(*mcp.InitializeParams); ok && p != nil {
+			info = p.ClientInfo
+		} else if ss, ok := req.GetSession().(*mcp.ServerSession); ok && ss != nil {
+			if p := ss.InitializeParams(); p != nil {
+				info = p.ClientInfo
+			}
+		}
+		client := ""
+		if info != nil {
+			client = info.Name
+		}
+		noteGatewayUse(client)
+		return next(ctx, method, req)
+	}
 }
 
 func requireGatewayAuth(next http.HandlerFunc) http.HandlerFunc {

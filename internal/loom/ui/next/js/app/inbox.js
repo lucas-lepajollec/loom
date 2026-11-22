@@ -12,6 +12,7 @@ import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
 import { ago } from '../features/agents/rail.js';
 import { usePullRefresh } from './touch.js';
+import { loomApprovals, LoomApproval, refreshLoomApprovals } from './approvals.js';
 
 export function inboxItems(st) {
   const approvals = st.approvals.filter(a => a.id && a.sessionId && a.kind !== 'idle');
@@ -77,10 +78,11 @@ export function InboxPage({ route }) {
     st.sessions[id] && !needsReply.has(id) && Date.now() - at < recentCompletionMs &&
     ['idle', 'stopped'].includes(stateOf(st.sessions[id]))).sort(([, a], [, b]) => b - a);
   const restore = restorable(st);
+  const waiting = useStore(loomApprovals, s => s.items);
   const ready = st.conn.state === 'ready';
   const matched = approvals.some(a => a.id === route.sub) || replies.some(a => a.id === route.sub);
   const list = useRef();
-  const pull = usePullRefresh(refreshAgentInbox);
+  const pull = usePullRefresh(() => Promise.all([refreshAgentInbox(), refreshLoomApprovals()]));
   useEffect(() => {
     if (!matched) return;
     const target = list.current?.querySelector('[data-current]');
@@ -91,6 +93,7 @@ export function InboxPage({ route }) {
     <header class="phone-title"><h1>${t('mobile.inbox')}</h1></header>
     <div class="phone-scroll inbox-list" ref=${list} ...${pull}>
       ${st.conn.configured && !ready && html`<a class="inbox-card phone-link" href="#/agents"><${Icon} n="alert" /><span>${t('mobile.inbox_unavailable')}</span><${Icon} n="right" /></a>`}
+      ${waiting.map(item => html`<div key=${item.request_id} class="inbox-item"><${LoomApproval} item=${item} class="inbox-card" /></div>`)}
       ${approvals.map(item => html`<div key=${item.id} class="inbox-item" tabindex="-1" data-current=${item.id === route.sub ? '' : undefined}>
         <${Approval} item=${item} session=${st.sessions[item.sessionId]} disabled=${!ready} onTerminal=${() => openSession(item.sessionId, 'term')}>
           <${InboxTitle} item=${item} session=${st.sessions[item.sessionId]} />
@@ -105,7 +108,7 @@ export function InboxPage({ route }) {
         </a>`)}
       </section>`}
       ${ready && restore.length > 0 && html`<${RestoreBanner} />`}
-      ${!approvals.length && !replies.length && !completed.length && !restore.length &&
+      ${!waiting.length && !approvals.length && !replies.length && !completed.length && !restore.length &&
         (st.conn.state === 'idle' || ready && !st.loaded ? html`<div class="skeleton inbox-loading"></div>`
           : html`<${Empty} icon="inbox" title=${t('mobile.inbox_empty')} />`)}
     </div>

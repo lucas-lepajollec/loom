@@ -17,7 +17,14 @@ func cmdServe(args []string) error {
 	cfg := ReadConfig()
 	bin := strings.TrimSpace(cfg["BIN"])
 	if bin == "" {
-		return fmt.Errorf("BIN not set — run “loom edit”")
+		err := fmt.Errorf("BIN not set — run “loom edit”")
+		if startedByServiceManager() {
+			// No engine on this machine (it may run on another one): stop cleanly
+			// so systemd/launchd do not restart it every few seconds forever.
+			fmt.Fprintln(os.Stderr, "[err]", err, "— the engine stays stopped until it is set")
+			return nil
+		}
+		return err
 	}
 	_ = os.Chdir(LoomHome())
 
@@ -96,4 +103,12 @@ func cmdServe(args []string) error {
 // waitRouterUp attend que le router réponde sur le port interne.
 func waitRouterUp(budget time.Duration) error {
 	return llamaOwner.WaitRouterUp(budget, routerReachable)
+}
+
+// startedByServiceManager: systemd (INVOCATION_ID) or launchd (XPC_SERVICE_NAME,
+// which macOS terminals set to "0") started this process and restarts it after
+// a failed exit.
+func startedByServiceManager() bool {
+	xpc := os.Getenv("XPC_SERVICE_NAME")
+	return os.Getenv("INVOCATION_ID") != "" || (xpc != "" && xpc != "0")
 }

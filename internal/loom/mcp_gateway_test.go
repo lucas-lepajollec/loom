@@ -125,6 +125,12 @@ func TestGatewayDiscoveryProxyAndStatus(t *testing.T) {
 	if len(names) != 17 || names["ok-server__hidden"] {
 		t.Fatal(names)
 	}
+	if init := session.InitializeResult(); init == nil || !strings.Contains(init.Instructions, "loom_overview") {
+		t.Fatal("the agent guide is sent on connect", init)
+	}
+	if state, _ := loadGatewayState(); state.LastClient != "fixture-client" || state.LastUsed == 0 {
+		t.Fatal("last use not recorded", state)
+	}
 	args := json.RawMessage(`{"large":9007199254740993,"nested":{"value":"untouched"}}`)
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "ok-server__echo", Arguments: args})
 	if err != nil || !result.IsError || result.Content[0].(*mcp.TextContent).Text != string(args) || !bytes.Equal(result.Content[1].(*mcp.ImageContent).Data, []byte{1, 2, 3}) || result.StructuredContent.(map[string]any)["kept"] != true {
@@ -334,7 +340,7 @@ func TestGatewayHTTPShapes(t *testing.T) {
 		method, path, body string
 		fields             []string
 	}{
-		{"GET", "/api/mcp/gateway", "", []string{"url", "token_set", "agents"}},
+		{"GET", "/api/mcp/gateway", "", []string{"url", "token_set", "agents", "last_used", "last_client"}},
 		{"POST", "/api/mcp/gateway/token", `{"rotate":true}`, []string{"ok", "url", "token", "token_set"}},
 	} {
 		w := call(tc.method, tc.path, tc.body)

@@ -25,6 +25,7 @@ type runtimeRun struct {
 	acpError    string
 	providerKey string
 	toolPending bool
+	detail      string // policy confirmation shown to the person, memory only
 }
 type runtimeSessions struct {
 	policyConsents policyConsents

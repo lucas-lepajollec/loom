@@ -1,5 +1,7 @@
 import { t } from '../core/i18n.js';
-import { html, render, useStore, cls } from '../core/lib.js';
+import { html, render, useStore, useEffect, cls } from '../core/lib.js';
+import { visibleRefresh } from '../core/poll.js';
+import { loomApprovals, refreshLoomApprovals } from './approvals.js';
 import { Component } from 'preact';
 import { Icon } from '../ui/icons.js';
 import { app, phoneParent, phoneTab, startPolling, setTheme } from '../core/state.js';
@@ -82,10 +84,12 @@ function Main({ route, phone }) {
 function App() {
   const route = useStore(app, s => s.route);
   const phone = usePhone();
-  const count = useStore(agents, s => {
+  const waiting = useStore(loomApprovals, s => s.items.length);
+  const count = waiting + useStore(agents, s => {
     const { approvals, replies } = inboxItems(s);
     return approvals.length + replies.length;
   });
+  useEffect(() => visibleRefresh(refreshLoomApprovals, 4000), []);
   useAgentsPresence();
   useShortcuts(phone);
   return html`<div class=${cls('app', phone && 'phone-app')}>

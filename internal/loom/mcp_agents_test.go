@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestCleanTerminalOutput(t *testing.T) {
@@ -79,5 +81,63 @@ func TestMachineRunLocal(t *testing.T) {
 	terminals.Unlock()
 	if left != 0 {
 		t.Fatal("terminal left open", left)
+	}
+}
+
+func TestResolveAgentMachine(t *testing.T) {
+	gatewayTestHome(t)
+	if err := putJSON(bkState, remoteMachinesState, []RemoteMachine{
+		{ID: "m1", Name: "NAS", Host: "192.168.0.200"},
+		{ID: "m2", Name: "lab"}, {ID: "m3", Hostname: "lab"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for in, want := range map[string]string{"": "local", " local ": "local", "m1": "m1", "nas": "m1", "192.168.0.200": "m1"} {
+		if got, err := resolveAgentMachine(in); err != nil || got != want {
+			t.Fatalf("%q: %q %v", in, got, err)
+		}
+	}
+	if _, err := resolveAgentMachine("lab"); err == nil || !strings.Contains(err.Error(), "several") {
+		t.Fatal("ambiguous name accepted", err)
+	}
+	if _, err := resolveAgentMachine("nowhere"); err == nil || !strings.Contains(err.Error(), "loom_machines") {
+		t.Fatal(err)
+	}
+}
+
+func TestGatewayUseResetsWithANewToken(t *testing.T) {
+	gatewayTestHome(t)
+	noteGatewayUse("claude-code") // no token: nothing to record
+	if s, _ := loadGatewayState(); s.LastClient != "" {
+		t.Fatal(s)
+	}
+	if _, err := rotateGatewayToken(); err != nil {
+		t.Fatal(err)
+	}
+	noteGatewayUse("claude-code")
+	noteGatewayUse("") // a tool call keeps the client name
+	if s, _ := loadGatewayState(); s.LastClient != "claude-code" || s.LastUsed == 0 {
+		t.Fatal(s)
+	}
+	if _, err := rotateGatewayToken(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := loadGatewayState(); s.LastClient != "" || s.LastUsed != 0 {
+		t.Fatal("new token kept the old use", s)
+	}
+}
+
+func TestGatewayUsageReadsTheHandshakeClient(t *testing.T) {
+	gatewayTestHome(t)
+	if _, err := rotateGatewayToken(); err != nil {
+		t.Fatal(err)
+	}
+	next := func(context.Context, string, mcp.Request) (mcp.Result, error) { return nil, nil }
+	req := &mcp.ServerRequest[*mcp.InitializeParams]{Params: &mcp.InitializeParams{ClientInfo: &mcp.Implementation{Name: "codex-mcp-client"}}}
+	if _, err := gatewayUsageMiddleware(next)(context.Background(), "initialize", req); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := loadGatewayState(); s.LastClient != "codex-mcp-client" {
+		t.Fatal("older-protocol handshake client not recorded", s)
 	}
 }
