@@ -28,7 +28,7 @@ func gatewayURL() string {
 }
 
 func gatewayToolNames(upstream []tools.MCPGatewayTool) []string {
-	used := map[string]bool{"loom_gateway_status": true, "brain_search": true, "brain_pack": true, "brain_read": true, "brain_write": true, "brain_edit": true, "remember": true, "update_memory": true, "forget_memory": true, "list_memory": true}
+	used := map[string]bool{"loom_gateway_status": true, "loom_overview": true, "loom_machines": true, "loom_machine_run": true, "brain_search": true, "brain_pack": true, "brain_read": true, "brain_write": true, "brain_edit": true, "remember": true, "update_memory": true, "forget_memory": true, "list_memory": true}
 	names := make([]string, len(upstream))
 	order := make([]int, len(upstream))
 	for i := range order {
@@ -67,25 +67,43 @@ type gatewayStatusResult struct {
 func gatewayServer(reader brain.Reader) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "loom-gateway", Version: Version}, nil)
 	brain.RegisterMCPTools(server, reader)
-	upstream, _, err := mcpMgr.GatewayTools()
-	if err != nil {
-		upstream = nil
+	registerLoomAgentTools(server)
+	// Upstreams: the person's MCP servers, then Codeman's agent tools started
+	// by Loom itself. Each tool remembers which pool serves it.
+	type source struct {
+		mgr  *tools.MCPManager
+		item tools.MCPGatewayTool
+	}
+	var sources []source
+	var upstream []tools.MCPGatewayTool
+	for _, mgr := range []*tools.MCPManager{mcpMgr.MCPManager, agentsMCP} {
+		items, _, err := mgr.GatewayTools()
+		if err != nil {
+			continue
+		}
+		for _, item := range items {
+			sources = append(sources, source{mgr, item})
+			upstream = append(upstream, item)
+		}
 	}
 	names := gatewayToolNames(upstream)
 	subjects := map[string]string{}
-	for i, item := range upstream {
-		tool := *item.Tool
+	for i, src := range sources {
+		tool := *src.item.Tool
 		tool.Name = names[i]
-		subjects[tool.Name] = "mcp.tool:" + item.Server + "/" + item.Tool.Name
+		subjects[tool.Name] = "mcp.tool:" + src.item.Server + "/" + src.item.Tool.Name
 		if tool.InputSchema == nil {
 			tool.InputSchema = map[string]any{"type": "object"}
 		}
 		server.AddTool(&tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return mcpMgr.GatewayCall(ctx, item.Server, item.Tool.Name, req.Params.Arguments)
+			return src.mgr.GatewayCall(ctx, src.item.Server, src.item.Tool.Name, req.Params.Arguments)
 		})
 	}
-	mcp.AddTool(server, &mcp.Tool{Name: "loom_gateway_status", Description: "Read the enabled, connected and tool-count state of Loom MCP upstreams; unavailable upstreams do not prevent discovery.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, gatewayStatusResult, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "loom_gateway_status", Description: "Read the enabled, connected and tool-count state of Loom MCP upstreams, including Codeman's agent tools (agents); unavailable upstreams do not prevent discovery.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, gatewayStatusResult, error) {
 		_, status, err := mcpMgr.GatewayTools()
+		if _, agents, agentsErr := agentsMCP.GatewayTools(); agentsErr == nil {
+			status = append(status, agents...)
+		}
 		return nil, gatewayStatusResult{status}, err
 	})
 	server.AddReceivingMiddleware(gatewayPolicyMiddleware(subjects))

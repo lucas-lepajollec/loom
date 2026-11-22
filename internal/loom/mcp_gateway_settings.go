@@ -57,7 +57,7 @@ func handleMCPGateway(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	state, err := loadGatewayState()
-	brainResponse(w, map[string]any{"url": gatewayURL(), "token_set": state.TokenHash != ""}, err)
+	brainResponse(w, map[string]any{"url": gatewayURL(), "token_set": state.TokenHash != "", "agents": agentsState()}, err)
 }
 func handleMCPGatewayToken(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodPost) || !usageVaultAccess(w) {

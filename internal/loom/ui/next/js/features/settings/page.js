@@ -461,6 +461,49 @@ function NetworkAccess() {
   </${Group}>`;
 }
 
+// Accès des agents : la passerelle MCP de Loom (/mcp/loom). Un agent qui a le
+// jeton voit les machines, lance des commandes et, via Codeman, des sessions
+// d'agents ; Autorisations peut exiger une confirmation pour chaque outil.
+const agentCommands = (url, token) => ({
+  claude: `claude mcp add --transport http loom ${url} --header "Authorization: Bearer ${token}"`,
+  json: JSON.stringify({ mcpServers: { loom: { type: 'http', url, headers: { Authorization: 'Bearer ' + token } } } }, null, 2),
+});
+function CopyBlock({ label, text }) {
+  const copy = async () => { const ok = await copyText(text); toast(ok ? t('agent_access.copied') : t('settings.page.copie_refusee'), ok ? '' : 'err'); };
+  return html`<div class="agent-access-block"><div class="agent-access-head"><b>${label}</b><button class="btn sm" onClick=${copy}>${t('settings.page.copier')}</button></div><pre class="mono">${text}</pre></div>`;
+}
+function AgentAccess() {
+  const [gw, setGw] = useState(null);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const url = location.origin + '/mcp/loom';
+  const load = () => get('/api/mcp/gateway').then(r => setGw(r && typeof r.token_set === 'boolean' ? r : null)).catch(() => setGw(null));
+  useEffect(() => { load(); }, []);
+  const rotate = async () => {
+    if (gw?.token_set && !await confirm(t('agent_access.replace_title'), t('agent_access.replace_text'), { ok: t('agent_access.replace'), danger: true })) return;
+    setBusy(true);
+    const r = await post('/api/mcp/gateway/token', { rotate: true });
+    setBusy(false);
+    if (!r.ok || !r.token) return toast(r.error || t('settings.page.reglage_impossible'), 'err');
+    setToken(r.token); load();
+  };
+  const agents = gw?.agents === 'available' ? t('agent_access.agents_ok') : gw?.agents === 'codeman_cli_missing' ? t('agent_access.agents_cli') : t('agent_access.agents_off');
+  const cmds = token && agentCommands(url, token);
+  return html`<${Group} title=${t('agent_access.title')}>
+    <${Line} label=${t('settings.page.adresse')} tip=${t('agent_access.tip')}><code class="mono">${url}</code></${Line}>
+    <${Line} label=${t('agent_access.token')}>
+      <span class="state">${gw ? gw.token_set ? t('access.configured') : t('access.not_set') : '…'}</span>
+      ${gw && html`<button class="btn sm" disabled=${busy} onClick=${rotate}>${gw.token_set ? t('agent_access.replace') : t('agent_access.create')}</button>`}
+    </${Line}>
+    <${Line} label=${t('agent_access.agents')}><span class="state">${gw ? agents : '…'}</span></${Line}>
+    ${cmds && html`<${Modal} title=${t('agent_access.ready_title')} sub=${t('agent_access.ready_sub')} wide onClose=${() => setToken('')}
+      foot=${html`<button class="btn primary" onClick=${() => setToken('')}>${t('agent_access.done')}</button>`}>
+      <${CopyBlock} label="Claude Code" text=${cmds.claude} />
+      <${CopyBlock} label=${t('agent_access.other_clients')} text=${cmds.json} />
+    </${Modal}>`}
+  </${Group}>`;
+}
+
 function AccessSettings() {
   const [status, setStatus] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -545,6 +588,7 @@ function Security() {
   return html`<${HttpsSettings} />
     <${AccessSettings} />
     <${NetworkAccess} />
+    <${AgentAccess} />
     <${Group} title="${t("settings.page.memoire_et_donnees")}">
       <${Line} label="${t("settings.page.memoire_des_modeles_locaux")}" tip="${t("settings.page.desactivee_rien_n_est_retenu_entre_les_discussions_sur_demande_le")}">
         ${mode && html`<${Seg} size="sm" value=${mode} onChange=${async v => { await post('/api/memory', { mode: v }); setMode(v); }} options=${[{ value: 'off', label: t("settings.page.desactivee") }, { value: 'ondemand', label: t("settings.page.sur_demande") }]} />`}</${Line}>
