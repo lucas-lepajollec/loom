@@ -143,6 +143,12 @@ func handleMachineRoles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	sendJSON(w, 200, map[string]any{"ok": true, "roles": machineRoles()})
+}
+
+// machineRoles names the machine providing each brick ("local" for this one,
+// "" when Codeman is not connected).
+func machineRoles() map[string]string {
 	roles := map[string]string{"engine": "local", "voice": "local", "codeman": "", "files": filesMachine()}
 	if n := currentEngineNode(); n != nil {
 		roles["engine"] = machineForURL(n.URL)
@@ -156,5 +162,5 @@ func handleMachineRoles(w http.ResponseWriter, r *http.Request) {
 	if c := loadCodemanConfig().URL; c != "" {
 		roles["codeman"] = machineForURL(c)
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "roles": roles})
+	return roles
 }

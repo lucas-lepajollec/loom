@@ -174,7 +174,7 @@ type MCPServerStatus = tools.MCPServerStatus
 
 func (m *mcpManager) ensure(name string, cfg MCPServerConfig) *mcpSession { return m.Ensure(name, cfg) }
 func mcpInvalidate(name string)                                           { mcpMgr.Invalidate(name) }
-func mcpCloseAll()                                                        { mcpMgr.CloseAll() }
+func mcpCloseAll()                                                        { mcpMgr.CloseAll(); agentsMCP.CloseAll() }
 func mcpEnsureAll(servers map[string]MCPServerConfig)                     { mcpMgr.EnsureAll(servers) }
 func mcpTools() []Tool                                                    { return mcpMgr.Tools() }
 func mcpCall(name string, args map[string]any) string                     { return mcpMgr.Call(name, args) }

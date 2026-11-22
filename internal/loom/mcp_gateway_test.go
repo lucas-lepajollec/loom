@@ -117,12 +117,12 @@ func TestGatewayDiscoveryProxyAndStatus(t *testing.T) {
 	for _, tool := range list.Tools {
 		names[tool.Name] = true
 	}
-	for _, name := range []string{"brain_search", "brain_pack", "brain_read", "brain_write", "brain_edit", "memory_index", "memory_read", "memory_write", "memory_delete", "list_skills", "read_skill", "search_discussions", "loom_gateway_status", "ok-server__echo"} {
+	for _, name := range []string{"brain_search", "brain_pack", "brain_read", "brain_write", "brain_edit", "memory_index", "memory_read", "memory_write", "memory_delete", "list_skills", "read_skill", "search_discussions", "loom_gateway_status", "loom_overview", "loom_machines", "loom_machine_run", "ok-server__echo"} {
 		if !names[name] {
 			t.Fatal("missing", name)
 		}
 	}
-	if len(names) != 14 || names["ok-server__hidden"] {
+	if len(names) != 17 || names["ok-server__hidden"] {
 		t.Fatal(names)
 	}
 	args := json.RawMessage(`{"large":9007199254740993,"nested":{"value":"untouched"}}`)
@@ -334,7 +334,7 @@ func TestGatewayHTTPShapes(t *testing.T) {
 		method, path, body string
 		fields             []string
 	}{
-		{"GET", "/api/mcp/gateway", "", []string{"url", "token_set"}},
+		{"GET", "/api/mcp/gateway", "", []string{"url", "token_set", "agents"}},
 		{"POST", "/api/mcp/gateway/token", `{"rotate":true}`, []string{"ok", "url", "token", "token_set"}},
 	} {
 		w := call(tc.method, tc.path, tc.body)
