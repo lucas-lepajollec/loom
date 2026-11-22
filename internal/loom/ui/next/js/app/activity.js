@@ -1,7 +1,8 @@
 import { t, tSource } from '../core/i18n.js';
 // Centre d'activité : téléchargements, travaux du moteur et file de bench en
 // cours. Un bouton discret dans la barre latérale, une liste avec progression.
-import { html, useState, useEffect, useRef, cls } from '../core/lib.js';
+import { html, useState, useEffect, useRef, useStore, cls } from '../core/lib.js';
+import { loomApprovals, LoomApproval } from './approvals.js';
 import { Icon } from '../ui/icons.js';
 import { Popover } from '../ui/controls.js';
 import { get, post, request } from '../core/api.js';
@@ -50,12 +51,15 @@ export function Activity() {
   useEffect(() => visibleRefresh(async alive => {
     const r = await readActivity(); if (alive()) setItems(r);
   }, 3000), []);
+  const approvals = useStore(loomApprovals, s => s.items);
   const running = items.filter(i => !i.err).length;
-  return html`<button class=${cls('icon-btn act-btn', running && 'busy')} ref=${btn} aria-label=${t("app.activity.activite") + (items.length ? ' · ' + items.length : '')} title="${t("app.activity.activite")}"
-      onClick=${() => setAnchor(anchor ? null : btn.current)}><${Icon} n="bell" />${items.length > 0 && html`<i class="act-dot"></i>`}</button>
+  const count = items.length + approvals.length;
+  return html`<button class=${cls('icon-btn act-btn', running && 'busy', approvals.length && 'waiting')} ref=${btn} aria-label=${t("app.activity.activite") + (count ? ' · ' + count : '')} title="${t("app.activity.activite")}"
+      onClick=${() => setAnchor(anchor ? null : btn.current)}><${Icon} n="bell" />${count > 0 && html`<i class="act-dot"></i>`}</button>
     ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${320} class="act-pop">
       <div class="act-h">${t("app.activity.activite")}</div>
-      ${items.length ? items.map(i => {
+      ${approvals.map(a => html`<${LoomApproval} key=${a.request_id} item=${a} class="act-approval" />`)}
+      ${items.length || approvals.length ? items.map(i => {
         const row = i.to ? 'button' : 'div';
         const open = i.to && (() => { setAnchor(null); i.to(); });
         return html`<div class="act-row" key=${i.id}>

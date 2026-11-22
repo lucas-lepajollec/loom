@@ -385,6 +385,14 @@ input[type="checkbox"]:disabled,input[type="radio"]:disabled{opacity:.4;cursor:n
 .act-main .gauge{margin-top:4px}
 .act-row:hover{background:var(--hover)}
 .act-empty{padding:18px 8px;text-align:center;font-size:13px;color:var(--text-3)}
+.act-btn.waiting .act-dot{background:var(--amber)}
+/* accord demandé par un agent (cloche, boîte de réception) */
+.loom-approval{display:grid;gap:6px;padding:10px;border-radius:var(--r-lg);background:var(--surface-2);min-width:0}
+.loom-approval b{font-size:13px;font-weight:500}
+.loom-approval small{font-size:11px;color:var(--text-3);overflow-wrap:anywhere}
+.loom-approval code{font-size:12px;line-height:1.45;color:var(--text-2);white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto}
+.loom-approval-acts{display:flex;justify-content:flex-end;gap:6px}
+.act-approval{margin-bottom:6px}
 
 /* palette Ctrl K */
 .palette .dialog-body{gap:var(--space-2)}
@@ -429,6 +437,7 @@ html,body{overscroll-behavior:none}
   .view,.page,.pick-list,.pop,.dialog-body,.insp-scroll,.insp-body,.side,.thread{overscroll-behavior:contain}
   input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea{font-size:16px!important}
 }
-.agent-access-block{display:grid;gap:6px;min-width:0}
-.agent-access-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.agent-access-block{display:grid;gap:10px;min-width:0}
+.agent-access-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.agent-access-head .note{margin:0;flex:1;min-width:0}
 .agent-access-block pre{margin:0;padding:10px 12px;border-radius:var(--r-lg);background:var(--surface-2);font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}

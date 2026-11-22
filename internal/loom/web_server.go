@@ -118,6 +118,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/policy", handlePolicy)
 	api("/api/policy/evaluate", handlePolicyEvaluate)
 	api("/api/policy/audit", handlePolicyAudit)
+	api("/api/policy/pending", handlePolicyPending)
 	api("/api/doctor", handleDoctor)
 	api("/api/doctor/run", handleDoctorRun)
 	api("/api/doctor/bundle", handleDoctorBundle)

@@ -1,6 +1,7 @@
 import { shortVersion } from '../../core/version.js';
 import { HttpsSettings } from './https.js';
 import { PolicySettings } from './policy.js';
+import { AgentAccess } from './agent-access.js';
 import { DoctorSettings } from './doctor.js';
 import { NotificationSettings, readNotificationSettings } from './notifications.js';
 import { t, locale, getLang, setLang, tSource } from '../../core/i18n.js';
@@ -458,49 +459,6 @@ function NetworkAccess() {
     ${web && web.restart && html`<${Line} label="${t("settings.page.a_appliquer")}" tip="${t("settings.page.l_adresse_d_ecoute_ne_change_qu_au_redemarrage_de_l_interface_le")}"><span class="state">${t("settings.page.redemarrage_necessaire")}</span><button class="btn sm" onClick=${restart}>${t("settings.page.redemarrer_l_interface")}</button></${Line}>`}
     ${web && web.exposed && web.firewall === 'ferme' && html`<${Line} label="${t("settings.page.pare_feu")}"><span class="state">${t("settings.page.port")} ${web.port} ${t("settings.page.non_autorise_ouvre_le_dans_le_pare_feu_de_la_machine")}</span></${Line}>`}
     <${Line} label=${t('models.api.title')}><a class="btn sm" href="#/engine">${t('settings.page.api_moved')}</a></${Line}>
-  </${Group}>`;
-}
-
-// Accès des agents : la passerelle MCP de Loom (/mcp/loom). Un agent qui a le
-// jeton voit les machines, lance des commandes et, via Codeman, des sessions
-// d'agents ; Autorisations peut exiger une confirmation pour chaque outil.
-const agentCommands = (url, token) => ({
-  claude: `claude mcp add --transport http loom ${url} --header "Authorization: Bearer ${token}"`,
-  json: JSON.stringify({ mcpServers: { loom: { type: 'http', url, headers: { Authorization: 'Bearer ' + token } } } }, null, 2),
-});
-function CopyBlock({ label, text }) {
-  const copy = async () => { const ok = await copyText(text); toast(ok ? t('agent_access.copied') : t('settings.page.copie_refusee'), ok ? '' : 'err'); };
-  return html`<div class="agent-access-block"><div class="agent-access-head"><b>${label}</b><button class="btn sm" onClick=${copy}>${t('settings.page.copier')}</button></div><pre class="mono">${text}</pre></div>`;
-}
-function AgentAccess() {
-  const [gw, setGw] = useState(null);
-  const [token, setToken] = useState('');
-  const [busy, setBusy] = useState(false);
-  const url = location.origin + '/mcp/loom';
-  const load = () => get('/api/mcp/gateway').then(r => setGw(r && typeof r.token_set === 'boolean' ? r : null)).catch(() => setGw(null));
-  useEffect(() => { load(); }, []);
-  const rotate = async () => {
-    if (gw?.token_set && !await confirm(t('agent_access.replace_title'), t('agent_access.replace_text'), { ok: t('agent_access.replace'), danger: true })) return;
-    setBusy(true);
-    const r = await post('/api/mcp/gateway/token', { rotate: true });
-    setBusy(false);
-    if (!r.ok || !r.token) return toast(r.error || t('settings.page.reglage_impossible'), 'err');
-    setToken(r.token); load();
-  };
-  const agents = gw?.agents === 'available' ? t('agent_access.agents_ok') : gw?.agents === 'codeman_cli_missing' ? t('agent_access.agents_cli') : t('agent_access.agents_off');
-  const cmds = token && agentCommands(url, token);
-  return html`<${Group} title=${t('agent_access.title')}>
-    <${Line} label=${t('settings.page.adresse')} tip=${t('agent_access.tip')}><code class="mono">${url}</code></${Line}>
-    <${Line} label=${t('agent_access.token')}>
-      <span class="state">${gw ? gw.token_set ? t('access.configured') : t('access.not_set') : '…'}</span>
-      ${gw && html`<button class="btn sm" disabled=${busy} onClick=${rotate}>${gw.token_set ? t('agent_access.replace') : t('agent_access.create')}</button>`}
-    </${Line}>
-    <${Line} label=${t('agent_access.agents')}><span class="state">${gw ? agents : '…'}</span></${Line}>
-    ${cmds && html`<${Modal} title=${t('agent_access.ready_title')} sub=${t('agent_access.ready_sub')} wide onClose=${() => setToken('')}
-      foot=${html`<button class="btn primary" onClick=${() => setToken('')}>${t('agent_access.done')}</button>`}>
-      <${CopyBlock} label="Claude Code" text=${cmds.claude} />
-      <${CopyBlock} label=${t('agent_access.other_clients')} text=${cmds.json} />
-    </${Modal}>`}
   </${Group}>`;
 }
 

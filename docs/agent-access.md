@@ -8,13 +8,23 @@ the second brain and, with Codeman, start and drive other agent sessions.
 ## Connecting an agent
 
 Settings › Security › Agent access shows the address and creates the token. The
-token is shown once, with ready-to-copy setups:
+token is shown once, with a ready-to-copy setup for each client:
 
-- Claude Code: `claude mcp add --transport http loom <address> --header "Authorization: Bearer <token>"`
-- other clients: an `.mcp.json` entry of type `http` with the same header.
+- Claude Code: `claude mcp add --scope user --transport http loom <address> --header "Authorization: Bearer <token>"`.
+  The user scope gives Loom to every Claude Code session on that machine,
+  including the sessions Codeman starts; sessions already open get it when
+  they restart.
+- Codex: a `[mcp_servers.loom]` entry for `~/.codex/config.toml` with `url` and
+  `http_headers = { "Authorization" = "Bearer <token>" }`.
+- Other clients: an `.mcp.json` entry of type `http` with the same header.
 
-Replacing the token cuts off every agent that holds the old one. Only the token's
-hash is stored.
+Run the setup on each machine where agents run. When they connect, the gateway
+sends them a short guide (MCP server instructions), so they know to start with
+`loom_overview` without being told.
+
+The panel shows the last agent that used the token ("Claude Code, 2 minutes
+ago"). Replacing the token cuts off every agent that holds the old one and
+resets that line. Only the token's hash is stored.
 
 ## Tools
 
@@ -22,7 +32,7 @@ hash is stored.
 | --- | --- |
 | `loom_overview` | Loom version, machines, which machine provides each brick, whether agent sessions are available, and a short guide. Start here. |
 | `loom_machines` | This machine (`local`), paired nodes and saved SSH machines, with modules and whether a command can run there. |
-| `loom_machine_run` | Runs one non-interactive command through Loom's terminals (local PTY, SSH or a node's terminal module) and returns the exit code and the last 64 KiB of plain-text output. Stopped after `timeout_seconds` (default 60, at most 600). The terminal is removed afterwards. |
+| `loom_machine_run` | Runs one non-interactive command, on a machine given by id, name or host (default: this machine), through Loom's terminals (local PTY, SSH or a node's terminal module) and returns the exit code and the last 64 KiB of plain-text output. Stopped after `timeout_seconds` (default 60, at most 600). The terminal is removed afterwards. |
 | `agents__*` | Codeman's own MCP server (`codeman mcp`): `list_sessions`, `start_session`, `send_prompt`, `wait_for_session`, `read_output`, `interrupt_session`, `delete_session`. |
 | `brain_*`, `memory_*`, skills, discussions | The second brain tools, unchanged. |
 | `<server>__<tool>` | The person's own MCP servers from `mcp.json`, unchanged. |
@@ -46,10 +56,27 @@ the `agents__*` tools are absent and `loom_overview` says why.
 Every call goes through the gateway's policy check with the subject
 `mcp.tool:<server>/<tool>`: `mcp.tool:loom/loom_machine_run`,
 `mcp.tool:agents/start_session`, and so on. The default is allow, as for every
-gateway tool. A `confirm` rule turns the call into a request that waits for the
-person (up to 24 hours); a `deny` rule refuses it. `loom_machine_run` also
-keeps the `node.terminal` check of every terminal. The `agents__*` tools talk to
-Codeman directly, so `mcp.tool:agents/<tool>` is their Loom-side check.
+gateway tool. A `deny` rule refuses the call. A `confirm` rule makes the call
+wait for the person, up to 24 hours.
+
+"Ask me before acting" in the Agent access panel adds two global confirm rules,
+`agent-access-ask-run` (`loom_machine_run`) and `agent-access-ask-session`
+(`agents__start_session`); they show and can be edited in Settings ›
+Permissions. Reading, searching and following an agent's own sessions stay
+free.
+
+A waiting call appears in Loom's activity menu (the bell) and in the phone's
+inbox, with Allow and Deny. It names the machine and command, or the call's
+arguments; that detail is kept in memory only, never stored, audited or sent
+in a notification. A push notification, when enabled, offers the same answers.
+A denied call returns an error to the agent. `GET /api/policy/pending` lists
+the waiting confirmations; the answer is
+`POST /api/workspace/sessions/<session_id>/requests/<request_id>` with
+`{"decision":"allow_once"}` or `{"decision":"deny"}`.
+
+`loom_machine_run` also keeps the `node.terminal` check of every terminal. The
+`agents__*` tools talk to Codeman directly, so `mcp.tool:agents/<tool>` is their
+Loom-side check.
 
 A gateway token carries no discussion identity, so only global and
 local-machine rules apply (see [policy](policy.md)).

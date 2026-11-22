@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -135,7 +136,7 @@ func (m *runtimeSessions) confirmPolicy(ctx context.Context, in policy.Input, op
 			m.mu.Unlock()
 			return err
 		}
-		run = &runtimeRun{session: s, cancel: cancel}
+		run = &runtimeRun{session: s, cancel: cancel, detail: in.Detail}
 		m.runs[id] = run
 		m.taskEventLocked(s, events.TaskStarted, nil)
 	}
@@ -571,4 +572,39 @@ func authorizeModelDestination(ctx context.Context, endpoint, model string) erro
 	in := sessionPolicyInput(session, "data.send_provider", policy.Allow)
 	in.Endpoint, in.Model = base, model
 	return m.authorizePolicy(ctx, in, false)
+}
+
+type pendingPolicyRequest struct {
+	SessionID string `json:"session_id"`
+	RequestID string `json:"request_id"`
+	Subject   string `json:"subject"`
+	Detail    string `json:"detail,omitempty"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+// pendingPolicyRequests lists the confirmations waiting outside a discussion
+// (an agent's gateway call, for instance), so the person can answer them from
+// Loom's activity menu.
+func (m *runtimeSessions) pendingPolicyRequests() []pendingPolicyRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []pendingPolicyRequest{}
+	for id, run := range m.runs {
+		if run.session.RuntimeID != "policy" {
+			continue
+		}
+		for _, r := range run.session.PendingRequests {
+			out = append(out, pendingPolicyRequest{SessionID: id, RequestID: r.ID, Subject: r.Message, Detail: run.detail, CreatedAt: run.session.CreatedAt})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt < out[j].CreatedAt })
+	return out
+}
+
+func handlePolicyPending(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodGet) || !usageVaultAccess(w) {
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	sendJSON(w, 200, map[string]any{"ok": true, "requests": workspaceSessions.pendingPolicyRequests()})
 }

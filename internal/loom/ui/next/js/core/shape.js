@@ -67,7 +67,7 @@ const shapes = {
   '/api/hub/search': { models: list(value => validShape(value, {}) && typeof value.id === 'string') }, '/api/hub/model': { files: list(value => validShape(value, {}) && typeof value.name === 'string') }, '/api/models/dirs': { dirs: rows },
   '/api/bench/tests': { tests: rows },'/api/bench/queue': { job: optional({ rows }), rows }, '/api/bench/runs': { runs: list({ rows }) },
   '/api/engines/vllm': { job: '', download: null }, '/api/engines/vllm/download': { download: null }, '/api/engines/vllm/models': { models: rows }, '/api/engines/vllm/hub/search': { models: rows }, '/api/engines/vllm/params': { params: list({ choices: list([]) }), values: {} },
-  '/api/policy': { rules: list(value => validShape(value, { conditions: optional({ command_prefixes: strings }) }) && typeof value.id === 'string') }, '/api/policy/audit': { entries: rows }, '/api/doctor/run': { checks: rows },
+  '/api/policy/pending': { requests: rows }, '/api/policy': { rules: list(value => validShape(value, { conditions: optional({ command_prefixes: strings }) }) && typeof value.id === 'string') }, '/api/policy/audit': { entries: rows }, '/api/doctor/run': { checks: rows },
   '/api/startup': { services: rows, engines: optional({ vllm_models: strings }) }, '/api/https': { urls: strings },
   '/api/mem/snapshots': { snapshots: rows }, '/api/llamacpp/job': { lines: strings }, '/api/prefs': { prefs: {} },
   '/api/discussion/events': eventShape,

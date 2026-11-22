@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"time"
 )
 
 var gatewayMu sync.Mutex
@@ -23,6 +24,43 @@ type gatewayOwnership struct {
 type gatewayState struct {
 	TokenHash string                      `json:"token_hash"`
 	Entries   map[string]gatewayOwnership `json:"entries,omitempty"`
+	// Last use of the current token, shown in Settings so the person sees
+	// that an agent is connected: time (Unix seconds) and MCP client name.
+	LastUsed   int64  `json:"last_used,omitempty"`
+	LastClient string `json:"last_client,omitempty"`
+}
+
+// gatewayLastNote keeps the last recorded use in memory, so most gateway
+// requests do not touch the database.
+var gatewayLastNote struct {
+	home, client string
+	at           int64
+}
+
+// noteGatewayUse records that an agent used the gateway. A client name comes
+// from the MCP request; calls by the same client refresh the time at most once
+// a minute.
+func noteGatewayUse(client string) {
+	gatewayMu.Lock()
+	defer gatewayMu.Unlock()
+	now, home := time.Now().Unix(), LoomHome()
+	if n := gatewayLastNote; n.home == home && (client == "" || client == n.client) && now-n.at < 60 {
+		return
+	}
+	state, err := loadGatewayState()
+	if err != nil || state.TokenHash == "" {
+		return
+	}
+	if client == "" {
+		client = state.LastClient
+	}
+	if client != state.LastClient || now-state.LastUsed >= 60 {
+		state.LastUsed, state.LastClient = now, client
+		if putJSON(bkState, gatewayStateKey, state) != nil {
+			return
+		}
+	}
+	gatewayLastNote.home, gatewayLastNote.client, gatewayLastNote.at = home, state.LastClient, state.LastUsed
 }
 
 func loadGatewayState() (gatewayState, error) {
@@ -46,6 +84,8 @@ func rotateGatewayToken() (string, error) {
 	}
 	token := hex.EncodeToString(buf)
 	state.TokenHash = hashWebKey(token)
+	state.LastUsed, state.LastClient = 0, "" // a new token has not been used yet
+	gatewayLastNote.at = 0
 	if err = putJSON(bkState, gatewayStateKey, state); err != nil {
 		return "", err
 	}
@@ -57,7 +97,7 @@ func handleMCPGateway(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	state, err := loadGatewayState()
-	brainResponse(w, map[string]any{"url": gatewayURL(), "token_set": state.TokenHash != "", "agents": agentsState()}, err)
+	brainResponse(w, map[string]any{"url": gatewayURL(), "token_set": state.TokenHash != "", "agents": agentsState(), "last_used": state.LastUsed, "last_client": state.LastClient}, err)
 }
 func handleMCPGatewayToken(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodPost) || !usageVaultAccess(w) {

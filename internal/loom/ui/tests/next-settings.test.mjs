@@ -36,7 +36,7 @@ function harness(source, view, overrides = {}) {
     t: french, tSource: s => s, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu', ListPick: 'ListPick', shortVersion: v => String(v || ''),
-    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
+    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', AgentAccess: 'AgentAccess', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
     inspectTrigger: () => ({}), baseName: p => (p || '').split('/').pop(),
     useState(initial) {
       const i = cursor++;
@@ -591,4 +591,48 @@ test('engine reports unknown probes and uses release updates for official binari
   await button(tree, 'Mettre à jour').props.onClick();
   assert.equal(h.posts[0][0], '/api/llamacpp/prebuilt');
   assert.ok(!button(tree, 'Recompiler'));
+});
+
+const agentAccess = fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8')
+  + fs.readFileSync(new URL('../next/js/features/settings/agent-access.js', import.meta.url), 'utf8');
+const agentEnv = { location: { origin: 'https://loom.example' }, setInterval: () => 0, clearInterval: () => {}, Intl };
+const { agentSetups, clientName } = harness(agentAccess, '({ agentSetups, clientName })', agentEnv).env.view;
+const agentHarness = gateway => {
+  const h = harness(agentAccess, 'AgentAccess', agentEnv);
+  h.data['/api/mcp/gateway'] = gateway;
+  h.data['/api/policy'] = { version: 1, migrated: true, rules: [{ id: 'kept', scope: 'global', subject: 'agent.fetch', decision: 'deny', conditions: {} }] };
+  return h;
+};
+
+test('agent access shows the token once with Claude Code (user scope), Codex and generic setups', async () => {
+  const h = agentHarness({ token_set: false, agents: 'available', last_used: 0, last_client: '' });
+  h.env.post = async (...args) => { h.posts.push(args); return { ok: true, token: 'SYNTHETIC-TOKEN' }; };
+  await button(await h.ready(), 'Créer un jeton').props.onClick();
+  const dialog = flatten(h.render()).find(n => n.type?.name === 'SetupDialog');
+  assert.equal(h.posts[0][0], '/api/mcp/gateway/token');
+  assert.equal(dialog.props.token, 'SYNTHETIC-TOKEN');
+  const setups = agentSetups(dialog.props.url, dialog.props.token);
+  assert.equal(setups.claude, 'claude mcp add --scope user --transport http loom https://loom.example/mcp/loom --header "Authorization: Bearer SYNTHETIC-TOKEN"');
+  assert.match(setups.codex, /^\[mcp_servers\.loom\]\nurl = "https:\/\/loom\.example\/mcp\/loom"\nhttp_headers = \{ "Authorization" = "Bearer SYNTHETIC-TOKEN" \}$/);
+  assert.equal(JSON.parse(setups.json).mcpServers.loom.headers.Authorization, 'Bearer SYNTHETIC-TOKEN');
+  dialog.props.onClose();
+  assert.ok(!flatten(h.render()).some(n => n.type?.name === 'SetupDialog'), 'the token is forgotten once closed');
+});
+
+test('agent access reports the last agent and toggles the two confirm rules without touching others', async () => {
+  const h = agentHarness({ token_set: true, agents: 'available', last_used: Math.floor(Date.now() / 1000) - 120, last_client: 'claude-code' });
+  const tree = await h.ready();
+  assert.match(textOf(tree), /Claude Code, il y a 2 minutes/);
+  const ask = () => flatten(h.render()).find(n => n.type === 'Switch' && /demander/.test(n.props.label));
+  const plain = v => JSON.parse(JSON.stringify(v)); // tableaux du contexte vm
+  assert.equal(ask().props.checked, false);
+  h.env.post = async (url, body) => { h.posts.push([url, body]); return body; };
+  await ask().props.onChange(true);
+  const on = h.posts.at(-1)[1].rules;
+  assert.deepEqual(plain(on.map(r => r.id)), ['kept', 'agent-access-ask-run', 'agent-access-ask-session']);
+  assert.deepEqual(plain(on.slice(1).map(r => [r.subject, r.decision])), [['mcp.tool:loom/loom_machine_run', 'confirm'], ['mcp.tool:agents/start_session', 'confirm']]);
+  assert.equal(ask().props.checked, true);
+  await ask().props.onChange(false);
+  assert.deepEqual(plain(h.posts.at(-1)[1].rules.map(r => r.id)), ['kept']);
+  assert.equal(clientName('codex-mcp-client'), 'Codex');
 });

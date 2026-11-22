@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -130,7 +131,7 @@ func agentsStatus() string {
 }
 
 type machineRunArgs struct {
-	Machine        string `json:"machine" jsonschema:"machine id from loom_machines; local is the machine serving Loom"`
+	Machine        string `json:"machine,omitempty" jsonschema:"machine id or name from loom_machines; empty or local is the machine serving Loom"`
 	Command        string `json:"command" jsonschema:"shell command, run by the machine's login shell"`
 	Dir            string `json:"dir,omitempty" jsonschema:"absolute working folder (optional)"`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"stop the command after this many seconds (default 60, at most 600)"`
@@ -163,13 +164,41 @@ func cleanTerminalOutput(b []byte) (string, bool) {
 	return strings.TrimSpace(s), trimmed
 }
 
+// resolveAgentMachine accepts what an agent naturally writes: the machine id,
+// its name or hostname (any case), or nothing for the machine serving Loom.
+func resolveAgentMachine(v string) (string, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "local", nil
+	}
+	machines := agentMachines()
+	for _, m := range machines {
+		if m.ID == v {
+			return m.ID, nil
+		}
+	}
+	var found []string
+	for _, m := range machines {
+		if strings.EqualFold(m.Name, v) || strings.EqualFold(m.Host, v) {
+			found = append(found, m.ID)
+		}
+	}
+	switch len(found) {
+	case 1:
+		return found[0], nil
+	case 0:
+		return "", errors.New("unknown machine " + strconv.Quote(v) + ": see loom_machines")
+	}
+	return "", errors.New("several machines are named " + strconv.Quote(v) + ": use the id from loom_machines")
+}
+
 // runMachineCommand runs one command through Loom's terminals (local PTY, saved
 // SSH machine or paired node with the terminal module), waits for it and
 // returns its output. A timeout ends the command. The terminal is removed.
 func runMachineCommand(ctx context.Context, a machineRunArgs) (machineRunResult, error) {
-	machine := strings.TrimSpace(a.Machine)
-	if machine == "" {
-		machine = "local"
+	machine, err := resolveAgentMachine(a.Machine)
+	if err != nil {
+		return machineRunResult{}, err
 	}
 	command := strings.TrimSpace(a.Command)
 	if command == "" {
@@ -213,10 +242,11 @@ func runMachineCommand(ctx context.Context, a machineRunArgs) (machineRunResult,
 	return res, nil
 }
 
-const agentGuide = "Loom connects this agent to the person's machines and agent sessions. " +
-	"loom_machines lists the machines; loom_machine_run runs a command on one and returns its output. " +
-	"agents__* tools (when available) start Codeman agent sessions in any installed CLI, send them prompts, wait for them and read their answers: delete the sessions you start once done. " +
-	"brain_* tools read and write the person's second brain. A call can wait for the person's approval when Loom's permissions ask for it."
+const agentGuide = "Loom connects you to the person's machines and agent sessions. " +
+	"Start with loom_overview. loom_machines lists the machines; loom_machine_run runs a non-interactive command on one (by id or name) and returns its exit code and output. " +
+	"agents__* tools (when available) start Codeman agent sessions in any installed CLI, send them prompts, wait for them and read their answers; delete the sessions you start once done, and never prompt sessions you did not start. " +
+	"brain_* and memory tools read and write the person's second brain. " +
+	"A call may wait for the person's approval in Loom, or be refused, when Loom's permissions ask for it: say so instead of retrying."
 
 func registerLoomAgentTools(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{Name: "loom_overview", Description: "Start here: what this Loom offers to agents, its machines, which machine provides each brick (engine, voice, codeman, files) and whether agent sessions are available.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
@@ -231,7 +261,7 @@ func registerLoomAgentTools(server *mcp.Server) {
 				Machines []agentMachine `json:"machines"`
 			}{agentMachines()}, nil
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "loom_machine_run", Description: "Run one shell command on a machine (see loom_machines) and return its exit code and output (plain text, last 64 KiB). Non-interactive: the command must not wait for input. Stopped after timeout_seconds (default 60, at most 600).", Annotations: &mcp.ToolAnnotations{DestructiveHint: ptr(true), OpenWorldHint: ptr(true)}},
+	mcp.AddTool(server, &mcp.Tool{Name: "loom_machine_run", Description: "Run one shell command on a machine (id or name from loom_machines; default: the machine serving Loom) and return its exit code and output (plain text, last 64 KiB). Non-interactive: the command must not wait for input. Stopped after timeout_seconds (default 60, at most 600).", Annotations: &mcp.ToolAnnotations{DestructiveHint: ptr(true), OpenWorldHint: ptr(true)}},
 		func(ctx context.Context, req *mcp.CallToolRequest, args machineRunArgs) (*mcp.CallToolResult, machineRunResult, error) {
 			res, err := runMachineCommand(ctx, args)
 			return nil, res, err

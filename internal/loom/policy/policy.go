@@ -68,6 +68,10 @@ type Input struct {
 	LegacyPermission string   `json:"-"`
 	Fallback         Decision `json:"-"`
 	ConsentKey       string   `json:"-"` // opaque operation revision, never audited
+	// Detail tells the person what a waiting confirmation is about (for an
+	// agent's tool call: the machine and command). Shown while it waits,
+	// kept in memory only: never stored, audited or sent in a notification.
+	Detail string `json:"-"`
 }
 type Result struct {
 	Decision Decision `json:"decision"`

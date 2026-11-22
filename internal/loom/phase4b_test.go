@@ -448,3 +448,40 @@ func TestPhase4bBundleBoundaryAndRedaction(t *testing.T) {
 		}
 	}
 }
+
+func TestPhase4bPendingConfirmationShowsDetailOnlyInMemory(t *testing.T) {
+	m := isolatePhase4b(t)
+	savePolicyRules(t, policy.Rule{ID: "ask-run", Scope: "global", Subject: "mcp.tool:loom/loom_machine_run", Decision: policy.Confirm})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	detail := gatewayCallDetail("nas", "df -h PRIVATE_PATH", nil)
+	go func() {
+		done <- m.authorizePolicy(ctx, policy.Input{Subject: "mcp.tool:loom/loom_machine_run", Detail: detail, Fallback: policy.Allow}, false)
+	}()
+	var pending []pendingPolicyRequest
+	for ctx.Err() == nil && len(pending) == 0 {
+		pending = m.pendingPolicyRequests()
+		time.Sleep(time.Millisecond)
+	}
+	if len(pending) != 1 || pending[0].Detail != "nas $ df -h PRIVATE_PATH" || pending[0].Subject != "mcp.tool:loom/loom_machine_run" {
+		t.Fatal(pending)
+	}
+	for id, raw := range allKV(bkRuntimeSessions) {
+		if strings.Contains(string(raw), "PRIVATE_PATH") {
+			t.Fatal("detail stored with", id)
+		}
+	}
+	if err := m.answerRequest(pending[0].SessionID, pending[0].RequestID, agent.RequestAnswer{Decision: "deny"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err == nil {
+		t.Fatal("denied call allowed")
+	}
+	if left := m.pendingPolicyRequests(); len(left) != 0 {
+		t.Fatal(left)
+	}
+	if got := gatewayCallDetail("", "", json.RawMessage(`{ "cli": "claude" }`)); got != `{"cli":"claude"}` {
+		t.Fatal(got)
+	}
+}
