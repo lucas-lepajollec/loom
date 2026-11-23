@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-23
+
+> **Upgrading from 0.2.x:** Back up `LOOM_HOME` before upgrading. Existing discussions, folders, presets, models, and archived transcripts are preserved. Native coding-harness adapters are retired in favor of the independent Codeman gateway (`Agents`). Remote node credentials and legacy `/v1` keys are transparently sealed in AES-256-GCM on startup. Pair or update remote `loom node` instances to `0.3.0` so pairing codes and `--listen lan` match.
+
+- **Security & control-plane hardening (#180)**: strict `script-src 'self'` CSP with hashed importmap and externalized theme/AudioWorklet scripts; global HTTP security headers (`nosniff`, `Referrer-Policy`, `Permissions-Policy`, `COOP`, CA-cert-only `HSTS`); MCP gateway `MachineID` policy scoping, confirmation-by-default for high-impact tools (`loom_machine_run`, `agents__start_session`), and token revocation (`DELETE /api/mcp/gateway/token` + UI control); capability policy enforcement on local discussion tools; AES-256-GCM sealing of remote node keys and legacy `/v1` keys; 24+ char CLI web keys and failed-Bearer rate limiting; opt-in `LOOM_TRUST_PROXY` reverse-proxy support; RFC 6890 `publicIP` hardening and updated `SECURITY.md`.
+- **Public demo, screenshots & documentation (#183)**: modernized `demo/` to run the current `ui/next` interface in English/French with live-simulated Codeman sessions, Second Brain notes, and 3-layer `noindex`; reproducible Playwright screenshot capture (`docs/screenshots/manifest.json`), `1280×640` social preview, and rewritten 10-section `README.md`.
+- **CI & repository hygiene (#180)**: added `dependency-review.yml`, `/tools/editor` Dependabot coverage, CodeQL scanning, `Protect main` ruleset, fixed MIT `LICENSE` copyright holder and Windows `versioninfo.json` metadata.
+
 - Loom has a standalone phone layout through 760 px. Sessions, Inbox, Usage,
   and More sit in the bottom bar. Inbox handles Codeman approvals, quick
   replies, recent completions, and interrupted-session restore. Discussions
