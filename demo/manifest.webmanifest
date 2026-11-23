@@ -1,16 +1,22 @@
 {
-  "name": "Loom",
-  "short_name": "Loom",
+  "name": "Loom Demo",
+  "short_name": "Loom Demo",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0d0d0d",
-  "theme_color": "#0d0d0d",
+  "background_color": "#09090a",
+  "theme_color": "#09090a",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect x='8.5' y='8.5' width='239' height='239' rx='55.5' fill='%230d0d0d'/><path transform='translate(42.67 42.67) scale(.6667)' fill='%23f4f1ea' d='t'/></svg>",
+      "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/loom-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
     }
   ]

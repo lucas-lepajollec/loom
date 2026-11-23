@@ -1,0 +1,367 @@
+/* Agents (Codeman) — mêmes tokens que Loom. Hiérarchie par la typographie et
+   les surfaces, filets seulement pour séparer les colonnes. La couleur reste
+   réservée à l'état : ambre = travaille, rouge = attend une personne. */
+
+.cm{flex-direction:column}
+.cm .trunc{max-width:100%;min-width:0}
+.cm-scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-gutter:stable}
+
+/* espace de travail */
+.cm-ws{flex:1;min-height:0;display:flex}
+.cm-ws>*{flex:1;min-width:0}
+
+.cm-blank{display:flex;align-items:center;justify-content:center}
+.cm-pane{min-width:0;min-height:0;display:flex}
+.cm-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+
+/* en-tête de session */
+.cm-sh{flex:none;display:flex;align-items:center;gap:10px;height:58px;padding:0 10px 0 16px;border-bottom:1px solid var(--line-soft)}
+.cm-sh .seg{flex:none}
+
+/* corps : conversation, terminal ou les deux */
+.cm-body{flex:1;min-height:0;display:flex}
+.cm-body.v-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.cm-body.v-split .cm-term-wrap{border-left:1px solid var(--line-soft)}
+.cm-conv{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.cm-conv .thread-in{max-width:780px}
+.cm-conv .msg-user .bubble{max-height:340px;overflow:auto}
+.cm-conv-empty{display:flex;flex-direction:column;align-items:center;gap:10px;margin:12vh auto 0;max-width:420px;text-align:center;color:var(--text-2);font-size:14px}
+.cm-conv-empty p{margin:0}
+.cm-activity{gap:6px}
+.cm-act{margin:0;padding:7px 10px;border-radius:var(--r-sm);background:var(--surface);font:12px/1.5 var(--mono);color:var(--text-2);white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
+.cm-act.status{background:transparent;padding:2px 0;color:var(--text-3)}
+.cm-working{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--text-3)}
+.cm-composer{padding-top:6px}
+.cm-composer .composer textarea:disabled{opacity:.5}
+.cm-send{width:var(--control-size);flex:none;padding:0}
+.cm-send .spinner{border-color:color-mix(in srgb,var(--on-ink) 30%,transparent);border-top-color:var(--on-ink)}
+
+/* approbations */
+.cm-approval{display:flex;flex-direction:column;gap:8px;padding:13px 15px;border-radius:var(--r-lg);background:var(--red-bg)}
+.cm-approval-h{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.cm-approval-h>.ico{color:var(--red)}
+.cm-approval-msg{margin:0;font:13px/1.5 var(--mono);color:var(--text);white-space:pre-wrap;word-break:break-word}
+.cm-approval-ctx summary{cursor:pointer;font-size:12px;color:var(--text-3)}
+.cm-approval-ctx pre{margin:6px 0 0;max-height:220px;overflow:auto;padding:8px 10px;border-radius:var(--r-sm);background:var(--bg-2);font:11.5px/1.45 var(--mono);color:var(--text-2)}
+.cm-approval-acts{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.cm-approval-acts>.muted{font-size:12.5px}
+
+/* terminal */
+.cm-term-wrap{flex:1;min-width:0;min-height:0;display:flex;background:var(--bg-2)}
+.cm-term{position:relative;flex:1;min-width:0;min-height:0;display:flex}
+.cm-term-box{flex:1;min-width:0;min-height:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:var(--surface-3) transparent}
+/* La marge est sur .xterm : FitAddon la déduit (pas celle du parent), sinon
+   les dernières colonnes passent sous la barre de défilement. */
+.cm-term-box .xterm{height:100%;box-sizing:border-box;padding:12px 6px 8px 16px;width:max-content;min-width:100%}
+/* Quand Codeman garde une taille plus large que le panneau (téléphone pendant
+   qu'un ordinateur est actif), le terminal défile horizontalement, comme dans
+   Codeman, au lieu d'être coupé. */
+.cm-term-box .xterm-viewport{background:transparent!important;scrollbar-width:thin;scrollbar-color:var(--surface-3) transparent}
+.cm-term-box .xterm-screen{margin:0 auto 0 0}
+/* Le moteur DOM d'xterm ajoute un espacement (letter-spacing) qui, cumulé sur
+   200 colonnes, poussait les derniers caractères hors du cadre (mesuré :
+   +0,156 px par colonne). Sans lui, le texte tombe exactement sur la grille. */
+.cm-term-box .xterm-rows,.cm-term-box .xterm-rows span{letter-spacing:0!important}
+.cm-term-state{position:absolute;top:10px;right:12px;display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface-2);box-shadow:var(--shadow-panel);font-size:12px;color:var(--text-2);pointer-events:none;animation:in-fade var(--mid) var(--ease)}
+.cm-term-exited .cm-term-box,.cm-term-missing .cm-term-box{opacity:.55}
+
+/* inspecteur */
+.cm-insp{width:var(--insp-w);flex:none;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--line-soft);animation:in-fade var(--mid) var(--ease)}
+.drawer-panel .cm-insp{width:100%;border:0}
+.cm-insp-bar{display:flex;align-items:center;gap:8px;min-width:0}
+.cm-insp-bar>span{flex:1;font-size:12px}
+.cm-insp-err{display:flex;align-items:center;gap:8px;color:var(--red);font-size:12.5px}
+.cm-insp-err span{flex:1}
+.cm-timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.cm-timeline li{display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;padding:7px 0;border-top:1px solid var(--line-soft)}
+.cm-timeline li:first-child{border-top:0}
+.cm-timeline time{font:11.5px var(--mono);color:var(--text-4);padding-top:1px}
+.cm-timeline b{display:block;font-weight:500;color:var(--text)}
+.cm-timeline small{display:block;color:var(--text-3);word-break:break-word}
+.cm-timeline .sev-warning b{color:var(--amber)}.cm-timeline .sev-error b{color:var(--red)}
+.cm-repo{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+.cm-repo:last-child{border-bottom:0}
+.cm-repo header{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cm-repo header b{font-weight:600}
+.cm-repo-sum{margin:0;font-size:12px}
+.cm-files{list-style:none;margin:0;padding:0}
+.cm-files button{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 6px;border-radius:var(--r-xs);text-align:left;font-size:12.5px}
+.cm-files button:hover{background:var(--hover)}
+.gk{flex:none;width:16px;font:600 11px var(--mono);font-style:normal;text-align:center;color:var(--amber)}
+.gk.staged{color:var(--green)}.gk.untracked{color:var(--text-3)}.gk.conflicted{color:var(--red)}
+.cm-commits summary{cursor:pointer;font-size:12px;color:var(--text-3)}
+.cm-commits div{font-size:12px;padding:3px 0;color:var(--text-2)}
+.cm-diff{margin:0;max-height:62vh;overflow:auto;border-radius:var(--r-sm);background:var(--bg-2);font:12px/1.5 var(--mono)}
+.cm-diff .dl{padding:0 12px;white-space:pre}
+.cm-diff .dl.hunk{color:var(--text-3);background:var(--surface)}
+.cm-tree{list-style:none;margin:0;padding:0}
+.cm-tree button{display:flex;align-items:center;gap:6px;width:100%;height:26px;padding-right:6px;border-radius:var(--r-xs);text-align:left;font-size:12.5px;color:var(--text-2)}
+.cm-tree button:hover{background:var(--hover);color:var(--text)}
+.cm-tree .ico{width:13px;height:13px;color:var(--text-4)}
+.cm-file{margin:0;max-height:64vh;overflow:auto;padding:12px 14px;border-radius:var(--r-sm);background:var(--bg-2);font:12px/1.5 var(--mono);white-space:pre;tab-size:2}
+.cm-subs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.cm-subs button{display:flex;align-items:center;gap:10px;width:100%;padding:7px 8px;border-radius:var(--r-sm);text-align:left}
+.cm-subs button:hover{background:var(--hover)}
+.cm-subs .grow{display:flex;flex-direction:column;min-width:0}
+.cm-subs small{font-size:12px}
+.cm-kv{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:6px 0;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+.cm-kv span{color:var(--text-3);flex:none}
+.cm-kv b{font-weight:500;min-width:0;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cm-switches{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.cm-switch{display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer}
+.cm-switch span{display:flex;flex-direction:column;min-width:0}
+.cm-switch b{font-size:13px;font-weight:500}
+.cm-switch small{font-size:12px;color:var(--text-3)}
+
+/* nouvelle session */
+.cm-cli-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.cm-cli{justify-content:flex-start;min-height:44px;padding:var(--space-2) 10px;text-align:left}
+.cm-cli-copy{display:flex;flex:1;min-width:0;flex-direction:column;overflow-wrap:anywhere}
+.cm-cli-copy small{font-size:var(--text-xs);color:var(--text-3)}
+.cm-cli.missing:not([aria-pressed="true"]){color:var(--text-2)}
+.cm-cli .cm-cli-check{width:13px;height:13px;color:var(--text-2)}
+.cm-cli{display:flex;align-items:center;gap:10px;min-height:44px;padding:6px 10px;border-radius:var(--r);border:1px solid var(--line-soft);text-align:left;transition:border-color var(--fast),background-color var(--fast)}
+.cm-dir{display:flex;align-items:center;gap:8px}
+.cm-dir>.ico{color:var(--text-3)}
+.cm-dir .input{flex:1;min-width:0}
+.cm-browse{display:flex;flex-direction:column;border-radius:var(--r);background:var(--bg-2);overflow:hidden}
+.cm-browse-h{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+.cm-browse-h>span{flex:1}
+.cm-browse-list{max-height:220px;overflow-y:auto;padding:4px}
+.cm-browse-list .ico{color:var(--text-3)}
+.cm-browse-list p{padding:8px;margin:0;font-size:12.5px}
+.cm-row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+
+@media(max-width:1600px) and (min-width:1181px){
+  .cm-insp{width:304px}
+}
+
+/* écrans intermédiaires */
+@media(max-width:1180px) and (min-width:761px){
+  .cm-pane.with-insp .cm-insp{position:absolute;right:0;top:0;bottom:0;z-index:20;background:var(--panel);box-shadow:var(--shadow-pop)}
+  .cm-pane{position:relative}
+}
+
+/* téléphone */
+@media(max-width:760px){
+  .cm-sh .seg{flex-wrap:nowrap}
+  .cm-sh .seg button{flex:none;white-space:nowrap}
+  .hide-narrow{display:none!important}
+  .cm-sh{gap:6px;height:56px;padding:0 4px 0 2px}
+  .cm-sh .seg button{padding:0 8px}
+  .cm-conv .thread-in{padding:18px 14px 12px}
+  .cm-composer{padding:6px 10px calc(10px + env(safe-area-inset-bottom))}
+  .cm-term-box .xterm{padding:8px 2px 6px 8px}
+  .cm-approval-acts .btn{flex:1 1 auto}
+  .cm-cli-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cm-row2{grid-template-columns:minmax(0,1fr)}
+}
+
+/* premier écran d'un CLI, avant tout prompt */
+.cm-boot{display:flex;flex-direction:column;gap:10px}
+.cm-boot-h{display:flex;flex-direction:column;gap:2px}
+.cm-boot-h b{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.cm-boot-h span{font-size:13px}
+.cm-boot.live .cm-boot-term{height:min(620px,64vh)}
+.cm-boot-term{height:min(380px,52vh);display:flex;border-radius:var(--r-lg);background:var(--bg-2);box-shadow:inset 0 0 0 1px var(--line-soft);overflow:hidden}
+.cm-screen-note{display:flex;align-items:center;gap:7px;margin:-6px 0 0;font-size:12px}
+.cm-screen-note .ico{width:13px;height:13px}
+
+/* accueil sans session : la liste complète{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;overflow:hidden}
+
+/* barre latérale : liste unique des sessions et dossiers */
+.ses-h{padding:0 2px 0 4px;margin-top:4px}
+.ses-h .icon-btn{width:26px;height:26px}
+.ses-h .icon-btn .ico{width:14px;height:14px}
+.ses .side-list{flex:1;min-height:0}
+.ses-row{text-decoration:none}
+.chat-link .ses-ico{width:16px;height:16px;flex:none;display:grid;place-items:center;color:var(--text-3)}
+.ses-ico .ico{width:15px;height:15px}
+.ses-ico .logo-mark.xs{--mark-size:15px}
+.ses-row.st-stopped{color:var(--text-4)}
+.ses-row.st-stopped .ses-ico{opacity:.5}
+.ses-row>.dot{width:7px;height:7px}
+/* pastilles d'état : même place que la durée, au bord, effacées au survol */
+.ses-row>.dot,.ses-row>.run{flex:none;margin-left:auto;margin-right:4px}
+.ses-when{flex:none;margin-left:auto;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+/* la durée colle au bord ; au survol elle laisse la place aux « ⋯ » */
+.ses-row{padding-right:8px}
+.ses-row>.more{position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0}
+.ses-row:hover>.more,.ses-row:focus-visible>.more,.ses-row:has(:focus-visible)>.more{opacity:1}
+.ses-row:is(:hover,:focus-visible,:has(:focus-visible))>:is(.ses-when,.dot,.run){visibility:hidden}
+.ses-folder-h small{flex:none;font-size:11.5px;color:var(--text-4)}
+.ses-folder-in .chat-link{padding-left:22px}
+.ses-folder.drop-on,.ses .side-list.drop-on{border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.ses-empty{margin:4px 10px;font-size:12.5px;color:var(--text-4)}
+
+.cm-grid-h{min-height:48px}
+.cm-grid-h b{font-size:14px;font-weight:600}
+.welcome-type{display:flex;justify-content:center;margin-bottom:10px}
+
+/* disposition et quotas dans la barre du module */
+.cm-layout-btn{width:32px;height:32px}
+.cm-layout-btn.on{background:var(--hover);color:var(--text)}
+.cm-shape{width:17px;height:13px;fill:none;stroke:currentColor;stroke-width:1.3}
+.cm-layout-pop{padding:10px;display:flex;flex-direction:column;gap:10px}
+.cm-layout-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.cm-layout-grid .btn{flex-direction:column;gap:4px;padding:var(--space-1)}
+.cm-layout-grid button[aria-checked="true"] .cm-shape rect{fill:color-mix(in srgb,currentColor 16%,transparent)}
+.cm-layout-grid .cm-shape{width:22px;height:17px}
+.cm-layout-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px 0;border-top:1px solid var(--line-soft);font-size:13px;cursor:pointer}
+.cm-layout-hint{margin:0;padding:0 4px;font-size:11.5px;line-height:1.45}
+
+/* grille de volets (tmux) */
+.cm-grid{flex:1;min-height:0;display:grid;padding:4px;background:var(--bg-2)}
+.cm-grid.zoomed{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.cm-cell{min-width:0;min-height:0;display:flex}
+.cm-tile{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;border-radius:var(--r-lg);background:var(--bg);box-shadow:inset 0 0 0 1px var(--line-soft);overflow:hidden;transition:box-shadow var(--fast)}
+.cm-tile.focused{box-shadow:inset 0 0 0 1px var(--line-strong),0 0 0 1px var(--line-strong)}
+.cm-tile.st-waiting{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red) 55%,transparent)}
+.cm-tile.drop-on{box-shadow:inset 0 0 0 2px var(--accent)}
+.cm-tile-h{flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:0 4px 0 11px;border-bottom:1px solid var(--line-soft);cursor:grab;user-select:none}
+.cm-tile.focused .cm-tile-h{background:var(--surface)}
+.cm-tile-h .dot{width:7px;height:7px}
+.cm-tile-h .icon-btn{width:26px;height:26px;opacity:.55;transition:opacity var(--fast)}
+.cm-tile-h .icon-btn .ico{width:15px;height:15px}
+.cm-tile:hover .cm-tile-h .icon-btn,.cm-tile.focused .cm-tile-h .icon-btn{opacity:1}
+.cm-tile-t{flex:1;display:flex;align-items:baseline;gap:8px;min-width:0}
+.cm-tile-t b{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm-tile-t small{font-size:11.5px;color:var(--text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm-tile.st-working .cm-tile-t small{color:var(--amber)}.cm-tile.st-waiting .cm-tile-t small{color:var(--red)}
+.cm-tile-b{flex:1;min-height:0;display:flex;background:var(--bg-2)}
+.cm-tile-b>.cm-conv{background:var(--bg)}
+.cm-tile .cm-term-box .xterm{padding:8px 4px 6px 10px}
+.cm-tile-empty{background:transparent;box-shadow:inset 0 0 0 1px var(--line-soft);background-image:radial-gradient(var(--line-soft) 1px,transparent 1px);background-size:14px 14px}
+.cm-tile-empty.focused{box-shadow:inset 0 0 0 1px var(--line-strong)}
+.cm-tile-free{margin:auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;max-width:300px;text-align:center}
+.cm-tile-free p{margin:0;font-size:13px;color:var(--text-3)}
+.cm-tile-pick{display:flex;flex-direction:column;gap:2px;width:100%;padding:4px;border-radius:var(--r);background:var(--panel)}
+.cm-tile-pick button{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:var(--r-xs);font-size:12.5px;text-align:left}
+.cm-tile-pick button:hover{background:var(--hover)}
+.cm-div{position:relative;display:flex;align-items:center;justify-content:center;cursor:col-resize;touch-action:none}
+.cm-div.row{cursor:row-resize}
+.cm-div i{width:2px;height:28px;border-radius:2px;background:var(--line);opacity:0;transition:opacity var(--fast),background-color var(--fast)}
+.cm-div.row i{width:28px;height:2px}
+.cm-div:hover i{opacity:1;background:var(--line-strong)}
+body.cm-dragging{cursor:col-resize;user-select:none}
+body.cm-dragging iframe,body.cm-dragging .xterm{pointer-events:none}
+.cm-conv.compact .thread-in{padding:16px 16px 10px;gap:14px}
+.cm-conv.compact .cm-boot-term{height:min(300px,40vh)}
+.cm-composer.compact{padding:4px 10px 10px}
+.cm-composer.compact .composer{border-radius:14px}
+
+/* pièces jointes du prompt */
+.composer.drop-on{box-shadow:0 0 0 2px var(--accent)}
+.cm-attach{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px 0}
+.cm-att{position:relative;display:inline-flex;align-items:center;gap:7px;max-width:220px;height:36px;padding:0 28px 0 4px;border-radius:9px;background:var(--surface-2);font-size:12px;color:var(--text-2)}
+.cm-att img{width:28px;height:28px;object-fit:cover;border-radius:6px;flex:none}
+.cm-att>.ico{width:16px;height:16px;margin-left:6px;color:var(--text-3)}
+.cm-att.busy{color:var(--text-3)}
+.cm-att .spinner{width:12px;height:12px;flex:none}
+.cm-att-x{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;display:grid;place-items:center;border-radius:50%;color:var(--text-3)}
+.cm-att-x:hover{background:var(--hover);color:var(--text)}
+.cm-att-x .ico{width:12px;height:12px}
+.cm-term.drop-on .cm-term-box{box-shadow:inset 0 0 0 2px var(--accent);border-radius:var(--r)}
+
+/* Bouton scindé : une seule pastille{display:inline-flex;border-radius:7px;overflow:hidden}
+.cm-term-foreign{pointer-events:auto;cursor:pointer;color:var(--text);border:0}
+.cm-term-foreign:hover{background:var(--surface-3)}
+.cm-term-foreign .ico{width:13px;height:13px}
+
+/* téléphone : touches au-dessus du clavier, comme dans Codeman */
+.cm-term.with-keys{flex-direction:column}
+.cm-acc{flex:none;display:flex;align-items:center;gap:4px;padding:5px 6px;border-top:1px solid var(--line-soft);background:var(--panel);overflow-x:auto;scrollbar-width:none}
+.cm-acc::-webkit-scrollbar{display:none}
+.cm-acc button{flex:1 0 auto;min-width:36px;height:32px;padding:0 8px;border-radius:7px;font:500 13px var(--font);color:var(--text-2);touch-action:manipulation}
+.cm-acc button:active,.cm-acc button.on{background:var(--surface-3);color:var(--text)}
+.cm-acc .cm-acc-hide{flex:0 0 36px;color:var(--text-3)}
+.cm-acc .cm-acc-hide .ico{width:16px;height:16px}
+
+/* aperçu des quotas */
+
+.cm-qp-win{display:flex;flex-direction:column;gap:4px}
+.cm-qp-h{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-2)}
+.cm-qp-h em{font-style:normal;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.cm-qp-bar{height:5px;border-radius:3px;background:var(--surface-3);overflow:hidden}
+.cm-qp-bar i{display:block;height:100%;border-radius:3px;background:var(--text-2)}
+.cm-qp-win.amber .cm-qp-bar i{background:var(--amber)}.cm-qp-win.red .cm-qp-bar i{background:var(--red)}
+.cm-qp-win.amber em{color:var(--amber)}.cm-qp-win.red em{color:var(--red)}
+.cm-qp-win small{font-size:11.5px}
+
+/* CLI plein écran (Claude Code /tui fullscreen) : pas de barre de défilement locale trompeuse. */
+.cm-term.cli-fullscreen .xterm-viewport{scrollbar-width:none}
+.cm-term.cli-fullscreen .xterm-viewport::-webkit-scrollbar{display:none}
+
+/* Écrans tactiles (iOS surtout), comme Codeman (styles.css) :
+   - iOS zoome la page quand on touche un champ en dessous de 16 px ; la zone
+     de saisie cachée de xterm prend la taille du terminal (10 px sur
+     téléphone), donc chaque toucher pouvait zoomer et tout décaler ;
+   - elle suit aussi le curseur dans un terminal plus large que l'écran, et
+     iOS fait défiler pour la montrer : on la fige, minuscule et invisible ;
+   - un appui long ne sélectionne pas le texte, un double toucher ne zoome pas. */
+html.touch .cm-term .xterm .xterm-helper-textarea{position:fixed!important;left:0!important;top:0!important;width:1px!important;height:1px!important;font-size:16px!important;opacity:0!important;caret-color:transparent!important;z-index:0!important}
+html.touch .cm-term .xterm .composition-view{display:none!important}
+html.touch .cm-term .xterm,html.touch .cm-term .xterm *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}
+/* Le script est seul maître des gestes sur le terminal (comme Codeman) :
+   sinon iOS lance son propre défilement dès les premiers pixels et ignore
+   le preventDefault qui arrive ensuite. Le glissement horizontal est géré
+   par terminal.js. */
+html.touch .cm-term-box,html.touch .cm-term .xterm,html.touch .cm-term .xterm-viewport,html.touch .cm-term .xterm-screen{touch-action:none}
+html.touch .cm-term-box{-webkit-text-size-adjust:100%}
+/* en-tête de session et panneau unifié (même structure que la discussion) */
+.cm-sh-cli{display:inline-flex;align-items:center;gap:8px;min-width:0;flex:none;font-size:15px}
+.cm-sh-cli b{font-weight:500}
+.cm-sh-cli .muted{font-size:14px}
+.cm-sh-sep{color:var(--text-4)}
+.cm-sh-name{flex:0 1 auto}
+.cm-sh-state{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:13px;background:var(--surface-2);font-size:12.5px;font-weight:500;color:var(--text-2);white-space:nowrap}
+.cm-sh-state.st-working,.cm-sh-state.st-starting{background:var(--amber-bg);color:var(--amber)}
+.cm-sh-state.st-waiting{background:var(--blue-bg);color:var(--text)}
+.cm-sh-state.st-error{background:var(--red-bg);color:var(--red)}
+.cm-panel-h{flex:none;display:flex;align-items:center;gap:2px;height:58px;padding:0 8px 0 18px;border-bottom:1px solid var(--line-soft)}
+.cm-panel-h b{font-size:14px;font-weight:600}
+.cm-panel-body{flex:1;min-height:0;overflow-y:auto;padding:14px 16px 20px;display:flex;flex-direction:column;gap:16px;font-size:13px}
+.cm-panel-body>.seg{width:100%}
+.cm-panel-body>.seg button{flex:1}
+.cm-panel-rows .cm-kv:last-child{border-bottom:0}
+.cm-panel-cli{display:inline-flex;align-items:center;gap:6px}
+.cm-panel-acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.cm-panel-acts .btn{flex-direction:column;padding:10px 4px;overflow-wrap:anywhere}
+.cm-hq{display:flex;flex-direction:column;gap:10px}
+.cm-hq-h{display:flex;justify-content:space-between;font-size:12.5px;font-weight:500;color:var(--text-3)}
+.cm-hq-h a{color:var(--text-3);text-decoration:none;font-weight:400}
+.cm-hq-h a:hover{color:var(--text)}
+.cm-panel-secs{display:flex;flex-direction:column}
+.cm-ps{border-top:1px solid var(--line-soft)}
+.cm-ps:last-child{border-bottom:1px solid var(--line-soft)}
+.cm-ps-h{display:flex;align-items:center;justify-content:space-between;width:100%;height:40px;font-size:13.5px;color:var(--text)}
+.cm-ps-h .ico{width:14px;height:14px;color:var(--text-3)}
+.cm-ps-b{display:flex;flex-direction:column;gap:10px;padding:2px 0 14px}
+/* téléphone : panneau dans un tiroir (son titre suffit) et en-tête allégé */
+.drawer-panel .cm-panel-h{height:auto;padding:0 10px;border:0;justify-content:flex-end}
+.drawer-panel .cm-panel-h b,.drawer-panel .cm-panel-h .grow{display:none}
+.drawer-panel .cm-panel-body{padding-top:4px}
+@media (max-width:760px){
+  .cm-sh-cli .muted,.cm-sh-sep{display:none}
+  .cm-sh-cli{flex:0 1 auto;max-width:48%}
+  .cm-sh-cli b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cm-send{width:var(--touch-target)}
+  .cm-sh-state{padding:0;background:none!important;font-size:0;gap:0}
+  .cm-sh-state .dot{width:8px;height:8px}
+}
+.cm-ps-h small{margin-left:auto;margin-right:8px;font-size:12.5px;color:var(--text-3)}
+.cm-panel-rows .cm-kv{align-items:center;min-height:38px;padding:0;border:0;font-size:13.5px}
+.cm-panel-rows .cm-kv span{color:var(--text-2)}
+.cm-others{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.cm-others button{display:flex;flex-direction:column;align-items:flex-start;width:100%;padding:6px 8px;border-radius:var(--r-sm);text-align:left}
+.cm-others button:hover{background:var(--hover)}
+
+/* sessions coupées par un redémarrage */
+.cm-restore-acts{display:flex;gap:8px;margin-left:auto}
+.cm-restore-note{margin:-4px 0 0;font-size:13px;color:var(--text-3)}
+.cm-restore-row{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 16px}
+.cm-restore-name{flex:1;min-width:0;display:grid}
+.cm-restore-name b{font-weight:500;font-size:14px}
+.cm-restore-name small{font:12px var(--mono);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ses-restore{color:var(--amber)}
+.ses-restore .ico{width:14px;height:14px}

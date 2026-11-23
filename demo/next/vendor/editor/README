@@ -1,0 +1,5 @@
+editor.mjs bundles TipTap 3.35.0 (@tiptap/core, starter-kit, markdown,
+extension-list, extension-table, extension-image, extensions; MIT, ueberdosis
+GmbH), ProseMirror (MIT, Marijn Haverbeke and others), marked (MIT),
+linkifyjs (MIT), orderedmap, rope-sequence and w3c-keyname (MIT).
+Rebuild with tools/editor/build.sh. Loaded only by the Files page.

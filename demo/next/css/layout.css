@@ -1,0 +1,24 @@
+/* Une seule largeur et une seule hauteur pour toutes les pages ordinaires :
+   1040 px centrés, 40 px de marge latérale, le même espace en haut. Les
+   onglets d'une page restent fixes en haut, comme ceux d'Agents. Fichiers,
+   discussions et sessions d'agent gardent leur mise en page propre. */
+@media (min-width:761px){
+  :root{--page-top:28px}
+  /* la place de la barre de défilement est réservée des deux côtés : le
+     contenu reste centré, que la page défile ou non */
+  .view.page,.view.cm .cm-scroll{scrollbar-gutter:stable both-edges}
+  .view.page > .page-in.page-in{max-width:1040px;margin-inline:auto;padding:var(--page-top) 40px 48px}
+  .view.page > .page-in.page-in:has(> .sec-tabs){padding-top:0}
+  .view.page > .page-in > .sec-tabs.sec-tabs{position:sticky;top:0;z-index:6;flex:none;align-items:flex-end;height:auto;margin-top:0;padding-top:var(--page-top);border:0;background:var(--panel)}
+  .view.page > .page-in > .sec-tabs a{height:42px}
+  /* onglet courant : le même trait partout */
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs .sec-pill{display:none}
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs{gap:24px}
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs a[aria-current="page"]{color:var(--text);box-shadow:inset 0 -2px var(--text)}
+  .view.cm > .cm-admin-top.cm-admin-top{padding-top:var(--page-top)}
+  .view.cm > .cm-admin-top.cm-admin-top,.view.cm .cm-scroll > :is(.cm-cc,.cm-cron,.cm-cfg){width:100%;max-width:1040px;margin-inline:auto;padding-inline:40px}
+}
+
+/* barres de recherche : le champ n'a pas de cadre propre quand on tape,
+   seule la barre marque le focus */
+:is(.search, .fl-search) input:is(:focus, :focus-visible){outline:0;box-shadow:none}

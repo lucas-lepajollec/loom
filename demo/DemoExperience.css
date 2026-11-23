@@ -272,3 +272,10 @@
   outline: 2px solid rgba(255, 255, 255, 0.8);
   outline-offset: 3px;
 }
+
+@media (max-width: 760px) {
+  .lh-demo-chip {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    right: 12px;
+  }
+}

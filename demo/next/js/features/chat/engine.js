@@ -1,0 +1,494 @@
+import { t } from '../../core/i18n.js';
+import { localChoice } from './execution.js';
+import { chatShape, validShape, eventShape } from '../../core/shape.js';
+// Un flux de discussion et un seul traitement des événements.
+import { createStore } from '../../core/lib.js';
+import { get, post, stream } from '../../core/api.js';
+import { toast, confirm } from '../../ui/dialog.js';
+import { refreshNav, refreshWorkspace, refreshStatus, runtimeKind, go, app } from '../../core/state.js';
+
+export const chat = createStore({
+  mode: 'native', sessionId: '', session: null, context: null,
+  items: [], frozen: null, busy: false, replaying: true, loading: true,
+  ctxUsed: 0, compactCount: 0, gen: null, runningTask: '', notice: '',
+  // Modèle local choisi mais pas encore chargé : il ne se charge qu'à l'envoi.
+  localTarget: null, starting: false, engineError: '',
+}, chatShape);
+
+let lastSeq = 0, abort = null, epoch = 0, opening = false, turn;
+const newTurn = () => ({ reason: null, content: null, tool: null, tools: new Map(), plan: null, foot: null, tok: null, stats: null });
+turn = newTurn();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function items() { return chat.get().items; }
+function push(item) {
+  const list = items().slice();
+  const foot = turn.foot && list.indexOf(turn.foot);
+  if (turn.foot && foot >= 0) list.splice(foot, 0, item); else list.push(item);
+  chat.set({ items: list }); return item;
+}
+function touch() { chat.set({ items: items().slice() }); }
+function applySession(s, context) {
+  chat.set({ session: s, context: context || chat.get().context, notice: '', busy: s.status === 'running' });
+}
+function liveFoot(rt) {
+  if (!rt) return;
+  if (!turn.foot) turn.foot = push({ k: 'foot', rt, running: true });
+  else { turn.foot.rt = rt; touch(); }
+  if (rt.usage) turn.tok = rt.usage.completion_tokens;
+  bumpGen();
+}
+function onEvent(d) {
+  if (!validShape(d, eventShape)) return;
+  if (typeof d.seq === 'number' && d.seq > lastSeq) lastSeq = d.seq;
+  if (d.reset !== undefined) {
+    lastSeq = 0; turn = newTurn();
+    chat.set({ items: [], busy: false, gen: null, ctxUsed: 0, compactCount: 0, replaying: !!d.replay, loading: !!d.replay });
+    refreshNav();
+  }
+  if (d.session) applySession(d.session, d.context);
+  if (d.state) {
+    const s = d.state;
+    chat.set({ busy: s.generating, compactCount: s.compact_count || 0, ctxUsed: s.ctx_used,
+      gen: s.generating ? { start: Date.now() - (+s.gen_elapsed_ms || 0), tok: turn.tok } : null });
+  }
+  if (d.caught_up) {
+    chat.set({ replaying: false, loading: false, notice: '', frozen: null });
+    if (d.session && d.session.status === 'running') {
+      for (const it of [turn.content, turn.reason]) if (it && !it.summary) it.live = true;
+      const rt = (d.session.turns || []).at(-1);
+      chat.set({ gen: { start: rt && rt.started_at || Date.now(), tok: rt && rt.usage ? rt.usage.completion_tokens : null } });
+      touch();
+    }
+    return;
+  }
+  if (!d.type && d.running) liveFoot(d.provenance);
+  const replay = chat.get().replaying;
+  if (d.compacting !== undefined) chat.set({ compacting: !!d.compacting });
+  if (d.compacted) { chat.set({ compacting: false }); push({ k: 'compact' }); }
+  if (d.compact_noop) { chat.set({ compacting: false }); if (!replay) toast(t("chat.engine.rien_a_compacter")); }
+  if (d.ctx_used !== undefined) chat.set({ ctxUsed: d.ctx_used });
+  if (d.compact_count !== undefined) chat.set({ compactCount: d.compact_count });
+  switch (d.type) {
+    case 'turn_start': {
+      turn = newTurn();
+      const list = items().slice();
+      const pending = list.findIndex(i => i.k === 'user' && i.pending && i.text === d.text);
+      if (pending >= 0) list[pending] = { ...list[pending], pending: false, files: d.files || list[pending].files };
+      else list.push({ k: 'user', text: d.text, files: d.files || [], plain: !!d.portable_text });
+      chat.set({ items: list, busy: true, gen: replay ? null : { start: d.provenance && d.provenance.started_at || Date.now(), tok: null } });
+      if (d.provenance && !replay) {
+        turn.content = push({ k: 'assistant', text: '', live: true });
+        liveFoot(d.provenance);
+      }
+      if (!replay) refreshNav();
+      return;
+    }
+    case 'turn_done': {
+      for (const it of items()) if (it.live) it.live = false;
+      const st = d.metrics && d.metrics.stats || turn.stats || {};
+      if (turn.foot) { turn.foot.rt = d.provenance; turn.foot.running = false; touch(); }
+      else push({ k: 'foot', rt: d.provenance || null, ms: d.elapsed_ms || 0, tok: turn.tok, rate: st.gen_per_second || null, stats: st });
+      turn = newTurn(); chat.set({ busy: false, gen: null });
+      // A replayed turn is not new: refresh the sidebar once, after real turns.
+      if (!chat.get().replaying) refreshNav();
+      return;
+    }
+    case 'error':
+      for (const it of items()) it.live = false;
+      push({ k: 'error', text: d.error }); chat.set({ gen: null }); return;
+    case 'plan': {
+      let item = turn.plan;
+      if (!item) turn.plan = push({ k: 'plan', entries: d.entries || [] });
+      else { item.entries = d.entries || []; touch(); }
+      return;
+    }
+    case 'approval_request':
+      push({ k: 'approval', approval: { ...d.approval, approval_kind: d.request && d.request.approval_kind, message: d.request && d.request.message }, resolved: false }); return;
+    case 'approval_resolved': {
+      const item = items().find(i => i.k === 'approval' && i.approval.id === d.id);
+      if (item) { item.resolved = { option_id: d.option_id, auto: d.auto, allowed: /^allow|^accept|^approve/.test(String(d.option_id || '')), cancelled: d.outcome === 'cancelled' }; touch(); }
+      return;
+    }
+    case 'request.opened':
+      if (d.request && !items().some(i => i.k === 'request' && i.request.id === d.request.id)) push({ k: 'request', request: d.request, resolved: false });
+      return;
+    case 'request.resolved': {
+      const item = items().find(i => i.k === 'request' && i.request.id === d.request_id);
+      if (item) { item.resolved = { outcome: d.outcome }; touch(); }
+      return;
+    }
+    case 'mode':
+    case 'config':
+    case 'files':
+    case 'commands':
+    case 'usage':
+      if (d.metrics) {
+        turn.stats = d.metrics;
+        if (d.metrics.prompt_tokens_total) chat.set({ ctxUsed: d.metrics.prompt_tokens_total + (d.metrics.gen_tokens || 0) });
+      }
+      if (d.provenance) liveFoot(d.provenance);
+      return;
+    case 'tool_start': case 'tool_delta': case 'tool_end': {
+      if (d.native_tool) { liveFoot(d.provenance); return; }
+      const tu = d.tool;
+      if (!tu) return;
+      turn.content = null; turn.reason = null;
+      if (tu.id) {
+        const done = tu.status === 'completed' || tu.status === 'failed';
+        const existing = turn.tools.get(tu.id);
+        if (existing) { existing.tool = tu; existing.live = !replay && !done; touch(); }
+        else turn.tools.set(tu.id, push({ k: 'tool', tool: tu, live: !replay && !done }));
+        return;
+      }
+      if (!turn.tool) turn.tool = push({ k: 'tool', tu, live: !replay && !tu.done });
+      else { turn.tool.tu = tu; turn.tool.live = !replay && !tu.done; touch(); }
+      if (tu.arg_toks) { const prev = turn.tool._arg || 0; if (tu.arg_toks > prev) { turn.tok = (turn.tok || 0) + tu.arg_toks - prev; turn.tool._arg = tu.arg_toks; } }
+      if (tu.done) turn.tool = null;
+      bumpGen(); return;
+    }
+    case 'reasoning_delta': {
+      if (d.drop) { if (turn.reason) chat.set({ items: items().filter(i => i !== turn.reason) }); turn.reason = null; return; }
+      if (!turn.reason) {
+        turn.reason = push({ k: 'reasoning', text: '', tok: null, live: !replay && !d.summary, summary: !!d.summary });
+        if (d.summary && turn.content) {
+          const list = items().filter(i => i !== turn.reason);
+          list.splice(list.indexOf(turn.content), 0, turn.reason); chat.set({ items: list });
+        }
+      }
+      appendText(turn.reason, d); return;
+    }
+    case 'text_delta':
+      if (turn.reason) turn.reason.live = false;
+      if (!turn.content) turn.content = push({ k: 'assistant', text: '', tok: null, live: !replay });
+      appendText(turn.content, d);
+  }
+}
+function appendText(item, d) {
+  if (d.replace) { turn.tok = (turn.tok || 0) - (item.tok || 0); item.text = ''; item.tok = 0; }
+  item.text += d.text || '';
+  // Only native journal deltas carry its historical token counter.
+  if (typeof d.toks === 'number' || typeof d.seq === 'number') {
+    const inc = d.toks || 1; item.tok = (item.tok || 0) + inc; turn.tok = (turn.tok || 0) + inc;
+  }
+  touch(); bumpGen();
+}
+function bumpGen() {
+  const g = chat.get().gen;
+  if (g) chat.set({ gen: { ...g, tok: turn.tok } });
+}
+
+let streaming = false;
+export async function connectNative() {
+  if (streaming) return;
+  streaming = true;
+  for (;;) {
+    while (document.hidden || opening) await sleep(500);
+    const ep = epoch, st = chat.get();
+    abort = new AbortController();
+    try {
+      await stream('/api/discussion/events', { id: st.sessionId, from: lastSeq }, d => { if (ep === epoch) onEvent(d); }, abort.signal);
+    } catch (_) {}
+    if (ep === epoch && !document.hidden) chat.set({ notice: t("chat.engine.connexion_interrompue_nouvelle_tentative") });
+    await sleep(600);
+  }
+}
+document.addEventListener('visibilitychange', () => { if (abort) abort.abort(); });
+globalThis.addEventListener?.('pageshow', () => { if (abort) abort.abort(); });
+globalThis.addEventListener?.('online', () => { if (abort) abort.abort(); });
+
+function restartNative(replay) {
+  lastSeq = 0; turn = newTurn();
+  chat.set({ mode: 'native', items: [], busy: false, gen: null, replaying: replay, loading: replay });
+  if (abort) abort.abort();
+}
+
+// ---------------------------------------------------------------- ouverture
+// open(id) : une discussion commune (id de session) ou une archive native.
+// soft : garder le fil affiché pendant la relecture (changement de modèle).
+export async function open(id, soft, quiet) {
+  const ep = ++epoch; opening = true; if (abort) abort.abort();
+  chat.set({ frozen: soft && items().length ? items() : null });
+  if (soft) setTimeout(() => { if (ep === epoch) chat.set({ frozen: null }); }, 8000);
+  const nav = app.get().nav.conversations;
+  const entry = nav.find(c => c.id === id);
+  try {
+    if (entry && !entry.workspace) {
+      // Archive native : le serveur la recharge et le flux la rejoue.
+      restartNative(true);
+      remember('');
+      chat.set({ sessionId: '', session: null, context: null });
+      const r = await post('/api/chat/history/restore', { id });
+      if (!r.ok) throw new Error(r.error || t("chat.engine.ouverture_impossible"));
+      refreshNav();
+      return true;
+    }
+    const r = await get('/api/runtime/sessions?id=' + encodeURIComponent(id));
+    if (ep !== epoch) return false;
+    if (!r.ok) throw new Error(r.error);
+    remember(id);
+    if (r.session.runtime_id === 'llama.cpp') {
+      const local = await post('/api/runtime/sessions/local', { id });
+      if (!local.ok) throw new Error(local.error);
+      if (ep !== epoch) return false;
+      restartNative(true);
+      chat.set({ sessionId: id, session: local.session, context: local.context });
+    } else {
+      lastSeq = 0; turn = newTurn();
+      chat.set({ mode: 'thread', sessionId: id, items: [], replaying: true, loading: true, busy: false, gen: null });
+      applySession(r.session, r.context);
+    }
+    if (abort) abort.abort();
+    return true;
+  } catch (e) { chat.set({ frozen: null }); if (quiet) remember(''); else toast(e.message, 'err'); return false; }
+  finally { if (ep === epoch) { opening = false; if (abort) abort.abort(); } }
+}
+
+// Nouvelle discussion : le chat natif archive la courante et repart à zéro.
+export async function newDiscussion(projectId, { navigate = true } = {}) {
+  const ep = ++epoch; opening = true; if (abort) abort.abort();
+  remember('');
+  restartNative(false);
+  chat.set({ sessionId: '', session: null, context: null, loading: false });
+  let r;
+  try { r = await post('/api/chat/reset', { project_id: projectId || '' }); }
+  catch (e) { r = { ok: false, error: e.message }; }
+  finally { if (ep === epoch) { opening = false; if (abort) abort.abort(); } }
+  if (ep !== epoch) return false;
+  let ready = !!r.ok;
+  if (!r.ok) toast(t("chat.engine.impossible_de_creer_la_discussion"), 'err');
+  else if (r.initial_choice) {
+    const choice = r.initial_choice;
+    if (choice.kind === 'local') ready = await chooseLocal({ model: choice.engine_value || choice.model, path: choice.model, name: choice.name });
+    else ready = await chooseRemote(choice, { quiet: true });
+  }
+  refreshNav();
+  if (navigate) go('chat');
+  return ready;
+}
+
+// ---------------------------------------------------------------- envoi
+export async function send(text, opts = {}) {
+  const st = chat.get();
+  if (st.busy || st.starting) return false;
+  if (st.mode === 'thread') {
+    if (needsEngine() && !await ensureEngine()) return false;
+    return sendThread(text, opts);
+  }
+  // Le message s'affiche tout de suite ; le fil montre le démarrage du moteur.
+  push({ k: 'user', text, files: opts.files || [], pending: true });
+  if (needsEngine() && !await ensureEngine()) { dropPending(text); return false; }
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await post('/api/chat/send', { message: text, files: opts.files || [], ctx_used: st.ctxUsed, internet: !!opts.internet, mcp: !!opts.mcp });
+      if (r.ok || r.status === 409) return true;
+      if (r.status < 500) { dropPending(text); toast(r.error || t("chat.engine.envoi_refuse"), 'err'); return false; }
+    } catch (_) {}
+    await sleep(600);
+  }
+  dropPending(text); toast(t("chat.engine.echec_de_l_envoi"), 'err'); return false;
+}
+function dropPending(text) { chat.set({ items: items().filter(i => !(i.k === 'user' && i.pending && i.text === text)) }); }
+
+// Modifier le dernier message : retire le dernier échange côté serveur, puis
+// renvoie le texte modifié comme un nouveau message.
+export async function editLast(text) {
+  const s = chat.get().session;
+  if (!s || chat.get().busy || s.status === 'running' || !text.trim()) return false;
+  const r = await post('/api/runtime/sessions/rewind', { id: s.id });
+  if (!r.ok) { toast(r.error || t('chat.edit.failed'), 'err'); return false; }
+  await open(s.id, true);
+  return sendThread(text.trim());
+}
+
+const pendingReq = new Map();
+async function sendThread(text, opts = {}) {
+  const s = chat.get().session;
+  if (!s || chat.get().busy || s.status === 'running') return false;
+  let p = pendingReq.get(s.id);
+  if (!p || p.text !== text) { p = { text, request_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random() }; pendingReq.set(s.id, p); }
+  const ep = epoch;
+  chat.set({ busy: true, notice: '' });
+  let r;
+  try {
+    // Context also includes automatic project continuity, even without an
+    // explicit Brain budget/source list. Prepare the actual draft every time.
+    // If that context moves before the server starts (background indexing,
+    // another tab), prepare once more and resend instead of blocking the user.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const preview = await post('/api/runtime/sessions/preview', { id: s.id, text, files: opts.files || [] });
+      if (!preview.ok || preview.preview?.problem || !preview.preview?.context?.revision) throw new Error(preview.error || preview.preview?.problem || t('chat.engine.envoi_refuse'));
+      if (ep !== epoch || chat.get().session?.id !== s.id) { if (ep === epoch) chat.set({ busy: false }); return false; }
+      if (preview.runtime_id !== s.runtime_id || preview.model !== s.model ||
+          (preview.endpoint || '') !== (s.endpoint || '') ||
+          (preview.provider_id || '') !== (s.provider_id || '') ||
+          (preview.reasoning_effort || '') !== (s.reasoning_effort || '') ||
+          (preview.preview.context.project_id || '') !== (s.project_id || '')) {
+        throw new Error(t('chat.engine.selection_changed'));
+      }
+      chat.set({ context: preview.preview.context });
+      if (preview.preview.omitted > 0 && attempt === 0) toast(t('chat.engine.older_omitted', { n: preview.preview.omitted }));
+      r = await post('/api/runtime/sessions/send', { id: s.id, ...p, files: opts.files || [], web_search: opts.internet === undefined ? undefined : !!opts.internet, mcp_tools: opts.mcp === undefined ? undefined : !!opts.mcp, context_revision: preview.preview.context.revision });
+      if (r.ok || r.code !== 'context_changed' || ep !== epoch) break;
+    }
+  }
+  catch (e) { if (ep === epoch) chat.set({ busy: false, notice: e.message }); return false; }
+  if (ep !== epoch) return r.ok;
+  if (!r.ok) { chat.set({ busy: false, notice: r.error }); toast(r.error, 'err'); return false; }
+  pendingReq.delete(s.id);
+  return true;
+}
+
+export async function stop() {
+  const st = chat.get();
+  if (st.mode === 'thread' && st.session) { await post('/api/runtime/sessions/stop', { id: st.session.id }); return; }
+  await post('/api/chat/stop', {});
+}
+
+export async function compact() {
+  if (!await confirm(t("chat.engine.compacter_le_contexte"), t("chat.engine.les_anciens_tours_sont_resumes_pour_liberer_de_la_place_la_discus"), { ok: t("chat.engine.compacter") })) return;
+  const r = await post('/api/chat/compact', {});
+  if (!r.ok) toast(r.error || t("chat.engine.compactage_impossible"), 'err');
+}
+
+// Limite de contexte d'une discussion d'espace de travail : compacter ici, ou
+// continuer ailleurs sans perdre l'état (la passation suit la discussion).
+export async function compactSession() {
+  const st = chat.get();
+  if (!st.session) return compact();
+  if (!await confirm(t("chat.engine.compacter_le_contexte"), t("chat.engine.les_anciens_tours_sont_resumes_pour_liberer_de_la_place_la_discus"), { ok: t("chat.engine.compacter") })) return;
+  const r = await post('/api/runtime/sessions/compact', { id: st.session.id }).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok) toast(r.unsupported ? t('chat.limit.unsupported') : r.error || t("chat.engine.compactage_impossible"), 'err');
+}
+
+export async function continueSession(projectName) {
+  const st = chat.get();
+  if (!st.session) return;
+  const r = await post('/api/runtime/sessions/continue', projectName ? { id: st.session.id, project_name: projectName } : { id: st.session.id }).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok || !r.session) return toast(r.error || t('chat.limit.continue_failed'), 'err');
+  await refreshNav(); if (projectName) refreshWorkspace();
+  await open(r.session.id);
+}
+
+// ---------------------------------------------------------------- exécution
+// Choix cloud/harness : la discussion devient (ou reste) commune, avec accord
+// explicite avant tout envoi vers l'extérieur.
+export async function chooseRemote(choice, { quiet = false } = {}) {
+  const st = chat.get();
+  const ep = epoch;
+  if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
+  const dest = choice.endpoint || choice.provider_name;
+  // quiet : choix par défaut d'une discussion neuve, déjà consenti dans les réglages.
+  const ok = quiet || await confirm(t("chat.engine.continuer_avec") + choice.name,
+    t("chat.engine.le_texte_de_la_discussion_et_le_contexte_du_projet_instructions_e") + dest + t("chat.engine.les_autres_fichiers_les_outils_et_la_memoire_privee_ne_sont_pas_t"), { ok: t("chat.engine.continuer") });
+  if (!ok || ep !== epoch) return false;
+  try {
+    let id = st.sessionId;
+    if (!id) {
+      const hist = await get('/api/chat/history');
+      const sessions = await get('/api/runtime/sessions');
+      if (ep !== epoch) return false;
+      const bound = (sessions.sessions || []).find(s => s.native_archive === hist.active);
+      if (bound) id = bound.id;
+      else {
+        const archived = (hist.conversations || []).some(c => c.id === hist.active);
+        const created = archived ? await post('/api/runtime/sessions/import', { id: hist.active }) : await post('/api/runtime/sessions/create', { project_id: hist.project_id || '' });
+        if (!created.ok) throw new Error(created.error);
+        id = created.session.id;
+      }
+    }
+    if (ep !== epoch) return false;
+    const r = await post('/api/runtime/sessions/select', { id, choice_id: choice.id, consent: true });
+    if (!r.ok) throw new Error(r.error);
+    await refreshNav();
+    return ep === epoch && await open(id, true);
+  } catch (e) { toast(e.message, 'err'); return false; }
+}
+
+// Choix local : dans une discussion commune on bascule d'abord sa route vers ce
+// modèle, puis on charge le modèle/preset dans le moteur.
+export async function chooseLocal(target, { load = false } = {}) {
+  const st = chat.get();
+  if (st.busy) { toast(t("chat.engine.attends_la_fin_de_la_reponse_avant_de_changer")); return false; }
+  try {
+    if (st.sessionId) {
+      const w = await refreshWorkspace();
+      const choice = localChoice(w && w.ok && w.models, target);
+      if (!choice) { toast(t('chat.engine.local_choice_missing'), 'err'); return false; }
+      if (chat.get().sessionId !== st.sessionId || chat.get().busy) return false;
+      const r = await post('/api/runtime/sessions/select', { id: st.sessionId, choice_id: choice.id, consent: false });
+      if (!r.ok) { toast(r.error, 'err'); return false; }
+      if (!await open(st.sessionId, true)) return false;
+    }
+    // Le choix est retenu ; le moteur ne charge ce modèle qu'au premier envoi.
+    chat.set({ localTarget: isLoaded(target) ? null : target, engineError: '' });
+    if (load) return ensureEngine();
+    refreshNav();
+    return true;
+  } catch (e) { toast(e.message, 'err'); return false; }
+}
+
+const sameModel = (a, b) => !!a && !!b && String(a).split('/').pop().replace(/\.gguf$/i, '') === String(b).split('/').pop().replace(/\.gguf$/i, '');
+function isLoaded(target) {
+  const st = app.get().status;
+  if (!st || !st.health || !target) return false;
+  return target.presetIndex ? !!st.preset_name && st.preset_name === target.name : !st.preset_id && (sameModel(st.model, target.model) || sameModel(st.model, target.path));
+}
+// Une discussion avec le moteur local : directe ou session « local ».
+function needsEngine() {
+  const c = chat.get();
+  if (c.mode !== 'thread') return true;
+  return !!(c.session && c.session.runtime_id && runtimeKind(c.session.runtime_id) === 'local');
+}
+
+// Démarre le moteur avec le modèle choisi (ou le dernier) et attend qu'il réponde.
+export async function ensureEngine() {
+  const c = chat.get();
+  const status = app.get().status || {};
+  const sessionModel = c.mode === 'thread' && c.session && c.session.model;
+  const target = c.localTarget || (sessionModel ? { model: sessionModel, name: sessionModel } : null);
+  if (status.health && (!target || isLoaded(target))) { if (target) chat.set({ localTarget: null }); return true; }
+  const model = target ? target.model : status.model;
+  if (!target && !model) { chat.set({ engineError: t('chat.engine.no_model') }); return false; }
+  chat.set({ starting: { at: Date.now(), name: (target && target.name) || String(model || '').split('/').pop().replace(/\.gguf$/i, '') }, engineError: '' });
+  try {
+    const r = target && target.presetIndex ? await post('/api/switch', { n: target.presetIndex }) : await post('/api/load-model', { model });
+    if (!r.ok) throw new Error(r.error || t("chat.engine.chargement_impossible"));
+    const deadline = Date.now() + 10 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await sleep(1500);
+      await refreshStatus();
+      const s = app.get().status || {};
+      if (s.load_error) throw new Error(s.load_error);
+      if (s.health) { chat.set({ starting: false, localTarget: null }); refreshNav(); return true; }
+      if (!s.active && Date.now() > deadline - 9.5 * 60 * 1000) throw new Error(t('chat.engine.start_failed'));
+    }
+    throw new Error(t('chat.engine.start_timeout'));
+  } catch (e) {
+    chat.set({ starting: false, engineError: e.message || t('chat.engine.start_failed') });
+    return false;
+  }
+}
+
+// La dernière discussion commune ouverte est rouverte au rechargement.
+const LAST = 'loom.next.lastChat';
+const remember = id => { try { id ? localStorage.setItem(LAST, id) : localStorage.removeItem(LAST); } catch (_) {} };
+export function init() {
+  connectNative();
+  const openLink = async () => {
+    const { section, sub: id } = app.get().route;
+    if (section !== 'chat' || !id) return false;
+    await refreshNav();
+    if (app.get().route.section === 'chat' && app.get().route.sub === id) await open(id);
+    return true;
+  };
+  addEventListener('hashchange', openLink);
+  if (app.get().route.section === 'chat' && app.get().route.sub) { openLink(); return; }
+  let last = '';
+  try { last = localStorage.getItem(LAST) || ''; } catch (_) {}
+  const initialEpoch = epoch;
+  if (last) get('/api/runtime/sessions?id=' + encodeURIComponent(last)).then(r => {
+    if (epoch !== initialEpoch || app.get().route.section === 'chat' && app.get().route.sub) return;
+    if (r && r.ok) open(last, false, true); else remember('');
+  }).catch(() => { if (epoch === initialEpoch) remember(''); });
+}
