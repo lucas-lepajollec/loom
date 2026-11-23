@@ -19,10 +19,10 @@
     "FileSubType": "00"
   },
   "StringFileInfo": {
-    "CompanyName": "Loom contributors",
-    "FileDescription": "Loom — Workstation control plane and test bench for llama.cpp",
+    "CompanyName": "Lucas Le Pajollec",
+    "FileDescription": "Loom — Local-first AI control station",
     "InternalName": "loom",
-    "LegalCopyright": "Copyright (c) 2026 Loom contributors. MIT License.",
+    "LegalCopyright": "Copyright (c) 2026 Lucas Le Pajollec. MIT License.",
     "OriginalFilename": "loom.exe",
     "ProductName": "Loom",
     "ProductVersion": "0.2.10",
