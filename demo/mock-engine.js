@@ -1195,13 +1195,65 @@
 
   // ---------- 5. Engine parameter catalog for Inspector ----------
   const ENGINE_PARAMS = [
-    { id: 'ctx', key: 'CTX', tier: 'essential', control: 'context', label: 'Context length', tip: 'Maximum tokens kept in the active window per slot.', min: 2048, step: 2048, available: true, supported: true },
-    { id: 'ngl', key: 'NGL', tier: 'essential', control: 'layers', label: 'GPU layers', tip: 'Number of transformer layers offloaded to VRAM.', min: 0, available: true, supported: true },
-    { id: 'reasoning', key: 'REASONING', tier: 'essential', control: 'reasoning', label: 'Reasoning trace', tip: 'Show the model thinking block before the final reply.', when: 'thinks', available: true, supported: true },
-    { id: 'kv', key: 'KV', tier: 'advanced', control: 'kv', label: 'KV cache quantization', tip: 'Reduces VRAM needed for long contexts.', choices: [['f16', 'F16 (exact)'], ['q8_0', 'Q8_0 (balanced)'], ['q4_0', 'Q4_0 (compact)']], available: true, supported: true },
-    { id: 'np', key: 'NP', tier: 'advanced', control: 'parallel', label: 'Parallel slots', tip: 'Concurrent requests served simultaneously.', placeholder: '2', step: 1, available: true, supported: true },
-    { id: 'fit', key: 'FIT', tier: 'advanced', control: 'fit', label: 'Auto-fit VRAM', tip: 'Let llama.cpp trim context automatically when tight.', available: true, supported: true },
-    { id: 'flash-attn', tier: 'expert', flag: '--flash-attn', kind: 'enum', label: '--flash-attn', tip: 'Enable Flash Attention kernels.', choices: [['on', 'on'], ['off', 'off']], available: true, supported: true },
+    // --- Essential tier (exact parity with internal/loom/engine/llamacpp/params/llamacpp.json) ---
+    { id: 'ctx-size', key: 'CTX', flag: '--ctx-size', tier: 'essential', kind: 'slider', control: 'context', label: 'Context', tip: 'Token window. The slider goes up to the model’s native limit; type a value to go beyond it.', min: 1024, step: 1024, stack: true, affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'gpu-layers', key: 'NGL', flag: '--gpu-layers', tier: 'essential', kind: 'slider', control: 'layers', label: 'GPU layers', tip: 'Number of layers offloaded to the GPU. “All” offloads every layer.', min: 0, step: 1, stack: true, affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'reasoning', key: 'REASONING', flag: '--reasoning', tier: 'essential', kind: 'bool', control: 'reasoning', label: 'Reasoning', tip: 'The model reasons before answering if its template supports it. Turning this off sends --reasoning off.', when: 'thinks', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'reasoning-effort', key: 'REASONING_EFFORT', flag: '--reasoning-effort', tier: 'essential', kind: 'enum', control: 'effort', label: 'Effort', tip: 'Levels read from the model template. Blank uses the template default.', when: 'effort', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'vision', key: 'MMPROJ', flag: '--mmproj', tier: 'essential', kind: 'bool', control: 'vision', label: 'Vision', tip: 'Loads the mmproj projector found beside the model.', when: 'vision', affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'temp', key: 'TEMP', flag: '--temp', tier: 'essential', kind: 'number', label: 'Temperature', tip: 'Sampling randomness. Blank uses the model default.', step: 0.05, placeholder: '0.7', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'sysprompt', key: 'SYSPROMPT', tier: 'essential', kind: 'textarea', label: 'System prompt', tip: 'Specific to this model or preset. Blank uses the prompt from Settings.', stack: true, placeholder: 'Blank = prompt from Settings', affects_vram: false, requires_reload: true, available: true, supported: true },
+
+    // --- Advanced tier (all 15 llama.cpp tuning controls) ---
+    { id: 'kv', tier: 'advanced', kind: 'enum', control: 'kv', label: 'KV cache', tip: 'Context cache compression. f16 gives maximum quality; q8/q4 reduce VRAM use.', choices: [['', 'f16'], ['q8_0|q8_0', 'q8_0'], ['q5_1|q5_1', 'q5_1'], ['q4_0|q4_0', 'q4_0'], ['q8_0|q5_1', 'q8_0 / q5_1'], ['q8_0|q5_0', 'q8_0 / q5_0']], affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'parallel', key: 'NP', flag: '--parallel', tier: 'advanced', kind: 'number', control: 'parallel', label: 'Parallel slots', tip: 'Requests handled simultaneously by llama.cpp (continuous batching).', step: 1, placeholder: '4', affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'spec-type', flag: '--spec-type', tier: 'advanced', kind: 'enum', label: 'Speculative decoding', tip: 'Predicts tokens (MTP, EAGLE, n-grams) to speed up generation.', choices: [['', 'no'], ['draft-mtp', 'MTP'], ['draft-eagle3', 'EAGLE-3'], ['draft-simple', 'Draft model'], ['ngram-simple', 'n-grams']], affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'flash-attn', flag: '--flash-attn', tier: 'advanced', kind: 'enum', label: 'Flash attention', tip: 'Faster and more memory efficient. Auto lets llama.cpp decide.', requires_flag: true, choices: [['', 'auto'], ['on', 'on'], ['off', 'off']], affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'fit', key: 'FIT', flag: '--fit', tier: 'advanced', kind: 'bool', control: 'fit', label: 'Fit to VRAM', tip: 'Lets llama.cpp reduce unset parameters to fit in memory.', requires_flag: true, affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'batch-size', flag: '--batch-size', tier: 'advanced', kind: 'number', label: 'Batch', tip: 'Logical batch size for prompts. Larger is faster but uses more VRAM.', requires_flag: true, step: 1, placeholder: '2048', affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'ubatch-size', flag: '--ubatch-size', tier: 'advanced', kind: 'number', label: 'Micro-batch', tip: 'Physical micro-batch size. 512 is a good starting point.', requires_flag: true, step: 1, placeholder: '512', affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'threads', flag: '--threads', tier: 'advanced', kind: 'number', label: 'CPU threads', tip: '0 = automatic.', requires_flag: true, step: 1, placeholder: '0', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'threads-batch', flag: '--threads-batch', tier: 'advanced', kind: 'number', label: 'Threads (prompt)', tip: '0 = same as CPU threads.', requires_flag: true, step: 1, placeholder: '0', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'n-cpu-moe', flag: '--n-cpu-moe', tier: 'advanced', kind: 'number', label: 'MoE experts on CPU', tip: 'Keeps the first N expert layers on the CPU.', requires_flag: true, step: 1, placeholder: '0', affects_vram: true, requires_reload: true, available: true, supported: true },
+    { id: 'top-p', flag: '--top-p', tier: 'advanced', kind: 'number', label: 'top_p', tip: '1 = disabled.', requires_flag: true, step: 0.05, placeholder: '0.95', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'top-k', flag: '--top-k', tier: 'advanced', kind: 'number', label: 'top_k', tip: '0 = disabled.', requires_flag: true, step: 1, placeholder: '40', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'min-p', flag: '--min-p', tier: 'advanced', kind: 'number', label: 'min_p', tip: '0 = disabled.', requires_flag: true, step: 0.01, placeholder: '0.05', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'repeat-penalty', flag: '--repeat-penalty', tier: 'advanced', kind: 'number', label: 'Repetition penalty', tip: '1 = neutral.', requires_flag: true, step: 0.05, placeholder: '1.05', affects_vram: false, requires_reload: true, available: true, supported: true },
+    { id: 'presence-penalty', flag: '--presence-penalty', tier: 'advanced', kind: 'number', label: 'Presence penalty', tip: '0 = neutral.', requires_flag: true, step: 0.05, placeholder: '0.0', affects_vram: false, requires_reload: true, available: true, supported: true },
+
+    // --- Expert tier (searchable llama.cpp native flags) ---
+    { id: 'seed', flag: '--seed', tier: 'expert', kind: 'number', label: '--seed', tip: 'RNG seed (-1 for random).', default: '-1', available: true, supported: true },
+    { id: 'split-mode', flag: '--split-mode', tier: 'expert', kind: 'enum', label: '--split-mode', tip: 'How to split the model across multiple GPUs.', choices: [['none', 'none'], ['layer', 'layer'], ['row', 'row']], available: true, supported: true },
+    { id: 'tensor-split', flag: '--tensor-split', tier: 'expert', kind: 'string', label: '--tensor-split', tip: 'Fraction of the model to offload to each GPU (comma-separated).', default: '', available: true, supported: true },
+    { id: 'main-gpu', flag: '--main-gpu', tier: 'expert', kind: 'number', label: '--main-gpu', tip: 'GPU index used for scratch and small tensors.', default: '0', available: true, supported: true },
+    { id: 'no-kv-offload', flag: '--no-kv-offload', tier: 'expert', kind: 'bool', label: '--no-kv-offload', tip: 'Disable KV cache offload to GPU (keep KV in system RAM).', available: true, supported: true },
+    { id: 'rope-scaling', flag: '--rope-scaling', tier: 'expert', kind: 'enum', label: '--rope-scaling', tip: 'RoPE frequency scaling method for extended context.', choices: [['none', 'none'], ['linear', 'linear'], ['yarn', 'yarn']], available: true, supported: true },
+    { id: 'rope-freq-base', flag: '--rope-freq-base', tier: 'expert', kind: 'number', label: '--rope-freq-base', tip: 'RoPE base frequency (0 = loaded from model).', default: '0', available: true, supported: true },
+    { id: 'rope-freq-scale', flag: '--rope-freq-scale', tier: 'expert', kind: 'number', label: '--rope-freq-scale', tip: 'RoPE frequency scaling factor.', default: '1.0', available: true, supported: true },
+    { id: 'cache-reuse', flag: '--cache-reuse', tier: 'expert', kind: 'number', label: '--cache-reuse', tip: 'Minimum chunk size to attempt reusing from KV cache via shifting.', default: '0', available: true, supported: true },
+    { id: 'slot-prompt-similarity', flag: '--slot-prompt-similarity', tier: 'expert', kind: 'number', label: '--slot-prompt-similarity', tip: 'Minimum prompt similarity ratio to reuse an existing slot.', default: '0.5', available: true, supported: true },
+    { id: 'defrag-thold', flag: '--defrag-thold', tier: 'expert', kind: 'number', label: '--defrag-thold', tip: 'KV cache defragmentation fragmentation threshold.', default: '0.1', available: true, supported: true },
+    { id: 'swa-full', flag: '--swa-full', tier: 'expert', kind: 'bool', label: '--swa-full', tip: 'Use full-size SWA cache for sliding-window attention models.', available: true, supported: true },
+    { id: 'reasoning-format', flag: '--reasoning-format', tier: 'expert', kind: 'enum', label: '--reasoning-format', tip: 'How reasoning tags are parsed in completion responses.', choices: [['deepseek', 'deepseek'], ['auto', 'auto'], ['none', 'none']], available: true, supported: true },
+    { id: 'reasoning-budget', flag: '--reasoning-budget', tier: 'expert', kind: 'number', label: '--reasoning-budget', tip: 'Maximum thinking tokens (-1 = unlimited, 0 = disabled).', default: '-1', available: true, supported: true },
+    { id: 'chat-template', flag: '--chat-template', tier: 'expert', kind: 'string', label: '--chat-template', tip: 'Override built-in Jinja chat template name.', default: '', available: true, supported: true },
+    { id: 'dynatemp-range', flag: '--dynatemp-range', tier: 'expert', kind: 'number', label: '--dynatemp-range', tip: 'Dynamic temperature range around base temperature.', default: '0.0', available: true, supported: true },
+    { id: 'dynatemp-exp', flag: '--dynatemp-exp', tier: 'expert', kind: 'number', label: '--dynatemp-exp', tip: 'Dynamic temperature exponent.', default: '1.0', available: true, supported: true },
+    { id: 'typical', flag: '--typical', tier: 'expert', kind: 'number', label: '--typical', tip: 'Locally typical sampling p (1.0 = disabled).', default: '1.0', available: true, supported: true },
+    { id: 'xtc-probability', flag: '--xtc-probability', tier: 'expert', kind: 'number', label: '--xtc-probability', tip: 'XTC sampler probability (0.0 = disabled).', default: '0.0', available: true, supported: true },
+    { id: 'xtc-threshold', flag: '--xtc-threshold', tier: 'expert', kind: 'number', label: '--xtc-threshold', tip: 'XTC sampler probability threshold.', default: '0.1', available: true, supported: true },
+    { id: 'dry-multiplier', flag: '--dry-multiplier', tier: 'expert', kind: 'number', label: '--dry-multiplier', tip: 'DRY repetition penalty multiplier (0.0 = disabled).', default: '0.0', available: true, supported: true },
+    { id: 'dry-base', flag: '--dry-base', tier: 'expert', kind: 'number', label: '--dry-base', tip: 'DRY repetition penalty base value.', default: '1.75', available: true, supported: true },
+    { id: 'dry-allowed-length', flag: '--dry-allowed-length', tier: 'expert', kind: 'number', label: '--dry-allowed-length', tip: 'Minimum sequence length before DRY penalty applies.', default: '2', available: true, supported: true },
+    { id: 'frequency-penalty', flag: '--frequency-penalty', tier: 'expert', kind: 'number', label: '--frequency-penalty', tip: 'Repeat alpha frequency penalty (0.0 = disabled).', default: '0.0', available: true, supported: true },
+    { id: 'repeat-last-n', flag: '--repeat-last-n', tier: 'expert', kind: 'number', label: '--repeat-last-n', tip: 'Last N tokens considered for repetition penalty.', default: '64', available: true, supported: true },
+    { id: 'mirostat', flag: '--mirostat', tier: 'expert', kind: 'enum', label: '--mirostat', tip: 'Mirostat sampling mode (0 = disabled, 1 = v1, 2 = v2).', choices: [['0', '0'], ['1', '1'], ['2', '2']], available: true, supported: true },
+    { id: 'mirostat-lr', flag: '--mirostat-lr', tier: 'expert', kind: 'number', label: '--mirostat-lr', tip: 'Mirostat learning rate (eta).', default: '0.1', available: true, supported: true },
+    { id: 'mirostat-ent', flag: '--mirostat-ent', tier: 'expert', kind: 'number', label: '--mirostat-ent', tip: 'Mirostat target entropy (tau).', default: '5.0', available: true, supported: true },
+    { id: 'prio', flag: '--prio', tier: 'expert', kind: 'enum', label: '--prio', tip: 'Process scheduling priority.', choices: [['-1', 'low'], ['0', 'normal'], ['1', 'medium'], ['2', 'high']], available: true, supported: true },
+    { id: 'numa', flag: '--numa', tier: 'expert', kind: 'enum', label: '--numa', tip: 'NUMA optimization strategy on multi-socket hosts.', choices: [['distribute', 'distribute'], ['isolate', 'isolate'], ['numactl', 'numactl']], available: true, supported: true },
+    { id: 'cont-batching', flag: '--cont-batching', tier: 'expert', kind: 'bool', label: '--cont-batching', tip: 'Enable continuous batching (dynamic batching).', available: true, supported: true },
+    { id: 'metrics', flag: '--metrics', tier: 'expert', kind: 'bool', label: '--metrics', tip: 'Expose Prometheus-compatible /metrics endpoint.', available: true, supported: true },
   ];
 
   const HUB_CATALOG = [
@@ -1339,7 +1391,16 @@
     if (path === '/api/model-caps') {
       const mPath = qs.get('model') || state.engine.model;
       const m = state.models.find(x => x.path === mPath) || state.models[0];
-      return jsonResponse({ ok: true, native_ctx: m.native_ctx || 32768, n_layers: m.n_layers || 40, thinks: !!m.thinks, mmproj: [], effort: m.thinks ? ['low', 'medium', 'high'] : [], effort_default: 'medium' });
+      const hasVision = /gemma|vl|vision|llava/i.test(m.name || mPath);
+      return jsonResponse({
+        ok: true,
+        native_ctx: m.native_ctx || 32768,
+        n_layers: m.n_layers || 40,
+        thinks: !!m.thinks,
+        mmproj: hasVision ? ['mmproj-' + (m.name || 'model').replace(/\.gguf$/i, '') + '-f16.gguf'] : [],
+        effort: m.thinks ? ['low', 'medium', 'high'] : [],
+        effort_default: 'medium',
+      });
     }
     if (path === '/api/estimate') {
       const mPath = body?.model || state.engine.model;
