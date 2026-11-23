@@ -16,6 +16,12 @@
   const HOUR = 3600 * 1000;
   const DAY = 24 * HOUR;
 
+  function randomId(len = 6) {
+    const bytes = new Uint8Array(len);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => (b % 36).toString(36)).join('');
+  }
+
   // ---------- 1. Language bootstrap (?lang=en|fr, default EN) ----------
   function bootstrapLanguage() {
     let lang = null;
@@ -1279,7 +1285,7 @@
       return jsonResponse({ ok: true, id: p.id, name: p.name, content: p.content });
     }
     if (path === '/api/preset/save' && method === 'POST') {
-      const id = body.id || ('preset-' + Math.random().toString(36).slice(2, 8));
+      const id = body.id || ('preset-' + randomId(6));
       const existing = state.presets.find(p => p.id === id);
       const modelMatch = /MODEL=(.+)/.exec(body.content || '');
       const model = modelMatch ? modelMatch[1].trim() : state.models[0].path;
@@ -1475,7 +1481,7 @@
     if (path === '/api/engine/keys') {
       if (method === 'POST' && body?.name) {
         const key = {
-          id: 'key-' + Math.random().toString(36).slice(2, 7),
+          id: 'key-' + randomId(5),
           name: body.name,
           priority: body.priority || 'interactive',
           max_concurrency: body.max_concurrency || 0,
@@ -1633,7 +1639,7 @@
       return jsonResponse({ ok: true, default_choice: 'local:' + state.models[0].path });
     }
     if (path === '/api/chat/reset' && method === 'POST') {
-      const id = 'chat-' + Math.random().toString(36).slice(2, 8);
+      const id = 'chat-' + randomId(6);
       state.discussions[id] = {
         id,
         title: state.lang === 'fr' ? 'Nouvelle discussion' : 'New discussion',
@@ -1691,7 +1697,7 @@
       return jsonResponse({ ok: true, session, context: session.context });
     }
     if (path === '/api/runtime/sessions/create' && method === 'POST') {
-      const id = 'chat-' + Math.random().toString(36).slice(2, 8);
+      const id = 'chat-' + randomId(6);
       const d = {
         id,
         title: state.lang === 'fr' ? 'Nouvelle discussion' : 'New discussion',
@@ -1797,7 +1803,7 @@
 
     // --- Folders / Projects ---
     if (path === '/api/projects' && method === 'POST') {
-      const id = 'proj-' + Math.random().toString(36).slice(2, 7);
+      const id = 'proj-' + randomId(5);
       state.projects.push({ id, name: body?.name || 'Folder', directory: '', capability_ids: [], mcp_servers: [], brain_sources: [] });
       saveState();
       return jsonResponse({ ok: true, id });
@@ -1831,7 +1837,7 @@
       return jsonResponse({ ok: true, models: ['claude-sonnet-4-5', 'claude-haiku-4-5', 'gpt-4.1', 'o4-mini', 'mistral-large-latest'] });
     }
     if (path === '/api/providers/save' && method === 'POST') {
-      const id = body?.id || ('prov-' + Math.random().toString(36).slice(2, 7));
+      const id = body?.id || ('prov-' + randomId(5));
       const existing = state.providers.find(p => p.id === id);
       const rec = { id, name: body.name || 'Custom Cloud', endpoint: body.endpoint, ready: true, remember: !!body.remember, models: body.models || [body.model], usage_mode: body.usage_mode || 'stream' };
       if (existing) Object.assign(existing, rec);
@@ -1919,7 +1925,7 @@
     }
     if (path === '/api/codeman/v1/cron/jobs') {
       if (method === 'POST' && body) {
-        const job = { id: 'cron-' + Math.random().toString(36).slice(2, 7), enabled: true, nextRunAt: now + 6 * HOUR, lastStatus: 'pending', ...body };
+        const job = { id: 'cron-' + randomId(5), enabled: true, nextRunAt: now + 6 * HOUR, lastStatus: 'pending', ...body };
         state.codeman.cronJobs.push(job);
         saveState();
         return jsonResponse({ success: true, data: job });
@@ -1941,7 +1947,7 @@
     if (path === '/api/codeman/v1/sessions') {
       if (method === 'POST' && body) {
         const s = {
-          id: 'cm-' + Math.random().toString(36).slice(2, 8),
+          id: 'cm-' + randomId(6),
           mode: body.mode || 'claude',
           name: body.name || (body.mode === 'shell' ? 'Shell' : 'Demo agent session'),
           workingDir: body.workingDir || '/workspace/homelab-ops',
@@ -2158,7 +2164,7 @@
     if (path === '/api/terminals') {
       if (method === 'POST') {
         const term = {
-          id: 'term-' + Math.random().toString(36).slice(2, 7),
+          id: 'term-' + randomId(5),
           title: body?.title || (body?.target === 'node-gpu' ? 'gpu-node.local' : 'shell'),
           target: body?.target || 'local',
           dir: body?.dir || '/workspace/homelab-ops',
