@@ -136,13 +136,69 @@ func webSessionValid(r *http.Request, credential []byte) (bool, error) {
 	return s.Expires > time.Now().Unix() && s.Credential == hashWebKey(string(credential)), nil
 }
 
+func trustProxyEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("LOOM_TRUST_PROXY")))
+	return v == "1" || v == "true"
+}
+
+func requestPeerIP(r *http.Request) string {
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return peer
+}
+
+func fromTrustedProxy(r *http.Request) bool {
+	if r == nil || !trustProxyEnabled() {
+		return false
+	}
+	ip := net.ParseIP(requestPeerIP(r))
+	return ip != nil && ip.IsLoopback()
+}
+
+// clientRateLimitKey identifies the peer for login and Bearer rate-limit buckets.
+// Forwarded headers are ignored unless LOOM_TRUST_PROXY is explicitly enabled
+// and the direct TCP peer is loopback; in that case the rightmost valid IP in
+// X-Forwarded-For is used so client-injected left-side entries cannot spoof identity.
+func clientRateLimitKey(r *http.Request) string {
+	peer := requestPeerIP(r)
+	if !fromTrustedProxy(r) {
+		return peer
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		for i := len(parts) - 1; i >= 0; i-- {
+			candidate := strings.TrimSpace(parts[i])
+			if ip := net.ParseIP(candidate); ip != nil {
+				return ip.String()
+			}
+		}
+	}
+	return peer
+}
+
+func requestIsHTTPS(r *http.Request) bool {
+	if r != nil && r.TLS != nil {
+		return true
+	}
+	if os.Getenv("LOOM_COOKIE_SECURE") == "1" {
+		return true
+	}
+	if fromTrustedProxy(r) {
+		proto := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0])
+		return strings.EqualFold(proto, "https")
+	}
+	return false
+}
+
 func sessionCookie(r *http.Request, token string, expires time.Time) *http.Cookie {
 	maxAge := int(webSessionLife.Seconds())
 	if token == "" {
 		maxAge = -1
 	}
 	return &http.Cookie{Name: webSessionCookie, Value: token, Path: "/", HttpOnly: true,
-		Secure:   r.TLS != nil || os.Getenv("LOOM_COOKIE_SECURE") == "1",
+		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode, MaxAge: maxAge, Expires: expires}
 }
 
@@ -205,10 +261,7 @@ var webLoginLimit = struct {
 var webPasswordWork = make(chan struct{}, 2)
 
 func allowWebLogin(r *http.Request) bool {
-	peer, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		peer = r.RemoteAddr
-	}
+	peer := clientRateLimitKey(r)
 	now := time.Now()
 	webLoginLimit.Lock()
 	defer webLoginLimit.Unlock()
@@ -253,6 +306,7 @@ func webAuthUnavailable(w http.ResponseWriter) {
 func requireBrowserOrWebKey(next http.HandlerFunc) http.HandlerFunc {
 	protected := web.ProtectOrigin(next)
 	return func(w http.ResponseWriter, r *http.Request) {
+		web.ApplySecurityHeaders(w)
 		w.Header().Set("Cache-Control", "no-store")
 		if isE2EAuthed(r) {
 			next(w, r)
@@ -275,9 +329,18 @@ func requireBrowserOrWebKey(next http.HandlerFunc) http.HandlerFunc {
 		}
 		// Explicit machine credentials are not ambient browser authentication.
 		// Remote-engine proxies keep their existing Bearer contract.
-		if hash != "" && checkBearer(r, hash) {
-			next(w, r)
-			return
+		if hash != "" && web.HasBearer(r) {
+			peer := clientRateLimitKey(r)
+			if !web.AllowBearerAttempt(peer) {
+				w.Header().Set("Retry-After", "60")
+				sendJSON(w, http.StatusTooManyRequests, map[string]any{"ok": false, "error": "too many invalid bearer attempts"})
+				return
+			}
+			if checkBearer(r, hash) {
+				next(w, r)
+				return
+			}
+			web.RecordBearerFailure(peer)
 		}
 		if p == nil && hash == "" && !unprotectedLocalRequest(r) {
 			http.Error(w, "local access requires a loopback address; configure authentication for network access", http.StatusForbidden)
@@ -319,7 +382,7 @@ func handleWebAuthStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "password_set": p != nil, "required": p != nil || hash != "",
-		"authenticated": valid || isE2EAuthed(r) || (hash != "" && checkBearer(r, hash)) || (p == nil && hash == "")})
+		"authenticated": valid || isE2EAuthed(r) || (hash != "" && checkBearer(r, hash)) || (p == nil && hash == "" && unprotectedLocalRequest(r))})
 }
 
 func handleWebLogin(w http.ResponseWriter, r *http.Request) {

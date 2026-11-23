@@ -321,7 +321,11 @@ func handleFilesRaw(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox")
 	if !strings.HasPrefix(kind, "image/") || kind == "image/svg+xml" {
 		kind = "application/octet-stream"
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+strings.ReplaceAll(path.Base(rel), "\"", "")+"\"")
+		cd := mime.FormatMediaType("attachment", map[string]string{"filename": path.Base(rel)})
+		if cd == "" {
+			cd = "attachment"
+		}
+		w.Header().Set("Content-Disposition", cd)
 	}
 	w.Header().Set("Content-Type", kind)
 	http.ServeContent(w, r, "", info.ModTime(), f)

@@ -47,8 +47,7 @@ export function useDictation(onText) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
       if (current.current !== run) { stream.getTracks().forEach(track => track.stop()); return; }
       run.stream = stream;
-      const blob = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-      try { await audio.audioWorklet.addModule(blob); } finally { URL.revokeObjectURL(blob); }
+      await audio.audioWorklet.addModule('/next/js/features/voice/pcm16-worklet.js');
       if (current.current !== run) return;
       const mic = new AudioWorkletNode(audio, 'loom-pcm16');
       const silence = audio.createGain();

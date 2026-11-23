@@ -5,9 +5,100 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
+
+const (
+	bearerFailLimitPerPeer = 20
+	bearerFailLimitGlobal  = 120
+	bearerFailWindow       = time.Minute
+	bearerFailMaxPeers     = 4096
+)
+
+type bearerFailBucket struct {
+	at    time.Time
+	count int
+}
+
+var bearerFailLimit = struct {
+	sync.Mutex
+	peers map[string]bearerFailBucket
+	at    time.Time
+	count int
+}{peers: make(map[string]bearerFailBucket)}
+
+// ResetBearerLimiter clears failed-Bearer rate-limit state (intended for tests).
+func ResetBearerLimiter() {
+	bearerFailLimit.Lock()
+	bearerFailLimit.at = time.Time{}
+	bearerFailLimit.count = 0
+	clear(bearerFailLimit.peers)
+	bearerFailLimit.Unlock()
+}
+
+func pruneBearerFailuresLocked(now time.Time) {
+	if now.Sub(bearerFailLimit.at) >= bearerFailWindow {
+		bearerFailLimit.at, bearerFailLimit.count = now, 0
+	}
+	for k, v := range bearerFailLimit.peers {
+		if now.Sub(v.at) >= bearerFailWindow {
+			delete(bearerFailLimit.peers, k)
+		}
+	}
+}
+
+// AllowBearerAttempt reports whether peer is under the failed-Bearer limit.
+func AllowBearerAttempt(peer string) bool {
+	now := time.Now()
+	bearerFailLimit.Lock()
+	defer bearerFailLimit.Unlock()
+	pruneBearerFailuresLocked(now)
+	if bearerFailLimit.count >= bearerFailLimitGlobal {
+		return false
+	}
+	if p, ok := bearerFailLimit.peers[peer]; ok && p.count >= bearerFailLimitPerPeer {
+		return false
+	}
+	return true
+}
+
+// RecordBearerFailure records a failed Bearer authentication attempt for peer.
+func RecordBearerFailure(peer string) {
+	now := time.Now()
+	bearerFailLimit.Lock()
+	defer bearerFailLimit.Unlock()
+	pruneBearerFailuresLocked(now)
+	if bearerFailLimit.at.IsZero() {
+		bearerFailLimit.at = now
+	}
+	bearerFailLimit.count++
+	p := bearerFailLimit.peers[peer]
+	if p.at.IsZero() {
+		if len(bearerFailLimit.peers) >= bearerFailMaxPeers {
+			return
+		}
+		p.at = now
+	}
+	p.count++
+	bearerFailLimit.peers[peer] = p
+}
+
+// HasBearer reports whether r presents an Authorization: Bearer header.
+func HasBearer(r *http.Request) bool {
+	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
+}
+
+func directPeerIP(r *http.Request) string {
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return peer
+}
 
 // HashKey returns the persisted SHA-256 representation of a control key.
 func HashKey(k string) string {
@@ -56,7 +147,17 @@ func RequireAuth(next http.HandlerFunc, keyHash func() (string, error)) http.Han
 			next(w, r)
 			return
 		}
+		hasBearer := HasBearer(r)
+		peer := directPeerIP(r)
+		if hasBearer && !AllowBearerAttempt(peer) {
+			w.Header().Set("Retry-After", "60")
+			SendJSON(w, http.StatusTooManyRequests, map[string]any{"error": "too many invalid bearer attempts"})
+			return
+		}
 		if !CheckBearer(r, hash) {
+			if hasBearer {
+				RecordBearerFailure(peer)
+			}
 			w.Header().Set("WWW-Authenticate", `Bearer realm="loom"`)
 			SendJSON(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 			return

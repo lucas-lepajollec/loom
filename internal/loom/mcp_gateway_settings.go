@@ -92,6 +92,24 @@ func rotateGatewayToken() (string, error) {
 	gatewayToken.home, gatewayToken.token = LoomHome(), token
 	return token, nil
 }
+func revokeGatewayToken() error {
+	gatewayMu.Lock()
+	defer gatewayMu.Unlock()
+	state, err := loadGatewayState()
+	if err != nil {
+		return err
+	}
+	state.TokenHash = ""
+	state.LastUsed, state.LastClient = 0, ""
+	gatewayLastNote.at = 0
+	if err = putJSON(bkState, gatewayStateKey, state); err != nil {
+		return err
+	}
+	if gatewayToken.home == LoomHome() {
+		gatewayToken.token = ""
+	}
+	return nil
+}
 func handleMCPGateway(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodGet) || !usageVaultAccess(w) {
 		return
@@ -100,17 +118,40 @@ func handleMCPGateway(w http.ResponseWriter, r *http.Request) {
 	brainResponse(w, map[string]any{"url": gatewayURL(), "token_set": state.TokenHash != "", "agents": agentsState(), "last_used": state.LastUsed, "last_client": state.LastClient}, err)
 }
 func handleMCPGatewayToken(w http.ResponseWriter, r *http.Request) {
-	if !workspaceMethod(w, r, http.MethodPost) || !usageVaultAccess(w) {
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		w.Header().Set("Allow", "POST, DELETE")
+		sendJSON(w, http.StatusMethodNotAllowed, map[string]any{"ok": false, "error": "method not allowed"})
+		return
+	}
+	if !usageVaultAccess(w) {
+		return
+	}
+	if r.Method == http.MethodDelete {
+		if err := revokeGatewayToken(); err != nil {
+			brainResponse(w, nil, err)
+			return
+		}
+		sendJSON(w, 200, map[string]any{"ok": true, "token_set": false, "url": gatewayURL()})
 		return
 	}
 	var req struct {
 		Rotate bool `json:"rotate"`
+		Revoke bool `json:"revoke"`
 	}
 	if !workspaceDecode(w, r, &req) {
 		return
 	}
-	if !req.Rotate {
-		brainResponse(w, nil, errors.New("rotate must be true"))
+	if req.Rotate == req.Revoke {
+		brainResponse(w, nil, errors.New("set either rotate or revoke to true"))
+		return
+	}
+	if req.Revoke {
+		if err := revokeGatewayToken(); err != nil {
+			brainResponse(w, nil, err)
+			return
+		}
+		sendJSON(w, 200, map[string]any{"ok": true, "token_set": false, "url": gatewayURL()})
 		return
 	}
 	token, err := rotateGatewayToken()
@@ -118,6 +159,5 @@ func handleMCPGatewayToken(w http.ResponseWriter, r *http.Request) {
 		brainResponse(w, nil, err)
 		return
 	}
-	w.Header().Set("Cache-Control", "no-store")
 	sendJSON(w, 200, map[string]any{"ok": true, "token": token, "token_set": true, "url": gatewayURL()})
 }

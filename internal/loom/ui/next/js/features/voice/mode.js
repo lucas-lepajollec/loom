@@ -127,8 +127,7 @@ export function VoiceMode({ discussionId, internet = false, onClose }) {
       r.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
       if (closed) { r.stream.getTracks().forEach(tr => tr.stop()); return; }
       r.ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
-      const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-      try { await r.ac.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+      await r.ac.audioWorklet.addModule('/next/js/features/voice/pcm16-worklet.js');
       if (closed) return;
       const src = r.ac.createMediaStreamSource(r.stream);
       r.node = new AudioWorkletNode(r.ac, 'loom-pcm16');

@@ -14,10 +14,27 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+const engineAPIKeyAAD = "loom/engine/api-key"
+
 // readAPIKey renvoie la clé Bearer de llama-server, ou "" si aucune n'est
 // définie. Elle est rangée hors de la configuration pour survivre aux
 // changements de preset, qui remplacent la configuration en bloc.
-func readAPIKey() string { return getStr(bkState, "api_key") }
+func readAPIKey() string {
+	raw := getStr(bkState, "api_key")
+	if raw == "" {
+		return ""
+	}
+	plain, wasPlain, err := openInlineSecret(engineAPIKeyAAD, raw)
+	if err != nil {
+		return ""
+	}
+	if wasPlain && plain != "" {
+		if sealed, serr := sealInlineSecret(engineAPIKeyAAD, plain); serr == nil {
+			_ = putStr(bkState, "api_key", sealed)
+		}
+	}
+	return plain
+}
 
 // Legacy databases and hand-written presets may still contain credentials.
 func publicEngineConfig() map[string]string {
@@ -101,7 +118,14 @@ func writeAPIKey(key string) error {
 		return fmt.Errorf("cannot remove the API key while the OpenAI endpoint is exposed on the network")
 	}
 	_ = SetConfigKey("API_KEY", "") // aucune ambiguïté avec une valeur résiduelle
-	return putStr(bkState, "api_key", key)
+	if key == "" {
+		return putStr(bkState, "api_key", "")
+	}
+	sealed, err := sealInlineSecret(engineAPIKeyAAD, key)
+	if err != nil {
+		return err
+	}
+	return putStr(bkState, "api_key", sealed)
 }
 
 // maskAPIKey renders a key for display: keep the "sk-loom-" prefix and last 4

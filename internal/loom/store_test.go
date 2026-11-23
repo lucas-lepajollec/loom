@@ -1,6 +1,10 @@
 package loom
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
+)
 
 // testHome donne au test un $LOOM_HOME à lui, et neutralise le pare-feu : un
 // test ne doit jamais poser (ni retirer) une règle entrante sur la machine qui
@@ -9,6 +13,7 @@ func testHome(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("LOOM_HOME", home)
+	web.ResetBearerLimiter()
 	firewallInert = true
 	t.Cleanup(func() {
 		brainSvcMu.Lock()

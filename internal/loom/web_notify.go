@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -33,11 +34,42 @@ var notificationClient = &http.Client{Timeout: 10 * time.Second, CheckRedirect: 
 // to prevent subscription-based SSRF, including DNS rebinding and redirects.
 var notificationPushClient = &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: &http.Transport{Proxy: nil, DialContext: publicPushDial}}
 
+// RFC 6890 non-global prefixes explicitly blocked in addition to netip's
+// private/loopback/link-local/multicast/unspecified checks.
+var nonGlobalPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("100::/64"),
+	netip.MustParsePrefix("2001:db8::/32"),
+}
+
 // publicIP reports whether an address is reachable on the public internet:
-// not loopback, private, link-local, CGNAT/Tailscale or unspecified.
+// not loopback, private, link-local, CGNAT/Tailscale, unspecified, multicast,
+// or any RFC 6890 non-global reservation.
 func publicIP(ip net.IP) bool {
-	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() &&
-		!(&net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}).Contains(ip)
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	addr = addr.Unmap()
+	if !addr.IsValid() || !addr.IsGlobalUnicast() || addr.IsPrivate() || addr.IsLoopback() ||
+		addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() || addr.IsMulticast() ||
+		addr.IsUnspecified() || addr.IsInterfaceLocalMulticast() {
+		return false
+	}
+	for _, p := range nonGlobalPrefixes {
+		if p.Contains(addr) {
+			return false
+		}
+	}
+	return true
 }
 
 func publicPushDial(ctx context.Context, network, address string) (net.Conn, error) {
@@ -110,7 +142,7 @@ func browserSecure(r *http.Request) (bool, string) {
 	}
 	// TLS termination follows the existing auth deployment switch. The UI must
 	// explicitly report window.isSecureContext; false always wins above.
-	if r.URL.Query().Get("secure") == "true" && os.Getenv("LOOM_COOKIE_SECURE") == "1" {
+	if r.URL.Query().Get("secure") == "true" && requestIsHTTPS(r) {
 		return true, ""
 	}
 	u := r.URL

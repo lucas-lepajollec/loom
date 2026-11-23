@@ -69,6 +69,14 @@ export function AgentAccess() {
     if (!r.ok || !r.token) return toast(r.error || t('settings.page.reglage_impossible'), 'err');
     setToken(r.token); load();
   };
+  const revoke = async () => {
+    if (!gw?.token_set || !await confirm(t('agent_access.revoke_title'), t('agent_access.revoke_text'), { ok: t('agent_access.revoke'), danger: true })) return;
+    setBusy(true);
+    const r = await post('/api/mcp/gateway/token', { revoke: true });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || t('settings.page.reglage_impossible'), 'err');
+    setToken(''); toast(t('agent_access.revoked')); load();
+  };
   const asking = !!pol && ASK_RULES.every(a => pol.rules.some(r => r.id === a.id && r.decision === 'confirm'));
   const setAsk = async on => {
     const rest = pol.rules.filter(r => !ASK_IDS.includes(r.id));
@@ -85,6 +93,7 @@ export function AgentAccess() {
     <${Line} label=${t('agent_access.token')}>
       <span class="state">${gw ? gw.token_set ? t('access.configured') : t('access.not_set') : '…'}</span>
       ${gw && html`<button class="btn sm" disabled=${busy} onClick=${rotate}>${gw.token_set ? t('agent_access.replace') : t('agent_access.create')}</button>`}
+      ${gw?.token_set && html`<button class="btn sm danger" disabled=${busy} onClick=${revoke}>${t('agent_access.revoke')}</button>`}
     </${Line}>
     ${gw?.token_set && html`<${Line} label=${t('agent_access.last')}><span class="state">${last}</span></${Line}>`}
     ${pol && html`<${Line} label=${t('agent_access.ask')} tip=${t('agent_access.ask_tip')}><${Switch} checked=${asking} disabled=${busy} label=${t('agent_access.ask')} onChange=${setAsk} /></${Line}>`}

@@ -1,8 +1,12 @@
 package web
 
 import (
+	"crypto/sha256"
+	"crypto/tls"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -79,11 +83,20 @@ func TestPublicRouteWireAndCachePolicies(t *testing.T) {
 				if w.Code != 200 || w.Body.String() != body || w.Header().Get("Content-Type") != tc.contentType || w.Header().Get("Cache-Control") != tc.cache {
 					t.Fatalf("asset wire: %d %v %q", w.Code, w.Header(), w.Body.String())
 				}
-				if tc.guarded && tc.contentType == "text/html; charset=utf-8" && (w.Header().Get("X-Frame-Options") != "DENY" || w.Header().Get("Content-Security-Policy") != "frame-ancestors 'none'") {
-					t.Fatal("control plane may be framed by a developer application")
+				if tc.guarded && tc.contentType == "text/html; charset=utf-8" {
+					if w.Header().Get("X-Frame-Options") != "DENY" ||
+						w.Header().Get("Cross-Origin-Opener-Policy") != "same-origin" ||
+						w.Header().Get("Content-Security-Policy") != UIContentSecurityPolicy([]byte(tc.body)) {
+						t.Fatalf("HTML security headers changed: %v", w.Header())
+					}
 				}
-				if tc.guarded && w.Header().Get("X-Content-Type-Options") != "nosniff" {
-					t.Fatal("missing nosniff")
+				if w.Header().Get("X-Content-Type-Options") != "nosniff" ||
+					w.Header().Get("Referrer-Policy") != "no-referrer" ||
+					w.Header().Get("Permissions-Policy") != "camera=(), geolocation=(), payment=(), usb=(), microphone=(self)" {
+					t.Fatalf("missing global security headers on %s: %v", tc.path, w.Header())
+				}
+				if tc.path == "/offline.html" && (w.Header().Get("Cross-Origin-Opener-Policy") != "same-origin" || w.Header().Get("X-Frame-Options") != "DENY" || !strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'none'")) {
+					t.Fatalf("offline.html security headers: %v", w.Header())
 				}
 				if tc.path == "/sw.js" && w.Header().Get("Service-Worker-Allowed") != "/" {
 					t.Fatal("worker scope changed")
@@ -143,5 +156,41 @@ func TestAssetOwnersAndMissingFiles(t *testing.T) {
 		if w.Code != want {
 			t.Fatalf("missing %s: %d", path, w.Code)
 		}
+	}
+}
+
+func TestUIContentSecurityPolicyAndHSTSWrapper(t *testing.T) {
+	importmap := `{"imports":{"preact":"/next/vendor/preact.mjs"}}`
+	html := []byte(`<!doctype html><head><script type="importmap">` + importmap + `</script></head>`)
+	sum := sha256.Sum256([]byte(importmap))
+	wantHash := "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+	csp := UIContentSecurityPolicy(html)
+	if !strings.Contains(csp, "script-src 'self' "+wantHash+";") || strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
+		t.Fatalf("unexpected CSP: %s", csp)
+	}
+	if !strings.Contains(csp, "frame-ancestors 'none'") || !strings.Contains(csp, "object-src 'none'") || !strings.Contains(csp, "base-uri 'none'") {
+		t.Fatalf("missing hardening directives in CSP: %s", csp)
+	}
+
+	okHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) })
+	// Plain HTTP never emits HSTS even if callback returns true.
+	w := httptest.NewRecorder()
+	WithSecurityHeaders(okHandler, func(*http.Request) bool { return true }).ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Header().Get("Strict-Transport-Security") != "" {
+		t.Fatal("HSTS emitted on plain HTTP")
+	}
+	// Self-signed TLS (callback false) never emits HSTS.
+	reqTLS := httptest.NewRequest("GET", "https://loom.test/", nil)
+	reqTLS.TLS = &tls.ConnectionState{}
+	w = httptest.NewRecorder()
+	WithSecurityHeaders(okHandler, func(*http.Request) bool { return false }).ServeHTTP(w, reqTLS)
+	if w.Header().Get("Strict-Transport-Security") != "" {
+		t.Fatal("HSTS emitted when callback returned false")
+	}
+	// CA-signed TLS (callback true) emits HSTS.
+	w = httptest.NewRecorder()
+	WithSecurityHeaders(okHandler, func(*http.Request) bool { return true }).ServeHTTP(w, reqTLS)
+	if w.Header().Get("Strict-Transport-Security") != "max-age=31536000; includeSubDomains" {
+		t.Fatalf("missing HSTS on CA-signed TLS: %q", w.Header().Get("Strict-Transport-Security"))
 	}
 }

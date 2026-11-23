@@ -13,8 +13,13 @@ import (
 // execute with zero-value defaults. Uploads retain their chunked file limit.
 func controlRequests(path string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost {
-			w.Header().Set("Allow", "GET, HEAD, POST")
+		allowDelete := path == "/api/mcp/gateway/token"
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost && (!allowDelete || r.Method != http.MethodDelete) {
+			if allowDelete {
+				w.Header().Set("Allow", "GET, HEAD, POST, DELETE")
+			} else {
+				w.Header().Set("Allow", "GET, HEAD, POST")
+			}
 			sendJSON(w, 405, map[string]any{"ok": false, "error": "method not allowed"})
 			return
 		}

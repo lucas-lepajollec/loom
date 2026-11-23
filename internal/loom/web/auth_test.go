@@ -8,6 +8,8 @@ import (
 )
 
 func TestAuthenticationBoundaries(t *testing.T) {
+	ResetBearerLimiter()
+	t.Cleanup(ResetBearerLimiter)
 	for _, tc := range []struct {
 		name, hash, bearer, query string
 		readError, e2e            bool
@@ -122,5 +124,41 @@ func TestTransportOriginChecks(t *testing.T) {
 	conn, err := AcceptWebSocket(w, r, 1<<20)
 	if conn != nil || err == nil || w.Code != 403 {
 		t.Fatalf("websocket origin: %v %v %d", conn, err, w.Code)
+	}
+}
+
+func TestBearerFailureRateLimit(t *testing.T) {
+	ResetBearerLimiter()
+	t.Cleanup(ResetBearerLimiter)
+	h := RequireAuth(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }, func() (string, error) {
+		return HashKey("valid-key"), nil
+	})
+	for i := 0; i < bearerFailLimitPerPeer; i++ {
+		r := httptest.NewRequest("GET", "/api/test", nil)
+		r.RemoteAddr = "198.51.100.10:1234"
+		r.Header.Set("Authorization", "Bearer wrong")
+		w := httptest.NewRecorder()
+		h(w, r)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: got %d want 401", i, w.Code)
+		}
+	}
+	// Next attempt from same peer is rate-limited even with valid key.
+	r := httptest.NewRequest("GET", "/api/test", nil)
+	r.RemoteAddr = "198.51.100.10:5678"
+	r.Header.Set("Authorization", "Bearer valid-key")
+	w := httptest.NewRecorder()
+	h(w, r)
+	if w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") == "" {
+		t.Fatalf("expected 429 with Retry-After, got %d %v", w.Code, w.Header())
+	}
+	// Another peer is unaffected.
+	r2 := httptest.NewRequest("GET", "/api/test", nil)
+	r2.RemoteAddr = "198.51.100.11:5678"
+	r2.Header.Set("Authorization", "Bearer valid-key")
+	w2 := httptest.NewRecorder()
+	h(w2, r2)
+	if w2.Code != 204 {
+		t.Fatalf("other peer affected: %d", w2.Code)
 	}
 }

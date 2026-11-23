@@ -636,3 +636,13 @@ test('agent access reports the last agent and toggles the two confirm rules with
   assert.deepEqual(plain(h.posts.at(-1)[1].rules.map(r => r.id)), ['kept']);
   assert.equal(clientName('codex-mcp-client'), 'Codex');
 });
+
+test('agent access can revoke an active token after confirmation', async () => {
+  const h = agentHarness({ token_set: true, agents: 'available', last_used: 0, last_client: '' });
+  h.env.confirm = async () => true;
+  h.env.post = async (...args) => { h.posts.push(args); return { ok: true, token_set: false }; };
+  const tree = await h.ready();
+  await button(tree, 'Révoquer').props.onClick();
+  assert.equal(h.posts[0][0], '/api/mcp/gateway/token');
+  assert.deepEqual(JSON.parse(JSON.stringify(h.posts[0][1])), { revoke: true });
+});

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/doctor"
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
 )
 
 const httpsSecretID = "web-https"
@@ -198,6 +199,15 @@ type httpsListener struct {
 
 var webHTTPS = &httpsListener{}
 
+func (m *httpsListener) shouldSendHSTS(r *http.Request) bool {
+	if r == nil || r.TLS == nil {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.server != nil && m.config.Enabled && m.config.Mode == "files"
+}
+
 // The active certificate is swapped without dropping this request's TLS
 // connection. A new port is bound before replacing the old listener.
 func (m *httpsListener) applyLocked(c httpsConfig, cert tls.Certificate, persist func() error) error {
@@ -260,7 +270,7 @@ func (m *httpsListener) applyLocked(c httpsConfig, cert tls.Certificate, persist
 		cert := m.certificate
 		return &cert, nil
 	}}
-	srv := &http.Server{Handler: m.handler, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second, TLSConfig: tlsConfig}
+	srv := &http.Server{Handler: web.WithSecurityHeaders(m.handler, m.shouldSendHSTS), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second, TLSConfig: tlsConfig}
 	old := m.server
 	m.server = srv
 	m.listener = ln

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
 )
 
 const defaultWebPort = 2510
@@ -67,7 +69,7 @@ func cmdWeb(args []string) error {
 	// immobilise une goroutine pour toujours, même sur l'interface locale.
 	// Surtout PAS de WriteTimeout ici : il couperait les flux SSE du chat, qui
 	// restent ouverts aussi longtemps que l'utilisateur regarde la page.
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	srv := &http.Server{Handler: web.WithSecurityHeaders(mux, nil), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	return srv.Serve(ln)
 }
 
