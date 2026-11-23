@@ -1,100 +1,111 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/brand/loom-mark-light.svg" />
-    <img src="docs/brand/loom-mark.svg" alt="Loom logo" width="96" />
+    <img src="docs/brand/loom-mark.svg" alt="Loom logo" width="84" />
   </picture>
   <h1>Loom</h1>
-  <p><strong>A local AI control station for local and cloud models and shared discussions.</strong></p>
-  <p><a href="LICENSE">MIT license</a> · <a href="docs/ROADMAP.md">Roadmap</a> · <a href="CONTRIBUTING.md">Contributing</a></p>
-  <img src="docs/screenshots/chat.png" alt="Loom discussion with an execution selector and contextual side panel" width="1200" />
+  <p><strong>A local-first AI control station for local &amp; cloud models, Codeman coding agents, Second Brain notes, and homelab machines.</strong></p>
+  <p>
+    <a href="https://loom.lucas-homelab.fr">Website</a> ·
+    <a href="https://demo.loom.lucas-homelab.fr">Live demo</a> ·
+    <a href="https://docs.loom.lucas-homelab.fr/en/docs">Documentation</a> ·
+    <a href="SECURITY.md">Security</a>
+  </p>
+  <p>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
+    <img src="https://img.shields.io/badge/runtime-single_Go_binary-0f172a.svg" alt="Single Go binary" />
+    <img src="https://img.shields.io/badge/self--hosted-loopback--first-16a34a.svg" alt="Self-hosted, loopback-first" />
+  </p>
+  <img src="docs/screenshots/chat.png" alt="Loom unified discussion view with folders, local model selector, and VRAM inspector" width="1200" />
 </div>
 
-Loom is a single Go binary with a web UI. Run local inference or connect cloud providers in the same discussion, and drive Codeman agent sessions from the same session list. A [Files page](docs/files.md) edits the folder your agents work in. The interface defaults to English, with French in Settings and the first-run guide. On phones, use **Sessions**, **Inbox**, **Usage**, and **More** along the bottom. Open Files and Jarvis from More, or answer a waiting agent directly from Inbox. [Phone layout checks](docs/mobile-layout-audit.md)
+## Overview
 
-Local speech management (Jarvis 6.1) uses sherpa-onnx 1.13.8 on this machine
-or a paired node's `voice` module. It provides verified engine/model downloads,
-curated packs, supervised STT/TTS, Doctor and a streaming API for browser voice.
-Voice requires Python 3; missing catalog hashes refuse installation. See
-[voice engine and API contracts](docs/voice.md). The Models › Voix UI is a
-separate slice. Jarvis 6.2 adds isolated voice-session text streaming and optional
-message-only injection into the originating discussion. Optional HTTPS on port
-2543 shares Loom authentication and supports sealed self-signed or existing PEM
-certificates for secure browser microphone access. The browser voice view is
-built separately; exact API contracts are in the voice documentation.
-Jarvis 6.3 adds a saved spoken profile (name, language, personality, length,
-French formality and context), plus Jarvis-only TTS overrides. Idle engine
-configuration changes restart resident speech workers. Kokoro/Piper deliver
-audio after each native sentence batch; a single long sentence still waits for
-synthesis, and the benchmark reports the measured first PCM separately.
+Loom is a single self-hosted Go binary with an embedded web interface and installable mobile web app (PWA). It brings local inference (`llama.cpp` and `vLLM`), cloud Chat Completions providers, [Codeman](https://github.com/Ark0N/Codeman) coding-agent sessions, a Markdown Files workspace, multi-machine node management, local voice, and an authenticated MCP gateway into one calm, owner-controlled workspace.
 
-## Why Loom
+- **Single session list**: switch between local or cloud models inside the same discussion, or drive Codeman agent sessions (Claude Code, Codex, Gemini CLI, Antigravity, OpenCode, Pi…) from the same folder-organized sidebar.
+- **No forced cloud or telemetry**: binds to `127.0.0.1` by default, requires explicit confirmation before sharing portable conversation turns with any external provider, and keeps private reasoning blocks local.
+- **Built for daily self-hosted operation**: single binary on Linux, macOS, and Windows (x86-64 and ARM64), native PTY/ConPTY terminals, multi-machine capability nodes, and a phone-first PWA.
 
-- Keep the discussion history when switching models.
-- Manage engines, model libraries and parameters without rebuilding the inference stack.
-- See tool permissions, usage and machine state in one workspace.
-- Keep data locally and choose when to share it with an external destination.
+## Product preview
 
-## Models and engines
+All screenshots below are captured reproducibly from Loom's isolated, fictional [public demo](demo/README.md) ([capture manifest](docs/screenshots/manifest.json)).
 
-Install, compile or update **llama.cpp** from Loom, or link an existing binary. Engine updates also repair unhealthy builds at the current commit; the Engine page shows observed acceleration and offers **Rebuild** for unhealthy source installations. See [engine repairs](docs/engines.md#repairing-llamacpp-acceleration). Router mode keeps the engine running while models load through its API. Browse and download GGUF models from Hugging Face, save presets and tune per-model parameters with an advisory VRAM estimate.
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/agents.png" alt="Codeman Agents control center with active sessions, approvals, and harnesses" /><br />
+      <sub><strong>Agents (Codeman)</strong> — Live sessions, approvals, harnesses, and schedules.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/files.png" alt="Files Second Brain Markdown workspace with rich editor" /><br />
+      <sub><strong>Files (Second Brain)</strong> — Confined Markdown workspace with rich editor and node file browsing.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/machines.png" alt="Machines fleet overview with capability bricks and telemetry" /><br />
+      <sub><strong>Machines &amp; Nodes</strong> — Per-machine capability bricks (local AI, voice, Codeman, files, terminals).</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/activity.png" alt="Activity multi-harness quotas and usage tracking" /><br />
+      <sub><strong>Activity &amp; Quotas</strong> — Usage tracking, multi-harness subscription quotas, and Model Watch.</sub>
+    </td>
+  </tr>
+</table>
 
-<img src="docs/screenshots/local.png" alt="Local GGUF library, presets and model parameters" width="1000" />
+<details>
+  <summary>More views: Local models, Engine router, Terminals, First-run guide, and Mobile PWA</summary>
+  <br />
+  <table>
+    <tr>
+      <td width="50%">
+        <img src="docs/screenshots/local.png" alt="Local GGUF model library, presets, and VRAM estimator" /><br />
+        <sub><strong>Models</strong> — Hugging Face GGUF library, presets, and advisory VRAM estimator.</sub>
+      </td>
+      <td width="50%">
+        <img src="docs/screenshots/engines.png" alt="Engine router runtime, parallel slots, and OpenAI /v1 API" /><br />
+        <sub><strong>Engine &amp; /v1 API</strong> — Router mode, parallel slots, idle VRAM unload, and named API keys.</sub>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%">
+        <img src="docs/screenshots/terminals.png" alt="Local and SSH terminal sessions in xterm.js" /><br />
+        <sub><strong>Terminals</strong> — Persistent PTY/ConPTY, SSH, and node terminals with WebGL rendering.</sub>
+      </td>
+      <td width="50%">
+        <img src="docs/screenshots/welcome.png" alt="First-run guide with hardware detection and engine setup" /><br />
+        <sub><strong>First-run guide</strong> — Language, detected hardware, engine setup, or cloud-only start.</sub>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="2" align="center">
+        <img src="docs/screenshots/mobile.png" alt="Loom installable mobile PWA with Sessions, Inbox, Usage, and More tabs" width="320" /><br />
+        <sub><strong>Mobile PWA</strong> — Bottom navigation (Sessions, Inbox, Usage, More) and one-tap agent approvals.</sub>
+      </td>
+    </tr>
+  </table>
+</details>
 
-Install **vLLM** in a Loom-managed Python environment on Linux with supported NVIDIA CUDA or AMD ROCm hardware. **Local** then switches between llama.cpp and vLLM: a Hugging Face model library, search with a VRAM estimate, downloads, per-model settings and start/stop; Settings › Engines handles install and idle updates. Drivers must already be installed; AMD installation requires `uv`.
+## Highlights
 
-Link a running **llama-server, vLLM or OpenAI-compatible server** by address, with no Loom installation required on that machine. Link **another Loom's engine** to manage its models and engine remotely. Direct server links provide inference; package and file management stay on the server's machine. See [engines](docs/engines.md).
+- **Local &amp; Cloud Discussions**: install, compile, or update `llama.cpp` and `vLLM` (CUDA/ROCm on Linux), link remote OpenAI-compatible servers or another Loom engine, and connect cloud Chat Completions providers in the same thread with explicit external-sharing confirmation.
+- **Agents via Codeman**: manage an independent Codeman server from Loom — unified session list, WebGL + low-latency terminal (`xterm-zerolag-input`), tmux-style multi-pane grid, pending approvals, cron schedules, and reboot session recovery.
+- **Files (Second Brain)**: confined `os.Root` Markdown workspace with a rich TipTap editor, slash commands, conflict detection, and remote file browsing across paired nodes.
+- **Machines &amp; Nodes**: view each host as capability bricks (local AI, voice, Codeman, files, terminals, observation), pair remote machines with single-use codes via `loom node`, or connect over SSH.
+- **Activity, Quotas &amp; Model Watch**: local and cloud token usage, multi-harness subscription quotas (Claude, Codex, Antigravity, Copilot) with pace projection, and Model Watch powered by OpenRouter and the Epoch Capabilities Index.
+- **Voice (Jarvis) &amp; Mobile PWA**: optional local STT/TTS via `sherpa-onnx` with spoken profiles and built-in optional HTTPS (port `2543`), installable iPhone/Android PWA, and opt-in ntfy, webhook, and Web Push notifications.
+- **Authenticated MCP Agent Access (`/mcp/loom`)**: expose controlled machine, overview, and Codeman MCP tools to external agents with revocable tokens, per-machine capability policies, and in-app bell/Inbox approvals.
+- **OpenAI-Compatible `/v1` API**: stream-safe model swaps, background priorities, idle VRAM unload, and separate named `/v1` keys with usage limits.
+- **English &amp; French UI**: English default with full French parity in Settings and the first-run guide.
 
-<img src="docs/screenshots/engines.png" alt="Engine installation, configuration and remote links" width="1000" />
+## Quick start
 
-**Cloud** connects Chat Completions-compatible providers, retrieves their model catalogs on request and controls model visibility. Keys can be remembered in the OS keychain. Catalog discovery does not guarantee that every listed model supports chat.
+### Install a published release binary
 
-## Sessions and folders
+The installers verify `SHA256SUMS.txt` against official GitHub release assets. Review [install.sh](install.sh) or [install.ps1](install.ps1) before running.
 
-Choose a Local or Cloud model for a discussion, or open an agent session on the
-connected Codeman server. Folders group both kinds of sessions. A discussion
-uses its own instructions and history. Moving it between folders does not send
-folder metadata or files to a model. Archived agent transcripts remain readable.
-See [workspace architecture](docs/workspace-architecture.md) and [migration](docs/harness-retirement.md).
-
-## Memory and MCP
-
-Loom keeps Markdown memory, discussion transcripts and background consolidation.
-External clients can use the authenticated retrieval and memory tools at
-`/mcp/brain` or the gateway at `/mcp/loom`. Configure each client manually.
-See [memory and retrieval](docs/brain.md) and [MCP files](docs/mcp-files.md).
-
-## Terminals
-
-Open real terminals through **PTY** on Linux/macOS or **ConPTY** on Windows, locally, over SSH or through a paired node’s terminal module. Sessions survive closing a browser tab and replay recent output while Loom is running. See [terminals](docs/terminals.md).
-
-<img src="docs/screenshots/terminals.png" alt="Local and SSH terminal sessions in Loom" width="1000" />
-
-## Usage, benchmarks and API
-
-**Usage** separates retained Loom token counts, cloud balances where providers expose them. Missing values stay unknown; manual-price estimates are not invoices. See [usage and provider balances](docs/usage.md).
-
-**Web search** connects DuckDuckGo, your own SearXNG, Brave Search or Tavily in
-Settings › Internet. Local models retain Go/Crawl4AI page reading; cloud models
-with function-call support can use the opt-in search tool. See [web search](docs/web-search.md).
-
-**Bench** compares local engines and configured cloud APIs with the same prompt, without tools or project context. Results retain responses and distinguish engine timings from API observations. See [Bench](docs/bench.md). The **OpenAI-compatible `/v1` server** exposes `/v1/models` and `/v1/chat/completions` for other applications; local router requests use native slots and temporary parameter overrides without changing saved settings. [Engine service](docs/engines.md#engine-as-a-service) adds stream-safe model swaps, background priorities, idle VRAM unload and named API keys with limits and usage.
-
-Install Loom as a standalone web app from your browser’s home-screen or install menu on iPhone or Android. HTTPS is required outside loopback. Offline mode displays a public fallback. Inference and sending messages require a connection to Loom. [Web Push setup](docs/notifications.md#web-push)
-
-API failures retain the last valid shared UI data and mark unavailable catalogs.
-Mobile resume refreshes observations and reconnects discussion, terminal
-and voice streams. See [UI data boundaries and recovery](docs/ui-data-boundaries.md)
-for the contracts, regression checks and browser validation limits.
-
-The notification service keeps model work and pending approvals running with every browser closed. Opt-in ntfy actions can answer an offered choice from a phone; webhooks and secure-context Web Push observe task events. All channels default off. See [notifications](docs/notifications.md) for setup and the event and settings APIs.
-
-The phase 4b backend adds [central capability policy](docs/policy.md), canonical confirmations and a bounded audit, plus [Loom Doctor](docs/doctor.md), degraded feature fields and opt-in redacted support bundles. These documents include the exact API contracts for the separate Settings and Doctor UI work.
-
-## Install
-
-The installers download a matching GitHub release binary and verify `SHA256SUMS.txt`. They require published assets; if none are available, build from source. Linux/macOS installation also configures system services and requires root or `sudo`. Review [install.sh](install.sh) or [install.ps1](install.ps1) before running it.
-
-Linux / macOS:
+Linux / macOS (requires root or `sudo` for system service setup):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.sh | sh
@@ -106,7 +117,9 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/lucas-lepajollec/loom/main/install.ps1 | iex
 ```
 
-To build from source, install Go 1.26.11+ and GNU Make. The web UI is embedded directly, with no Node build step. macOS's native menu-bar build also requires a C toolchain; `CGO_ENABLED=0` builds the CLI/web interface without that icon.
+### Build and run from source
+
+Requirements: Go `1.26.11+` and GNU Make (no Node build step is required for the embedded UI).
 
 ```sh
 git clone https://github.com/lucas-lepajollec/loom.git
@@ -115,78 +128,62 @@ make build
 ./bin/loom web 2510
 ```
 
-Local inference needs an engine: install one from Loom or link an existing server. Compiling llama.cpp requires Git, CMake and a C/C++ toolchain.
+Open [http://127.0.0.1:2510](http://127.0.0.1:2510) and follow the first-run guide to choose a language, review detected hardware, and install or link an engine (or continue with cloud providers only).
 
-## Quick start
+## Configuration and persistence
 
-1. Run `loom web 2510` (or `./bin/loom web 2510` after a source build).
-2. Open [http://localhost:2510](http://localhost:2510).
-3. Follow the first-run guide: choose a language, review detected hardware, choose the default workspace, install or link an engine, or continue with cloud only. The llama.cpp path offers a first GGUF model sized to available memory; vLLM models are managed in **Local**.
-4. Create a discussion and choose its execution target. Confirm external sharing when prompted. Use folders to organize the session list.
+| Location / Variable | Purpose |
+| --- | --- |
+| `LOOM_HOME` | Data root containing `loom.db` (bbolt), `mcp.json`, presets, and encrypted secret stores. Defaults to `/etc/default/loom` when set, XDG / `~/.local/share/loom` on Unix, or `%ProgramData%\loom` on Windows. |
+| `LOOM_HOME/secrets/providers/` | AES-256-GCM sealed cloud keys, Codeman credentials, node tokens, and HTTPS private keys (when not stored in the OS keychain). Back up `.key` and sealed files together privately. |
+| `LOOM_TRUST_PROXY` | Opt-in (`1` / `true`) when running behind a local loopback TLS reverse proxy to honor `X-Forwarded-For` for login rate-limiting and `X-Forwarded-Proto: https` for `Secure` cookies. |
+| `LOOM_COOKIE_SECURE` | Set to `1` behind TLS reverse proxies that do not forward `X-Forwarded-Proto`. |
 
-Reopen the guide from **Settings › About**. The guide currently offers vLLM only on detected Linux/NVIDIA systems; supported AMD/ROCm setups install it from **Settings › Engines**.
+- Run `loom where` to inspect resolved paths, `loom password` for local password recovery, and `loom edit` to inspect engine configuration.
+- **Updates &amp; rollback**: update from **Settings → About → Updates** using checksum-verified GitHub release binaries with automatic retention of the previous binary; back up `LOOM_HOME` as a whole before upgrades or storage migrations. See [Updating Loom](docs/updates.md).
 
-<img src="docs/screenshots/welcome.png" alt="First-run guide with language, hardware and engine setup" width="1000" />
+## Security, privacy, and limitations
 
-## Development previews
+- **Single-owner control plane**: Loom supervises local inference engines, terminals, paired nodes, and MCP tools with the OS user's authority. Run it as an ordinary user, never with unrestricted `sudo`.
+- **Loopback-first by default**: binds to `127.0.0.1:2510` and refuses network exposure unless an access password (Argon2id, minimum 12 characters) or control key is configured. Anonymous loopback access requires both a loopback `Host` header and a direct loopback peer.
+- **Hardened browser &amp; API boundaries**: strict `script-src 'self'` CSP with hashed importmap, `X-Frame-Options: DENY`, Go `http.NewCrossOriginProtection()` CSRF checks, `os.Root` file confinement, dial-time SSRF validation on web/push fetches, and instant (~1 s) revocation of terminal WebSockets and SSE streams on logout or credential rotation.
+- **Explicit consent &amp; capability policy**: high-impact MCP gateway actions (`loom_machine_run`, `agents__start_session`) default to confirmation and enforce per-machine policy rules; local discussion tools also pass through capability policy.
+- **Platform &amp; runtime limits**: release assets target Linux, macOS, and Windows (x86-64 and ARM64). Local `vLLM` requires Linux with NVIDIA CUDA or AMD ROCm (plus `uv` on AMD); local Voice requires Python 3; macOS tray icon builds require a C toolchain (`CGO_ENABLED=0` builds CLI + web UI without it).
 
-To test the current checkout on a phone before a release, use `make dev` with
-isolated development data, then `make dev DEV_HOST=<computer-LAN-address>` after
-setting a development access password. Restart the command and reload after
-source edits; no commit or release is required. See [phone testing](CONTRIBUTING.md#test-uncommitted-changes-from-a-phone).
+See [SECURITY.md](SECURITY.md) for private vulnerability reporting and [Control plane review](docs/control-plane-audit.md) for audited boundaries.
 
-**Terminals › Application previews** opens an HTTP development server on Loom or a saved SSH machine, including assets and WebSocket/HMR, through a separate authenticated browser origin. VM clients must be able to reach the preview listener; HTTPS setups need a separate preview origin. See [development previews](docs/development-previews.md).
+## Architecture
 
-## Configuration
+| Layer | Implementation |
+| --- | --- |
+| Server &amp; Control Plane | Go `1.26+` (`cmd/loom`, `internal/loom`), `bbolt` transactional storage, Argon2id sessions, capability policy engine |
+| Embedded Web UI &amp; PWA | Zero-build Preact + HTM ES modules (`internal/loom/ui/next`), TipTap editor, xterm.js + WebGL/`xterm-zerolag-input`, self-hosted Geist fonts |
+| Inference &amp; Voice | Supervised `llama.cpp` / `vLLM` adapters, OpenAI `/v1` router, optional `sherpa-onnx` STT/TTS workers |
+| Agents &amp; Nodes | Codeman HTTP/SSE/WebSocket gateway (`/api/codeman/*`), paired `loom node` workers, PTY/ConPTY/SSH terminals, `/mcp/loom` Streamable HTTP MCP gateway |
 
-- Use **Settings** for engines, machines, network access, vault, snapshots and language; use **Cloud** and **Agents** for their connections.
-- `loom where` shows resolved paths; `loom edit` edits engine configuration. `LOOM_HOME` selects the data root. Defaults follow `/etc/default/loom` when present, then XDG/`~/.local/share/loom` on Unix; Windows uses `%ProgramData%\loom` with platform fallbacks.
-- Configuration, discussions and preferences live in `LOOM_HOME/loom.db`. Models can live in selected external folders. MCP definitions live in editable `LOOM_HOME/mcp.json`; see [MCP files](docs/mcp-files.md).
-- `.env.local` and `.env` in the current working directory fill unset variables; exported values take precedence. Keep local development data in ignored `.project-local/`.
+Internal reference docs: [Architecture](docs/architecture.md) · [Workspace contracts](docs/workspace-architecture.md) · [Engines](docs/engines.md) · [Terminals](docs/terminals.md) · [Files](docs/files.md) · [Agent access (MCP)](docs/agent-access.md) · [Policy](docs/policy.md) · [Voice](docs/voice.md) · [Notifications](docs/notifications.md)
 
-## Platform support
+## Development and quality
 
-Release assets target x86-64 and ARM64 on all three platforms. Availability is separate from real-platform acceptance; consult the [roadmap](docs/ROADMAP.md) for remaining checks.
+```sh
+make build                                # Build ./bin/loom with embedded UI
+make dev                                  # Run isolated development instance (127.0.0.1)
+go test -race -short ./...                # Run Go test suite with race detector
+go vet ./...                              # Static analysis
+make check-ui                             # Run embedded UI & i18n unit tests (125 tests)
+npm --prefix demo run check               # Validate isolated browser demo & fixtures
+python3 tools/check-doc-links.py          # Verify local documentation & asset links
+```
 
-| Capability | Linux | macOS | Windows |
-| --- | --- | --- | --- |
-| Loom CLI and web UI | Yes | Yes | Yes |
-| Local llama.cpp | Yes, backend-dependent CPU/GPU support | Yes, including Metal where supported | Yes, backend-dependent CPU/GPU support |
-| Local vLLM | Supported NVIDIA CUDA / AMD ROCm GPUs only | Link a remote server | Link a remote server |
-| Local terminals | PTY | PTY | ConPTY: Windows 10 1809+ / Windows 11 |
-| SSH machines and remote engines | Yes, with SSH client f/terminals | Yes, with SSH client f/terminals | Yes, with SSH client f/terminals |
+CI runs Go race tests, `go vet`, Windows/macOS cross-compilation, `govulncheck`, UI and demo checks, isolated Linux node install/rollback tests, 4 sharded Playwright Chromium + WebKit route crawls, Dependency Review, and CodeQL on every pull request.
 
-Harness availability also depends on the native CLI, adapter launcher, account and upstream OS requirements.
+## Public demo
 
-## Privacy and security
+Try Loom safely in your browser at **[demo.loom.lucas-homelab.fr](https://demo.loom.lucas-homelab.fr)** — a 100% client-side simulation of the real interface with fictional models, discussions, Codeman agent sessions, Second Brain notes, and nodes. No inference runs, no personal data or real hosts are used, and the **Reset** button restores the initial workspace at any time. See [demo/README.md](demo/README.md) to preview locally.
 
-Loom binds to loopback by default and adds no telemetry. Local model inference and BM25 search stay on the machine running their engine. Discussions and project definitions are stored in Loom's data directory.
+## Documentation and community
 
-External selection requires confirmation before sharing the portable transcript and selected context. A cloud provider receives that text; a remote engine receives inference requests. Shared text can include earlier replies. Private reasoning, approvals and tool state do not become portable context.
+- [Website](https://loom.lucas-homelab.fr) · [Documentation](https://docs.loom.lucas-homelab.fr/en/docs) · [Live demo](https://demo.loom.lucas-homelab.fr)
+- [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md) · [Security](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Changelog](CHANGELOG.md) · [Roadmap](docs/ROADMAP.md)
 
-The Agents page reports per-capability discovery, free protocol verification and
-observed success from normal sessions. Accepted versions alone never claim a
-capability works. Installed engines and providers keep their own execution limits.
-
-Network access also occurs for requested model/catalog downloads, installs, updates, account reads, service checks and enabled tools/MCP servers. Engine update settings are separate. Cloud semantic indexing sends selected source text and search queries after stored consent; remote distillation requires consent before sending discussion text.
-
-Set an **access password** in Settings → Security and data to sign in from other devices. The browser uses an HttpOnly session cookie; no control key needs to be copied between devices. Existing control keys remain supported for automation and remote-engine links, separately from the `/v1` inference key. Network exposure requires a password or existing control key; use TLS for remote access. See [Interface access](docs/access.md) for migration, password changes and local recovery with `loom password`. The optional **vault** encrypts supported Loom stores and blocks access while locked. Cloud provider keys remain in memory unless explicitly remembered in the **OS keychain or encrypted server store**; they are not stored in provider records or browser storage. External files retain their own security rules. See [SECURITY.md](SECURITY.md).
-
-Update Loom from **Settings → About → Updates** using official GitHub releases, verified checksums and a retained previous binary. Linux system installations support a scoped updater and UI restart after one-time administrator setup; see [Updating Loom](docs/updates.md). A source push becomes available to installed users only after a release is published.
-
-
-## Documentation
-
-- [Engines and vLLM](docs/engines.md) · [Terminals](docs/terminals.md)
-- [Workspaces and native access](docs/workspaces.md) · [Development previews](docs/development-previews.md)
-- [Brain and context](docs/brain.md) · [MCP files](docs/mcp-files.md)
-- [Provider balances](docs/usage.md)
-- [Interface languages](docs/i18n.md)
-- [Architecture principles](docs/architecture-principles.md) · [Architecture](docs/architecture.md) · [Workspace contracts](docs/workspace-architecture.md)
-- [Product vision](docs/VISION.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
-- [Browser demo setup](demo/README.md) — a fictional simulation, without inference
-
-## Contributing and license
-
-The runtime registry contains Local and Cloud adapters only. Generic tools,
-policy and retained display events remain separate from inference protocols.
+Released under the [MIT License](LICENSE).

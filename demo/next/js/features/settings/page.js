@@ -1,0 +1,647 @@
+import { shortVersion } from '../../core/version.js';
+import { HttpsSettings } from './https.js';
+import { PolicySettings } from './policy.js';
+import { AgentAccess } from './agent-access.js';
+import { DoctorSettings } from './doctor.js';
+import { NotificationSettings, readNotificationSettings } from './notifications.js';
+import { t, locale, getLang, setLang, tSource } from '../../core/i18n.js';
+// Réglages : Général, Moteur, Internet, Sécurité, À propos. Une ligne par
+// réglage, l'explication en ⓘ, jamais en paragraphe sous chaque option.
+import { openWelcome } from '../onboarding/welcome.js';
+import { SearchSettings } from './search.js';
+import { html, useState, useEffect, useRef, useStore, cls, fmtBytes } from '../../core/lib.js';
+import { Icon } from '../../ui/icons.js';
+import { Switch, Tip, Seg, Empty } from '../../ui/controls.js';
+import { Modal, confirm, prompt, toast } from '../../ui/dialog.js';
+import { get, post, download, authStatus, authAction } from '../../core/api.js';
+import { PasswordForm } from '../../app/access.js';
+import { copyText } from '../../ui/clipboard.js';
+import { app, go, setTheme, refreshStatus, refreshLibrary, refreshNav, refreshEngineNode, refreshWorkspace } from '../../core/state.js';
+import { usePhone } from '../../core/viewport.js';
+import { liveSource } from '../inspector/params.js';
+import { Config } from '../inspector/config.js';
+import { Line, Group } from './kit.js';
+import { LoomUpdates } from './updates.js';
+import { StartupSettings } from './startup.js';
+import { VLLMEngine } from './vllm.js';
+import { ListPick } from '../../ui/listpick.js';
+import { FolderPicker } from '../../ui/folder.js';
+
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', t('settings.page.internet'), 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+
+
+// Agents : connexion au serveur Codeman (détection automatique, voir agents/connection.js).
+// API compatible OpenAI : adresse, accès réseau, clés et noms de modèles (api.js).
+
+function usePref() {
+  const [p, setP] = useState(null);
+  useEffect(() => { get('/api/prefs').then(r => setP(r.prefs || {})).catch(() => {}); }, []);
+  const set = (k, v) => { const n = { ...p, [k]: v }; setP(n); post('/api/prefs', { [k]: v }); try { localStorage.setItem('loom-' + k.replace('_', '-'), v); } catch (_) {} };
+  return [p, set];
+}
+
+const homePath = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
+
+function SecondBrainDialog({ current, onClose, onSaved }) {
+  const [path, setPath] = useState(current || '');
+  const [pick, setPick] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const apply = async create => {
+    setBusy(true);
+    const r = await post('/api/files/root', { path, create }).catch(e => ({ ok: false, error: e.message }));
+    setBusy(false);
+    if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
+    toast(t('settings.brain.saved'));
+    onSaved(r.root || path);
+    onClose();
+  };
+  return html`<${Modal} title=${t('settings.brain.title')} sub=${t('settings.brain.folder_sub')} onClose=${busy ? undefined : onClose}
+      foot=${html`<button class="btn" disabled=${busy} onClick=${onClose}>${t('ui.dialog.annuler')}</button>
+        <button class="btn" disabled=${busy || !path.trim()} onClick=${() => apply(false)}>${t('files.use_folder')}</button>
+        <button class="btn primary" disabled=${busy || !path.trim()} onClick=${() => apply(true)}>${t('files.create_folder')}</button>`}>
+    <div class="sb-form">
+      <div class="field-row">
+        <input class="input mono" aria-label=${t('settings.brain.folder')} value=${path} placeholder="~/second-cerveau" onInput=${e => setPath(e.target.value)} />
+        ${typeof FolderPicker === 'function' && html`<button type="button" class="btn sm" onClick=${() => setPick(true)}>${t('settings.brain.choose')}</button>`}
+      </div>
+    </div>
+    ${pick && typeof FolderPicker === 'function' && html`<${FolderPicker} start=${path} onClose=${() => setPick(false)} onPick=${d => { setPick(false); setPath(d); }} />`}
+  </${Modal}>`;
+}
+
+function SecondBrainGroup() {
+  const [info, setInfo] = useState(null);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { get('/api/files/root').then(r => { if (r && typeof r.root === 'string') setInfo(r); }).catch(() => {}); }, []);
+  const root = info?.root || '';
+  return html`<${Group} title=${t('settings.brain.title')}>
+    <${Line} label=${t('settings.brain.folder')} sub=${t('settings.brain.folder_sub')}>
+      <button type="button" class="btn mono" aria-haspopup="dialog" onClick=${() => setEditing(true)}>
+        <span class="trunc">${root ? homePath(root) : t('settings.brain.not_set')}</span>
+        <${Icon} n="edit" />
+      </button>
+    </${Line}>
+    ${editing && html`<${SecondBrainDialog} current=${root} onClose=${() => setEditing(false)} onSaved=${next => setInfo({ ...(info || {}), root: next, exists: true })} />`}
+  </${Group}>`;
+}
+
+const themeLine = (theme, setPref) => html`<${Line} label=${t('settings.page.theme')}>
+  <${Seg} size="sm" label=${t('settings.page.theme')} value=${theme} onChange=${value => { setTheme(value); setPref('theme', value); }}
+    options=${[{ value: 'dark', label: t('settings.page.sombre') }, { value: 'light', label: t('settings.page.clair') }]} />
+</${Line}>`;
+
+const languageLine = () => html`<${Line} label=${t('settings.language.label')}>
+  <${ListPick} class="sm" label=${t('settings.language.label')} value=${getLang()}
+    options=${[{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]}
+    onChange=${v => setLang(v).then(ok => { if (!ok) toast(t('settings.language.save_failed'), 'err'); }).catch(() => toast(t('settings.language.save_failed'), 'err'))} />
+</${Line}>`;
+
+function General({ phone }) {
+  const theme = useStore(app, s => s.theme);
+  const [p, setPref] = usePref();
+  const [sys, setSys] = useState(null);
+  const [agent, setAgent] = useState(null);
+  useEffect(() => { get('/api/sysprompt').then(r => setSys(r.text || '')).catch(() => {}); get('/api/agent').then(setAgent).catch(() => {}); }, []);
+  const saveSys = async () => { await post('/api/sysprompt', { text: sys }); toast(t("settings.page.prompt_systeme_enregistre")); };
+  return html`
+    <${Group} title="${t("settings.page.apparence")}">
+      ${!phone && themeLine(theme, setPref)}
+      ${!phone && languageLine()}
+      ${p && html`
+        <${Line} label="${t("settings.page.masquer_la_reflexion")}" tip="${t("settings.page.les_blocs_de_reflexion_des_modeles_ne_s_affichent_plus_dans_le_fi")}"><${Switch} checked=${p.hide_reasoning === '1'} onChange=${v => setPref('hide_reasoning', v ? '1' : '0')} /></${Line}>
+        <${Line} label="${t("settings.page.masquer_les_appels_d_outils")}"><${Switch} checked=${p.hide_tools === '1'} onChange=${v => setPref('hide_tools', v ? '1' : '0')} /></${Line}>
+        <${Line} label="${t("settings.page.entree_pour_aller_a_la_ligne")}" tip="${t("settings.page.par_defaut_entree_envoie_et_maj_entree_va_a_la_ligne")}"><${Switch} checked=${p.enter_newline === '1'} onChange=${v => setPref('enter_newline', v ? '1' : '0')} /></${Line}>`}
+    </${Group}>
+    <${SecondBrainGroup} />
+    <${Group} title="${t("settings.page.discussions")}">
+      ${!phone && html`<${DefaultChoice} /><${PushNotifications} />`}
+      ${agent && html`<${Line} label="${t("settings.page.compactage_automatique")}" tip="${t("settings.page.vers_75_du_contexte_les_anciens_tours_sont_resumes_pour_laisser_d")}">
+        <${Switch} checked=${agent.compact} onChange=${async v => { await post('/api/agent/compact', { on: v }); setAgent({ ...agent, compact: v }); }} /></${Line}>`}
+      <${Line} label="${t("settings.page.prompt_systeme_global")}" tip="${t("settings.page.envoye_a_tous_les_modeles_locaux_sauf_si_un_modele_ou_un_preset_a")}" stack>
+        ${sys !== null && html`<textarea class="textarea" rows="3" value=${sys} onInput=${e => setSys(e.target.value)} placeholder="${t("settings.page.ex_reponds_en_francais_de_facon_concise")}"></textarea>
+          <div><button class="btn sm" onClick=${saveSys}>${t("settings.page.enregistrer")}</button></div>`}</${Line}>
+    </${Group}>
+    ${typeof LoomUpdates !== 'undefined' && html`<${LoomUpdates} />`}`;
+}
+
+// Modèle ou agent d'une discussion neuve. Le défaut d'un projet passe avant ;
+// une discussion existante ne change jamais de modèle.
+function DefaultChoice({ phone }) {
+  const ws = useStore(app, s => s.workspace);
+  const [v, setV] = useState(null);
+  useEffect(() => { get('/api/chat/settings').then(r => setV(r.default_choice || '')).catch(() => setV('')); }, []);
+  if (v === null && !phone) return null;
+  const kinds = { local: t('settings.default.local'), cloud: t('settings.default.cloud') };
+  const options = [{ value: '', label: t('settings.default.none') }, ...((ws && ws.models) || []).filter(m => m.enabled !== false && kinds[m.kind] && (m.kind === 'local' || m.ready)).map(m => ({ value: m.id, label: m.name, note: m.provider_name || '', group: kinds[m.kind] }))];
+  const save = async x => {
+    const r = await post('/api/chat/settings', { default_choice: x }).catch(e => ({ ok: false, error: e.message }));
+    if (r.ok === false) return toast(r.error, 'err');
+    setV(x);
+    if (phone) refreshWorkspace();
+    toast(t('settings.default.saved'));
+  };
+  return html`<${Line} label=${t('settings.default.label')} tip=${!phone && t('settings.default.tip')}><div class="set-pick">
+    <${ListPick} label=${t('settings.default.label')} value=${v} onChange=${save} options=${options} disabled=${v === null} />
+  </div></${Line}>`;
+}
+
+function PushNotifications({ phone }) {
+  const supported = window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const [checked, setChecked] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState(null);
+  const running = useRef(false);
+  const register = () => navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  useEffect(() => {
+    if (!supported) return;
+    let alive = true;
+    register().then(r => r.pushManager.getSubscription()).then(s => { if (alive) setChecked(!!s); })
+      .catch(() => { if (alive) setNote("settings.page.etat_des_notifications_inconnu_reessaie_en_rouvrant_ces_reglages"); });
+    return () => { alive = false; };
+  }, []);
+  const toggle = async want => {
+    if (!supported || running.current) return;
+    running.current = true; setBusy(true);
+    let created = null;
+    try {
+      // La demande de permission reste directement liée au clic.
+      if (want && await Notification.requestPermission() !== 'granted') {
+        setNote("settings.page.notifications_bloquees_autorise_les_dans_les_reglages_du_navigate");
+        return;
+      }
+      const reg = await register();
+      let sub = await reg.pushManager.getSubscription();
+      if (want) {
+        if (!sub) {
+          const r = await get('/api/push/key');
+          if (!r.ok || !r.key) throw new Error();
+          const b64 = (r.key + '='.repeat((4 - r.key.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(atob(b64), c => c.charCodeAt(0)) });
+          created = sub;
+        }
+        const r = await post('/api/push/subscribe', sub.toJSON());
+        if (!r.ok) throw new Error();
+      } else if (sub) {
+        const r = await post('/api/push/unsubscribe', { endpoint: sub.endpoint });
+        if (!r.ok) throw new Error();
+        try {
+          if (!await sub.unsubscribe()) throw new Error();
+        } catch (e) {
+          // Si le navigateur conserve l’abonnement, rétablit aussi le serveur.
+          await post('/api/push/subscribe', sub.toJSON()).catch(() => {});
+          throw e;
+        }
+      }
+      setChecked(want);
+      setNote(null);
+      toast(want ? t("settings.page.notifications_activees") : t("settings.page.notifications_desactivees"));
+    } catch (_) {
+      if (created) await created.unsubscribe().catch(() => {});
+      setNote("settings.page.la_modification_des_notifications_a_echoue_reessaie");
+      toast(t("settings.page.notifications_echec_de_la_modification"), 'err');
+    } finally { running.current = false; setBusy(false); }
+  };
+  const tip = !window.isSecureContext ? t("settings.page.les_notifications_exigent_https_ou_une_adresse_locale_securisee")
+    : !supported ? (/iphone|ipad|ipod/i.test(navigator.userAgent) ? t("settings.page.sur_iphone_ou_ipad_ajoute_loom_a_l_ecran_d_accueil_et_ouvre_le_de") : t("settings.page.ce_navigateur_ne_prend_pas_en_charge_les_notifications"))
+    : Notification.permission === 'denied' ? t("settings.page.notifications_bloquees_autorise_les_dans_les_reglages_du_navigate")
+    : note ? t(note) : phone ? t('mobile.device_notifications_hint') : t('settings.page.une_notification_a_chaque_reponse_terminee_meme_si_loom_est_ferme');
+  const label = phone ? t('mobile.device_notifications') : t('settings.page.notifications');
+  return html`<${Line} label=${label} tip=${!phone && tip} sub=${phone && tip}>
+    ${!phone && supported && checked === null && html`<span class="state">${t("settings.page.etat_inconnu")}</span>`}
+    <${Switch} label=${label} checked=${checked === true} disabled=${!supported || checked === null || busy} onChange=${toggle} />
+  </${Line}>`;
+}
+
+function Job({ onDone } = {}) {
+  const [j, setJ] = useState(null);
+  useEffect(() => { const localT = setInterval(async () => { try { setJ(await get('/api/llamacpp/job')); } catch (_) {} }, 1200); get('/api/llamacpp/job').then(setJ).catch(() => {}); return () => clearInterval(localT); }, []);
+  useEffect(() => { if (j?.exists && !j.running && j.ended_at && onDone) onDone(); }, [j?.running, j?.ended_at]);
+  if (!j || !j.exists) return null;
+  const lines = (j.lines || []).slice(-14).join('\n');
+  return html`<div class=${cls('job', j.running && 'run', j.error && 'err')}>
+    <div class="job-h">${j.running ? html`<span class="spinner"></span>` : j.error ? html`<${Icon} n="alert" />` : html`<${Icon} n="check" />`}
+      <b>${j.running ? (tSource(j.phase) || t("settings.page.installation_en_cours")) : j.error ? t("settings.page.echec") + j.error : t("settings.page.termine")}</b>
+      ${!j.running && html`<button class="btn sm" onClick=${async () => { await post('/api/llamacpp/job/dismiss', {}); setJ(null); }}>${t("settings.page.masquer")}</button>`}</div>
+    ${lines && html`<pre class="mono">${lines}</pre>`}</div>`;
+}
+
+// Où tourne le moteur : sur cette machine, ou celui d'une machine connectée
+// (choisi dans Réglages › Machines).
+// Mise à jour automatique du moteur : appliquée seulement quand elle
+// n'interrompt rien (moteur arrêté ou aucun modèle chargé).
+function EngineAuto() {
+  const [a, setA] = useState(null);
+  useEffect(() => { get('/api/engine/auto-update').then(r => setA(r.ok ? r.state : null)).catch(() => setA(null)); }, []);
+  if (!a) return null;
+  const toggle = async on => { const r = await post('/api/engine/auto-update', { auto: on }); if (!r.ok) return toast(r.error || t("settings.page.reglage_impossible"), 'err'); setA(r.state); };
+  const when = localT => localT ? new Date(localT).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const info = a.pending ? 'Version ' + a.pending + t("settings.page.prete_installee_des_qu_aucun_modele_n_est_charge")
+    : a.last_error ? t("settings.page.derniere_tentative") + a.last_error
+    : a.last_at ? t("settings.page.mis_a_jour_le") + when(a.last_at) + (a.last_to ? ' (' + (a.last_from ? a.last_from + ' → ' : '') + a.last_to + ')' : '')
+    : a.checked_at ? t("settings.page.verifie_le") + when(a.checked_at) + t("settings.page.a_jour") : '';
+  return html`<${Line} label="${t("settings.page.mise_a_jour_automatique")}" tip="${t("settings.page.verifie_les_nouvelles_versions_de_llama_cpp_toutes_les_6_h_une_mi")}">
+    ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="${t("settings.page.mise_a_jour_automatique_du_moteur")}" onChange=${toggle} /></${Line}>`;
+}
+
+const KIND_LABEL = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', get openai() { return t("local.page.serveur_compatible_openai"); } };
+
+// Lier un serveur d'inférence par son adresse (llama.cpp, vLLM…) : rien de
+// Loom n'est installé sur sa machine.
+export function DirectEngineForm({ start, onDone, dialog }) {
+  const [f, setF] = useState({ url: start || '', key: '', model: '' });
+  const [probe, setProbe] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const identify = async () => {
+    setBusy(true);
+    const r = await post('/api/engine/node', { probe: true, url: f.url, key: f.key });
+    setBusy(false);
+    if (!r.ok) { setProbe(null); return toast(r.error || t("settings.page.moteur_injoignable"), 'err'); }
+    setProbe(r); setF({ ...f, model: r.models[0] });
+  };
+  const link = async () => {
+    setBusy(true);
+    const r = await post('/api/engine/node', { direct: true, url: f.url, key: f.key, model: f.model });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || t("settings.page.liaison_impossible"), 'err');
+    toast(KIND_LABEL[r.kind] + t("settings.page.de") + r.hostname + t("settings.page.lie")); await refreshEngineNode(); refreshStatus(); refreshLibrary(); onDone && onDone();
+  };
+  const fields = html`
+    <p class="note">${t("settings.page.un_serveur_llama_cpp_llama_server_vllm_ou_compatible_openai_qui_t")}</p>
+    <label class="field"><span>${t("settings.page.adresse_du_moteur")}</span><input class="input mono" placeholder="http://192.168.1.20:8080" value=${f.url} onInput=${e => { setF({ ...f, url: e.target.value }); setProbe(null); }} /></label>
+    <label class="field"><span>${t("settings.page.cle_api_si_le_moteur_en_exige_une")}</span><input class="input mono" type="password" value=${f.key} onInput=${e => { setF({ ...f, key: e.target.value }); setProbe(null); }} /></label>
+    ${probe && html`<label class="field"><span>${KIND_LABEL[probe.kind]} · ${probe.models.length} ${t("settings.page.modele")}${probe.models.length > 1 ? 's' : ''}${probe.ctx ? t("settings.page.contexte") + probe.ctx : ''}</span>
+      <${ListPick} value=${f.model} onChange=${model => setF({ ...f, model })}
+        options=${probe.models.map(model => ({ value: model, label: model }))} /></label>`}`;
+  const actions = html`${onDone && html`<button type="button" class="btn" onClick=${onDone}>${t("settings.page.annuler")}</button>`}
+    ${probe ? html`<button type="button" class="btn primary" disabled=${busy} onClick=${link}>${t("settings.page.utiliser_ce_moteur")}</button>`
+      : html`<button type="button" class="btn primary" disabled=${busy || !f.url} onClick=${identify}>${busy ? t("environment.page.connexion") : t("settings.page.identifier_le_moteur")}</button>`}`;
+  if (dialog) return html`<${Modal} ...${dialog} foot=${actions}>${fields}</${Modal}>`;
+  return html`<div class="eng-link">
+    ${fields}<div class="form-foot"><span class="grow"></span>${actions}</div>
+  </div>`;
+}
+
+
+export function Engine() {
+  const node = useStore(app, a => a.engineNode);
+  const [lc, setLc] = useState(null);
+  const load = () => get('/api/llamacpp').then(setLc).catch(() => {});
+  useEffect(() => { load(); }, [node?.url, node?.direct]);
+  const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || t("settings.page.echec_2"), 'err'); if (ok) toast(ok); setTimeout(load, 800); };
+  const link = async () => { const bin = await prompt(t("settings.page.lier_un_llama_server_existant"), { message: t("settings.page.chemin_complet_du_binaire_llama_server_deja_installe_sur_cette_ma"), placeholder: t("settings.page.chemin_vers_llama_server"), ok: t("settings.page.lier") }); if (bin) run('/api/llamacpp/use', { mode: 'exist', bin }, t("settings.page.moteur_lie")); };
+  if (!lc) return html`<div class="skeleton" style="height:220px"></div>`;
+  // Compiled, linked or official binary: whichever the engine actually uses.
+  const lcBin = lc.config_bin || lc.bin || (lc.prebuilt && lc.prebuilt.bin) || '';
+  // Pas installé : une seule ligne avec les façons de l'installer.
+  if (!lcBin) return html`<${Group} title=${node ? t("settings.page.llama_cpp_de_cette_machine") : 'llama.cpp'}>
+      <${Line} label=${t('settings.page.etat')}><span class="state">${t('settings.page.non_installe')}</span></${Line}>
+      ${lc.reco && html`<div class="set-note">${({ 'linux-cuda': t('welcome.reco.linux-cuda'), 'linux-hip': t('welcome.reco.linux-hip') })[lc.reco.code] || lc.reco.why}</div>`}
+      <div class="set-actions"><button class="btn primary" onClick=${() => run('/api/llamacpp/prebuilt', {}, t("settings.page.telechargement_lance"))}>${t("settings.page.binaire_officiel")}</button>
+        <button class="btn" onClick=${() => run('/api/llamacpp/install', { dir: '' }, t("settings.page.compilation_lancee"))}>${t("settings.page.compiler_llama_cpp")}</button>
+        <button class="btn" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button></div>
+      <${Job} onDone=${load} />
+    </${Group}>`;
+  const health = lc.health;
+  const acceleration = health?.observed ? (health.devices || []).map(d => d.id).join(', ') || t('settings.page.none') : t('settings.page.inconnu');
+  const updateURL = lc.update_kind === 'prebuilt' ? '/api/llamacpp/prebuilt' : '/api/llamacpp/update';
+  const checkURL = lc.update_kind === 'prebuilt' ? '/api/llamacpp/prebuilt/check' : '/api/llamacpp/check';
+  return html`
+    <${Group} title=${node ? t("settings.page.llama_cpp_de_cette_machine") : 'llama.cpp'}>
+      <${Line} label="${t("settings.page.llama_cpp")}"><span class="mono">${lc.commit || lc.prebuilt && lc.prebuilt.tag || '—'}</span>${lc.behind > 0 && html`<span class="tag amber">${lc.behind} ${t("settings.page.commits_de_retard")}</span>`}</${Line}>
+      <${Line} label="${t("settings.page.acceleration")}"><span class="tag blue">${acceleration}</span></${Line}>
+      <${Line} label=${t('engine.build_backend')}><span class="tag">${(lc.plan?.backend || '—').toUpperCase()}</span></${Line}>
+      ${health?.error && html`<${Line} label=${t('engine.health')}><span class="state err">${tSource(health.error)}</span></${Line}>`}
+      <${GpuDevices} bin=${lcBin} />
+      <${Line} label="${t("settings.page.binaire")}" stack><code class="mono path">${lcBin || t('settings.page.none')}</code></${Line}>
+      <${EngineAuto} />
+      <div class="set-actions">
+        ${lc.can_update && html`<button class="btn" onClick=${() => run(updateURL, { clean: false }, t("settings.page.mise_a_jour_lancee"))}><${Icon} n="refresh" />${t("settings.page.mettre_a_jour")}</button>`}
+        ${lc.can_update && lc.update_kind === 'git' && health?.healthy === false && html`<button class="btn" onClick=${() => run('/api/llamacpp/update', { clean: true }, t('settings.page.compilation_lancee'))}><${Icon} n="refresh" />${t('engine.rebuild')}</button>`}
+        <button class="btn" onClick=${() => run(checkURL, {}, t("settings.page.verification"))}>${t("settings.page.verifier")}</button>
+        <button class="btn" onClick=${link}><${Icon} n="link" />${t("settings.page.lier_un_binaire_existant")}</button>
+      </div>
+      <${Job} onDone=${load} />
+    </${Group}>`;
+}
+
+// Dossiers de modèles du moteur (sur la machine qui le possède : les requêtes
+// suivent le moteur distant quand il y en a un).
+export function ModelDirs() {
+  const [dirs, setDirs] = useState(null);
+  const load = () => get('/api/models/dirs').then(setDirs).catch(() => setDirs(null));
+  useEffect(() => { load(); }, []);
+  const run = async (url, body, ok) => { const r = await post(url, body || {}); if (r.ok === false) return toast(r.error || t("settings.page.echec_2"), 'err'); if (ok) toast(ok); setTimeout(load, 500); };
+  const addDir = async () => { const p = await prompt(t("settings.page.ajouter_un_dossier_de_modeles"), { placeholder: t("settings.page.chemin_vers_mes_modeles"), ok: t("settings.page.ajouter") }); if (p) run('/api/models/dirs', { path: p, action: 'add' }, t("settings.page.dossier_ajoute")); };
+  return html`
+    <${Group} title="${t("settings.page.dossiers_de_modeles")}">
+      ${dirs && (dirs.dirs || []).map(d => html`<div class="set-line"><div class="set-l"><${Icon} n="folder" /><span class="mono path">${d.path}</span>${d.download && html`<span class="tag blue">${t("settings.page.telechargements")}</span>`}</div>
+        <div class="set-c"><span class="muted mono">${d.count} ${t("settings.page.modele")}${d.count > 1 ? 's' : ''}</span>
+          ${!d.download && html`<button class="btn sm" onClick=${() => run('/api/models/dirs', { path: d.path, action: 'download' }, t("settings.page.dossier_de_telechargement_change"))}>${t("settings.page.telecharger_ici")}</button>`}
+          ${!d.home && html`<button class="icon-btn" aria-label="${t("settings.page.retirer")}" onClick=${async () => { if (await confirm(t("settings.page.retirer_le_dossier"), t("settings.page.loom_ne_listera_plus_les_modeles_de_ce_dossier_les_fichiers_reste"), { ok: t("settings.page.retirer") })) run('/api/models/dirs', { path: d.path, action: 'remove' }); }}><${Icon} n="close" /></button>`}</div></div>`)}
+      <div class="set-actions"><button class="btn" onClick=${addDir}><${Icon} n="plus" />${t("settings.page.ajouter_un_dossier")}</button></div>
+    </${Group}>`;
+}
+
+function GpuDevices({ bin }) {
+  const [devices, setDevices] = useState(null);
+  const [src, setSrc] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const running = useRef(false);
+  const status = useStore(app, s => s.status);
+  useEffect(() => {
+    let alive = true;
+    setDevices(null); setSrc(null);
+    liveSource().then(async source => {
+      // Les identifiants sont propres au binaire du preset actif.
+      const r = await post('/api/backends/devices', { bin: new Config(source.base).get('BIN') || bin });
+      if (alive) { setSrc(source); setDevices(r.ok && Array.isArray(r.devices) ? r.devices : null); }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [bin, status?.model, status?.preset_id]);
+  const cfg = new Config(src?.base);
+  const raw = cfg.arg('--device');
+  const known = (devices || []).map(d => d.id);
+  const selected = raw ? raw.split(',').filter(Boolean) : known;
+  const unknown = selected.some(id => !known.includes(id));
+  const pick = async (id, on) => {
+    if (running.current || !src?.model || unknown) return;
+    const ids = known.filter(k => k === id ? on : selected.includes(k));
+    if (!ids.length) return toast(t("settings.page.garde_au_moins_un_gpu"), 'err');
+    running.current = true; setBusy(true);
+    try {
+      if (!await confirm(t("settings.page.appliquer_le_choix_gpu"), t("settings.page.le_modele_actif_sera_recharge_ce_choix_est_enregistre_dans_ses_pa"), { ok: t("settings.page.appliquer") })) return;
+      const fresh = await liveSource();
+      if (fresh.model !== src.model || fresh.presetId !== src.presetId || fresh.base !== src.base) {
+        setSrc(fresh); setDevices(null); toast(t("settings.page.les_parametres_ont_change_rouvre_ces_reglages"), 'err'); return;
+      }
+      const c = new Config(fresh.base).setArg('--device', ids.length === known.length ? '' : ids.join(','));
+      if (ids.length < 2) c.setArg('--tensor-split', '');
+      const saved = fresh.presetId
+        ? await post('/api/preset/save', { id: fresh.presetId, name: fresh.presetName, content: c.text })
+        : await post('/api/naked/remember', { model: fresh.model, content: c.text });
+      if (!saved.ok) throw new Error();
+      setSrc({ ...fresh, base: c.text }); refreshLibrary();
+      const r = await post('/api/apply', { content: c.text, preset_id: fresh.presetId });
+      if (!r.ok) { toast(t("settings.page.choix_gpu_enregistre_mais_application_impossible"), 'err'); return; }
+      toast(t("settings.page.choix_gpu_enregistre")); refreshStatus();
+    } catch (_) { toast(t("settings.page.choix_gpu_echec_de_l_enregistrement"), 'err'); }
+    finally { running.current = false; setBusy(false); }
+  };
+  const tip = t("settings.page.choix_du_modele_actif_enregistre_dans_extra_args_avec_device_comm");
+  if (!devices?.length) return html`<${Line} label="GPU" tip=${tip}><span class="state">${t("settings.page.inconnu")}</span></${Line}>`;
+  return html`${unknown && html`<${Line} label="${t("settings.page.choix_gpu")}" tip="${t("settings.page.la_selection_enregistree_ne_correspond_pas_aux_gpu_detectes_elle")}"><span class="state">${t("settings.page.inconnu")}</span></${Line}>`}
+    ${devices.map(d => html`<${Line} key=${d.id} label=${d.name || d.id || t("settings.page.gpu_inconnu")} tip=${tip}>
+      <span class="tag">${d.id}</span><span class="num">${d.total_mib > 0 ? fmtBytes(d.total_mib * 1048576) : t("settings.page.memoire_inconnue")}</span>
+      ${devices.length > 1 && src?.model && !unknown ? html`<${Switch} label=${t("settings.page.utiliser") + (d.name || d.id)} checked=${selected.includes(d.id)} disabled=${busy} onChange=${on => pick(d.id, on)} />`
+        : html`<span class="state">${unknown ? t("settings.page.choix_inconnu") : selected.includes(d.id) ? t("settings.page.selectionne") : t("settings.page.non_selectionne")}</span>`}
+    </${Line}>`)}`;
+}
+
+function Internet() {
+  const [n, setN] = useState(null);
+  const load = () => get('/api/internet').then(setN).catch(() => {});
+  useEffect(() => { load(); }, []);
+  if (!n) return html`<div class="skeleton" style="height:140px"></div>`;
+  const save = async body => { const r = await post('/api/internet', body); if (r.ok === false) toast(r.error, 'err'); load(); };
+  return html`<${SearchSettings} /><${Group} title="${t('search.pages')}">
+    <${Line} label="${t('search.enable')}" tip="${t('search.enable_tip')}"><${Switch} checked=${n.enabled} onChange=${v => save({ enabled: v, url: n.url })} /></${Line}>
+    <${Line} label="${t("settings.page.moteur")}" tip="${t("settings.page.integre_aucune_installation_crawl4ai_navigateur_headless_pour_les")}"><${Seg} size="sm" value=${n.engine} onChange=${v => save({ engine: v })} options=${[{ value: 'go', label: t("settings.page.integre") }, { value: 'crawl4ai', label: t("settings.page.crawl4ai") }]} /></${Line}>
+    ${n.engine === 'crawl4ai' && html`<${Line} label="${t("settings.page.adresse_crawl4ai")}"><input class="input sm" style="width:260px" value=${n.url} placeholder="http://localhost:11235" onChange=${e => save({ url: e.target.value })} /></${Line}>
+      <${Line} label="${t("settings.page.cle_crawl4ai")}">${n.key_set ? html`<span class="muted mono">••••${n.key_hint}</span><button class="btn sm" onClick=${() => save({ key: '' })}>${t("settings.page.retirer")}</button>`
+        : html`<input class="input sm" type="password" style="width:220px" placeholder="${t("settings.page.facultative")}" onChange=${e => save({ key: e.target.value })} />`}</${Line}>`}
+  </${Group}>`;
+}
+
+function SecretDialog({ title, tip, onClose, onSubmit }) {
+  const [value, setValue] = useState('');
+  const submit = () => { if (value.trim()) { const secret = value; setValue(''); onSubmit(secret); } };
+  return html`<${Modal} title=${title} onClose=${onClose}
+    foot=${html`<button class="btn" onClick=${onClose}>${t("settings.page.annuler")}</button><button class="btn primary" disabled=${!value.trim()} onClick=${submit}>${t("settings.page.continuer")}</button>`}>
+    <${Line} label="${t("settings.page.secret")}" tip=${tip}><input class="input" type="password" autocomplete="off" aria-label="${t("settings.page.secret")}" value=${value} onInput=${e => setValue(e.target.value)} onKeyDown=${e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} /></${Line}>
+  </${Modal}>`;
+}
+
+const snapshotDate = s => {
+  const d = s.when ? new Date(s.when) : null;
+  return d && !Number.isNaN(d.getTime()) && d.getFullYear() > 1 ? d.toLocaleString(locale()) : t("settings.page.date_inconnue");
+};
+
+// Accès réseau : l'interface (mode serveur, par ex. sur une VM) et l'API /v1
+// des modèles : mot de passe pour l'interface, clé séparée pour /v1.
+function NetworkAccess() {
+  const node = useStore(app, a => a.engineNode);
+  const worker = node?.role === 'engine-node';
+  const [web, setWeb] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => Promise.all([
+    get('/api/network/web').then(r => setWeb(r.status || null)).catch(() => setWeb(null)),
+  ]);
+  useEffect(() => { load(); }, [worker]);
+  const toggleWeb = async on => {
+    if (on && web && !web.password_set) {
+      toast(t('access.set_first'), 'err'); return;
+    }
+    if (on && !await confirm(t("settings.page.ouvrir_l_interface_au_reseau"), t("settings.page.loom_sera_accessible_depuis_les_autres_appareils_de_ton_reseau_pr"), { ok: t("settings.page.ouvrir") })) return;
+    setBusy(true);
+    const r = await post('/api/network/web', { exposed: on });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || t("settings.page.reglage_impossible"), 'err');
+    load(); // post() remplace r.status par le code HTTP : on relit l'état
+  };
+  const restart = async () => {
+    const r = await post('/api/network/web', { restart: true });
+    toast(r.message || t("settings.page.redemarrage_demande"), r.restarting ? '' : 'err');
+  };
+  return html`<${Group} title="${t("settings.page.acces_reseau")}">
+    <${Line} label="${t("settings.page.interface_sur_le_reseau")}" tip="${t("settings.page.mode_serveur_ouvre_loom_depuis_un_autre_appareil_loom_sur_une_vm")}">
+      ${web ? html`<${Switch} checked=${web.exposed} disabled=${busy} label="${t("settings.page.interface_sur_le_reseau")}" onChange=${toggleWeb} />` : html`<span class="state">…</span>`}</${Line}>
+    ${web && web.exposed && html`<${Line} label="${t("settings.page.adresse")}">${web.url ? html`<code class="mono">${web.url}</code><button class="btn sm" onClick=${async () => toast(await copyText(web.url) ? t("settings.page.adresse_copiee") : t("settings.page.copie_refusee"))}>${t("settings.page.copier")}</button>` : html`<span class="state">${t("settings.page.apres_redemarrage")}</span>`}</${Line}>`}
+    ${web && web.restart && html`<${Line} label="${t("settings.page.a_appliquer")}" tip="${t("settings.page.l_adresse_d_ecoute_ne_change_qu_au_redemarrage_de_l_interface_le")}"><span class="state">${t("settings.page.redemarrage_necessaire")}</span><button class="btn sm" onClick=${restart}>${t("settings.page.redemarrer_l_interface")}</button></${Line}>`}
+    ${web && web.exposed && web.firewall === 'ferme' && html`<${Line} label="${t("settings.page.pare_feu")}"><span class="state">${t("settings.page.port")} ${web.port} ${t("settings.page.non_autorise_ouvre_le_dans_le_pare_feu_de_la_machine")}</span></${Line}>`}
+    <${Line} label=${t('models.api.title')}><a class="btn sm" href="#/engine">${t('settings.page.api_moved')}</a></${Line}>
+  </${Group}>`;
+}
+
+function AccessSettings() {
+  const [status, setStatus] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const load = () => authStatus().then(setStatus).catch(() => setStatus(null));
+  useEffect(() => { load(); }, []);
+  const logout = async () => {
+    try { await authAction('logout'); location.reload(); }
+    catch (err) { toast(err.message, 'err'); }
+  };
+  return html`<${Group} title=${t('access.title')}>
+    <${Line} label=${t('access.password')}>
+      <span class="state">${status ? status.password_set ? t('access.configured') : t('access.not_set') : '…'}</span>
+      ${status && html`<button class="btn sm" onClick=${() => setEditing(true)}>${status.password_set ? t('access.change') : t('access.set')}</button>`}
+      ${status?.password_set && html`<button class="btn sm" onClick=${logout}>${t('access.sign_out')}</button>`}
+    </${Line}>
+    ${editing && html`<${PasswordForm} title=${status.password_set ? t('access.change') : t('access.set')} onClose=${() => setEditing(false)}
+      mode=${status.password_set ? 'change' : 'setup'} onDone=${() => { setEditing(false); location.reload(); }} />`}
+  </${Group}>`;
+}
+
+function Security() {
+  const node = useStore(app, a => a.engineNode);
+  const worker = node?.role === 'engine-node';
+  const [mem, setMem] = useState(null);
+  const [mode, setMode] = useState(null);
+  const [snapshots, setSnapshots] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [secretForm, setSecretForm] = useState(null);
+  const running = useRef(false);
+  const load = async () => {
+    await Promise.all([
+      get('/api/mem/health').then(r => setMem(typeof r.encrypted === 'boolean' ? r : null)).catch(() => setMem(null)),
+      get('/api/memory').then(r => setMode(r.mode)).catch(() => setMode(null)),
+      get('/api/mem/snapshots').then(r => setSnapshots(r.ok ? r.snapshots || [] : null)).catch(() => setSnapshots(null)),
+    ]);
+  };
+  useEffect(() => { load(); }, [worker]);
+  const act = async fn => {
+    if (running.current) return;
+    running.current = true; setBusy(true);
+    try { await fn(); }
+    catch (_) { toast(t("settings.page.donnees_echec_de_l_operation"), 'err'); }
+    finally { running.current = false; setBusy(false); }
+  };
+  const secret = action => setSecretForm({ action,
+    title: action === 'encrypt' ? t("settings.page.chiffrer_les_donnees") : action === 'unlock' ? t("settings.page.deverrouiller_les_donnees") : t("settings.page.ajouter_une_cle"),
+    tip: action === 'unlock' ? t("settings.page.mot_de_passe_ou_cle_de_recuperation_le_secret_reste_masque_et_n_e")
+      : action === 'encrypt' ? t("settings.page.choisis_une_phrase_secrete_note_la_cle_de_recuperation_qui_sera_a")
+      : t("settings.page.ajoute_un_secret_pour_ouvrir_ce_meme_coffre_par_exemple_ta_cle_de"),
+  });
+  const submitSecret = async value => {
+    const action = secretForm.action; setSecretForm(null);
+    await act(async () => {
+      if (action === 'addkey' && !await confirm(t("settings.page.ajouter_une_cle"), t("settings.page.la_cle_supplementaire_precedente_sera_remplacee_si_elle_existe_le"), { ok: t("settings.page.ajouter") })) return;
+      const r = await post('/api/mem/' + action, action === 'encrypt' ? { password: value } : { secret: value }, { retryAuth: action !== 'unlock' });
+      if (!r.ok) { toast(action === 'unlock' && r.status === 401 ? t("settings.page.secret_incorrect_ou_acces_refuse") : t("settings.page.donnees_echec_de_l_operation"), 'err'); return; }
+      // Le dialogue global reste visible même si la page change pendant l’appel.
+      if (action === 'encrypt' && r.recovery) await confirm(t("settings.page.cle_de_recuperation"), t("settings.page.note_cette_cle_maintenant_et_garde_la_hors_ligne_elle_ne_sera_plu") + r.recovery, { ok: t("settings.page.c_est_note") });
+      toast(action === 'encrypt' ? t("settings.page.chiffrement_active") : action === 'unlock' ? t("settings.page.donnees_deverrouillees") : t("settings.page.cle_ajoutee"));
+      await load(); refreshNav();
+    });
+  };
+  const lock = () => act(async () => {
+    const r = await post('/api/mem/lock', {});
+    if (!r.ok) throw new Error();
+    await load(); refreshNav(); toast(t("settings.page.donnees_verrouillees"));
+  });
+  const decrypt = () => act(async () => {
+    if (!await confirm(t("settings.page.dechiffrer_les_donnees"), t("settings.page.la_memoire_et_les_discussions_seront_reecrites_en_clair_sur_le_di"), { ok: t("settings.page.dechiffrer"), danger: true })) return;
+    const r = await post('/api/mem/decrypt', {});
+    if (!r.ok) throw new Error();
+    await load(); refreshNav(); toast(t("settings.page.chiffrement_desactive"));
+  });
+  const restore = s => act(async () => {
+    if (!await confirm(t("settings.page.restaurer_le_snapshot"), snapshotDate(s) + t("settings.page.les_fichiers_memoire_actuels_seront_remplaces_par_cette_copie_cof"), { ok: t("settings.page.restaurer"), danger: true })) return;
+    const r = await post('/api/mem/snapshots', { id: s.id });
+    if (!r.ok) throw new Error();
+    await load(); refreshNav(); refreshLibrary(); toast(t("settings.page.snapshot_restaure"));
+  });
+  const vault = mem && (mem.encrypted || mem.vault_copies > 0);
+  const blocked = busy || !!secretForm;
+  return html`<${HttpsSettings} />
+    <${AccessSettings} />
+    <${NetworkAccess} />
+    <${AgentAccess} />
+    <${Group} title="${t("settings.page.memoire_et_donnees")}">
+      <${Line} label="${t("settings.page.memoire_des_modeles_locaux")}" tip="${t("settings.page.desactivee_rien_n_est_retenu_entre_les_discussions_sur_demande_le")}">
+        ${mode && html`<${Seg} size="sm" value=${mode} onChange=${async v => { await post('/api/memory', { mode: v }); setMode(v); }} options=${[{ value: 'off', label: t("settings.page.desactivee") }, { value: 'ondemand', label: t("settings.page.sur_demande") }]} />`}</${Line}>
+      <${Line} label="${t("settings.page.chiffrement_au_repos")}" tip="${t("settings.page.aes_256_sur_la_memoire_et_les_discussions_protege_par_ta_phrase_s")}">
+        ${!mem ? html`<span class="state">${t("settings.page.etat_inconnu")}</span>` : vault ? html`
+          <span class=${'tag ' + (mem.fully ? 'green' : 'amber')}>${!mem.encrypted ? t("settings.page.etat_a_verifier") : mem.fully ? t("settings.page.chiffre") : t("settings.page.chiffrement_partiel")}</span>
+          <span class="state">${mem.locked ? t("settings.page.verrouille") : mem.encrypted ? t("settings.page.deverrouille") : t("settings.page.etat_inconnu")}</span>
+          ${(mem.locked || !mem.encrypted || !mem.fully) && html`<button class="btn sm" disabled=${blocked} onClick=${() => secret('unlock')}>${t("settings.page.deverrouiller")}</button>`}
+          ${mem.encrypted && !mem.locked && html`<button class="btn sm" disabled=${blocked} onClick=${lock}>${t("settings.page.verrouiller")}</button><button class="btn sm" disabled=${blocked} onClick=${decrypt}>${t("settings.page.dechiffrer")}</button>`}`
+          : html`<span class="state">${t("settings.page.en_clair")}</span><button class="btn sm" disabled=${blocked} onClick=${() => secret('encrypt')}>${t("settings.page.activer")}</button>`}</${Line}>
+      ${mem?.encrypted && !mem.locked && html`<${Line} label="${t("settings.page.cle_supplementaire")}" tip="${t("settings.page.ajoute_ou_remplace_le_secret_d_ouverture_supplementaire_du_coffre")}"><button class="btn sm" disabled=${blocked} onClick=${() => secret('addkey')}>${t("settings.page.ajouter_une_cle")}</button></${Line}>`}
+      <${Line} label="${t("settings.page.exporter_la_discussion")}"><button class="btn sm" onClick=${() => download('/api/chat/export?format=md', 'discussion.md').catch(() => toast(t("settings.page.export_impossible"), 'err'))}>${t("settings.page.markdown")}</button><button class="btn sm" onClick=${() => download('/api/chat/export?format=json', 'discussion.json').catch(() => toast(t("settings.page.export_impossible"), 'err'))}>JSON</button></${Line}>
+    </${Group}>
+    <${Group} title="${t("settings.page.snapshots_locaux")}">
+      <${Line} label="${t("settings.page.sauvegardes")}" tip="${t("settings.page.copies_locales_des_fichiers_memoire_coffre_compris_la_taille_n_es")}"><button class="btn sm" disabled=${blocked} onClick=${load}>${t("settings.page.actualiser")}</button></${Line}>
+      ${snapshots === null ? html`<${Line} label="${t("settings.page.liste")}"><span class="state">${t("settings.page.inconnue")}</span></${Line}>`
+        : snapshots.length === 0 ? html`<${Line} label="${t("settings.page.liste")}"><span class="state">${t("settings.page.aucun_snapshot")}</span></${Line}>`
+        : snapshots.map(s => html`<${Line} key=${s.id} label=${snapshotDate(s)} tip=${s.reason || t("settings.page.snapshot_local")}>
+          <span class="num">${typeof s.size === 'number' && s.size > 0 ? fmtBytes(s.size) : t("settings.page.taille_inconnue")}</span>
+          <button class="btn sm" disabled=${blocked} onClick=${() => restore(s)}>${t("settings.page.restaurer")}</button>
+        </${Line}>`)}
+    </${Group}>
+    ${secretForm && html`<${SecretDialog} key=${secretForm.action} title=${secretForm.title} tip=${secretForm.tip} onClose=${() => setSecretForm(null)} onSubmit=${submitSecret} />`}`;
+}
+
+// La version affichée est celle de CE Loom (/api/ping). Quand le moteur tourne
+// sur une autre machine, /api/status et /api/paths sont relayés vers elle : on
+// les étiquette comme tels au lieu de les faire passer pour ceux de Loom.
+function About() {
+  const { status, serverInfo, engineNode } = useStore(app, s => ({ status: s.status, serverInfo: s.serverInfo, engineNode: s.engineNode }));
+  const [paths, setPaths] = useState(null);
+  useEffect(() => { get('/api/paths').then(setPaths).catch(() => {}); }, []);
+  const remote = !!engineNode;
+  const engineName = remote && (engineNode.name || engineNode.hostname || (status && status.hostname)) || '';
+  return html`
+    <${Group} title="${t("settings.page.loom")}">
+      <${Line} label="${t("settings.page.version")}"><span class="mono">${serverInfo && serverInfo.version || '—'}</span></${Line}>
+      ${remote && status && status.version && html`<${Line} label=${t('settings.about.engine_version', { machine: engineName })} tip=${status.version !== (serverInfo && serverInfo.version) ? t('settings.about.engine_outdated') : ''}><span class="mono" title=${status.version}>${shortVersion(status.version)}</span></${Line}>`}
+      <${Line} label=${t('welcome.about.label')}><button class="btn sm" onClick=${openWelcome}>${t('welcome.about.open')}</button></${Line}>
+    </${Group}>
+    <${LoomUpdates} />
+    ${paths && html`<${Group} title=${remote ? t('settings.about.engine_paths', { machine: engineName }) : t("settings.page.emplacements")}>${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
+}
+
+function PhoneSettings({ sections }) {
+  const theme = useStore(app, s => s.theme);
+  const version = useStore(app, s => s.serverInfo?.version);
+  const [, setPref] = usePref();
+  const [quiet, setQuiet] = useState(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    readNotificationSettings({ signal: controller.signal, retryAuth: false }).then(r => {
+      if (r.ok && !controller.signal.aborted) setQuiet(r.config?.rules?.quiet_hours);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, []);
+  const link = (id, value) => {
+    const [, label] = sections.find(section => section[0] === id);
+    return html`<a key=${id} href=${'#/settings/' + id} class="phone-link phone-setting-link">
+      <span>${label}</span>${value && html`<small>${value}</small>`}<${Icon} n="right" />
+    </a>`;
+  };
+  const quietLabel = quiet?.enabled && quiet.start && quiet.end && `${t('notify.quiet')} ${quiet.start} – ${quiet.end}`;
+  return html`<div class="set-body settings-body phone-settings">
+    <${Group}>${themeLine(theme, setPref)}<${DefaultChoice} phone />${languageLine()}${link('general')}</${Group}>
+    <${Group}><${PushNotifications} phone />${link('notifications', quietLabel)}</${Group}>
+    <nav aria-label=${t('settings.page.reglages')}><${Group}>
+      ${['internet', 'startup', 'policy', 'security', 'doctor'].map(id => link(id))}
+      ${link('about', shortVersion(version))}
+    </${Group}></nav>
+  </div>`;
+}
+
+export function SettingsPage({ route }) {
+  const phone = usePhone();
+  const sections = SECTIONS();
+  const selected = sections.find(s => s[0] === route.sub);
+  const sec = selected ? selected[0] : 'general';
+  useEffect(() => {
+    if (route.sub === 'agents') go('agents', 'settings');
+    else if (route.sub === 'api') go('engine');
+    else if (phone && route.sub && !selected) go('settings');
+  }, [route.sub, phone]);
+  const View = { general: General, internet: Internet, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
+  if (phone) return html`<div class="view page"><div class="page-in settings-page">
+    <h1 class="phone-management-title">${selected ? selected[1] : t('settings.page.reglages')}</h1>
+    ${selected ? html`<div class="set-body settings-body" key=${sec}><${View} route=${route} phone /></div>`
+      : html`<${PhoneSettings} sections=${sections} />`}
+  </div></div>`;
+  return html`<div class="view page"><div class="page-in">
+    <div class="settings">
+      <nav class="set-nav" aria-label=${t("settings.page.reglages")}><h1>${t("settings.page.reglages")}</h1>
+        ${sections.map(([id, label, ico]) => html`<a key=${id} href=${'#/settings/' + id} aria-current=${id === sec ? 'page' : undefined}><${Icon} n=${ico} /><span>${label}</span></a>`)}
+      </nav>
+      <div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>
+    </div>
+  </div></div>`;
+}

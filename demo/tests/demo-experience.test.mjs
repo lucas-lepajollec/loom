@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 function storage(initial) {
@@ -13,29 +13,31 @@ function storage(initial) {
   return values;
 }
 
-test('demo reset removes Loom state without clearing unrelated origin data', () => {
+function runDemoChrome({ search = '', htmlLang = 'en', session = {}, local = {} } = {}) {
   const callbacks = new Map();
-  const element = () => ({
+  let focusedWith = null;
+  const heading = { focus(options) { focusedWith = options; } };
+  const dialog = {
     classList: { add() {}, remove() {} },
+    scrollTop: 0,
+    innerHTML: '',
+    setAttribute(name, value) { this[name] = value; },
     addEventListener(name, callback) { this[name] = callback; },
-    setAttribute() {},
-    showModal() {},
-    close() {},
-  });
-  const sessionStorage = storage({
-    'lh-demo-intro-seen': '1',
-    'loom_demo_models': '[1]',
-    other_session: 'keep',
-  });
-  const localStorage = storage({
-    'loom-theme': 'dark',
-    'loom.chat': '[1]',
-    other_local: 'keep',
-  });
+    querySelector(selector) {
+      return selector === '#lh-demo-title' ? heading : null;
+    },
+    showModal() { this.scrollTop = 200; this._open = true; },
+    close() { this._open = false; },
+  };
+  const chip = { classList: { add() {}, remove() {} }, innerHTML: '' };
+  let created = 0;
   let reloads = 0;
+  const sessionStorage = storage(session);
+  const localStorage = storage(local);
   const document = {
     readyState: 'complete',
-    createElement: element,
+    documentElement: { lang: htmlLang },
+    createElement() { return created++ === 0 ? dialog : chip; },
     body: { appendChild() {} },
     getElementById(id) {
       return { addEventListener(name, callback) { callbacks.set(`${id}:${name}`, callback); } };
@@ -46,53 +48,96 @@ test('demo reset removes Loom state without clearing unrelated origin data', () 
     document,
     sessionStorage,
     localStorage,
-    window: { location: { reload() { reloads += 1; } } },
+    URLSearchParams,
+    window: { location: { search, reload() { reloads += 1; } } },
   });
-  callbacks.get('lh-demo-chip-reset:click')();
 
-  assert.equal(reloads, 1);
-  assert.equal(sessionStorage.getItem('loom_demo_models'), null);
-  assert.equal(sessionStorage.getItem('lh-demo-intro-seen'), null);
-  assert.equal(localStorage.getItem('loom-theme'), null);
-  assert.equal(localStorage.getItem('loom.chat'), null);
-  assert.equal(sessionStorage.getItem('other_session'), 'keep');
-  assert.equal(localStorage.getItem('other_local'), 'keep');
+  return { dialog, chip, callbacks, sessionStorage, localStorage, getReloads: () => reloads, getFocusedWith: () => focusedWith };
+}
+
+test('demo reset removes Loom state without clearing unrelated origin data', () => {
+  const env = runDemoChrome({
+    session: {
+      'lh-demo-intro-seen': '1',
+      'loom_demo_state_v1': '{"lang":"en"}',
+      other_session: 'keep',
+    },
+    local: {
+      'loom-theme': 'dark',
+      'loom-lang': 'fr',
+      'loom.next.proj': '["proj-homelab"]',
+      other_local: 'keep',
+    },
+  });
+
+  env.callbacks.get('lh-demo-chip-reset:click')();
+
+  assert.equal(env.getReloads(), 1);
+  assert.equal(env.sessionStorage.getItem('loom_demo_state_v1'), null);
+  assert.equal(env.sessionStorage.getItem('lh-demo-intro-seen'), null);
+  assert.equal(env.localStorage.getItem('loom-theme'), null);
+  assert.equal(env.localStorage.getItem('loom-lang'), null);
+  assert.equal(env.localStorage.getItem('loom.next.proj'), null);
+  assert.equal(env.sessionStorage.getItem('other_session'), 'keep');
+  assert.equal(env.localStorage.getItem('other_local'), 'keep');
 });
 
-test('intro opens at its heading instead of jumping to off-screen actions', () => {
-  let focusedWith;
-  const heading = { focus(options) { focusedWith = options; } };
-  const dialog = {
-    classList: { add() {}, remove() {} },
-    scrollTop: 0,
-    setAttribute(name, value) { this[name] = value; },
-    addEventListener() {},
-    querySelector(selector) {
-      assert.equal(selector, '#lh-demo-title');
-      return heading;
-    },
-    showModal() { this.scrollTop = 200; },
-    close() {},
-  };
-  const chip = { classList: { add() {}, remove() {} } };
-  let created = 0;
-  const document = {
-    readyState: 'complete',
-    createElement() { return created++ === 0 ? dialog : chip; },
-    body: { appendChild() {} },
-    getElementById() { return { addEventListener() {} }; },
-  };
+test('intro defaults to English, opens at its heading, and links Website/Docs/Source', () => {
+  const env = runDemoChrome();
 
-  runInNewContext(readFileSync(new URL('../DemoExperience.js', import.meta.url), 'utf8'), {
-    document,
-    sessionStorage: storage({}),
-    localStorage: storage({}),
-    window: { location: { reload() {} } },
-  });
+  assert.equal(env.dialog['aria-labelledby'], 'lh-demo-title');
+  assert.equal(env.dialog.scrollTop, 0);
+  assert.deepEqual({ ...env.getFocusedWith() }, { preventScroll: true });
+  assert.match(env.dialog.innerHTML, /id="lh-demo-title" tabindex="-1"/);
+  assert.doesNotMatch(env.dialog.innerHTML, /autofocus/);
+  assert.match(env.dialog.innerHTML, /ISOLATED PUBLIC DEMO/);
+  assert.match(env.dialog.innerHTML, /You can try/);
+  assert.match(env.dialog.innerHTML, /What is simulated/);
+  assert.match(env.dialog.innerHTML, /What never happens/);
+  assert.match(env.dialog.innerHTML, /https:\/\/loom\.lucas-homelab\.fr/);
+  assert.match(env.dialog.innerHTML, /https:\/\/docs\.loom\.lucas-homelab\.fr/);
+  assert.match(env.dialog.innerHTML, /https:\/\/github\.com\/lucas-lepajollec\/loom/);
+  assert.match(env.chip.innerHTML, />DEMO</);
+});
 
-  assert.equal(dialog['aria-labelledby'], 'lh-demo-title');
-  assert.equal(dialog.scrollTop, 0);
-  assert.deepEqual({ ...focusedWith }, { preventScroll: true });
-  assert.match(dialog.innerHTML, /id="lh-demo-title" tabindex="-1"/);
-  assert.doesNotMatch(dialog.innerHTML, /autofocus/);
+test('?lang=fr renders localized French Pass 9 demo chrome', () => {
+  const env = runDemoChrome({ search: '?lang=fr', htmlLang: 'fr' });
+
+  assert.match(env.dialog.innerHTML, /DÉMONSTRATION PUBLIQUE ISOLÉE/);
+  assert.match(env.dialog.innerHTML, /Vous pouvez tester/);
+  assert.match(env.dialog.innerHTML, /Ce qui est simulé/);
+  assert.match(env.dialog.innerHTML, /Ce qui n'arrive jamais/);
+  assert.match(env.chip.innerHTML, />DÉMO</);
+});
+
+test('demo static shell enforces 3-layer noindex, CSP, clean favicon, and zero private IPs', () => {
+  const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const vercelJson = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  const robotsTxt = readFileSync(new URL('../robots.txt', import.meta.url), 'utf8');
+  const manifest = readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8');
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  const mockEngine = readFileSync(new URL('../mock-engine.js', import.meta.url), 'utf8');
+
+  // 3-layer noindex
+  assert.match(indexHtml, /<meta\s+name="robots"\s+content="noindex,\s*nofollow,\s*noarchive"/i);
+  const headers = vercelJson.headers[0].headers;
+  assert.equal(headers.find(h => h.key === 'X-Robots-Tag')?.value, 'noindex, nofollow, noarchive');
+  assert.ok(headers.find(h => h.key === 'Content-Security-Policy')?.value.includes("default-src 'self'"));
+  assert.equal(vercelJson.git?.deploymentEnabled?.['dependabot/**'], false);
+  assert.match(robotsTxt, /User-agent:\s*\*/);
+  assert.match(robotsTxt, /Disallow:\s*\//);
+
+  // Clean Loom weave favicon (no broken d='t')
+  assert.ok(existsSync(new URL('../favicon.svg', import.meta.url)));
+  for (const [name, content] of [['index.html', indexHtml], ['manifest', manifest], ['sw.js', sw]]) {
+    assert.doesNotMatch(content, /d=['"]t['"]/, `${name} must not contain broken d='t' SVG path`);
+  }
+  assert.match(indexHtml, /<html\s+lang="en"/);
+  assert.match(indexHtml, /src="\/next\/js\/app\/main\.js"/);
+
+  // Zero RFC1918 private IPs in demo runtime files
+  const privateIpRe = /\b(?:192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)\b/;
+  for (const [name, content] of [['index.html', indexHtml], ['mock-engine.js', mockEngine]]) {
+    assert.doesNotMatch(content, privateIpRe, `${name} must not contain private LAN IP addresses`);
+  }
 });
