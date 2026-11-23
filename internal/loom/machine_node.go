@@ -18,7 +18,15 @@ const machineNodePrefix = "machine_engine_node:"
 func savedMachineNode(m RemoteMachine) *engineNode {
 	var n engineNode
 	if getStoreJSON(bkState, machineNodePrefix+m.ID, &n) && n.URL != "" {
-		return &n
+		if migrated, err := unsealEngineNode(&n); err == nil {
+			if migrated {
+				if sealed, serr := sealEngineNode(&n); serr == nil {
+					_ = putStoreJSON(bkState, machineNodePrefix+m.ID, sealed)
+				}
+			}
+			return &n
+		}
+		return nil
 	}
 	// Existing active links need no second key entry. Persisted maintenance links
 	// remain usable after another engine is selected.

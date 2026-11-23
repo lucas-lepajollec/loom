@@ -1055,6 +1055,14 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					extra = append(extra, toolMsg)
 					continue
 				}
+				if perr := authorizeLocalTool(ctx, tc.Function.Name, label, args); perr != nil {
+					refused := "[error] " + perr.Error()
+					cb(StreamEvent{ToolUsed: &ToolUsedEvent{Name: tc.Function.Name, Label: label, Result: refused, Done: true, ArgToks: flushArgToks()}})
+					toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: refused}
+					messages = append(messages, toolMsg)
+					extra = append(extra, toolMsg)
+					continue
+				}
 
 				result := ""
 				// diff : rempli par les outils d'écriture (edit / mémoire) pour que

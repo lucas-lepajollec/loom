@@ -26,7 +26,56 @@ import (
 // stay here. The link holds the remote control key and /v1 key; they are
 // stored with Loom's other local secrets and never returned to the browser.
 
-const engineNodeState = "engine_node"
+const (
+	engineNodeState     = "engine_node"
+	engineNodeWebKeyAAD = "loom/engine-node/web-key"
+	engineNodeAPIKeyAAD = "loom/engine-node/api-key"
+)
+
+func sealEngineNode(n *engineNode) (*engineNode, error) {
+	if n == nil {
+		return nil, nil
+	}
+	cp := *n
+	var err error
+	if cp.WebKey != "" {
+		cp.WebKey, err = sealInlineSecret(engineNodeWebKeyAAD, cp.WebKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if cp.APIKey != "" {
+		cp.APIKey, err = sealInlineSecret(engineNodeAPIKeyAAD, cp.APIKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &cp, nil
+}
+
+func unsealEngineNode(n *engineNode) (bool, error) {
+	if n == nil {
+		return false, nil
+	}
+	var migrated bool
+	if n.WebKey != "" {
+		plain, wasPlain, err := openInlineSecret(engineNodeWebKeyAAD, n.WebKey)
+		if err != nil {
+			return false, err
+		}
+		n.WebKey = plain
+		migrated = migrated || wasPlain
+	}
+	if n.APIKey != "" {
+		plain, wasPlain, err := openInlineSecret(engineNodeAPIKeyAAD, n.APIKey)
+		if err != nil {
+			return false, err
+		}
+		n.APIKey = plain
+		migrated = migrated || wasPlain
+	}
+	return migrated, nil
+}
 
 type engineNode struct {
 	NodeID    string   `json:"node_id,omitempty"`
@@ -71,7 +120,14 @@ func currentEngineNode() *engineNode {
 	if !engineNodeRead {
 		var n engineNode
 		if getStoreJSON(bkState, engineNodeState, &n) && n.URL != "" {
-			engineNodeCache = &n
+			if migrated, err := unsealEngineNode(&n); err == nil {
+				engineNodeCache = &n
+				if migrated {
+					if sealed, serr := sealEngineNode(&n); serr == nil {
+						_ = putStoreJSON(bkState, engineNodeState, sealed)
+					}
+				}
+			}
 		}
 		engineNodeRead = true
 	}
@@ -85,11 +141,21 @@ func setEngineNode(n *engineNode) error {
 	if n == nil {
 		err = putBytes(bkState, engineNodeState, nil)
 	} else {
-		err = putStoreJSON(bkState, engineNodeState, n)
+		var sealed *engineNode
+		sealed, err = sealEngineNode(n)
+		if err == nil {
+			err = putStoreJSON(bkState, engineNodeState, sealed)
+		}
 	}
 	if err == nil {
 		engineNodePath = dbPath()
-		engineNodeCache, engineNodeRead = n, true
+		if n == nil {
+			engineNodeCache = nil
+		} else {
+			cp := *n
+			engineNodeCache = &cp
+		}
+		engineNodeRead = true
 		engineModelsCache.Lock()
 		engineModelsCache.body, engineModelsCache.at = nil, time.Time{}
 		engineModelsCache.Unlock()

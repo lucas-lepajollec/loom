@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 )
 
 const (
@@ -297,4 +299,81 @@ func fileEdit(path, oldText, newText string) string {
 		return "[error] " + err.Error()
 	}
 	return fmt.Sprintf("[ok] %s modified (1 replacement)", path)
+}
+
+// localToolPolicyInput maps a local discussion tool call into a capability
+// policy evaluation input so global, project, agent and conditional rules
+// apply consistently before local execution.
+func localToolPolicyInput(session RuntimeSession, name, label string, args map[string]any) policy.Input {
+	subject := "agent.tool"
+	switch name {
+	case "bash":
+		subject = "agent.command"
+	case "write", "edit", "mem_add", "mem_edit", "mem_delete", "brain_write", "brain_edit":
+		subject = "agent.file_write"
+	case "see_image", "mem_read", "mem_search":
+		subject = "agent.file_read"
+	case "web_search":
+		subject = "agent.search"
+	case "web_open", "web_read", "web_grep":
+		subject = "agent.fetch"
+	default:
+		if isMCPTool(name) {
+			if rest, ok := strings.CutPrefix(name, "mcp__"); ok {
+				if server, tool, split := strings.Cut(rest, "__"); split {
+					subject = "mcp.tool:" + server + "/" + tool
+				}
+			}
+		}
+	}
+	in := sessionPolicyInput(session, subject, policy.Allow)
+	if in.Workdir == "" {
+		in.Workdir = agentWorkspace()
+	}
+	switch name {
+	case "bash":
+		in.Command = label
+		in.Detail = truncateRunes("local $ "+strings.TrimSpace(label), 600)
+	case "write", "edit", "see_image":
+		if strings.TrimSpace(label) != "" {
+			in.Path = resolveAgentPath(label)
+		}
+		in.Detail = truncateRunes(name+" "+in.Path, 600)
+	case "mem_add", "mem_edit", "mem_delete", "mem_read", "brain_write", "brain_edit":
+		in.Path = label
+		in.Detail = truncateRunes(name+" "+label, 600)
+	case "web_open", "web_read", "web_grep":
+		if u, ok := args["url"].(string); ok {
+			in.Endpoint = u
+		}
+		in.Detail = truncateRunes(name+" "+label, 600)
+	default:
+		if label != "" {
+			in.Detail = truncateRunes(name+" "+label, 600)
+		}
+	}
+	return in
+}
+
+// authorizeLocalTool enforces capability policy before executing a local
+// discussion tool. Deny rules block immediately; confirm rules require
+// approval through the request broker (or fail closed when unavailable).
+func authorizeLocalTool(ctx context.Context, name, label string, args map[string]any) error {
+	m, session := policyTurn(ctx)
+	in := localToolPolicyInput(session, name, label, args)
+	r := evaluatePolicy(in, false)
+	switch r.Decision {
+	case policy.Allow:
+		return nil
+	case policy.Deny:
+		if r.Reason == "policy_unavailable" {
+			return errors.New("policy unavailable (vault locked or storage unreadable)")
+		}
+		return errors.New("policy denied capability: " + in.Subject)
+	default:
+		if m == nil {
+			return errors.New("policy confirmation required for " + in.Subject)
+		}
+		return m.confirmPolicy(ctx, in)
+	}
 }

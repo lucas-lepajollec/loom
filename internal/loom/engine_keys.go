@@ -49,27 +49,61 @@ var engineKeysMu sync.Mutex
 var engineKeyWindows = map[string]*engineKeyWindow{}
 var engineKeyNow = func() time.Time { return time.Now().UTC() }
 
+const engineInternalCapAAD = "loom/engine/internal-capability"
+
+var engineInternalCapMu sync.Mutex
+
 // Capacité privée entre les processus web/serve de la même installation.
 // Elle ne figure pas dans les clés clientes et ne porte aucun quota.
 func loomInferenceSecret() string {
 	if b, err := getBytesErr(bkState, "engine_internal_capability"); err == nil && len(b) > 0 {
-		return string(b)
+		plain, wasPlain, err := openInlineSecret(engineInternalCapAAD, string(b))
+		if err == nil && plain != "" {
+			if wasPlain {
+				if sealed, serr := sealInlineSecret(engineInternalCapAAD, plain); serr == nil {
+					_ = putStr(bkState, "engine_internal_capability", sealed)
+				}
+			}
+			return plain
+		}
+		if err != nil {
+			return ""
+		}
 	}
-	var secret string
-	err := store.Update(dbPath(), bkState, func(b *bolt.Bucket) error {
-		secret = string(b.Get([]byte("engine_internal_capability")))
-		if secret != "" {
+	engineInternalCapMu.Lock()
+	defer engineInternalCapMu.Unlock()
+	if b, err := getBytesErr(bkState, "engine_internal_capability"); err == nil && len(b) > 0 {
+		plain, _, err := openInlineSecret(engineInternalCapAAD, string(b))
+		if err == nil && plain != "" {
+			return plain
+		}
+		return ""
+	}
+	secret, err := newEngineSecret()
+	if err != nil {
+		return ""
+	}
+	sealed, err := sealInlineSecret(engineInternalCapAAD, secret)
+	if err != nil {
+		return ""
+	}
+	var existing string
+	err = store.Update(dbPath(), bkState, func(b *bolt.Bucket) error {
+		if cur := string(b.Get([]byte("engine_internal_capability"))); cur != "" {
+			existing = cur
 			return nil
 		}
-		var err error
-		secret, err = newEngineSecret()
-		if err != nil {
-			return err
-		}
-		return b.Put([]byte("engine_internal_capability"), []byte(secret))
+		return b.Put([]byte("engine_internal_capability"), []byte(sealed))
 	})
 	if err != nil {
 		return ""
+	}
+	if existing != "" {
+		plain, _, err := openInlineSecret(engineInternalCapAAD, existing)
+		if err != nil {
+			return ""
+		}
+		return plain
 	}
 	return secret
 }

@@ -3,9 +3,13 @@ package loom
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
+
+const minManualWebKeyRunes = 24
 
 // La clé de pilotage n'est plus stockée en CLAIR : seule son EMPREINTE (SHA-256)
 // est persistée, sous bkState "web_key_hash". Ainsi le serveur peut VALIDER un
@@ -112,6 +116,9 @@ func cmdSetWebKey(args []string) error {
 		key = ""
 	default:
 		key = strings.TrimSpace(args[0])
+		if utf8.RuneCountInString(key) < minManualWebKeyRunes {
+			return errors.New("control key must be at least 24 characters (or run 'loom set-web-key' to generate one)")
+		}
 	}
 	if err := storeWebKey(key); err != nil {
 		return err

@@ -2,10 +2,12 @@ package loom
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -102,4 +104,52 @@ func deleteProviderSecret(id string) error {
 		return nil
 	}
 	return err
+}
+
+const inlineSecretPrefix = "sealed:v1:"
+
+// sealInlineSecret encrypts a secret string for at-rest persistence in loom.db
+// using the same installation-local AES-256-GCM key as provider secrets.
+func sealInlineSecret(aad, secret string) (string, error) {
+	if secret == "" {
+		return "", nil
+	}
+	providerSecretMu.Lock()
+	defer providerSecretMu.Unlock()
+	key, err := providerSecretKey(true)
+	if err != nil {
+		return "", err
+	}
+	box, err := gcmSeal(key, []byte(secret), []byte(aad))
+	if err != nil {
+		return "", err
+	}
+	return inlineSecretPrefix + base64.RawStdEncoding.EncodeToString(box), nil
+}
+
+// openInlineSecret decrypts a value produced by sealInlineSecret. Legacy
+// plaintext values (without the sealed:v1: prefix) are returned as-is with
+// wasPlaintext=true so callers can transparently migrate them in place.
+func openInlineSecret(aad, stored string) (string, bool, error) {
+	if stored == "" {
+		return "", false, nil
+	}
+	if !strings.HasPrefix(stored, inlineSecretPrefix) {
+		return stored, true, nil
+	}
+	box, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(stored, inlineSecretPrefix))
+	if err != nil {
+		return "", false, errors.New("corrupt sealed secret")
+	}
+	providerSecretMu.Lock()
+	defer providerSecretMu.Unlock()
+	key, err := providerSecretKey(false)
+	if err != nil {
+		return "", false, err
+	}
+	plain, err := gcmOpen(key, box, []byte(aad))
+	if err != nil {
+		return "", false, err
+	}
+	return string(plain), false, nil
 }

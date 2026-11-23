@@ -22,7 +22,11 @@ func savePairedMachine(m RemoteMachine, n *engineNode) (RemoteMachine, error) {
 }
 
 func savePairedMachineMode(m RemoteMachine, n *engineNode, migrate bool) (RemoteMachine, error) {
-	linkJSON, err := json.Marshal(n)
+	sealed, err := sealEngineNode(n)
+	if err != nil {
+		return m, err
+	}
+	linkJSON, err := json.Marshal(sealed)
 	if err != nil {
 		return m, err
 	}

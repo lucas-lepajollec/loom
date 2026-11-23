@@ -321,8 +321,11 @@ func handlePolicyEvaluate(w http.ResponseWriter, r *http.Request) {
 			in.Fallback = policy.Allow
 		}
 	}
-	if strings.HasPrefix(in.Subject, "node.") || strings.HasPrefix(in.Subject, "mcp.tool:") || in.Subject == "spend.provider" {
+	if strings.HasPrefix(in.Subject, "node.") || in.Subject == "spend.provider" {
 		in.Fallback = policy.Allow
+	}
+	if strings.HasPrefix(in.Subject, "mcp.tool:") {
+		in.Fallback = gatewayToolFallback(in.Subject)
 	}
 	if in.Subject == "notification.summary" {
 		if cfg, err := notificationConfig(); err == nil && cfg.Rules.IncludeSummaries {
