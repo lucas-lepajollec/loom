@@ -180,13 +180,7 @@ export function UsagePage() {
       if (alive()) setLoading(false);
     }
   }, 4000, revision);
-  const [kind, setKind] = useState('all');
   const models = data?.models || [];
-  const category = model => {
-    const type = modelKind(model, runtimes);
-    return type === 'cloud' || type === 'local' ? type : 'archive';
-  };
-  const filtered = models.filter(model => kind === 'all' || category(model) === kind);
   const headings = [t('usage.page.modele'), t('usage.page.entree_2'), t('usage.page.sortie_2'), t('usage.page.prix_m_tokens'), t('usage.page.estimation')];
   return html`<${ActivityLayout} title=${t('app.routes.usage')} refresh=${refresh}>
     <${Balances} revision=${revision} />
@@ -199,18 +193,12 @@ export function UsagePage() {
         </button>
       </div>
       ${error && html`<p class="note err" role="alert">${t('usage.activity_unavailable', { error })}</p>`}
-      ${models.length > 0 && html`<div class="board-filters" role="group" aria-label=${t('usage.page.modele')}>
-        ${[['all', t('mobile.all')], ['local', t('usage.activity_local')], ['cloud', t('usage.activity_cloud')], ['archive', t('usage.activity_archive')]].map(([id, label]) => {
-          const count = id === 'all' ? models.length : models.filter(model => category(model) === id).length;
-          return (count > 0 || kind === id) && html`<button type="button" key=${id} aria-pressed=${kind === id} onClick=${() => setKind(id)}>${label}<b>${count}</b></button>`;
-        })}
-      </div>`}
       ${data && !models.some(m => modelKind(m, runtimes) === 'local') && html`<p class="note usage-scope">${t('usage.activity_local_scope')}</p>`}
       ${!data ? !error && html`<div class="skeleton usage-model-loading"></div>` : !models.length
         ? html`<div class="activity-card usage-empty"><${Empty} icon="chart" title=${t('usage.page.rien_pour_l_instant')} text=${t('usage.page.les_tokens_des_discussions_cloud_et_harness_apparaitront_ici_les')} /></div>`
         : html`<div class="card table usage-t" role="table" aria-labelledby="usage-models">
           <div class="tr th" role="row">${headings.map(label => html`<span key=${label} role="columnheader">${label}</span>`)}</div>
-          ${filtered.map(m => {
+          ${models.map(m => {
             const type = modelKind(m, runtimes);
             const typeLabel = type === 'cloud' ? t('usage.activity_cloud') : type === 'local' ? t('usage.activity_local') : t('usage.activity_archive');
             const name = modelName(m);

@@ -11,7 +11,6 @@ import { RestoreBanner } from '../features/agents/control.js';
 import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
 import { ago } from '../features/agents/rail.js';
-import { EngineJobs } from './activity.js';
 import { usePullRefresh } from './touch.js';
 import { loomApprovals, LoomApproval, refreshLoomApprovals } from './approvals.js';
 
@@ -82,12 +81,6 @@ export function InboxPage({ route }) {
   const waiting = useStore(loomApprovals, s => s.items);
   const ready = st.conn.state === 'ready';
   const matched = approvals.some(a => a.id === route.sub) || replies.some(a => a.id === route.sub);
-  const [filter, setFilter] = useState('all');
-  useEffect(() => { setFilter('all'); }, [route.sub]);
-  const attention = filter === 'all' || filter === 'attention';
-  const showCompleted = filter === 'all' || filter === 'completed';
-  const filteredEmpty = filter === 'attention' && !waiting.length && !approvals.length && !replies.length ||
-    filter === 'completed' && !completed.length;
   const list = useRef();
   const pull = usePullRefresh(() => Promise.all([refreshAgentInbox(), refreshLoomApprovals()]));
   useEffect(() => {
@@ -95,32 +88,27 @@ export function InboxPage({ route }) {
     const target = list.current?.querySelector('[data-current]');
     target?.scrollIntoView({ block: 'nearest' });
     target?.focus({ preventScroll: true });
-  }, [route.sub, matched, attention]);
-  return html`<div class="view phone-page inbox-page">
-    <header class="phone-title"><h1>${t('mobile.inbox')}</h1><a class="icon-btn" href="#/settings/notifications" aria-label=${t('notify.title')} title=${t('notify.title')}><${Icon} n="gear" /></a></header>
-    <nav class="inbox-tabs board-filters" aria-label=${t('mobile.inbox')}>
-      ${[['all', t('workspace.all')], ['attention', t('workspace.attention'), waiting.length + approvals.length + replies.length], ['completed', t('mobile.completed'), completed.length], ['jobs', t('workspace.jobs')]].map(([id, label, count]) => html`<button key=${id} type="button" aria-pressed=${filter === id} onClick=${() => setFilter(id)}>${label}${count > 0 && html`<b>${count}</b>`}</button>`)}
-    </nav>
+  }, [route.sub, matched]);
+  return html`<div class="view phone-page">
+    <header class="phone-title"><h1>${t('mobile.inbox')}</h1></header>
     <div class="phone-scroll inbox-list" ref=${list} ...${pull}>
       ${st.conn.configured && !ready && html`<a class="inbox-card phone-link" href="#/agents"><${Icon} n="alert" /><span>${t('mobile.inbox_unavailable')}</span><${Icon} n="right" /></a>`}
-      ${attention && waiting.map(item => html`<div key=${item.request_id} class="inbox-item"><${LoomApproval} item=${item} class="inbox-card" /></div>`)}
-      ${attention && approvals.map(item => html`<div key=${item.id} class="inbox-item" tabindex="-1" data-current=${item.id === route.sub ? '' : undefined}>
+      ${waiting.map(item => html`<div key=${item.request_id} class="inbox-item"><${LoomApproval} item=${item} class="inbox-card" /></div>`)}
+      ${approvals.map(item => html`<div key=${item.id} class="inbox-item" tabindex="-1" data-current=${item.id === route.sub ? '' : undefined}>
         <${Approval} item=${item} session=${st.sessions[item.sessionId]} disabled=${!ready} onTerminal=${() => openSession(item.sessionId, 'term')}>
           <${InboxTitle} item=${item} session=${st.sessions[item.sessionId]} />
         </${Approval}>
       </div>`)}
-      ${attention && replies.map(item => html`<div key=${item.id} class="inbox-item" tabindex="-1" data-current=${item.id === route.sub ? '' : undefined}>
+      ${replies.map(item => html`<div key=${item.id} class="inbox-item" tabindex="-1" data-current=${item.id === route.sub ? '' : undefined}>
         <${QuickReply} item=${item} session=${st.sessions[item.sessionId]} ready=${ready && stateOf(st.sessions[item.sessionId]) === 'idle'} />
       </div>`)}
-      ${showCompleted && completed.length > 0 && html`<section class="inbox-completed"><h2>${t('mobile.completed')}</h2>
+      ${completed.length > 0 && html`<section class="inbox-completed"><h2>${t('mobile.completed')}</h2>
         ${completed.map(([id, at]) => html`<a key=${id} class="inbox-card phone-link" href=${'#/agents/s/' + encodeURIComponent(id)}>
           <${Icon} n="check" class="inbox-done" /><span><b>${st.sessions[id].name || id.slice(0, 8)}</b><small>${ago(at)}</small></span><${Icon} n="right" />
         </a>`)}
       </section>`}
-      ${filter === 'all' && ready && restore.length > 0 && html`<${RestoreBanner} />`}
-      ${filter === 'jobs' && html`<${EngineJobs} />`}
-      ${filteredEmpty && html`<${Empty} icon="inbox" title=${t('workspace.no_items')} />`}
-      ${filter === 'all' && !waiting.length && !approvals.length && !replies.length && !completed.length && !restore.length &&
+      ${ready && restore.length > 0 && html`<${RestoreBanner} />`}
+      ${!waiting.length && !approvals.length && !replies.length && !completed.length && !restore.length &&
         (st.conn.state === 'idle' || ready && !st.loaded ? html`<div class="skeleton inbox-loading"></div>`
           : html`<${Empty} icon="inbox" title=${t('mobile.inbox_empty')} />`)}
     </div>

@@ -77,7 +77,7 @@ export function phoneParent({ section, sub }) {
   if (section === 'machines' && sub) return 'machines';
   if (section === 'settings' && sub) return 'settings';
   if (section === 'agents' && ['s', 'grid'].includes(sub)) return '';
-  return ['local', 'cloud', 'voice', 'jarvis', 'engine', 'agents', 'machines', 'connections', 'settings'].includes(section) ? 'more' : '';
+  return ['local', 'cloud', 'voice', 'jarvis', 'engine', 'agents', 'machines', 'settings'].includes(section) ? 'more' : '';
 }
 
 export function phoneBack() {
@@ -97,7 +97,7 @@ export function setTheme(localT) {
   document.documentElement.dataset.theme = localT;
   try { localStorage.setItem('loom-theme', localT); } catch (_) {}
   const meta = document.querySelector('meta[name=theme-color]');
-  if (meta) meta.content = localT === 'light' ? '#f4f1ed' : '#141414';
+  if (meta) meta.content = localT === 'light' ? '#f3f3f4' : '#09090a';
   app.set({ theme: localT });
 }
 

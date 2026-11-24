@@ -13,16 +13,17 @@
   --text-xs:11.5px;--text-sm:12.5px;--text-control:13px;--text-base:13.5px;--text-heading:17px;--text-title:22px;
   --control-sm:28px;--control-size:32px;--control-lg:40px;--touch-target:44px;
   --side-w:248px;--insp-w:340px;--head-h:52px;
-  --copper:#ed9b76;--copper-wash:rgba(245,245,245,.07);--frame:#141414;
   color-scheme:dark;
-  /* Neutral workspace surfaces shared with the installed PWA. */
-  --bg:#161616;--bg-2:#191919;--panel:#1d1d1d;--surface:#212121;--surface-2:#262626;--surface-3:#333333;--raised:#272727;
+  /* Mono : un fond, un panneau, trois paliers de surface. Pas de couleur de
+     marque : l'action principale est en encre claire, la couleur est réservée
+     à l'état (vert = prêt, ambre = attention, rouge = erreur). */
+  --bg:#09090a;--bg-2:#0c0c0e;--panel:#111113;--surface:#161618;--surface-2:#1c1c1f;--surface-3:#27272b;--raised:#18181b;
   --line:rgba(255,255,255,.08);--line-soft:rgba(255,255,255,.055);--line-strong:rgba(255,255,255,.14);
-  --text:#eaeaea;--text-2:#b4b4b4;--text-3:#989898;--text-4:#858585;
-  --accent:#eaeaea;--accent-2:#ffffff;--accent-bg:rgba(255,255,255,.07);--accent-line:rgba(255,255,255,.2);--accent-fill:#eaeaea;--on-accent:#161616;
-  --ink:#eaeaea;--on-ink:#161616;
-  --blue:#b4b4b4;--blue-bg:rgba(255,255,255,.06);--blue-line:rgba(255,255,255,.2);
-  --violet:#b4b4b4;--violet-bg:rgba(255,255,255,.06);
+  --text:#ededef;--text-2:#a1a1aa;--text-3:#71717a;--text-4:#4b4b53;
+  --accent:#ededef;--accent-2:#ffffff;--accent-bg:rgba(255,255,255,.07);--accent-line:rgba(255,255,255,.2);--accent-fill:#ededef;--on-accent:#09090a;
+  --ink:#ededef;--on-ink:#09090a;
+  --blue:#a1a1aa;--blue-bg:rgba(255,255,255,.06);--blue-line:rgba(255,255,255,.2);
+  --violet:#a1a1aa;--violet-bg:rgba(255,255,255,.06);
   --green:#4ade80;--green-bg:rgba(74,222,128,.12);--amber:#e3a857;--amber-bg:rgba(227,168,87,.1);--red:#f87171;--red-bg:rgba(248,113,113,.1);
   --hover:rgba(255,255,255,.04);--press:rgba(255,255,255,.07);--sel:rgba(255,255,255,.065);
   --hi:none;--shadow-panel:none;--shadow-card:none;
@@ -31,15 +32,14 @@
   --scrim:rgba(8,8,7,.55);
 }
 [data-theme="light"]{
-  --copper:#934623;--copper-wash:rgba(160,76,37,.10);--frame:#eae4df;
   color-scheme:light;
-  --bg:#f4f1ed;--bg-2:#faf8f5;--panel:#ffffff;--surface:#faf9f7;--surface-2:#edeae6;--surface-3:#e2dbd5;--raised:#ffffff;
+  --bg:#f3f3f4;--bg-2:#f7f7f8;--panel:#ffffff;--surface:#fafafa;--surface-2:#f4f4f5;--surface-3:#e4e4e7;--raised:#ffffff;
   --line:rgba(9,9,11,.09);--line-soft:rgba(9,9,11,.06);--line-strong:rgba(9,9,11,.16);
-  --text:#2c2a28;--text-2:#605851;--text-3:#746d67;--text-4:#827a74;
-  --accent:#24201e;--accent-2:#000000;--accent-bg:rgba(9,9,11,.05);--accent-line:rgba(9,9,11,.22);--accent-fill:#24201e;--on-accent:#ffffff;
-  --ink:#24201e;--on-ink:#ffffff;
-  --blue:#605851;--blue-bg:rgba(9,9,11,.05);--blue-line:rgba(9,9,11,.2);
-  --violet:#605851;--violet-bg:rgba(9,9,11,.05);
+  --text:#09090b;--text-2:#52525b;--text-3:#71717a;--text-4:#a1a1aa;
+  --accent:#18181b;--accent-2:#000000;--accent-bg:rgba(9,9,11,.05);--accent-line:rgba(9,9,11,.22);--accent-fill:#18181b;--on-accent:#ffffff;
+  --ink:#18181b;--on-ink:#ffffff;
+  --blue:#52525b;--blue-bg:rgba(9,9,11,.05);--blue-line:rgba(9,9,11,.2);
+  --violet:#52525b;--violet-bg:rgba(9,9,11,.05);
   --green:#16a34a;--green-bg:rgba(22,163,74,.1);--amber:#b45309;--amber-bg:rgba(180,83,9,.08);--red:#dc2626;--red-bg:rgba(220,38,38,.08);
   --hover:rgba(9,9,11,.04);--press:rgba(9,9,11,.07);--sel:rgba(9,9,11,.055);
   --shadow-pop:0 12px 32px -14px rgba(9,9,11,.18),0 0 0 1px var(--line);

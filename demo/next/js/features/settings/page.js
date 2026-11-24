@@ -27,20 +27,8 @@ import { VLLMEngine } from './vllm.js';
 import { ListPick } from '../../ui/listpick.js';
 import { FolderPicker } from '../../ui/folder.js';
 
-import { settingsSections } from './catalog.js';
-import { scoreText } from '../../ui/search-rank.js';
+const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', t('settings.page.internet'), 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
 
-function SectionSearch({ query, setQuery }) {
-  return html`<label class="search settings-search"><${Icon} n="search" /><input type="search" value=${query}
-    placeholder=${t('workspace.search_settings')} aria-label=${t('workspace.search_settings')} onInput=${e => setQuery(e.target.value)} /></label>`;
-}
-
-function SectionLinks({ sections, current }) {
-  return sections.length ? sections.map(({ id, title, icon, group }, index) => html`
-    ${sections[index - 1]?.group !== group && html`<h3 class="settings-category">${group}</h3>`}
-    <a key=${id} href=${'#/settings/' + id} aria-current=${id === current ? 'page' : undefined}><${Icon} n=${icon} /><span>${title}</span></a>`)
-    : html`<p class="muted" role="status">${t('workspace.no_settings')}</p>`;
-}
 
 // Agents : connexion au serveur Codeman (détection automatique, voir agents/connection.js).
 // API compatible OpenAI : adresse, accès réseau, clés et noms de modèles (api.js).
@@ -597,7 +585,6 @@ function About() {
     <${Group} title="${t("settings.page.loom")}">
       <${Line} label="${t("settings.page.version")}"><span class="mono">${serverInfo && serverInfo.version || '—'}</span></${Line}>
       ${remote && status && status.version && html`<${Line} label=${t('settings.about.engine_version', { machine: engineName })} tip=${status.version !== (serverInfo && serverInfo.version) ? t('settings.about.engine_outdated') : ''}><span class="mono" title=${status.version}>${shortVersion(status.version)}</span></${Line}>`}
-      <${Line} label=${t('workspace.credits')}><a class="btn sm" href="/next/licenses/paradev.txt" target="_blank" rel="noopener">Paradev · MIT</a></${Line}>
       <${Line} label=${t('welcome.about.label')}><button class="btn sm" onClick=${openWelcome}>${t('welcome.about.open')}</button></${Line}>
     </${Group}>
     <${LoomUpdates} />
@@ -617,7 +604,7 @@ function PhoneSettings({ sections }) {
     return () => controller.abort();
   }, []);
   const link = (id, value) => {
-    const { title: label } = sections.find(section => section.id === id);
+    const [, label] = sections.find(section => section[0] === id);
     return html`<a key=${id} href=${'#/settings/' + id} class="phone-link phone-setting-link">
       <span>${label}</span>${value && html`<small>${value}</small>`}<${Icon} n="right" />
     </a>`;
@@ -635,12 +622,9 @@ function PhoneSettings({ sections }) {
 
 export function SettingsPage({ route }) {
   const phone = usePhone();
-  const sections = settingsSections();
-  const [query, setQuery] = useState('');
-  const selected = sections.find(s => s.id === route.sub);
-  const sec = selected?.id || 'general';
-  const matches = sections.filter(item => scoreText(item, query));
-  const search = html`<${SectionSearch} query=${query} setQuery=${setQuery} />`;
+  const sections = SECTIONS();
+  const selected = sections.find(s => s[0] === route.sub);
+  const sec = selected ? selected[0] : 'general';
   useEffect(() => {
     if (route.sub === 'agents') go('agents', 'settings');
     else if (route.sub === 'api') go('engine');
@@ -648,16 +632,16 @@ export function SettingsPage({ route }) {
   }, [route.sub, phone]);
   const View = { general: General, internet: Internet, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
   if (phone) return html`<div class="view page"><div class="page-in settings-page">
-    <h1 class="phone-management-title">${selected ? selected.title : t('settings.page.reglages')}</h1>
+    <h1 class="phone-management-title">${selected ? selected[1] : t('settings.page.reglages')}</h1>
     ${selected ? html`<div class="set-body settings-body" key=${sec}><${View} route=${route} phone /></div>`
-      : html`${search}${query.trim() ? html`<nav class="set-nav settings-results"><${SectionLinks} sections=${matches} /></nav>` : html`<${PhoneSettings} sections=${sections} />`}`}
+      : html`<${PhoneSettings} sections=${sections} />`}
   </div></div>`;
   return html`<div class="view page"><div class="page-in">
     <div class="settings">
       <nav class="set-nav" aria-label=${t("settings.page.reglages")}><h1>${t("settings.page.reglages")}</h1>
-        ${search}<${SectionLinks} sections=${matches} current=${sec} />
+        ${sections.map(([id, label, ico]) => html`<a key=${id} href=${'#/settings/' + id} aria-current=${id === sec ? 'page' : undefined}><${Icon} n=${ico} /><span>${label}</span></a>`)}
       </nav>
-      <div class="set-body settings-body settings-detail" key=${sec}><h2>${(selected || sections[0]).title}</h2><${View} route=${route} /></div>
+      <div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>
     </div>
   </div></div>`;
 }

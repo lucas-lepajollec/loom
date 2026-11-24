@@ -2077,13 +2077,6 @@
         return jsonResponse({ success: true, data: { delivered: true } });
       }
       if (sub === 'git-status') {
-        if (sid === 'cm-docs-sync') return jsonResponse({ success: true, data: {
-          state: 'ok', checkedAt: now, repos: [{ name: 'research-notes', path: sess.workingDir, status: {
-            repoRoot: sess.workingDir, branch: 'refactor/bench-parser', counts: { uncommitted: 2 },
-            files: [{ path: 'scripts/bench-parser.mjs', kind: 'modified', worktree: 'M' }, { path: 'tests/bench-parser.test.mjs', kind: 'untracked', worktree: '?' }],
-          } }],
-        } });
-
         return jsonResponse({
           success: true,
           data: {
@@ -2112,13 +2105,6 @@
         });
       }
       if (sub === 'git-diff') {
-        if (sid === 'cm-docs-sync') {
-          const diff = qs.get('path') === 'tests/bench-parser.test.mjs'
-            ? "@@ -0,0 +1,2 @@\n+const row = parseBenchmark('pp512,42');\n+assert.equal(row.tokensPerSecond, 42);"
-            : "@@ -12,3 +12,6 @@\n export function parseBenchmark(line) {\n-  return line.split(',');\n+  const [test, rate] = line.trim().split(',');\n+  const tokensPerSecond = Number(rate);\n+  if (!Number.isFinite(tokensPerSecond)) return null;\n+  return { test, tokensPerSecond };\n }";
-          return jsonResponse({ success: true, data: { diff } });
-        }
-
         return jsonResponse({
           success: true,
           data: {

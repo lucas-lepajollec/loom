@@ -61,25 +61,12 @@ function SessionRow({ s, state }) {
 
 function Sessions({ list, loaded }) {
   const [expanded, setExpanded] = useState(false);
-  const [filter, setFilter] = useState('all');
-  const filters = [
-    { id: 'all', label: t('mobile.all'), rows: list },
-    { id: 'attention', label: t('agents.cc.attention'), rows: list.filter(item => ['waiting', 'limited', 'error'].includes(item.state)) },
-    { id: 'working', label: t('agents.state.working'), rows: list.filter(item => ['working', 'starting'].includes(item.state)) },
-    { id: 'idle', label: t('agents.state.idle'), rows: list.filter(item => item.state === 'idle') },
-  ];
-  const rows = filters.find(item => item.id === filter).rows;
-  return html`<section class="cm-cc-sec session-board">
-    <div class="cm-section-head"><h2>${t('agents.cc.board')}</h2>
-      <button type="button" class="btn sm" onClick=${() => agents.set({ creating: {} })}><${Icon} n="plus" />${t('agents.rail.new')}</button></div>
-    ${loaded && list.length > 0 && html`<div class="board-filters" role="group" aria-label=${t('mobile.filter_sessions')}>
-      ${filters.map(item => html`<button type="button" key=${item.id} aria-pressed=${filter === item.id}
-        onClick=${() => { setFilter(item.id); setExpanded(false); }}>${item.label}<b>${item.rows.length}</b></button>`)}
-    </div>`}
-    ${rows.length ? html`<ul class="cm-session-list" id="cm-live-sessions">
-      ${(expanded ? rows : rows.slice(0, PAGE_SIZE)).map(({ s, state }) => html`<${SessionRow} key=${s.id} s=${s} state=${state} />`)}
-    </ul>` : html`<p class="cm-admin-empty">${loaded ? (list.length ? t('workspace.no_match') : t('agents.rail.empty')) : t('agents.conn.connecting')}</p>`}
-    ${rows.length > PAGE_SIZE && html`<button class="btn sm cm-more" aria-controls="cm-live-sessions"
+  return html`<section class="cm-cc-sec">
+    <h2>${t('agents.cc.board')}</h2>
+    ${list.length ? html`<ul class="cm-session-list" id="cm-live-sessions">
+      ${(expanded ? list : list.slice(0, PAGE_SIZE)).map(({ s, state }) => html`<${SessionRow} key=${s.id} s=${s} state=${state} />`)}
+    </ul>` : html`<p class="cm-admin-empty">${loaded ? t('agents.rail.empty') : t('agents.conn.connecting')}</p>`}
+    ${list.length > PAGE_SIZE && html`<button class="btn sm cm-more" aria-controls="cm-live-sessions"
       aria-expanded=${expanded} onClick=${() => setExpanded(!expanded)}>${expanded ? t('agents.cc.less') : t('agents.cc.more')}</button>`}
   </section>`;
 }

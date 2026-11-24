@@ -7,7 +7,6 @@ import { Icon } from '../ui/icons.js';
 import { app, phoneParent, phoneTab, startPolling, setTheme } from '../core/state.js';
 import { usePhone } from '../core/viewport.js';
 import { Layers } from '../ui/dialog.js';
-import { WorkspaceTabs } from './workspace-tabs.js';
 import { Sidebar, useShortcuts } from './shell.js';
 import { init as initChat } from '../features/chat/engine.js';
 import { Placeholder } from './placeholder.js';
@@ -76,7 +75,6 @@ function Main({ route, phone }) {
   const ownHeader = ['chat', 'files'].includes(route.section) || route.section === 'agents' && ['s', 'grid'].includes(route.sub)
     || route.section === 'more' && route.sub === 'jarvis';
   return html`<main class=${cls('main', parent && 'phone-management')}>
-    ${!phone && html`<${WorkspaceTabs} route=${route} />`}
     ${parent ? html`<header class="phone-management-head"><${PhoneBackLink} parent=${parent} />
       ${title && html`<h1 class="phone-management-title">${title}</h1>`}</header>`
     : phone && !phoneTab(route) && !ownHeader && html`<header class="phone-subhead"><${BackButton} /></header>`}
