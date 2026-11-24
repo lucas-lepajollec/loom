@@ -12,7 +12,7 @@ import { md } from '../chat/md.js';
 import { api, sendPrompt, flattenPrompt } from './client.js';
 import { agents, stateOf, approvalsFor, capsOf, cliOf } from './store.js';
 import { agentDraftKey, interrupt, answerApproval, dismissApproval } from './actions.js';
-import { AgentTerminal } from './terminal.js';
+import { CliMark } from './new-session.js';
 import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
 
 // Regroupe les statuts/outils consécutifs d'un tour en un pli d'activité.
@@ -35,15 +35,12 @@ export function groupBlocks(blocks) {
 }
 
 function Activity({ items }) {
-  const [open, setOpen] = useState(false);
-  const tools = items.filter(i => i.kind === 'tool').length;
-  const statuses = items.length - tools;
-  const label = [tools && t('agents.conv.tools', { n: tools }), statuses && t('agents.conv.status', { n: statuses })].filter(Boolean).join(' · ');
-  return html`<div class=${cls('work', open && 'open')}>
-    <button type="button" class="work-h" aria-expanded=${String(open)} onClick=${() => setOpen(!open)}>
-      <${Icon} n=${tools ? 'tool' : 'activity'} /><span>${label}</span><${Icon} n="chevron" class="caret" /></button>
-    ${open && html`<div class="work-b cm-activity">${items.map((b, i) => html`<div key=${i} class="cm-event"><${Icon} n=${b.kind === 'tool' ? 'tool' : 'activity'} /><pre class=${'cm-act ' + b.kind}>${b.text}</pre></div>`)}</div>`}
-  </div>`;
+  return html`<div class="session-steps">${items.map((item, index) => {
+    const [first, ...rest] = item.text.trim().split('\n');
+    const icon = item.kind === 'status' ? 'activity' : /^(read|open|search)/i.test(first) ? 'search' : /^(edit|write|patch)/i.test(first) ? 'edit' : 'terminal';
+    return html`<details key=${index} class="session-step"><summary><${Icon} n=${icon} /><span class="trunc">${first || t('agents.insp.activity')}</span><${Icon} n="right" /></summary>
+      <pre>${rest.join('\n') || first}</pre></details>`;
+  })}</div>`;
 }
 
 export function Approval({ item, session, onTerminal, children, disabled = false }) {
@@ -135,6 +132,7 @@ export function Composer({ session, onTerminal, compact, phone, review, onReview
         ${!phone && html`<button class="icon-btn" aria-label=${t('agents.composer.attach')} title=${t('agents.composer.attach_hint')} disabled=${!ready} onClick=${() => file.current.click()}><${Icon} n="paperclip" /></button>`}
         ${onTerminal && html`<button class="icon-btn" aria-label=${t('agents.view.terminal')} title=${t('agents.view.terminal')} onClick=${onTerminal}><${Icon} n="terminal" /></button>`}
         ${!phone && html`<span class="grow composer-hint ${hint ? 'warn' : ''}">${over ? t('agents.attach.drop') : hint}</span>`}
+        ${!phone && !compact && html`<small class="composer-agent"><${CliMark} mode=${session.mode} size="xs" />${[cliOf(session.mode).label, session.displayModel?.model].filter(Boolean).join(' · ')}</small>`}
         ${state === 'working' && html`<button class=${phone ? 'send stop' : 'btn sm'} aria-label=${t('agents.composer.interrupt')} onClick=${() => interrupt(session.id).catch(e => toast(e.message, 'err'))} title=${t('agents.composer.interrupt_hint')}><${Icon} n="stop" />${compact || phone ? '' : t('agents.composer.interrupt')}</button>`}
         ${(!phone || state !== 'working' || !!flattenPrompt(body())) && html`<button class=${phone ? 'send cm-send' : 'btn primary cm-send'} aria-label=${t('agents.composer.send')} disabled=${!ready || sending || pending || !flattenPrompt(body())} onClick=${send}>${sending ? html`<span class="spinner"></span>` : html`<${Icon} n="arrowUp" />`}</button>`}
       </div>
@@ -177,28 +175,24 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
   useEffect(() => { const el = scroller.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [blocks, approvals.length, state]);
   const grouped = groupBlocks(blocks);
   const hasPrompt = (blocks || []).some(b => b.role === 'user');
-  // Un prompt a été soumis mais Codeman ne sait pas le distinguer à l'écran de
-  // ce CLI : l'écran en direct reste la vue fidèle.
   const submitted = !hasPrompt && !!session.lastSubmitAt;
-  // Avant le premier prompt, les blocs ne sont que la bannière du CLI : on
-  // montre son écran réel, où se règlent mises à jour et dialogues de confiance.
-  const shown = hasPrompt ? grouped : [];
+  // A resumed rollout can provide assistant turns before its user prompt is loaded.
+  const shown = hasPrompt ? grouped : grouped.filter(b => b.kind === 'response' && b.role === 'assistant' && (submitted || b.turn != null));
   const cli = cliOf(session.mode);
   return html`<div class=${cls('cm-conv', compact && 'compact')}>
     <div class="thread" ref=${scroller} onScroll=${e => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; setAway(!stick.current); }}>
       <div class="thread-in">
         ${blocks === null && !failed && html`<div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:120px;width:80%"></div>`}
         ${failed && html`<div class="msg-err"><${Icon} n="alert" /><span>${t('agents.conv.unavailable')} — ${failed}</span></div>`}
-        ${blocks && !hasPrompt && !terminalVisible && session.mode !== 'shell' && html`<div class=${cls('cm-boot anim-rise', submitted && 'live')}>
-          <div class="cm-boot-h"><b>${state === 'starting' ? t('agents.conv.empty_starting', { cli: cli.label }) : submitted ? t('agents.conv.live_title', { cli: cli.label }) : t('agents.conv.boot_title', { cli: cli.label })}</b>
-            <span class="muted">${submitted ? t('agents.conv.live_text') : t('agents.conv.boot_text')}</span></div>
-          <div class="cm-boot-term"><${AgentTerminal} sessionId=${id} mode=${session.mode} scrollback=${2000} /></div></div>`}
+        ${blocks && !hasPrompt && !shown.length && !terminalVisible && session.mode !== 'shell' && html`<div class="cm-conv-empty">
+          <p>${submitted ? t('agents.conv.live_text') : t('agents.conv.empty', { cli: cli.label })}</p>
+          <button class="btn sm" onClick=${onTerminal}><${Icon} n="terminal" />${t('agents.view.terminal')}</button></div>`}
         ${blocks && !grouped.length && (terminalVisible || session.mode === 'shell') && html`<div class="cm-conv-empty">
           <p>${t('agents.conv.empty', { cli: cli.label })}</p></div>`}
         ${hasPrompt && capsOf(session.mode).transcript === 'screen' && html`<p class="cm-screen-note muted"><${Icon} n="info" />${t('agents.conv.screen_note')}</p>`}
         ${shown.map((b, i) => b.kind === 'activity' ? html`<${Activity} key=${'a' + i} items=${b.items} />`
-          : b.role === 'user' ? html`<div key=${i} class="msg-user"><div class="bubble">${b.text}</div></div>`
-          : html`<div key=${i} class="msg-ai"><div class="cm-answer-by"><span>${cli.label}</span>
+          : b.role === 'user' ? html`<div key=${i} class="msg-user"><small class="turn-author">${t('workspace.you')}</small><div class="bubble">${b.text}</div></div>`
+          : html`<div key=${i} class="msg-ai"><div class="cm-answer-by"><${CliMark} mode=${session.mode} size="xs" /><span>${cli.label}</span>
               <button type="button" class="icon-btn" title=${t('workspace.copy_reply')} aria-label=${t('workspace.copy_reply')}
                 onClick=${async () => { const copied = await copyText(b.text); toast(copied ? t('agents.copied') : t('settings.page.copie_refusee'), copied ? '' : 'err'); }}><${Icon} n="copy" /></button></div><div class="md" dangerouslySetInnerHTML=${{ __html: md(b.text) }}></div></div>`)}
         ${(state === 'working') && html`<div class="cm-working"><span class="spinner"></span><span>${t('agents.conv.working', { cli: cli.label })}</span>

@@ -13,16 +13,16 @@
   --text-xs:11.5px;--text-sm:12.5px;--text-control:13px;--text-base:13.5px;--text-heading:17px;--text-title:22px;
   --control-sm:28px;--control-size:32px;--control-lg:40px;--touch-target:44px;
   --side-w:248px;--insp-w:340px;--head-h:52px;
-  --copper:#ed9b76;--copper-wash:rgba(224,120,80,.14);--frame:#292321;
+  --copper:#ed9b76;--copper-wash:rgba(245,245,245,.07);--frame:#141414;
   color-scheme:dark;
-  /* Warm workspace surfaces. Copper marks navigation, semantic colors mark state. */
-  --bg:#151110;--bg-2:#1a1716;--panel:#1b1817;--surface:#201e1c;--surface-2:#2a2827;--surface-3:#383331;--raised:#24201e;
+  /* Neutral workspace surfaces shared with the installed PWA. */
+  --bg:#161616;--bg-2:#191919;--panel:#1d1d1d;--surface:#212121;--surface-2:#262626;--surface-3:#333333;--raised:#272727;
   --line:rgba(255,255,255,.08);--line-soft:rgba(255,255,255,.055);--line-strong:rgba(255,255,255,.14);
-  --text:#eae8e6;--text-2:#b2aba6;--text-3:#978c85;--text-4:#80756f;
-  --accent:#eae8e6;--accent-2:#ffffff;--accent-bg:rgba(255,255,255,.07);--accent-line:rgba(255,255,255,.2);--accent-fill:#eae8e6;--on-accent:#151110;
-  --ink:#eae8e6;--on-ink:#151110;
-  --blue:#b2aba6;--blue-bg:rgba(255,255,255,.06);--blue-line:rgba(255,255,255,.2);
-  --violet:#b2aba6;--violet-bg:rgba(255,255,255,.06);
+  --text:#eaeaea;--text-2:#b4b4b4;--text-3:#989898;--text-4:#858585;
+  --accent:#eaeaea;--accent-2:#ffffff;--accent-bg:rgba(255,255,255,.07);--accent-line:rgba(255,255,255,.2);--accent-fill:#eaeaea;--on-accent:#161616;
+  --ink:#eaeaea;--on-ink:#161616;
+  --blue:#b4b4b4;--blue-bg:rgba(255,255,255,.06);--blue-line:rgba(255,255,255,.2);
+  --violet:#b4b4b4;--violet-bg:rgba(255,255,255,.06);
   --green:#4ade80;--green-bg:rgba(74,222,128,.12);--amber:#e3a857;--amber-bg:rgba(227,168,87,.1);--red:#f87171;--red-bg:rgba(248,113,113,.1);
   --hover:rgba(255,255,255,.04);--press:rgba(255,255,255,.07);--sel:rgba(255,255,255,.065);
   --hi:none;--shadow-panel:none;--shadow-card:none;

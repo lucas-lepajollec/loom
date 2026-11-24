@@ -82,3 +82,90 @@
 @media (max-width:760px) {
   .fl-head .icon-btn { width:44px; height:44px }
 }
+
+/* Adapted from Paradev's AppMockup, OrchestrateScene, Composer and RightSidebar
+   (Superset Inc., MIT). Actual transcript and patch content comes from Codeman. */
+.library-launch,.library-search,.composer-agent,.session-steps summary,.session-workspace .workspace-identity {
+  display:flex; align-items:center; gap:8px; min-width:0;
+}
+.library-search { flex:1; height:30px; padding:0 8px; border-radius:6px; color:var(--text-3); background:var(--surface-2); font-size:12px }
+.library-search .ico { width:14px }
+.session-workspace .msg-user { display:flex; flex-direction:column; align-items:flex-end; gap:5px }
+.turn-author { font-size:12px; color:var(--text-2) }
+.session-workspace .msg-user .bubble { max-width:min(100%,440px); background:var(--surface-2); border:0; border-radius:10px; padding:8px 12px; font-size:13px }
+.session-workspace .md { font-size:14px; line-height:1.55 }
+.session-workspace .cm-answer-by { height:24px; color:var(--text); font-weight:500; margin-bottom:6px }
+.cm-answer-by .icon-btn { opacity:0 }
+.msg-ai:is(:hover,:focus-within) .cm-answer-by .icon-btn { opacity:1 }
+.session-steps { display:grid; gap:4px; min-width:0 }
+.session-step { min-width:0; color:var(--text-2); font-size:12px }
+.session-step summary { list-style:none; width:fit-content; max-width:100%; min-height:26px; cursor:pointer }
+.session-step summary::-webkit-details-marker { display:none }
+.session-step .ico { height:14px;width:14px }
+.session-step[open] summary .ico:last-child { transform:rotate(90deg) }
+.session-step pre { white-space:pre-wrap; overflow-wrap:anywhere; padding:8px 12px; background:var(--bg-2); border-radius:6px }
+.composer-agent { color:var(--text-2); font-size:12px; overflow:hidden; white-space:nowrap }
+.workspace-tool-body .cm-repo { min-width:0; padding:0; border:0; background:transparent }
+.cm-files li > button > span { flex:1 }
+.cm-files .patch-body { min-width:0; background:var(--bg); border-radius:6px; overflow:hidden }
+.patch-counts { display:flex; gap:8px; font:12px var(--mono); padding:3px 9px }
+.patch-counts b:first-child { color:var(--green) }
+.patch-counts b:last-child { color:var(--red) }
+.patch-body .cm-diff { margin:0; border:0; padding:0; overflow:auto; max-height:55vh; background:transparent }
+.patch-body .cm-diff .dl { min-width:max-content; font:12px/1.65 var(--mono); border-radius:0; padding-inline:8px; white-space:pre; height:auto; display:block }
+.patch-body .cm-diff .add { color:var(--green); background:var(--green-bg) }
+.patch-body .cm-diff .del { color:var(--red); background:var(--red-bg) }
+.patch-body .cm-diff .hunk { color:var(--text-3) }
+.patch-body .cm-diff .review-line[aria-pressed=true] { box-shadow:inset 3px 0 var(--copper) }
+.patch-body > .btn { width:auto; margin:6px }
+@media (min-width:761px) {
+  .side.workspace-nav { width:clamp(184px,18.61vw,286px); background:var(--bg-2) }
+  .workspace-rail,.side.workspace-nav.rail-only { width:40px }
+  .workspace-rail { gap:12px; padding:4px 3px 8px }
+  .workspace-rail .rail-mark { width:32px; height:32px; background:transparent }
+  .workspace-rail .rail-mark svg { width:19px }
+  .workspace-rail .nav { gap:3px }
+  .workspace-rail .nav a { height:30px; width:32px; border-radius:6px }
+  .workspace-rail .nav a span { position:absolute; clip-path:inset(50%); width:1px; height:1px; overflow:hidden }
+  .workspace-rail .nav a[aria-current=page] { background:var(--sel) }
+  .workspace-library:not([hidden]) { padding:38px 7px 8px; gap:8px }
+  .workspace-library .side-foot { padding-top:6px }
+  .app:not(.phone-app) .main { padding:2px 4px 4px 0 }
+  .workspace-tabbar { height:35px; border:0 }
+  .workspace-tabs { height:32px; align-items:center }
+  .work-tab,.work-tab:has([aria-current=page]) { border-radius:6px; background:transparent; box-shadow:none }
+  .work-tab:has([aria-current=page]) { background:var(--surface-2) }
+  .work-tab a { padding:5px 8px }
+  .session-workspace .cm-sh { height:40px; min-height:40px; padding-inline:10px; background:var(--panel); border:0 }
+  .session-workspace .workspace-identity { flex:0 1 auto; flex-direction:row }
+  .session-workspace .workspace-identity button { font-size:13px; font-weight:550 }
+  .session-workspace .workspace-tools { flex-wrap:nowrap; gap:1px }
+  .session-workspace .workspace-tools button { height:28px; min-width:28px; padding:5px }
+  .session-workspace .workspace-tools .mode-picker { gap:2px }
+  .mode-picker .ico:last-child { width:10px }
+  .session-workspace .cm-main { background:var(--panel) }
+  .session-workspace .cm-conv .thread-in { width:100%; max-width:1000px; margin:auto; padding:20px clamp(18px,3vw,40px); gap:26px }
+  .session-workspace .composer-wrap { padding:8px clamp(18px,3vw,40px) 18px }
+  .session-workspace .composer { width:100%; max-width:920px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); box-shadow:none }
+  .session-workspace .workspace-tool-pane > header { height:40px; border:0; font-size:13px }
+  .session-workspace .workspace-tool-body { padding:8px 12px; flex:1 }
+  .session-workspace .workspace-tool-pane { background:var(--bg-2); border-left:3px solid var(--frame) }
+}
+@media (min-width:920px) {
+  .session-workspace .workspace-tool-pane { position:relative; inset:auto; flex:0 0 min(var(--tool-width),44%); width:auto; box-shadow:none; z-index:auto }
+  .session-workspace .pane-resizer { display:block; position:absolute; inset:0 auto 0 -4px; width:9px; z-index:3; touch-action:none; cursor:col-resize }
+}
+@media (max-width:760px) {
+  .session-step summary { min-height:44px }
+  .cm-answer-by .icon-btn { opacity:1 }
+  .workspace-tools .transcript-search-trigger { margin-left:auto }
+}
+
+.patch-counts b:nth-child(2) { color:var(--red) }
+.patch-counts label { margin-inline-start:auto; display:flex; align-items:center; gap:5px; font:12px var(--font); color:var(--text-3); cursor:pointer }
+.patch-counts input { margin:0; accent-color:var(--text-2) }
+@media (max-width:760px) { .patch-counts label { min-height:44px } }
+
+.patch-body .cm-diff .dl .patch-string { color:var(--text-2) }
+.patch-body .cm-diff .dl .patch-comment { color:var(--text-3) }
+.patch-body .cm-diff .dl .patch-keyword { color:var(--text) }

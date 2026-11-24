@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Agent workspaces open transcript-capable sessions in a conversation with expandable tool steps. The desktop review column opens the first changed file alongside the chat. Session settings and the native terminal remain available on demand.
+
 - Search settings and page headings from the command palette, find messages in the current conversation, jump through a note’s outline, and resize desktop review panels. Inbox now filters requests, completions and engine jobs on desktop and mobile. The PWA shares the new settings, dialogs, status messages, and mobile navigation surfaces.
 
 - The web app now has a collapsible session library, a desktop strip for open pages, a shared discussion/agent launcher and searchable agent sessions on both screen sizes.

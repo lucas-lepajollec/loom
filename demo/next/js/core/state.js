@@ -97,7 +97,7 @@ export function setTheme(localT) {
   document.documentElement.dataset.theme = localT;
   try { localStorage.setItem('loom-theme', localT); } catch (_) {}
   const meta = document.querySelector('meta[name=theme-color]');
-  if (meta) meta.content = localT === 'light' ? '#f4f1ed' : '#151110';
+  if (meta) meta.content = localT === 'light' ? '#f4f1ed' : '#141414';
   app.set({ theme: localT });
 }
 

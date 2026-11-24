@@ -1,5 +1,6 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "workspace.viewed": "Vu",
   "workspace.on_page": "Dans cette page",
   "workspace.outline": "Plan du document",
   "workspace.heading": "Titre",
@@ -2593,7 +2594,7 @@ export default {
   "agents.conv.boot_title": "{cli} est prêt",
   "agents.conv.boot_text": "Son écran réel, pour répondre à une mise à jour ou à une confiance de dossier. Écris ton premier prompt ci-dessous.",
   "agents.conv.live_title": "Écran de {cli} en direct",
-  "agents.conv.live_text": "Codeman ne distingue pas encore les messages de ce CLI à l'écran : voici son affichage réel, mis à jour en continu.",
+  "agents.conv.live_text": "Aucun message structuré disponible pour le moment. Ouvre le terminal pour consulter la sortie du CLI.",
   "agents.conv.working": "{cli} travaille…",
   "agents.conv.tools": {"one": "{n} outil", "other": "{n} outils"},
   "agents.conv.status": {"one": "{n} ligne d’état", "other": "{n} lignes d’état"},

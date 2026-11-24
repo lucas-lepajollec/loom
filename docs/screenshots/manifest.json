@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "9f75db1",
+  "sourceCommit": "4ac0a2b",
   "locale": "en",
   "theme": "dark",
   "generator": "demo/scripts/capture-screenshots.mjs",
@@ -9,8 +9,8 @@
       "path": "docs/screenshots/chat.png",
       "route": "#/chat",
       "viewport": "1440x900",
-      "bytes": 174142,
-      "sha256": "3702f52040c4562ec04f2c257a867befcf70d3412acc44ce1d53711d7c6939eb",
+      "bytes": 145450,
+      "sha256": "a7c4ec6c274b2d6fd8bad31398c554914638dd4662d299e685670b8fe06e7963",
       "description": "Unified discussion view with sidebar folders, local model selector, and VRAM inspector"
     },
     {
@@ -18,17 +18,26 @@
       "path": "docs/screenshots/agents.png",
       "route": "#/agents",
       "viewport": "1440x900",
-      "bytes": 115052,
-      "sha256": "d8367af09ef4676ffa27eb356178303444442e8f145de41d78538e968f625cf0",
+      "bytes": 99421,
+      "sha256": "d429424c06589130d7b2f4d85fdf1f85b659aa3c832014be76d814b972eaf157",
       "description": "Codeman Agents control center with active sessions, pending approvals, harnesses, and schedules"
+    },
+    {
+      "file": "codex-session.png",
+      "path": "docs/screenshots/codex-session.png",
+      "route": "#/agents/s/cm-docs-sync",
+      "viewport": "1440x900",
+      "bytes": 103368,
+      "sha256": "d891e0e86df30b75e2887eb97de10c8cffbbba2b0c027444fea1387dcde79e84",
+      "description": "An existing Codex session reopening directly into conversation and an expanded live diff"
     },
     {
       "file": "session-review.png",
       "path": "docs/screenshots/session-review.png",
       "route": "#/agents/s/cm-homelab-audit",
       "viewport": "1440x900",
-      "bytes": 119495,
-      "sha256": "4ea0e6b834ad59729521a7640c428719375f9f822e6f465ea7c1726bfc33533c",
+      "bytes": 109374,
+      "sha256": "0a227ffc09affdca267321ffee43479106557f0e304f72c376c7a86a27c47042",
       "description": "Selected diff line in an agent workspace, ready to add to the reply"
     },
     {
@@ -36,8 +45,8 @@
       "path": "docs/screenshots/session-review-mobile.png",
       "route": "#/agents/s/cm-homelab-audit",
       "viewport": "390x844",
-      "bytes": 49482,
-      "sha256": "279a3204374c7bdadb3a2ea188a98aa760d48c95b729cf72822b86e28abd3977",
+      "bytes": 46239,
+      "sha256": "7e3ee52018aa02e5cc5664d28878937214d96a06b213d1e9d68689263564b149",
       "description": "Selected diff line in an agent workspace, ready to add to the reply"
     },
     {
@@ -45,8 +54,8 @@
       "path": "docs/screenshots/files.png",
       "route": "#/files/n/homelab%2Fcluster-topology.md",
       "viewport": "1440x900",
-      "bytes": 147465,
-      "sha256": "c12f063fa4da5cc758e273ffa5624d182d7f5f2ba4e6d9e817fa5e7e27087265",
+      "bytes": 123616,
+      "sha256": "0ffd68d36fa6ad90e6b0a69204841024e14cb9e113e72696b62c7b5cbaac452c",
       "description": "Files / Second Brain Markdown workspace with tree navigation and rich editor"
     },
     {
@@ -54,8 +63,8 @@
       "path": "docs/screenshots/machines.png",
       "route": "#/machines",
       "viewport": "1440x900",
-      "bytes": 120367,
-      "sha256": "aafdc1e818082eb99ffa32852776d6f801088d63af18d922ae1eece812ab982f",
+      "bytes": 104637,
+      "sha256": "e9f30cc2e91952d5d6a5d3a121989b9f3dc8ef1bc82fc2e202858c3e5cb3347d",
       "description": "Machines fleet overview with capability bricks and live resource meters"
     },
     {
@@ -63,8 +72,8 @@
       "path": "docs/screenshots/models.png",
       "route": "#/local",
       "viewport": "1440x900",
-      "bytes": 130871,
-      "sha256": "ad8b8d149900ce2000b5e3b7deb5d62953e866518580e010b62fbfe68e775027",
+      "bytes": 110451,
+      "sha256": "0ed979335bfbd4841179e4a7f0683882dd693b4d36cacc52ea854e62008bb694",
       "description": "Local GGUF model library, presets, and GPU VRAM meter"
     },
     {
@@ -72,8 +81,8 @@
       "path": "docs/screenshots/local.png",
       "route": "#/local",
       "viewport": "1440x900",
-      "bytes": 130871,
-      "sha256": "ad8b8d149900ce2000b5e3b7deb5d62953e866518580e010b62fbfe68e775027",
+      "bytes": 110449,
+      "sha256": "36c722d9ae9428d96293648df7e38113afd5ab9feced60debefc544c466a68d4",
       "description": "Local GGUF library, presets, and model parameters (README reference)"
     },
     {
@@ -81,8 +90,8 @@
       "path": "docs/screenshots/engines.png",
       "route": "#/engine",
       "viewport": "1440x900",
-      "bytes": 128201,
-      "sha256": "79f3524ba3b4cf1839dc3df7c7484189546b79debb60124e080fa31ead24f2ee",
+      "bytes": 108736,
+      "sha256": "76e221a2bb31098f8c43171363193238228ec09b3675227c0ae3d1852ee8ad9f",
       "description": "Engine router runtime, parallel slots, idle VRAM unload, and OpenAI /v1 API"
     },
     {
@@ -90,8 +99,8 @@
       "path": "docs/screenshots/activity.png",
       "route": "#/quotas",
       "viewport": "1440x900",
-      "bytes": 118576,
-      "sha256": "c345ed16709f8607867e2205ad7dbfcb4b0451cb8159ff9b466db72eebbd4441",
+      "bytes": 103252,
+      "sha256": "200376b26f7f987bc2a04f1afd4e972c3320dbe9f8b3530f57427c2195780268",
       "description": "Activity multi-harness subscription quotas, pace curve, and 14-day usage chart"
     },
     {
@@ -99,8 +108,8 @@
       "path": "docs/screenshots/usage.png",
       "route": "#/usage",
       "viewport": "1440x900",
-      "bytes": 106402,
-      "sha256": "7b748ebceb431e922b78054505c0c86b62241355dff61dcb0dab2a6d089dd5e5",
+      "bytes": 90334,
+      "sha256": "31d1cdeae84abe3986901d9f4858bec3a0d28917cd8f0c56a4585b18aa3391d2",
       "description": "Activity cloud provider balances and per-model token cost tracking"
     },
     {
@@ -108,8 +117,8 @@
       "path": "docs/screenshots/terminals.png",
       "route": "#/terminals/term-workstation",
       "viewport": "1440x900",
-      "bytes": 74641,
-      "sha256": "9a021413e94e9e3bcaf42f61cfa548471343c14ff43507aa5158c9413c8d2b51",
+      "bytes": 62322,
+      "sha256": "157e2e954cd004073454fef0e246f9a2e9aed239a3b67cd5cf8afdfe6fca31ba",
       "description": "Local and remote SSH terminal sessions powered by xterm.js"
     },
     {
@@ -117,8 +126,8 @@
       "path": "docs/screenshots/settings.png",
       "route": "#/settings/notifications",
       "viewport": "1440x900",
-      "bytes": 103128,
-      "sha256": "0945578eed991ee2bfaf0a2903a7000863ce92e257021b54b55f5b31ba9a98a0",
+      "bytes": 88256,
+      "sha256": "074ea7cc41535c5faa3d8b64b83c80572e0346bec286ff689be6a3dc61d2d179",
       "description": "Searchable preferences with notification channels and delivery settings"
     },
     {
@@ -126,8 +135,8 @@
       "path": "docs/screenshots/mobile-more.png",
       "route": "#/more",
       "viewport": "390x844",
-      "bytes": 35987,
-      "sha256": "2249596f3cdb430082ea06ae4fdb93aa98502bfe7bdfc5008768f2097e82ce1c",
+      "bytes": 32259,
+      "sha256": "ec0b43c58139512be07cfbba2b9f1fbc81318ccc7732e6918ced07aa052c2c91",
       "description": "Phone workspace launcher with local engine status and project tools"
     },
     {
@@ -135,8 +144,8 @@
       "path": "docs/screenshots/welcome.png",
       "route": "#/settings/about",
       "viewport": "1440x900",
-      "bytes": 126386,
-      "sha256": "704735047269a853632b5b174e40c57ff6b6bd26ee82465f6ad36d90381e93f8",
+      "bytes": 80146,
+      "sha256": "41a8a2acff47f71070c754e5632116e9c6746e947d74aa5535f4917b3ea96da9",
       "description": "First-run guide with language, hardware, and engine setup"
     },
     {
@@ -144,8 +153,8 @@
       "path": "docs/screenshots/mobile.png",
       "route": "#/sessions",
       "viewport": "390x844",
-      "bytes": 68789,
-      "sha256": "2543a75be4cb3e1632d9102f474c1d4f6234cbe799d8f17a21aa5f428d14cda2",
+      "bytes": 59623,
+      "sha256": "a450649c18cf278641ac41648706e6f8e5feaf94b8029dc9269150f27dcbe849",
       "description": "Mobile PWA bottom tab layout with unified discussions and Codeman sessions"
     }
   ]
