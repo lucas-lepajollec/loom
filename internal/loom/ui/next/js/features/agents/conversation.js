@@ -175,12 +175,9 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
   useEffect(() => { const el = scroller.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [blocks, approvals.length, state]);
   const grouped = groupBlocks(blocks);
   const hasPrompt = (blocks || []).some(b => b.role === 'user');
-  // Un prompt a été soumis mais Codeman ne sait pas le distinguer à l'écran de
-  // ce CLI : l'écran en direct reste la vue fidèle.
   const submitted = !hasPrompt && !!session.lastSubmitAt;
-  // Avant le premier prompt, les blocs ne sont que la bannière du CLI : on
-  // montre son écran réel, où se règlent mises à jour et dialogues de confiance.
-  const shown = hasPrompt ? grouped : submitted ? grouped.filter(b => b.kind === 'response' && b.role === 'assistant') : [];
+  // A resumed rollout can provide assistant turns before its user prompt is loaded.
+  const shown = hasPrompt ? grouped : grouped.filter(b => b.kind === 'response' && b.role === 'assistant' && (submitted || b.turn != null));
   const cli = cliOf(session.mode);
   return html`<div class=${cls('cm-conv', compact && 'compact')}>
     <div class="thread" ref=${scroller} onScroll=${e => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; setAway(!stick.current); }}>

@@ -2594,7 +2594,7 @@ export default {
   "agents.conv.boot_title": "{cli} is ready",
   "agents.conv.boot_text": "Its real screen, to answer an update or folder-trust prompt. Write your first prompt below.",
   "agents.conv.live_title": "{cli} live screen",
-  "agents.conv.live_text": "Codeman cannot yet tell this CLI's messages apart on screen: here is its real display, updated live.",
+  "agents.conv.live_text": "No structured messages are available yet. Open the terminal to see the CLI output.",
   "agents.conv.working": "{cli} is working…",
   "agents.conv.tools": {"one": "{n} tool", "other": "{n} tools"},
   "agents.conv.status": {"one": "{n} status line", "other": "{n} status lines"},
