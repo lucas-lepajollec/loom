@@ -63,8 +63,8 @@ export function Sidebar() {
       </div>
     </div>
     <div id="workspace-library" class="workspace-library" hidden=${!expanded}>
-      <div class="brand"><b>${t('app.shell.loom')}</b><button class="icon-btn" title=${t('workspace.sidebar')} aria-label=${t('workspace.sidebar')} onClick=${toggle}><${Icon} n="panel" /></button></div>
-      <button class="new-chat" title=${isMac ? '⇧⌘O' : t('side.shortcut_new')} onClick=${create}><${Icon} n="plus" />${t('side.new_session')}</button>
+      <div class="library-launch"><button class="library-search" onClick=${openPalette}><${Icon} n="search" /><span>${t('app.palette.rechercher')}</span></button>
+        <button type="button" class="icon-btn new-session-icon" title=${t('side.new_session')} aria-label=${t('side.new_session')} onClick=${create}><${Icon} n="edit" /></button></div>
       <${Sessions} />
       <div class="side-foot"><${EngineCard} /><div class="me"><span class="who"><b>${serverInfo?.hostname || t('app.shell.cette_machine')}</b>
         <small title=${serverInfo?.version || ''}>${serverInfo?.version ? 'Loom ' + shortVersion(serverInfo.version) + (dev ? ' · ' + t('side.channel_dev') : '') : 'Loom'}</small></span></div></div>

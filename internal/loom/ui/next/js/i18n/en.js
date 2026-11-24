@@ -1,5 +1,6 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "workspace.viewed": "Viewed",
   "workspace.on_page": "On this page",
   "workspace.outline": "Document outline",
   "workspace.heading": "Heading",

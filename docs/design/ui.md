@@ -13,7 +13,7 @@ The desktop rail opens the main product areas. The Loom mark toggles the session
 
 Agent sessions expose conversation, terminal and review tools in one toolbar. Changes, files and machine-selected application previews open beside the session on desktop and in sheets on phones. Select a line in a unified diff and choose **Add line to reply** to prepare an editable draft in a compatible conversation. Deleted lines use the original file’s line number.
 
-The dark and light surface palettes and session workspace are inspired by [Paradev](https://github.com/ParadevAI/Paradev/tree/cc4f7947da109f6136db9339270d416b10693820). Copper signals selection. Working-state motion follows the system reduced-motion preference. [MIT notice](licenses/paradev.txt).
+The neutral dark surfaces, compact session rail, composer and expandable changes column adapt the [Paradev workspace reference](https://github.com/ParadevAI/Paradev/tree/cc4f7947da109f6136db9339270d416b10693820/apps/marketing/src/app/%5Blang%5D/components/HeroSection/components/AppMockup). The session workspace also draws on [Paradev](https://github.com/ParadevAI/Paradev/tree/cc4f7947da109f6136db9339270d416b10693820). Copper signals selection. Working-state motion follows the system reduced-motion preference. [MIT notice](licenses/paradev.txt).
 
 The command palette adapts Paradev’s command scoring and match highlighting. It indexes settings and visible headings on the current page. Desktop tool panels support dragging, arrow keys, Home, End and double-click to reset. The resize control adapts Paradev’s PanelResizeHandle. Both ports use the notices in [the MIT attribution](licenses/paradev.txt). Settings → About also opens the notice served by the local binary.
 

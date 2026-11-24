@@ -111,6 +111,19 @@ const SHOTS = [
     waitFor: '.cm-session-row',
     description: 'Codeman Agents control center with active sessions, pending approvals, harnesses, and schedules',
   },
+  {
+    file: 'codex-session.png', route: '#/agents/s/cm-docs-sync', viewport: DESKTOP,
+    beforeNav: () => {
+      localStorage.setItem('loom.codeman.views', JSON.stringify({ 'cm-docs-sync': 'term' }));
+      localStorage.setItem('loom.codeman.inspOpen', '1');
+    },
+    waitFor: '.session-workspace .msg-ai',
+    afterNav: async page => {
+      await page.locator('.workspace-tool-pane .review-line.add').first().waitFor();
+      if (await page.locator('.cm-term-wrap,.cm-insp,.cm-boot-term').count()) throw new Error('Legacy preferences covered the conversation');
+    },
+    description: 'An existing Codex session reopening directly into conversation and an expanded live diff',
+  },
   ...[DESKTOP, MOBILE].map(viewport => ({
     file: viewport === MOBILE ? 'session-review-mobile.png' : 'session-review.png',
     route: '#/agents/s/cm-homelab-audit',
@@ -119,8 +132,7 @@ const SHOTS = [
     waitFor: '.workspace-tools',
     description: 'Selected diff line in an agent workspace, ready to add to the reply',
     afterNav: async page => {
-      await page.locator('.workspace-tools').getByRole('button', { name: 'Changes' }).click();
-      await page.getByRole('button', { name: /compose\/monitoring\.yml/ }).click();
+      if (viewport === MOBILE) await page.locator('.workspace-tools').getByRole('button', { name: 'Changes' }).click();
       await page.locator('.review-line.add').first().click();
     },
   })),
@@ -386,6 +398,7 @@ async function main() {
       page.on('pageerror', e => errors.push(`${shot.file}: pageerror: ${e.message}`));
       page.on('console', m => { if (m.type() === 'error') errors.push(`${shot.file}: console.error: ${m.text()}`); });
 
+      if (shot.beforeNav) await page.addInitScript(shot.beforeNav);
       await page.goto(`${baseUrl}/?lang=en${shot.route}`, { waitUntil: 'networkidle' });
       await hideDemoChip(page);
       if (shot.waitFor) {

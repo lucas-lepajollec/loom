@@ -5,19 +5,20 @@ import { t } from '../core/i18n.js';
 
 const key = 'loom.workspace.toolWidth';
 const min = 260, max = 560;
+const defaultWidth = () => clamp(innerWidth * 440 / 1440);
 const clamp = value => Math.min(max, Math.max(min, Math.round(value)));
 
 export function ToolPane({ label, children }) {
   const start = useRef(null);
   const [width, setWidth] = useState(() => {
     try { const saved = Number(localStorage.getItem(key)); if (saved) return clamp(saved); } catch (_) {}
-    return 340;
+    return defaultWidth();
   });
   const save = value => {
     setWidth(clamp(value));
     try { localStorage.setItem(key, String(clamp(value))); } catch (_) {}
   };
-  const reset = () => save(340);
+  const reset = () => save(defaultWidth());
   return html`<aside class="workspace-tool-pane" aria-label=${label} style=${{'--tool-width': width + 'px'}}>
     <div class="pane-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label=${t('workspace.resize')}
       aria-valuemin=${min} aria-valuemax=${max} aria-valuenow=${width}

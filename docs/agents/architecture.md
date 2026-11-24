@@ -53,7 +53,7 @@ allowed by default and adjustable in Settings → Permissions.
 | `attach.js` | Pasted images and dropped files: upload to Codeman, path inserted in the prompt or typed in the terminal |
 | `settings.js` | Codeman server settings, CLI management, and the connection. Settings use `/settings`, `/cases/order` and `/execution/model-config` |
 | `quotas.js` | Activity → Quotas: one card per subscription (`/api/quotas`, read from the CLIs by `quota_accounts.go` and from Codeman), resets on offer, Loom's sampled history, Codeman token stats |
-| `conversation.js` | Transcript blocks, activity folds, approvals, composer, live screen before the first identifiable prompt |
+| `conversation.js` | Transcript blocks, activity folds, approvals, composer, explicit terminal action for initial CLI setup |
 | `terminal.js` | xterm.js terminal: screen read, WebSocket attach, resize, reconnect |
 | `inspector.js` | Activity, Git, files, subagents, session options |
 | `control.js`, `cron.js`, `connection.js`, `new-session.js` | Control center, scheduling, connection, new session |

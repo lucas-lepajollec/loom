@@ -65,16 +65,19 @@ function ReviewFrame({ inline, title, sub, onClose, foot, children }) {
   </section>`;
 }
 
-function DiffModal({ id, file, onClose, onReview, inline }) {
-  const [st] = useRead(() => api.gitDiff(id, file), [id, file.repo, file.path, file.kind]);
+function DiffModal({ id, file, onClose, onReview, embedded, revision, reviewedDiff, markReviewed }) {
+  const [st] = useRead(() => api.gitDiff(id, file), [id, file.repo, file.path, file.kind, revision]);
   const [selection, setSelection] = useState(null);
+  useEffect(() => setSelection(null), [st.data]);
   const lines = reviewLines(st.data?.diff || '');
   const prepare = () => {
     onReview(`${file.repo ? file.repo + '/' : ''}${file.path} · ${t(selection.kind === 'del' ? 'workspace.old_line' : 'workspace.line', { n: selection.number })}\n${selection.text}`);
     onClose();
   };
-  return html`<${ReviewFrame} inline=${inline} title=${file.path} sub=${lt('gitKind', file.kind)} onClose=${onClose}
-    foot=${onReview && !st.loading && !st.error && !st.data?.binary && html`<button class="btn primary" disabled=${!selection} onClick=${prepare}><${Icon} n="chat" />${t('workspace.review_line')}</button>`}>
+  const action = onReview && selection && !st.loading && !st.error && !st.data?.binary && html`<button class="btn sm" onClick=${prepare}><${Icon} n="chat" />${t('workspace.review_line')}</button>`;
+  const body = html`
+    ${embedded && !st.loading && lines.some(line => line.number != null) && html`<div class="patch-counts"><b>+${lines.filter(l => l.kind === 'add').length}</b><b>−${lines.filter(l => l.kind === 'del').length}</b><label><input type="checkbox" checked=${reviewedDiff === st.data.diff}
+      onChange=${e => markReviewed(e.currentTarget.checked ? st.data.diff : undefined)} />${t('workspace.viewed')}</label></div>`}
     ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="muted">${st.error}</p>`
       : st.data?.binary ? html`<p class="muted">${t('agents.git.binary')}</p>`
       : html`<pre class="diff cm-diff">${lines.map((line, index) => line.number != null && onReview
@@ -82,19 +85,28 @@ function DiffModal({ id, file, onClose, onReview, inline }) {
             onClick=${() => setSelection({ ...line, index })}><b>${line.number}</b>${line.text}</button>`
         : html`<span class=${'dl ' + line.kind}>${line.text || ' '}</span>`)}</pre>`}
     ${st.data?.truncated && html`<p class="muted">${t('agents.git.truncated')}</p>`}
-  </${ReviewFrame}>`;
+  `;
+  if (embedded) return html`<div class="patch-body">${body}${action}</div>`;
+  return html`<${ReviewFrame} title=${file.path} sub=${lt('gitKind', file.kind)} onClose=${onClose} foot=${action}>${body}</${ReviewFrame}>`;
 }
 
 export function GitTab({ id, onReview, inline = false }) {
-  const [st, run] = useRead(fresh => api.gitStatus(id, fresh), [id]);
+  const turn = useStore(agents, state => state.turns[id] || 0);
+  const [st, run] = useRead(fresh => api.gitStatus(id, fresh), [id, turn]);
   const [diff, setDiff] = useState(null);
-  if (inline && diff) return html`<${DiffModal} inline id=${id} file=${diff} onReview=${onReview} onClose=${() => setDiff(null)} />`;
+  // undefined expands the first changed file; null is an explicit collapse.
+  const [expanded, setExpanded] = useState(undefined);
+  const [reviewed, setReviewed] = useState({});
   if (st.error) return html`<${Failed} error=${st.error} retry=${run} />`;
   if (st.loading && !st.data) return html`<${Loading} />`;
   const d = st.data || {};
   if (d.state === 'not-a-repo') return html`<p class="muted">${t('agents.git.none')}</p>`;
   if (d.state === 'unsupported') return html`<p class="muted">${t('agents.git.unsupported')}</p>`;
   if (d.state === 'error') return html`<p class="muted">${d.error}</p>`;
+  const fileKey = (repo, f) => JSON.stringify([repo.status.repoRoot || repo.path, f.path, f.kind]);
+  const firstRepo = d.repos?.find(repo => repo.status?.files?.length);
+  const initial = firstRepo && fileKey(firstRepo, firstRepo.status.files[0]);
+  const current = expanded === undefined ? initial : expanded;
   return html`<div class="cm-git">
     <div class="cm-insp-bar"><span class="muted">${t('agents.git.checked', { time: time(d.checkedAt) })}</span><button class="icon-btn" aria-label=${t('common.refresh')} onClick=${() => run(true)}><${Icon} n="refresh" /></button></div>
     ${(d.repos || []).map(repo => { const s = repo.status || {}; return html`<section class="cm-repo" key=${repo.path}>
@@ -102,8 +114,16 @@ export function GitTab({ id, onReview, inline = false }) {
         ${s.ahead ? html`<span class="tag green">↑${s.ahead}</span>` : ''}${s.behind ? html`<span class="tag amber">↓${s.behind}</span>` : ''}</header>
       ${s.state === 'error' ? html`<p class="muted">${s.error}</p>` : html`
         <p class="muted cm-repo-sum">${s.counts && s.counts.uncommitted ? t('agents.git.changes', { n: s.counts.uncommitted }) : t('agents.git.clean')}${s.unpushedCount ? ' · ' + t('agents.git.unpushed', { n: s.unpushedCount }) : ''}</p>
-        <ul class="cm-files">${(s.files || []).map(f => html`<li key=${f.kind + f.path}><button onClick=${() => setDiff({ repo: s.repoRoot, path: f.path, kind: f.kind })}>
-          <i class=${'gk ' + f.kind}>${f.kind === 'untracked' ? '?' : f.kind === 'conflicted' ? '!' : (f.kind === 'staged' ? f.index : f.worktree) || 'M'}</i><span class="trunc mono">${f.path}</span></button></li>`)}</ul>
+        <ul class="cm-files">${(s.files || []).map(f => {
+          const key = fileKey(repo, f), opened = inline && key === current;
+          const file = { repo: s.repoRoot, path: f.path, kind: f.kind };
+          return html`<li key=${key}><button aria-expanded=${inline ? opened : undefined}
+            onClick=${() => inline ? setExpanded(opened ? null : key) : setDiff(file)}>
+            ${inline && html`<${Icon} n=${opened ? 'chevron' : 'right'} />`}
+            <span class="trunc mono" title=${f.path}>${f.path}</span><i class=${'gk ' + f.kind}>${f.kind === 'untracked' ? '?' : f.kind === 'conflicted' ? '!' : (f.kind === 'staged' ? f.index : f.worktree) || 'M'}</i></button>
+            ${opened && html`<${DiffModal} embedded id=${id} file=${file} revision=${st.data} reviewedDiff=${reviewed[key]} markReviewed=${value => setReviewed(old => ({ ...old, [key]: value }))} onReview=${onReview} onClose=${() => setExpanded(null)} />`}
+          </li>`;
+        })}</ul>
         ${(s.unpushed || []).length > 0 && html`<details class="cm-commits"><summary>${t('agents.git.commits')}</summary>${s.unpushed.map(c => html`<div key=${c.hash}><code>${c.hash.slice(0, 7)}</code> ${c.subject}</div>`)}</details>`}`}
     </section>`; })}
     ${diff && html`<${DiffModal} id=${id} file=${diff} onReview=${onReview} onClose=${() => setDiff(null)} />`}
