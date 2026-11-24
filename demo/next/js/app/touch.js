@@ -78,15 +78,18 @@ function followVisualViewport() {
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
   root.classList.toggle('ios-browser', ios && !standalone);
+  root.classList.toggle('ios-standalone', ios && standalone);
   let frame = 0, tallest = 0, width = 0;
   const apply = () => {
     frame = 0;
     if (width !== window.innerWidth) { width = window.innerWidth; tallest = 0; }
     tallest = Math.max(tallest, window.innerHeight);
-    root.style.setProperty('--app-h', Math.round(vv.height) + 'px');
-    root.style.setProperty('--app-top', Math.round(vv.offsetTop) + 'px');
     const editing = document.activeElement?.matches('input,textarea,[contenteditable="true"]');
-    root.classList.toggle('kb-open', !!editing && vv.height < tallest - 120);
+    const kbOpen = !!editing && vv.height < tallest - 120;
+    const h = standalone && !kbOpen ? Math.max(Math.round(vv.height), window.innerHeight) : Math.round(vv.height);
+    root.style.setProperty('--app-h', h + 'px');
+    root.style.setProperty('--app-top', Math.round(vv.offsetTop) + 'px');
+    root.classList.toggle('kb-open', kbOpen);
   };
   const soon = () => { if (!frame) frame = requestAnimationFrame(apply); };
   vv.addEventListener('resize', soon);
