@@ -7,6 +7,18 @@ next begins. Page widths and top spacing come from the layout stylesheet.
 
 The shared styles live in [app.css](../../internal/loom/ui/next/css/app.css).
 
+## Workspace navigation
+
+The desktop rail opens the main product areas. The Loom mark toggles the session library. The tabs above the current page return to recently visited areas and individual agent sessions in this window. Closing a tab leaves the running session alone. Search opens matching agent sessions and saved machines. Connections presents the Loom MCP gateway and links to Codeman, cloud providers and policy. On phones the bottom navigation remains the primary navigation.
+
+Agent sessions expose conversation, terminal and review tools in one toolbar. Changes, files and machine-selected application previews open beside the session on desktop and in sheets on phones. Select a line in a unified diff and choose **Add line to reply** to prepare an editable draft in a compatible conversation. Deleted lines use the original file’s line number.
+
+The dark and light surface palettes and session workspace are inspired by [Paradev](https://github.com/ParadevAI/Paradev/tree/cc4f7947da109f6136db9339270d416b10693820). Copper signals selection. Working-state motion follows the system reduced-motion preference. [MIT notice](licenses/paradev.txt).
+
+The command palette adapts Paradev’s command scoring and match highlighting. It indexes settings and visible headings on the current page. Desktop tool panels support dragging, arrow keys, Home, End and double-click to reset. The resize control adapts Paradev’s PanelResizeHandle. Both ports use the notices in [the MIT attribution](licenses/paradev.txt). Settings → About also opens the notice served by the local binary.
+
+Inbox filters approvals, replies and completions, with a separate live engine jobs view. Transcript search locates loaded messages in the current discussion or agent session. In Files, the document outline jumps to headings in the rendered note.
+
 ## Tokens
 
 | Use | Tokens |

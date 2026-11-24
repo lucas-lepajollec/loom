@@ -41,6 +41,6 @@ export function NewSessionHost({ phone }) {
   }, []);
   if (!creating) return null;
   const cell = creating.cell;
-  return html`<${NewSession} preset=${creating.preset} phone=${phone} initialType=${creating.type} folder=${creating.folder} onClose=${() => agents.set({ creating: null })}
+  return html`<${NewSession} preset=${creating.preset} agentOnly=${cell != null} phone=${phone} initialType=${creating.type} folder=${creating.folder} onClose=${() => agents.set({ creating: null })}
     onCreated=${id => { if (cell != null) placeSession(id, cell); openSession(id); }} />`;
 }

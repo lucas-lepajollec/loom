@@ -10,7 +10,9 @@ import { Config } from '../next/js/features/inspector/config.js';
 // Exécute les composants réels avec des hooks déterministes et des API simulées.
 // Aucun socket, secret réel, service système ni permission navigateur.
 // Les briques Line/Group vivent dans kit.js : chargées avec la page.
-const settings = fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8')
+import { scoreText } from '../next/js/ui/search-rank.js';
+const settings = fs.readFileSync(new URL('../next/js/features/settings/catalog.js', import.meta.url), 'utf8')
+  + fs.readFileSync(new URL('../next/js/features/settings/kit.js', import.meta.url), 'utf8')
   + fs.readFileSync(new URL('../next/js/features/settings/page.js', import.meta.url), 'utf8');
 const local = fs.readFileSync(new URL('../next/js/features/local/page.js', import.meta.url), 'utf8');
 const vnode = (type, props, ...children) => ({ type, props: { ...props, children } });
@@ -33,7 +35,7 @@ function harness(source, view, overrides = {}) {
     '/api/mem/snapshots': { ok: true, snapshots: [] },
   };
   const env = {
-    t: french, tSource: s => s, locale: () => 'fr-FR', getLang: () => 'fr',
+    scoreText, t: french, tSource: s => s, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu', ListPick: 'ListPick', shortVersion: v => String(v || ''),
     Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', AgentAccess: 'AgentAccess', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',

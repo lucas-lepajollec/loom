@@ -1,0 +1,84 @@
+/* The same surfaces and controls serve the desktop, browser and installed PWA. */
+:root {
+  --workspace-edge: color-mix(in srgb, var(--text) 13%, var(--panel));
+  --workspace-fill: color-mix(in srgb, var(--surface) 76%, var(--panel));
+}
+:is(.page-head,.models-section-head,.activity-heading,.cm-section-head,.sec-h) h2 { letter-spacing: -.025em }
+:is(.models-card,.activity-card,.machine-card,.vx-page .card,.set-group .card,.connection-links a,.inbox-card,.more-links,.phone-engine) {
+  background-color: var(--workspace-fill);
+  border: 1px solid var(--workspace-edge);
+  border-radius: 10px;
+}
+:is(.models-row,.set-line,.activity-heading,.fl-row,.cm-session-row) { transition: background-color var(--fast) }
+:is(.models-row,.set-line):focus-within { background-color: var(--hover) }
+:is(.page-in,.cm-admin-top) > .sec-tabs a[aria-current="page"] { color: var(--copper); box-shadow: inset 0 -2px var(--copper) }
+:is(.chat-view .topbar,.cm-sh,.insp-head,.dialog-head) { background: var(--bg-2); border-bottom: 1px solid var(--line) }
+:is(.dialog,.pop,.drawer-panel,.insp.open) { border: 1px solid var(--workspace-edge) }
+.dialog-foot { background-color: var(--bg-2); border-top: 1px solid var(--line) }
+:is(.dialog-head,.insp-head) h2,.insp-title { letter-spacing: -.025em }
+:is(.palette,.transcript-find) .search,.settings-search { display:flex; align-items:center; gap:8px; border:1px solid var(--workspace-edge); border-radius:8px; background:var(--bg-2); padding-inline:10px; min-height:38px }
+.settings-search input,.transcript-find input { min-width:0; width:100%; border:0; background:none; color:var(--text) }
+:is(.palette,.transcript-find,.settings-search) .search:focus-within,.settings-search:focus-within { border-color:var(--copper) }
+.palette-row mark,.find-list mark { color:var(--text); background:var(--copper-wash); border-radius:2px; font-weight:650 }
+.palette-row[aria-selected=true] { box-shadow:inset 2px 0 var(--copper) }
+.settings-category { font:600 11px var(--font); color:var(--text-3); margin:16px 9px 4px }
+.set-nav a[aria-current=page] { background:var(--copper-wash); color:var(--copper) }
+.settings-detail h2 { font-size:clamp(22px,3vw,30px); letter-spacing:-.035em; margin:0 }
+.settings-search { width:100% }
+.set-nav .settings-search { margin-top:2px }
+.settings-detail.settings-body { padding-top:0 }
+.inbox-tabs { flex:none; padding:3px 16px 8px; gap:3px }
+.inbox-tabs button { font-weight:550 }
+.act-links { display:flex; flex-wrap:wrap; gap:4px; border-top:1px solid var(--line); padding:6px }
+.act-links a { display:inline-flex; gap:6px; align-items:center; padding:6px; font-size:12px; border-radius:5px }
+.act-links a:hover,.find-list button:hover { background:var(--hover) }
+.jobs-list { border:1px solid var(--workspace-edge); border-radius:10px; background:var(--workspace-fill) }
+.toasts { width:max-content; max-width:calc(100vw - 24px) }
+.toast,.toast.err,[data-theme=light] .toast { border:1px solid var(--workspace-edge); border-radius:9px; padding:5px 5px 5px 12px; background:var(--raised); color:var(--text); pointer-events:auto }
+.toast > span { min-width:0; overflow-wrap:anywhere }
+.toast > .ico { color:var(--green) }
+.toast.err > .ico { color:var(--red) }
+.find-list { display:grid; gap:4px }
+.find-count { margin:8px 0; color:var(--text-3); font-size:12px }
+.find-list button { display:grid; text-align:start; gap:4px; padding:10px; border:1px solid var(--line); border-radius:7px }
+.find-list span { overflow-wrap:anywhere; font-size:13px; color:var(--text-2) }
+:is(.msg-user .bubble,.msg-ai):focus { outline:2px solid var(--copper); outline-offset:3px }
+.workspace-tool-pane > header { display:flex; align-items:center; gap:8px }
+.pane-resizer { display:none }
+@media (min-width:1101px) {
+  .workspace-tool-pane { position:relative; flex-basis:min(var(--tool-width),48%) }
+  .pane-resizer { position:absolute; z-index:3; display:block; inset-block:0; left:-4px; width:9px; touch-action:none; cursor:col-resize }
+  .pane-resizer:is(:hover,:focus-visible,:active)::after { content:''; position:absolute; inset-block:0; left:3px; width:2px; background:var(--copper) }
+}
+@media (min-width:761px) {
+  .settings { grid-template-columns:clamp(176px,17vw,228px) minmax(0,1fr); gap:clamp(20px,3vw,48px) }
+  .set-nav { border-right:1px solid var(--line); padding-right:16px; max-height:calc(100dvh - 120px); overflow:auto }
+  .view.inbox-page { max-width:none; padding:clamp(12px,2.5vw,36px) }
+  .inbox-page > :is(.phone-title,.inbox-tabs,.phone-scroll) { width:min(100%,920px); margin-inline:auto }
+  .inbox-page .phone-title .icon-btn { border:1px solid var(--line) }
+  .dialog,.drawer-panel { box-shadow:0 22px 74px -20px #0009,0 0 0 1px var(--line) }
+  .toasts { top:auto; bottom:16px; left:auto; right:18px; transform:none; align-items:end }
+}
+@media (max-width:760px) {
+  .settings-page > .settings-search { margin:12px 0 6px; min-height:44px }
+  .set-nav.settings-results { display:flex; position:static }
+  .settings-results a { min-height:44px }
+  .inbox-tabs { flex-wrap:wrap; padding-inline:var(--phone-left) }
+  .inbox-tabs button { flex:none }
+  .more-links { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; border:0; background:transparent; overflow:visible }
+  .more-links a.more-destination { display:grid; align-content:start; grid-template-columns:minmax(0,1fr) auto; gap:8px; min-height:88px; border:1px solid var(--workspace-edge); border-radius:10px; background:var(--workspace-fill); padding:12px }
+  .more-destination > .ico:first-child { color:var(--copper) }
+  .more-destination > span { grid-row:2; grid-column:1/-1 }
+  .more-destination > .ico:last-child { grid-row:1; grid-column:2 }
+  .phone-section-tabs a[aria-current=page] { background:var(--copper-wash); color:var(--copper) }
+  .inbox-page .phone-title .icon-btn,.toast .icon-btn,.transcript-search-trigger { min-width:44px; min-height:44px }
+  .dialog-head { background:inherit }
+}
+
+.workspace-tabbar { display:flex; align-items:center; gap:5px; flex:none; min-width:0; border-bottom:1px solid var(--line) }
+.workspace-tabbar .workspace-tabs { flex:1; min-width:0 }
+.tab-picker { margin-inline-end:4px }
+.fl-head .icon-btn { flex-shrink:0 }
+@media (max-width:760px) {
+  .fl-head .icon-btn { width:44px; height:44px }
+}

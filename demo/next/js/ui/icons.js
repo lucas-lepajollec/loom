@@ -2,6 +2,8 @@ import { html } from '../core/lib.js';
 
 // Icônes au trait (24×24, currentColor). Une seule source pour toute l'app.
 const P = {
+  list: 'M4 6h2m3 0h11M4 12h2m3 0h11M4 18h2m3 0h11',
+  diff: 'M5 3h14v18H5zM8 8h8M8 15h8M12 12v6',
   plus: 'M12 5v14M5 12h14',
   bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0',
   inbox: 'M3 13l3-8h12l3 8v6H3Zm0 0h5l2 3h4l2-3h5',

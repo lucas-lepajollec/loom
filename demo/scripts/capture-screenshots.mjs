@@ -111,6 +111,19 @@ const SHOTS = [
     waitFor: '.cm-session-row',
     description: 'Codeman Agents control center with active sessions, pending approvals, harnesses, and schedules',
   },
+  ...[DESKTOP, MOBILE].map(viewport => ({
+    file: viewport === MOBILE ? 'session-review-mobile.png' : 'session-review.png',
+    route: '#/agents/s/cm-homelab-audit',
+    viewport,
+    isMobile: viewport === MOBILE,
+    waitFor: '.workspace-tools',
+    description: 'Selected diff line in an agent workspace, ready to add to the reply',
+    afterNav: async page => {
+      await page.locator('.workspace-tools').getByRole('button', { name: 'Changes' }).click();
+      await page.getByRole('button', { name: /compose\/monitoring\.yml/ }).click();
+      await page.locator('.review-line.add').first().click();
+    },
+  })),
   {
     file: 'files.png',
     route: '#/files/n/homelab%2Fcluster-topology.md',
@@ -167,6 +180,10 @@ const SHOTS = [
     waitFor: '.xterm-screen',
     description: 'Local and remote SSH terminal sessions powered by xterm.js',
   },
+  { file: 'settings.png', route: '#/settings/notifications', viewport: DESKTOP, waitFor: '.settings-detail',
+    description: 'Searchable preferences with notification channels and delivery settings' },
+  { file: 'mobile-more.png', route: '#/more', viewport: MOBILE, isMobile: true, waitFor: '.more-destination',
+    description: 'Phone workspace launcher with local engine status and project tools' },
   {
     file: 'welcome.png',
     route: '#/settings/about',

@@ -10,6 +10,8 @@ import { html, useState, useEffect, useStore, cls, createStore } from '../../cor
 import { Icon } from '../../ui/icons.js';
 import { Empty, Popover, Seg, Switch } from '../../ui/controls.js';
 import { prompt, toast } from '../../ui/dialog.js';
+import { TranscriptFind } from '../../ui/transcript-find.js';
+import { ToolPane } from '../../ui/panel-resize.js';
 import { Drawer } from '../../ui/drawer.js';
 import { TabNav } from '../../ui/tabnav.js';
 import { go } from '../../core/state.js';
@@ -22,7 +24,8 @@ import { StateDot } from './rail.js';
 import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf } from './layout.js';
 import { Conversation } from './conversation.js';
 import { AgentTerminal } from './terminal.js';
-import { Inspector } from './inspector.js';
+import { PreviewPanel } from '../previews/panel.js';
+import { Inspector, GitTab, FilesTab } from './inspector.js';
 import { CliMark } from './new-session.js';
 import { ControlCenter } from './control.js';
 import { Grid, ShapeIcon } from './grid.js';
@@ -52,7 +55,8 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
   return html`<header class="cm-sh">
     <span class="cm-sh-cli"><${CliMark} mode=${s.mode} size="sm" /><b>${cli.label}</b>${s.displayModel?.model && html`<span class="muted">${s.displayModel.model}</span>`}</span>
     <span class="cm-sh-sep" aria-hidden="true">/</span>
-    <button class="btn sm cm-sh-name" onClick=${rename} title=${t('agents.session.rename')}><span class="trunc">${s.name || s.id.slice(0, 8)}</span></button>
+    <div class="workspace-identity"><button class="btn sm cm-sh-name" onClick=${rename} title=${t('agents.session.rename')}><span class="trunc">${s.name || s.id.slice(0, 8)}</span></button>
+      ${s.workingDir && html`<small class="mono trunc" title=${s.workingDir}>${s.workingDir}</small>`}</div>
     <span class="grow"></span>
     ${state === 'stopped' ? html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`
       : html`<span class=${'cm-sh-state st-' + state}><${StateDot} state=${state} />${lt('state', state)}</span>`}
@@ -62,7 +66,14 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
 
 function SessionPane({ s, narrowView }) {
   const [view, setViewState] = useState(viewOf(s));
-  const [insp, setInspState] = useState(() => { try { return !narrowView && innerWidth > 1180 && localStorage.getItem('loom.codeman.inspOpen') !== '0'; } catch (_) { return false; } });
+  const [insp, setInspState] = useState(() => { try { return !narrowView && innerWidth > 1180 && localStorage.getItem('loom.codeman.inspOpen') === '1'; } catch (_) { return false; } });
+  const [tool, setTool] = useState('');
+  const [review, setReview] = useState(null);
+  const tools = [
+    { id: 'changes', label: t('agents.panel.changes'), icon: 'diff' },
+    { id: 'files', label: t('agents.insp.files'), icon: 'folder' },
+    { id: 'preview', label: t('terminals.page.previews'), icon: 'globe' },
+  ];
   const phoneTerminal = useStore(layout, l => l.phoneTerminal === s.id);
   useEffect(() => { setViewState(viewOf(s)); }, [s.id]);
   useEffect(() => () => { if (layout.get().phoneTerminal === s.id) layout.set({ phoneTerminal: '' }); }, [s.id]);
@@ -70,22 +81,41 @@ function SessionPane({ s, narrowView }) {
     if (narrowView) layout.set({ phoneTerminal: v === 'term' ? s.id : '' });
     else { setViewOf(s.id, v); setViewState(v); }
   };
-  const setInsp = v => { setInspState(v); if (!isPhone()) try { localStorage.setItem('loom.codeman.inspOpen', v ? '1' : '0'); } catch (_) {} };
+  const setInsp = v => { if (v) setTool(''); setInspState(v); if (!isPhone()) try { localStorage.setItem('loom.codeman.inspOpen', v ? '1' : '0'); } catch (_) {} };
   const mode = narrowView ? (phoneTerminal || s.mode === 'shell' ? 'term' : 'chat') : hasConversation(s.mode) ? view : 'term';
   const toTerm = () => setView(narrowView ? 'term' : 'split');
-  return html`<div class=${cls('cm-pane', insp && !narrowView && 'with-insp')}>
+  const activeTool = tools.find(item => item.id === tool);
+  const prepareReview = excerpt => {
+    setReview({ excerpt });
+    setView('chat');
+    if (narrowView) setTool('');
+  };
+  const toolBody = tool === 'changes' ? html`<${GitTab} inline id=${s.id} onReview=${hasConversation(s.mode) ? prepareReview : undefined} />`
+    : tool === 'files' ? html`<${FilesTab} inline id=${s.id} />`
+    : tool === 'preview' ? html`<${PreviewPanel} />` : null;
+  return html`<div class=${cls('cm-pane', 'session-workspace', insp && !narrowView && 'with-insp')}>
     <div class="cm-main">
       <${SessionHeader} s=${s} narrowView=${narrowView} insp=${insp} setInsp=${setInsp} />
-      ${narrowView && s.mode !== 'shell' && html`<div class="phone-agent-views">
-        <${Seg} value=${mode} onChange=${setView} label=${t('agents.view.label')} options=${[
+      <div class="workspace-bar">
+        ${(narrowView ? s.mode !== 'shell' : hasConversation(s.mode)) && html`<${Seg} value=${mode} onChange=${setView} label=${t('agents.view.label')} options=${[
           { value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') },
-        ]} />
-      </div>`}
+          ...(!narrowView ? [{ value: 'split', label: t('agents.view.split') }] : []),
+        ]} />`}
+        <div class="workspace-tools">${tools.map(item => html`<button type="button" key=${item.id}
+          aria-pressed=${tool === item.id} title=${item.label} aria-label=${item.label}
+          onClick=${() => { setInspState(false); setTool(tool === item.id ? '' : item.id); }}>
+          <${Icon} n=${item.icon} /><span>${item.label}</span></button>`)}${mode !== 'term' && html`<${TranscriptFind} />`}</div>
+      </div>
       <div class=${cls('cm-body', 'v-' + mode)}>
-        ${(mode === 'chat' || mode === 'split') && html`<${Conversation} key=${'c' + s.id} session=${s} onTerminal=${toTerm} terminalVisible=${mode === 'split'} phone=${narrowView} />`}
+        ${(mode === 'chat' || mode === 'split') && html`<${Conversation} key=${'c' + s.id} session=${s} onTerminal=${toTerm} terminalVisible=${mode === 'split'} review=${review} onReviewUsed=${() => setReview(null)} phone=${narrowView} />`}
         ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} shell=${s.mode === 'shell'} scrollback=${agents.get().settings?.terminalScrollbackLines || 50000} focus=${mode === 'term'} phoneControls=${narrowView} /></div>`}
       </div>
     </div>
+    ${activeTool && (narrowView ? html`<${Drawer} title=${activeTool.label} onClose=${() => setTool('')}>${toolBody}</${Drawer}>`
+      : html`<${ToolPane} label=${activeTool.label}>
+        <header><${Icon} n=${activeTool.icon} /><b>${activeTool.label}</b>
+          <button type="button" class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${() => setTool('')}><${Icon} n="close" /></button></header>
+        <div class="workspace-tool-body">${toolBody}</div></${ToolPane}>`)}
     ${insp && (narrowView ? html`<${Drawer} title=${t('agents.insp.info')} onClose=${() => setInsp(false)}><${Inspector} session=${s} view=${mode} setView=${setView} narrowView /></${Drawer}>`
       : html`<${Inspector} session=${s} onClose=${() => setInsp(false)} view=${mode} setView=${setView} />`)}
   </div>`;

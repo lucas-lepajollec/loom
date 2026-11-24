@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "86abf2a",
+  "sourceCommit": "a1eadcb",
   "locale": "en",
   "theme": "dark",
   "generator": "demo/scripts/capture-screenshots.mjs",
@@ -9,8 +9,8 @@
       "path": "docs/screenshots/chat.png",
       "route": "#/chat",
       "viewport": "1440x900",
-      "bytes": 157575,
-      "sha256": "1c549ec8b8dfc1e78ec31d594274139ede417c82da7a338be155d05f40a6b29c",
+      "bytes": 173105,
+      "sha256": "747f5d834170344ffac1da26162d1aad9136c4e277cd6349cd342faf809daaa4",
       "description": "Unified discussion view with sidebar folders, local model selector, and VRAM inspector"
     },
     {
@@ -18,17 +18,35 @@
       "path": "docs/screenshots/agents.png",
       "route": "#/agents",
       "viewport": "1440x900",
-      "bytes": 108745,
-      "sha256": "60ac58c91b99c5abed9b5845a2189f5dc019d47d622152cf126740fdf5c1d1d6",
+      "bytes": 114840,
+      "sha256": "f86b0babe1ec0e37ae48507107ffae23d0a082591dba751359ced0d725c10760",
       "description": "Codeman Agents control center with active sessions, pending approvals, harnesses, and schedules"
+    },
+    {
+      "file": "session-review.png",
+      "path": "docs/screenshots/session-review.png",
+      "route": "#/agents/s/cm-homelab-audit",
+      "viewport": "1440x900",
+      "bytes": 119248,
+      "sha256": "6f28e0c47f6d3764cff6a91a70107205fb94bfa4a0d6a66f3f591045235599e8",
+      "description": "Selected diff line in an agent workspace, ready to add to the reply"
+    },
+    {
+      "file": "session-review-mobile.png",
+      "path": "docs/screenshots/session-review-mobile.png",
+      "route": "#/agents/s/cm-homelab-audit",
+      "viewport": "390x844",
+      "bytes": 48989,
+      "sha256": "9bc8a4c438e3ac24c1cd33e01b2639f1f546fa83a6dda1eb9b4cbb563e2f04b6",
+      "description": "Selected diff line in an agent workspace, ready to add to the reply"
     },
     {
       "file": "files.png",
       "path": "docs/screenshots/files.png",
       "route": "#/files/n/homelab%2Fcluster-topology.md",
       "viewport": "1440x900",
-      "bytes": 122703,
-      "sha256": "c6fcd0953c5a4e49a09e9b8c175c86c08cc77e0c9004cbeddb9c1ce3fd410b9e",
+      "bytes": 146876,
+      "sha256": "88ea24aa23434f2b8c6a78ead6ec528cad12ef3bebb10b724124fee940e398f6",
       "description": "Files / Second Brain Markdown workspace with tree navigation and rich editor"
     },
     {
@@ -36,8 +54,8 @@
       "path": "docs/screenshots/machines.png",
       "route": "#/machines",
       "viewport": "1440x900",
-      "bytes": 112353,
-      "sha256": "a84e607cbdf277e263feed413bb02678dcc4a899babfc842ef1dfd794f94df0c",
+      "bytes": 120529,
+      "sha256": "390be23ec7ac49d35292a66a8b84cba9dbdb175078255e2827d1607fb5d26b6e",
       "description": "Machines fleet overview with capability bricks and live resource meters"
     },
     {
@@ -45,8 +63,8 @@
       "path": "docs/screenshots/models.png",
       "route": "#/local",
       "viewport": "1440x900",
-      "bytes": 123518,
-      "sha256": "3862d1f7a1560a68fab6786c7c9566153e906ca3a10f4fe4ce10ccf15164e62a",
+      "bytes": 130719,
+      "sha256": "92aef002d5a530841a648b332115959f2162a2a930f7b94123aa107962315b57",
       "description": "Local GGUF model library, presets, and GPU VRAM meter"
     },
     {
@@ -54,8 +72,8 @@
       "path": "docs/screenshots/local.png",
       "route": "#/local",
       "viewport": "1440x900",
-      "bytes": 123518,
-      "sha256": "3862d1f7a1560a68fab6786c7c9566153e906ca3a10f4fe4ce10ccf15164e62a",
+      "bytes": 130719,
+      "sha256": "7422dd793542e5c5f72c2a9d1763160ccc89c5e6e2f06eb49d609f23c9958fd2",
       "description": "Local GGUF library, presets, and model parameters (README reference)"
     },
     {
@@ -63,8 +81,8 @@
       "path": "docs/screenshots/engines.png",
       "route": "#/engine",
       "viewport": "1440x900",
-      "bytes": 120937,
-      "sha256": "11d17ad828e1c9e571c5910e3d9c4f75024cddb6c22f5da01b42108969e1b988",
+      "bytes": 128567,
+      "sha256": "89acbf446da46cb154940270d493d931649d06106d9ad253889c4150743dbae6",
       "description": "Engine router runtime, parallel slots, idle VRAM unload, and OpenAI /v1 API"
     },
     {
@@ -72,8 +90,8 @@
       "path": "docs/screenshots/activity.png",
       "route": "#/quotas",
       "viewport": "1440x900",
-      "bytes": 113576,
-      "sha256": "7ab29dabc65ea45e5037245c14fc8c38ef5704ffb9b15ae470542f0aa5403c34",
+      "bytes": 118887,
+      "sha256": "05bffafbbce79d919e3dbbc46ab32fae59c1c871845d1456e5916fcd5f5640ce",
       "description": "Activity multi-harness subscription quotas, pace curve, and 14-day usage chart"
     },
     {
@@ -81,8 +99,8 @@
       "path": "docs/screenshots/usage.png",
       "route": "#/usage",
       "viewport": "1440x900",
-      "bytes": 99264,
-      "sha256": "eb0a71d06b7cfb237c0912f9ffa00c3a15adf9703ccc07b385f982cee51b8714",
+      "bytes": 106288,
+      "sha256": "39218db02f9e625663c90385d8437f02b00adda52a61e4eec144e2178378a157",
       "description": "Activity cloud provider balances and per-model token cost tracking"
     },
     {
@@ -90,8 +108,8 @@
       "path": "docs/screenshots/terminals.png",
       "route": "#/terminals/term-workstation",
       "viewport": "1440x900",
-      "bytes": 70993,
-      "sha256": "6dec236dcb4ab919b63c08ee3221ddfa96a78d3224c478b0b341bc8ac293f5d6",
+      "bytes": 74509,
+      "sha256": "43e9d653f0a614dd5e7a16ac210e2ff5dde5f9e293bf334348bc6435c72ac636",
       "description": "Local and remote SSH terminal sessions powered by xterm.js"
     },
     {
@@ -99,8 +117,8 @@
       "path": "docs/screenshots/welcome.png",
       "route": "#/settings/about",
       "viewport": "1440x900",
-      "bytes": 101288,
-      "sha256": "6cfb0b3543f5626d5451940c55b644a2e9410ca4c3c23a71c4140e6fd10152fa",
+      "bytes": 117766,
+      "sha256": "0549705f2f87bce8582ba12a6514fba940669803305af552242a3a7ac2b0a71a",
       "description": "First-run guide with language, hardware, and engine setup"
     },
     {
@@ -108,8 +126,8 @@
       "path": "docs/screenshots/mobile.png",
       "route": "#/sessions",
       "viewport": "390x844",
-      "bytes": 62092,
-      "sha256": "84ed5f85e4990de1f80b1f2380b65bc63091110dba9726a5a75c239e118a735d",
+      "bytes": 68789,
+      "sha256": "2543a75be4cb3e1632d9102f474c1d4f6234cbe799d8f17a21aa5f428d14cda2",
       "description": "Mobile PWA bottom tab layout with unified discussions and Codeman sessions"
     }
   ]

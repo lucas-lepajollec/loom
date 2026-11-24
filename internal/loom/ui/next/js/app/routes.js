@@ -12,6 +12,7 @@ import { MachinesPage } from '../features/machines/page.js';
 import { EnginePage, WorkspacesPage } from '../features/machines/panes.js';
 import { VoicePage } from '../features/voice/page.js';
 import { JarvisPage } from '../features/voice/jarvis.js';
+import { ConnectionsPage } from './connections.js';
 import { AgentsPage } from '../features/agents/page.js';
 import { QuotasPage } from '../features/agents/quotas.js';
 import { FilesPage } from '../features/files/page.js';
@@ -34,6 +35,7 @@ export const ROUTES = [
   { id: 'usage', page: UsagePage },
   { id: 'quotas', page: QuotasPage },
   { id: 'market', page: MarketPage },
+  { id: 'connections', page: ConnectionsPage },
   { id: 'machines', page: MachinesPage },
   { id: 'files', page: FilesPage },
   { id: 'engine', page: EnginePage },

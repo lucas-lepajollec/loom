@@ -26,8 +26,8 @@ transcript, approvals in terminal; Shell = terminal only.
 | Rename | `PUT /sessions/:id/name` | API | Done |
 | Attach files | `POST /sessions/:id/paste-image` (+ `?kind=video`) | API | Done: paste an image or drop files in the composer (thumbnails) or the terminal (path typed); images, documents, videos ≤ 64 MB through Loom; the gateway sends Codeman's `X-Codeman-CSRF` |
 | Activity timeline | `GET /sessions/:id/run-summary` | API | Done |
-| Git status and diffs | `GET /git-status`, `GET /git-diff` | API | Done, read-only, multi-repository |
-| Files | `GET /files`, `GET /file-content` | API | Done: tree and text preview; editing stays in Codeman |
+| Git status and diffs | `GET /git-status`, `GET /git-diff` | API | Done, read-only, multi-repository. The Changes panel can place a selected line in the current conversation draft for transcript-capable agents |
+| Files | `GET /files`, `GET /file-content` | API | Done: tree and text preview beside the session or in a mobile sheet; editing stays in Codeman |
 | Subagents | `GET /sessions/:id/subagents`, `/subagents/:id/transcript`, `subagent:*` | API | Done (Claude) |
 | Session info and options | session state, `/auto-compact`, `/auto-clear` | API | Done: model, CLI version, tokens, cost, prompt cache, auto-compact/clear |
 | Scheduled jobs | `/cron/jobs`, `/cron/runs`, `cron:*` | API | Done: create/edit/enable/run now/delete, run history |

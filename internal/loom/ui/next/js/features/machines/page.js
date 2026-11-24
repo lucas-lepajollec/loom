@@ -4,6 +4,7 @@ import { get, post } from '../../core/api.js';
 import { visibleRefresh } from '../../core/poll.js';
 import { go } from '../../core/state.js';
 import { usePhone } from '../../core/viewport.js';
+import { ListPick } from '../../ui/listpick.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
@@ -71,6 +72,7 @@ function useMachines() {
 export function MachinesPage({ route }) {
   const phone = usePhone();
   const { remote, setRemote, local, roles, metrics, terminals, codeman, error, revision, reload } = useMachines();
+  const [role, setRole] = useState('all');
   const [pair, setPair] = useState(null);
   const [edit, setEdit] = useState(null);
   const [tests, setTests] = useState({});
@@ -78,6 +80,7 @@ export function MachinesPage({ route }) {
   const here = { ...local, id: 'local', name: local?.hostname || t('settings.machines.cette_machine_2'), terminalsSupported: terminals?.supported };
   const machines = [here, ...(remote || []).filter(m => typeof m.id === 'string' && m.id !== 'local').map(m => ({ ...m, name: m.name || m.hostname || m.host || m.id }))];
   const byId = new Map(machines.map(machine => [machine.id, machine]));
+  const activeRole = byId.has(roles?.[role]) ? role : 'all';
   const names = new Map(machines.map(machine => [machine.id, machine.name]));
   const target = route.sub;
   const machine = byId.get(target);
@@ -133,8 +136,14 @@ export function MachinesPage({ route }) {
           onClick=${() => setPair({})}><${Icon} n="plus" />${!phone && t('machines.add.title')}</button>
       </div>
     </div>
+    ${roles && machines.length > 1 && html`<div class="machine-role-filter">
+      <${ListPick} label=${t('workspace.machine_role')} value=${activeRole} onChange=${setRole}
+        options=${[{value:'all', label:t('workspace.all_machines')}, ...[
+          ['engine', t('settings.machines.brick_engine')], ['voice', t('settings.machines.brick_voice')],
+          ['codeman', t('settings.machines.brick_codeman')], ['files', t('settings.machines.brick_files')],
+        ].filter(([id]) => byId.has(roles[id])).map(([value,label]) => ({ value, label }))]} /></div>`}
     <div class="machine-grid">
-      ${machines.map(machine => html`<${MachineCard} key=${machine.id} ...${observations(machine)} phone=${phone} />`)}
+      ${machines.filter(machine => activeRole === 'all' || machine.id === roles[activeRole]).map(machine => html`<${MachineCard} key=${machine.id} ...${observations(machine)} phone=${phone} />`)}
     </div>
     ${error && html`<div class="machine-row machine-load-error" role="status"><div class="machine-row-text">
       <b>${t('settings.machines.load_failed')}</b><small>${error}</small></div><button class="btn sm" onClick=${reload}>${t('agents.retry')}</button>
