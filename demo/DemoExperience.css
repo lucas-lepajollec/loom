@@ -275,7 +275,7 @@
 
 @media (max-width: 760px) {
   .lh-demo-chip {
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(134px + max(10px, calc(env(safe-area-inset-bottom, 0px) - 12px)));
     right: 12px;
   }
 }
