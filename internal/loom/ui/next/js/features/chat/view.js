@@ -12,7 +12,6 @@ import { Inspector } from '../inspector/inspector.js';
 import { Seg } from '../../ui/controls.js';
 import { agents } from '../agents/store.js';
 import { go } from '../../core/state.js';
-import { TranscriptFind } from '../../ui/transcript-find.js';
 import { BackButton } from '../../app/phone-nav.js';
 import { usePhone } from '../../core/viewport.js';
 
@@ -72,7 +71,6 @@ export function ChatView({ route }) {
     <div class=${cls('chat-col', empty && 'is-empty')}>
       <header class=${cls('topbar', phone && 'phone-session-head')}>
         ${phone ? html`<${BackButton} /><div class="phone-chat-model"><${Picker} phone /><${ChatTitle} /></div>` : html`<${Picker} /><${ChatTitle} /><span class="grow"></span>`}
-        ${!empty && html`<${TranscriptFind} />`}
         <button class=${cls('icon-btn', insp && 'on')} aria-label="${t("chat.view.panneau")}" title="${t("chat.view.parametres_et_contexte")}" onClick=${toggle}><${Icon} n=${phone ? 'more' : 'panel'} /></button>
       </header>
       <${Thread} phone=${phone} />

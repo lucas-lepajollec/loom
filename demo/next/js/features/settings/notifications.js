@@ -19,11 +19,8 @@ export function NotificationSettings() {
   const [env, setEnv] = useState(null), [cfg, setCfg] = useState(null);
   const [ntfyToken, setNtfyToken] = useState(null), [hookSecret, setHookSecret] = useState(null);
   const [busy, setBusy] = useState(''), [dirty, setDirty] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const load = () => readNotificationSettings().then(r => { if (r.ok) { setFailed(false); setEnv(r); setCfg(r.config); setDirty(false); setNtfyToken(null); setHookSecret(null); } else setFailed(true); }).catch(() => setFailed(true));
+  const load = () => readNotificationSettings().then(r => { if (r.ok) { setEnv(r); setCfg(r.config); setDirty(false); setNtfyToken(null); setHookSecret(null); } }).catch(() => {});
   useEffect(() => { load(); }, []);
-  if (!cfg && failed) return html`<${Group}><div class="pad"><p role="alert">${t('workspace.notify_unavailable')}</p>
-    <button type="button" class="btn" onClick=${load}>${t('common.refresh')}</button></div></${Group}>`;
   if (!cfg) return html`<${Group} title=${t('notify.title')}><div class="pad"><p class="note">${t('startup.loading')}</p></div></${Group}>`;
   const set = (path, value) => {
     const next = structuredClone(cfg); let o = next; const keys = path.split('.');
@@ -35,11 +32,11 @@ export function NotificationSettings() {
     const body = { config: cfg, ...(ntfyToken !== null ? { ntfy_token: ntfyToken } : {}), ...(hookSecret !== null ? { webhook_secret: hookSecret } : {}) };
     const r = await post('/api/notify?secure=' + secure(), body).catch(e => ({ ok: false, error: e.message }));
     setBusy('');
-    if (!r.ok) { toast(r.error || t('notify.save_failed'), 'err'); return false; }
-    setEnv(r); setCfg(r.config); setDirty(false); setNtfyToken(null); setHookSecret(null); toast(t('notify.saved')); return true;
+    if (!r.ok) return toast(r.error || t('notify.save_failed'), 'err');
+    setEnv(r); setCfg(r.config); setDirty(false); setNtfyToken(null); setHookSecret(null); toast(t('notify.saved'));
   };
   const test = async channel => {
-    if (dirty && !await save()) return;
+    if (dirty) await save();
     setBusy(channel);
     const r = await post('/api/notify/test', { channel }).catch(e => ({ ok: false, error: e.message }));
     setBusy('');

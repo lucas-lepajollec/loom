@@ -19,7 +19,6 @@ export const GROUPS = [
   { id: 'agents', icon: 'agent', get label() { return t('agents.title'); }, tabs: [['agents', () => t('agents.title')]] },
   { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')]] },
   { id: 'files', icon: 'folder', get label() { return t('files.title'); }, tabs: [['files', () => t('files.title')]] },
-  { id: 'connections', icon: 'plug', get label() { return t('workspace.connections'); }, tabs: [['connections', () => t('workspace.connections')]] },
   { id: 'activity', icon: 'chart', get label() { return t('app.groups.activity'); }, tabs: [['quotas', () => t('quotas.title')], ['usage', () => t('app.routes.usage')], ['market', () => t('market.title')]] },
 ];
 

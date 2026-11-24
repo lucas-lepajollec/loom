@@ -6,7 +6,6 @@ import { app, engineState, phoneBack, refreshEngineNode, refreshStatus } from '.
 import { controlEngine, engineKind } from '../features/local/page.js';
 import { ownsVllm, useVllm } from '../features/settings/vllm.js';
 import { VoiceMode } from '../features/voice/mode.js';
-import { openPalette } from './palette.js';
 import { usePullRefresh } from './touch.js';
 
 function EngineStatus({ node, vllm }) {
@@ -51,16 +50,15 @@ function MoreList() {
     ['agents', 'agent', t('agents.title')],
     ['machines', 'server', t('settings.page.machines')],
     ['files', 'folder', t('files.title'), t('files.second_brain')],
-    ['connections', 'plug', t('workspace.connections')],
     ['settings', 'gear', t('app.palette.reglages')],
     ['more/jarvis', 'waveform', t('mobile.talk_jarvis')],
   ];
   return html`<div class="view phone-page">
-    <header class="phone-title"><h1>${t('mobile.more')}</h1><button type="button" class="icon-btn" aria-label=${t('app.palette.rechercher')} onClick=${openPalette}><${Icon} n="search" /></button></header>
+    <header class="phone-title"><h1>${t('mobile.more')}</h1></header>
     <div class="phone-scroll more-list" ...${pull}>
       ${node?.direct && node.kind === 'vllm' ? html`<${VllmStatus} node=${node} />` : html`<${EngineStatus} node=${node} />`}
       <nav class="more-links" aria-label=${t('mobile.more')}>
-        ${links.map(([id, icon, label, sub]) => html`<a class="phone-link more-destination" href=${'#/' + id} key=${id}><${Icon} n=${icon} /><span><b>${label}</b>${sub && html`<small>${sub}</small>`}</span><${Icon} n="right" /></a>`)}
+        ${links.map(([id, icon, label, sub]) => html`<a class="phone-link" href=${'#/' + id} key=${id}><${Icon} n=${icon} /><span><b>${label}</b>${sub && html`<small>${sub}</small>`}</span><${Icon} n="right" /></a>`)}
       </nav>
     </div>
   </div>`;

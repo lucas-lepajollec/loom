@@ -3,10 +3,9 @@
 // activité, fichiers, sous-agents et détails. Chaque section lit une route
 // officielle de Codeman quand on l'ouvre ; rien n'est déduit hors de ces
 // réponses. Même structure que le panneau d'une discussion.
-import { reviewLines } from './review-lines.js';
 import { lt } from './labels.js';
 import { t, locale } from '../../core/i18n.js';
-import { html, useState, useEffect, useRef, useStore, cls, fmtTok } from '../../core/lib.js';
+import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { DropdownButton, Switch, Empty, Seg, Menu } from '../../ui/controls.js';
 import { Modal, toast, prompt, confirm } from '../../ui/dialog.js';
@@ -26,18 +25,12 @@ const when = ms => ms ? new Date(ms).toLocaleString(locale(), { day: 'numeric', 
 
 function useRead(read, deps) {
   const [st, setSt] = useState({ data: null, error: '', loading: true });
-  const revision = useRef(0);
   const run = async (...a) => {
-    const request = ++revision.current;
     setSt(s => ({ ...s, loading: true }));
-    try {
-      const data = await read(...a);
-      if (request === revision.current) setSt({ data, error: '', loading: false });
-    } catch (e) {
-      if (request === revision.current) setSt({ data: null, error: e.message, loading: false });
-    }
+    try { setSt({ data: await read(...a), error: '', loading: false }); }
+    catch (e) { setSt({ data: null, error: e.message, loading: false }); }
   };
-  useEffect(() => { run(); return () => { ++revision.current; }; }, deps);
+  useEffect(() => { run(); }, deps);
   return [st, run];
 }
 
@@ -56,67 +49,26 @@ function ActivityTab({ id }) {
     <time>${time(e.timestamp)}</time><div><b>${e.title}</b>${e.details && html`<small>${e.details}</small>`}</div></li>`)}</ol>`;
 }
 
-function ReviewFrame({ inline, title, sub, onClose, foot, children }) {
-  if (!inline) return html`<${Modal} wide title=${title} sub=${sub} onClose=${onClose} foot=${foot}>${children}</${Modal}>`;
-  return html`<section class="workspace-reader">
-    <div class="reader-title"><button type="button" class="icon-btn" aria-label=${t('mobile.back')} onClick=${onClose}><${Icon} n="left" /></button>
-      <b class="mono" title=${title}>${title}</b></div>
-    ${children}${foot && html`<div class="reader-actions">${foot}</div>`}
-  </section>`;
-}
-
-// Adapted from Paradev's FileDiff/CodeText (MIT). Tokens stay escaped text nodes.
-const codeToken = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\/\/.*$|\b(?:import|from|export|function|return|const|let|if)\b)/;
-function patchText(text) {
-  return text.split(codeToken).map((part, i) => {
-    if (i % 2 === 0) return part;
-    const kind = part.startsWith('//') ? 'comment' : /^["']/.test(part) ? 'string' : 'keyword';
-    return html`<span class=${'patch-' + kind}>${part}</span>`;
-  });
-}
-
-function DiffModal({ id, file, onClose, onReview, embedded, revision, reviewedDiff, markReviewed }) {
-  const [st] = useRead(() => api.gitDiff(id, file), [id, file.repo, file.path, file.kind, revision]);
-  const [selection, setSelection] = useState(null);
-  useEffect(() => setSelection(null), [st.data]);
-  const lines = reviewLines(st.data?.diff || '');
-  const prepare = () => {
-    onReview(`${file.repo ? file.repo + '/' : ''}${file.path} · ${t(selection.kind === 'del' ? 'workspace.old_line' : 'workspace.line', { n: selection.number })}\n${selection.text}`);
-    onClose();
-  };
-  const action = onReview && selection && !st.loading && !st.error && !st.data?.binary && html`<button class="btn sm" onClick=${prepare}><${Icon} n="chat" />${t('workspace.review_line')}</button>`;
-  const body = html`
-    ${embedded && !st.loading && lines.some(line => line.number != null) && html`<div class="patch-counts"><b>+${lines.filter(l => l.kind === 'add').length}</b><b>−${lines.filter(l => l.kind === 'del').length}</b><label><input type="checkbox" checked=${reviewedDiff === st.data.diff}
-      onChange=${e => markReviewed(e.currentTarget.checked ? st.data.diff : undefined)} />${t('workspace.viewed')}</label></div>`}
+function DiffModal({ id, file, onClose }) {
+  const [st] = useRead(() => api.gitDiff(id, file), [file.path]);
+  const lines = String(st.data?.diff || '').split('\n');
+  return html`<${Modal} wide title=${file.path} sub=${lt('gitKind', file.kind)} onClose=${onClose}>
     ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="muted">${st.error}</p>`
       : st.data?.binary ? html`<p class="muted">${t('agents.git.binary')}</p>`
-      : html`<pre class="diff cm-diff">${lines.map((line, index) => line.number != null && onReview
-        ? html`<button type="button" class=${'dl review-line ' + line.kind} aria-pressed=${selection?.index === index}
-            onClick=${() => setSelection({ ...line, index })}><b>${line.number}</b>${embedded ? patchText(line.text) : line.text}</button>`
-        : html`<span class=${'dl ' + line.kind}>${line.text || ' '}</span>`)}</pre>`}
+      : html`<pre class="diff cm-diff">${lines.map(l => html`<span class=${'dl ' + (l.startsWith('+') && !l.startsWith('+++') ? 'add' : l.startsWith('-') && !l.startsWith('---') ? 'del' : l.startsWith('@@') ? 'hunk' : '')}>${l || ' '}</span>`)}</pre>`}
     ${st.data?.truncated && html`<p class="muted">${t('agents.git.truncated')}</p>`}
-  `;
-  if (embedded) return html`<div class="patch-body">${body}${action}</div>`;
-  return html`<${ReviewFrame} title=${file.path} sub=${lt('gitKind', file.kind)} onClose=${onClose} foot=${action}>${body}</${ReviewFrame}>`;
+  </${Modal}>`;
 }
 
-export function GitTab({ id, onReview, inline = false }) {
-  const turn = useStore(agents, state => state.turns[id] || 0);
-  const [st, run] = useRead(fresh => api.gitStatus(id, fresh), [id, turn]);
+function GitTab({ id }) {
+  const [st, run] = useRead(fresh => api.gitStatus(id, fresh), [id]);
   const [diff, setDiff] = useState(null);
-  // undefined expands the first changed file; null is an explicit collapse.
-  const [expanded, setExpanded] = useState(undefined);
-  const [reviewed, setReviewed] = useState({});
   if (st.error) return html`<${Failed} error=${st.error} retry=${run} />`;
   if (st.loading && !st.data) return html`<${Loading} />`;
   const d = st.data || {};
   if (d.state === 'not-a-repo') return html`<p class="muted">${t('agents.git.none')}</p>`;
   if (d.state === 'unsupported') return html`<p class="muted">${t('agents.git.unsupported')}</p>`;
   if (d.state === 'error') return html`<p class="muted">${d.error}</p>`;
-  const fileKey = (repo, f) => JSON.stringify([repo.status.repoRoot || repo.path, f.path, f.kind]);
-  const firstRepo = d.repos?.find(repo => repo.status?.files?.length);
-  const initial = firstRepo && fileKey(firstRepo, firstRepo.status.files[0]);
-  const current = expanded === undefined ? initial : expanded;
   return html`<div class="cm-git">
     <div class="cm-insp-bar"><span class="muted">${t('agents.git.checked', { time: time(d.checkedAt) })}</span><button class="icon-btn" aria-label=${t('common.refresh')} onClick=${() => run(true)}><${Icon} n="refresh" /></button></div>
     ${(d.repos || []).map(repo => { const s = repo.status || {}; return html`<section class="cm-repo" key=${repo.path}>
@@ -124,19 +76,11 @@ export function GitTab({ id, onReview, inline = false }) {
         ${s.ahead ? html`<span class="tag green">↑${s.ahead}</span>` : ''}${s.behind ? html`<span class="tag amber">↓${s.behind}</span>` : ''}</header>
       ${s.state === 'error' ? html`<p class="muted">${s.error}</p>` : html`
         <p class="muted cm-repo-sum">${s.counts && s.counts.uncommitted ? t('agents.git.changes', { n: s.counts.uncommitted }) : t('agents.git.clean')}${s.unpushedCount ? ' · ' + t('agents.git.unpushed', { n: s.unpushedCount }) : ''}</p>
-        <ul class="cm-files">${(s.files || []).map(f => {
-          const key = fileKey(repo, f), opened = inline && key === current;
-          const file = { repo: s.repoRoot, path: f.path, kind: f.kind };
-          return html`<li key=${key}><button aria-expanded=${inline ? opened : undefined}
-            onClick=${() => inline ? setExpanded(opened ? null : key) : setDiff(file)}>
-            ${inline && html`<${Icon} n=${opened ? 'chevron' : 'right'} />`}
-            <span class="trunc mono" title=${f.path}>${f.path}</span><i class=${'gk ' + f.kind}>${f.kind === 'untracked' ? '?' : f.kind === 'conflicted' ? '!' : (f.kind === 'staged' ? f.index : f.worktree) || 'M'}</i></button>
-            ${opened && html`<${DiffModal} embedded id=${id} file=${file} revision=${st.data} reviewedDiff=${reviewed[key]} markReviewed=${value => setReviewed(old => ({ ...old, [key]: value }))} onReview=${onReview} onClose=${() => setExpanded(null)} />`}
-          </li>`;
-        })}</ul>
+        <ul class="cm-files">${(s.files || []).map(f => html`<li key=${f.kind + f.path}><button onClick=${() => setDiff({ repo: s.repoRoot, path: f.path, kind: f.kind })}>
+          <i class=${'gk ' + f.kind}>${f.kind === 'untracked' ? '?' : f.kind === 'conflicted' ? '!' : (f.kind === 'staged' ? f.index : f.worktree) || 'M'}</i><span class="trunc mono">${f.path}</span></button></li>`)}</ul>
         ${(s.unpushed || []).length > 0 && html`<details class="cm-commits"><summary>${t('agents.git.commits')}</summary>${s.unpushed.map(c => html`<div key=${c.hash}><code>${c.hash.slice(0, 7)}</code> ${c.subject}</div>`)}</details>`}`}
     </section>`; })}
-    ${diff && html`<${DiffModal} id=${id} file=${diff} onReview=${onReview} onClose=${() => setDiff(null)} />`}
+    ${diff && html`<${DiffModal} id=${id} file=${diff} onClose=${() => setDiff(null)} />`}
   </div>`;
 }
 
@@ -148,22 +92,21 @@ function Tree({ nodes, depth, onOpen }) {
     ${n.type === 'directory' && open[n.path] && html`<${Tree} nodes=${n.children} depth=${depth + 1} onOpen=${onOpen} />`}</li>`)}</ul>`;
 }
 
-function FileModal({ id, path, onClose, inline }) {
+function FileModal({ id, path, onClose }) {
   const [st] = useRead(() => api.fileContent(id, path), [path]);
   const content = st.data?.content || '';
-  return html`<${ReviewFrame} inline=${inline} title=${path} onClose=${onClose}
+  return html`<${Modal} wide title=${path} onClose=${onClose}
       foot=${html`<button class="btn" onClick=${() => copyText(path)}>${t('agents.files.copy_path')}</button>`}>
     ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="muted">${st.error}</p>`
       : typeof st.data?.content !== 'string' ? html`<p class="muted">${t('agents.files.binary')}</p>`
       : html`<pre class="cm-file">${content}</pre>`}
     ${st.data?.truncated && html`<p class="muted">${t('agents.files.truncated')}</p>`}
-  </${ReviewFrame}>`;
+  </${Modal}>`;
 }
 
-export function FilesTab({ id, inline = false }) {
+function FilesTab({ id }) {
   const [st, run] = useRead(() => api.files(id), [id]);
   const [open, setOpen] = useState(null);
-  if (inline && open) return html`<${FileModal} inline id=${id} path=${open} onClose=${() => setOpen(null)} />`;
   if (st.error) return html`<${Failed} error=${st.error} retry=${run} />`;
   if (st.loading && !st.data) return html`<${Loading} />`;
   return html`<div class="cm-files-tab">

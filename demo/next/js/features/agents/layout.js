@@ -16,9 +16,7 @@ export const SHAPES = {
 };
 
 const KEY = 'loom.codeman.layout';
-// Start the conversation-first workspace once for installations with legacy terminal defaults.
-// Subsequent explicit mode changes are remembered, including terminal deep links.
-const VIEW_KEY = 'loom.workspace.sessionViews.v2';
+const VIEW_KEY = 'loom.codeman.views';
 const read = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v ?? fallback; } catch (_) { return fallback; } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
 

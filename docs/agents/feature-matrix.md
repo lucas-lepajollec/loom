@@ -18,7 +18,7 @@ transcript, approvals in terminal; Shell = terminal only.
 | Create session for any CLI | `GET /clis`, `POST /sessions`, `/interactive`, `/shell` | API | Done for every enabled CLI in the registry; model field where the schema accepts it |
 | Send prompt | `POST /sessions/:id/input` | API | Done: single line + `\r`, `clientId`/`seq`, no double send, gated on readiness |
 | Interrupt | input `Esc` | API | Done |
-| Conversation view | `GET /sessions/:id/last-response?context=full` | Partial | Done; structured for Claude/Codex, screen-segmented otherwise; explicit terminal access for initial setup or when the CLI cannot provide a structured transcript |
+| Conversation view | `GET /sessions/:id/last-response?context=full` | Partial | Done; structured for Claude/Codex, screen-segmented otherwise; live screen shown when no prompt can be identified |
 | Native terminal | `WS /ws/sessions/:id/terminal`, `GET /terminal?full=1&tail=&lines=` | API | Done: xterm.js, tmux history as Codeman loads it, wheel forwarded to full-screen CLIs (SGR for Claude, page keys otherwise), Ctrl+V kept from the CLI, reconnect, resize with confirmed geometry (focus reclaims it), conversation/terminal/side-by-side |
 | Tile grid (tmux-like) | same WebSocket per pane | API | Done: 2, 3 (main + stack), 4 or 6 panes, draggable dividers, focus and zoom with keyboard chords, drag-and-drop from the sidebar, conversation or terminal per pane, inspector follows focus, per-device layout |
 | Approvals inbox | `GET /approvals`, `approval:*` SSE, `answer`, `dismiss`, `viewed` | Partial | Done for Claude (options/approve/deny); Codex and screen-only CLIs routed to the terminal, never auto-answered |
@@ -26,8 +26,8 @@ transcript, approvals in terminal; Shell = terminal only.
 | Rename | `PUT /sessions/:id/name` | API | Done |
 | Attach files | `POST /sessions/:id/paste-image` (+ `?kind=video`) | API | Done: paste an image or drop files in the composer (thumbnails) or the terminal (path typed); images, documents, videos ≤ 64 MB through Loom; the gateway sends Codeman's `X-Codeman-CSRF` |
 | Activity timeline | `GET /sessions/:id/run-summary` | API | Done |
-| Git status and diffs | `GET /git-status`, `GET /git-diff` | API | Done, read-only, multi-repository. The Changes panel can place a selected line in the current conversation draft for transcript-capable agents |
-| Files | `GET /files`, `GET /file-content` | API | Done: tree and text preview beside the session or in a mobile sheet; editing stays in Codeman |
+| Git status and diffs | `GET /git-status`, `GET /git-diff` | API | Done, read-only, multi-repository |
+| Files | `GET /files`, `GET /file-content` | API | Done: tree and text preview; editing stays in Codeman |
 | Subagents | `GET /sessions/:id/subagents`, `/subagents/:id/transcript`, `subagent:*` | API | Done (Claude) |
 | Session info and options | session state, `/auto-compact`, `/auto-clear` | API | Done: model, CLI version, tokens, cost, prompt cache, auto-compact/clear |
 | Scheduled jobs | `/cron/jobs`, `/cron/runs`, `cron:*` | API | Done: create/edit/enable/run now/delete, run history |

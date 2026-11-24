@@ -187,5 +187,3 @@ Try Loom safely in your browser at **[demo.loom.lucas-homelab.fr](https://demo.l
 - [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md) · [Security](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Changelog](CHANGELOG.md) · [Roadmap](docs/ROADMAP.md)
 
 Released under the [MIT License](LICENSE).
-
-The session workspace draws on [Paradev](https://github.com/ParadevAI/Paradev). The command ranking, match highlighting, and panel resize interactions adapt its MIT-licensed implementation. [Paradev MIT notice](docs/design/licenses/paradev.txt).

@@ -50,7 +50,7 @@ try {
   const runtimes = (ws.runtimes || []).map(r => r.id);
   let routes = ['sessions', 'inbox', 'more', 'more/jarvis', 'chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'terminals', 'local/hub', 'voice', 'jarvis',
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
-    'files', 'connections', 'usage', 'quotas', 'market', 'agents', 'agents/s/fixture-session-0', 'agents/cron', 'agents/settings',
+    'files', 'usage', 'quotas', 'market', 'agents', 'agents/s/fixture-session-0', 'agents/cron', 'agents/settings',
     'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
   if (process.env.CRAWL_ROUTES) routes = routes.filter(r => new RegExp(process.env.CRAWL_ROUTES).test(r));
   const fixtureSessions = ['cloud'].map(kind => ({ id: 'fixture-' + kind, title: 'Synthetic ' + kind + ' discussion', runtime_id: kind === 'cloud' ? 'openai-compatible' : 'fixture-agent', provider_id: 'fixture', provider_name: kind === 'cloud' ? 'Fixture cloud' : 'Fixture agent', model: 'fixture-model', status: 'idle', messages: [], turns: [], message_count: 1 }));
