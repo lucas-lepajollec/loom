@@ -82,12 +82,14 @@ function LibraryStatus({ onUnload, phone }) {
     : t('models.engine.state', { engine: phone ? t('local.page.moteur') : kind, state });
   const host = node?.hostname || status?.hostname;
   const model = activeModel && (status.health ? t('models.library.loaded', { name }) : t('models.library.loading', { name }));
-  const detail = [phone && kind, !unavailable && model, host, ...(!unavailable && status?.active ? serverActivity(server) : [])].filter(Boolean).join(' · ');
+  const machineId = node?.machine_id || (node?.remote === false && !node.direct ? 'local' : '');
+  const detail = [phone && kind, !unavailable && model, machineId ? '' : host, ...(!unavailable && status?.active ? serverActivity(server) : [])].filter(Boolean).join(' · ');
   return html`<section class="models-card models-status" aria-label=${t('local.page.moteur')}>
     <i class=${cls('dot', unavailable || starting ? 'amber' : st.tone)} aria-hidden="true"></i>
     <div class="models-row-main">
       <b>${title}</b>
       ${detail && html`<small>${detail}</small>`}
+      ${machineId && html`<a class="model-host" href=${'#/machines/' + encodeURIComponent(machineId)}><${Icon} n="server" />${host || t('workspaces.local')}</a>`}
       ${status?.load_error && !unavailable && html`<small class="models-warning">${status.load_error}</small>`}
     </div>
     <div class="models-memory-meter">

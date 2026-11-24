@@ -59,15 +59,31 @@ export function Activity() {
     ${anchor && html`<${Popover} anchor=${anchor} onClose=${() => setAnchor(null)} width=${320} class="act-pop">
       <div class="act-h">${t("app.activity.activite")}</div>
       ${approvals.map(a => html`<${LoomApproval} key=${a.request_id} item=${a} class="act-approval" />`)}
-      ${items.length || approvals.length ? items.map(i => {
+      <${JobRows} items=${items} reload=${async () => setItems(await readActivity())} onNavigate=${() => setAnchor(null)} />
+      <div class="act-links"><a href="#/inbox" onClick=${() => setAnchor(null)}><${Icon} n="inbox" />${t('mobile.inbox')}</a>
+        <a href="#/settings/notifications" onClick=${() => setAnchor(null)}><${Icon} n="gear" />${t('notify.title')}</a></div>
+    </${Popover}>`}`;
+}
+
+function JobRows({ items, reload, onNavigate }) {
+  return html`${items.length ? items.map(i => {
         const row = i.to ? 'button' : 'div';
-        const open = i.to && (() => { setAnchor(null); i.to(); });
+        const open = i.to && (() => { onNavigate?.(); i.to(); });
         return html`<div class="act-row" key=${i.id}>
           <${Icon} n=${i.icon} />
           <${row} type=${i.to ? 'button' : undefined} class="act-main" onClick=${open}><b>${i.title}</b><small class=${i.err ? 'err' : ''}>${i.sub}</small>
             ${i.p != null && !i.err && html`<span class="gauge"><i style=${`width:${i.p}%`}></i></span>`}</${row}>
-          ${i.cancel && html`<button class="btn sm" onClick=${async () => { await i.cancel(); setItems(await readActivity()); }}>${i.cancelLabel || t("app.activity.annuler")}</button>`}
+          ${i.cancel && html`<button class="btn sm" onClick=${async () => { await i.cancel(); await reload(); }}>${i.cancelLabel || t("app.activity.annuler")}</button>`}
         </div>`;
-      }) : html`<div class="act-empty">${t("app.activity.rien_en_cours")}</div>`}
-    </${Popover}>`}`;
+      }) : html`<div class="act-empty">${t("app.activity.rien_en_cours")}</div>`}`;
+}
+
+export function EngineJobs() {
+  const [items, setItems] = useState(null);
+  useEffect(() => visibleRefresh(async alive => {
+    const rows = await readActivity();
+    if (alive()) setItems(rows);
+  }, 3000), []);
+  return items ? html`<div class="jobs-list"><${JobRows} items=${items} reload=${async () => setItems(await readActivity())} /></div>`
+    : html`<div class="skeleton inbox-loading"></div>`;
 }

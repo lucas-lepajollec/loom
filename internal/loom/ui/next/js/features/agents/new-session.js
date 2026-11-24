@@ -12,6 +12,7 @@ import { api, flattenPrompt, sendPrompt } from './client.js';
 import { agents, cliLogo } from './store.js';
 import { agentDraftKey, createSession, supportsModel } from './actions.js';
 import { fileAgent } from '../../app/sessions.js';
+import { newDiscussion } from '../chat/engine.js';
 import { startPhoneDiscussion } from '../../app/phone-discussion.js';
 
 export const CliMark = ({ mode, size }) => {
@@ -40,7 +41,7 @@ function Browser({ start, onPick }) {
   </div>`;
 }
 
-export function NewSession({ onClose, onCreated, preset, phone, initialType = 'agent', folder: initialFolder = '' }) {
+export function NewSession({ onClose, onCreated, preset, phone, agentOnly, initialType = 'agent', folder: initialFolder = '' }) {
   const clis = useStore(agents, s => s.clis.filter(c => c.enabled !== false));
   const unified = useStore(agents, s => s.unified);
   const cases = useStore(agents, s => s.cases);
@@ -62,15 +63,15 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
   const recent = [...new Set(unified.map(r => r.workingDir).filter(Boolean))].slice(0, 6);
   const folders = [...new Set([...recent, ...cases.filter(c => c.location !== 'remote').map(c => c.path)])].slice(0, 10);
   useEffect(() => { if (!dir && folders.length) setDir(folders[0]); }, [folders.length]);
-  useEffect(() => { if (phone && !preset?.mode && !clis.some(c => c.id === mode)) setMode(preferred); }, [phone, clis, preferred]);
+  useEffect(() => { if (!preset?.mode && !clis.some(c => c.id === mode)) setMode(preferred); }, [clis, preferred, preset?.mode]);
   const cli = clis.find(c => c.id === mode);
-  const discussion = phone && type === 'chat';
-  const canStart = discussion || (!!dir.trim() && cli?.installed !== false && (!phone || ready && !!cli));
+  const discussion = type === 'chat';
+  const canStart = discussion || (!!dir.trim() && cli?.installed !== false && ready && !!cli);
   const close = () => { if (!busy) onClose(); };
   const submit = async () => {
     if (submitting.current || !canStart) return;
     submitting.current = true;
-    if (discussion) { onClose(); startPhoneDiscussion(folder, firstMessage.trim()); return; }
+    if (discussion) { onClose(); if (phone) startPhoneDiscussion(folder, firstMessage.trim()); else newDiscussion(folder); return; }
     setBusy(true);
     try {
       const id = await createSession({ mode, workingDir: dir.trim(), name, model });
@@ -93,16 +94,16 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
     <label class="field"><span>${t('agents.new.name')}</span><input class="input" value=${name} placeholder=${t('agents.new.name_ph')} onInput=${e => setName(e.target.value)} /></label>
     ${supportsModel(mode) && html`<label class="field"><span>${t('agents.new.model')}</span><input class="input mono" value=${model} placeholder=${t('agents.new.model_ph')} onInput=${e => setModel(e.target.value)} /></label>`}
   </div>`;
-  return html`<${Modal} wide title=${phone ? t('side.new_session') : t('agents.new.title')} sub=${!phone && t('agents.new.sub')} onClose=${phone ? close : onClose}
-      class=${phone ? 'phone-new-session' : undefined} focusField=${!phone}
-      foot=${html`${!phone && html`<button type="button" class="btn" onClick=${onClose}>${t('agents.cancel')}</button>`}
+  return html`<${Modal} wide title=${t('side.new_session')} onClose=${close}
+      class=${phone ? 'phone-new-session' : 'desktop-new-session'} focusField=${!phone}
+      foot=${html`${!phone && html`<button type="button" class="btn" disabled=${busy} onClick=${close}>${t('agents.cancel')}</button>`}
         <button type="button" class="btn primary" disabled=${busy || !canStart} onClick=${submit}>${busy ? t('agents.new.starting') : t('agents.new.start')}</button>`}>
-    ${phone && html`<div class="phone-session-types" role="group" aria-label=${t('side.session_type')}>
+    ${!agentOnly && html`<div class="phone-session-types" role="group" aria-label=${t('side.session_type')}>
       <button type="button" class="btn" aria-pressed=${String(discussion)} disabled=${busy} onClick=${() => setType('chat')}><${Icon} n="chat" /><b>${t('side.type_chat')}</b><small>${t('mobile.new_chat_desc')}</small></button>
       <button type="button" class="btn" aria-pressed=${String(!discussion)} disabled=${busy} onClick=${() => setType('agent')}><${Icon} n="agent" /><b>${t('side.type_agent')}</b><small>${t('mobile.new_agent_desc')}</small></button>
     </div>`}
-    ${phone && !discussion && !ready && html`<a class="btn" href="#/agents/settings" onClick=${onClose}>${t('mobile.connect_agents')}</a>`}
-    ${!discussion && (!phone || ready) && html`
+    ${!discussion && !ready && html`<a class="btn" href="#/agents/settings" onClick=${onClose}>${t('mobile.connect_agents')}</a>`}
+    ${!discussion && ready && html`
     <div class="field"><span>${t('agents.new.cli')}</span>
       <div class="cm-cli-grid" role="group" aria-label=${t('agents.new.cli')}>${clis.map(c => html`<button type="button" key=${c.id} class=${cls('btn cm-cli', c.installed === false && 'missing')} onClick=${() => { setMode(c.id); setModel(''); }} aria-pressed=${String(mode === c.id)}>
         <${CliMark} mode=${c.id} size="sm" /><span class="cm-cli-copy">${c.label}${c.installed === false && html`<small>${t('agents.new.not_installed')}</small>`}</span>

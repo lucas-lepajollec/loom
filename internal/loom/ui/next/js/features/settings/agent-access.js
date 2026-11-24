@@ -48,7 +48,7 @@ function SetupDialog({ url, token, onClose }) {
   </${Modal}>`;
 }
 
-export function AgentAccess() {
+export function AgentAccess({ title } = {}) {
   const [gw, setGw] = useState(null);
   const [pol, setPol] = useState(null);
   const [token, setToken] = useState('');
@@ -88,7 +88,7 @@ export function AgentAccess() {
   };
   const agents = gw?.agents === 'available' ? t('agent_access.agents_ok') : gw?.agents === 'codeman_cli_missing' ? t('agent_access.agents_cli') : t('agent_access.agents_off');
   const last = gw?.last_used ? t('agent_access.last_value', { client: clientName(gw.last_client) || t('agent_access.an_agent'), when: since(gw.last_used) }) : t('agent_access.never');
-  return html`<${Group} title=${t('agent_access.title')}>
+  return html`<${Group} title=${title || t('agent_access.title')}>
     <${Line} label=${t('settings.page.adresse')} tip=${t('agent_access.tip')}><code class="mono">${url}</code></${Line}>
     <${Line} label=${t('agent_access.token')}>
       <span class="state">${gw ? gw.token_set ? t('access.configured') : t('access.not_set') : '…'}</span>

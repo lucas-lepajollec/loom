@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Search settings and page headings from the command palette, find messages in the current conversation, jump through a note’s outline, and resize desktop review panels. Inbox now filters requests, completions and engine jobs on desktop and mobile. The PWA shares the new settings, dialogs, status messages, and mobile navigation surfaces.
+
+- The web app now has a collapsible session library, a desktop strip for open pages, a shared discussion/agent launcher and searchable agent sessions on both screen sizes.
+- Agent sessions expose conversation, terminal, Git changes, files and application previews directly. Choose a diff line to add its path and side-specific line number to a reply draft. Live sessions can be filtered by state.
+- Connections puts the Loom MCP gateway first and links the agent server, cloud providers and permissions. The machine fleet filters by primary role, recent files also appear on desktop, and Activity can filter usage by model source.
+
 ## [0.3.0] - 2026-11-23
 
 > **Upgrading from 0.2.x:** Back up `LOOM_HOME` before upgrading. Existing discussions, folders, presets, models, and archived transcripts are preserved. Native coding-harness adapters are retired in favor of the independent Codeman gateway (`Agents`). Remote node credentials and legacy `/v1` keys are transparently sealed in AES-256-GCM on startup. Pair or update remote `loom node` instances to `0.3.0` so pairing codes and `--listen lan` match.

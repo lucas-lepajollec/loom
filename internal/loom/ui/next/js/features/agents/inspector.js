@@ -3,9 +3,10 @@
 // activité, fichiers, sous-agents et détails. Chaque section lit une route
 // officielle de Codeman quand on l'ouvre ; rien n'est déduit hors de ces
 // réponses. Même structure que le panneau d'une discussion.
+import { reviewLines } from './review-lines.js';
 import { lt } from './labels.js';
 import { t, locale } from '../../core/i18n.js';
-import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
+import { html, useState, useEffect, useRef, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { DropdownButton, Switch, Empty, Seg, Menu } from '../../ui/controls.js';
 import { Modal, toast, prompt, confirm } from '../../ui/dialog.js';
@@ -25,12 +26,18 @@ const when = ms => ms ? new Date(ms).toLocaleString(locale(), { day: 'numeric', 
 
 function useRead(read, deps) {
   const [st, setSt] = useState({ data: null, error: '', loading: true });
+  const revision = useRef(0);
   const run = async (...a) => {
+    const request = ++revision.current;
     setSt(s => ({ ...s, loading: true }));
-    try { setSt({ data: await read(...a), error: '', loading: false }); }
-    catch (e) { setSt({ data: null, error: e.message, loading: false }); }
+    try {
+      const data = await read(...a);
+      if (request === revision.current) setSt({ data, error: '', loading: false });
+    } catch (e) {
+      if (request === revision.current) setSt({ data: null, error: e.message, loading: false });
+    }
   };
-  useEffect(() => { run(); }, deps);
+  useEffect(() => { run(); return () => { ++revision.current; }; }, deps);
   return [st, run];
 }
 
@@ -49,20 +56,39 @@ function ActivityTab({ id }) {
     <time>${time(e.timestamp)}</time><div><b>${e.title}</b>${e.details && html`<small>${e.details}</small>`}</div></li>`)}</ol>`;
 }
 
-function DiffModal({ id, file, onClose }) {
-  const [st] = useRead(() => api.gitDiff(id, file), [file.path]);
-  const lines = String(st.data?.diff || '').split('\n');
-  return html`<${Modal} wide title=${file.path} sub=${lt('gitKind', file.kind)} onClose=${onClose}>
-    ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="muted">${st.error}</p>`
-      : st.data?.binary ? html`<p class="muted">${t('agents.git.binary')}</p>`
-      : html`<pre class="diff cm-diff">${lines.map(l => html`<span class=${'dl ' + (l.startsWith('+') && !l.startsWith('+++') ? 'add' : l.startsWith('-') && !l.startsWith('---') ? 'del' : l.startsWith('@@') ? 'hunk' : '')}>${l || ' '}</span>`)}</pre>`}
-    ${st.data?.truncated && html`<p class="muted">${t('agents.git.truncated')}</p>`}
-  </${Modal}>`;
+function ReviewFrame({ inline, title, sub, onClose, foot, children }) {
+  if (!inline) return html`<${Modal} wide title=${title} sub=${sub} onClose=${onClose} foot=${foot}>${children}</${Modal}>`;
+  return html`<section class="workspace-reader">
+    <div class="reader-title"><button type="button" class="icon-btn" aria-label=${t('mobile.back')} onClick=${onClose}><${Icon} n="left" /></button>
+      <b class="mono" title=${title}>${title}</b></div>
+    ${children}${foot && html`<div class="reader-actions">${foot}</div>`}
+  </section>`;
 }
 
-function GitTab({ id }) {
+function DiffModal({ id, file, onClose, onReview, inline }) {
+  const [st] = useRead(() => api.gitDiff(id, file), [id, file.repo, file.path, file.kind]);
+  const [selection, setSelection] = useState(null);
+  const lines = reviewLines(st.data?.diff || '');
+  const prepare = () => {
+    onReview(`${file.repo ? file.repo + '/' : ''}${file.path} · ${t(selection.kind === 'del' ? 'workspace.old_line' : 'workspace.line', { n: selection.number })}\n${selection.text}`);
+    onClose();
+  };
+  return html`<${ReviewFrame} inline=${inline} title=${file.path} sub=${lt('gitKind', file.kind)} onClose=${onClose}
+    foot=${onReview && !st.loading && !st.error && !st.data?.binary && html`<button class="btn primary" disabled=${!selection} onClick=${prepare}><${Icon} n="chat" />${t('workspace.review_line')}</button>`}>
+    ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="muted">${st.error}</p>`
+      : st.data?.binary ? html`<p class="muted">${t('agents.git.binary')}</p>`
+      : html`<pre class="diff cm-diff">${lines.map((line, index) => line.number != null && onReview
+        ? html`<button type="button" class=${'dl review-line ' + line.kind} aria-pressed=${selection?.index === index}
+            onClick=${() => setSelection({ ...line, index })}><b>${line.number}</b>${line.text}</button>`
+        : html`<span class=${'dl ' + line.kind}>${line.text || ' '}</span>`)}</pre>`}
+    ${st.data?.truncated && html`<p class="muted">${t('agents.git.truncated')}</p>`}
+  </${ReviewFrame}>`;
+}
+
+export function GitTab({ id, onReview, inline = false }) {
   const [st, run] = useRead(fresh => api.gitStatus(id, fresh), [id]);
   const [diff, setDiff] = useState(null);
+  if (inline && diff) return html`<${DiffModal} inline id=${id} file=${diff} onReview=${onReview} onClose=${() => setDiff(null)} />`;
   if (st.error) return html`<${Failed} error=${st.error} retry=${run} />`;
   if (st.loading && !st.data) return html`<${Loading} />`;
   const d = st.data || {};
@@ -80,7 +106,7 @@ function GitTab({ id }) {
           <i class=${'gk ' + f.kind}>${f.kind === 'untracked' ? '?' : f.kind === 'conflicted' ? '!' : (f.kind === 'staged' ? f.index : f.worktree) || 'M'}</i><span class="trunc mono">${f.path}</span></button></li>`)}</ul>
         ${(s.unpushed || []).length > 0 && html`<details class="cm-commits"><summary>${t('agents.git.commits')}</summary>${s.unpushed.map(c => html`<div key=${c.hash}><code>${c.hash.slice(0, 7)}</code> ${c.subject}</div>`)}</details>`}`}
     </section>`; })}
-    ${diff && html`<${DiffModal} id=${id} file=${diff} onClose=${() => setDiff(null)} />`}
+    ${diff && html`<${DiffModal} id=${id} file=${diff} onReview=${onReview} onClose=${() => setDiff(null)} />`}
   </div>`;
 }
 
@@ -92,21 +118,22 @@ function Tree({ nodes, depth, onOpen }) {
     ${n.type === 'directory' && open[n.path] && html`<${Tree} nodes=${n.children} depth=${depth + 1} onOpen=${onOpen} />`}</li>`)}</ul>`;
 }
 
-function FileModal({ id, path, onClose }) {
+function FileModal({ id, path, onClose, inline }) {
   const [st] = useRead(() => api.fileContent(id, path), [path]);
   const content = st.data?.content || '';
-  return html`<${Modal} wide title=${path} onClose=${onClose}
+  return html`<${ReviewFrame} inline=${inline} title=${path} onClose=${onClose}
       foot=${html`<button class="btn" onClick=${() => copyText(path)}>${t('agents.files.copy_path')}</button>`}>
     ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="muted">${st.error}</p>`
       : typeof st.data?.content !== 'string' ? html`<p class="muted">${t('agents.files.binary')}</p>`
       : html`<pre class="cm-file">${content}</pre>`}
     ${st.data?.truncated && html`<p class="muted">${t('agents.files.truncated')}</p>`}
-  </${Modal}>`;
+  </${ReviewFrame}>`;
 }
 
-function FilesTab({ id }) {
+export function FilesTab({ id, inline = false }) {
   const [st, run] = useRead(() => api.files(id), [id]);
   const [open, setOpen] = useState(null);
+  if (inline && open) return html`<${FileModal} inline id=${id} path=${open} onClose=${() => setOpen(null)} />`;
   if (st.error) return html`<${Failed} error=${st.error} retry=${run} />`;
   if (st.loading && !st.data) return html`<${Loading} />`;
   return html`<div class="cm-files-tab">

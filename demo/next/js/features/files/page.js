@@ -183,7 +183,7 @@ function Tree({ data, current, refresh, header, phone }) {
   const toggle = p => { const n = new Set(open); n.has(p) ? n.delete(p) : n.add(p); setOpen(n); save('loom.files.open', [...n]); };
   const query = q.trim().toLowerCase();
   const nodes = query ? filterTree(data.tree || [], query) : data.tree || [];
-  const recent = phone && !query ? recentlyModified(nodes, Date.now() - 86400000).sort((a, b) => b.modified - a.modified).slice(0, 4) : [];
+  const recent = !query ? recentlyModified(nodes, Date.now() - 86400000).sort((a, b) => b.modified - a.modified).slice(0, 4) : [];
   const pull = usePullRefresh(refresh);
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
     ${header(html`
@@ -227,6 +227,16 @@ function Viewer({ path, refresh, narrow }) {
   const [raw, setRaw] = useState(false);
   const [state, setState] = useState('saved');
   const [menu, setMenu] = useState(null);
+  const [outline, setOutline] = useState(null);
+  const showOutline = event => {
+    const anchor = event.currentTarget;
+    const editor = anchor.closest('.fl-view')?.querySelector('.fl-doc');
+    const headings = [...(editor?.querySelectorAll('h1,h2,h3,h4,h5,h6') || [])];
+    setOutline({ anchor, items: headings.map(node => ({
+      label: node.textContent.trim() || t('workspace.heading'), icon: 'right',
+      run: () => requestAnimationFrame(() => { if (node.isConnected) node.scrollIntoView({ block: 'center' }); }),
+    })) });
+  };
   const reload = async () => {
     try {
       const r = await get('/api/files/read?path=' + encodeURIComponent(path) + scopeQuery('&'));
@@ -248,6 +258,9 @@ function Viewer({ path, refresh, narrow }) {
       <span class="fl-crumbs">${crumbs.map((c, i) => html`${i > 0 && html`<i>/</i>`}<span class=${i === crumbs.length - 1 ? 'here' : ''}>${i === crumbs.length - 1 ? c.replace(/\.md$/i, '') : c}</span>`)}</span>
       <span class="grow"></span>
       <span class=${cls('fl-state', state)}>${state === 'saving' ? t('files.saving') : state === 'dirty' ? t('files.unsaved') : state === 'conflict' ? t('files.conflict_short') : file && file.modified ? t('files.saved') : ''}</span>
+      ${!raw && isNote(path) && typeof file?.content === 'string' && html`<button type="button" class="icon-btn" aria-label=${t('workspace.outline')} title=${t('workspace.outline')} onClick=${showOutline}><${Icon} n="list" /></button>`}
+      ${outline && html`<${Menu} anchor=${outline.anchor} label=${t('workspace.outline')} onClose=${() => setOutline(null)}
+        items=${outline.items.length ? outline.items : [{ label: t('workspace.no_headings'), disabled: true }]} />`}
       <button class="icon-btn" aria-label=${t('files.actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
       ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
     </header>
