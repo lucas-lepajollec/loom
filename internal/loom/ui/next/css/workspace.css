@@ -85,12 +85,6 @@
 
 /* Adapted from Paradev's AppMockup, OrchestrateScene, Composer and RightSidebar
    (Superset Inc., MIT). Actual transcript and patch content comes from Codeman. */
-:root:not([data-theme=light]) {
-  --frame:#141414; --bg:#161616; --bg-2:#191919; --panel:#1d1d1d;
-  --surface:#212121; --surface-2:#262626; --surface-3:#333; --raised:#272727;
-  --text:#eaeaea; --text-2:#b4b4b4; --text-3:#989898; --text-4:#858585;
-  --copper-wash:rgb(245 245 245 / 7%); --line:rgb(255 255 255 / 6%);
-}
 .library-launch,.library-search,.composer-agent,.session-steps summary,.session-workspace .workspace-identity {
   display:flex; align-items:center; gap:8px; min-width:0;
 }
@@ -171,3 +165,7 @@
 .patch-counts label { margin-inline-start:auto; display:flex; align-items:center; gap:5px; font:12px var(--font); color:var(--text-3); cursor:pointer }
 .patch-counts input { margin:0; accent-color:var(--text-2) }
 @media (max-width:760px) { .patch-counts label { min-height:44px } }
+
+.patch-body .cm-diff .dl .patch-string { color:var(--text-2) }
+.patch-body .cm-diff .dl .patch-comment { color:var(--text-3) }
+.patch-body .cm-diff .dl .patch-keyword { color:var(--text) }

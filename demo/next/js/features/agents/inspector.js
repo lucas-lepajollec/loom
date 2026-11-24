@@ -65,6 +65,16 @@ function ReviewFrame({ inline, title, sub, onClose, foot, children }) {
   </section>`;
 }
 
+// Adapted from Paradev's FileDiff/CodeText (MIT). Tokens stay escaped text nodes.
+const codeToken = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\/\/.*$|\b(?:import|from|export|function|return|const|let|if)\b)/;
+function patchText(text) {
+  return text.split(codeToken).map((part, i) => {
+    if (i % 2 === 0) return part;
+    const kind = part.startsWith('//') ? 'comment' : /^["']/.test(part) ? 'string' : 'keyword';
+    return html`<span class=${'patch-' + kind}>${part}</span>`;
+  });
+}
+
 function DiffModal({ id, file, onClose, onReview, embedded, revision, reviewedDiff, markReviewed }) {
   const [st] = useRead(() => api.gitDiff(id, file), [id, file.repo, file.path, file.kind, revision]);
   const [selection, setSelection] = useState(null);
@@ -82,7 +92,7 @@ function DiffModal({ id, file, onClose, onReview, embedded, revision, reviewedDi
       : st.data?.binary ? html`<p class="muted">${t('agents.git.binary')}</p>`
       : html`<pre class="diff cm-diff">${lines.map((line, index) => line.number != null && onReview
         ? html`<button type="button" class=${'dl review-line ' + line.kind} aria-pressed=${selection?.index === index}
-            onClick=${() => setSelection({ ...line, index })}><b>${line.number}</b>${line.text}</button>`
+            onClick=${() => setSelection({ ...line, index })}><b>${line.number}</b>${embedded ? patchText(line.text) : line.text}</button>`
         : html`<span class=${'dl ' + line.kind}>${line.text || ' '}</span>`)}</pre>`}
     ${st.data?.truncated && html`<p class="muted">${t('agents.git.truncated')}</p>`}
   `;

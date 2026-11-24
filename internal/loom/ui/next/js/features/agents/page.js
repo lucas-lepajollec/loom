@@ -124,7 +124,7 @@ function SessionPane({ s, narrowView }) {
           <button type="button" class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${() => setTool('')}><${Icon} n="close" /></button></header>
         <div class="workspace-tool-body">${toolBody}</div></${ToolPane}>`)}
     ${insp && (narrowView ? html`<${Drawer} title=${t('agents.insp.info')} onClose=${() => setInsp(false)}><${Inspector} session=${s} view=${mode} setView=${setView} narrowView /></${Drawer}>`
-      : html`<${Inspector} session=${s} onClose=${() => setInsp(false)} view=${mode} setView=${setView} />`)}
+      : html`<${Inspector} session=${s} onClose=${() => setInsp(false)} />`)}
   </div>`;
 }
 
