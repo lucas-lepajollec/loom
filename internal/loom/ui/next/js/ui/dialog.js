@@ -18,10 +18,12 @@ export function ask(spec) {
 export const confirm = (title, message, opts = {}) => ask({ title, message, ok: opts.ok || t("ui.dialog.continuer"), danger: opts.danger }).then(v => v === true);
 export const prompt = (title, opts = {}) => ask({ title, message: opts.message, input: { placeholder: opts.placeholder, value: opts.value }, ok: opts.ok || t("ui.dialog.enregistrer") });
 
-export function toast(text, kind) {
+const dropToast = id => layers.set(s => ({ toasts: s.toasts.filter(item => item.id !== id) }));
+
+export function toast(text, kind, action) {
   const id = ++seq;
-  layers.set(s => ({ toasts: [...s.toasts.slice(-2), { id, text, kind }] }));
-  setTimeout(() => layers.set(s => ({ toasts: s.toasts.filter(localT => localT.id !== id) })), kind === 'err' ? 4200 : 2200);
+  layers.set(s => ({ toasts: [...s.toasts.slice(-2), { id, text, kind, action }] }));
+  setTimeout(() => dropToast(id), action ? 7000 : kind === 'err' ? 4200 : 2200);
 }
 
 // Rendu directement dans <body> : un dialogue ouvert depuis une section animée
@@ -122,5 +124,10 @@ function AskDialog({ d }) {
 export function Layers() {
   const { dialogs, toasts } = useStore(layers);
   return html`${dialogs.map(d => html`<${AskDialog} key=${d.id} d=${d} />`)}
-    <div class="toasts" aria-live="polite">${toasts.map(localT => html`<div key=${localT.id} class=${cls('toast', localT.kind === 'err' && 'err')}>${localT.text}</div>`)}</div>`;
+    <div class="toasts" aria-live="polite">${toasts.map(({ id, text, kind, action }) => html`
+      <div key=${id} class=${cls('toast', kind === 'err' && 'err', action && 'toast-action')}>
+        <${Icon} n=${kind === 'err' ? 'alert' : action?.icon || 'check'} />
+        <div class="toast-copy">${action?.title && html`<b>${action.title}</b>`}<span>${text}</span></div>
+        ${action && html`<a class="btn sm" href=${action.href} onClick=${() => dropToast(id)}>${action.label}</a>`}
+      </div>`)}</div>`;
 }

@@ -167,9 +167,9 @@ function LayoutPicker({ currentId }) {
     </${Popover}>`}`;
 }
 
-const SUBS = ['', 'cron', 'settings'];
+const SUBS = ['', 'tools', 'cron', 'history', 'settings'];
 function Top({ sub, phone }) {
-  const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v), current: sub === v }));
+  const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: v === 'tools' ? t('noir.agent_tools') : v === 'history' ? t('noir.agent_history') : lt('nav', v), current: sub === v }));
   return html`<header class="cm-admin-top">
     <${TabNav} id="agents" label=${t('agents.title')} tabs=${tabs} phoneChips=${phone} />
   </header>`;
@@ -206,6 +206,6 @@ export function AgentsPage({ route }) {
       : work ? html`<${Workspace} route=${route} />`
       : sub === 'cron' ? html`<${CronPage} key=${server} phone=${narrowView} />`
       : sub === 'settings' ? html`<div class="cm-scroll"><${CodemanSettings} /></div>`
-      : html`<${ControlCenter} key=${server} phone=${narrowView} />`}
+      : html`<${ControlCenter} key=${server + sub} phone=${narrowView} section=${sub} />`}
   </div>`;
 }

@@ -21,7 +21,7 @@ import { BackButton, PhoneBackLink, PhoneTabs } from './phone-nav.js';
 import { groupOf } from './sections.js';
 import { agents, useAgentsPresence } from '../features/agents/store.js';
 import { NewSessionHost } from '../features/agents/side.js';
-import { inboxItems } from './inbox.js';
+import { inboxItems, useCompletionNotices } from './inbox.js';
 
 
 // Une page qui plante pendant son affichage ne doit pas laisser Preact au milieu
@@ -101,6 +101,7 @@ function App() {
   });
   useEffect(() => visibleRefresh(refreshLoomApprovals, 4000), []);
   useAgentsPresence();
+  useCompletionNotices();
   useShortcuts();
   return html`<div class=${cls('app', phone && 'phone-app')}>
     ${!phone && html`<${Rail} route=${newPage ? { section: 'sessions' } : route} count=${count} /><${ContextColumn} route=${newPage ? { section: 'sessions' } : route} />`}

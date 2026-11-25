@@ -65,7 +65,7 @@ function onEvent(d) {
   if (!d.type && d.running) liveFoot(d.provenance);
   const replay = chat.get().replaying;
   if (d.compacting !== undefined) chat.set({ compacting: !!d.compacting });
-  if (d.compacted) { chat.set({ compacting: false }); push({ k: 'compact' }); }
+  if (d.compacted) { chat.set({ compacting: false }); push({ k: 'compact', before: chat.get().ctxUsed, after: d.ctx_used }); }
   if (d.compact_noop) { chat.set({ compacting: false }); if (!replay) toast(t("chat.engine.rien_a_compacter")); }
   if (d.ctx_used !== undefined) chat.set({ ctxUsed: d.ctx_used });
   if (d.compact_count !== undefined) chat.set({ compactCount: d.compact_count });

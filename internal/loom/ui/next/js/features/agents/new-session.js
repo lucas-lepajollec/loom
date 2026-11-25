@@ -174,7 +174,12 @@ export function NewSession({ onClose, onCreated, preset, phone, inline, initialT
       ...clis.filter(c => c.kind === 'shell' && c.installed !== false).map(c => ({ value: 'cli:' + c.id, label: c.label, icon: 'terminal' })),
     ];
     const modelOptions = projects.map(p => ({ value: p.id, label: p.name }));
-    const desktopOptions = options.map(o => o.detail ? { ...o, label: o.label + ' · ' + o.detail } : o);
+    const desktopOptions = options.map(o => ({
+      ...o,
+      group: o.value.startsWith('cli:') ? t('noir.codeman_executors') : t('side.type_chat'),
+      note: o.detail,
+      display: o.detail ? o.label + ' · ' + o.detail : o.label,
+    }));
     const execution = html`<${ListPick} class="fit" label=${t('noir.new_with')} value=${executor} options=${desktopOptions} onChange=${pick} />`;
     return html`<div class=${cls('view', 'new-session-page', phone && 'phone-new-session')} aria-labelledby="new-session-title">
       <header class="dialog-head"><button class="icon-btn" type="button" onClick=${close} aria-label=${t('ui.dialog.fermer')}><${Icon} n="close" /></button></header>

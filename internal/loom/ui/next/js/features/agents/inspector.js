@@ -304,7 +304,7 @@ export function Inspector({ session, onClose, view, setView, narrowView, git, ta
               <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>
               <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/clear', true)}><${Icon} n="refresh" /><span>${t('agents.panel.clear')}</span></button>`}
             ${s.mode !== 'shell' && html`<button class="btn sm" onClick=${() => setSchedule(true)}><${Icon} n="clock" />${t('noir.schedule')}</button>`}
-            ${['working', 'waiting'].includes(state) && html`<button class="btn sm danger" onClick=${() => interrupt(s.id).catch(e => toast(e.message, 'err'))}><${Icon} n="stop" />${t('agents.composer.interrupt')}</button>`}
+            ${['working', 'waiting'].includes(state) && html`<button class="btn sm" onClick=${() => interrupt(s.id).catch(e => toast(e.message, 'err'))}><${Icon} n="stop" />${t('agents.composer.interrupt')}</button>`}
             <${SessionMenu} s=${s} phone />
           </div>
           <div class="cm-panel-secs">

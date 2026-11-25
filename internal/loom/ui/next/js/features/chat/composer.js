@@ -133,7 +133,7 @@ export function Composer({ phone } = {}) {
 
   return html`<div class=${cls('composer-wrap', phone && 'phone-composer')}>
     <div class="composer">
-      ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}${typeof f.content === 'string' && html`<button title=${t('chat.composer.download_text')} aria-label=${t('chat.composer.download_text')} onClick=${() => downloadPaste(f)}><${Icon} n="download" /></button>`}<button aria-label="${t("chat.composer.retirer")}" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
+      ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" /><span class="trunc" title=${f.name}>${f.name}</span>${typeof f.content === 'string' && html`<button title=${t('chat.composer.download_text')} aria-label=${t('chat.composer.download_text')} onClick=${() => downloadPaste(f)}><${Icon} n="download" /></button>`}<button aria-label="${t("chat.composer.retirer")}" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
       ${phone && canAdd && html`<button type="button" class=${cls('icon-btn composer-add', activeTools.length && 'on')} aria-label=${t('mobile.add_tools')}
         aria-haspopup="dialog" aria-expanded=${String(!!menu)} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="plus" /></button>`}
       <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey} onPaste=${onPaste} enterkeyhint=${phone ? 'send' : undefined}
@@ -158,7 +158,10 @@ export function Composer({ phone } = {}) {
     </div>
     ${draft?.failed ? html`<div class="composer-hint err" role="alert">${blocked}<button class="btn sm" onClick=${() => startPhoneDiscussion(draft.folder, text, false, { files, choice: draft.choice })}>${t('agents.retry')}</button></div>`
       : c.starting ? null
-      : c.engineError ? html`<div class="composer-hint err" role="alert">${c.engineError}<button class="btn sm" onClick=${submit}>${t('agents.retry')}</button></div>`
+      : c.engineError ? html`<div class="composer-hint err composer-error" role="alert">
+        <${Icon} n="alert" /><span>${c.engineError}</span><div class="composer-error-actions">
+          <button class="btn sm" onClick=${submit}>${t('agents.retry')}</button><a class="btn sm" href="#/engine/log">${t('noir.engine_log')}</a>
+        </div></div>`
       : hint && html`<div class="composer-hint warn">${hint}</div>`}
     ${menu && html`<${Popover} sheet label=${t('mobile.add_tools')} anchor=${menu} onClose=${() => setMenu(null)} place="above" width=${240} class=${phone ? 'composer-sheet' : undefined}>
       ${phone && canAttach && html`<button class="item" onClick=${() => { setMenu(null); fileIn.current?.click(); }}><${Icon} n="paperclip" />${t('chat.composer.joindre_un_fichier')}</button>`}

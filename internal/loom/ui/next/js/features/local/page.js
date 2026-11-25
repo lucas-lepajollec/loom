@@ -51,7 +51,7 @@ export async function controlEngine(action) {
   await refreshStatus();
 }
 
-function LibraryStatus({ onUnload, phone }) {
+function LibraryStatus({ onUnload, phone, weights }) {
   const { status, gpus, node, unavailable } = useStore(app, s => ({
     status: s.status, gpus: s.gpus, node: s.engineNode, unavailable: s.unavailable.status,
   }));
@@ -83,13 +83,24 @@ function LibraryStatus({ onUnload, phone }) {
   const host = node?.hostname || status?.hostname;
   const model = activeModel && (status.health ? t('models.library.loaded', { name }) : t('models.library.loading', { name }));
   const detail = [phone && kind, !unavailable && model, host, ...(!unavailable && status?.active ? serverActivity(server) : [])].filter(Boolean).join(' · ');
-  return html`<section class="models-card models-status" aria-label=${t('local.page.moteur')}>
+  const sizes = weights.map(m => m.size).filter(n => Number.isFinite(n) && n > 0);
+  return html`<div class="models-summary">
+    <section class="models-card models-status" aria-label=${t('local.page.moteur')}>
     <i class=${cls('dot', unavailable || starting ? 'amber' : st.tone)} aria-hidden="true"></i>
     <div class="models-row-main">
       <b>${title}</b>
       ${detail && html`<small>${detail}</small>`}
       ${status?.load_error && !unavailable && html`<small class="models-warning">${status.load_error}</small>`}
     </div>
+    <div class="models-actions">
+      <button class=${cls('btn', !status?.active && 'primary')} disabled=${!!pending || unavailable || !status} onClick=${toggle}>
+        ${status?.active ? t('local.page.arreter') : t('local.page.demarrer')}
+      </button>
+      ${status?.active && !unavailable && (status.model || status.via_api) && html`<${RowMenu} name=${name || kind}
+        items=${[{ label: t('local.page.decharger'), run: onUnload }]} />`}
+    </div>
+    </section>
+    <div class="models-card models-memory-card">
     <div class="models-memory-meter">
       <div><span>${t('models.library.gpu_memory')}</span>
         ${hasGPU && html`<span class="num">${gib(gpu.used)} / ${gib(gpu.total)} ${t('local.page.go')}</span>`}
@@ -99,14 +110,12 @@ function LibraryStatus({ onUnload, phone }) {
         : html`<small>${t('local.page.aucun_gpu_detecte')}</small>`}
       <${Tip} text=${[gpu?.name, t('local.page.ram_systeme') + ' · ' + ramLabel].filter(Boolean).join(' · ')} />
     </div>
-    <div class="models-actions">
-      <button class=${cls('btn', !status?.active && 'primary')} disabled=${!!pending || unavailable || !status} onClick=${toggle}>
-        ${status?.active ? t('local.page.arreter') : t('local.page.demarrer')}
-      </button>
-      ${status?.active && !unavailable && (status.model || status.via_api) && html`<${RowMenu} name=${name || kind}
-        items=${[{ label: t('local.page.decharger'), run: onUnload }]} />`}
     </div>
-  </section>`;
+    ${sizes.length > 0 && html`<div class="models-card models-disk-card">
+      <small>${t('noir.model_disk')}</small><b>${fmtBytes(sizes.reduce((sum, size) => sum + size, 0))}</b>
+      <span>${t('noir.model_file_count', { n: sizes.length })}</span>
+    </div>`}
+  </div>`;
 }
 
 function NewPreset({ models, onClose, onCreated }) {
@@ -237,14 +246,13 @@ function Library({ enginePicker, phone = false, defaultModel }) {
   const create = html`<button class="btn" onClick=${() => setCreating(true)}>${t('local.page.nouveau_preset')}</button>`;
 
   return html`
-    <${LibraryStatus} onUnload=${unload} phone=${phone} />
+    <${LibraryStatus} onUnload=${unload} phone=${phone} weights=${weights} />
     <div class="models-toolbar">
       <label class="search"><${Icon} n="search" />
         <input aria-label=${t('models.library.filter')} placeholder=${t('models.library.filter')} value=${q} onInput=${e => setQ(e.target.value)} />
       </label>
       ${enginePicker}
       ${!phone && create}
-      ${!phone && html`<a class="btn primary" href="#/local/hub">${t('local.page.telecharger_un_modele')}</a>`}
     </div>
     <section class="models-group" aria-labelledby="library-presets">
       <div class=${cls('models-section-head', phone && 'spread')}><h2 id="library-presets">${t('local.page.presets')}</h2>
@@ -292,6 +300,7 @@ function Library({ enginePicker, phone = false, defaultModel }) {
           const edit = () => openModel(m);
           const loadModel = () => load('/api/load-model', { model: m.value || m.path }, name);
           const isDefault = phone && defaultModel && defaultModel === m.path;
+          const action = on ? { label: t('local.page.decharger'), run: unload } : { label: t('local.page.charger'), run: loadModel };
           return html`<div class=${cls('models-row', phone && 'models-compact-row')} key=${m.path}>
             <div class="models-row-main" ...${inspectTrigger(edit, t('local.page.regler_2') + name)}>
               <b>${name}</b>
@@ -304,10 +313,10 @@ function Library({ enginePicker, phone = false, defaultModel }) {
               </small>
               ${phone && on && html`<span class=${stateClass}>${modelState}</span>`}
             </div>
-            <div class=${phone ? '' : 'models-actions'}>
-              ${!phone && html`${on ? html`<span class=${stateClass}>${modelState}</span>`
-                : html`<button class="btn sm" onClick=${loadModel}>${t('local.page.charger')}</button>`}
-                <button class="btn sm" onClick=${edit}>${t('local.page.regler')}</button>`}
+            <div class=${cls('models-actions', phone && 'models-phone-actions')}>
+              ${!phone && on && html`<span class=${stateClass}>${modelState}</span>`}
+              <button class="btn sm model-load" onClick=${action.run}>${action.label}</button>
+              ${!phone && html`<button class="btn sm" onClick=${edit}>${t('local.page.regler')}</button>`}
               <${RowMenu} name=${name} items=${[
                 ...(on ? [{ label: t('local.page.decharger'), run: unload }] : phone ? [{ label: t('local.page.charger'), run: loadModel }] : []),
                 ...(phone ? [{ label: t('local.page.regler'), run: edit }] : []),
@@ -370,6 +379,7 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
   const server = useEngineServer();
   const { status, unavailable } = useStore(app, s => ({ status: s.status, unavailable: s.unavailable?.status }));
   const [log, setLog] = useState(null);
+  const wantsLog = useStore(app, s => s.route?.section === 'engine' && s.route.sub === 'log');
   const [acting, setActing] = useState(false);
   const direct = node?.direct && !vllm;
   const x = vllm?.x;
@@ -405,6 +415,10 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
     try { setLog(x ? x.log || '' : (await get('/api/service/log?n=200')).log || ''); }
     catch (e) { toast(e.message, 'err'); }
   };
+  useEffect(() => {
+    if (wantsLog && !direct) showLog();
+  }, [wantsLog, direct]);
+  const closeLog = () => { setLog(null); if (wantsLog) go('engine'); };
   const engine = html`<section class="models-group">
     <div class="models-section-head"><h2>${t('local.page.moteur')}</h2></div>
     <div class="models-card">
@@ -431,7 +445,7 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
       </div>`}
     </div>
     ${error && html`<div class="alert red"><${Icon} n="alert" /><span>${error}</span></div>`}
-    ${log !== null && html`<${Drawer} title=${t('local.page.journal_du_moteur')} onClose=${() => setLog(null)}><pre class="log mono">${log || t('local.page.journal_vide')}</pre></${Drawer}>`}
+    ${log !== null && html`<${Drawer} title=${t('local.page.journal_du_moteur')} onClose=${closeLog}><pre class="log mono">${log || t('local.page.journal_vide')}</pre></${Drawer}>`}
   </section>`;
   return html`<div class="models-engine-grid">
     <div class="models-engine-column">${engine}${management?.(server)}</div>
@@ -497,7 +511,8 @@ export function LocalPage({ route }) {
   const hubKey = owner + '/' + hubQuery;
   return html`<div class="view page models-page" key=${route.sub}><div class=${cls('page-in models-layout', !hub && 'models-library')}>
     <${SectionTabs} />
-    ${!phone && html`<h1 class="sr">${hub ? t('local.page.hub') : t('local.page.bibliotheque')}</h1>`}
+    ${!phone && html`<header class="noir-page-head"><h1>${hub ? t('local.page.hub') : t('local.page.bibliotheque')}</h1>
+      ${!hub && !direct && which !== 'vllm' && html`<a class="btn primary" href="#/local/hub"><${Icon} n="download" />${t('local.page.telecharger_un_modele')}</a>`}</header>`}
     ${direct ? html`<${DirectLibrary} key=${owner} node=${node} hub=${hub} defaultModel=${defaultModel} />`
       : which === 'vllm' ? (hub ? html`<${VllmHub} key=${hubKey} v=${v} enginePicker=${enginePicker} initialQuery=${hubQuery} />`
         : html`<${VllmLibrary} key=${owner} v=${v} onHub=${() => go('local', 'hub')} enginePicker=${enginePicker} phone=${phone} defaultModel=${defaultModel} />`)

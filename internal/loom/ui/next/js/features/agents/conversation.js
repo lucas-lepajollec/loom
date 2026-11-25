@@ -65,13 +65,14 @@ export function Approval({ item, session, onTerminal, children, disabled = false
     ${children}
     <div class="cm-approval-h"><${Icon} n="alert" /><b>${item.kind === 'question' ? t('agents.approval.question') : t('agents.approval.permission')}</b>
       ${item.toolName && html`<span class="tag">${item.toolName}</span>`}</div>
-    ${(item.toolSummary || item.message) && html`<p class="cm-approval-msg">${item.toolSummary || item.message}</p>`}
+    ${item.message && item.message !== item.toolSummary && html`<p class="cm-approval-question">${item.message}</p>`}
+    ${item.toolSummary && html`<pre class="cm-approval-msg">${item.toolSummary}</pre>`}
     ${item.context && html`<details class="cm-approval-ctx"><summary>${t('agents.approval.screen')}</summary><pre>${item.context}</pre></details>`}
     <div class="cm-approval-acts">
       ${inTerminal ? html`<span class="muted">${t('agents.approval.in_terminal')}</span><button class="btn sm primary" onClick=${onTerminal}><${Icon} n="terminal" />${t('agents.approval.open_terminal')}</button>`
         : html`${(item.options && item.options.length ? item.options : [{ n: 1, label: t('agents.approval.approve') }]).map(o => html`<button class=${cls('btn sm', o.n === 1 && 'primary')} disabled=${busy || disabled}
               onClick=${() => run(item.options && item.options.length ? { action: 'option', option: o.n } : { action: 'approve' })}>${o.label}</button>`)}
-          <button class="btn sm danger" disabled=${busy || disabled} onClick=${() => run({ action: 'deny' })}>${t('agents.approval.deny')}</button>`}
+          <button class="btn sm" disabled=${busy || disabled} onClick=${() => run({ action: 'deny' })}>${t('agents.approval.deny')}</button>`}
       ${onAlternative && !inTerminal && item.kind === 'permission' && html`<button class="btn sm approval-alternative" disabled=${busy || disabled} onClick=${onAlternative}>${t('noir.alternative')}</button>`}
       <span class="grow"></span>
       <button class="btn sm" disabled=${busy || disabled} title=${t('agents.approval.dismiss_hint')} onClick=${() => dismissApproval(item).catch(e => toast(e.message, 'err'))}>${t('agents.approval.dismiss')}</button>
@@ -233,8 +234,8 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
           <p>${t('agents.conv.empty', { cli: cli.label })}</p></div>`}
         ${hasPrompt && capsOf(session.mode).transcript === 'screen' && html`<p class="cm-screen-note muted"><${Icon} n="info" />${t('agents.conv.screen_note')}</p>`}
         ${shown.map((b, i) => b.kind === 'activity' ? html`<${Activity} key=${'a' + i} items=${b.items} />`
-          : b.role === 'user' ? html`<div key=${i} class="msg-user"><div class="bubble">${b.text}</div></div>`
-          : html`<div key=${i} class="msg-ai"><div class="md" dangerouslySetInnerHTML=${{ __html: md(b.text) }}></div></div>`)}
+          : b.role === 'user' ? html`<div key=${i} class="msg-user"><div class="bubble" data-palette-message tabindex="-1">${b.text}</div></div>`
+          : html`<div key=${i} class="msg-ai" data-palette-message tabindex="-1"><div class="md" dangerouslySetInnerHTML=${{ __html: md(b.text) }}></div></div>`)}
         ${changes.length > 0 && onReview && html`<div class="agent-changes card">
           <span><${Icon} n="file" />${t('noir.changed_files', { n: new Set(changes.map(f => f.repo + '/' + f.path)).size })}</span>
           <button type="button" class="btn sm" onClick=${onReview}>${t('noir.review')}</button></div>`}

@@ -45,7 +45,7 @@ function TreeRow({ n, depth, current, open, toggle, refresh, filter }) {
   return html`<div class="fl-node">
     <div class=${cls('fl-row', current === n.path && 'on', n.dir && 'dir')} role="treeitem" aria-expanded=${n.dir ? String(isOpen) : undefined} aria-selected=${current === n.path ? 'true' : undefined}
         tabindex="0" style=${`padding-left:${8 + depth * 14}px`} onClick=${activate} onKeyDown=${e => e.key === 'Enter' && activate()}>
-      ${n.dir ? html`<${Icon} n=${isOpen ? 'chevron' : 'right'} class="fl-caret" />` : html`<i class="fl-caret"></i>`}
+      ${html`<${Icon} n=${n.dir ? isOpen ? 'chevron' : 'right' : 'file'} class="fl-caret" />`}
       <span class="fl-name">${n.dir || !/\.md$/i.test(n.name) ? n.name : n.name.replace(/\.md$/i, '')}</span>
       ${n.outside && !(n.dir && isOpen) && html`<i class="fl-dot" title=${t('files.changed_outside')}></i>`}
       <button class="icon-btn fl-more" aria-label=${t('files.actions')} onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
@@ -168,7 +168,21 @@ function MachineTree({ current, onSetBrain, header }) {
   </nav>`;
 }
 
-const recentlyModified = (nodes, since) => nodes.flatMap(n => n.dir ? recentlyModified(n.children || [], since) : n.modified > since ? [n] : []);
+function recentFiles(nodes) {
+  return nodes.flatMap(n => n.dir ? recentFiles(n.children || []) : n.modified > 0 ? [n] : []);
+}
+
+function RecentFiles({ files, current, phone }) {
+  if (!files.length) return null;
+  return html`<section class="fl-recent" aria-label=${t('mobile.files_recent')}>
+    <h2>${t('mobile.files_recent')}</h2>
+    ${files.map(n => html`<a class=${phone ? 'phone-link' : 'fl-recent-link'} key=${n.path}
+      href=${'#/files/n/' + encodeURIComponent(n.path)} aria-current=${current === n.path ? 'page' : undefined}>
+      <${Icon} n="file" /><span class="trunc"><b class="trunc">${n.name}</b>
+        ${phone && parentOf(n.path) && html`<small class="trunc">${parentOf(n.path)}</small>`}</span>
+      <small class="fl-recent-time">${ago(n.modified)}</small></a>`)}
+  </section>`;
+}
 
 function Tree({ data, current, refresh, header, phone }) {
   const [open, setOpen] = useState(() => new Set(load('loom.files.open', [])));
@@ -183,23 +197,19 @@ function Tree({ data, current, refresh, header, phone }) {
   const toggle = p => { const n = new Set(open); n.has(p) ? n.delete(p) : n.add(p); setOpen(n); save('loom.files.open', [...n]); };
   const query = q.trim().toLowerCase();
   const nodes = query ? filterTree(data.tree || [], query) : data.tree || [];
-  const recent = phone && !query ? recentlyModified(nodes, Date.now() - 86400000).sort((a, b) => b.modified - a.modified).slice(0, 4) : [];
+  const recent = query ? [] : recentFiles(nodes).sort((a, b) => b.modified - a.modified).slice(0, phone ? 4 : 3);
   const pull = usePullRefresh(refresh);
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
     ${header(html`
       <button class="icon-btn" aria-label=${t('files.new_note')} title=${t('files.new_note')} onClick=${() => newNote(current ? parentOf(current) : '', refresh)}><${Icon} n="edit" /></button>
       <button class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder(current ? parentOf(current) : '', refresh)}><${Icon} n="folder" /></button>`)}
     <label class="search fl-search"><${Icon} n="search" /><input placeholder=${t('files.search')} value=${q} onInput=${e => setQ(e.target.value)} aria-label=${t('files.search')} /></label>
-    <div class="fl-list" role="tree" ...${pull}>
-      ${recent.length > 0 && html`<section class="fl-recent">
-        <h2>${t('mobile.files_recent')}</h2>
-        ${recent.map(n => html`<a class="phone-link" key=${n.path} href=${'#/files/n/' + encodeURIComponent(n.path)}>
-          <${Icon} n="file" /><span><b class="trunc">${n.name.replace(/\.md$/i, '')}</b><small>${[parentOf(n.path), ago(n.modified)].filter(Boolean).join(' · ')}</small></span><${Icon} n="right" />
-        </a>`)}
-        <h2>${t('files.tree')}</h2>
-      </section>`}
-      ${nodes.map(n => html`<${TreeRow} key=${n.path} n=${n} depth=${0} current=${current} open=${open} toggle=${toggle} refresh=${refresh} filter=${!!query} />`)}
-      ${!nodes.length && html`<p class="fl-empty">${query ? t('files.no_match') : t('files.empty_folder')}</p>`}
+    <div class="fl-list" ...${pull}>
+      <div role="tree" aria-label=${t('files.tree')}>
+        ${nodes.map(n => html`<${TreeRow} key=${n.path} n=${n} depth=${0} current=${current} open=${open} toggle=${toggle} refresh=${refresh} filter=${!!query} />`)}
+        ${!nodes.length && html`<p class="fl-empty">${query ? t('files.no_match') : t('files.empty_folder')}</p>`}
+      </div>
+      <${RecentFiles} files=${recent} current=${current} phone=${phone} />
     </div>
     <p class="fl-root-path mono" title=${data.root}>${data.root}</p>
   </nav>`;
@@ -245,7 +255,7 @@ function Viewer({ path, refresh, narrow }) {
   return html`<section class="fl-view" aria-label=${path}>
     <header class="fl-head">
       ${narrow && html`<${BackButton} />`}
-      <span class="fl-crumbs">${crumbs.map((c, i) => html`${i > 0 && html`<i>/</i>`}<span class=${i === crumbs.length - 1 ? 'here' : ''}>${i === crumbs.length - 1 ? c.replace(/\.md$/i, '') : c}</span>`)}</span>
+      <span class="fl-crumbs">${crumbs.map((c, i) => html`${i > 0 && html`<i>/</i>`}<span class=${i === crumbs.length - 1 ? 'here' : ''}>${c}</span>`)}</span>
       <span class="grow"></span>
       <span class=${cls('fl-state', state)}>${state === 'saving' ? t('files.saving') : state === 'dirty' ? t('files.unsaved') : state === 'conflict' ? t('files.conflict_short') : file && file.modified ? t('files.saved') : ''}</span>
       <button class="icon-btn" aria-label=${t('files.actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
@@ -286,7 +296,7 @@ export function FilesPage({ route }) {
     if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
     toast(t('files.brain_set', { path })); await refresh(); setScope('brain');
   };
-  const phoneHeader = narrow && html`<header class="fl-head phone-subhead"><h1>${t('files.title')}</h1></header>`;
+  const phoneHeader = narrow && html`<header class="fl-head phone-title"><h1>${t('files.title')}</h1></header>`;
   if (!data) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
   const header = (actions, reload = refresh) => html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${narrow ? reload : refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} actions=${actions} />`;
   if (scopeNow === 'brain' && (!data.exists || setup)) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;

@@ -28,7 +28,20 @@ import { VLLMEngine } from './vllm.js';
 import { ListPick } from '../../ui/listpick.js';
 import { FolderPicker } from '../../ui/folder.js';
 
-const SECTIONS = () => ([['general', t("settings.page.general"), 'gear'], ['internet', t('settings.page.internet'), 'globe'], ['startup', t('startup.title'), 'power'], ['notifications', t('notify.title'), 'bell'], ['policy', t('policy.title'), 'lock'], ['doctor', t('doctor.title'), 'activity'], ['security', t("settings.page.securite_et_donnees"), 'lock'], ['about', t("settings.page.a_propos"), 'info']]);
+const SECTIONS = () => [
+  ['general', t('settings.page.general'), 'gear'],
+  ['access', t('noir.access'), 'key'],
+  ['agent-access', t('agent_access.title'), 'agent'],
+  ['policy', t('policy.title'), 'lock'],
+  ['notifications', t('notify.title'), 'bell'],
+  ['updates', t('settings.page.mises_a_jour'), 'download'],
+  ['network', t('noir.network'), 'server'],
+  ['internet', t('settings.page.internet'), 'globe'],
+  ['startup', t('startup.title'), 'power'],
+  ['doctor', t('doctor.title'), 'activity'],
+  ['security', t('settings.page.securite_et_donnees'), 'lock'],
+  ['about', t('settings.page.a_propos'), 'info'],
+];
 
 
 // Agents : connexion au serveur Codeman (détection automatique, voir agents/connection.js).
@@ -544,10 +557,7 @@ function Security() {
   });
   const vault = mem && (mem.encrypted || mem.vault_copies > 0);
   const blocked = busy || !!secretForm;
-  return html`<${HttpsSettings} />
-    <${AccessSettings} />
-    <${NetworkAccess} />
-    <${AgentAccess} />
+  return html`
     <${Group} title="${t("settings.page.memoire_et_donnees")}">
       <${Line} label="${t("settings.page.memoire_des_modeles_locaux")}" tip="${t("settings.page.desactivee_rien_n_est_retenu_entre_les_discussions_sur_demande_le")}">
         ${mode && html`<${Seg} size="sm" value=${mode} onChange=${async v => { await post('/api/memory', { mode: v }); setMode(v); }} options=${[{ value: 'off', label: t("settings.page.desactivee") }, { value: 'ondemand', label: t("settings.page.sur_demande") }]} />`}</${Line}>
@@ -592,6 +602,8 @@ function About() {
     ${paths && html`<${Group} title=${remote ? t('settings.about.engine_paths', { machine: engineName }) : t("settings.page.emplacements")}>${[[t("settings.page.donnees"), paths.home], [t("settings.page.base"), paths.database], [t("settings.page.modeles"), paths.models], ['Presets', paths.presets], [t("settings.page.moteurs"), paths.backends]].map(([l, p]) => html`<${Line} label=${l}><code class="mono path">${p}</code></${Line}>`)}</${Group}>`}`;
 }
 
+function NetworkSettings() { return html`<${HttpsSettings} /><${NetworkAccess} />`; }
+
 function PhoneSettings({ sections }) {
   const theme = useStore(app, s => s.theme);
   const version = useStore(app, s => s.serverInfo?.version);
@@ -615,7 +627,8 @@ function PhoneSettings({ sections }) {
     <${Group}>${themeLine(theme, setPref)}<${DefaultChoice} phone />${languageLine()}${link('general')}</${Group}>
     <${Group}><${PushNotifications} phone />${link('notifications', quietLabel)}</${Group}>
     <nav aria-label=${t('settings.page.reglages')}><${Group}>
-      ${['internet', 'startup', 'policy', 'security', 'doctor'].map(id => link(id))}
+      ${sections.filter(([id]) => !['general', 'notifications', 'about'].includes(id)).map(([id]) => link(id))}
+      <a href="#/cloud" class="phone-link phone-setting-link"><span>${t('noir.cloud_providers')}</span><${Icon} n="right" /></a>
       ${link('about', shortVersion(version))}
     </${Group}></nav>
   </div>`;
@@ -631,18 +644,23 @@ export function SettingsPage({ route }) {
     else if (route.sub === 'api') go('engine');
     else if (phone && route.sub && !selected) go('settings');
   }, [route.sub, phone]);
-  const View = { general: General, internet: Internet, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
+  const View = { general: General, access: AccessSettings, 'agent-access': AgentAccess, network: NetworkSettings, updates: LoomUpdates,
+    internet: Internet, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
   if (phone) return html`<div class="view page"><div class="page-in settings-page">
     <h1 class="phone-management-title">${selected ? selected[1] : t('settings.page.reglages')}</h1>
     ${selected ? html`<div class="set-body settings-body" key=${sec}><${View} route=${route} phone /></div>`
       : html`<${PhoneSettings} sections=${sections} />`}
   </div></div>`;
-  const items = sections.map(([id, label, icon]) => ({ href: '#/settings/' + id, label, icon, current: id === sec }));
+  const items = [
+    ...sections.map(([id, label, icon]) => ({ href: '#/settings/' + id, label, icon, current: id === sec })),
+    { href: '#/cloud', label: t('noir.cloud_providers'), icon: 'cloud' },
+  ];
   return html`<div class="view with-context">
     <${ContextNav} title=${t('settings.page.reglages')} items=${items} />
     <div class="context-content page">
-      <div class="page-in">
+      <div class="page-in noir-settings-in">
         <nav class="set-nav context-fallback" aria-label=${t('settings.page.reglages')}>${items.map(item => html`<a key=${item.href} href=${item.href} aria-current=${item.current ? 'page' : undefined}>${item.label}</a>`)}</nav>
+        <header class="noir-page-head"><h1>${selected?.[1] || sections[0][1]}</h1></header>
         <div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>
       </div>
     </div>

@@ -271,7 +271,6 @@
   .phone-app .cm-acc button>span{display:flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border-radius:var(--r-pill);background:var(--surface-2)}
   .phone-app .cm-acc button:active>span{background:var(--surface-3)}
   .phone-app .cm-acc button.on>span{background:var(--ink);color:var(--on-ink)}
-  .phone-app .cm-acc .cm-acc-break{color:var(--red)}
   .cm-phone-line{width:calc(100% - var(--phone-left) - var(--phone-right));margin:0 auto 8px}
   .phone-app .cm-term:has(.cm-phone-line) .cm-term-state{top:6px}
   .phone-app .cm-term-box .xterm-helper-textarea{font-size:16px}

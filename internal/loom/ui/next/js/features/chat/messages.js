@@ -202,7 +202,7 @@ function EditableUser({ it, pasted }) {
     <div class="edit-acts"><span class="muted">${t('chat.edit.note')}</span><button class="btn sm" onClick=${() => setEditing(false)}>${t('chat.edit.cancel')}</button>
       <button class="btn sm primary" disabled=${busy || !text.trim()} onClick=${() => { setEditing(false); editLast(text); }}>${t('chat.edit.resend')}</button></div></div>`;
   return html`<div class="msg-user can-edit">
-    ${pasted.text && html`<div class="bubble">${pasted.text}</div>`}
+    ${pasted.text && html`<div class="bubble" data-palette-message tabindex="-1">${pasted.text}</div>`}
     ${pasted.files.map(f => f.content === null ? html`<span class="file-pill"><${Icon} n="file" />${f.name}</span>` : html`<${Collapsible} icon="file" label=${f.name}><button class="btn sm" onClick=${() => downloadPaste(f)}>${t('chat.composer.download_text')}</button><${Body} text=${f.content} isPlain=${true} /></${Collapsible}>`)}
     <button type="button" class="icon-btn msg-edit" aria-label=${t('chat.edit.label')} title=${t('chat.edit.label')} disabled=${busy} onClick=${() => { setText(it.text); setEditing(true); }}><${Icon} n="edit" /></button>
   </div>`;
@@ -224,7 +224,7 @@ export function Messages({ items, gen, compacting, root, sessionId }) {
         if (sessionId && it.key === lastUser && !it.pending && !gen) return html`<${EditableUser} key=${i} it=${it} pasted=${pasted} />`;
         return html`<div key=${i} class=${cls('msg-user', it.pending && 'pending')}>
         ${it.files && it.files.length ? html`<div class="msg-files">${it.files.map(f => html`<span class="file-pill"><${Icon} n="file" />${f.name || String(f).split('/').pop()}</span>`)}</div>` : ''}
-        ${pasted.text && html`<div class="bubble">${pasted.text}</div>`}
+        ${pasted.text && html`<div class="bubble" data-palette-message tabindex="-1">${pasted.text}</div>`}
         ${pasted.files.map(f => f.content === null ? html`<span class="file-pill"><${Icon} n="file" />${f.name}</span>` : html`<${Collapsible} icon="file" label=${f.name}>
           <button class="btn sm" onClick=${() => downloadPaste(f)}>${t('chat.composer.download_text')}</button>
           <${Body} text=${f.content} isPlain=${true} />
@@ -234,10 +234,11 @@ export function Messages({ items, gen, compacting, root, sessionId }) {
       case 'reasoning': return html`<${Collapsible} key=${i} icon="brain" live=${it.live} cls="reason"
         label=${it.live ? t("chat.messages.reflexion_en_cours") : it.summary ? t("chat.messages.resume_de_reflexion") : it.tok > 0 ? t("chat.messages.reflexion_2") + fmtTok(it.tok) + ' tok' : t("chat.messages.reflexion")}>
         <${Body} text=${it.text} isPlain=${it.summary} live=${it.live} /></${Collapsible}>`;
-      case 'assistant': return html`<div key=${i} class="msg-ai"><${Body} text=${it.text} isPlain=${it.plain} live=${it.live} /></div>`;
+      case 'assistant': return html`<div key=${i} class="msg-ai" data-palette-message tabindex="-1"><${Body} text=${it.text} isPlain=${it.plain} live=${it.live} /></div>`;
       case 'foot': return html`<${Foot} key=${i} it=${it} />`;
       case 'error': return html`<div key=${i} class="msg-err"><${Icon} n="alert" /><span>${it.text}</span></div>`;
-      case 'compact': return html`<div key=${i} class="compact-mark"><span>${t("chat.messages.contexte_compacte_anciens_tours_resumes")}</span></div>`;
+      case 'compact': return html`<div key=${i} class="compact-mark"><${Icon} n="refresh" /><span>${t('noir.compacted')}</span>
+        ${it.before > 0 && it.after >= 0 && it.after < it.before && html`<small class="mono">${fmtTok(it.before)} → ${fmtTok(it.after)}</small>`}</div>`;
       default: return null;
     }
   };
