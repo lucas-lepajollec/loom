@@ -50,8 +50,8 @@ try {
   const runtimes = (ws.runtimes || []).map(r => r.id);
   let routes = ['sessions', 'inbox', 'more', 'more/jarvis', 'chat', 'models', 'cloud', 'local', 'engine', 'workspaces', 'terminals', 'local/hub', 'voice', 'jarvis',
     'machines', 'machines/local', 'machines/' + remote.id, 'machines/workspaces', 'machines/terminals', 'machines/environment',
-    'files', 'usage', 'quotas', 'market', 'agents', 'agents/s/fixture-session-0', 'agents/cron', 'agents/settings',
-    'settings', 'settings/general', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
+    'files', 'usage', 'quotas', 'market', 'agents', 'agents/s/fixture-session-0', 'agents/cron', 'agents/tools', 'agents/history', 'agents/settings',
+    'settings', 'settings/general', 'settings/access', 'settings/agent-access', 'settings/network', 'settings/updates', 'settings/internet', 'settings/startup', 'settings/notifications', 'settings/policy', 'settings/doctor', 'settings/security', 'settings/about'];
   if (process.env.CRAWL_ROUTES) routes = routes.filter(r => new RegExp(process.env.CRAWL_ROUTES).test(r));
   const fixtureSessions = ['cloud'].map(kind => ({ id: 'fixture-' + kind, title: 'Synthetic ' + kind + ' discussion', runtime_id: kind === 'cloud' ? 'openai-compatible' : 'fixture-agent', provider_id: 'fixture', provider_name: kind === 'cloud' ? 'Fixture cloud' : 'Fixture agent', model: 'fixture-model', status: 'idle', messages: [], turns: [], message_count: 1 }));
   const scenarios = ['fresh', 'healthy', 'phone-layout', '401', '502', 'malformed-json', 'wrong-shape', 'abort', 'offline', 'engine-unreachable'];
@@ -317,6 +317,14 @@ try {
         if (await tabBar.isVisible()) throw new Error('Tab bar is visible behind the search sheet');
         await swipe(search.locator('.sheet-grab'), [100, 530], [100, 640]);
         await search.waitFor({ state: 'detached' });
+        await page.getByRole('button', { name: dictionary['app.palette.rechercher'], exact: true }).click();
+        await search.getByRole('combobox').fill('route-search-note');
+        const fileResult = search.locator('[role=option]', { hasText: 'route-search-note.md' });
+        try { await fileResult.click({ timeout: 5000 }); }
+        catch (error) { throw new Error('File search failed for ' + await search.getByRole('combobox').inputValue() + ': ' + await search.locator('.palette-list').innerText(), { cause: error }); }
+        await page.locator('.fl-view .fl-crumbs').getByText('route-search-note.md', { exact: true }).waitFor();
+        await page.locator('.fl-view .phone-back').click();
+        await page.locator('.phone-session-list').waitFor();
         await page.getByRole('button', { name: dictionary['side.new_session'], exact: true }).click();
         const newSession = page.locator('.phone-new-session');
         await newSession.locator('.new-executors').getByRole('button', { name: 'Claude Code' }).click();
@@ -335,6 +343,17 @@ try {
         if (await tabBar.isVisible()) throw new Error('Tab bar is visible in a discussion');
         await swipe(page.locator('.chat-view'), [10, 180], [105, 182]);
         await page.locator('.phone-session-list').waitFor();
+      }
+      if (!phone && scenario === 'phone-layout' && r === 'inbox') {
+        await page.locator('.loom-context a[href="#/inbox/fixture-approval"]').click();
+        const selected = page.locator('.inbox-item[data-current]');
+        await selected.waitFor();
+        if (await page.locator('.inbox-item').count() !== 1) throw new Error('Desktop inbox did not open the selected approval');
+        const deny = selected.getByRole('button', { name: dictionary['agents.approval.deny'], exact: true });
+        if ((await deny.getAttribute('class')).includes('danger')) throw new Error('The decline action should be neutral');
+        await page.getByRole('button', { name: dictionary['noir.mark_read'], exact: true }).click();
+        await deny.waitFor();
+        if (await page.locator('.loom-context a[href*="done%3A"]').count()) throw new Error('Read updates remain in the inbox');
       }
       if (phone && scenario === 'phone-layout' && r === 'inbox') {
         await page.evaluate(() => { location.hash = '#/inbox/fixture-approval'; });

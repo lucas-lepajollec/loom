@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Extend Loom Noir to Files, Models, Agents, Settings and Inbox. Agents has
+  dedicated Tools and History views. Settings exposes account, agent access,
+  network and updates as separate sections. The command palette searches
+  visible messages and file names, and Inbox separates pending requests from
+  completed-session notices. Activity and Machines keep their existing views.
+
+
 - Loom Noir redesigns the navigation and session workspace with a context
   column, a shared session list, session details tabs, and a new-session
   composer. On phones, Files joins Sessions, Inbox, and More in the bottom

@@ -36,7 +36,7 @@ function harness(source, view, overrides = {}) {
     t: french, tSource: s => s, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu', ListPick: 'ListPick', shortVersion: v => String(v || ''),
-    ContextNav: 'ContextNav', Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', AgentAccess: 'AgentAccess', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
+    ContextNav: 'ContextNav', LoomUpdates: 'LoomUpdates', Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', AgentAccess: 'AgentAccess', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
     inspectTrigger: () => ({}), baseName: p => (p || '').split('/').pop(),
     useState(initial) {
       const i = cursor++;
@@ -443,7 +443,10 @@ test('mobile Settings opens quick controls and links to each settings detail', (
   assert.ok(flatten(page).some(n => n.type?.name === 'DefaultChoice' && n.props.phone));
   assert.ok(flatten(page).some(n => n.type?.name === 'PushNotifications' && n.props.phone));
   const links = nodes(page, 'a');
-  assert.equal(links.length, 8);
+  assert.equal(links.length, 13);
+  for (const href of ['#/settings/agent-access', '#/settings/access', '#/settings/network', '#/settings/updates', '#/cloud']) {
+    assert.ok(links.some(link => link.props.href === href), href + ' is reachable from the phone index');
+  }
   for (const moved of ['Agents', 'API']) assert.ok(!links.some(n => textOf(n).trim() === moved), moved + ' lives on its own page');
   assert.equal(links.find(n => textOf(n).includes('Démarrage')).props.href, '#/settings/startup');
   for (const moved of ['Machines', 'Espaces de travail', 'Moteurs']) assert.ok(!links.some(n => textOf(n).includes(moved)), moved + ' lives on its domain page, not in Settings');

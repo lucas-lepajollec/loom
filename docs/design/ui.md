@@ -6,7 +6,8 @@ near limit. Diff lines use soft green and red. The light theme is still
 available through Settings.
 
 The shared styles live in [app.css](../../internal/loom/ui/next/css/app.css)
-and [noir.css](../../internal/loom/ui/next/css/noir.css).
+[noir.css](../../internal/loom/ui/next/css/noir.css), and
+[noir-pages.css](../../internal/loom/ui/next/css/noir-pages.css).
 
 ## Tokens
 
@@ -60,3 +61,18 @@ The local Model panel uses two fine sliders on Essential. Context includes
 a numeric input and shows the native and effective values. Advanced groups
 sampling, memory and speed, and speculative decoding. Expert keeps the
 filterable native flags. Both tiers use fields, menus, and switches.
+
+The desktop Files column keeps the tree, source selector, search, and recent
+files next to the editor. On a phone the tree and editor have separate
+screens. The Models column groups the library, Hub, Cloud, Voice, and Engine.
+Agents gives Tools and History their own pages alongside Overview, Scheduled,
+and the Codeman connection. Settings links directly to account access, agent
+access, policy, notifications, updates, network, and data controls.
+
+Inbox uses a selected item beside its desktop list and cards on phones.
+Mark all read clears completed-session notices. Approvals and reply requests
+stay available until handled. The command palette searches session names,
+model names, file names in the configured Files tree, and messages already
+displayed in the active thread. It opens links in a new tab with Ctrl/⌘+Enter.
+
+Activity and Machines keep their existing charts, cards, and content.
