@@ -1,3 +1,5 @@
+import { ContextNav } from './sections.js';
+import { Activity } from './activity.js';
 import { t } from '../core/i18n.js';
 import { html, useEffect, useRef, useState, useStore } from '../core/lib.js';
 import { Empty } from '../ui/controls.js';
@@ -89,8 +91,14 @@ export function InboxPage({ route }) {
     target?.scrollIntoView({ block: 'nearest' });
     target?.focus({ preventScroll: true });
   }, [route.sub, matched]);
-  return html`<div class="view phone-page">
-    <header class="phone-title"><h1>${t('mobile.inbox')}</h1></header>
+  const items = [...approvals, ...replies].map(item => ({
+    href: '#/inbox/' + encodeURIComponent(item.id), label: item.toolSummary || item.message || st.sessions[item.sessionId]?.name || t('mobile.reply_waiting'),
+    icon: 'inbox', current: item.id === route.sub,
+  }));
+  return html`<div class="view with-context inbox-view">
+    <${ContextNav} title=${t('mobile.inbox')} items=${items} />
+    <div class="context-content phone-page">
+    <header class="phone-title"><h1>${t('mobile.inbox')}</h1><${Activity} /></header>
     <div class="phone-scroll inbox-list" ref=${list} ...${pull}>
       ${st.conn.configured && !ready && html`<a class="inbox-card phone-link" href="#/agents"><${Icon} n="alert" /><span>${t('mobile.inbox_unavailable')}</span><${Icon} n="right" /></a>`}
       ${waiting.map(item => html`<div key=${item.request_id} class="inbox-item"><${LoomApproval} item=${item} class="inbox-card" /></div>`)}
@@ -112,5 +120,5 @@ export function InboxPage({ route }) {
         (st.conn.state === 'idle' || ready && !st.loaded ? html`<div class="skeleton inbox-loading"></div>`
           : html`<${Empty} icon="inbox" title=${t('mobile.inbox_empty')} />`)}
     </div>
-  </div>`;
+  </div></div>`;
 }

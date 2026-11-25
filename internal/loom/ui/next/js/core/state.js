@@ -5,13 +5,13 @@ import { createStore } from './lib.js';
 import { get } from './api.js';
 import { visibleRefresh, singleFlight } from './poll.js';
 import { validShape, validData } from './shape.js';
-import { isPhone } from './viewport.js';
+import { isPhone, phoneQuery } from './viewport.js';
 
 const observation = url => value => value === null || validData(value, url);
 export const app = createStore({
   route: parseRoute(),
   theme: localStorage.getItem('loom-theme') || 'dark',
-  palette: false, inspector: innerWidth > 1100 && localStorage.getItem('loom.next.insp') !== '0', phoneDraft: null, phoneChatRevision: 0,
+  palette: false, inspector: innerWidth >= 1180 && localStorage.getItem('loom.next.insp') !== '0', phoneDraft: null, phoneChatRevision: 0,
   status: null, serverInfo: null, gpus: [], ram: null, engineNode: null,
   workspace: null, presets: [], models: [],
   nav: { conversations: [], projects: [], active: '' }, unavailable: {},
@@ -55,7 +55,7 @@ addEventListener('hashchange', () => {
   app.set({ route, phoneDraft, inspector: isPhone() ? false : app.get().inspector,
     voiceMode: route.section === 'chat' ? app.get().voiceMode ?? null : null });
 });
-globalThis.matchMedia?.('(max-width: 760px)').addEventListener('change', () => {
+globalThis.matchMedia?.(phoneQuery).addEventListener('change', () => {
   if (!location.hash) app.set({ route: parseRoute() });
 });
 
@@ -67,9 +67,9 @@ export function enterPhoneChat(draft) {
   app.set({ route: parseRoute(), phoneDraft: draft, phoneChatRevision: app.get().phoneChatRevision + 1 });
 }
 
-export function phoneTab({ section, sub }) {
+export function phoneTab({ section, sub, id }) {
   if (section === 'sessions' || section === 'inbox' || (section === 'more' && !sub)) return section;
-  if (['quotas', 'usage', 'market'].includes(section)) return 'usage';
+  if (section === 'files' && !id) return 'files';
   return '';
 }
 
@@ -77,7 +77,7 @@ export function phoneParent({ section, sub }) {
   if (section === 'machines' && sub) return 'machines';
   if (section === 'settings' && sub) return 'settings';
   if (section === 'agents' && ['s', 'grid'].includes(sub)) return '';
-  return ['local', 'cloud', 'voice', 'jarvis', 'engine', 'agents', 'machines', 'settings'].includes(section) ? 'more' : '';
+  return ['local', 'cloud', 'voice', 'jarvis', 'engine', 'agents', 'machines', 'settings', 'quotas', 'usage', 'market'].includes(section) ? 'more' : '';
 }
 
 export function phoneBack() {

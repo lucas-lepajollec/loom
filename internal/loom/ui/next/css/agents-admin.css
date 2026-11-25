@@ -41,7 +41,7 @@
 .cm-manual,.cm-adv{display:flex;flex-direction:column;gap:12px;padding:4px 0 0 20px}
 .cm-inline-field{display:flex;gap:8px}
 .cm-inline-field .input{flex:1;min-width:0}
-@media(max-width:760px){
+@media(max-width:639px){
   .cm-found-pw{grid-template-columns:minmax(0,1fr)}
   .cm-manual,.cm-adv{padding-left:0}
   .cm-found-h{flex-wrap:wrap}
@@ -196,7 +196,7 @@
   .cm-server-info{min-width:55%}
 }
 
-@media(max-width:760px){
+@media(max-width:639px){
   .cm-admin-top,.cm-cc,.cm-cron,.cm-cfg{padding-inline:var(--manage-left,16px) var(--manage-right,16px)}
   .cm-cc,.cm-cron,.cm-cfg{padding-block:12px calc(32px + var(--phone-bottom))}
   .cm-cc{gap:16px}

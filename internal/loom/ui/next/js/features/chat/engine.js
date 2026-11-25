@@ -245,7 +245,7 @@ export async function open(id, soft, quiet) {
 }
 
 // Nouvelle discussion : le chat natif archive la courante et repart à zéro.
-export async function newDiscussion(projectId, { navigate = true } = {}) {
+export async function newDiscussion(projectId, { navigate = true, choice } = {}) {
   const ep = ++epoch; opening = true; if (abort) abort.abort();
   remember('');
   restartNative(false);
@@ -257,8 +257,8 @@ export async function newDiscussion(projectId, { navigate = true } = {}) {
   if (ep !== epoch) return false;
   let ready = !!r.ok;
   if (!r.ok) toast(t("chat.engine.impossible_de_creer_la_discussion"), 'err');
-  else if (r.initial_choice) {
-    const choice = r.initial_choice;
+  else if (choice || r.initial_choice) {
+    choice ||= r.initial_choice;
     if (choice.kind === 'local') ready = await chooseLocal({ model: choice.engine_value || choice.model, path: choice.model, name: choice.name });
     else ready = await chooseRemote(choice, { quiet: true });
   }

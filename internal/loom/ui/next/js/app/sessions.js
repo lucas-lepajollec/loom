@@ -9,7 +9,7 @@ import { Menu, Seg } from '../ui/controls.js';
 import { prompt, confirm, toast } from '../ui/dialog.js';
 import { get, post } from '../core/api.js';
 import { app, go, refreshNav, refreshStatus, runtimeKind } from '../core/state.js';
-import { chat, open, newDiscussion } from '../features/chat/engine.js';
+import { chat } from '../features/chat/engine.js';
 import { agents, stateOf, sessionList, restorable, cliOf, projectOf } from '../features/agents/store.js';
 import { closeSession, renameSession } from '../features/agents/actions.js';
 import { CliMark } from '../features/agents/new-session.js';
@@ -17,7 +17,7 @@ import { openSession } from '../features/agents/nav.js';
 import { layout, toggleGrid } from '../features/agents/layout.js';
 import { DRAG_TYPE } from '../features/agents/grid.js';
 import { lt } from '../features/agents/labels.js';
-import { ago, StateDot } from '../features/agents/rail.js';
+import { ago } from '../features/agents/rail.js';
 import { openPalette } from './palette.js';
 import { defaultModel, startPhoneDiscussion } from './phone-discussion.js';
 import { inboxItems, refreshAgentInbox } from './inbox.js';
@@ -29,6 +29,17 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 // Dossier de chaque session Codeman, gardé par Loom.
 export const agentFolders = createStore({ map: {} });
 export const refreshAgentFolders = () => get('/api/agent-folders').then(r => { if (r && r.ok) agentFolders.set({ map: r.folders || {} }); }).catch(() => {});
+
+const pins = createStore({ ids: load('loom.noir.session-pins', []) });
+const pinKey = it => it.kind + ':' + it.id;
+function localPin(it) {
+  return { label: it.pinned ? t('app.shell.desepingler') : t('app.shell.epingler'), icon: 'star', run: () => {
+    const key = pinKey(it);
+    const old = pins.get().ids;
+    const ids = old.includes(key) ? old.filter(id => id !== key) : [...old, key];
+    pins.set({ ids }); save('loom.noir.session-pins', ids);
+  } };
+}
 
 const FILTERS = ['all', 'chats', 'agents'];
 const filterLabel = f => f === 'chats' ? t('side.filter_chats') : f === 'agents' ? t('side.filter_agents') : t('side.filter_all');
@@ -75,7 +86,7 @@ function chatMenu(it) {
     } },
     ...(!c.workspace ? [{ label: c.fav ? t('app.shell.desepingler') : t('app.shell.epingler'), icon: 'star', run: async () => {
       const r = await post('/api/chat/history/fav', { id: c.id, fav: !c.fav }); if (r.ok === false) toast(r.error || t('app.shell.impossible'), 'err'); refreshNav();
-    } }] : []),
+    } }] : [localPin(it)]),
     ...moveItems(it),
     '-',
     { label: t('app.shell.supprimer'), icon: 'trash', danger: true, run: async () => {
@@ -93,6 +104,7 @@ function agentMenu(it) {
       const name = await prompt(t('agents.session.rename'), { value: s.name || '' });
       if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
     } },
+    localPin(it),
     ...moveItems(it),
     '-',
     { label: t('agents.session.close'), icon: 'trash', danger: true, run: async () => {
@@ -106,19 +118,15 @@ let dragged = null;
 function Row({ it, current }) {
   const [menu, setMenu] = useState(null);
   const agent = it.kind === 'agent';
-  const state = agent ? stateOf(it.s) : '';
-  const busy = agent ? state === 'working' || state === 'starting' : it.c.status === 'running';
-  const activate = () => { if (agent) openSession(it.id); else { open(it.id); go('chat'); } };
+  const state = it.state;
+  const activate = () => { if (agent) openSession(it.id); else go('chat', it.id); };
   return html`<div class=${cls('chat-link', 'ses-row', agent && 'st-' + state)} aria-current=${current ? 'page' : undefined} role="button" tabindex="0" draggable="true" title=${agent ? it.s.workingDir || '' : ''}
       onDragStart=${e => { e.dataTransfer.effectAllowed = 'move'; if (agent) e.dataTransfer.setData(DRAG_TYPE, it.id); else e.dataTransfer.setData('application/x-loom-chat', it.id); dragged = it; }}
       onDragEnd=${() => { dragged = null; }}
       onClick=${activate} onKeyDown=${e => e.key === 'Enter' && activate()}>
     <span class="ses-ico">${agent ? html`<${CliMark} mode=${it.s.mode} size="xs" />` : html`<${Icon} n="chat" />`}</span>
     <span>${it.title}</span>
-    ${agent && state === 'waiting' ? html`<i class="dot blue" title=${lt('state', state)}></i>`
-      : busy ? html`<i class="run" title=${agent ? lt('state', state) : ''}></i>`
-      : agent && state === 'error' ? html`<i class="dot red" title=${lt('state', state)}></i>`
-      : agent && state === 'limited' ? html`<i class="dot" title=${lt('state', state)}></i>`
+    ${stateLabel(state) ? html`<small class=${'ses-status st-' + state}>${stateLabel(state)}</small>`
       : it.at ? html`<small class="ses-when">${ago(it.at)}</small>` : ''}
     <button class="icon-btn more" aria-label=${t('app.shell.actions')} onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${agent ? agentMenu(it) : chatMenu(it)} />`}
@@ -134,11 +142,11 @@ function dropZone(folder, setOver) {
   };
 }
 
-function Folder({ p, items, open: isOpen, toggle, isCurrent, phone, waiting }) {
+function Folder({ p, items, open: isOpen, toggle, isCurrent, phone }) {
   const [menu, setMenu] = useState(null);
   const [over, setOver] = useState(false);
   const items_ = [
-    { label: t('side.new_here'), icon: 'plus', run: () => phone ? agents.set({ creating: { type: 'chat', folder: p.id } }) : newDiscussion(p.id) },
+    { label: t('side.new_here'), icon: 'plus', run: () => agents.set({ creating: { type: 'chat', folder: p.id } }) },
     { label: t('side.rename_folder'), icon: 'edit', run: async () => {
       const name = await prompt(t('side.rename_folder'), { value: p.name });
       if (!name || name === p.name) return;
@@ -159,7 +167,7 @@ function Folder({ p, items, open: isOpen, toggle, isCurrent, phone, waiting }) {
       <button class="icon-btn" type="button" aria-label=${t('side.folder_actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
     </div>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items_} />`}
-    ${isOpen && html`<div class="phone-folder-items">${items.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} waiting=${waiting} />`)}</div>`}
+    ${isOpen && html`<div class="phone-folder-items">${items.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} />`)}</div>`}
   </div>`;
   return html`<div class=${cls('ses-folder', over && 'drop-on')} ...${dropZone(p.id, setOver)}>
     <div class="chat-link ses-folder-h" role="button" tabindex="0" aria-expanded=${String(isOpen)} onClick=${toggle} onKeyDown=${e => e.key === 'Enter' && toggle()}>
@@ -172,20 +180,18 @@ function Folder({ p, items, open: isOpen, toggle, isCurrent, phone, waiting }) {
   </div>`;
 }
 
-function phoneState(it, waiting) {
-  if (it.kind === 'chat') return it.c.status === 'running' ? 'working' : '';
-  return waiting.has(it.id) ? 'waiting' : stateOf(it.s);
-}
+const stateLabel = state => state === 'waiting' ? t('side.waiting')
+  : ['working', 'starting', 'error', 'limited'].includes(state) ? lt('state', state) : '';
 
-function PhoneSessionRow({ it, waiting }) {
+function PhoneSessionRow({ it }) {
   const [menu, setMenu] = useState(null);
   const action = useRef(), swipe = useRef(null), hold = useRef(null), suppress = useRef(0);
   const agent = it.kind === 'agent';
-  const state = phoneState(it, waiting);
+  const state = it.state;
   const model = agent ? [cliOf(it.s.mode).label, it.s.workingDir && projectOf(it.s.workingDir)]
     : [baseName(it.c.model).replace(/\.gguf$/i, ''), it.c.runtime_id && (runtimeKind(it.c.runtime_id) === 'cloud' ? t('chat.picker.cloud')
       : runtimeKind(it.c.runtime_id) === 'local' ? t('chat.picker.local') : t('mobile.archive'))];
-  const stateLabel = ['working', 'starting', 'waiting', 'error', 'limited'].includes(state) ? lt('state', state) : '';
+  const status = stateLabel(state);
   const showMenu = () => { suppress.current = Date.now() + 400; setMenu(action.current); };
   const cancelHold = () => clearTimeout(hold.current);
   useEffect(() => cancelHold, []);
@@ -212,7 +218,7 @@ function PhoneSessionRow({ it, waiting }) {
     }}>
       ${agent ? html`<${CliMark} mode=${it.s.mode} size="sm" />` : html`<${Icon} n="chat" />`}
       <span><b class="trunc">${it.title}</b>${model.some(Boolean) && html`<small class="trunc">${model.filter(Boolean).join(' · ')}</small>`}</span>
-      ${stateLabel ? html`<small class=${'phone-row-state st-' + state}><${StateDot} state=${state} />${stateLabel}</small>`
+      ${status ? html`<small class=${'phone-row-state st-' + state}>${status}</small>`
         : it.at ? html`<small class="phone-row-time">${ago(it.at)}</small>` : ''}
     </button>
     <button type="button" class="icon-btn" ref=${action} aria-label=${t('app.shell.actions')} onClick=${showMenu}><${Icon} n="more" /></button>
@@ -220,21 +226,12 @@ function PhoneSessionRow({ it, waiting }) {
   </div>`;
 }
 
-function PhoneSessions({ filter, setFilter, items, folders, openFolders, toggleFolder, cut, conn, newFolder }) {
-  const waiting = useStore(agents, st => {
-    const { approvals, replies } = inboxItems(st);
-    return [...approvals, ...replies].map(a => a.sessionId);
-  });
-  const waitingIds = new Set(waiting);
-  const nativeRunning = useStore(chat, s => s.mode === 'native' && s.busy);
-  const nativeId = useStore(app, s => s.nav.active);
-  const shown = nativeRunning && nativeId ? items.map(it => it.kind === 'chat' && it.id === nativeId ? { ...it, c: { ...it.c, status: 'running' } } : it) : items;
-  const active = shown.filter(it => ['working', 'starting', 'waiting'].includes(phoneState(it, waitingIds)));
-  const recent = shown.filter(it => !it.folder && !active.includes(it));
+function PhoneSessions({ filter, setFilter, grouped, folders, openFolders, toggleFolder, cut, conn, newFolder, attention }) {
+  const { pinned, active, recent, finished } = grouped;
   const model = useStore(app, defaultModel);
   useStore(chat, s => s.localTarget);
   const pull = usePullRefresh(() => Promise.allSettled([refreshNav(), refreshAgentFolders(), refreshStatus(), refreshAgentInbox()]));
-  const sessionRows = rows => rows.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} waiting=${waitingIds} />`);
+  const sessionRows = rows => rows.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} />`);
   return html`<div class="view phone-page phone-sessions">
     <header class="phone-title"><h1>${t('mobile.sessions')}</h1>
       <button type="button" class="icon-btn" aria-label=${t('app.palette.rechercher')} onClick=${openPalette}><${Icon} n="search" /></button>
@@ -243,12 +240,17 @@ function PhoneSessions({ filter, setFilter, items, folders, openFolders, toggleF
     <div class="phone-filters"><${Seg} label=${t('mobile.filter_sessions')} value=${filter} onChange=${setFilter} options=${FILTERS.map(value => ({ value, label: value === 'all' ? t('mobile.all') : filterLabel(value) }))} /></div>
     <div class="phone-scroll phone-session-list" ...${pull}>
       ${filter !== 'chats' && conn.state === 'ready' && cut.length > 0 && html`<a class="phone-link phone-restore" href="#/inbox"><${Icon} n="refresh" /><span>${t('agents.restore.side', { n: cut.length })}</span><${Icon} n="right" /></a>`}
+      ${attention.length > 0 && html`<a class="phone-link session-attention" href="#/inbox"><${Icon} n="inbox" /><span>
+        <b>${t('side.waiting_count', { n: attention.length })}</b>
+        <small class="trunc">${attention.slice(0, 2).map(a => a.toolSummary || a.message).filter(Boolean).join(' · ')}</small></span><${Icon} n="right" /></a>`}
       ${active.length > 0 && html`<section><h2>${t('mobile.in_progress')}</h2>${sessionRows(active)}</section>`}
+      ${pinned.length > 0 && html`<section><h2>${t('side.pinned')}</h2>${sessionRows(pinned)}</section>`}
       <section><div class="phone-section-head"><h2>${t('mobile.recent')}</h2><button type="button" class="icon-btn" aria-label=${t('side.new_folder')} onClick=${newFolder}><${Icon} n="folder" /></button></div>
-        ${sessionRows(recent)}
-        ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${shown.filter(it => it.folder === p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} phone waiting=${waitingIds} />`)}
-        ${!items.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}
+        ${sessionRows(recent.filter(it => !it.folder))}
+        ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${recent.filter(it => it.folder === p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} phone />`)}
+        ${!pinned.length && !active.length && !recent.length && !finished.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}
       </section>
+      ${finished.length > 0 && html`<details class="session-finished"><summary>${t('side.finished')} <small>${finished.length}</small></summary>${sessionRows(finished)}</details>`}
       ${conn.configured && conn.state !== 'ready' && filter !== 'chats' && html`<a class="phone-link" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span><${Icon} n="right" /></a>`}
     </div>
     <div class="phone-quick"><button type="button" class="composer" onClick=${() => startPhoneDiscussion()}><span class="trunc">${model ? t('mobile.write_to', { model }) : t('chat.composer.placeholder')}</span><${Icon} n="mic" /></button></div>
@@ -263,11 +265,16 @@ export function Sessions({ phone = false }) {
   const { route, nav } = useStore(app, s => ({ route: s.route, nav: s.nav }));
   const conn = useStore(agents, s => s.conn);
   useStore(agents, s => [s.order, s.sessions]);
+  const { approvals: attention, replies } = useStore(agents, inboxItems);
+  const waitingIds = new Set([...attention, ...replies].map(a => a.sessionId));
+  const running = useStore(chat, s => s.mode === 'native' && s.busy);
+  const localPins = useStore(pins, s => s.ids);
   const folderMap = useStore(agentFolders, s => s.map);
   const chatId = useStore(chat, s => s.sessionId) || nav.active;
   const [filter, setFilterState] = useState(() => { const f = load('loom.side.filter', 'all'); return FILTERS.includes(f) ? f : 'all'; });
   const [openFolders, setOpenFolders] = useState(() => new Set(load('loom.next.proj', [])));
   const [fmenu, setFmenu] = useState(null);
+  const [query, setQuery] = useState('');
   const [overLoose, setOverLoose] = useState(false);
   useEffect(() => { refreshAgentFolders(); }, []);
   const setFilter = f => { setFilterState(f); save('loom.side.filter', f); };
@@ -282,8 +289,19 @@ export function Sessions({ phone = false }) {
   const known = new Set(folders.map(p => p.id));
   const all = [...chats, ...live].map(it => (known.has(it.folder) ? it : { ...it, folder: '' }))
     .sort((a, b) => (b.pinned - a.pinned) || (b.at - a.at));
-  const inFolder = id => all.filter(it => it.folder === id);
-  const loose = all.filter(it => !it.folder);
+  const q = query.trim().toLocaleLowerCase();
+  const shown = all.map(it => ({ ...it, pinned: it.pinned || localPins.includes(pinKey(it)),
+    state: it.kind === 'agent' ? waitingIds.has(it.id) ? 'waiting' : stateOf(it.s)
+      : it.c.status === 'running' || running && it.id === chatId ? 'working' : '',
+  })).filter(it => !q || [it.title, it.s?.workingDir, it.c?.model].some(value => value?.toLocaleLowerCase().includes(q)));
+  const grouped = { pinned: [], active: [], recent: [], finished: [] };
+  for (const it of shown) {
+    if (it.pinned) grouped.pinned.push(it);
+    else if (['working', 'starting', 'waiting'].includes(it.state)) grouped.active.push(it);
+    else if (it.state === 'stopped') grouped.finished.push(it);
+    else grouped.recent.push(it);
+  }
+  const inFolder = id => grouped.recent.filter(it => it.folder === id);
   const onAgents = route.section === 'agents' && route.sub === 's';
   const isCurrent = it => (it.kind === 'agent' ? onAgents && route.id === it.id : route.section === 'chat' && it.id === chatId);
 
@@ -293,26 +311,33 @@ export function Sessions({ phone = false }) {
     const r = await post('/api/projects', { name });
     if (!r.ok) toast(r.error || t('app.shell.creation_impossible'), 'err'); refreshNav();
   };
-  if (phone) return html`<${PhoneSessions} filter=${filter} setFilter=${setFilter} items=${all} folders=${folders} openFolders=${openFolders}
+  if (phone) return html`<${PhoneSessions} filter=${filter} setFilter=${setFilter} grouped=${grouped} attention=${attention} folders=${folders} openFolders=${openFolders}
     toggleFolder=${toggleFolder} cut=${cut} conn=${conn} newFolder=${newFolder} />`;
   const filterItems = FILTERS.map(f => ({ label: filterLabel(f), icon: f === filter ? 'check' : '', run: () => setFilter(f) }));
-  const mosaic = agentsOn && ready && innerWidth > 760;
+  const mosaic = agentsOn && ready;
+  const rows = list => list.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} />`);
+  const group = (title, list) => list.length > 0 && html`<section class="sessions-group"><h2>${title}</h2>${rows(list)}</section>`;
 
   return html`<div class="side-sec grow ses">
     <div class="side-sec-h ses-h">
-      <button class="ses-filter" aria-haspopup="menu" aria-expanded=${String(!!fmenu)} onClick=${e => setFmenu(fmenu ? null : e.currentTarget)}>${filterLabel(filter)}<${Icon} n="chevron" /></button>
-      <span class="grow"></span>
-      <button class="icon-btn" aria-label=${t('side.new_folder')} title=${t('side.new_folder')} onClick=${newFolder}><${Icon} n="folder" /></button>
-      ${mosaic && html`<button class=${cls('icon-btn', layout.get().count > 1 && route.section === 'agents' && 'on')} aria-label=${t('side.mosaic')} title=${t('side.mosaic')}
-        onClick=${() => { if (layout.get().count === 1) toggleGrid(route.section === 'agents' && route.sub === 's' ? route.id : ''); go('agents', 'grid'); }}><${Icon} n="grid" /></button>`}
+      <label class="search session-search"><${Icon} n="search" /><input type="search" value=${query} onInput=${e => setQuery(e.target.value)}
+        aria-label=${t('side.search')} placeholder=${t('side.search')} /></label>
+      <button class="icon-btn session-options" aria-label=${t('mobile.filter_sessions')} title=${filterLabel(filter)} onClick=${e => setFmenu(e.currentTarget)}><${Icon} n="sliders" /></button>
+      <button class="icon-btn session-new" aria-label=${t('side.new_session')} title=${t('side.new_session')} onClick=${() => agents.set({ creating: { type: 'chat' } })}><${Icon} n="plus" /></button>
     </div>
-    ${fmenu && html`<${Menu} anchor=${fmenu} onClose=${() => setFmenu(null)} items=${filterItems} />`}
+    ${fmenu && html`<${Menu} anchor=${fmenu} onClose=${() => setFmenu(null)} items=${[...filterItems, '-', { label: t('side.new_folder'), icon: 'folder', run: newFolder }, { label: t('app.palette.rechercher'), icon: 'search', run: openPalette },
+      ...(mosaic ? [{ label: t('side.mosaic'), icon: 'grid', run: () => { if (layout.get().count === 1) toggleGrid(onAgents ? route.id : ''); go('agents', 'grid'); } }] : [])]} />`}
     <div class=${cls('side-list', overLoose && 'drop-on')} ...${dropZone('', setOverLoose)}>
       ${agentsOn && ready && cut.length > 0 && filter !== 'chats' && html`<a class="chat-link sub ses-restore" href="#/agents"><${Icon} n="refresh" /><span>${t('agents.restore.side', { n: cut.length })}</span></a>`}
-      ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${inFolder(p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} isCurrent=${isCurrent} />`)}
-      ${loose.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} />`)}
-      ${!all.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}
+      ${group(t('side.pinned'), grouped.pinned)}
+      ${group(t('mobile.in_progress'), grouped.active)}
+      ${folders.filter(p => !q || inFolder(p.id).length).map(p => html`<${Folder} key=${p.id} p=${p} items=${inFolder(p.id)} open=${!!q || openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} isCurrent=${isCurrent} />`)}
+      ${group(t('mobile.recent'), inFolder(''))}
+      ${!shown.length && (q || !folders.length) && html`<p class="ses-empty">${t('side.empty')}</p>`}
       ${agentsOn && !ready && filter !== 'chats' && html`<a class="chat-link sub" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span></a>`}
+      <details class="session-finished" open=${q && grouped.finished.length ? true : undefined}><summary>${t('side.finished')}${grouped.finished.length > 0 && html`<small>${grouped.finished.length}</small>`}</summary>
+        ${grouped.finished.length ? rows(grouped.finished) : html`<p class="ses-empty">${t('side.empty')}</p>`}
+      </details>
     </div>
   </div>`;
 }

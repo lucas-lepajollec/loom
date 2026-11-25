@@ -26,7 +26,7 @@ const setToolOn = (n, v) => { try { localStorage.setItem('loom.chat.' + n, v ? '
 // au premier morceau, `more:false` ferme le fichier et renvoie son chemin.
 const CHUNK = 8 << 20;
 const b64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result || '')); fr.onerror = () => rej(new Error(t("chat.composer.lecture_impossible"))); fr.readAsDataURL(blob); });
-async function upload(file) {
+export async function upload(file) {
   let id = '', off = 0, path = '';
   do {
     const end = Math.min(off + CHUNK, file.size), last = end >= file.size;
@@ -46,10 +46,10 @@ export function Composer({ phone } = {}) {
   const c = useStore(chat, s => ({ busy: s.busy, mode: s.mode, ctx: s.ctxUsed, session: s.session, context: s.context, notice: s.notice, starting: s.starting, engineError: s.engineError, localTarget: s.localTarget }));
   const status = useStore(app, s => s.status);
   const runtimes = useStore(app, s => s.workspace?.runtimes || []);
-  const draft = useStore(app, s => phone && s.phoneDraft);
+  const draft = useStore(app, s => s.phoneDraft);
   const [text, setText] = useState(draft?.text || '');
   const dictation = useDictation(result => setText(current => [current.trimEnd(), result].filter(Boolean).join(' ')));
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState(draft?.files || []);
   const [tools, setTools] = useState({ internet: toolOn('internet'), mcp: toolOn('mcp') });
   const [menu, setMenu] = useState(null);
   const ta = useRef(), fileIn = useRef(), pasteNumber = useRef(0), submitting = useRef(false);
@@ -156,7 +156,7 @@ export function Composer({ phone } = {}) {
         ${sendBtn}
       </div>`}
     </div>
-    ${draft?.failed ? html`<div class="composer-hint err" role="alert">${blocked}<button class="btn sm" onClick=${() => startPhoneDiscussion(draft.folder, text, false)}>${t('agents.retry')}</button></div>`
+    ${draft?.failed ? html`<div class="composer-hint err" role="alert">${blocked}<button class="btn sm" onClick=${() => startPhoneDiscussion(draft.folder, text, false, { files, choice: draft.choice })}>${t('agents.retry')}</button></div>`
       : c.starting ? null
       : c.engineError ? html`<div class="composer-hint err" role="alert">${c.engineError}<button class="btn sm" onClick=${submit}>${t('agents.retry')}</button></div>`
       : hint && html`<div class="composer-hint warn">${hint}</div>`}

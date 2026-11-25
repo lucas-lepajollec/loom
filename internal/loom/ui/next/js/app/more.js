@@ -1,3 +1,4 @@
+import { Activity } from './activity.js';
 import { html, useState, useStore, cls, baseName } from '../core/lib.js';
 import { t } from '../core/i18n.js';
 import { Icon } from '../ui/icons.js';
@@ -49,12 +50,12 @@ function MoreList() {
     ['local', 'chip', t('app.groups.models')],
     ['agents', 'agent', t('agents.title')],
     ['machines', 'server', t('settings.page.machines')],
-    ['files', 'folder', t('files.title'), t('files.second_brain')],
+    ['quotas', 'chart', t('app.groups.activity')],
     ['settings', 'gear', t('app.palette.reglages')],
     ['more/jarvis', 'waveform', t('mobile.talk_jarvis')],
   ];
   return html`<div class="view phone-page">
-    <header class="phone-title"><h1>${t('mobile.more')}</h1></header>
+    <header class="phone-title"><h1>${t('mobile.more')}</h1><${Activity} /></header>
     <div class="phone-scroll more-list" ...${pull}>
       ${node?.direct && node.kind === 'vllm' ? html`<${VllmStatus} node=${node} />` : html`<${EngineStatus} node=${node} />`}
       <nav class="more-links" aria-label=${t('mobile.more')}>

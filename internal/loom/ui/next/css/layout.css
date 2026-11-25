@@ -2,7 +2,7 @@
    1040 px centrés, 40 px de marge latérale, le même espace en haut. Les
    onglets d'une page restent fixes en haut, comme ceux d'Agents. Fichiers,
    discussions et sessions d'agent gardent leur mise en page propre. */
-@media (min-width:761px){
+@media (min-width:640px){
   :root{--page-top:28px}
   /* la place de la barre de défilement est réservée des deux côtés : le
      contenu reste centré, que la page défile ou non */

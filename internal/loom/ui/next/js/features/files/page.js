@@ -13,7 +13,7 @@ import { prompt, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go } from '../../core/state.js';
 import { NoteEditor, isNote } from './editor.js';
-import { usePhone } from '../../core/viewport.js';
+import { useMedia } from '../../core/viewport.js';
 import { BackButton } from '../../app/phone-nav.js';
 import { usePullRefresh } from '../../app/touch.js';
 import { ago } from '../agents/rail.js';
@@ -260,7 +260,7 @@ function Viewer({ path, refresh, narrow }) {
 }
 
 export function FilesPage({ route }) {
-  const narrow = usePhone();
+  const narrow = useMedia('(max-width: 859px)');
   const [data, setData] = useState(null);
   const [setup, setSetup] = useState(false);
   const scopeNow = route.sub === 'm' ? 'machine' : route.sub === 'n' ? 'brain' : load('loom.files.scope', 'brain');
@@ -286,7 +286,7 @@ export function FilesPage({ route }) {
     if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
     toast(t('files.brain_set', { path })); await refresh(); setScope('brain');
   };
-  const phoneHeader = narrow && html`<header class="fl-head phone-subhead"><${BackButton} /><h1>${t('files.title')}</h1></header>`;
+  const phoneHeader = narrow && html`<header class="fl-head phone-subhead"><h1>${t('files.title')}</h1></header>`;
   if (!data) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
   const header = (actions, reload = refresh) => html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${narrow ? reload : refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} actions=${actions} />`;
   if (scopeNow === 'brain' && (!data.exists || setup)) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;

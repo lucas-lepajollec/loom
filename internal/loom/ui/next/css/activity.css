@@ -146,7 +146,7 @@
   .usage-t .cell-main b,.usage-t .cell-main small{white-space:normal;overflow-wrap:anywhere}
   .q-charts.with-daily{grid-template-columns:minmax(0,1fr)}
 }
-@media(max-width:760px){
+@media(max-width:639px){
   .activity-in{gap:14px;padding:10px max(16px,env(safe-area-inset-right)) max(42px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
   .activity-in > .sec-drop{display:none}
   .activity-in > .sec-tabs{display:flex!important;gap:2px;padding:3px;border-radius:11px;background:var(--surface-2);overflow:visible}

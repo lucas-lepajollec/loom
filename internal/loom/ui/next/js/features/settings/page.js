@@ -1,3 +1,4 @@
+import { ContextNav } from '../../app/sections.js';
 import { shortVersion } from '../../core/version.js';
 import { HttpsSettings } from './https.js';
 import { PolicySettings } from './policy.js';
@@ -636,12 +637,14 @@ export function SettingsPage({ route }) {
     ${selected ? html`<div class="set-body settings-body" key=${sec}><${View} route=${route} phone /></div>`
       : html`<${PhoneSettings} sections=${sections} />`}
   </div></div>`;
-  return html`<div class="view page"><div class="page-in">
-    <div class="settings">
-      <nav class="set-nav" aria-label=${t("settings.page.reglages")}><h1>${t("settings.page.reglages")}</h1>
-        ${sections.map(([id, label, ico]) => html`<a key=${id} href=${'#/settings/' + id} aria-current=${id === sec ? 'page' : undefined}><${Icon} n=${ico} /><span>${label}</span></a>`)}
-      </nav>
-      <div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>
+  const items = sections.map(([id, label, icon]) => ({ href: '#/settings/' + id, label, icon, current: id === sec }));
+  return html`<div class="view with-context">
+    <${ContextNav} title=${t('settings.page.reglages')} items=${items} />
+    <div class="context-content page">
+      <div class="page-in">
+        <nav class="set-nav context-fallback" aria-label=${t('settings.page.reglages')}>${items.map(item => html`<a key=${item.href} href=${item.href} aria-current=${item.current ? 'page' : undefined}>${item.label}</a>`)}</nav>
+        <div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>
+      </div>
     </div>
-  </div></div>`;
+  </div>`;
 }

@@ -1,4 +1,5 @@
-import { html, useState, useEffect, useRef } from '../../core/lib.js';
+import { ContextNav } from '../../app/sections.js';
+import { html, cls, useState, useEffect, useRef } from '../../core/lib.js';
 import { t } from '../../core/i18n.js';
 import { get, post } from '../../core/api.js';
 import { visibleRefresh } from '../../core/poll.js';
@@ -118,7 +119,10 @@ export function MachinesPage({ route }) {
     revision,
   });
 
-  return html`<div class="view page"><div class=${target ? 'page-in mc-page machine-detail' : 'page-in mc-page'}>
+  const machineLinks = machines.map(m => ({ href: '#/machines/' + encodeURIComponent(m.id), label: m.name, icon: 'server', current: target === m.id }));
+  return html`<div class=${cls('view', phone ? 'page' : 'with-context')}>
+    ${!phone && html`<${ContextNav} title=${t('settings.machines.machines')} items=${machineLinks} />`}
+    <div class=${phone ? 'context-contents' : 'context-content page'}><div class=${target ? 'page-in mc-page machine-detail' : 'page-in mc-page'}>
     ${target ? machine ? html`<${MachineDetail} key=${machine.id} ...${observations(machine)} names=${names} phone=${phone}
         terminals=${open.filter(term => term.target === machine.id)}
         codemanStatus=${codeman?.provider === machine.id ? codeman.status : null}
@@ -149,5 +153,5 @@ export function MachinesPage({ route }) {
       setEdit(null);
       if (result?.id) { saveMachine(result); reload(); }
     }} />`}
-  </div></div>`;
+  </div></div></div>`;
 }
