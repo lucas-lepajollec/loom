@@ -1,5 +1,7 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "noir.agent_setup": "Brancher un agent",
+  "noir.agent_setup_hint": "Le jeton complet n’apparaît qu’à sa création ou à son remplacement.",
   "noir.open_session": "Ouvrir la session",
   "noir.agent_tools": "Outils",
   "noir.agent_history": "Historique",

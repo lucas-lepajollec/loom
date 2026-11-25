@@ -1,5 +1,7 @@
 // UI copy, grouped by feature. French preserves the original wording.
 export default {
+  "noir.agent_setup": "Connect an agent",
+  "noir.agent_setup_hint": "The full token appears when you create or replace it.",
   "noir.open_session": "Open session",
   "noir.agent_tools": "Tools",
   "noir.agent_history": "History",

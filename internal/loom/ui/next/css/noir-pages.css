@@ -20,6 +20,9 @@
 .settings-body :is(.set-l small,.set-line .note){color:var(--text-3)}
 .settings-body .context-fallback{margin-bottom:8px}
 .settings-body .set-line .mono{overflow-wrap:anywhere}
+.agent-access-guide{display:grid;justify-items:start;gap:10px}
+.agent-access-guide .agent-access-block{width:100%;min-width:0}
+.agent-access-guide .agent-access-block pre{overflow-wrap:anywhere;white-space:pre-wrap;background:var(--bg-2);border:0}
 
 .view.files>.fl-tree{padding:12px 8px 10px;gap:9px}
 .fl-source .fl-tree-h{gap:4px}

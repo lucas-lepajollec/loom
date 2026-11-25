@@ -648,7 +648,7 @@ export function SettingsPage({ route }) {
     internet: Internet, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
   if (phone) return html`<div class="view page"><div class="page-in settings-page">
     <h1 class="phone-management-title">${selected ? selected[1] : t('settings.page.reglages')}</h1>
-    ${selected ? html`<div class="set-body settings-body" key=${sec}><${View} route=${route} phone /></div>`
+    ${selected ? html`<div class="set-body settings-body" key=${sec}><${View} route=${route} phone heading=${false} /></div>`
       : html`<${PhoneSettings} sections=${sections} />`}
   </div></div>`;
   const items = [
@@ -661,7 +661,7 @@ export function SettingsPage({ route }) {
       <div class="page-in noir-settings-in">
         <nav class="set-nav context-fallback" aria-label=${t('settings.page.reglages')}>${items.map(item => html`<a key=${item.href} href=${item.href} aria-current=${item.current ? 'page' : undefined}>${item.label}</a>`)}</nav>
         <header class="noir-page-head"><h1>${selected?.[1] || sections[0][1]}</h1></header>
-        <div class="set-body settings-body" key=${sec}><${View} route=${route} /></div>
+        <div class="set-body settings-body" key=${sec}><${View} route=${route} heading=${false} /></div>
       </div>
     </div>
   </div>`;

@@ -33,22 +33,27 @@ const since = sec => {
     : s < 86400 ? f.format(-Math.round(s / 3600), 'hour') : f.format(-Math.round(s / 86400), 'day');
 };
 
-function SetupDialog({ url, token, onClose }) {
+function SetupCommands({ url, token }) {
   const [client, setClient] = useState('claude');
-  const text = agentSetups(url, token)[client];
+  const text = agentSetups(url, token || '••••••••')[client];
   const copy = async () => { const ok = await copyText(text); toast(ok ? t('agent_access.copied') : t('settings.page.copie_refusee'), ok ? '' : 'err'); };
+  return html`<div class="agent-access-block">
+    <${Seg} size="sm" label=${t('agent_access.client')} value=${client} onChange=${setClient}
+      options=${[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }, { value: 'json', label: t('agent_access.other') }]} />
+    ${token && html`<div class="agent-access-head"><p class="note">${{ claude: t('agent_access.how_claude'), codex: t('agent_access.how_codex'), json: t('agent_access.how_json') }[client]}</p><button class="btn sm" onClick=${copy}>${t('settings.page.copier')}</button></div>`}
+    <pre class="mono">${text}</pre>
+    ${!token && html`<p class="note">${t('noir.agent_setup_hint')}</p>`}
+  </div>`;
+}
+
+function SetupDialog({ url, token, onClose }) {
   return html`<${Modal} title=${t('agent_access.ready_title')} sub=${t('agent_access.ready_sub')} wide onClose=${onClose}
     foot=${html`<button class="btn primary" onClick=${onClose}>${t('agent_access.done')}</button>`}>
-    <div class="agent-access-block">
-      <${Seg} size="sm" label=${t('agent_access.client')} value=${client} onChange=${setClient}
-        options=${[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }, { value: 'json', label: t('agent_access.other') }]} />
-      <div class="agent-access-head"><p class="note">${{ claude: t('agent_access.how_claude'), codex: t('agent_access.how_codex'), json: t('agent_access.how_json') }[client]}</p><button class="btn sm" onClick=${copy}>${t('settings.page.copier')}</button></div>
-      <pre class="mono">${text}</pre>
-    </div>
+    <${SetupCommands} url=${url} token=${token} />
   </${Modal}>`;
 }
 
-export function AgentAccess() {
+export function AgentAccess({ heading = true } = {}) {
   const [gw, setGw] = useState(null);
   const [pol, setPol] = useState(null);
   const [token, setToken] = useState('');
@@ -88,7 +93,7 @@ export function AgentAccess() {
   };
   const agents = gw?.agents === 'available' ? t('agent_access.agents_ok') : gw?.agents === 'codeman_cli_missing' ? t('agent_access.agents_cli') : t('agent_access.agents_off');
   const last = gw?.last_used ? t('agent_access.last_value', { client: clientName(gw.last_client) || t('agent_access.an_agent'), when: since(gw.last_used) }) : t('agent_access.never');
-  return html`<${Group} title=${t('agent_access.title')}>
+  return html`<${Group} title=${heading ? t('agent_access.title') : undefined}>
     <${Line} label=${t('settings.page.adresse')} tip=${t('agent_access.tip')}><code class="mono">${url}</code>
       <button class="btn sm" onClick=${async () => {
         const ok = await copyText(url);
@@ -103,5 +108,8 @@ export function AgentAccess() {
     ${pol && html`<${Line} label=${t('agent_access.ask')} tip=${t('agent_access.ask_tip')}><${Switch} checked=${asking} disabled=${busy} label=${t('agent_access.ask')} onChange=${setAsk} /></${Line}>`}
     <${Line} label=${t('agent_access.agents')}><span class="state">${gw ? agents : '…'}</span></${Line}>
     ${token && html`<${SetupDialog} url=${url} token=${token} onClose=${() => setToken('')} />`}
+  </${Group}>
+  <${Group} title=${t('noir.agent_setup')}>
+    <div class="pad agent-access-guide"><${SetupCommands} url=${url} /><a class="btn sm" href="#/settings/policy">${t('policy.title')}</a></div>
   </${Group}>`;
 }
