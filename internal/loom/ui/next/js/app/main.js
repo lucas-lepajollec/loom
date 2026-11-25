@@ -5,9 +5,9 @@ import { loomApprovals, refreshLoomApprovals } from './approvals.js';
 import { Component } from 'preact';
 import { Icon } from '../ui/icons.js';
 import { app, phoneParent, phoneTab, startPolling, setTheme } from '../core/state.js';
-import { usePhone } from '../core/viewport.js';
+import { isPhone, usePhone } from '../core/viewport.js';
 import { Layers } from '../ui/dialog.js';
-import { Sidebar, useShortcuts } from './shell.js';
+import { ContextColumn, Rail, useShortcuts } from './shell.js';
 import { init as initChat } from '../features/chat/engine.js';
 import { Placeholder } from './placeholder.js';
 import { pageFor } from './routes.js';
@@ -21,7 +21,7 @@ import { BackButton, PhoneBackLink, PhoneTabs } from './phone-nav.js';
 import { groupOf } from './sections.js';
 import { agents, useAgentsPresence } from '../features/agents/store.js';
 import { NewSessionHost } from '../features/agents/side.js';
-import { inboxItems } from './inbox.js';
+import { inboxItems, useCompletionNotices } from './inbox.js';
 
 
 // Une page qui plante pendant son affichage ne doit pas laisser Preact au milieu
@@ -51,7 +51,7 @@ export function reportClientError(error, where) {
     const msg = (where ? where + ': ' : '') + String(error && error.message || error).slice(0, 300);
     console.error('[loom]', msg, error);
     // Phones keep the screen clean: the console still has the error.
-    if (matchMedia('(max-width: 760px)').matches) return;
+    if (isPhone()) return;
     if (!errorBar) {
       errorBar = document.createElement('div');
       errorBar.className = 'client-error';
@@ -69,21 +69,31 @@ window.addEventListener('unhandledrejection', e => { const r = e.reason; if (r &
 
 function Main({ route, phone }) {
   const Page = pageFor(route.section) || Placeholder;
+  const creating = useStore(agents, s => s.creating);
+  const newPage = !!creating?.type;
+  useEffect(() => {
+    const clear = () => { if (agents.get().creating?.type) agents.set({ creating: null }); };
+    addEventListener('hashchange', clear);
+    return () => removeEventListener('hashchange', clear);
+  }, []);
   const parent = phone && phoneParent(route);
   const group = parent && groupOf(route.section);
   const title = group?.id === 'models' || group?.id === 'agents' ? group.label : '';
   const ownHeader = ['chat', 'files'].includes(route.section) || route.section === 'agents' && ['s', 'grid'].includes(route.sub)
     || route.section === 'more' && route.sub === 'jarvis';
-  return html`<main class=${cls('main', parent && 'phone-management')}>
-    ${parent ? html`<header class="phone-management-head"><${PhoneBackLink} parent=${parent} />
+  return html`<main class=${cls('main', 'route-' + route.section, parent && 'phone-management')}>
+    ${newPage ? null : parent ? html`<header class="phone-management-head"><${PhoneBackLink} parent=${parent} />
       ${title && html`<h1 class="phone-management-title">${title}</h1>`}</header>`
     : phone && !phoneTab(route) && !ownHeader && html`<header class="phone-subhead"><${BackButton} /></header>`}
-    <${PageGuard} key=${route.section} name=${route.section} sub=${route.sub || ''} back=${phone && ownHeader}><${Page} route=${route} /></${PageGuard}></main>`;
+    <${PageGuard} key=${route.section} name=${route.section} sub=${route.sub || ''} back=${phone && ownHeader}><${Page} route=${route} /></${PageGuard}>
+    ${newPage && html`<${PageGuard} key="new-session" name="new-session"><${NewSessionHost} phone=${phone} inline /></${PageGuard}>`}
+  </main>`;
 }
 
 function App() {
   const route = useStore(app, s => s.route);
   const phone = usePhone();
+  const newPage = useStore(agents, s => !!s.creating?.type);
   const waiting = useStore(loomApprovals, s => s.items.length);
   const count = waiting + useStore(agents, s => {
     const { approvals, replies } = inboxItems(s);
@@ -91,11 +101,12 @@ function App() {
   });
   useEffect(() => visibleRefresh(refreshLoomApprovals, 4000), []);
   useAgentsPresence();
-  useShortcuts(phone);
+  useCompletionNotices();
+  useShortcuts();
   return html`<div class=${cls('app', phone && 'phone-app')}>
-    ${!phone && html`<${Sidebar} />`}
+    ${!phone && html`<${Rail} route=${newPage ? { section: 'sessions' } : route} count=${count} /><${ContextColumn} route=${newPage ? { section: 'sessions' } : route} />`}
     <${Main} route=${route} phone=${phone} />
-    ${phone && html`<${PhoneTabs} route=${route} count=${count} />`}
+    ${phone && !newPage && html`<${PhoneTabs} route=${route} count=${count} />`}
     <${Palette} />
     <${NewSessionHost} phone=${phone} />
     <${Layers} />

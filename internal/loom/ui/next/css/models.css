@@ -429,7 +429,7 @@ p.models-row-meta {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 639px) {
   .models-page .models-layout {
     gap: 14px;
     padding: 8px max(12px, env(safe-area-inset-right)) 32px max(12px, env(safe-area-inset-left));

@@ -13,10 +13,11 @@ import { prompt, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
 import { app, go } from '../../core/state.js';
 import { NoteEditor, isNote } from './editor.js';
-import { usePhone } from '../../core/viewport.js';
+import { useMedia } from '../../core/viewport.js';
 import { BackButton } from '../../app/phone-nav.js';
 import { usePullRefresh } from '../../app/touch.js';
 import { ago } from '../agents/rail.js';
+import { agents } from '../agents/store.js';
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
 const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
@@ -45,7 +46,7 @@ function TreeRow({ n, depth, current, open, toggle, refresh, filter }) {
   return html`<div class="fl-node">
     <div class=${cls('fl-row', current === n.path && 'on', n.dir && 'dir')} role="treeitem" aria-expanded=${n.dir ? String(isOpen) : undefined} aria-selected=${current === n.path ? 'true' : undefined}
         tabindex="0" style=${`padding-left:${8 + depth * 14}px`} onClick=${activate} onKeyDown=${e => e.key === 'Enter' && activate()}>
-      ${n.dir ? html`<${Icon} n=${isOpen ? 'chevron' : 'right'} class="fl-caret" />` : html`<i class="fl-caret"></i>`}
+      ${html`<${Icon} n=${n.dir ? isOpen ? 'chevron' : 'right' : 'file'} class="fl-caret" />`}
       <span class="fl-name">${n.dir || !/\.md$/i.test(n.name) ? n.name : n.name.replace(/\.md$/i, '')}</span>
       ${n.outside && !(n.dir && isOpen) && html`<i class="fl-dot" title=${t('files.changed_outside')}></i>`}
       <button class="icon-btn fl-more" aria-label=${t('files.actions')} onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
@@ -168,7 +169,21 @@ function MachineTree({ current, onSetBrain, header }) {
   </nav>`;
 }
 
-const recentlyModified = (nodes, since) => nodes.flatMap(n => n.dir ? recentlyModified(n.children || [], since) : n.modified > since ? [n] : []);
+function recentFiles(nodes) {
+  return nodes.flatMap(n => n.dir ? recentFiles(n.children || []) : n.modified > 0 ? [n] : []);
+}
+
+function RecentFiles({ files, current, phone }) {
+  if (!files.length) return null;
+  return html`<section class="fl-recent" aria-label=${t('mobile.files_recent')}>
+    <h2>${t('mobile.files_recent')}</h2>
+    ${files.map(n => html`<a class=${phone ? 'phone-link' : 'fl-recent-link'} key=${n.path}
+      href=${'#/files/n/' + encodeURIComponent(n.path)} aria-current=${current === n.path ? 'page' : undefined}>
+      <${Icon} n="file" /><span class="trunc"><b class="trunc">${n.name}</b>
+        ${phone && parentOf(n.path) && html`<small class="trunc">${parentOf(n.path)}</small>`}</span>
+      <small class="fl-recent-time">${ago(n.modified)}</small></a>`)}
+  </section>`;
+}
 
 function Tree({ data, current, refresh, header, phone }) {
   const [open, setOpen] = useState(() => new Set(load('loom.files.open', [])));
@@ -183,23 +198,19 @@ function Tree({ data, current, refresh, header, phone }) {
   const toggle = p => { const n = new Set(open); n.has(p) ? n.delete(p) : n.add(p); setOpen(n); save('loom.files.open', [...n]); };
   const query = q.trim().toLowerCase();
   const nodes = query ? filterTree(data.tree || [], query) : data.tree || [];
-  const recent = phone && !query ? recentlyModified(nodes, Date.now() - 86400000).sort((a, b) => b.modified - a.modified).slice(0, 4) : [];
+  const recent = query ? [] : recentFiles(nodes).sort((a, b) => b.modified - a.modified).slice(0, phone ? 4 : 3);
   const pull = usePullRefresh(refresh);
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
     ${header(html`
       <button class="icon-btn" aria-label=${t('files.new_note')} title=${t('files.new_note')} onClick=${() => newNote(current ? parentOf(current) : '', refresh)}><${Icon} n="edit" /></button>
       <button class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder(current ? parentOf(current) : '', refresh)}><${Icon} n="folder" /></button>`)}
     <label class="search fl-search"><${Icon} n="search" /><input placeholder=${t('files.search')} value=${q} onInput=${e => setQ(e.target.value)} aria-label=${t('files.search')} /></label>
-    <div class="fl-list" role="tree" ...${pull}>
-      ${recent.length > 0 && html`<section class="fl-recent">
-        <h2>${t('mobile.files_recent')}</h2>
-        ${recent.map(n => html`<a class="phone-link" key=${n.path} href=${'#/files/n/' + encodeURIComponent(n.path)}>
-          <${Icon} n="file" /><span><b class="trunc">${n.name.replace(/\.md$/i, '')}</b><small>${[parentOf(n.path), ago(n.modified)].filter(Boolean).join(' · ')}</small></span><${Icon} n="right" />
-        </a>`)}
-        <h2>${t('files.tree')}</h2>
-      </section>`}
-      ${nodes.map(n => html`<${TreeRow} key=${n.path} n=${n} depth=${0} current=${current} open=${open} toggle=${toggle} refresh=${refresh} filter=${!!query} />`)}
-      ${!nodes.length && html`<p class="fl-empty">${query ? t('files.no_match') : t('files.empty_folder')}</p>`}
+    <div class="fl-list" ...${pull}>
+      <div role="tree" aria-label=${t('files.tree')}>
+        ${nodes.map(n => html`<${TreeRow} key=${n.path} n=${n} depth=${0} current=${current} open=${open} toggle=${toggle} refresh=${refresh} filter=${!!query} />`)}
+        ${!nodes.length && html`<p class="fl-empty">${query ? t('files.no_match') : t('files.empty_folder')}</p>`}
+      </div>
+      <${RecentFiles} files=${recent} current=${current} phone=${phone} />
     </div>
     <p class="fl-root-path mono" title=${data.root}>${data.root}</p>
   </nav>`;
@@ -222,7 +233,14 @@ function RootSetup({ data, done }) {
   </${Empty}></div>`;
 }
 
-function Viewer({ path, refresh, narrow }) {
+// Ouvre une nouvelle session d'agent avec ce fichier en référence. La page
+// Sessions s'affiche d'abord : changer de page referme une création en cours.
+function giveToAgent(abs) {
+  go('sessions');
+  setTimeout(() => agents.set({ creating: { type: 'agent', message: t('files.give_agent_prompt', { path: abs }) } }), 60);
+}
+
+function Viewer({ path, root, refresh, narrow }) {
   const [file, setFile] = useState(null);
   const [raw, setRaw] = useState(false);
   const [state, setState] = useState('saved');
@@ -238,6 +256,7 @@ function Viewer({ path, refresh, narrow }) {
   const crumbs = path.split('/');
   const items = [
     ...(file && typeof file.content === 'string' && isNote(path) ? [{ label: raw ? t('files.view_rendered') : t('files.view_markdown'), icon: 'file', run: () => setRaw(!raw) }] : []),
+    { label: t('files.give_agent'), icon: 'agent', run: () => giveToAgent(root ? root.replace(/\/+$/, '') + '/' + path : path) },
     { label: t('files.rename'), icon: 'edit', run: () => renameEntry({ path, name: baseOf(path) }, refresh, path) },
     '-',
     { label: t('files.delete'), icon: 'trash', danger: true, run: () => deleteEntry({ path, name: baseOf(path) }, refresh, path) },
@@ -245,7 +264,7 @@ function Viewer({ path, refresh, narrow }) {
   return html`<section class="fl-view" aria-label=${path}>
     <header class="fl-head">
       ${narrow && html`<${BackButton} />`}
-      <span class="fl-crumbs">${crumbs.map((c, i) => html`${i > 0 && html`<i>/</i>`}<span class=${i === crumbs.length - 1 ? 'here' : ''}>${i === crumbs.length - 1 ? c.replace(/\.md$/i, '') : c}</span>`)}</span>
+      <span class="fl-crumbs">${crumbs.map((c, i) => html`${i > 0 && html`<i>/</i>`}<span class=${i === crumbs.length - 1 ? 'here' : ''}>${c}</span>`)}</span>
       <span class="grow"></span>
       <span class=${cls('fl-state', state)}>${state === 'saving' ? t('files.saving') : state === 'dirty' ? t('files.unsaved') : state === 'conflict' ? t('files.conflict_short') : file && file.modified ? t('files.saved') : ''}</span>
       <button class="icon-btn" aria-label=${t('files.actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
@@ -260,7 +279,7 @@ function Viewer({ path, refresh, narrow }) {
 }
 
 export function FilesPage({ route }) {
-  const narrow = usePhone();
+  const narrow = useMedia('(max-width: 859px)');
   const [data, setData] = useState(null);
   const [setup, setSetup] = useState(false);
   const scopeNow = route.sub === 'm' ? 'machine' : route.sub === 'n' ? 'brain' : load('loom.files.scope', 'brain');
@@ -286,7 +305,7 @@ export function FilesPage({ route }) {
     if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
     toast(t('files.brain_set', { path })); await refresh(); setScope('brain');
   };
-  const phoneHeader = narrow && html`<header class="fl-head phone-subhead"><${BackButton} /><h1>${t('files.title')}</h1></header>`;
+  const phoneHeader = narrow && html`<header class="fl-head phone-title"><h1>${t('files.title')}</h1></header>`;
   if (!data) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
   const header = (actions, reload = refresh) => html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${narrow ? reload : refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} actions=${actions} />`;
   if (scopeNow === 'brain' && (!data.exists || setup)) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;
@@ -295,7 +314,7 @@ export function FilesPage({ route }) {
     ${!current && phoneHeader}
     ${showTree && (scopeNow === 'machine' ? html`<${MachineTree} key=${'m'} current=${current} onSetBrain=${setBrain} header=${header} />`
       : html`<${Tree} data=${data} current=${current} refresh=${refresh} header=${header} phone=${narrow} />`)}
-    ${current ? html`<${Viewer} key=${scopeNow + current} path=${current} refresh=${refresh} narrow=${narrow} />`
+    ${current ? html`<${Viewer} key=${scopeNow + current} path=${current} root=${data?.root || ''} refresh=${refresh} narrow=${narrow} />`
       : !narrow && html`<section class="fl-view"><${Empty} icon="file" title=${t('files.pick')} text=${t('files.pick_text')} /></section>`}
   </div>`;
 }

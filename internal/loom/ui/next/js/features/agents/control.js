@@ -33,7 +33,7 @@ function ApprovalRow({ a }) {
     <div class="cm-cc-appr-a">
       ${a.kind !== 'idle' && !terminal && html`${(a.options && a.options.length ? a.options : [{ n: 1, label: t('agents.approval.approve') }]).map(o => html`<button class=${cls('btn sm', o.n === 1 && 'primary')} disabled=${busy}
           onClick=${() => run(a.options && a.options.length ? { action: 'option', option: o.n } : { action: 'approve' })}>${o.label}</button>`)}
-        <button class="btn sm danger" disabled=${busy} onClick=${() => run({ action: 'deny' })}>${t('agents.approval.deny')}</button>`}
+        <button class="btn sm" disabled=${busy} onClick=${() => run({ action: 'deny' })}>${t('agents.approval.deny')}</button>`}
       <button class="btn sm" onClick=${() => openSession(a.sessionId, terminal ? 'term' : undefined)}>${terminal ? t('agents.approval.open_terminal') : t('agents.cc.open')}</button>
       <button class="icon-btn" aria-label=${t('agents.approval.dismiss')} onClick=${() => dismissApproval(a).catch(e => toast(e.message, 'err'))}><${Icon} n="close" /></button>
     </div></li>`;
@@ -71,7 +71,7 @@ function Sessions({ list, loaded }) {
   </section>`;
 }
 
-function ServerCard({ counts, update, phone }) {
+function ServerCard({ update, phone }) {
   const conn = useStore(agents, s => s.conn);
   const live = useStore(agents, s => s.live);
   const [anchor, setAnchor] = useState(null);
@@ -100,7 +100,7 @@ function ServerCard({ counts, update, phone }) {
   return html`<section class="cm-server">
     <i class=${cls('dot', live ? 'green' : 'amber')}></i>
     <div class="cm-server-info"><b>${t('agents.admin.server', { v: version })}</b>
-      <small>${[status, ...counts].join(' · ')}</small>
+      <small>${status}</small>
       ${phone && updateStatus && html`<small>${updateStatus}</small>`}</div>
     <div class="cm-server-actions">
       ${!phone && html`
@@ -221,7 +221,7 @@ export function RestoreBanner() {
   </section>`;
 }
 
-export function ControlCenter({ phone }) {
+export function ControlCenter({ phone, section }) {
   const order = useStore(agents, s => s.order);
   const sessions = useStore(agents, s => s.sessions);
   const approvals = useStore(agents, s => s.approvals);
@@ -250,20 +250,33 @@ export function ControlCenter({ phone }) {
     .sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || timeOf(b.s) - timeOf(a.s));
   const working = list.filter(({ state }) => state === 'working' || state === 'starting').length;
   const pending = approvals.filter(a => a.kind !== 'idle');
-  const counts = loaded ? [t('agents.admin.sessions', { n: list.length }), t('agents.admin.working', { n: working }), t('agents.admin.waiting', { n: pending.length })] : [];
-  if (jobs) counts.push(t('agents.admin.scheduled', { n: jobs.filter(j => j.enabled).length }));
+  const scheduled = jobs?.filter(j => j.enabled).length;
+  const stats = loaded && html`<div class="cm-overview-stats">
+    <section><small>${t('agents.cc.board')}</small><b>${list.length}</b><span>${t('agents.admin.working', { n: working })}</span></section>
+    <a href="#/inbox"><small>${t('mobile.inbox')}</small><b>${pending.length}</b></a>
+    ${scheduled != null && html`<a href="#/agents/cron"><small>${lt('nav', 'cron')}</small><b>${scheduled}</b></a>`}
+  </div>`;
   const next = (jobs || []).filter(j => j.enabled && j.nextRunAt).sort((a, b) => a.nextRunAt - b.nextRunAt).slice(0, 4);
   const fmt = ms => new Date(ms).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-  const liveSections = html`<${RestoreBanner} key="restore" /><${Sessions} key="live" list=${list} loaded=${loaded} />`;
   const attention = html`<section class="cm-cc-sec" key="attention">
       <h2>${t('agents.cc.attention')}</h2>
       ${approvals.length ? html`<ul class="cm-cc-list">${[...pending, ...approvals.filter(a => a.kind === 'idle')].map(a => html`<${ApprovalRow} key=${a.id} a=${a} />`)}</ul>`
         : html`<p class="cm-admin-empty">${loaded ? t('agents.cc.nothing') : t('agents.conn.connecting')}</p>`}
     </section>`;
+  const create = () => agents.set({ creating: { type: 'agent' } });
+  const title = section === 'tools' ? t('noir.agent_tools') : section === 'history' ? t('noir.agent_history') : lt('nav', '');
+  const header = html`<header class="noir-page-head cm-overview-head"><h1>${title}</h1>
+    <button class="btn primary" onClick=${create}><${Icon} n="plus" />${t('agents.new.title')}</button></header>`;
+  if (section === 'tools' || section === 'history') return html`<div class="cm-scroll"><div class="cm-cc">
+    ${header}
+    ${section === 'tools' ? html`<${HarnessTable} list=${list} loaded=${loaded} phone=${phone} />`
+      : html`<${RestoreBanner} /><${ResumeList} sessions=${sessions} />`}
+  </div></div>`;
   return html`<div class="cm-scroll"><div class="cm-cc">
-    ${!phone && liveSections}
-    <${ServerCard} key=${conn.url} counts=${counts} update=${update} phone=${phone} />
-    ${!phone && attention}
+    ${header}
+    <${RestoreBanner} />
+    <${ServerCard} key=${conn.url} update=${update} phone=${phone} />
+    ${stats}
     <${HarnessTable} list=${list} loaded=${loaded} phone=${phone} />
     <section class="cm-cc-sec">
       <div class="cm-section-head"><h2>${t('agents.cc.next')}</h2><a href="#/agents/cron">${t('agents.cc.all_cron')}</a></div>
@@ -271,8 +284,8 @@ export function ControlCenter({ phone }) {
       ${next.length ? html`<ul class="cm-next-runs">${next.map(j => html`<li key=${j.id}><b>${j.name}</b><span>${cliOf(j.agentType).label} · ${schedule(j)}</span><time>${fmt(j.nextRunAt)}</time></li>`)}</ul>`
         : !error && html`<p class="cm-admin-empty">${jobs ? t('agents.cc.no_next') : t('agents.conn.connecting')}</p>`}
     </section>
-    ${phone && liveSections}
-    ${phone && attention}
+    <${Sessions} list=${list} loaded=${loaded} />
+    ${attention}
     <${ResumeList} sessions=${sessions} />
   </div></div>`;
 }

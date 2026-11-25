@@ -4,15 +4,19 @@
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useStore, useRef, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
+import { DropdownButton, Menu } from '../../ui/controls.js';
+import { useDictation } from '../voice/dictation.js';
+import { upload } from '../chat/composer.js';
+import { uploadFiles, quotePath } from './attach.js';
 import { Logo } from '../../ui/logo.js';
 import { Modal, toast } from '../../ui/dialog.js';
 import { ListPick } from '../../ui/listpick.js';
 import { app } from '../../core/state.js';
 import { api, flattenPrompt, sendPrompt } from './client.js';
-import { agents, cliLogo } from './store.js';
+import { agents, cliLogo, projectOf } from './store.js';
 import { agentDraftKey, createSession, supportsModel } from './actions.js';
 import { fileAgent } from '../../app/sessions.js';
-import { startPhoneDiscussion } from '../../app/phone-discussion.js';
+import { defaultModel, startPhoneDiscussion } from '../../app/phone-discussion.js';
 
 export const CliMark = ({ mode, size }) => {
   if (mode === 'shell') return html`<span class=${cls('logo-mark', size)} aria-hidden="true"><${Icon} n="terminal" /></span>`;
@@ -40,7 +44,7 @@ function Browser({ start, onPick }) {
   </div>`;
 }
 
-export function NewSession({ onClose, onCreated, preset, phone, initialType = 'agent', folder: initialFolder = '' }) {
+export function NewSession({ onClose, onCreated, preset, phone, inline, initialType = 'agent', folder: initialFolder = '', message = '' }) {
   const clis = useStore(agents, s => s.clis.filter(c => c.enabled !== false));
   const unified = useStore(agents, s => s.unified);
   const cases = useStore(agents, s => s.cases);
@@ -49,7 +53,22 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
   const projects = useStore(app, s => s.nav.projects || []);
   const [type, setType] = useState(initialType);
   const [folder, setFolder] = useState(initialFolder);
-  const [firstMessage, setFirstMessage] = useState('');
+  const [firstMessage, setFirstMessage] = useState(message || '');
+  const [choiceId, setChoiceId] = useState('');
+  const [attached, setAttached] = useState([]);
+  const [configure, setConfigure] = useState(false);
+  const [branch, setBranch] = useState('');
+  const [branchMenu, setBranchMenu] = useState(null);
+  const [worktrees, setWorktrees] = useState([]);
+  const [readingWorktrees, setReadingWorktrees] = useState(false);
+  const fileInput = useRef();
+  const dictation = useDictation(text => setFirstMessage(value => [value.trimEnd(), text].filter(Boolean).join(' ')));
+  const models = useStore(app, s => s.workspace?.models || []).filter(m => m.enabled && (m.kind === 'local' || m.ready));
+  const modelName = useStore(app, defaultModel);
+  const localMachine = useStore(app, s => s.engineNode?.hostname || s.serverInfo?.hostname);
+  const codemanHost = useStore(agents, s => s.conn.ui_url || s.conn.url);
+  let agentMachine = '';
+  try { agentMachine = new URL(codemanHost).hostname; } catch (_) {}
   const usable = id => clis.some(c => c.id === id && c.installed !== false);
   const preferred = preset?.mode || (usable(defaults.runMode) ? defaults.runMode : usable('claude') ? 'claude' : (clis.find(c => c.installed && c.kind === 'agent') || {}).id || 'shell');
   const [mode, setMode] = useState(preferred);
@@ -62,27 +81,73 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
   const recent = [...new Set(unified.map(r => r.workingDir).filter(Boolean))].slice(0, 6);
   const folders = [...new Set([...recent, ...cases.filter(c => c.location !== 'remote').map(c => c.path)])].slice(0, 10);
   useEffect(() => { if (!dir && folders.length) setDir(folders[0]); }, [folders.length]);
-  useEffect(() => { if (phone && !preset?.mode && !clis.some(c => c.id === mode)) setMode(preferred); }, [phone, clis, preferred]);
+  useEffect(() => { if ((phone || inline) && !preset?.mode && !clis.some(c => c.id === mode)) setMode(preferred); }, [phone, inline, clis, preferred]);
   const cli = clis.find(c => c.id === mode);
-  const discussion = phone && type === 'chat';
-  const canStart = discussion || (!!dir.trim() && cli?.installed !== false && (!phone || ready && !!cli));
+  const unifiedForm = phone || inline;
+  const discussion = unifiedForm && type === 'chat';
+  const canStart = discussion || (!!dir.trim() && cli?.installed !== false && (!unifiedForm || ready && !!cli));
+  const knownSession = useStore(agents, s => s.order.find(id => s.sessions[id]?.workingDir === dir));
+  useEffect(() => {
+    if (!branchMenu) return;
+    let active = true;
+    const candidates = new Map();
+    for (const s of Object.values(agents.get().sessions)) {
+      if (s.workingDir && s.workingDir !== dir && !candidates.has(s.workingDir)) candidates.set(s.workingDir, s.id);
+    }
+    setReadingWorktrees(true);
+    setWorktrees([]);
+    Promise.allSettled([...candidates].slice(0, 5).map(async ([path, id]) => {
+      const result = await api.gitStatus(id);
+      return { path, branch: result?.repos?.length === 1 ? result.repos[0].status?.branch || '' : '' };
+    })).then(results => {
+      if (!active) return;
+      setWorktrees(results.flatMap(result => result.status === 'fulfilled' && result.value.branch ? [result.value] : []));
+      setReadingWorktrees(false);
+    });
+    return () => { active = false; };
+  }, [branchMenu, dir]);
+  useEffect(() => {
+    let current = true;
+    setBranch('');
+    if (inline && !discussion && knownSession) api.gitStatus(knownSession).then(result => {
+      if (current) setBranch(result?.repos?.length === 1 ? result.repos[0].status?.branch || '' : '');
+    }).catch(() => {});
+    return () => { current = false; };
+  }, [inline, discussion, knownSession]);
+  useEffect(() => {
+    if (!inline) return;
+    const key = e => { if (e.key === 'Escape' && !busy && !document.querySelector('.scrim,.pop')) onClose(); };
+    addEventListener('keydown', key);
+    return () => removeEventListener('keydown', key);
+  }, [inline, busy]);
   const close = () => { if (!busy) onClose(); };
   const submit = async () => {
     if (submitting.current || !canStart) return;
     submitting.current = true;
-    if (discussion) { onClose(); startPhoneDiscussion(folder, firstMessage.trim()); return; }
     setBusy(true);
     try {
+      if (discussion) {
+        const files = [];
+        for (const file of attached) files.push(await upload(file));
+        const choice = models.find(m => m.id === choiceId);
+        onClose(); startPhoneDiscussion(folder, firstMessage.trim(), !!(firstMessage.trim() || files.length), { files, choice });
+        return;
+      }
       const id = await createSession({ mode, workingDir: dir.trim(), name, model });
-      if (phone) {
+      if (unifiedForm) {
         if (folder) await fileAgent(id, folder).catch(err => toast(err.message, 'err'));
-        if (flattenPrompt(firstMessage.trim())) await sendFirstMessage(id, mode, firstMessage.trim());
+        let message = firstMessage.trim();
+        if (attached.length) {
+          try { message = [...(await uploadFiles(id, attached)).map(quotePath), message].filter(Boolean).join(' '); }
+          catch (err) { toast(err.message, 'err'); saveFirstMessage(id, message); onCreated?.(id); onClose(); return; }
+        }
+        if (flattenPrompt(message)) await sendFirstMessage(id, mode, message);
       }
       onCreated?.(id); onClose();
     }
     catch (e) {
       toast(e.message, 'err');
-      if (phone && e.sessionId) {
+      if (unifiedForm && e.sessionId) {
         if (firstMessage.trim()) saveFirstMessage(e.sessionId, firstMessage.trim());
         onCreated?.(e.sessionId); onClose();
       }
@@ -93,6 +158,77 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
     <label class="field"><span>${t('agents.new.name')}</span><input class="input" value=${name} placeholder=${t('agents.new.name_ph')} onInput=${e => setName(e.target.value)} /></label>
     ${supportsModel(mode) && html`<label class="field"><span>${t('agents.new.model')}</span><input class="input mono" value=${model} placeholder=${t('agents.new.model_ph')} onInput=${e => setModel(e.target.value)} /></label>`}
   </div>`;
+  if (inline) {
+    const dirOptions = [...new Set([dir, ...folders].filter(Boolean))].map(path => ({ value: path, label: projectOf(path) }));
+    const pick = value => {
+      if (value.startsWith('model:')) { setType('chat'); setChoiceId(value.slice(6)); }
+      else if (value.startsWith('cli:')) { setType('agent'); setMode(value.slice(4)); setModel(''); }
+      else { setType('chat'); setChoiceId(''); }
+    };
+    const executor = discussion ? (choiceId ? 'model:' + choiceId : 'chat') : 'cli:' + mode;
+    const cliModel = id => agents.get().order.map(key => agents.get().sessions[key]).find(s => s?.mode === id && s.displayModel?.model)?.displayModel.model || '';
+    const options = [
+      ...clis.filter(c => c.kind !== 'shell' && c.installed !== false).map(c => ({ value: 'cli:' + c.id, label: c.label, detail: cliModel(c.id), icon: 'agent' })),
+      { value: 'chat', label: modelName ? t('side.type_chat') + ' · ' + modelName : t('side.type_chat'), icon: 'chat' },
+      ...models.filter(m => m.name !== modelName).map(m => ({ value: 'model:' + m.id, label: m.name, icon: m.kind === 'local' ? 'chip' : 'globe' })),
+      ...clis.filter(c => c.kind === 'shell' && c.installed !== false).map(c => ({ value: 'cli:' + c.id, label: c.label, icon: 'terminal' })),
+    ];
+    const modelOptions = projects.map(p => ({ value: p.id, label: p.name }));
+    const desktopOptions = options.map(o => ({
+      ...o,
+      group: o.value.startsWith('cli:') ? t('noir.codeman_executors') : t('side.type_chat'),
+      note: o.detail,
+      display: o.detail ? o.label + ' · ' + o.detail : o.label,
+    }));
+    const execution = html`<${ListPick} class="fit" label=${t('noir.new_with')} value=${executor} options=${desktopOptions} onChange=${pick} />`;
+    return html`<div class=${cls('view', 'new-session-page', phone && 'phone-new-session')} aria-labelledby="new-session-title">
+      <header class="dialog-head"><button class="icon-btn" type="button" onClick=${close} aria-label=${t('ui.dialog.fermer')}><${Icon} n="close" /></button></header>
+      <div class="new-session-in">
+        <h1 id="new-session-title">${t('noir.new_title')}</h1>
+        ${phone && html`<div class="new-executor-group"><span id="new-executor-label">${t('noir.new_with')}</span><div class="new-executors" role="group" aria-labelledby="new-executor-label">${options.map(o => html`<button class="btn" key=${o.value} disabled=${busy} aria-pressed=${String(o.value === executor)} onClick=${() => pick(o.value)}><${Icon} n=${o.icon} /><span class="trunc">${o.label}</span>${o.detail && html`<small class="trunc">${o.detail}</small>`}${o.value === executor && html`<${Icon} n="check" />`}</button>`)}</div></div>`}
+        <form class="composer new-composer" onSubmit=${e => { e.preventDefault(); submit(); }}>
+          <textarea rows=${phone ? 2 : 3} value=${firstMessage} aria-label=${t('mobile.first_message')} placeholder=${t('noir.new_prompt')} disabled=${busy} onInput=${e => setFirstMessage(e.target.value)}></textarea>
+          <input type="file" multiple hidden ref=${fileInput} onChange=${e => { setAttached(list => [...list, ...e.target.files]); e.target.value = ''; }} />
+          ${attached.length > 0 && html`<div class="attach-row">${attached.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}<button type="button" aria-label=${t('agents.attach.remove')} onClick=${() => setAttached(list => list.filter((_, n) => n !== i))}><${Icon} n="close" /></button></span>`)}</div>`}
+          <div class="composer-bar">
+            <button class="icon-btn" type="button" aria-label=${t('agents.composer.attach')} disabled=${busy} onClick=${() => fileInput.current.click()}><${Icon} n="paperclip" /></button>
+            ${!phone && !discussion && html`<a class="chip-btn" href="#/settings/policy"><${Icon} n="lock" />${t('inspector.inspector.autorisations')}</a>`}
+            <span class="grow"></span>
+            ${!phone && execution}
+            <button class="icon-btn" type="button" aria-label=${dictation.phase ? t('mobile.dictation_stop') : t('mobile.dictation')} onClick=${dictation.toggle} disabled=${busy || dictation.phase === 'finishing'}><${Icon} n=${dictation.phase ? 'stop' : 'mic'} /></button>
+            <button class="send" type="submit" aria-label=${t('agents.new.start')} disabled=${busy || !canStart || !!dictation.phase}>${busy ? html`<span class="spinner"></span>` : html`<${Icon} n="arrowUp" />`}</button>
+          </div>
+        </form>
+        <div class="new-session-meta">
+          ${discussion ? html`
+            ${(!choiceId || models.find(m => m.id === choiceId)?.kind === 'local') && localMachine && html`<a class="chip-btn" href="#/engine" title=${t('workspaces.machine')}><${Icon} n="server" /><span class="trunc">${localMachine}</span></a>`}
+            ${modelOptions.length > 0 && html`<${ListPick} class="fit" label=${t('mobile.session_folder')} value=${folder} onChange=${setFolder} options=${[{ value: '', label: t('mobile.no_folder') }, ...modelOptions]} />`}
+          ` : html`
+            ${agentMachine && html`<a class="chip-btn" href="#/agents/settings" title=${t('workspaces.machine')}><${Icon} n="server" /><span class="trunc">${agentMachine}</span></a>`}
+            ${ready ? html`
+              ${dirOptions.length > 0 && html`<${ListPick} class="fit" label=${t('agents.new.folder')} value=${dir} options=${dirOptions} onChange=${setDir} />`}
+              ${branch ? html`<${DropdownButton} class="fit" aria-label=${t('noir.branch')} open=${branchMenu} onClick=${e => setBranchMenu(e.currentTarget)}><${Icon} n="git" /><span class="trunc">${branch}</span></${DropdownButton}>
+                ${branchMenu && html`<${Menu} label=${t('noir.branch')} anchor=${branchMenu} onClose=${() => setBranchMenu(null)} items=${[
+                  { label: branch, icon: 'check', run: () => {} },
+                  ...worktrees.map(tree => ({ label: tree.branch + ' · ' + projectOf(tree.path), icon: 'git', run: () => setDir(tree.path) })),
+                  ...(readingWorktrees ? [{ label: t('local.page.chargement'), disabled: true }] : []),
+                  '-',
+                  { label: t('mobile.session_options'), icon: 'sliders', run: () => setConfigure(!configure) },
+                ]} />`}`
+                : html`<button type="button" class="chip-btn" aria-expanded=${String(configure)} onClick=${() => setConfigure(!configure)}><${Icon} n="sliders" />${t('mobile.session_options')}</button>`}
+            ` : html`<a class="chip-btn" href="#/agents/settings">${t('mobile.connect_agents')}</a>`}
+          `}
+        </div>
+        ${configure && !discussion && ready && html`<div class="new-session-options">
+          <label class="field"><span>${t('agents.new.folder')}</span><input class="input mono" value=${dir} onInput=${e => setDir(e.target.value)} /></label>
+          <button type="button" class="btn" aria-expanded=${String(browse)} onClick=${() => setBrowse(!browse)}>${t('agents.new.browse')}</button>
+          ${browse && html`<${Browser} start=${dir} onPick=${p => { setDir(p); setBrowse(false); }} />`}
+          ${modelOptions.length > 0 && html`<${ListPick} class="fit" label=${t('mobile.session_folder')} value=${folder} onChange=${setFolder} options=${[{ value: '', label: t('mobile.no_folder') }, ...modelOptions]} />`}
+          ${details}
+        </div>`}
+      </div>
+    </div>`;
+  }
   return html`<${Modal} wide title=${phone ? t('side.new_session') : t('agents.new.title')} sub=${!phone && t('agents.new.sub')} onClose=${phone ? close : onClose}
       class=${phone ? 'phone-new-session' : undefined} focusField=${!phone}
       foot=${html`${!phone && html`<button type="button" class="btn" onClick=${onClose}>${t('agents.cancel')}</button>`}

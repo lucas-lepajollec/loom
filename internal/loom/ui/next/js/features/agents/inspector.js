@@ -5,7 +5,11 @@
 // réponses. Même structure que le panneau d'une discussion.
 import { lt } from './labels.js';
 import { t, locale } from '../../core/i18n.js';
-import { html, useState, useEffect, useStore, cls, fmtTok } from '../../core/lib.js';
+import { html, useState, useEffect, useRef, useStore, cls, fmtTok } from '../../core/lib.js';
+import { SessionPanel, PanelTabs } from '../../ui/session-panel.js';
+import { PreviewPanel } from '../previews/panel.js';
+import { get } from '../../core/api.js';
+import { JobForm } from './cron.js';
 import { Icon } from '../../ui/icons.js';
 import { DropdownButton, Switch, Empty, Seg, Menu } from '../../ui/controls.js';
 import { Modal, toast, prompt, confirm } from '../../ui/dialog.js';
@@ -13,7 +17,7 @@ import { copyText } from '../../ui/clipboard.js';
 import { api, sendPrompt } from './client.js';
 import { ago } from './rail.js';
 import { agents, cliOf, onDomain, upsertSession, stateOf, projectOf, hasConversation, sessionList } from './store.js';
-import { closeSession, renameSession, createSession } from './actions.js';
+import { closeSession, renameSession, createSession, interrupt } from './actions.js';
 import { CliMark } from './new-session.js';
 import { openSession, officialLink } from './nav.js';
 import { HarnessQuota } from './quotas.js';
@@ -25,12 +29,16 @@ const when = ms => ms ? new Date(ms).toLocaleString(locale(), { day: 'numeric', 
 
 function useRead(read, deps) {
   const [st, setSt] = useState({ data: null, error: '', loading: true });
+  const revision = useRef(0);
   const run = async (...a) => {
+    const request = ++revision.current;
     setSt(s => ({ ...s, loading: true }));
-    try { setSt({ data: await read(...a), error: '', loading: false }); }
-    catch (e) { setSt({ data: null, error: e.message, loading: false }); }
+    try {
+      const data = await read(...a);
+      if (request === revision.current) setSt({ data, error: '', loading: false });
+    } catch (e) { if (request === revision.current) setSt({ data: null, error: e.message, loading: false }); }
   };
-  useEffect(() => { run(); }, deps);
+  useEffect(() => { run(); return () => { revision.current++; }; }, deps);
   return [st, run];
 }
 
@@ -49,20 +57,30 @@ function ActivityTab({ id }) {
     <time>${time(e.timestamp)}</time><div><b>${e.title}</b>${e.details && html`<small>${e.details}</small>`}</div></li>`)}</ol>`;
 }
 
-function DiffModal({ id, file, onClose }) {
-  const [st] = useRead(() => api.gitDiff(id, file), [file.path]);
+function DiffView({ id, file, onClose }) {
+  const [st] = useRead(() => api.gitDiff(id, file), [id, file.repo, file.path, file.kind]);
   const lines = String(st.data?.diff || '').split('\n');
-  return html`<${Modal} wide title=${file.path} sub=${lt('gitKind', file.kind)} onClose=${onClose}>
-    ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="muted">${st.error}</p>`
+  return html`<div class="cm-inline-diff">
+    <div class="cm-insp-bar"><span class="mono trunc" title=${file.path}>${file.path}</span><button class="icon-btn" aria-label=${t('ui.drawer.fermer')} onClick=${onClose}><${Icon} n="close" /></button></div>
+    ${st.loading ? html`<${Loading} />` : st.error ? html`<p class="note err">${st.error}</p>`
       : st.data?.binary ? html`<p class="muted">${t('agents.git.binary')}</p>`
       : html`<pre class="diff cm-diff">${lines.map(l => html`<span class=${'dl ' + (l.startsWith('+') && !l.startsWith('+++') ? 'add' : l.startsWith('-') && !l.startsWith('---') ? 'del' : l.startsWith('@@') ? 'hunk' : '')}>${l || ' '}</span>`)}</pre>`}
     ${st.data?.truncated && html`<p class="muted">${t('agents.git.truncated')}</p>`}
-  </${Modal}>`;
+  </div>`;
 }
 
-function GitTab({ id }) {
-  const [st, run] = useRead(fresh => api.gitStatus(id, fresh), [id]);
+export function useSessionGit(id) {
+  const turn = useStore(agents, s => s.turns[id] || 0);
+  return useRead(fresh => api.gitStatus(id, fresh), [id, turn]);
+}
+
+export const gitFiles = data => (data?.repos || []).flatMap(repo => (repo.status?.files || [])
+  .map(file => ({ ...file, repo: repo.status.repoRoot || repo.path })));
+
+function GitTab({ id, git }) {
+  const [st, run] = git;
   const [diff, setDiff] = useState(null);
+  const ask = text => sendPrompt(id, text).then(() => toast(t('noir.asked_agent'))).catch(e => toast(e.message, 'err'));
   if (st.error) return html`<${Failed} error=${st.error} retry=${run} />`;
   if (st.loading && !st.data) return html`<${Loading} />`;
   const d = st.data || {};
@@ -76,11 +94,14 @@ function GitTab({ id }) {
         ${s.ahead ? html`<span class="tag green">↑${s.ahead}</span>` : ''}${s.behind ? html`<span class="tag amber">↓${s.behind}</span>` : ''}</header>
       ${s.state === 'error' ? html`<p class="muted">${s.error}</p>` : html`
         <p class="muted cm-repo-sum">${s.counts && s.counts.uncommitted ? t('agents.git.changes', { n: s.counts.uncommitted }) : t('agents.git.clean')}${s.unpushedCount ? ' · ' + t('agents.git.unpushed', { n: s.unpushedCount }) : ''}</p>
-        <ul class="cm-files">${(s.files || []).map(f => html`<li key=${f.kind + f.path}><button onClick=${() => setDiff({ repo: s.repoRoot, path: f.path, kind: f.kind })}>
+        <ul class="cm-files">${(s.files || []).map(f => html`<li key=${f.kind + f.path}><button onClick=${() => setDiff({ repo: s.repoRoot || repo.path, path: f.path, kind: f.kind })}>
           <i class=${'gk ' + f.kind}>${f.kind === 'untracked' ? '?' : f.kind === 'conflicted' ? '!' : (f.kind === 'staged' ? f.index : f.worktree) || 'M'}</i><span class="trunc mono">${f.path}</span></button></li>`)}</ul>
+        ${(s.counts?.uncommitted || s.unpushedCount) ? html`<div class="cm-git-acts">
+          ${s.counts?.uncommitted ? html`<button class="btn sm" onClick=${() => ask(t('noir.commit_prompt'))}>${t('noir.commit')}</button>` : ''}
+          <button class="btn sm" onClick=${() => ask(t('noir.pr_prompt'))}>${t('noir.open_pr')}</button></div>` : ''}
         ${(s.unpushed || []).length > 0 && html`<details class="cm-commits"><summary>${t('agents.git.commits')}</summary>${s.unpushed.map(c => html`<div key=${c.hash}><code>${c.hash.slice(0, 7)}</code> ${c.subject}</div>`)}</details>`}`}
     </section>`; })}
-    ${diff && html`<${DiffModal} id=${id} file=${diff} onClose=${() => setDiff(null)} />`}
+    ${diff && html`<${DiffView} id=${id} file=${diff} onClose=${() => setDiff(null)} />`}
   </div>`;
 }
 
@@ -198,7 +219,7 @@ function SessionMenu({ s, phone }) {
 
 // Une section repliable ; son contenu (et donc sa lecture) n'existe qu'ouvert.
 const openKey = 'loom.codeman.panel.open';
-const readOpen = () => { try { return JSON.parse(localStorage.getItem(openKey)) || ['git']; } catch (_) { return ['git']; } };
+const readOpen = () => { try { return JSON.parse(localStorage.getItem(openKey)) || []; } catch (_) { return []; } };
 function Section({ id, label, hint, open, toggle, children }) {
   return html`<section class=${cls('cm-ps', open && 'open')}>
     <button class="cm-ps-h" aria-expanded=${String(open)} onClick=${() => toggle(id)}><span>${label}</span>${hint && html`<small>${hint}</small>`}<${Icon} n=${open ? 'chevron' : 'right'} /></button>
@@ -224,12 +245,26 @@ function OthersTab({ s }) {
   return html`<ul class="cm-others">${others.map(o => html`<li key=${o.id}><button onClick=${() => openSession(o.id)}><span class="trunc">${o.name || o.id.slice(0, 8)}</span><small class="muted">${projectOf(o.workingDir)} · ${ago(o.lastActivityAt)}</small></button></li>`)}</ul>`;
 }
 
-export function Inspector({ session, onClose, view, setView, narrowView }) {
+function SessionPreview({ session }) {
+  const [{ data, loading }] = useRead(() => get('/api/machines/roles'), []);
+  const target = data?.roles?.codeman;
+  const link = officialLink(session.id);
+  if (loading) return html`<${Loading} />`;
+  if (target) return html`<${PreviewPanel} target=${target} />`;
+  return link ? html`<a class="btn" href=${link} target="codeman" rel="noopener"><${Icon} n="link" />${t('agents.session.official')}</a>`
+    : html`<p class="note">${t('noir.preview_unavailable')}</p>`;
+}
+
+export function Inspector({ session, onClose, view, setView, narrowView, git, tab, setTab }) {
   const [open, setOpen] = useState(readOpen);
   const [busy, setBusy] = useState('');
-  if (!session) return html`<aside class="cm-insp"><${Empty} icon="info" title=${t('agents.insp.none')} /></aside>`;
+  const [schedule, setSchedule] = useState(false);
+  const roles = useStore(agents, s => s.conn);
   const toggle = id => { const n = open.includes(id) ? open.filter(x => x !== id) : [...open, id]; setOpen(n); try { localStorage.setItem(openKey, JSON.stringify(n)); } catch (_) {} };
   const s = session, c = cliOf(s.mode), state = stateOf(s);
+  const status = git[0].data?.repos?.length === 1 ? git[0].data.repos[0].status : null;
+  let machine = '';
+  try { machine = new URL(roles.ui_url || roles.url).hostname; } catch (_) {}
   const shell = async () => {
     setBusy('shell');
     try { openSession(await createSession({ mode: 'shell', workingDir: s.workingDir })); } catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
@@ -240,35 +275,59 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
     try { await sendPrompt(s.id, cmd); toast(t('agents.panel.sent', { cmd })); } catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
   };
   const views = [{ value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') }, ...(narrowView ? [] : [{ value: 'split', label: t('agents.view.split') }])];
-  const link = officialLink(s.id);
-  return html`<aside class="cm-insp cm-panel" aria-label=${t('agents.insp.title')}>
-    ${!narrowView && html`<header class="cm-panel-h"><b>${t('agents.insp.info')}</b><span class="grow"></span>
-      <${SessionMenu} s=${s} />
-      ${onClose && html`<button class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${onClose}><${Icon} n="close" /></button>`}</header>`}
-    <div class="cm-panel-body">
-      ${!narrowView && setView && hasConversation(s.mode) && html`<${Seg} value=${view} options=${views} onChange=${setView} label=${t('agents.view.label')} />`}
-      <div class="cm-panel-rows">
-        <div class="cm-kv"><span>${t('agents.info.cli')}</span><b class="cm-panel-cli"><${CliMark} mode=${s.mode} size="xs" />${c.label}${s.cliVersion ? ' ' + s.cliVersion : ''}</b></div>
-        <${ModelRow} s=${s} />
-        <div class="cm-kv"><span>${t('agents.info.dir')}</span><b class="mono trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</b></div>
-      </div>
-      <div class="cm-panel-acts">
-        ${narrowView && html`<${SessionMenu} s=${s} phone />`}
-        ${s.mode !== 'shell' && html`<button class="btn sm" disabled=${!!busy} onClick=${shell}>${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}<span>${t('agents.panel.shell')}</span></button>`}
-        ${s.mode === 'claude' ? html`
-          <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>
-          <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/clear', true)}><${Icon} n="refresh" /><span>${t('agents.panel.clear')}</span></button>`
-        : link ? html`<a class="btn sm" href=${link} target="codeman" rel="noopener"><${Icon} n="link" /><span>${t('agents.panel.codeman')}</span></a>` : ''}
-      </div>
-      <${HarnessQuota} mode=${s.mode} />
-      <div class="cm-panel-secs">
-        <${Section} id="git" label=${t('agents.panel.changes')} open=${open.includes('git')} toggle=${toggle}><${GitTab} id=${s.id} /></${Section}>
-        <${Section} id="activity" label=${lt('insp', 'activity')} hint=${ago(s.lastActivityAt)} open=${open.includes('activity')} toggle=${toggle}><${ActivityTab} id=${s.id} /></${Section}>
-        <${Section} id="files" label=${lt('insp', 'files')} open=${open.includes('files')} toggle=${toggle}><${FilesTab} id=${s.id} /></${Section}>
-        <${Section} id="subagents" label=${lt('insp', 'subagents')} open=${open.includes('subagents')} toggle=${toggle}><${SubagentsTab} id=${s.id} /></${Section}>
-        <${Section} id="others" label=${t('agents.panel.others', { cli: c.label })} hint=${String(sessionList().filter(x => x.mode === s.mode && x.id !== s.id).length || '')} open=${open.includes('others')} toggle=${toggle}><${OthersTab} s=${s} /></${Section}>
-        <${Section} id="info" label=${t('agents.panel.details')} hint=${s.tokens?.total > 0 ? fmtTok(s.tokens.total) + ' ' + t('agents.panel.tokens') : ''} open=${open.includes('info')} toggle=${toggle}><${InfoTab} session=${s} /></${Section}>
+  const tabs = [
+    ['session', t('agents.insp.info')],
+    ['git', t('agents.panel.changes')],
+    ['terminal', t('agents.view.terminal')],
+    ['files', t('files.title')],
+    ['preview', t('noir.preview')],
+  ];
+  return html`<${SessionPanel} title=${t('agents.insp.title')} onClose=${onClose}>
+    <div class="cm-panel session-agent-panel">
+      <${PanelTabs} label=${t('agents.insp.title')} value=${tab} tabs=${tabs} onChange=${setTab} />
+      <div class="cm-panel-body" key=${tab}>
+        ${tab === 'session' && html`
+          <div class="cm-session-stats">
+            <div><strong>${s.tokens?.total > 0 ? fmtTok(s.tokens.total) : '—'}</strong><span>${t('agents.info.tokens')}</span></div>
+            <div><strong>${s.totalCost > 0 ? '$' + s.totalCost.toFixed(2) : '—'}</strong><span>${t('agents.info.cost')}</span></div>
+          </div>
+          <${HarnessQuota} mode=${s.mode} />
+          <div class="cm-panel-rows">
+            <${Row} k=${t('agents.info.cli')}><span class="cm-panel-cli"><${CliMark} mode=${s.mode} size="xs" />${c.label}${s.cliVersion ? ' ' + s.cliVersion : ''}</span></${Row}>
+            <${ModelRow} s=${s} />
+            ${s.displayModel?.effort && html`<${Row} k=${t('noir.effort')}>${s.displayModel.effort}</${Row}>`}
+            ${s.permissionMode && html`<${Row} k=${t('inspector.inspector.autorisations')}>${s.permissionMode}</${Row}>`}
+          </div>
+          <div class="cm-panel-rows">
+            ${machine && html`<${Row} k=${t('workspaces.machine')}>${machine}</${Row}>`}
+            <${Row} k=${t('agents.info.dir')}><span class="mono trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</span></${Row}>
+            ${status?.branch && html`<${Row} k=${t('noir.branch')}><span class="mono trunc">${status.branch}</span></${Row}>`}
+          </div>
+          <div class="cm-panel-acts">
+            ${s.mode === 'claude' && html`
+              <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>
+              <button class="btn sm" disabled=${!!busy} onClick=${() => slash('/clear', true)}><${Icon} n="refresh" /><span>${t('agents.panel.clear')}</span></button>`}
+            ${s.mode !== 'shell' && html`<button class="btn sm" onClick=${() => setSchedule(true)}><${Icon} n="clock" />${t('noir.schedule')}</button>`}
+            ${['working', 'waiting'].includes(state) && html`<button class="btn sm" onClick=${() => interrupt(s.id).catch(e => toast(e.message, 'err'))}><${Icon} n="stop" />${t('agents.composer.interrupt')}</button>`}
+            <${SessionMenu} s=${s} phone />
+          </div>
+          <div class="cm-panel-secs">
+            <${Section} id="activity" label=${lt('insp', 'activity')} hint=${ago(s.lastActivityAt)} open=${open.includes('activity')} toggle=${toggle}><${ActivityTab} id=${s.id} /></${Section}>
+            <${Section} id="subagents" label=${lt('insp', 'subagents')} open=${open.includes('subagents')} toggle=${toggle}><${SubagentsTab} id=${s.id} /></${Section}>
+            <${Section} id="others" label=${t('agents.panel.others', { cli: c.label })} open=${open.includes('others')} toggle=${toggle}><${OthersTab} s=${s} /></${Section}>
+            <${Section} id="info" label=${t('agents.panel.details')} open=${open.includes('info')} toggle=${toggle}><${InfoTab} session=${s} /></${Section}>
+          </div>
+          ${schedule && html`<${JobForm} initial=${{ agentType: s.mode, workingDir: s.workingDir, name: s.name || '' }} phone=${narrowView}
+            onClose=${() => setSchedule(false)} onSaved=${() => setSchedule(false)} />`}
+        `}
+        ${tab === 'git' && html`<${GitTab} id=${s.id} git=${git} />`}
+        ${tab === 'files' && html`<${FilesTab} id=${s.id} />`}
+        ${tab === 'terminal' && html`
+          ${setView && hasConversation(s.mode) && html`<${Seg} value=${view} options=${views} onChange=${v => { setView(v); if (narrowView) onClose?.(); }} label=${t('agents.view.label')} />`}
+          ${s.mode !== 'shell' && html`<button class="btn" disabled=${!!busy} onClick=${shell}><${Icon} n="terminal" />${t('agents.panel.shell')}</button>`}
+        `}
+        ${tab === 'preview' && html`<${SessionPreview} session=${s} />`}
       </div>
     </div>
-  </aside>`;
+  </${SessionPanel}>`;
 }

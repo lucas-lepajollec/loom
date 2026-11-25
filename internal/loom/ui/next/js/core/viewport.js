@@ -1,15 +1,18 @@
 import { useEffect, useState } from './lib.js';
 
-const phoneQuery = '(max-width: 760px)';
+export const phoneQuery = '(max-width: 639px)';
 export const isPhone = () => globalThis.matchMedia?.(phoneQuery).matches === true;
 
-export function usePhone() {
-  const [phone, setPhone] = useState(isPhone);
+export const usePhone = () => useMedia(phoneQuery);
+
+export function useMedia(query) {
+  const [matches, setMatches] = useState(() => matchMedia(query).matches);
   useEffect(() => {
-    const media = matchMedia(phoneQuery);
-    const update = () => setPhone(media.matches);
+    const media = matchMedia(query);
+    const update = () => setMatches(media.matches);
+    update();
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
-  }, []);
-  return phone;
+  }, [query]);
+  return matches;
 }

@@ -424,7 +424,7 @@ input[type="checkbox"]:disabled,input[type="radio"]:disabled{opacity:.4;cursor:n
    la page agrandie. cursor:pointer fait émettre un clic iOS sur toute zone, ce
    qui permet de fermer un menu en touchant à côté. */
 html,body{overscroll-behavior:none}
-@media (max-width:760px){
+@media (max-width:639px){
   :is(.btn,.btn.sm,.btn.lg,.chip-btn,.input,.input.sm,.search,.item,.slider),.seg button,.seg.sm button,.seg.lg button{min-height:var(--touch-target)}
   .icon-btn,.switch{min-width:var(--touch-target);min-height:var(--touch-target)}
   .seg{max-width:100%;min-width:0;flex-wrap:wrap}

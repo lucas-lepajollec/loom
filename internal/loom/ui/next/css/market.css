@@ -96,7 +96,7 @@
 @media(min-width:1021px){
   .market-rank-tools{justify-content:flex-end}
 }
-@media(max-width:760px){
+@media(max-width:639px){
   .market-tools{justify-content:flex-start}
   .market-pages .icon-btn,.market-sort .icon-btn{width:44px;height:44px}
   .market-credit,.market-sort .select,.market-filter,.market-filters .search,.market-filters .select{min-height:44px}

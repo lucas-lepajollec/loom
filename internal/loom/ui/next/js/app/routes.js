@@ -1,6 +1,4 @@
-// Registre des sections de l'application. Ajouter une page = une entrée ici :
-// `nav` la place dans la barre latérale, `page` est le composant rendu pour
-// #/<id>/<sub>/<id>. Rien d'autre à modifier dans la coquille.
+// Registre des composants rendus pour #/<section>/<sous-page>/<id>.
 import { ChatView } from '../features/chat/view.js';
 import { LocalPage } from '../features/local/page.js';
 import { CloudPage } from '../features/cloud/page.js';
@@ -41,5 +39,4 @@ export const ROUTES = [
   { id: 'settings', page: SettingsPage },
 ];
 export const pageFor = id => (ROUTES.find(r => r.id === id) || {}).page;
-// Une entrée de barre latérale par groupe, qui ouvre sa première page.
-export const NAV_ITEMS = GROUPS.map(g => ({ id: g.id, href: '#/' + g.tabs[0][0], nav: { get label() { return g.label; }, icon: g.icon } }));
+export const NAV_ITEMS = GROUPS.map(g => ({ href: '#/' + g.tabs[0][0], nav: { get label() { return g.label; }, icon: g.icon } }));

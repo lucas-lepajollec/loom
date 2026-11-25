@@ -19,6 +19,8 @@ const TITLES = () => ({
   'mcp.tool:agents/start_session': t('approvals.session'),
 });
 
+export const loomApprovalTitle = item => TITLES()[item.subject] || t('approvals.other');
+
 export function LoomApproval({ item, class: c = '' }) {
   const [busy, setBusy] = useState(false);
   const title = TITLES()[item.subject];

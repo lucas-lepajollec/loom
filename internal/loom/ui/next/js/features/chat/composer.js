@@ -26,7 +26,7 @@ const setToolOn = (n, v) => { try { localStorage.setItem('loom.chat.' + n, v ? '
 // au premier morceau, `more:false` ferme le fichier et renvoie son chemin.
 const CHUNK = 8 << 20;
 const b64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result || '')); fr.onerror = () => rej(new Error(t("chat.composer.lecture_impossible"))); fr.readAsDataURL(blob); });
-async function upload(file) {
+export async function upload(file) {
   let id = '', off = 0, path = '';
   do {
     const end = Math.min(off + CHUNK, file.size), last = end >= file.size;
@@ -46,10 +46,10 @@ export function Composer({ phone } = {}) {
   const c = useStore(chat, s => ({ busy: s.busy, mode: s.mode, ctx: s.ctxUsed, session: s.session, context: s.context, notice: s.notice, starting: s.starting, engineError: s.engineError, localTarget: s.localTarget }));
   const status = useStore(app, s => s.status);
   const runtimes = useStore(app, s => s.workspace?.runtimes || []);
-  const draft = useStore(app, s => phone && s.phoneDraft);
+  const draft = useStore(app, s => s.phoneDraft);
   const [text, setText] = useState(draft?.text || '');
   const dictation = useDictation(result => setText(current => [current.trimEnd(), result].filter(Boolean).join(' ')));
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState(draft?.files || []);
   const [tools, setTools] = useState({ internet: toolOn('internet'), mcp: toolOn('mcp') });
   const [menu, setMenu] = useState(null);
   const ta = useRef(), fileIn = useRef(), pasteNumber = useRef(0), submitting = useRef(false);
@@ -133,7 +133,7 @@ export function Composer({ phone } = {}) {
 
   return html`<div class=${cls('composer-wrap', phone && 'phone-composer')}>
     <div class="composer">
-      ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" />${f.name}${typeof f.content === 'string' && html`<button title=${t('chat.composer.download_text')} aria-label=${t('chat.composer.download_text')} onClick=${() => downloadPaste(f)}><${Icon} n="download" /></button>`}<button aria-label="${t("chat.composer.retirer")}" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
+      ${files.length ? html`<div class="attach-row">${files.map((f, i) => html`<span class="file-pill"><${Icon} n="file" /><span class="trunc" title=${f.name}>${f.name}</span>${typeof f.content === 'string' && html`<button title=${t('chat.composer.download_text')} aria-label=${t('chat.composer.download_text')} onClick=${() => downloadPaste(f)}><${Icon} n="download" /></button>`}<button aria-label="${t("chat.composer.retirer")}" onClick=${() => setFiles(files.filter((_, j) => j !== i))}><${Icon} n="close" /></button></span>`)}</div>` : ''}
       ${phone && canAdd && html`<button type="button" class=${cls('icon-btn composer-add', activeTools.length && 'on')} aria-label=${t('mobile.add_tools')}
         aria-haspopup="dialog" aria-expanded=${String(!!menu)} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="plus" /></button>`}
       <textarea ref=${ta} rows="1" value=${text} onInput=${e => setText(e.target.value)} onKeyDown=${onKey} onPaste=${onPaste} enterkeyhint=${phone ? 'send' : undefined}
@@ -156,9 +156,12 @@ export function Composer({ phone } = {}) {
         ${sendBtn}
       </div>`}
     </div>
-    ${draft?.failed ? html`<div class="composer-hint err" role="alert">${blocked}<button class="btn sm" onClick=${() => startPhoneDiscussion(draft.folder, text, false)}>${t('agents.retry')}</button></div>`
+    ${draft?.failed ? html`<div class="composer-hint err" role="alert">${blocked}<button class="btn sm" onClick=${() => startPhoneDiscussion(draft.folder, text, false, { files, choice: draft.choice })}>${t('agents.retry')}</button></div>`
       : c.starting ? null
-      : c.engineError ? html`<div class="composer-hint err" role="alert">${c.engineError}<button class="btn sm" onClick=${submit}>${t('agents.retry')}</button></div>`
+      : c.engineError ? html`<div class="composer-hint err composer-error" role="alert">
+        <${Icon} n="alert" /><span>${c.engineError}</span><div class="composer-error-actions">
+          <button class="btn sm" onClick=${submit}>${t('agents.retry')}</button><a class="btn sm" href="#/engine/log">${t('noir.engine_log')}</a>
+        </div></div>`
       : hint && html`<div class="composer-hint warn">${hint}</div>`}
     ${menu && html`<${Popover} sheet label=${t('mobile.add_tools')} anchor=${menu} onClose=${() => setMenu(null)} place="above" width=${240} class=${phone ? 'composer-sheet' : undefined}>
       ${phone && canAttach && html`<button class="item" onClick=${() => { setMenu(null); fileIn.current?.click(); }}><${Icon} n="paperclip" />${t('chat.composer.joindre_un_fichier')}</button>`}

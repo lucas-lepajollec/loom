@@ -395,7 +395,7 @@
 .composer .ctx{border:0;background:none;color:var(--text-3);font:12px var(--mono)}
 .composer .ctx-ring{display:none}
 .composer .send{border-radius:50%}
-@media (max-width:760px){.chat-title{display:none}}
+@media (max-width:639px){.chat-title{display:none}}
 /* nouvelle session : la saisie au centre, sous le choix du type */
 .chat-col.is-empty .thread{flex:0 0 auto;overflow:visible;margin-top:auto}
 .chat-col.is-empty .welcome{height:auto;padding-bottom:20px}
