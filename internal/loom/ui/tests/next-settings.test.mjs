@@ -36,7 +36,7 @@ function harness(source, view, overrides = {}) {
     t: french, tSource: s => s, locale: () => 'fr-FR', getLang: () => 'fr',
     html, Config, cls: (...s) => s.filter(Boolean).join(' '), fmtBytes: b => b + ' octets',
     Switch: 'Switch', Tip: 'Tip', Modal: 'Modal', Seg: 'Seg', Icon: 'Icon', Menu: 'Menu', ListPick: 'ListPick', shortVersion: v => String(v || ''),
-    Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', AgentAccess: 'AgentAccess', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
+    ContextNav: 'ContextNav', Logo: 'Logo', Drawer: 'Drawer', ParamsEditor: 'ParamsEditor', Tabs: 'Tabs', Empty: 'Empty', Hub: 'Hub', StartupSettings: 'StartupSettings', HttpsSettings: 'HttpsSettings', NotificationSettings: 'NotificationSettings', PolicySettings: 'PolicySettings', AgentAccess: 'AgentAccess', DoctorSettings: 'DoctorSettings', HarnessHistory: 'HarnessHistory', Lifecycle: 'Lifecycle',
     inspectTrigger: () => ({}), baseName: p => (p || '').split('/').pop(),
     useState(initial) {
       const i = cursor++;
@@ -457,7 +457,9 @@ test('mobile Settings opens quick controls and links to each settings detail', (
   phone = false;
   tree = h.render({ route: { sub: 'internet' } });
   assert.equal(nodes(tree, 'nav').length, 1);
-  assert.equal(nodes(tree, 'h1').map(textOf).join(''), 'Réglages');
+  const context = nodes(tree, 'ContextNav')[0];
+  assert.equal(context.props.title, 'Réglages');
+  assert.equal(context.props.items.find(item => item.current).href, '#/settings/internet');
 });
 
 

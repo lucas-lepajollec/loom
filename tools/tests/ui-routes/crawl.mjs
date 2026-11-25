@@ -60,7 +60,7 @@ try {
       crash: (document.querySelector('.page-crash pre') || {}).textContent || '',
       guarded: !!document.querySelector('.page-crash'),
       bar: (document.querySelector('.client-error') || {}).textContent || '',
-      views: document.querySelectorAll('.view').length,
+      views: [...document.querySelectorAll('.view')].filter(view => view.getClientRects().length).length,
     }));
     if (st.guarded) failures.push(`${label}: PageGuard: ${st.crash.split('\n')[0]}`);
     if (st.bar) failures.push(`${label}: ${st.bar}`);
@@ -303,7 +303,7 @@ try {
       if (phone && scenario === 'phone-layout' && r === 'sessions') {
         const tabBar = page.locator('.phone-tabs');
         const tabs = await tabBar.locator('a').evaluateAll(items => items.map(a => a.getAttribute('href')));
-        if (tabs.join(',') !== '#/sessions,#/inbox,#/quotas,#/more') throw new Error('Wrong phone tabs or order');
+        if (tabs.join(',') !== '#/sessions,#/files,#/inbox,#/more') throw new Error('Wrong phone tabs or order');
         await tabBar.locator('.phone-badge', { hasText: '2' }).waitFor();
         await page.getByRole('tab', { name: dictionary['side.filter_chats'], exact: true }).click();
         if (await page.locator('.phone-session-row .logo-mark').count()) throw new Error('Discussion filter retained an agent');
@@ -319,8 +319,8 @@ try {
         await search.waitFor({ state: 'detached' });
         await page.getByRole('button', { name: dictionary['side.new_session'], exact: true }).click();
         const newSession = page.locator('.phone-new-session');
-        await newSession.locator('.phone-session-types button').nth(1).click();
-        await newSession.locator('.cm-cli-grid').waitFor();
+        await newSession.locator('.new-executors').getByRole('button', { name: 'Claude Code' }).click();
+        await newSession.getByRole('button', { name: dictionary['mobile.session_options'], exact: true }).click();
         await newSession.getByRole('textbox', { name: dictionary['mobile.first_message'] }).waitFor();
         await newSession.getByRole('button', { name: dictionary['mobile.session_folder'], exact: true }).click();
         const folders = page.getByRole('listbox', { name: dictionary['mobile.session_folder'], exact: true });
@@ -355,7 +355,11 @@ try {
         await reply.waitFor({ state: 'detached' });
       }
       if (phone && scenario === 'phone-layout' && r === 'agents/s/fixture-session-0') {
-        await page.locator('.cm-conv .cm-approval').waitFor();
+        const approval = page.locator('.agent-approval-sheet');
+        await approval.waitFor();
+        await page.keyboard.press('Escape');
+        await approval.waitFor({ state: 'detached' });
+        await page.locator('.cm-composer .approval-reopen').waitFor();
         await page.getByRole('tab', { name: dictionary['agents.view.terminal'], exact: true }).click();
         await page.locator('.cm-line-keys').click();
         await page.locator('.cm-acc').getByRole('button', { name: dictionary['mobile.key_ctrl_c'], exact: true }).waitFor();
@@ -366,9 +370,10 @@ try {
         await inspect(page, errors, label + ' agent inspector');
       }
       if (phone && scenario === 'phone-layout' && r === 'more') {
-        await page.locator('.more-links a[href="#/files"]').click();
-        await page.locator('.files .phone-back').click();
-        await page.locator('.more-links').waitFor();
+        await page.locator('.phone-tabs a[href="#/files"]').click();
+        await page.locator('.phone-tabs a[href="#/files"][aria-current=page]').waitFor();
+        await page.locator('.phone-tabs a[href="#/more"]').click();
+        await page.locator('.more-links a[href="#/quotas"]').waitFor();
       }
       await inspect(page, errors, label + ' degraded');
       if (!['fresh', 'healthy', 'phone-layout'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);
