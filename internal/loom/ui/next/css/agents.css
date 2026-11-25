@@ -365,3 +365,5 @@ html.touch .cm-term-box{-webkit-text-size-adjust:100%}
 .cm-restore-name small{font:12px var(--mono);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ses-restore{color:var(--amber)}
 .ses-restore .ico{width:14px;height:14px}
+
+.cm-git-acts{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}

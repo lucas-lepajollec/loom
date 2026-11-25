@@ -17,6 +17,7 @@ import { useMedia } from '../../core/viewport.js';
 import { BackButton } from '../../app/phone-nav.js';
 import { usePullRefresh } from '../../app/touch.js';
 import { ago } from '../agents/rail.js';
+import { agents } from '../agents/store.js';
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
 const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
@@ -232,7 +233,14 @@ function RootSetup({ data, done }) {
   </${Empty}></div>`;
 }
 
-function Viewer({ path, refresh, narrow }) {
+// Ouvre une nouvelle session d'agent avec ce fichier en référence. La page
+// Sessions s'affiche d'abord : changer de page referme une création en cours.
+function giveToAgent(abs) {
+  go('sessions');
+  setTimeout(() => agents.set({ creating: { type: 'agent', message: t('files.give_agent_prompt', { path: abs }) } }), 60);
+}
+
+function Viewer({ path, root, refresh, narrow }) {
   const [file, setFile] = useState(null);
   const [raw, setRaw] = useState(false);
   const [state, setState] = useState('saved');
@@ -248,6 +256,7 @@ function Viewer({ path, refresh, narrow }) {
   const crumbs = path.split('/');
   const items = [
     ...(file && typeof file.content === 'string' && isNote(path) ? [{ label: raw ? t('files.view_rendered') : t('files.view_markdown'), icon: 'file', run: () => setRaw(!raw) }] : []),
+    { label: t('files.give_agent'), icon: 'agent', run: () => giveToAgent(root ? root.replace(/\/+$/, '') + '/' + path : path) },
     { label: t('files.rename'), icon: 'edit', run: () => renameEntry({ path, name: baseOf(path) }, refresh, path) },
     '-',
     { label: t('files.delete'), icon: 'trash', danger: true, run: () => deleteEntry({ path, name: baseOf(path) }, refresh, path) },
@@ -305,7 +314,7 @@ export function FilesPage({ route }) {
     ${!current && phoneHeader}
     ${showTree && (scopeNow === 'machine' ? html`<${MachineTree} key=${'m'} current=${current} onSetBrain=${setBrain} header=${header} />`
       : html`<${Tree} data=${data} current=${current} refresh=${refresh} header=${header} phone=${narrow} />`)}
-    ${current ? html`<${Viewer} key=${scopeNow + current} path=${current} refresh=${refresh} narrow=${narrow} />`
+    ${current ? html`<${Viewer} key=${scopeNow + current} path=${current} root=${data?.root || ''} refresh=${refresh} narrow=${narrow} />`
       : !narrow && html`<section class="fl-view"><${Empty} icon="file" title=${t('files.pick')} text=${t('files.pick_text')} /></section>`}
   </div>`;
 }

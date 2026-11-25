@@ -3204,4 +3204,11 @@ export default {
   "quotas.reset_agy": "No reset. AI credits: {n} (used when a limit is hit, if enabled in /config).",
   "quotas.reset_copilot": "No reset: the premium request quota renews every month.",
   "quotas.resets_none": "No reset available",
+  "noir.commit": "Commit",
+  "noir.open_pr": "Open PR",
+  "noir.commit_prompt": "Commit the current changes with a clear message.",
+  "noir.pr_prompt": "Push the branch and open a pull request that summarizes the changes.",
+  "noir.asked_agent": "Sent to the agent",
+  "files.give_agent": "Give to an agent",
+  "files.give_agent_prompt": "Read the file {path}, then ",
 };

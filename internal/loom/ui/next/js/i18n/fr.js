@@ -3204,4 +3204,11 @@ export default {
   "quotas.reset_agy": "Pas de réinitialisation. Crédits IA : {n} (pris quand une limite est atteinte, si l’option est activée dans /config).",
   "quotas.reset_copilot": "Pas de réinitialisation : le quota de requêtes premium repart chaque mois.",
   "quotas.resets_none": "Aucune réinitialisation disponible",
+  "noir.commit": "Commit",
+  "noir.open_pr": "Ouvrir la PR",
+  "noir.commit_prompt": "Fais un commit des modifications en cours avec un message clair.",
+  "noir.pr_prompt": "Pousse la branche et ouvre une pull request avec un résumé des changements.",
+  "noir.asked_agent": "Demandé à l'agent",
+  "files.give_agent": "Donner à un agent",
+  "files.give_agent_prompt": "Lis le fichier {path} puis ",
 };

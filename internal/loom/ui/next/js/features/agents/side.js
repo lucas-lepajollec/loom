@@ -42,6 +42,6 @@ export function NewSessionHost({ phone, inline = false }) {
   }, [inline]);
   if (!creating || inline !== !!creating.type) return null;
   const cell = creating.cell;
-  return html`<${NewSession} inline=${inline} preset=${creating.preset} phone=${phone} initialType=${creating.type} folder=${creating.folder} onClose=${() => agents.set({ creating: null })}
+  return html`<${NewSession} inline=${inline} preset=${creating.preset} phone=${phone} initialType=${creating.type} folder=${creating.folder} message=${creating.message || ''} onClose=${() => agents.set({ creating: null })}
     onCreated=${id => { if (cell != null) placeSession(id, cell); openSession(id); }} />`;
 }

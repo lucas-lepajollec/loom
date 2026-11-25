@@ -80,6 +80,7 @@ export const gitFiles = data => (data?.repos || []).flatMap(repo => (repo.status
 function GitTab({ id, git }) {
   const [st, run] = git;
   const [diff, setDiff] = useState(null);
+  const ask = text => sendPrompt(id, text).then(() => toast(t('noir.asked_agent'))).catch(e => toast(e.message, 'err'));
   if (st.error) return html`<${Failed} error=${st.error} retry=${run} />`;
   if (st.loading && !st.data) return html`<${Loading} />`;
   const d = st.data || {};
@@ -95,6 +96,9 @@ function GitTab({ id, git }) {
         <p class="muted cm-repo-sum">${s.counts && s.counts.uncommitted ? t('agents.git.changes', { n: s.counts.uncommitted }) : t('agents.git.clean')}${s.unpushedCount ? ' · ' + t('agents.git.unpushed', { n: s.unpushedCount }) : ''}</p>
         <ul class="cm-files">${(s.files || []).map(f => html`<li key=${f.kind + f.path}><button onClick=${() => setDiff({ repo: s.repoRoot || repo.path, path: f.path, kind: f.kind })}>
           <i class=${'gk ' + f.kind}>${f.kind === 'untracked' ? '?' : f.kind === 'conflicted' ? '!' : (f.kind === 'staged' ? f.index : f.worktree) || 'M'}</i><span class="trunc mono">${f.path}</span></button></li>`)}</ul>
+        ${(s.counts?.uncommitted || s.unpushedCount) ? html`<div class="cm-git-acts">
+          ${s.counts?.uncommitted ? html`<button class="btn sm" onClick=${() => ask(t('noir.commit_prompt'))}>${t('noir.commit')}</button>` : ''}
+          <button class="btn sm" onClick=${() => ask(t('noir.pr_prompt'))}>${t('noir.open_pr')}</button></div>` : ''}
         ${(s.unpushed || []).length > 0 && html`<details class="cm-commits"><summary>${t('agents.git.commits')}</summary>${s.unpushed.map(c => html`<div key=${c.hash}><code>${c.hash.slice(0, 7)}</code> ${c.subject}</div>`)}</details>`}`}
     </section>`; })}
     ${diff && html`<${DiffView} id=${id} file=${diff} onClose=${() => setDiff(null)} />`}

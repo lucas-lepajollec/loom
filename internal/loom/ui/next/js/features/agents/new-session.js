@@ -44,7 +44,7 @@ function Browser({ start, onPick }) {
   </div>`;
 }
 
-export function NewSession({ onClose, onCreated, preset, phone, inline, initialType = 'agent', folder: initialFolder = '' }) {
+export function NewSession({ onClose, onCreated, preset, phone, inline, initialType = 'agent', folder: initialFolder = '', message = '' }) {
   const clis = useStore(agents, s => s.clis.filter(c => c.enabled !== false));
   const unified = useStore(agents, s => s.unified);
   const cases = useStore(agents, s => s.cases);
@@ -53,7 +53,7 @@ export function NewSession({ onClose, onCreated, preset, phone, inline, initialT
   const projects = useStore(app, s => s.nav.projects || []);
   const [type, setType] = useState(initialType);
   const [folder, setFolder] = useState(initialFolder);
-  const [firstMessage, setFirstMessage] = useState('');
+  const [firstMessage, setFirstMessage] = useState(message || '');
   const [choiceId, setChoiceId] = useState('');
   const [attached, setAttached] = useState([]);
   const [configure, setConfigure] = useState(false);
