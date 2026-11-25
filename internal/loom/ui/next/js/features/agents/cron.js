@@ -46,7 +46,7 @@ const localInput = ms => {
 };
 const SCHEDULE_TYPES = ['once', 'interval', 'daily', 'weekly'];
 
-export function JobForm({ job, initial, onClose, onSaved, onDelete, phone }) {
+function JobForm({ job, onClose, onSaved, onDelete, phone }) {
   const registry = useStore(agents, s => s.clis);
   const sessions = useStore(agents, s => s.sessions);
   const unified = useStore(agents, s => s.unified);
@@ -61,7 +61,6 @@ export function JobForm({ job, initial, onClose, onSaved, onDelete, phone }) {
     name: '', agentType: defaultCli?.id || '', workingDir: defaults.defaultWorkingDir || unified.find(r => r.workingDir && !r.remote)?.workingDir || '', promptMode: 'inline_text', promptText: '', promptFilePath: '',
     inputMode: 'paste', scheduleType: 'daily', runAt: Date.now() + 3600e3, intervalMinutes: 60, dailyTime: '09:00', weeklyDays: [1], weeklyTime: '09:00',
     enabled: true, concurrencyPolicy: 'skip_if_same_agent_running', autoClosePreviousSession: true, notes: '', launchCommand: '',
-    ...initial,
     ...Object.fromEntries(Object.entries(job || {}).filter(([, x]) => x != null)),
   }));
   const [busy, setBusy] = useState(false);

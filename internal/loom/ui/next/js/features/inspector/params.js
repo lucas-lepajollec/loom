@@ -14,14 +14,14 @@ import { Config, fromMap } from './config.js';
 const fmtK = n => { n = +n || 0; return n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1000 ? Math.round(n / 1000) + 'K' : String(n); };
 const gib = mb => ((+mb || 0) / 1024).toFixed(1);
 
-const Row = ({ spec, expert, children }) => html`<div class=${cls('prow', spec.stack && 'stack')} data-row=${spec.id}>
-  <div class="prow-l"><span class=${expert ? 'mono' : undefined}>${expert ? spec.flag || spec.id : tSource(spec.label) || spec.id}</span>${spec.tip && (expert ? html`<small>${tSource(spec.tip)}</small>` : html`<${Tip} text=${tSource(spec.tip)} />`)}</div>
+const Row = ({ spec, children }) => html`<div class=${cls('prow', spec.stack && 'stack')} data-row=${spec.id}>
+  <div class="prow-l"><span>${tSource(spec.label) || spec.id}</span>${spec.tip && html`<${Tip} text=${tSource(spec.tip)} />`}</div>
   <div class="prow-c">${children}</div></div>`;
 
 const Select = ({ value, options, onChange, label }) => html`<${ListPick} class="sm" value=${String(value)} label=${label}
   options=${options.map(([v, l]) => ({ value: String(v), label: tSource(l) }))} onChange=${onChange} />`;
 
-const Num = ({ value, placeholder, onChange, step, label }) => html`<input class="input sm num" type="number" aria-label=${label} step=${step || 'any'} value=${value} placeholder=${placeholder || '—'} onChange=${e => onChange(e.target.value)} />`;
+const Num = ({ value, placeholder, onChange, step }) => html`<input class="input sm num" type="number" step=${step || 'any'} value=${value} placeholder=${placeholder || '—'} onChange=${e => onChange(e.target.value)} />`;
 
 function VramCard({ est, note }) {
   if (!est || !est.ok) return html`<div class="vram skeleton" style="height:72px"></div>`;
@@ -56,7 +56,7 @@ export async function draftSource(model) {
   return { live: false, mode: 'model', model, presetId: '', presetName: '', base: rem?.remembered && rem.content ? rem.content : (d && d.content) || '', remembered: !!rem?.remembered };
 }
 
-export function LocalParams({ noir }) {
+export function LocalParams() {
   const status = useStore(app, s => s.status);
   const [src, setSrc] = useState(null);
   const [error, setError] = useState('');
@@ -75,10 +75,10 @@ export function LocalParams({ noir }) {
   if (error) return html`<div class="insp-body"><p class="note err" role="alert">${error}</p><button class="btn" onClick=${() => setRetry(n => n + 1)}>${t('access.retry')}</button></div>`;
   if (!src) return html`<div class="insp-body"><div class="skeleton" style="height:78px"></div><div class="skeleton" style="height:30px;margin-top:16px"></div></div>`;
   if (src.mode === 'empty') return html`<div class="insp-empty anim-rise"><${Icon} n="chip" /><h3>${t("inspector.params.aucun_modele_charge")}</h3><p>${t("inspector.params.choisis_un_modele_ou_un_preset_en_haut_de_la_discussion_pour_regl")}</p></div>`;
-  return html`<${ParamsEditor} src=${src} noir=${noir} onSaved=${base => setSrc({ ...src, base })} />`;
+  return html`<${ParamsEditor} src=${src} onSaved=${base => setSrc({ ...src, base })} />`;
 }
 
-export function ParamsEditor({ src, noir = false, onSaved, onLoaded }) {
+export function ParamsEditor({ src, onSaved, onLoaded }) {
   const [cfg, setCfg] = useState(() => new Config(src.base));
   const [caps, setCaps] = useState({});
   const [specs, setSpecs] = useState([]);
@@ -134,40 +134,20 @@ export function ParamsEditor({ src, noir = false, onSaved, onLoaded }) {
     const f = nativeFlag(p);
     const value = p.key && !p.requires_flag && p.tier !== 'expert' ? cfg.get(p.key) : cfg.flagValue(f);
     const change = v => edit(c => p.key && !p.requires_flag && p.tier !== 'expert' ? c.set(p.key, v) : c.setFlagValue(f, v));
-    if (noir && p.id === 'temp' && p.tier === 'essential') {
-      const initial = Number(p.default);
-      const temperature = value !== '' && Number.isFinite(Number(value)) ? Number(value)
-        : p.default && Number.isFinite(initial) ? initial : 0.7;
-      return html`<div class="param-range">
-        <${Num} value=${value} placeholder=${String(temperature)} label=${p.label} step=${p.step} onChange=${change} />
-        <${Slider} value=${temperature} min=${0} max=${Math.max(2, temperature)} step=${p.step} label=${p.label} onInput=${change} />
-      </div>`;
-    }
     switch (p.control || p.kind) {
-      case 'context': {
-        const slider = html`<${Slider} value=${Math.min(+ctx || native, native)} min=${Math.min(p.min, native)} max=${native}
-          step=${p.step} label=${p.label} onInput=${change} />`;
-        const valueField = html`<input class="input sm num" inputmode="numeric" value=${ctx}
-          placeholder=${autoFit ? t('inspector.params.auto') : fmtK(native)} onChange=${e => change(e.target.value.replace(/\s/g, ''))}
-          aria-label=${t('inspector.params.contexte_tokens')} />`;
-        const note = html`<small class="note">${t('inspector.params.natif')} ${fmtK(native)} ${t('inspector.params.effectif_par_slot')} ${observed > 0 ? fmtK(observed) : '—'}</small>`;
-        return noir ? html`<div class="param-range">${valueField}${slider}${note}</div>`
-          : html`<div class="slide-row">${slider}${valueField}</div>${note}`;
-      }
-      case 'layers': if (noir) return html`<div class="param-values">
-        <button class="btn sm" type="button" aria-pressed=${String(!nglRaw)} onClick=${() => change('')}>${t('inspector.params.auto')}</button>
-        <button class="btn sm" type="button" aria-pressed=${String(nglRaw === '999')} onClick=${() => change('999')}>${t('inspector.params.tout')}</button>
-        <${Num} value=${nglRaw === '999' ? '' : nglRaw} placeholder=${nglRaw === '999' ? String(layers) : ''} step=${1} label=${p.label} onChange=${change} />
-      </div>`; return html`<div class="slide-row"><${Slider} value=${ngl} min=${p.min} max=${layers} label=${p.label}
+      case 'context': return html`<div class="slide-row"><${Slider} value=${Math.min(+ctx || native, native)} min=${p.min} max=${native} step=${p.step} label=${p.label}
+        onInput=${v => edit(c => c.set(p.key, v))} /><input class="input sm num" value=${ctx} placeholder=${autoFit ? t("inspector.params.auto") : fmtK(native)} onChange=${e => edit(c => c.set(p.key, e.target.value))} aria-label="${t("inspector.params.contexte_tokens")}" /></div>
+        <small class="note">${t("inspector.params.natif")} ${fmtK(native)} ${t("inspector.params.effectif_par_slot")} ${observed > 0 ? fmtK(observed) : '—'}</small>`;
+      case 'layers': return html`<div class="slide-row"><${Slider} value=${ngl} min=${p.min} max=${layers} label=${p.label}
         onInput=${v => edit(c => c.set(p.key, v >= layers ? '999' : v))} /><span class="val mono">${!nglRaw && autoFit ? 'auto' : ngl >= layers ? t("inspector.params.tout") : ngl}</span></div>`;
       case 'reasoning': return html`<${Switch} checked=${reasonOn} label=${p.label} onChange=${on => edit(c => c.set(p.key, on ? (caps.thinks ? '' : 'on') : 'off'))} />`;
       case 'effort': return html`<${Select} label=${p.label} value=${cfg.get(p.key)} options=${efforts} onChange=${v => edit(c => { c.set(p.key, v); if (v) c.flag('--jinja', true); })} />`;
       case 'vision': return html`<${Switch} checked=${visionOn} label=${p.label} onChange=${on => edit(c => { if (!on) { c.set(p.key, ''); c.flag('--no-mmproj', true); } else { c.flag('--no-mmproj', false); if (caps.mmproj && caps.mmproj.length === 1) c.set(p.key, caps.mmproj[0]); } })} />`;
       case 'kv': return html`<${Select} label=${p.label} value=${cfg.kv()} options=${p.choices} onChange=${v => edit(c => c.setKv(v))} />`;
-      case 'parallel': return html`<${Num} label=${p.label} value=${cfg.get(p.key) || cfg.arg('-np')} placeholder=${p.placeholder} step=${p.step} onChange=${v => edit(c => c.set(p.key, v))} />`;
+      case 'parallel': return html`<${Num} value=${cfg.get(p.key) || cfg.arg('-np')} placeholder=${p.placeholder} step=${p.step} onChange=${v => edit(c => c.set(p.key, v))} />`;
       case 'fit': return html`<${Switch} checked=${/^on$/i.test(cfg.arg('--fit') || cfg.get('FIT'))} label=${p.label} onChange=${on => edit(c => c.setFlagValue(f, on ? 'on' : 'off'))} />`;
       case 'textarea': return html`<textarea class="textarea sm" rows="3" placeholder=${p.placeholder} value=${value} onChange=${e => change(e.target.value)}></textarea>`;
-      case 'number': return html`<${Num} label=${p.label} value=${value} placeholder=${p.placeholder} step=${noir && ['top-p', 'min-p', 'repeat-penalty'].includes(p.id) ? 'any' : p.step} onChange=${change} />`;
+      case 'number': return html`<${Num} value=${value} placeholder=${p.placeholder} step=${p.step} onChange=${change} />`;
       case 'bool': return html`<${Switch} checked=${cfg.flagValue(f) === 'on'} label=${p.label} onChange=${on => edit(c => c.setFlagValue(f, on ? 'on' : ''))} />`;
       case 'enum': return p.choices && p.choices.length
         ? html`<${Select} label=${p.label} value=${value} options=${p.tier === 'expert' ? [['', t("inspector.params.defaut_2")], ...p.choices] : p.choices} onChange=${change} />`
@@ -175,21 +155,9 @@ export function ParamsEditor({ src, noir = false, onSaved, onLoaded }) {
       default: return html`<input class="input sm" value=${value} placeholder=${p.default || ''} onChange=${e => change(e.target.value)} />`;
     }
   };
-  const rows = ps => ps.map(p => html`<${Row} key=${p.id} expert=${noir && p.tier === 'expert'} spec=${noir && p.id === 'temp' ? { ...p, stack: true } : noir && p.id === 'gpu-layers' ? { ...p, stack: false } : p}>${control(p)}</${Row}>`);
-  const essentialSpecs = specs.filter(p => p.tier === 'essential' && visible(p));
-  const leading = ['ctx-size', 'temp'];
-  const essentials = rows(noir ? [
-    ...leading.flatMap(id => essentialSpecs.filter(p => p.id === id)),
-    ...essentialSpecs.filter(p => !leading.includes(p.id)),
-  ] : essentialSpecs);
-  const advancedSpecs = specs.filter(p => p.tier === 'advanced' && visible(p));
-  const sampling = new Set(['top-p', 'top-k', 'min-p', 'repeat-penalty', 'seed', 'repeat-last-n', 'presence-penalty', 'frequency-penalty', 'dry-multiplier']);
-  const speculative = p => p.id.includes('draft') || p.id.includes('spec');
-  const advanced = noir ? [
-    [t('noir.params_sampling'), advancedSpecs.filter(p => sampling.has(p.id))],
-    [t('noir.params_memory'), advancedSpecs.filter(p => !sampling.has(p.id) && !speculative(p))],
-    [t('noir.params_speculative'), advancedSpecs.filter(speculative)],
-  ].filter(([, list]) => list.length).map(([label, list]) => html`<section key=${label}><h3>${label}</h3>${rows(list)}</section>`) : rows(advancedSpecs);
+  const rows = ps => ps.map(p => html`<${Row} key=${p.id} spec=${p}>${control(p)}</${Row}>`);
+  const essentials = rows(specs.filter(p => p.tier === 'essential' && visible(p)));
+  const advanced = rows(specs.filter(p => p.tier === 'advanced' && visible(p)));
   const q = filter.trim().toLowerCase();
   const expertFlags = specs.filter(p => p.tier === 'expert' && p.available && (!q || (p.id + ' ' + tSource(p.tip)).toLowerCase().includes(q)));
   const expert = html`<label class="search sm"><${Icon} n="search" /><input placeholder="${t("inspector.params.filtrer_les_drapeaux_llama_cpp")}" value=${filter} onInput=${e => setFilter(e.target.value)} /></label>
@@ -238,18 +206,17 @@ export function ParamsEditor({ src, noir = false, onSaved, onLoaded }) {
     { label: t("inspector.params.annuler_les_modifications"), icon: 'close', run: () => setCfg(new Config(base)) },
   ];
 
-  return html`<div class=${cls("insp-body", noir && "noir-params")}>
+  return html`<div class="insp-body">
       <div class="insp-model-row"><div class="insp-model"><b>${src.mode === 'preset' ? src.presetName : baseName(src.model).replace(/\.gguf$/i, '')}</b>
         <span>${src.mode === 'preset' ? t("inspector.params.preset_model") + baseName(src.model) : !src.live ? t("inspector.params.pas_charge") : src.remembered ? t("inspector.params.modele_reglages_memorises") : t("inspector.params.modele_reglages_automatiques")}</span></div>
         <button class="btn sm dd" title="${t("inspector.params.enregistrer_ces_reglages_sous_un_nom")}" onClick=${newPreset}>${t("inspector.params.preset")}<${Icon} n="plus" /></button></div>
       <${VramCard} est=${est} note=${!cfg.get('CTX') ? (autoFit ? t("inspector.params.estimation_au_contexte_natif_llama_cpp_ajustera_les_valeurs_non_f") : t("inspector.params.ajustement_automatique_indisponible_ou_desactive_le_contexte_nati")) : ''} />
       <${Seg} value=${tier} onChange=${localT => { setTier(localT); localStorage.setItem('loom.next.tier', localT); }} label="${t("inspector.params.niveau")}" options=${[{ value: 'essential', label: t("inspector.params.essentiel") }, { value: 'advanced', label: t("inspector.params.avance") }, { value: 'expert', label: t("inspector.params.expert") }]} />
-      <div class="prows" data-tier=${tier} key=${tier}>${tier === 'essential' ? essentials : tier === 'advanced' ? advanced : expert}</div>
+      <div class="prows" key=${tier}>${tier === 'essential' ? essentials : tier === 'advanced' ? advanced : expert}</div>
     </div>
     <div class=${cls('insp-foot', dirty && 'dirty')}>
       <span class=${cls('insp-state', dirty && 'warn')}>${!src.live ? t("inspector.params.le_moteur_ne_change_pas_tant_que_tu_ne_charges_pas") : dirty ? t("inspector.params.modifications_non_appliquees") : t("inspector.params.applique_au_modele_charge")}</span>
       <div class="insp-acts">
-        ${noir && dirty && html`<button class="btn" onClick=${() => setCfg(new Config(base))}>${t('chat.edit.cancel')}</button>`}
         ${src.live ? html`<button class="btn primary" disabled=${!dirty} onClick=${apply}>${t("inspector.params.appliquer")}</button>` : html`<button class="btn primary" onClick=${loadNow}><${Icon} n="play" />${t("inspector.params.charger")}</button>`}
         <${DropdownButton} class="fit" open=${menu} onClick=${e => setMenu(e.currentTarget)}>${t("inspector.params.enregistrer")}</${DropdownButton}>
       </div>

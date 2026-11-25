@@ -543,7 +543,7 @@
 .machine-terminal-page .term-box { overflow: hidden; padding: 12px 6px 6px 14px; }
 .term-state { position: absolute; top: 10px; right: 12px; z-index: 2; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
 
-@media (max-width: 639px) {
+@media (max-width: 760px) {
   .mc-page {
     gap: 14px;
   }
@@ -845,7 +845,7 @@
   }
 }
 
-@media (max-width: 639px) {
+@media (max-width: 760px) {
   .vx-page .tip::before {
     content: "";
     position: absolute;

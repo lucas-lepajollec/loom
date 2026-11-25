@@ -18,7 +18,7 @@ export function ActivityLayout({ title, refresh, children }) {
   const phone = usePhone();
   const pull = usePullRefresh(refresh);
   return html`<div class="view page activity-view" ...${pull}>
-    ${phone && html`<header class="phone-title"><h1>${t('app.groups.activity')}</h1></header>`}
+    ${phone && html`<header class="phone-title"><h1>${t('mobile.usage')}</h1></header>`}
     <div class="page-in activity-in"><${SectionTabs} />${!phone && title && html`<h1 class="sr">${title}</h1>`}${children}</div>
   </div>`;
 }

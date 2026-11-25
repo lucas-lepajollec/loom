@@ -18,8 +18,8 @@ export function PhoneTabs({ route, count }) {
   if (!active) return null;
   const tabs = [
     ['sessions', 'sessions', 'chat', t('mobile.sessions')],
-    ['files', 'files', 'folder', t('files.title')],
     ['inbox', 'inbox', 'inbox', t('mobile.inbox')],
+    ['usage', 'quotas', 'chart', t('mobile.usage')],
     ['more', 'more', 'more', t('mobile.more')],
   ];
   return html`<nav class="phone-tabs" aria-label=${t('app.shell.navigation')}>

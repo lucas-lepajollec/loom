@@ -1,7 +1,4 @@
-import { Activity } from './activity.js';
 import { html, useState, useStore, cls, baseName } from '../core/lib.js';
-import { agents } from '../features/agents/store.js';
-import { shortVersion } from '../core/version.js';
 import { t } from '../core/i18n.js';
 import { Icon } from '../ui/icons.js';
 import { toast } from '../ui/dialog.js';
@@ -48,28 +45,21 @@ function VllmStatus({ node }) {
 function MoreList() {
   const node = useStore(app, s => s.engineNode);
   const pull = usePullRefresh(() => Promise.allSettled([refreshStatus(), refreshEngineNode()]));
-  const conn = useStore(agents, s => s.conn);
-  const status = useStore(app, s => s.status);
-  const version = useStore(app, s => s.serverInfo?.version);
-  const model = status?.active && status?.health ? status.model_name || baseName(status.model) : '';
-  let codemanHost = '';
-  try { codemanHost = new URL(conn.ui_url || conn.url).hostname; } catch (_) {}
   const links = [
-    ['quotas', 'chart', t('app.groups.activity')],
+    ['local', 'chip', t('app.groups.models')],
+    ['agents', 'agent', t('agents.title')],
     ['machines', 'server', t('settings.page.machines')],
-    ['local', 'chip', t('app.groups.models'), [model, model && (node?.hostname || status?.hostname)].filter(Boolean).join(' · ')],
-    ['agents', 'agent', t('agents.title'), conn.state === 'ready' && conn.version ? 'Codeman ' + shortVersion(conn.version) : ''],
-    ['more/jarvis', 'waveform', t('mobile.talk_jarvis'), t('voice.title')],
-    ['settings', 'gear', t('app.palette.reglages'), t('noir.settings_summary')],
+    ['files', 'folder', t('files.title'), t('files.second_brain')],
+    ['settings', 'gear', t('app.palette.reglages')],
+    ['more/jarvis', 'waveform', t('mobile.talk_jarvis')],
   ];
   return html`<div class="view phone-page">
-    <header class="phone-title"><h1>${t('mobile.more')}</h1><${Activity} /></header>
+    <header class="phone-title"><h1>${t('mobile.more')}</h1></header>
     <div class="phone-scroll more-list" ...${pull}>
+      ${node?.direct && node.kind === 'vllm' ? html`<${VllmStatus} node=${node} />` : html`<${EngineStatus} node=${node} />`}
       <nav class="more-links" aria-label=${t('mobile.more')}>
         ${links.map(([id, icon, label, sub]) => html`<a class="phone-link" href=${'#/' + id} key=${id}><${Icon} n=${icon} /><span><b>${label}</b>${sub && html`<small>${sub}</small>`}</span><${Icon} n="right" /></a>`)}
       </nav>
-      ${node?.direct && node.kind === 'vllm' ? html`<${VllmStatus} node=${node} />` : html`<${EngineStatus} node=${node} />`}
-      ${version && html`<footer class="more-version">Loom ${shortVersion(version)}${conn.state === 'ready' && codemanHost ? ' · ' + codemanHost : ''}</footer>`}
     </div>
   </div>`;
 }

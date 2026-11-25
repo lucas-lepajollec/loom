@@ -216,7 +216,7 @@
 .term-view{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2);overflow:hidden}
 .term-box{flex:1;min-height:0;padding:8px 4px 4px 10px}
 .term-box .xterm{height:100%}
-@media (max-width:639px){.term-view{height:60vh}}
+@media (max-width:760px){.term-view{height:60vh}}
 .lc{display:flex;flex-direction:column}
 .lc-log{margin-top:8px;font-size:12px}
 .lc-log summary{cursor:pointer;color:var(--text-2)}
@@ -411,7 +411,7 @@ details.vx-lib[open]>summary h3::after{content:" ⌄"}
 .api-model{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 16px;border-top:1px solid var(--line-soft)}
 .api-model:first-child{border-top:0}
 .api-note{margin:0;padding:10px 16px 14px}
-@media(max-width:639px){.api-recipe>div{grid-template-columns:minmax(0,1fr);gap:4px;padding:10px 14px}.api-warn{margin:2px 12px 12px;flex-wrap:wrap}}
+@media(max-width:760px){.api-recipe>div{grid-template-columns:minmax(0,1fr);gap:4px;padding:10px 14px}.api-warn{margin:2px 12px 12px;flex-wrap:wrap}}
 
 /* Groupes repliables (réglages) */
 .set-fold>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;margin:0 0 10px;padding:2px 2px;border-radius:var(--r-sm)}
@@ -517,7 +517,7 @@ i.fl-caret{display:inline-block}
 .fl-slash-none{padding:6px 8px;font-size:12.5px;color:var(--text-4)}
 .fl-raw{align-items:stretch}
 .fl-raw-in{flex:1;width:min(760px,100%);min-height:70vh;margin:24px auto 0;padding:0;border:0;background:transparent;resize:none;outline:none;font-size:13.5px;line-height:1.65;color:var(--text)}
-@media (max-width:639px){
+@media (max-width:760px){
   .view.files{flex-direction:column}
   .view.files.narrow .fl-tree{width:auto;flex:1;padding:4px 12px 12px}
   .fl-row{min-height:42px;font-size:15px}

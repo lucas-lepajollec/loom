@@ -31,7 +31,7 @@ function fontsReady(size) {
 
 export function theme() {
   // Téléphone : le terminal prend le fond de l'écran, sans bande plus claire.
-  const bg = cssVar(viewport() === 'mobile' ? '--bg' : '--panel') || cssVar('--bg-2') || '#0c0c0e';
+  const bg = cssVar(viewport() === 'mobile' ? '--bg' : '--bg-2') || '#0c0c0e';
   return {
     background: bg, foreground: cssVar('--text') || '#ededef', cursor: cssVar('--text-2') || '#a1a1aa',
     cursorAccent: bg, selectionBackground: 'rgba(127,127,127,.32)',
