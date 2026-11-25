@@ -353,6 +353,8 @@ try {
         if ((await deny.getAttribute('class')).includes('danger')) throw new Error('The decline action should be neutral');
         await page.getByRole('button', { name: dictionary['noir.mark_read'], exact: true }).click();
         await deny.waitFor();
+        // The list re-renders after the store update: wait for it instead of reading it at once.
+        await page.waitForFunction(() => !document.querySelector('.loom-context a[href*="done%3A"]'), null, { timeout: 5000 }).catch(() => {});
         if (await page.locator('.loom-context a[href*="done%3A"]').count()) throw new Error('Read updates remain in the inbox');
       }
       if (phone && scenario === 'phone-layout' && r === 'inbox') {
