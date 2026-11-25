@@ -220,7 +220,7 @@
   .cm-conv .phone-composer .composer textarea{flex-basis:54px}
   .session-drawer .dialog-body{min-height:0;padding:0}
   .session-drawer .panel-tabs{min-height:44px;padding:2px 12px}
-  .session-drawer .panel-tabs button{min-height:44px}
+  .session-drawer .panel-tabs button{min-width:44px;min-height:44px}
   .noir-params{padding:10px 14px}
   .noir-params .slider{min-height:26px}
   .noir-params .slider .knob{width:24px;height:24px}

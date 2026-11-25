@@ -85,7 +85,7 @@ export function Inspector({ onClose }) {
     ['session', t('inspector.inspector.session')],
     ['files', t('files.title')],
   ];
-  return html`<${SessionPanel} title=${t('inspector.inspector.panneau')} onClose=${onClose}>
+  return html`<${SessionPanel} title=${tabs.find(([id]) => id === tab)?.[1] || t('inspector.inspector.panneau')} onClose=${onClose}>
     <${PanelTabs} label=${t('inspector.inspector.panneau')} value=${tab} tabs=${tabs} onChange=${setTab} />
     <div class="insp-scroll" key=${tab + exec.kind}>
       ${tab === 'session' ? html`<${ChatSessionPanel} exec=${exec} />`
