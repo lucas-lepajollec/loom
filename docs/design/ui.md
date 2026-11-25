@@ -1,13 +1,11 @@
 # Loom interface design
 
-Loom Noir distinguishes surfaces with shades of gray. Session lists use
-spacing and selected backgrounds to group rows. Red indicates errors or a
-near limit. Diff lines use soft green and red. The light theme is still
-available through Settings.
+Use quiet surfaces, a clear type hierarchy, and consistent controls across
+light and dark themes. Group related settings in rows on a single surface.
+Use spacing and a subtle separator to show where one setting ends and the
+next begins. Page widths and top spacing come from the layout stylesheet.
 
-The shared styles live in [app.css](../../internal/loom/ui/next/css/app.css)
-[noir.css](../../internal/loom/ui/next/css/noir.css), and
-[noir-pages.css](../../internal/loom/ui/next/css/noir-pages.css).
+The shared styles live in [app.css](../../internal/loom/ui/next/css/app.css).
 
 ## Tokens
 
@@ -19,7 +17,7 @@ The shared styles live in [app.css](../../internal/loom/ui/next/css/app.css)
 | Separators, field outlines, emphasis | `--line-soft`, `--line`, and `--line-strong` |
 | Content, secondary text, hints, placeholders | `--text`, `--text-2`, `--text-3`, and `--text-4` |
 | Primary action, focus, selected row | `--ink` with `--on-ink`, `--focus`, and `--sel` |
-| Status | Neutral text for normal states in dark mode, `--red` for alerts, and `--diff-add` and `--diff-del` for changed lines |
+| Status | `--green` for ready or successful, `--amber` for pending or attention, `--red` for errors and destructive actions |
 | Spacing | `--space-1` through `--space-6` at 4, 8, 12, 16, 20, and 24 px. `--space-8` is 32 px. |
 | Corners | `--r-xs` (6 px), `--r-sm` (7 px), `--r` (9 px), `--r-lg` (12 px), `--r-xl` (16 px), and `--r-pill` for rounded indicators |
 | Type | `--font` (Geist) for UI text and `--mono` (Geist Mono) for code, commands, and paths |
@@ -45,34 +43,19 @@ The component sources are [controls.js](../../internal/loom/ui/next/js/ui/contro
 [tabnav.js](../../internal/loom/ui/next/js/ui/tabnav.js), and
 [logo.js](../../internal/loom/ui/next/js/ui/logo.js).
 
-On desktop the 56 px rail uses 40 px buttons and 18 px icons. The 264 px
-context column shows sessions, files, machines, alerts or page links, with
-36 px rows. The 430 px session panel overlays the workspace below 1180 px.
-Below 860 px the context column gives way to the in-page navigation.
-
-Below 640 px the bottom tabs are Sessions, Files, Inbox, and More. The
-session thread, file viewer, and new-session form use the full screen.
-Session details and agent approvals open as bottom sheets. The composer
-stays above the safe area or keyboard. The route crawl checks 390 px and
+At widths up to 760 px, use Sessions, Inbox, Usage, and More as the bottom
+tabs. Keep the composer just above the safe area or keyboard. Session headers
+provide a back button and a short title or model selector. Use 44 px touch
+targets, 16 px text fields, and wrap control groups when space is tight.
+Shared dialogs and menus open as bottom sheets. Leave the header and actions
+within reach when the sheet body scrolls. The route crawl checks 390 px and
 320 px layouts with deterministic data and long labels.
 [Phone layout checks](../../tools/tests/ui-routes/layout.mjs)
 
-The local Model panel uses two fine sliders on Essential. Context includes
-a numeric input and shows the native and effective values. Advanced groups
-sampling, memory and speed, and speculative decoding. Expert keeps the
-filterable native flags. Both tiers use fields, menus, and switches.
-
-The desktop Files column keeps the tree, source selector, search, and recent
-files next to the editor. On a phone the tree and editor have separate
-screens. The Models column groups the library, Hub, Cloud, Voice, and Engine.
-Agents gives Tools and History their own pages alongside Overview, Scheduled,
-and the Codeman connection. Settings links directly to account access, agent
-access, policy, notifications, updates, network, and data controls.
-
-Inbox uses a selected item beside its desktop list and cards on phones.
-Mark all read clears completed-session notices. Approvals and reply requests
-stay available until handled. The command palette searches session names,
-model names, file names in the configured Files tree, and messages already
-displayed in the active thread. It opens links in a new tab with Ctrl/⌘+Enter.
-
-Activity and Machines keep their existing charts, cards, and content.
+From More, Models and Agents use wrapping section chips. Models groups the
+engine, presets, and library, and puts row actions in overflow sheets.
+Agents leads with Codeman status, harnesses, and upcoming runs. Machine cards
+open a detail page with terminal access and resource meters. Settings offers
+quick preferences and a notification switch for the current device, with
+links to the full settings pages. Use a named back link to the parent page
+throughout these views.

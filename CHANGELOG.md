@@ -2,19 +2,6 @@
 
 ## [Unreleased]
 
-- Extend Loom Noir to Files, Models, Agents, Settings and Inbox. Agents has
-  dedicated Tools and History views. Settings exposes account, agent access,
-  network and updates as separate sections. The command palette searches
-  visible messages and file names, and Inbox separates pending requests from
-  completed-session notices. Activity and Machines keep their existing views.
-
-
-- Loom Noir redesigns the navigation and session workspace with a context
-  column, a shared session list, session details tabs, and a new-session
-  composer. On phones, Files joins Sessions, Inbox, and More in the bottom
-  bar. In agent discussions, approvals are available from the composer and
-  changed files link to Codeman’s read-only diffs.
-
 ## [0.3.0] - 2026-11-23
 
 > **Upgrading from 0.2.x:** Back up `LOOM_HOME` before upgrading. Existing discussions, folders, presets, models, and archived transcripts are preserved. Native coding-harness adapters are retired in favor of the independent Codeman gateway (`Agents`). Remote node credentials and legacy `/v1` keys are transparently sealed in AES-256-GCM on startup. Pair or update remote `loom node` instances to `0.3.0` so pairing codes and `--listen lan` match.

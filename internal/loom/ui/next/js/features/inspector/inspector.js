@@ -1,12 +1,18 @@
-import { t } from '../../core/i18n.js';
-import { html, useState, useStore, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
+import { t, locale, tSource } from '../../core/i18n.js';
+// Panneau de droite : s'adapte à l'exécution choisie. Local = paramètres
+// llama.cpp ; Cloud = fournisseur, usage, coût.
+import { html, useState, useEffect, useRef, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
-import { Tip } from '../../ui/controls.js';
-import { SessionPanel, PanelTabs } from '../../ui/session-panel.js';
-import { app } from '../../core/state.js';
-import { chat, compact, compactSession } from '../chat/engine.js';
+import { Seg, Switch, Tip } from '../../ui/controls.js';
+import { ListPick } from '../../ui/listpick.js';
+import { Logo } from '../../ui/logo.js';
+import { WorkspacePicker } from '../workspaces/folders.js';
+import { Modal, toast, confirm, prompt } from '../../ui/dialog.js';
+import { get, post } from '../../core/api.js';
+import { app, refreshWorkspace } from '../../core/state.js';
+import { chat, open } from '../chat/engine.js';
 import { currentExec } from '../chat/picker.js';
-import { splitPastedMessage, downloadPaste } from '../chat/pasted-text.js';
+import { openTerminalWith } from '../terminals/page.js';
 import { LocalParams } from './params.js';
 
 const KV = ({ k, children }) => html`<div class="kv"><span>${k}</span><span>${children}</span></div>`;
@@ -38,61 +44,22 @@ function CloudPanel() {
   </div>`;
 }
 
-function ChatSessionPanel({ exec }) {
-  const { session, ctxUsed, busy, mode } = useStore(chat, s => ({ session: s.session, ctxUsed: s.ctxUsed, busy: s.busy, mode: s.mode }));
-  const size = useStore(app, s => s.status?.ctx);
-  const machine = useStore(app, s => s.engineNode?.hostname || s.serverInfo?.hostname);
-  const native = mode === 'native';
-  const used = native ? ctxUsed : session?.context?.used;
-  const capacity = native ? size : session?.context?.size;
-  const turn = lastTurn(session);
-  return html`<div class="insp-body session-info">
-    <div class="card pad-sm">
-      <${KV} k=${t('agents.info.model')}>${exec.name || '—'}</${KV}>
-      ${exec.kind === 'local' && machine && html`<${KV} k=${t('workspaces.machine')}>${machine}</${KV}>`}
-      ${session?.workdir && html`<${KV} k=${t('agents.info.dir')}><span class="mono trunc" title=${session.workdir}>${session.workdir}</span></${KV}>`}
-      <${KV} k=${t('inspector.params.contexte_tokens')}>${capacity > 0 && used != null ? fmtTok(used) + ' / ' + fmtTok(capacity) : '—'}</${KV}>
-      ${turn?.duration_seconds > 0 && html`<${KV} k=${t('bench.page.duree')}>${fmtSecs(turn.duration_seconds)}</${KV}>`}
-    </div>
-    ${exec.kind === 'local' && used > 0 && html`<button class="btn" disabled=${busy} onClick=${native ? compact : compactSession}>${t('agents.panel.compact')}</button>`}
-  </div>`;
-}
-
-function ChatFiles() {
-  const items = useStore(chat, s => s.items);
-  const files = new Map();
-  for (const item of items) {
-    if (item.k !== 'user') continue;
-    for (const f of item.files || []) files.set(f.path || String(f), { name: f.name || baseName(String(f)) });
-    for (const f of splitPastedMessage(item.text).files) files.set(f.name, f);
-  }
-  return html`<div class="insp-body session-info">
-    ${files.size ? html`<ul class="session-attachments">${[...files].map(([key, f]) => html`<li key=${key}>
-      <${Icon} n="file" /><span class="trunc">${f.name}</span>
-      ${typeof f.content === 'string' && html`<button class="icon-btn" aria-label=${t('chat.composer.download_text')} onClick=${() => downloadPaste(f)}><${Icon} n="download" /></button>`}
-    </li>`)}</ul>` : html`<p class="note">${t('noir.no_attachments')}</p>`}
-    <a class="btn" href="#/files"><${Icon} n="folder" />${t('files.title')}</a>
-  </div>`;
-}
-
-export function Inspector({ onClose }) {
-  useStore(app, a => [a.status?.model, a.workspace?.runtimes]);
-  useStore(chat, c => [c.mode, c.session?.runtime_id, c.localTarget]);
-  const [tab, setTab] = useState('model');
+export function Inspector({ open, onClose, phone }) {
+  useStore(app, a => a.status && a.status.model);
+  // currentExec() dépend de la discussion et du registre des runtimes (chargé après).
+  useStore(chat, c => (c.mode || '') + ':' + ((c.session && c.session.runtime_id) || ''));
+  useStore(app, a => a.workspace && a.workspace.runtimes);
   const exec = currentExec();
-  const tabs = [
-    ['model', t('inspector.inspector.modele')],
-    ['session', t('inspector.inspector.session')],
-    ['files', t('files.title')],
-  ];
-  return html`<${SessionPanel} title=${tabs.find(([id]) => id === tab)?.[1] || t('inspector.inspector.panneau')} onClose=${onClose}>
-    <${PanelTabs} label=${t('inspector.inspector.panneau')} value=${tab} tabs=${tabs} onChange=${setTab} />
-    <div class="insp-scroll" key=${tab + exec.kind}>
-      ${tab === 'session' ? html`<${ChatSessionPanel} exec=${exec} />`
-        : tab === 'files' ? html`<${ChatFiles} />`
-        : exec.kind === 'local' ? html`<${LocalParams} noir />`
-        : exec.kind === 'cloud' ? html`<${CloudPanel} />`
-        : html`<p class="note session-info">${t('runtime.retired')}</p>`}
+  const title = exec.kind === 'local' ? t("inspector.inspector.parametres") : exec.kind === 'cloud' ? t("inspector.inspector.modele") : t("inspector.inspector.session");
+  const content = exec.kind === 'local' ? html`<${LocalParams} />` : exec.kind === 'cloud' ? html`<${CloudPanel} />` : html`<p class="note">${t('runtime.retired')}</p>`;
+  if (phone) return open ? html`<${Modal} title=${title} onClose=${onClose} class="chat-inspector-sheet" focusField=${false}>${content}</${Modal}>` : null;
+  return html`<aside class=${cls('insp', open && 'open')} aria-label="${t("inspector.inspector.panneau")}" aria-hidden=${String(!open)}>
+    <div class="insp-in">
+      <header class="insp-head">
+        <b class="insp-title">${title}</b>
+        <button class="icon-btn" aria-label="${t("inspector.inspector.fermer_le_panneau")}" onClick=${onClose}><${Icon} n="close" /></button>
+      </header>
+      <div class="insp-scroll" key=${exec.kind}>${content}</div>
     </div>
-  </${SessionPanel}>`;
+  </aside>`;
 }

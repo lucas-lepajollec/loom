@@ -8,11 +8,11 @@ import { usePhone } from '../core/viewport.js';
 
 export function Drawer(props) {
   const phone = usePhone();
-  return phone ? html`<${Modal} title=${props.title} onClose=${props.onClose} class=${['drawer-sheet', props.class].filter(Boolean).join(' ')} focusField=${false}>${props.children}</${Modal}>`
+  return phone ? html`<${Modal} title=${props.title} onClose=${props.onClose} class="drawer-sheet" focusField=${false}>${props.children}</${Modal}>`
     : html`<${SideDrawer} ...${props} />`;
 }
 
-function SideDrawer({ title, onClose, children, class: c }) {
+function SideDrawer({ title, onClose, children }) {
   const box = useRef(), close = useRef(onClose); close.current = onClose;
   useEffect(() => {
     const previous = document.activeElement;
@@ -30,7 +30,7 @@ function SideDrawer({ title, onClose, children, class: c }) {
     return () => { document.removeEventListener('keydown', key); if (previous?.isConnected) previous.focus(); };
   }, []);
   return html`<div class="drawer-scrim" onMouseDown=${e => e.target === e.currentTarget && onClose()}>
-    <aside class=${['insp open drawer-panel', c].filter(Boolean).join(' ')} role="dialog" aria-modal="true" aria-label=${title} ref=${box}>
+    <aside class="insp open drawer-panel" role="dialog" aria-modal="true" aria-label=${title} ref=${box}>
       <div class="insp-in">
         <header class="insp-head"><span class="insp-title">${title}</span><button class="icon-btn" aria-label="${t("ui.drawer.fermer")}" onClick=${onClose}><${Icon} n="close" /></button></header>
         <div class="insp-scroll">${children}</div>

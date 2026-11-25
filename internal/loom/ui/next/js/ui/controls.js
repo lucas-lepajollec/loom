@@ -186,7 +186,7 @@ export function Menu({ anchor, onClose, items, label, role = 'menu', ...position
   const row = (it, i) => {
     if (it === '-') return html`<hr key=${i} role="separator" />`;
     const props = { class: cls('item', it.danger && 'danger'), role: itemRole, tabIndex: -1 };
-    const content = html`${it.mark || it.icon && html`<${Icon} n=${it.icon} />`}
+    const content = html`${it.icon && html`<${Icon} n=${it.icon} />`}
       <span class="item-label"><span class="item-title">${it.label}</span>${it.note && html`<small>${it.note}</small>`}</span>
       ${(it.selected || it.current) && html`<${Icon} n="check" class="item-check" />`}`;
     return it.href

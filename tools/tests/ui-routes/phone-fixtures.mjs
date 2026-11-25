@@ -56,10 +56,6 @@ export function phoneFixtures(ws, remote) {
       { id: 'fixture-cloud', name: model, model, kind: 'cloud', runtime_id: 'openai-compatible', provider_id: 'fixture', provider_name: 'Fixture cloud', enabled: true, ready: true },
       { id: 'fixture-local', name: localModel.name, model: localModel.path, kind: 'local', runtime_id: 'llama.cpp', enabled: true, ready: true },
     ], chat: { default_choice: 'fixture-local' }, projects, providers },
-    '/api/files/tree': { ok: true, exists: true, root: '/fixture/notes', tree: [
-      { path: 'notes', name: 'notes', dir: true, children: [{ path: 'notes/route-search-note.md', name: 'route-search-note.md', modified: at }] },
-    ] },
-    '/api/files/read': { ok: true, path: 'notes/route-search-note.md', content: '# Route fixture', modified: at },
     '/api/chat/settings': { ok: true, default_choice: 'fixture-local' },
     '/api/machines': { ok: true, machines: [remote] },
     '/api/machines/local': { ok: true, hostname: 'Fixture workstation', os: 'Linux' },
