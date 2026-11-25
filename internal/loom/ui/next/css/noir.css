@@ -17,7 +17,7 @@
   --hover:var(--surface);--press:var(--surface-3);--sel:var(--surface-2);
   --shadow-pop:0 12px 36px #0005;--scrim:#070707a6;
 }
-[data-theme=dark] :is(.app,.dialog) .logo-mark img{filter:grayscale(1)}
+
 [data-theme=dark] :is(.st-waiting,.st-working,.st-starting) .dot,
 [data-theme=dark] .dot.green{background:var(--text-3);box-shadow:none}
 [data-theme=dark] .dot.amber{animation:none}
@@ -247,7 +247,19 @@
   .new-executors{overflow:auto;max-height:38dvh;background:var(--surface);border-radius:12px;padding:4px}
   .new-executors .btn{justify-content:flex-start;min-height:44px;background:transparent;font-size:15px}
   .new-executors .btn[aria-pressed=true]{background:var(--surface-2)}
-  .new-executors button span{flex:1;text-align:start}
+  .new-executors button span:not(.logo-mark){flex:1;text-align:start}
+  .new-executors .logo-mark{flex:none}
   .new-executors button small{max-width:38%;color:var(--text-3)}
   .new-session-options{max-height:30dvh;overflow:auto}
 }
+
+/* En-tête de session unique : logo, titre, sous-titre, puis la vue et le panneau. */
+.cm-main .cm-sh{gap:8px}
+.cm-main .cm-sh>.logo-mark{margin-left:4px}
+.cm-sh-sub{min-width:0;color:var(--text-3);font-size:13px}
+.chat-view .topbar .chat-title + *{color:var(--text-3)}
+/* Le terminal prend le fond de la zone principale : pas de bande sous l'en-tête. */
+[data-theme=dark] .app:not(.phone-app) .cm-term-wrap{background:var(--panel)}
+.cm-term-box .xterm{padding:10px 8px 8px 20px}
+.chat-view .topbar .chat-title{padding-left:10px;color:var(--text);font-weight:500}
+.chat-view .topbar .chat-title i{display:none}

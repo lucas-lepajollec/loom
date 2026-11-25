@@ -12,7 +12,8 @@ import { app, go, refreshNav, refreshStatus, runtimeKind } from '../core/state.j
 import { chat } from '../features/chat/engine.js';
 import { agents, stateOf, sessionList, restorable, cliOf, projectOf } from '../features/agents/store.js';
 import { closeSession, renameSession } from '../features/agents/actions.js';
-import { CliMark } from '../features/agents/new-session.js';
+import { CliMark, NewSession } from '../features/agents/new-session.js';
+import { usePhone } from '../core/viewport.js';
 import { openSession } from '../features/agents/nav.js';
 import { layout, toggleGrid } from '../features/agents/layout.js';
 import { DRAG_TYPE } from '../features/agents/grid.js';
@@ -258,7 +259,9 @@ function PhoneSessions({ filter, setFilter, grouped, folders, openFolders, toggl
 }
 
 export function SessionsPage() {
-  return html`<${Sessions} phone />`;
+  const phone = usePhone();
+  if (phone) return html`<${Sessions} phone />`;
+  return html`<${NewSession} inline home initialType="chat" onClose=${() => {}} onCreated=${id => openSession(id)} />`;
 }
 
 export function Sessions({ phone = false }) {
