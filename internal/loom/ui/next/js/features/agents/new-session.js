@@ -44,7 +44,7 @@ function Browser({ start, onPick }) {
   </div>`;
 }
 
-export function NewSession({ onClose, onCreated, preset, phone, inline, initialType = 'agent', folder: initialFolder = '', message = '' }) {
+export function NewSession({ onClose, onCreated, preset, phone, inline, home = false, initialType = 'agent', folder: initialFolder = '', message = '' }) {
   const clis = useStore(agents, s => s.clis.filter(c => c.enabled !== false));
   const unified = useStore(agents, s => s.unified);
   const cases = useStore(agents, s => s.cases);
@@ -168,7 +168,7 @@ export function NewSession({ onClose, onCreated, preset, phone, inline, initialT
     const executor = discussion ? (choiceId ? 'model:' + choiceId : 'chat') : 'cli:' + mode;
     const cliModel = id => agents.get().order.map(key => agents.get().sessions[key]).find(s => s?.mode === id && s.displayModel?.model)?.displayModel.model || '';
     const options = [
-      ...clis.filter(c => c.kind !== 'shell' && c.installed !== false).map(c => ({ value: 'cli:' + c.id, label: c.label, detail: cliModel(c.id), icon: 'agent' })),
+      ...clis.filter(c => c.kind !== 'shell' && c.installed !== false).map(c => ({ value: 'cli:' + c.id, label: c.label, detail: cliModel(c.id), icon: 'agent', mark: html`<${CliMark} mode=${c.id} size="sm" />` })),
       { value: 'chat', label: modelName ? t('side.type_chat') + ' · ' + modelName : t('side.type_chat'), icon: 'chat' },
       ...models.filter(m => m.name !== modelName).map(m => ({ value: 'model:' + m.id, label: m.name, icon: m.kind === 'local' ? 'chip' : 'globe' })),
       ...clis.filter(c => c.kind === 'shell' && c.installed !== false).map(c => ({ value: 'cli:' + c.id, label: c.label, icon: 'terminal' })),
@@ -182,10 +182,10 @@ export function NewSession({ onClose, onCreated, preset, phone, inline, initialT
     }));
     const execution = html`<${ListPick} class="fit" label=${t('noir.new_with')} value=${executor} options=${desktopOptions} onChange=${pick} />`;
     return html`<div class=${cls('view', 'new-session-page', phone && 'phone-new-session')} aria-labelledby="new-session-title">
-      <header class="dialog-head"><button class="icon-btn" type="button" onClick=${close} aria-label=${t('ui.dialog.fermer')}><${Icon} n="close" /></button></header>
+      ${!home && html`<header class="dialog-head"><button class="icon-btn" type="button" onClick=${close} aria-label=${t('ui.dialog.fermer')}><${Icon} n="close" /></button></header>`}
       <div class="new-session-in">
         <h1 id="new-session-title">${t('noir.new_title')}</h1>
-        ${phone && html`<div class="new-executor-group"><span id="new-executor-label">${t('noir.new_with')}</span><div class="new-executors" role="group" aria-labelledby="new-executor-label">${options.map(o => html`<button class="btn" key=${o.value} disabled=${busy} aria-pressed=${String(o.value === executor)} onClick=${() => pick(o.value)}><${Icon} n=${o.icon} /><span class="trunc">${o.label}</span>${o.detail && html`<small class="trunc">${o.detail}</small>`}${o.value === executor && html`<${Icon} n="check" />`}</button>`)}</div></div>`}
+        ${phone && html`<div class="new-executor-group"><span id="new-executor-label">${t('noir.new_with')}</span><div class="new-executors" role="group" aria-labelledby="new-executor-label">${options.map(o => html`<button class="btn" key=${o.value} disabled=${busy} aria-pressed=${String(o.value === executor)} onClick=${() => pick(o.value)}>${o.mark || html`<${Icon} n=${o.icon} />`}<span class="trunc">${o.label}</span>${o.detail && html`<small class="trunc">${o.detail}</small>`}${o.value === executor && html`<${Icon} n="check" />`}</button>`)}</div></div>`}
         <form class="composer new-composer" onSubmit=${e => { e.preventDefault(); submit(); }}>
           <textarea rows=${phone ? 2 : 3} value=${firstMessage} aria-label=${t('mobile.first_message')} placeholder=${t('noir.new_prompt')} disabled=${busy} onInput=${e => setFirstMessage(e.target.value)}></textarea>
           <input type="file" multiple hidden ref=${fileInput} onChange=${e => { setAttached(list => [...list, ...e.target.files]); e.target.value = ''; }} />

@@ -69,7 +69,7 @@ export function ChatView({ route }) {
   return html`<div class="view chat-view">
     <div class=${cls('chat-col', empty && 'is-empty')}>
       <header class=${cls('topbar', phone && 'phone-session-head')}>
-        ${phone ? html`<${BackButton} /><div class="phone-chat-model"><${Picker} phone /><${ChatTitle} /></div>` : html`<${Picker} /><${ChatTitle} /><span class="grow"></span>`}
+        ${phone ? html`<${BackButton} /><div class="phone-chat-model"><${Picker} phone /><${ChatTitle} /></div>` : html`<${ChatTitle} /><${Picker} /><span class="grow"></span>`}
         <button class=${cls('icon-btn', insp && 'on')} aria-label="${t("chat.view.panneau")}" title="${t("chat.view.parametres_et_contexte")}" onClick=${toggle}><${Icon} n=${phone ? 'more' : 'panel'} /></button>
       </header>
       <${Thread} phone=${phone} />

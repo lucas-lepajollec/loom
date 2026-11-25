@@ -48,14 +48,15 @@ function SessionHeader({ s, narrowView, insp, setInsp, mode, setView }) {
     </div>
     <button type="button" class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} aria-expanded=${String(insp)} onClick=${() => setInsp(!insp)}><${Icon} n="more" /></button>
   </header>`;
+  const quiet = ['idle', 'working', 'starting'].includes(state);
   return html`<header class="cm-sh">
-    <span class="cm-sh-cli"><${CliMark} mode=${s.mode} size="sm" /><b>${cli.label}</b>${s.displayModel?.model && html`<span class="muted">${s.displayModel.model}</span>`}</span>
-    <span class="cm-sh-sep" aria-hidden="true">·</span>
+    <${CliMark} mode=${s.mode} size="sm" />
     <button class="btn sm cm-sh-name" onClick=${rename} title=${t('agents.session.rename')}><span class="trunc">${s.name || s.id.slice(0, 8)}</span></button>
+    <span class="cm-sh-sub trunc">${[cli.label, s.workingDir && projectOf(s.workingDir)].filter(Boolean).join(' · ')}</span>
     <span class="grow"></span>
     ${hasConversation(s.mode) && html`<${SessionViews} value=${mode} onChange=${setView} />`}
     ${state === 'stopped' ? html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`
-      : html`<span class=${'cm-sh-state st-' + state}><${StateDot} state=${state} />${lt('state', state)}</span>`}
+      : !quiet && html`<span class=${'cm-sh-state st-' + state}><${StateDot} state=${state} />${lt('state', state)}</span>`}
     <button class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} title=${t('agents.insp.title')} aria-pressed=${String(!!insp)} onClick=${() => setInsp(!insp)}><${Icon} n="panel" /></button>
   </header>`;
 }
