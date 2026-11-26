@@ -338,21 +338,26 @@ try {
       }
       if (phone && scenario === 'phone-layout' && r === 'inbox') {
         await page.evaluate(() => { location.hash = '#/inbox/fixture-approval'; });
-        const selected = page.locator('.inbox-item[data-current]');
+        const selected = page.locator('.inbox-row[data-current]');
         await selected.waitFor();
-        await page.waitForFunction(() => document.activeElement === document.querySelector('.inbox-item[data-current]'));
+        await page.waitForFunction(() => document.activeElement === document.querySelector('.inbox-row[data-current]'));
         await page.locator('.inbox-completed').waitFor();
         await page.locator('.cm-restore').waitFor();
+        // The inbox only routes: the answer is given in the conversation.
+        await selected.click();
+        const tray = page.locator('.cm-conv .cv-tray');
+        await tray.waitFor();
         const approval = page.waitForRequest(req => req.url().endsWith('/approvals/fixture-approval/answer'));
-        await selected.getByRole('button', { name: dictionary['agents.approval.deny'], exact: true }).click();
+        await tray.getByRole('button', { name: dictionary['agents.approval.deny'], exact: true }).click();
         if ((await approval).postDataJSON().action !== 'deny') throw new Error('Phone approval used the wrong action');
-        await selected.waitFor({ state: 'detached' });
-        const reply = page.locator('.inbox-reply');
-        await reply.locator('input').fill('Review the test report');
+        await tray.waitFor({ state: 'detached' });
+        await page.evaluate(() => { location.hash = '#/inbox'; });
+        await page.locator('.inbox-row').first().click();
+        const composer = page.locator('.cm-conv .composer textarea');
+        await composer.fill('Review the test report');
         const prompt = page.waitForRequest(req => req.url().endsWith('/sessions/fixture-session-4/input'));
-        await reply.locator('button').click();
-        if ((await prompt).postDataJSON().input !== 'Review the test report\r') throw new Error('Quick reply did not deliver the draft');
-        await reply.waitFor({ state: 'detached' });
+        await page.locator('.cm-conv .cm-send').click();
+        if ((await prompt).postDataJSON().input !== 'Review the test report\r') throw new Error('Reply from the conversation did not deliver the draft');
       }
       if (phone && scenario === 'phone-layout' && r === 'agents/s/fixture-session-0') {
         await page.locator('.cm-conv .cv-tray').waitFor();

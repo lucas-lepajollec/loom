@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- **Session states that ask for attention**: Approval, Question, and "Done ·
+  not seen" for work that finished since you last opened the session. They
+  appear as plain words, with no coloured dot, in the sidebar, the phone
+  session list, the session header and the phone Inbox. Opening a session marks
+  it as seen.
+- Phone **Inbox** routes instead of answering: tapping an approval, a question
+  or a waiting session opens its conversation, where the request sits in the
+  composer with the whole thread around it.
+- The session panel sets **Claude Code's effort** (`/effort`) next to its
+  model (`/model`). A change asked while the agent works is sent when the turn
+  ends. Codex chooses its model in its own terminal picker, so Loom only shows
+  it.
 - Phones:
   - The bottom bar keeps its bubble shape but sits closer to the screen edges
     and uses Loom's own style: a plain surface, a thin border, the current tab
@@ -11,7 +23,6 @@
     title. A short, smooth fade under the top edge blends scrolling content into
     it.
 - Connections: the side panel scrolls when a skill's instructions are long.
-
 - **Agent conversations** are rebuilt on a shared conversation kit:
   - Each turn shows the request, then the work, then the final answer. Once a
     turn ends, its intermediate messages and steps fold under "Worked for 2 min

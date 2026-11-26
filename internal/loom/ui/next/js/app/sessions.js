@@ -10,7 +10,7 @@ import { prompt, confirm, toast } from '../ui/dialog.js';
 import { get, post } from '../core/api.js';
 import { app, go, refreshNav, refreshStatus, runtimeKind } from '../core/state.js';
 import { chat, open, newDiscussion } from '../features/chat/engine.js';
-import { agents, stateOf, sessionList, restorable, cliOf, projectOf } from '../features/agents/store.js';
+import { agents, attentionOf, ATTENTION, sessionList, restorable, cliOf, projectOf } from '../features/agents/store.js';
 import { closeSession, renameSession } from '../features/agents/actions.js';
 import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
@@ -20,7 +20,7 @@ import { lt } from '../features/agents/labels.js';
 import { ago, StateDot } from '../features/agents/rail.js';
 import { openPalette } from './palette.js';
 import { defaultModel, startPhoneDiscussion } from './phone-discussion.js';
-import { inboxItems, refreshAgentInbox } from './inbox.js';
+import { refreshAgentInbox } from './inbox.js';
 import { usePullRefresh } from './touch.js';
 
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
@@ -106,7 +106,7 @@ let dragged = null;
 function Row({ it, current }) {
   const [menu, setMenu] = useState(null);
   const agent = it.kind === 'agent';
-  const state = agent ? stateOf(it.s) : '';
+  const state = useStore(agents, () => agent ? attentionOf(it.s) : '');
   const busy = agent ? state === 'working' || state === 'starting' : it.c.status === 'running';
   const activate = () => { if (agent) openSession(it.id); else { open(it.id); go('chat'); } };
   return html`<div class=${cls('chat-link', 'ses-row', agent && 'st-' + state)} aria-current=${current ? 'page' : undefined} role="button" tabindex="0" draggable="true" title=${agent ? it.s.workingDir || '' : ''}
@@ -115,7 +115,7 @@ function Row({ it, current }) {
       onClick=${activate} onKeyDown=${e => e.key === 'Enter' && activate()}>
     <span class="ses-ico">${agent ? html`<${CliMark} mode=${it.s.mode} size="xs" />` : html`<${Icon} n="chat" />`}</span>
     <span>${it.title}</span>
-    ${agent && state === 'waiting' ? html`<i class="dot blue" title=${lt('state', state)}></i>`
+    ${agent && ATTENTION.has(state) ? html`<small class=${'ses-flag st-' + state}>${lt('state', state)}</small>`
       : busy ? html`<i class="run" title=${agent ? lt('state', state) : ''}></i>`
       : agent && state === 'error' ? html`<i class="dot red" title=${lt('state', state)}></i>`
       : agent && state === 'limited' ? html`<i class="dot" title=${lt('state', state)}></i>`
@@ -134,7 +134,7 @@ function dropZone(folder, setOver) {
   };
 }
 
-function Folder({ p, items, open: isOpen, toggle, isCurrent, phone, waiting }) {
+function Folder({ p, items, open: isOpen, toggle, isCurrent, phone }) {
   const [menu, setMenu] = useState(null);
   const [over, setOver] = useState(false);
   const items_ = [
@@ -159,7 +159,7 @@ function Folder({ p, items, open: isOpen, toggle, isCurrent, phone, waiting }) {
       <button class="icon-btn" type="button" aria-label=${t('side.folder_actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
     </div>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items_} />`}
-    ${isOpen && html`<div class="phone-folder-items">${items.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} waiting=${waiting} />`)}</div>`}
+    ${isOpen && html`<div class="phone-folder-items">${items.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} />`)}</div>`}
   </div>`;
   return html`<div class=${cls('ses-folder', over && 'drop-on')} ...${dropZone(p.id, setOver)}>
     <div class="chat-link ses-folder-h" role="button" tabindex="0" aria-expanded=${String(isOpen)} onClick=${toggle} onKeyDown=${e => e.key === 'Enter' && toggle()}>
@@ -172,20 +172,21 @@ function Folder({ p, items, open: isOpen, toggle, isCurrent, phone, waiting }) {
   </div>`;
 }
 
-function phoneState(it, waiting) {
+function phoneState(it) {
   if (it.kind === 'chat') return it.c.status === 'running' ? 'working' : '';
-  return waiting.has(it.id) ? 'waiting' : stateOf(it.s);
+  return attentionOf(it.s);
 }
+const usePhoneState = it => useStore(agents, () => phoneState(it));
 
-function PhoneSessionRow({ it, waiting }) {
+function PhoneSessionRow({ it }) {
   const [menu, setMenu] = useState(null);
   const action = useRef(), swipe = useRef(null), hold = useRef(null), suppress = useRef(0);
   const agent = it.kind === 'agent';
-  const state = phoneState(it, waiting);
+  const state = usePhoneState(it);
   const model = agent ? [cliOf(it.s.mode).label, it.s.workingDir && projectOf(it.s.workingDir)]
     : [baseName(it.c.model).replace(/\.gguf$/i, ''), it.c.runtime_id && (runtimeKind(it.c.runtime_id) === 'cloud' ? t('chat.picker.cloud')
       : runtimeKind(it.c.runtime_id) === 'local' ? t('chat.picker.local') : t('mobile.archive'))];
-  const stateLabel = ['working', 'starting', 'waiting', 'error', 'limited'].includes(state) ? lt('state', state) : '';
+  const stateLabel = ['approval', 'question', 'unseen', 'working', 'starting', 'error', 'limited'].includes(state) ? lt('state', state) : '';
   const showMenu = () => { suppress.current = Date.now() + 400; setMenu(action.current); };
   const cancelHold = () => clearTimeout(hold.current);
   useEffect(() => cancelHold, []);
@@ -212,7 +213,7 @@ function PhoneSessionRow({ it, waiting }) {
     }}>
       ${agent ? html`<${CliMark} mode=${it.s.mode} size="sm" />` : html`<${Icon} n="chat" />`}
       <span><b class="trunc">${it.title}</b>${model.some(Boolean) && html`<small class="trunc">${model.filter(Boolean).join(' · ')}</small>`}</span>
-      ${stateLabel ? html`<small class=${'phone-row-state st-' + state}><${StateDot} state=${state} />${stateLabel}</small>`
+      ${stateLabel ? html`<small class=${'phone-row-state st-' + state}>${!ATTENTION.has(state) && html`<${StateDot} state=${state} />`}${stateLabel}</small>`
         : it.at ? html`<small class="phone-row-time">${ago(it.at)}</small>` : ''}
     </button>
     <button type="button" class="icon-btn" ref=${action} aria-label=${t('app.shell.actions')} onClick=${showMenu}><${Icon} n="more" /></button>
@@ -221,20 +222,17 @@ function PhoneSessionRow({ it, waiting }) {
 }
 
 function PhoneSessions({ filter, setFilter, items, folders, openFolders, toggleFolder, cut, conn, newFolder }) {
-  const waiting = useStore(agents, st => {
-    const { approvals, replies } = inboxItems(st);
-    return [...approvals, ...replies].map(a => a.sessionId);
-  });
-  const waitingIds = new Set(waiting);
+  // Relit les états d'attention quand un accord, une fin ou une ouverture change.
+  useStore(agents, st => ({ approvals: st.approvals.map(a => a.id), completed: st.completed, seen: st.seen }));
   const nativeRunning = useStore(chat, s => s.mode === 'native' && s.busy);
   const nativeId = useStore(app, s => s.nav.active);
   const shown = nativeRunning && nativeId ? items.map(it => it.kind === 'chat' && it.id === nativeId ? { ...it, c: { ...it.c, status: 'running' } } : it) : items;
-  const active = shown.filter(it => ['working', 'starting', 'waiting'].includes(phoneState(it, waitingIds)));
+  const active = shown.filter(it => ['approval', 'question', 'unseen', 'working', 'starting'].includes(phoneState(it)));
   const recent = shown.filter(it => !it.folder && !active.includes(it));
   const model = useStore(app, defaultModel);
   useStore(chat, s => s.localTarget);
   const pull = usePullRefresh(() => Promise.allSettled([refreshNav(), refreshAgentFolders(), refreshStatus(), refreshAgentInbox()]));
-  const sessionRows = rows => rows.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} waiting=${waitingIds} />`);
+  const sessionRows = rows => rows.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} />`);
   return html`<div class="view phone-page phone-sessions">
     <header class="phone-title"><h1>${t('mobile.sessions')}</h1>
       <button type="button" class="icon-btn" aria-label=${t('app.palette.rechercher')} onClick=${openPalette}><${Icon} n="search" /></button>
@@ -246,7 +244,7 @@ function PhoneSessions({ filter, setFilter, items, folders, openFolders, toggleF
       ${active.length > 0 && html`<section><h2>${t('mobile.in_progress')}</h2>${sessionRows(active)}</section>`}
       <section><div class="phone-section-head"><h2>${t('mobile.recent')}</h2><button type="button" class="icon-btn" aria-label=${t('side.new_folder')} onClick=${newFolder}><${Icon} n="folder" /></button></div>
         ${sessionRows(recent)}
-        ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${shown.filter(it => it.folder === p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} phone waiting=${waitingIds} />`)}
+        ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${shown.filter(it => it.folder === p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} phone />`)}
         ${!items.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}
       </section>
       ${conn.configured && conn.state !== 'ready' && filter !== 'chats' && html`<a class="phone-link" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span><${Icon} n="right" /></a>`}

@@ -2,12 +2,17 @@
 // CLI disponibles, approbations. Tenu à jour par le flux SSE ; chaque
 // (re)connexion relit l'état complet pour rattraper ce qui a été manqué.
 import { createStore, useStore, useEffect } from '../../core/lib.js';
-import { api, gateway, connectEvents } from './client.js';
+import { api, gateway, connectEvents, sendPrompt } from './client.js';
+
+const SEEN_KEY = 'loom.agents.seen';
+function loadSeen() { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {}; } catch (_) { return {}; } }
 
 export const agents = createStore({
   conn: { state: 'idle', configured: false, auth: '', version: '', error: '', ui_url: '', url: '', password_set: false },
   sessions: {}, order: [], unified: [], historyOffset: 0, historyTotal: -1, historyError: '',
   clis: [], cases: [], approvals: [], restore: [], completed: {},
+  // Dernière ouverture de chaque session, pour « terminé, pas encore vu ».
+  seen: loadSeen(),
   live: false, loaded: false,
   // Dernière mesure des quotas d'abonnement (Claude 5 h / 7 j, Codex).
   planUsage: null,
@@ -55,7 +60,41 @@ export function stateOf(s) {
   if (s.isWorking || s.status === 'busy') return 'working';
   return 'idle';
 }
-export const TONE = { waiting: 'red', error: 'red', working: 'amber', starting: 'amber', limited: 'amber', idle: 'green', stopped: '', gone: '' };
+// Ce qui demande l'attention de l'utilisateur passe avant l'état technique :
+// un accord, une question, ou un travail fini qu'il n'a pas encore regardé.
+export function attentionOf(s) {
+  if (!s) return 'gone';
+  const asks = approvalsFor(s.id).filter(a => a.kind !== 'idle');
+  if (asks.some(a => a.kind === 'question')) return 'question';
+  if (asks.length) return 'approval';
+  const state = stateOf(s);
+  if (state !== 'idle') return state;
+  const st = agents.get(), done = st.completed[s.id];
+  return done && done > (st.seen[s.id] || 0) ? 'unseen' : 'idle';
+}
+export function markSeen(id) {
+  if (!id) return;
+  const seen = { ...agents.get().seen, [id]: Date.now() };
+  // Ne garde que les sessions encore connues, pour borner le stockage.
+  const live = agents.get().sessions;
+  for (const k of Object.keys(seen)) if (!live[k] && k !== id) delete seen[k];
+  agents.set({ seen });
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch (_) {}
+}
+export const ATTENTION = new Set(['approval', 'question', 'unseen']);
+// Une session ouverte et visible est vue, y compris quand elle finit sous nos yeux.
+export function useSeen(id) {
+  const done = useStore(agents, s => s.completed[id] || 0);
+  useEffect(() => {
+    if (!id) return;
+    const look = () => { if (!document.hidden) markSeen(id); };
+    look();
+    document.addEventListener('visibilitychange', look);
+    return () => document.removeEventListener('visibilitychange', look);
+  }, [id, done]);
+}
+
+export const TONE = { approval: '', question: '', unseen: '', waiting: 'red', error: 'red', working: 'amber', starting: 'amber', limited: 'amber', idle: 'green', stopped: '', gone: '' };
 
 export const sessionList = () => { const st = agents.get(); return st.order.map(id => st.sessions[id]).filter(Boolean); };
 export const projectOf = dir => String(dir || '').replace(/\/+$/, '').split('/').pop() || '/';
@@ -154,8 +193,23 @@ export function refreshUnified() {
 const sessionFrom = d => d && (d.session && d.session.id ? d.session : d.id ? d : null);
 const idOf = d => d && (d.id || d.sessionId || d.session?.id);
 export const recentCompletionMs = 24 * 60 * 60 * 1000;
+// Commandes de réglage (/model, /effort) demandées pendant un tour : elles
+// partent quand l'agent a fini, pour ne pas couper son travail.
+const pendingCommands = {};
+export function queueCommand(id, cmd) {
+  const s = agents.get().sessions[id];
+  if (s && stateOf(s) === 'idle') return sendPrompt(id, cmd).then(() => 'sent');
+  (pendingCommands[id] ||= []).push(cmd);
+  return Promise.resolve('queued');
+}
+async function flushCommands(id) {
+  const list = pendingCommands[id]; delete pendingCommands[id];
+  for (const cmd of list || []) { try { await sendPrompt(id, cmd); } catch (_) { /* la session a pu se fermer */ } }
+}
+
 function recordCompletion(id) {
   if (!id) return;
+  if (pendingCommands[id]) flushCommands(id);
   const now = Date.now();
   const completed = Object.fromEntries(Object.entries(agents.get().completed).filter(([, at]) => now - at < recentCompletionMs));
   agents.set({ completed: { ...completed, [id]: now } });

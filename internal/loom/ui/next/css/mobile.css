@@ -140,6 +140,16 @@
 .phone-session-row .phone-row-state{display:inline-flex;align-items:center;gap:5px;max-width:40%;text-align:end}
 .phone-row-state.st-working,.phone-row-state.st-starting,.phone-row-state.st-limited,.phone-restore{color:var(--amber)}
 .phone-row-state.st-waiting,.phone-row-state.st-error{color:var(--red)}
+.phone-row-state:is(.st-approval,.st-question){color:var(--text);font-weight:500}
+.phone-row-state.st-unseen{color:var(--text-2)}
+.inbox-row{display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;border:0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.inbox-row-h{display:flex;align-items:center;gap:8px;min-width:0}
+.inbox-row-h .ses-flag{margin-left:0}
+.inbox-row-h>.ico{width:16px;height:16px;flex:none;color:var(--text-3)}
+.inbox-when{flex:none;font-size:12px;color:var(--text-3)}
+.inbox-row-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14px;line-height:1.45;color:var(--text-2);overflow-wrap:anywhere}
+.inbox-row[data-current]{box-shadow:inset 0 0 0 1px var(--line-strong)}
+.inbox-card.unseen b{color:var(--text)}
 .phone-folder-items{padding-inline-start:16px}
 .phone-quick{flex:none;padding:8px 12px 10px}
 .phone-quick .composer{flex-direction:row;align-items:center;justify-content:space-between;margin:auto;min-height:52px;padding:0 16px;border:0;border-radius:var(--r-pill);background:var(--surface-2);color:var(--text-2);font-size:16px;text-align:start}

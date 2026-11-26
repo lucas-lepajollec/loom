@@ -1,12 +1,9 @@
 import { t } from '../core/i18n.js';
-import { html, useEffect, useRef, useState, useStore } from '../core/lib.js';
+import { html, useEffect, useRef, useStore, cls } from '../core/lib.js';
 import { Empty } from '../ui/controls.js';
 import { Icon } from '../ui/icons.js';
-import { toast } from '../ui/dialog.js';
 import { agents, recentCompletionMs, refreshAll, refreshConnection, restorable, stateOf } from '../features/agents/store.js';
-import { flattenPrompt, sendPrompt } from '../features/agents/client.js';
-import { dismissApproval } from '../features/agents/actions.js';
-import { Approval } from '../features/agents/conversation.js';
+import { lt } from '../features/agents/labels.js';
 import { RestoreBanner } from '../features/agents/control.js';
 import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
@@ -29,49 +26,26 @@ export async function refreshAgentInbox() {
   if (await refreshConnection() === 'ready') await refreshAll();
 }
 
-function InboxTitle({ item, session }) {
-  return html`<div class="inbox-item-head">
-    <button type="button" class="phone-row-open" onClick=${() => openSession(item.sessionId)}>
+// Un élément d'« À traiter » ouvre la conversation, où l'on répond : accord,
+// question ou message, avec tout le contexte du fil.
+function InboxRow({ item, session, kind, current }) {
+  const label = kind === 'reply' ? t('agents.state.reply') : lt('state', kind);
+  return html`<button type="button" class="inbox-card inbox-row" tabindex="0" data-current=${current ? '' : undefined}
+      onClick=${() => openSession(item.sessionId)}>
+    <span class="inbox-row-h">
       ${session ? html`<${CliMark} mode=${session.mode} size="xs" />` : html`<${Icon} n="agent" />`}
       <b class="trunc">${session?.name || item.sessionName || item.sessionId.slice(0, 8)}</b>
-    </button>
-    ${item.createdAt && html`<small>${ago(item.createdAt)}</small>`}
-  </div>`;
-}
-
-function QuickReply({ item, session, ready }) {
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const inflight = useRef(false);
-  const send = async e => {
-    e.preventDefault();
-    const current = agents.get();
-    if (inflight.current || current.conn.state !== 'ready' || stateOf(current.sessions[item.sessionId]) !== 'idle' ||
-        !flattenPrompt(text.trim()) || !inboxItems(current).replies.some(a => a.id === item.id)) return;
-    inflight.current = true; setBusy(true);
-    try {
-      await sendPrompt(item.sessionId, text.trim());
-      setText('');
-      await dismissApproval(item);
-    } catch (err) {
-      toast(err.code === 'NOT_DELIVERED' ? t('agents.composer.not_delivered') : err.message, 'err');
-    } finally {
-      inflight.current = false; setBusy(false);
-    }
-  };
-  return html`<article class="inbox-card">
-    <${InboxTitle} item=${item} session=${session} />
-    <p>${item.message || item.toolSummary || t('mobile.reply_waiting')}</p>
-    ${ready && html`<form class="composer inbox-reply" onSubmit=${send}>
-      <input aria-label=${t('mobile.reply')} placeholder=${t('mobile.reply')} value=${text} onInput=${e => setText(e.target.value)} disabled=${busy} enterkeyhint="send" />
-      <button type="submit" class="send" aria-label=${t('agents.composer.send')} disabled=${busy || !text.trim()}><${Icon} n="arrowUp" /></button>
-    </form>`}
-    <button type="button" class="btn sm inbox-dismiss" title=${t('agents.approval.dismiss_hint')} disabled=${busy} onClick=${() => dismissApproval(item).catch(e => toast(e.message, 'err'))}>${t('agents.approval.dismiss')}</button>
-  </article>`;
+      <small class=${'ses-flag st-' + kind}>${label}</small>
+      <span class="grow"></span>
+      ${item.createdAt && html`<small class="inbox-when">${ago(item.createdAt)}</small>`}
+      <${Icon} n="right" />
+    </span>
+    ${(item.toolSummary || item.message) && html`<span class="inbox-row-text">${item.toolSummary || item.message}</span>`}
+  </button>`;
 }
 
 export function InboxPage({ route }) {
-  const st = useStore(agents, s => ({ approvals: s.approvals, sessions: s.sessions, completed: s.completed, restore: s.restore, conn: s.conn, loaded: s.loaded }));
+  const st = useStore(agents, s => ({ approvals: s.approvals, sessions: s.sessions, completed: s.completed, seen: s.seen, restore: s.restore, conn: s.conn, loaded: s.loaded }));
   const { approvals, replies } = inboxItems(st);
   const needsReply = new Set([...approvals, ...replies].map(a => a.sessionId));
   const completed = Object.entries(st.completed).filter(([id, at]) =>
@@ -94,17 +68,11 @@ export function InboxPage({ route }) {
     <div class="phone-scroll inbox-list" ref=${list} ...${pull}>
       ${st.conn.configured && !ready && html`<a class="inbox-card phone-link" href="#/agents"><${Icon} n="alert" /><span>${t('mobile.inbox_unavailable')}</span><${Icon} n="right" /></a>`}
       ${waiting.map(item => html`<div key=${item.request_id} class="inbox-item"><${LoomApproval} item=${item} class="inbox-card" /></div>`)}
-      ${approvals.map(item => html`<div key=${item.id} class="inbox-item" tabindex="-1" data-current=${item.id === route.sub ? '' : undefined}>
-        <${Approval} item=${item} session=${st.sessions[item.sessionId]} disabled=${!ready} onTerminal=${() => openSession(item.sessionId, 'term')}>
-          <${InboxTitle} item=${item} session=${st.sessions[item.sessionId]} />
-        </${Approval}>
-      </div>`)}
-      ${replies.map(item => html`<div key=${item.id} class="inbox-item" tabindex="-1" data-current=${item.id === route.sub ? '' : undefined}>
-        <${QuickReply} item=${item} session=${st.sessions[item.sessionId]} ready=${ready && stateOf(st.sessions[item.sessionId]) === 'idle'} />
-      </div>`)}
+      ${approvals.map(item => html`<${InboxRow} key=${item.id} item=${item} session=${st.sessions[item.sessionId]} kind=${item.kind === 'question' ? 'question' : 'approval'} current=${item.id === route.sub} />`)}
+      ${replies.map(item => html`<${InboxRow} key=${item.id} item=${item} session=${st.sessions[item.sessionId]} kind="reply" current=${item.id === route.sub} />`)}
       ${completed.length > 0 && html`<section class="inbox-completed"><h2>${t('mobile.completed')}</h2>
-        ${completed.map(([id, at]) => html`<a key=${id} class="inbox-card phone-link" href=${'#/agents/s/' + encodeURIComponent(id)}>
-          <${Icon} n="check" class="inbox-done" /><span><b>${st.sessions[id].name || id.slice(0, 8)}</b><small>${ago(at)}</small></span><${Icon} n="right" />
+        ${completed.map(([id, at]) => html`<a key=${id} class=${cls('inbox-card phone-link', at > (st.seen[id] || 0) && 'unseen')} href=${'#/agents/s/' + encodeURIComponent(id)}>
+          <${Icon} n="check" class="inbox-done" /><span><b>${st.sessions[id].name || id.slice(0, 8)}</b><small>${at > (st.seen[id] || 0) ? lt('state', 'unseen') + ' · ' : ''}${ago(at)}</small></span><${Icon} n="right" />
         </a>`)}
       </section>`}
       ${ready && restore.length > 0 && html`<${RestoreBanner} />`}
