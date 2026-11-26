@@ -59,3 +59,4 @@
   .cx-source>.btn{margin-left:28px}
   .cx-grid{grid-template-columns:minmax(0,1fr)}
 }
+.drawer-panel .insp-scroll{overflow-y:auto}
