@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Installed app on iPhone: no more blur over the top of the screen. The deprecated
+  `black-translucent` status bar style made iOS 26 and later lay a system blur over the top of
+  Home Screen apps; Loom now uses the default style, an opaque status bar in the theme colour
+  with the app starting right below it. Remove Loom from the Home Screen and add it again: iOS
+  only reads this setting when the app is added.
 - Agents › Connections shows agent access to Loom and a **capabilities folder**
   (`skills/` + `tasks/`). The folder's skills appear in the library and through
   MCP. A click links them into `~/.claude/skills` and `~/.agents/skills`, and
