@@ -39,7 +39,11 @@ func linkedSkillSources() []SkillSource {
 
 func skillSources() []SkillSource {
 	out := []SkillSource{{ID: "loom", Path: loomSkillsDir(), Label: "Loom", Builtin: true, Writable: true}}
-	return append(out, linkedSkillSources()...)
+	linked := linkedSkillSources()
+	if folder, ok := folderSkillSource(append(linked, out[0])); ok {
+		out = append(out, folder)
+	}
+	return append(out, linked...)
 }
 
 // migrateSkillsToFolders writes the skills stored in the database before

@@ -130,6 +130,10 @@
 .cm-job-t b,.cm-runs b{font-size:14px;font-weight:500}
 .cm-job-t small,.cm-run-info,.cm-editor-row>span{color:var(--text-3);font-size:12.5px}
 .cm-cron-recent{display:grid;gap:8px;padding-top:6px}
+/* Tasks from the capabilities folder: read-only rows, applied together */
+.cm-cron-folder{display:grid;gap:8px}
+.cm-cron-folder h2{margin:0;font-size:15px;line-height:1.4;font-weight:600}
+.cm-cron-folder .cm-job-t:hover b{text-decoration:none}
 .cm-runs li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;overflow-wrap:anywhere}
 .cm-runs b{font-size:13px}
 :is(.cm-run-info,.cm-job-t small,.cm-setting-json small).cm-run-err,.cm-run-err{color:var(--red);font-size:12.5px}
@@ -230,6 +234,8 @@
   .cm-cron-h h2{margin:0;font-size:20px;line-height:1.25}
   .cm-job{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:start;gap:2px 8px;padding:8px}
   .cm-job-run{grid-column:2;justify-self:start;margin-left:30px}
+  .cm-cron-folder .cm-job{grid-template-columns:minmax(0,1fr)}
+  .cm-cron-folder .cm-job>.btn{justify-self:start;margin-left:34px}
   .cm-job-sheet .cm-job-editor{padding:0;background:transparent}
   .cm-job-editor .input[type=datetime-local]{min-width:0;max-width:100%}
   .cm-cfg-nav{position:static}

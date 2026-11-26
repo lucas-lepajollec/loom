@@ -2,7 +2,8 @@
 // le moteur (sessions, tmux, CLI natifs, orchestration) ; Loom affiche et
 // pilote par son API officielle. Les sessions vivent dans la liste de la
 // barre latérale ; la page Agents sert à gérer Codeman. Routes :
-// #/agents (vue d'ensemble), #/agents/cron, #/agents/settings,
+// #/agents (vue d'ensemble), #/agents/cron (tâches), #/agents/connections,
+// #/agents/settings,
 // #/agents/s/<id> (une session) et #/agents/grid (la mosaïque).
 import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
@@ -28,6 +29,7 @@ import { ControlCenter } from './control.js';
 import { Grid, ShapeIcon } from './grid.js';
 import { CodemanSettings } from './settings.js';
 import { CronPage } from './cron.js';
+import { ConnectionsPage } from './connections.js';
 import { ConnectionPanel } from './connection.js';
 import { openSession } from './nav.js';
 
@@ -158,7 +160,7 @@ function LayoutPicker({ currentId }) {
     </${Popover}>`}`;
 }
 
-const SUBS = ['', 'cron', 'settings'];
+const SUBS = ['', 'cron', 'connections', 'settings'];
 function Top({ sub, phone }) {
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v), current: sub === v }));
   return html`<header class="cm-admin-top">
@@ -185,7 +187,8 @@ export function AgentsPage({ route }) {
     const key = e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g' && innerWidth > 760) { e.preventDefault(); e.stopPropagation(); if (layout.get().count === 1) { toggleGrid(currentId); go('agents', 'grid'); } else { toggleGrid(currentId); if (currentId) openSession(currentId); } } };
     addEventListener('keydown', key, true); return () => removeEventListener('keydown', key, true);
   }, [currentId]);
-  const gated = sub !== 'settings' && state !== 'ready';
+  // Réglages et Connexions restent utiles sans Codeman (dossier, skills, MCP Loom).
+  const gated = sub !== 'settings' && sub !== 'connections' && state !== 'ready';
   const narrowView = usePhone();
   const hasSession = useStore(agents, s => !!s.sessions[currentId]);
   const server = conn.url + '\n' + conn.username;
@@ -196,6 +199,7 @@ export function AgentsPage({ route }) {
     ${gated ? gate
       : work ? html`<${Workspace} route=${route} />`
       : sub === 'cron' ? html`<${CronPage} key=${server} phone=${narrowView} />`
+      : sub === 'connections' ? html`<${ConnectionsPage} phone=${narrowView} />`
       : sub === 'settings' ? html`<div class="cm-scroll"><${CodemanSettings} /></div>`
       : html`<${ControlCenter} key=${server} phone=${narrowView} />`}
   </div>`;

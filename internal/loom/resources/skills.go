@@ -105,6 +105,9 @@ func ReadSkillDir(src SkillSource, dir string) (Capability, bool) {
 	if err != nil || !filepath.IsLocal(rel) {
 		return Capability{}, false
 	}
+	// A skill of a family folder (<family>/<skill>/SKILL.md) is named
+	// <family>-<skill>, the name it is linked under in client folders.
+	slug := strings.ReplaceAll(filepath.ToSlash(rel), "/", "-")
 	if !src.Writable {
 		base, rel = dir, "."
 	}
@@ -128,7 +131,6 @@ func ReadSkillDir(src SkillSource, dir string) (Capability, bool) {
 		return Capability{}, false
 	}
 	meta, body := ParseSkillMarkdown(string(raw))
-	slug := filepath.Base(dir)
 	c := Capability{ID: meta["metadata.loom-id"], Name: meta["metadata.title"], Description: meta["description"], Instructions: body,
 		Source: src.ID, SourceLabel: src.Label, Dir: dir, ReadOnly: !src.Writable}
 	if c.ID == "" {
@@ -202,15 +204,41 @@ func (lib Library) ScanSkills(sources []SkillSource) []Capability {
 			if src.ID != "loom" && lib.IsLoomSkillLink(dir) {
 				continue
 			}
-			c, ok := ReadSkillDir(src, dir)
-			if !ok || seen[c.ID] {
-				continue
+			dirs := []string{dir}
+			if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil {
+				dirs = FamilySkillDirs(dir)
 			}
-			seen[c.ID] = true
-			out = append(out, c)
+			for _, d := range dirs {
+				c, ok := ReadSkillDir(src, d)
+				if !ok || seen[c.ID] {
+					continue
+				}
+				seen[c.ID] = true
+				out = append(out, c)
+			}
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	return out
+}
+
+// FamilySkillDirs lists the skills of a family folder: a folder without its
+// own SKILL.md that groups related skills one level down (skills/<family>/<skill>/).
+func FamilySkillDirs(dir string) []string {
+	out := []string{}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return out
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		sub := filepath.Join(dir, e.Name())
+		if info, err := os.Stat(filepath.Join(sub, "SKILL.md")); err == nil && info.Mode().IsRegular() {
+			out = append(out, sub)
+		}
+	}
 	return out
 }
 
