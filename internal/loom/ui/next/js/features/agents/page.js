@@ -17,7 +17,7 @@ import { go } from '../../core/state.js';
 import { isPhone, usePhone } from '../../core/viewport.js';
 import { BackButton } from '../../app/phone-nav.js';
 import { api } from './client.js';
-import { agents, refreshConnection, stateOf, cliOf, projectOf, upsertSession, hasConversation } from './store.js';
+import { agents, refreshConnection, stateOf, attentionOf, ATTENTION, useSeen, cliOf, projectOf, upsertSession, hasConversation } from './store.js';
 import { renameSession } from './actions.js';
 import { StateDot } from './rail.js';
 import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf } from './layout.js';
@@ -37,6 +37,9 @@ import { openSession } from './nav.js';
 // discussion.
 function SessionHeader({ s, narrowView, insp, setInsp }) {
   const state = stateOf(s), cli = cliOf(s.mode);
+  // Accord ou question : un mot, sans pastille.
+  const shown = attentionOf(s) === 'unseen' ? state : attentionOf(s);
+  const dot = ATTENTION.has(shown) ? '' : html`<${StateDot} state=${shown} />`;
   const rename = async () => {
     const name = await prompt(t('agents.session.rename'), { value: s.name || '' });
     if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
@@ -46,7 +49,7 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
     <${BackButton} />
     <div class="phone-agent-title">
       <span><${CliMark} mode=${s.mode} size="xs" /><b class="trunc">${s.name || s.id.slice(0, 8)}</b></span>
-      <small class=${'st-' + state}><${StateDot} state=${state} /><span class="trunc">${[lt('state', state), s.displayModel?.model, s.workingDir && projectOf(s.workingDir)].filter(Boolean).join(' · ')}</span></small>
+      <small class=${'st-' + shown}>${dot}<span class="trunc">${[lt('state', shown), s.displayModel?.model, s.workingDir && projectOf(s.workingDir)].filter(Boolean).join(' · ')}</span></small>
     </div>
     <button type="button" class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} aria-expanded=${String(insp)} onClick=${() => setInsp(!insp)}><${Icon} n="more" /></button>
   </header>`;
@@ -56,7 +59,7 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
     <button class="btn sm cm-sh-name" onClick=${rename} title=${t('agents.session.rename')}><span class="trunc">${s.name || s.id.slice(0, 8)}</span></button>
     <span class="grow"></span>
     ${state === 'stopped' ? html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`
-      : html`<span class=${'cm-sh-state st-' + state}><${StateDot} state=${state} />${lt('state', state)}</span>`}
+      : html`<span class=${'cm-sh-state st-' + shown}>${dot}${lt('state', shown)}</span>`}
     <button class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} title=${t('agents.insp.title')} aria-pressed=${String(!!insp)} onClick=${() => setInsp(!insp)}><${Icon} n="panel" /></button>
   </header>`;
 }
@@ -121,6 +124,7 @@ function Workspace({ route }) {
   const session = useStore(agents, s => s.sessions[id] || null);
   const loaded = useStore(agents, s => s.loaded);
   const grid = useStore(layout, l => l.count > 1) && !narrowView;
+  useSeen(session ? id : '');
   // Dernière session ouverte, sur grand écran ; une session demandée par
   // l'adresse entre dans la grille quand elle est ouverte.
   useEffect(() => {

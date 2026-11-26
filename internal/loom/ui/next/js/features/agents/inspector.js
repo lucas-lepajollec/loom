@@ -12,7 +12,7 @@ import { Modal, toast, prompt, confirm } from '../../ui/dialog.js';
 import { copyText } from '../../ui/clipboard.js';
 import { api, sendPrompt } from './client.js';
 import { ago } from './rail.js';
-import { agents, cliOf, onDomain, upsertSession, stateOf, projectOf, hasConversation, sessionList } from './store.js';
+import { agents, cliOf, onDomain, upsertSession, stateOf, projectOf, hasConversation, sessionList, queueCommand } from './store.js';
 import { closeSession, renameSession, createSession } from './actions.js';
 import { CliMark } from './new-session.js';
 import { openSession, officialLink } from './nav.js';
@@ -206,16 +206,29 @@ function Section({ id, label, hint, open, toggle, children }) {
   </section>`;
 }
 
-// Modèles proposés à Claude Code par sa commande /model.
+// Modèle et effort de Claude Code, par ses commandes /model et /effort. Pendant
+// un tour, la commande attend que l'agent ait fini. Les autres CLI (Codex…)
+// changent de modèle dans un sélecteur de leur terminal : affichage seul.
 const CLAUDE_MODELS = ['opus', 'sonnet', 'haiku'];
+const CLAUDE_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const effortKey = id => 'loom.codeman.effort.' + id;
+const effortLabel = e => ({ low: t('agents.admin.low'), medium: t('agents.admin.medium'), high: t('agents.admin.high'), xhigh: t('agents.admin.xhigh'), max: t('agents.admin.max') })[e] || e;
 function ModelRow({ s }) {
   const [menu, setMenu] = useState(null);
+  const [effortMenu, setEffortMenu] = useState(null);
+  const [effort, setEffort] = useState(() => { try { return localStorage.getItem(effortKey(s.id)) || ''; } catch (_) { return ''; } });
   const model = s.displayModel?.model || '';
-  const send = cmd => sendPrompt(s.id, cmd).then(() => toast(t('agents.panel.sent', { cmd }))).catch(e => toast(e.message, 'err'));
+  const run = cmd => queueCommand(s.id, cmd)
+    .then(r => toast(r === 'queued' ? t('agents.panel.queued', { cmd }) : t('agents.panel.sent', { cmd })))
+    .catch(e => toast(e.message, 'err'));
   if (s.mode !== 'claude') return model ? html`<div class="cm-kv"><span>${t('agents.info.model')}</span><b>${model}</b></div>` : null;
+  const pickEffort = e => { setEffort(e); try { localStorage.setItem(effortKey(s.id), e); } catch (_) {} run('/effort ' + e); };
   return html`<div class="cm-kv"><span>${t('agents.info.model')}</span>
     <${DropdownButton} class="sm fit" open=${menu} onClick=${e => setMenu(e.currentTarget)}><span class="trunc">${model || t('agents.new.model_ph')}</span></${DropdownButton}>
-    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${CLAUDE_MODELS.map(m => ({ label: m[0].toUpperCase() + m.slice(1), icon: model.toLowerCase().includes(m) ? 'check' : '', run: () => send('/model ' + m) }))} />`}</div>`;
+    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${CLAUDE_MODELS.map(m => ({ label: m[0].toUpperCase() + m.slice(1), icon: model.toLowerCase().includes(m) ? 'check' : '', run: () => run('/model ' + m) }))} />`}</div>
+  <div class="cm-kv"><span>${t('agents.cfg.effort')}</span>
+    <${DropdownButton} class="sm fit" open=${effortMenu} onClick=${e => setEffortMenu(e.currentTarget)}><span class="trunc">${effort ? effortLabel(effort) : t('agents.cfg.cli_default')}</span></${DropdownButton}>
+    ${effortMenu && html`<${Menu} anchor=${effortMenu} onClose=${() => setEffortMenu(null)} items=${CLAUDE_EFFORTS.map(e => ({ label: effortLabel(e), icon: e === effort ? 'check' : '', run: () => pickEffort(e) }))} />`}</div>`;
 }
 
 function OthersTab({ s }) {

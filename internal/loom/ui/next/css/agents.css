@@ -188,7 +188,10 @@
 .ses-row{padding-right:8px}
 .ses-row>.more{position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0}
 .ses-row:hover>.more,.ses-row:focus-visible>.more,.ses-row:has(:focus-visible)>.more{opacity:1}
-.ses-row:is(:hover,:focus-visible,:has(:focus-visible))>:is(.ses-when,.dot,.run){visibility:hidden}
+.ses-row:is(:hover,:focus-visible,:has(:focus-visible))>:is(.ses-when,.dot,.run,.ses-flag){visibility:hidden}
+/* Ce qui attend l'utilisateur : un mot sobre, sans pastille. */
+.ses-flag{flex:none;margin-left:auto;font-size:12px;font-weight:500;color:var(--text)}
+.ses-flag.st-unseen{font-weight:400;color:var(--text-2)}
 .ses-folder-h small{flex:none;font-size:11.5px;color:var(--text-4)}
 .ses-folder-in .chat-link{padding-left:22px}
 .ses-folder.drop-on,.ses .side-list.drop-on{border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line-strong)}
