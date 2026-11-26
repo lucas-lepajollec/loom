@@ -97,7 +97,7 @@ export function setTheme(localT) {
   document.documentElement.dataset.theme = localT;
   try { localStorage.setItem('loom-theme', localT); } catch (_) {}
   const meta = document.querySelector('meta[name=theme-color]');
-  if (meta) meta.content = localT === 'light' ? '#f3f3f4' : '#09090a';
+  if (meta) meta.content = localT === 'light' ? '#ffffff' : '#111113'; // fond des pages : la barre d'état s'y fond
   app.set({ theme: localT });
 }
 

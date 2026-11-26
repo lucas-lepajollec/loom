@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Phones:
+  - The bottom bar keeps its bubble shape but sits closer to the screen edges
+    and uses Loom's own style: a plain surface, a thin border, the current tab
+    on a soft fill, with no glass reflections.
+  - The page background now runs to the top of the screen, and the status bar
+    takes the same colour (`theme-color`), so no darker band sits above the
+    title. A short, smooth fade under the top edge blends scrolling content into
+    it.
+- Connections: the side panel scrolls when a skill's instructions are long.
+
 - **Agent conversations** are rebuilt on a shared conversation kit:
   - Each turn shows the request, then the work, then the final answer. Once a
     turn ends, its intermediate messages and steps fold under "Worked for 2 min
