@@ -1,6 +1,6 @@
 # Capabilities folder: skills and scheduled tasks
 
-Agents › Connections and Agents › Tasks read a **capabilities folder** that you
+The **Connections** page (sidebar) and Agents › Tasks read a **capabilities folder** that you
 keep yourself, usually under Git:
 
 ```
@@ -19,24 +19,32 @@ agent can use the same skills and tasks without Loom.
 
 ## Connections
 
+Connections has its own sidebar entry, because skills reach every agent on the
+machine, not only Codeman sessions. It reads like a plugins page: a search
+field, All / Skills / MCP filters, then one card per MCP server and per skill.
+A family is one card that lists its skills. A card opens a side panel with the
+skill's instructions (its `SKILL.md`) and files, or with the MCP gateway's
+address and token.
+
 - **Agent access**: the [Loom MCP gateway](../agent-access.md) for agents that
   should reach your machines and sessions.
 - **Capabilities folder**: choose it once, inside your home folder. If the Files folder already has
   `skills/` or `tasks/`, Loom suggests it.
-- **Agents on this machine**: for each user skills folder read by agent CLIs,
-  Loom shows how many of the folder's skills are linked:
+- **Agents on this machine**: under the folder, one line says whether every
+  skill is linked into the user skills folders read by agent CLIs, with a
+  **Link** button when some are missing:
   - `~/.claude/skills` for Claude Code;
   - `~/.agents/skills` for Codex, Gemini CLI, OpenCode, Pi and other Agent Skills
     clients.
 
-  **Link** creates one symbolic link per skill. It never replaces a real folder
+  Link creates one symbolic link per skill. It never replaces a real folder
   or a link that points elsewhere. It removes only links that point into the
   folder at a skill that no longer exists. CLIs load each skill's name and
   description at startup, and the full skill only when a task matches.
 - The folder's skills also reach MCP clients through `list_skills` and
   `read_skill`, as a read-only source.
 
-API: `GET/POST /api/capabilities/folder` (`{ path }`, empty to stop using it)
+API: `GET /api/capabilities/skill?name=` (one listed skill: body and files), `GET/POST /api/capabilities/folder` (`{ path }`, empty to stop using it)
 and `POST /api/capabilities/link` (`{ client: "claude" | "agents" }`, or empty
 for every client). Both answer with the folder state: `dir`, `skills`, `tasks`,
 `clients`.

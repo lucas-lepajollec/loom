@@ -12,7 +12,7 @@ import { openSession } from './nav.js';
 import { CliMark } from './new-session.js';
 import { parseCron } from './schedule.js';
 import { planTasks } from './folder-tasks.js';
-import { loadCapabilities } from './connections.js';
+import { loadCapabilities } from '../connections/page.js';
 
 const fmt = ms => new Date(ms).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const DAYS = [1, 2, 3, 4, 5, 6, 0];

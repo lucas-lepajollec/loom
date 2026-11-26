@@ -142,6 +142,19 @@ func TestCapabilitiesLinkNeverOverwrites(t *testing.T) {
 	if _, err := os.Lstat(filepath.Join(home, ".agents", "skills", "network-map")); !os.IsNotExist(err) {
 		t.Fatal("another client was linked")
 	}
+	get := func(target string) (int, map[string]any) {
+		w := httptest.NewRecorder()
+		handleCapabilitySkill(w, httptest.NewRequest("GET", target, nil))
+		out := map[string]any{}
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out
+	}
+	if code, out := get("/api/capabilities/skill?name=network-map"); code != 200 || !strings.Contains(out["body"].(string), "# Map") || out["path"] != "skills/network-map" || len(out["files"].([]any)) != 1 {
+		t.Fatalf("skill detail %d %v", code, out)
+	}
+	if code, _ := get("/api/capabilities/skill?name=../../etc"); code != 404 {
+		t.Fatalf("unknown skill %d", code)
+	}
 	if code, _ := capCall(t, handleCapabilitiesLink, "/api/capabilities/link", `{"client":"nope"}`); code != 400 {
 		t.Fatalf("unknown client %d", code)
 	}

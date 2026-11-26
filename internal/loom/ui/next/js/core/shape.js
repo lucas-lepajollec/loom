@@ -63,6 +63,7 @@ const shapes = {
   '/api/skills/sources': { sources: rows, suggested: rows },
   '/api/capabilities/folder': { skills: rows, tasks: rows, clients: rows },
   '/api/capabilities/link': { skills: rows, tasks: rows, clients: rows },
+  '/api/capabilities/skill': { files: strings },
   '/api/mcp': { servers: list(value => validShape(value, { args: strings, tools: rows, disabled: strings }) && typeof value.name === 'string') },
   '/api/mcp/portable': { servers: rows }, '/api/mcp/gateway': {}, '/api/mcp/sources': { sources: list({ servers: list({ env_names: strings, header_names: strings }) }), suggested: rows }, '/api/mcp/sources/adopt': { env_to_fill: strings },
   '/api/engine/params': { params: list({ choices: list([]) }) }, '/api/model-caps': { mmproj: strings, effort: strings },

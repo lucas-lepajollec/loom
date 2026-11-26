@@ -60,16 +60,33 @@ func ParseSkillMarkdown(raw string) (map[string]string, string) {
 	}
 	head, body := rest[:end], rest[end+4:]
 	parent := ""
-	for _, line := range strings.Split(head, "\n") {
+	lines := strings.Split(head, "\n")
+	isIndented := func(line string) bool { return strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") }
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
 			continue
 		}
-		indented := strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
+		indented := isIndented(line)
 		k, v, ok := strings.Cut(strings.TrimSpace(line), ":")
 		if !ok {
 			continue
 		}
 		k, v = strings.TrimSpace(k), strings.Trim(strings.TrimSpace(v), `"'`)
+		// Block scalar (description: >- or |): the indented lines that follow.
+		if !indented && len(v) > 0 && len(v) <= 2 && (v[0] == '>' || v[0] == '|') && strings.Trim(v[1:], "+-") == "" {
+			parts := []string{}
+			for i+1 < len(lines) && (isIndented(lines[i+1]) || strings.TrimSpace(lines[i+1]) == "") {
+				i++
+				parts = append(parts, strings.TrimSpace(lines[i]))
+			}
+			sep := " "
+			if v[0] == '|' {
+				sep = "\n"
+			}
+			parent, meta[k] = "", strings.TrimSpace(strings.Join(parts, sep))
+			continue
+		}
 		if !indented {
 			parent = ""
 			if v == "" {
