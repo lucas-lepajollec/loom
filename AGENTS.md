@@ -28,6 +28,9 @@ and model state separate; llama.cpp router model changes use its API rather
 than restart the server. Remote nodes expose only engine, terminal, observe and
 optional voice modules. Cloud providers use explicit credentials and consent.
 MCP clients are configured manually; Loom never writes native client settings.
+The capabilities folder (Agents › Connections) is user-owned: Loom reads its
+`skills/` and `tasks/`, never edits them, and on explicit request only creates
+symbolic links in user skill folders, never replacing what is there.
 Preserve current voice/Jarvis, policy and notifications behavior within this
 scope.
 

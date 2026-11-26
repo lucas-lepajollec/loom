@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Agents › Connections shows agent access to Loom and a **capabilities folder**
+  (`skills/` + `tasks/`). The folder's skills appear in the library and through
+  MCP. A click links them into `~/.claude/skills` and `~/.agents/skills`, and
+  links only: nothing is ever replaced. Agents › Tasks (formerly Scheduled)
+  lists the folder's `tasks/*.md` and applies them as Codeman jobs. A `shell` task
+  spends no model tokens. [Capabilities folder](docs/agents/capabilities.md)
+
 ## [0.3.0] - 2026-11-23
 
 > **Upgrading from 0.2.x:** Back up `LOOM_HOME` before upgrading. Existing discussions, folders, presets, models, and archived transcripts are preserved. Native coding-harness adapters are retired in favor of the independent Codeman gateway (`Agents`). Remote node credentials and legacy `/v1` keys are transparently sealed in AES-256-GCM on startup. Pair or update remote `loom node` instances to `0.3.0` so pairing codes and `--listen lan` match.

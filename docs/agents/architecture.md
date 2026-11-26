@@ -46,7 +46,7 @@ allowed by default and adjustable in Settings → Permissions.
 | `store.js` | Domain state: connection, sessions, history, CLI registry, approvals, completed turns, plan usage, and Codeman settings. SSE reducers and app-wide presence (`useAgentsPresence`) |
 | `actions.js` | Intentions → official calls: create, resume, interrupt, close, rename, answer approvals |
 | `labels.js` | Literal translation keys for variable values |
-| `page.js`, `nav.js` | Route `#/agents[/s/<id>|/control|/cron|/settings]` (`/grid` opens the grid), single view or grid, layout picker, quota chip, session header |
+| `page.js`, `nav.js` | Route `#/agents[/s/<id>|/control|/cron|/connections|/settings]` (`/grid` opens the grid), single view or grid, layout picker, quota chip, session header |
 | `side.js` | Section of Loom's sidebar: live sessions, history to resume, new-session dialog host |
 | `layout.js`, `grid.js` | Per-device layout (1, 2, 3, 4 or 6 panes, cells, focus, zoom, divider fractions) and the tmux-like grid |
 | `rail.js` | Full list (home screen, phone): sessions by folder, history, search, reboot restore |
@@ -57,6 +57,7 @@ allowed by default and adjustable in Settings → Permissions.
 | `terminal.js` | xterm.js terminal: screen read, WebSocket attach, resize, reconnect |
 | `inspector.js` | Activity, Git, files, subagents, session options |
 | `control.js`, `cron.js`, `connection.js`, `new-session.js` | Control center, scheduling, connection, new session |
+| `connections.js`, `folder-tasks.js` | Capabilities folder: skills, links per CLI, tasks applied as Codeman jobs ([capabilities](capabilities.md)) |
 
 The overview shows live sessions first and pages through Codeman’s unified
 history. Scheduled tasks use Codeman’s once, interval, daily and weekly

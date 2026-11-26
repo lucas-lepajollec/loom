@@ -11,6 +11,8 @@ import { agents, cliOf, onDomain, projectOf, upsertSession } from './store.js';
 import { openSession } from './nav.js';
 import { CliMark } from './new-session.js';
 import { parseCron } from './schedule.js';
+import { planTasks } from './folder-tasks.js';
+import { loadCapabilities } from './connections.js';
 
 const fmt = ms => new Date(ms).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const DAYS = [1, 2, 3, 4, 5, 6, 0];
@@ -241,6 +243,48 @@ function Runs({ jobs, runs }) {
   </li>`)}</ul>`;
 }
 
+// Tâches du dossier des capacités (tasks/*.md). Le fichier fait foi :
+// « Appliquer » crée la tâche Codeman ou la réaligne sur son fichier.
+const TASK_STATE = { synced: 'agents.tasks.synced', changed: 'agents.tasks.changed', new: 'agents.tasks.new', invalid: 'agents.tasks.invalid', orphan: 'agents.tasks.orphan' };
+
+function FolderTasks({ jobs, onApplied }) {
+  const [folder, setFolder] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { loadCapabilities().then(setFolder); }, []);
+  if (!folder?.dir || folder.error || !folder.tasks?.length || jobs === null) return null;
+  const rows = planTasks(folder.tasks, jobs, folder.dir);
+  const pending = rows.filter(r => r.state === 'new' || r.state === 'changed');
+  const apply = async () => {
+    setBusy(true);
+    let failed = 0;
+    for (const r of pending) {
+      try { r.existing ? await api.cronUpdate(r.existing.id, r.job) : await api.cronCreate(r.job); }
+      catch (e) { failed++; toast(r.task.name + ' · ' + e.message, 'err'); }
+    }
+    setBusy(false);
+    if (!failed) toast(t('agents.tasks.applied', { n: pending.length }));
+    onApplied();
+  };
+  const remove = async r => {
+    if (!await confirm(t('agents.tasks.remove_title'), t('agents.tasks.remove_text', { name: r.existing.name }), { ok: t('agents.tasks.remove'), danger: true })) return;
+    try { await api.cronDelete(r.existing.id); } catch (e) { toast(e.message, 'err'); }
+    onApplied();
+  };
+  return html`<section class="cm-cron-folder">
+    <div class="cm-cron-h"><div><h2>${t('agents.tasks.folder')}</h2><p>${t('agents.tasks.folder_lead')}</p></div>
+      ${pending.length > 0 && html`<button class="btn primary" disabled=${busy} onClick=${apply}>${t('agents.tasks.apply', { n: pending.length })}</button>`}</div>
+    <ul class="cm-jobs">${rows.map(r => html`<li key=${r.task.file} class="cm-job">
+      <span class="cm-job-t"><${CliMark} mode=${r.job?.agentType || r.existing?.agentType || r.task.agent || 'shell'} size="sm" />
+        <span><b>${r.task.name}</b>
+          <small>${r.task.file}</small>
+          ${r.job && html`<small>${schedule(r.job)}${r.job.enabled ? '' : ' · ' + t('agents.cron.disabled')}</small>`}
+          <small class=${r.state === 'invalid' ? 'cm-run-err' : ''}>${t(TASK_STATE[r.state])}${r.error ? ' · ' + (r.error === 'schedule' ? t('agents.tasks.bad_schedule') : r.error) : ''}</small>
+        </span></span>
+      ${r.state === 'orphan' && html`<button class="btn sm" onClick=${() => remove(r)}>${t('agents.tasks.remove')}</button>`}
+    </li>`)}</ul>
+  </section>`;
+}
+
 const NEW_JOB = Symbol('new job');
 
 export function CronPage({ phone }) {
@@ -310,6 +354,7 @@ export function CronPage({ phone }) {
       <div class="cm-cron-h"><div><${Heading}>${t('agents.cron.title')}</${Heading}><p>${t('agents.admin.cron_lead')}</p></div>
         <button class="btn primary" onClick=${() => setSelection(NEW_JOB)}><${Icon} n="plus" />${t('agents.cron.new')}</button></div>
       ${jobsError && html`<p role="alert" class="msg-err">${jobsError}</p>`}
+      <${FolderTasks} jobs=${jobs} onApplied=${load} />
       ${jobs === null ? !jobsError && html`<div class="skeleton cm-admin-loading"></div>`
         : !jobs.length ? html`<${Empty} icon="history" title=${t('agents.cron.empty')} text=${t('agents.cron.empty_text')} />`
         : html`<ul class="cm-jobs">${jobs.map(j => html`<li key=${j.id} class=${cls('cm-job', j.id === selection && 'selected')}>
