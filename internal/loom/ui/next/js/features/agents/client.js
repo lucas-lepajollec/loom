@@ -77,6 +77,8 @@ export const api = {
   files: id => cm.get('/sessions/' + enc(id) + '/files', { timeout: 20000 }),
   fileContent: (id, path) => cm.get('/sessions/' + enc(id) + '/file-content?path=' + enc(path)),
   subagents: id => cm.get('/sessions/' + enc(id) + '/subagents'),
+  edits: (id, sync) => cm.get('/sessions/' + enc(id) + '/edits' + (sync ? '?sync=1' : ''), { timeout: 20000 }),
+  editDiff: (id, entryId) => cm.get('/sessions/' + enc(id) + '/edits/' + enc(entryId)),
   subagentTranscript: agentId => cm.get('/subagents/' + enc(agentId) + '/transcript?format=formatted'),
   upload: (id, file) => { const f = new FormData(); f.append('image', file, file.name); return cm.post('/sessions/' + enc(id) + '/paste-image' + (/^video\//.test(file.type) ? '?kind=video' : ''), f, { timeout: 300000 }); },
   settings: () => cm.get('/settings'),

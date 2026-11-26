@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+- **Agent conversations** are rebuilt on a shared conversation kit:
+  - Each turn shows the request, then the work, then the final answer. Once a
+    turn ends, its intermediate messages and steps fold under "Worked for 2 min
+    14 s".
+  - A running command shows live with its elapsed time.
+  - Files the agent edited appear as a "3 files changed +71 −14" card, and each
+    file opens on its real diff, read from Codeman's edit history.
+  - An approval or a question now sits in the composer, above the text field.
+    Typing there tells the agent what to do instead.
+  - Codex approvals, which Codeman leaves to the terminal, are answered from the
+    conversation. Loom reads the dialog's choices on screen (Yes `y`, Always
+    `a`, No `Esc`) and sends the key only while the dialog is still shown.
+  - Long sessions show their last 30 turns, with a button to load earlier ones.
+  - Interruptions are a short line, and pasted files appear as chips.
+- Agent sessions and Loom discussions get a message rail on the left of the
+  thread, one tick per message, with a preview on hover and a click to jump
+  there, plus a "back to bottom" button.
+
 - Installed app on iPhone: no more blur over the top of the screen. The deprecated
   `black-translucent` status bar style made iOS 26 and later lay a system blur over the top of
   Home Screen apps; Loom now uses the default style, an opaque status bar in the theme colour

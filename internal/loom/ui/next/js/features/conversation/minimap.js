@@ -45,13 +45,17 @@ export function Minimap({ scroller }) {
     return () => { watch.disconnect(); size.disconnect(); box.removeEventListener('scroll', visible); if (frame) cancelAnimationFrame(frame); };
   }, [scroller.current]);
   if (marks.length < 3) return null;
+  // Un long fil garde une fenêtre de traits autour de ce qui est visible.
+  const span = 36;
+  const from = marks.length <= span ? 0 : Math.max(0, Math.min(marks.length - span, (seen[0] < 0 ? marks.length : seen[0]) - Math.floor(span / 2)));
+  const shown = marks.slice(from, from + span);
   const go = i => {
     const box = scroller.current, el = list.current[i]; if (!box || !el) return;
     box.scrollTo({ top: Math.max(0, el.offsetTop - 24), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   };
   return html`<nav class="minimap" aria-label="Messages" onMouseLeave=${() => setHover(-1)}>
-    ${marks.map((m, i) => html`<button key=${i} type="button" class=${cls('mm-tick', m.user && 'user', i >= seen[0] && i <= seen[1] && 'on')}
-      aria-label=${m.text} onMouseEnter=${() => setHover(i)} onFocus=${() => setHover(i)} onClick=${() => go(i)}><i></i></button>`)}
-    ${hover >= 0 && marks[hover] && marks[hover].text && html`<span class="mm-tip" style=${`--i:${hover};--n:${marks.length}`}>${marks[hover].text}</span>`}
+    ${shown.map((m, n) => { const i = from + n; return html`<button key=${i} type="button" class=${cls('mm-tick', m.user && 'user', i >= seen[0] && i <= seen[1] && 'on')}
+      aria-label=${m.text} onMouseEnter=${() => setHover(i)} onFocus=${() => setHover(i)} onClick=${() => go(i)}><i></i></button>`; })}
+    ${hover >= from && hover < from + span && marks[hover]?.text && html`<span class="mm-tip" style=${`--i:${hover - from};--n:${shown.length}`}>${marks[hover].text}</span>`}
   </nav>`;
 }
