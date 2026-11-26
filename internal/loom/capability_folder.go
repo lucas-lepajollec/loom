@@ -16,6 +16,8 @@ import (
 // with two conventional children:
 //
 //	skills/<name>/SKILL.md   Agent Skills: methods, scripts and tool usage
+//	skills/<family>/<name>/  related skills grouped in a family folder,
+//	                         listed and linked as <family>-<name>
 //	tasks/<name>.md          scheduled tasks (front matter), applied as Codeman cron jobs
 //
 // The folder stays the source of truth. Loom lists it, exposes its skills to
@@ -74,6 +76,7 @@ type folderSkill struct {
 	Title       string `json:"title,omitempty"`
 	Description string `json:"description"`
 	Scripts     int    `json:"scripts"`
+	Family      string `json:"family,omitempty"`
 	Dir         string `json:"-"`
 }
 
@@ -111,26 +114,38 @@ func readFolderSkills(dir string) []folderSkill {
 		if info, err := os.Stat(path); err != nil || !info.IsDir() {
 			continue
 		}
-		raw, err := readSmall(filepath.Join(path, "SKILL.md"))
-		if err != nil {
+		if s, ok := readFolderSkill(path, e.Name(), ""); ok {
+			out = append(out, s)
 			continue
 		}
-		meta, _ := resources.ParseSkillMarkdown(raw)
-		s := folderSkill{Name: e.Name(), Title: meta["name"], Description: meta["description"], Dir: path}
-		if s.Title == s.Name {
-			s.Title = ""
-		}
-		if scripts, err := os.ReadDir(filepath.Join(path, "scripts")); err == nil {
-			for _, f := range scripts {
-				if !f.IsDir() {
-					s.Scripts++
-				}
+		for _, sub := range resources.FamilySkillDirs(path) {
+			if s, ok := readFolderSkill(sub, e.Name()+"-"+filepath.Base(sub), e.Name()); ok {
+				out = append(out, s)
 			}
 		}
-		out = append(out, s)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+func readFolderSkill(path, name, family string) (folderSkill, bool) {
+	raw, err := readSmall(filepath.Join(path, "SKILL.md"))
+	if err != nil {
+		return folderSkill{}, false
+	}
+	meta, _ := resources.ParseSkillMarkdown(raw)
+	s := folderSkill{Name: name, Title: meta["name"], Description: meta["description"], Family: family, Dir: path}
+	if s.Title == s.Name {
+		s.Title = ""
+	}
+	if scripts, err := os.ReadDir(filepath.Join(path, "scripts")); err == nil {
+		for _, f := range scripts {
+			if !f.IsDir() {
+				s.Scripts++
+			}
+		}
+	}
+	return s, true
 }
 
 func readSmall(path string) (string, error) {
@@ -196,10 +211,15 @@ func sameSkillDir(a, b string) bool {
 func clientStatuses(skills []folderSkill, skillsDir string) []clientStatus {
 	out := []clientStatus{}
 	for _, c := range skillClients() {
-		st := clientStatus{skillClient: c, Linked: []string{}, Missing: []string{}, Blocked: []string{}, Stale: []string{}}
+		st := clientStatus{skillClient: c, Linked: []string{}, Missing: []string{}, Blocked: []string{}, Stale: staleLinks(c.Dir, skillsDir)}
+		stale := map[string]bool{}
+		for _, name := range st.Stale {
+			stale[name] = true
+		}
 		for _, s := range skills {
 			dest := filepath.Join(c.Dir, s.Name)
-			if _, err := os.Lstat(dest); os.IsNotExist(err) {
+			// A stale link under the skill's name (the skill moved) is replaced on Link.
+			if _, err := os.Lstat(dest); os.IsNotExist(err) || stale[s.Name] {
 				st.Missing = append(st.Missing, s.Name)
 			} else if sameSkillDir(dest, s.Dir) {
 				st.Linked = append(st.Linked, s.Name)
@@ -207,7 +227,6 @@ func clientStatuses(skills []folderSkill, skillsDir string) []clientStatus {
 				st.Blocked = append(st.Blocked, s.Name)
 			}
 		}
-		st.Stale = staleLinks(c.Dir, skillsDir)
 		out = append(out, st)
 	}
 	return out
@@ -331,6 +350,10 @@ func handleCapabilitiesLink(w http.ResponseWriter, r *http.Request) {
 			sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
+		// Stale links go first: a moved skill gets its name back.
+		for _, name := range staleLinks(c.Dir, skillsDir) {
+			_ = os.Remove(filepath.Join(c.Dir, name))
+		}
 		for _, s := range skills {
 			dest := filepath.Join(c.Dir, s.Name)
 			if _, err := os.Lstat(dest); !os.IsNotExist(err) {
@@ -340,9 +363,6 @@ func handleCapabilitiesLink(w http.ResponseWriter, r *http.Request) {
 				sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 				return
 			}
-		}
-		for _, name := range staleLinks(c.Dir, skillsDir) {
-			_ = os.Remove(filepath.Join(c.Dir, name))
 		}
 	}
 	if !found {

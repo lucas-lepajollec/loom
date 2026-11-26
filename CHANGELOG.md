@@ -7,7 +7,9 @@
   MCP. A click links them into `~/.claude/skills` and `~/.agents/skills`, and
   links only: nothing is ever replaced. Agents › Tasks (formerly Scheduled)
   lists the folder's `tasks/*.md` and applies them as Codeman jobs. A `shell` task
-  spends no model tokens. [Capabilities folder](docs/agents/capabilities.md)
+  spends no model tokens. Related skills can be grouped in a family folder
+  (`skills/<family>/<name>/`), linked as `<family>-<name>`.
+  [Capabilities folder](docs/agents/capabilities.md)
 
 ## [0.3.0] - 2026-11-23
 

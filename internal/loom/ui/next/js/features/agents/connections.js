@@ -53,6 +53,18 @@ function clientState(c) {
   return parts.join(' · ') || t('agents.links.no_skills');
 }
 
+// Related skills grouped in skills/<family>/ are shown together, under their
+// family, with their short name; clients see them as <family>-<name>.
+const families = skills => {
+  const out = new Map();
+  for (const s of skills) if (s.family) out.set(s.family, [...(out.get(s.family) || []), s]);
+  return [...out];
+};
+
+const SkillLine = ({ s, label, phone }) => html`<${Line} label=${label} sub=${s.description} stack=${phone}>
+  ${s.scripts > 0 && html`<span class="state">${t('agents.links.scripts', { n: s.scripts })}</span>`}
+</${Line}>`;
+
 export function ConnectionsPage({ phone }) {
   const [state, setState] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -96,10 +108,12 @@ export function ConnectionsPage({ phone }) {
         </${Group}>
         <p class="note">${t('agents.links.clients_note')}</p>
         <${Group} title=${t('agents.links.skills', { n: skills.length })}>
-          ${skills.length ? skills.map(s => html`<${Line} key=${s.name} label=${s.name} sub=${s.description} stack=${phone}>
-            ${s.scripts > 0 && html`<span class="state">${t('agents.links.scripts', { n: s.scripts })}</span>`}
-          </${Line}>`) : html`<p class="set-note">${t('agents.links.no_skills_text')}</p>`}
-        </${Group}>`}
+          ${skills.length ? skills.filter(s => !s.family).map(s => html`<${SkillLine} key=${s.name} s=${s} label=${s.name} phone=${phone} />`)
+            : html`<p class="set-note">${t('agents.links.no_skills_text')}</p>`}
+        </${Group}>
+        ${families(skills).map(([family, list]) => html`<${Group} key=${family} title=${`${family} · ${t('agents.links.skills', { n: list.length })}`}>
+          ${list.map(s => html`<${SkillLine} key=${s.name} s=${s} label=${s.name.slice(family.length + 1)} phone=${phone} />`)}
+        </${Group}>`)}`}
     </div></section>
     ${editing && html`<${FolderDialog} current=${dir} suggested=${state?.suggested} onClose=${() => setEditing(false)} onSaved=${setState} />`}
   </div></div>`;

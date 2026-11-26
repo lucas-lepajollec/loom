@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +39,8 @@ func capabilitiesFixture(t *testing.T) (folder, home string) {
 	write("skills/network-map/SKILL.md", "---\nname: network-map\ndescription: Use when mapping the local network.\n---\n\n# Map\n")
 	write("skills/network-map/scripts/collect.sh", "#!/bin/sh\n")
 	write("skills/review/SKILL.md", "---\nname: review\ndescription: Use when reviewing a change.\n---\n")
+	write("skills/design/README.md", "Vendored design skills.\n")
+	write("skills/design/tokens/SKILL.md", "---\nname: tokens\ndescription: Use when extracting design tokens.\n---\n")
 	write("tasks/README.md", "# Tasks\n")
 	write("tasks/nightly.md", "---\nname: nightly\ndescription: Collects the map.\nschedule: \"0 4 * * *\"\nagent: shell\nrun: bash skills/network-map/scripts/collect.sh\nenabled: true\n---\n")
 	write("tasks/broken.md", "---\nname: broken\ndescription: No schedule.\nagent: claude\nenabled: false\n---\n")
@@ -55,7 +57,10 @@ func TestCapabilitiesFolderListsSkillsTasksAndClients(t *testing.T) {
 		t.Fatalf("set folder %d %v", code, out)
 	}
 	skills := out["skills"].([]any)
-	if len(skills) != 2 || skills[0].(map[string]any)["name"] != "network-map" || skills[0].(map[string]any)["scripts"].(float64) != 1 {
+	if len(skills) != 3 || skills[1].(map[string]any)["name"] != "network-map" || skills[1].(map[string]any)["scripts"].(float64) != 1 {
+		t.Fatalf("skills %v", skills)
+	}
+	if fam := skills[0].(map[string]any); fam["name"] != "design-tokens" || fam["family"] != "design" {
 		t.Fatalf("skills %v", skills)
 	}
 	tasks := out["tasks"].([]any)
@@ -70,7 +75,7 @@ func TestCapabilitiesFolderListsSkillsTasksAndClients(t *testing.T) {
 		t.Fatalf("nightly %v", nightly)
 	}
 	clients := out["clients"].([]any)
-	if len(clients) != 2 || len(clients[0].(map[string]any)["missing"].([]any)) != 2 {
+	if len(clients) != 2 || len(clients[0].(map[string]any)["missing"].([]any)) != 3 {
 		t.Fatalf("clients %v", clients)
 	}
 	// The folder's skills reach the library and the MCP gateway as a read-only source.
@@ -97,8 +102,16 @@ func TestCapabilitiesLinkNeverOverwrites(t *testing.T) {
 	if err := os.Symlink(filepath.Join(folder, "skills", "gone"), filepath.Join(claude, "gone")); err != nil {
 		t.Fatal(err)
 	}
+	// design-tokens used to live at skills/tokens: its old link is stale and gets replaced.
+	if err := os.Symlink(filepath.Join(folder, "skills", "tokens"), filepath.Join(claude, "design-tokens")); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink(t.TempDir(), filepath.Join(claude, "elsewhere")); err != nil {
 		t.Fatal(err)
+	}
+	before := clientStatuses(readFolderSkills(filepath.Join(folder, "skills")), filepath.Join(folder, "skills"))[0]
+	if len(before.Missing) != 2 || len(before.Blocked) != 1 || len(before.Stale) != 2 {
+		t.Fatalf("status before linking %+v", before)
 	}
 	code, out := capCall(t, handleCapabilitiesLink, "/api/capabilities/link", `{"client":"claude"}`)
 	if code != 200 {
@@ -106,6 +119,9 @@ func TestCapabilitiesLinkNeverOverwrites(t *testing.T) {
 	}
 	if target, err := os.Readlink(filepath.Join(claude, "network-map")); err != nil || target != filepath.Join(folder, "skills", "network-map") {
 		t.Fatalf("network-map link %q %v", target, err)
+	}
+	if target, err := os.Readlink(filepath.Join(claude, "design-tokens")); err != nil || target != filepath.Join(folder, "skills", "design", "tokens") {
+		t.Fatalf("family skill link %q %v", target, err)
 	}
 	if info, err := os.Lstat(filepath.Join(claude, "review")); err != nil || info.Mode()&os.ModeSymlink != 0 {
 		t.Fatal("a real folder was replaced")
@@ -117,7 +133,7 @@ func TestCapabilitiesLinkNeverOverwrites(t *testing.T) {
 		t.Fatal("unrelated link removed")
 	}
 	st := out["clients"].([]any)[0].(map[string]any)
-	if len(st["linked"].([]any)) != 1 || len(st["blocked"].([]any)) != 1 {
+	if len(st["linked"].([]any)) != 2 || len(st["blocked"].([]any)) != 1 {
 		t.Fatalf("status %v", st)
 	}
 	if _, err := os.Lstat(filepath.Join(home, ".agents", "skills", "network-map")); !os.IsNotExist(err) {

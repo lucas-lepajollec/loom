@@ -5,9 +5,14 @@ keep yourself, usually under Git:
 
 ```
 <folder>/
-  skills/<name>/SKILL.md   Agent Skills: a method, its scripts and how to use a tool
-  tasks/<name>.md          a scheduled task, described by its front matter
+  skills/<name>/SKILL.md          Agent Skills: a method, its scripts and how to use a tool
+  skills/<family>/<name>/SKILL.md related skills grouped in a family folder
+  tasks/<name>.md                 a scheduled task, described by its front matter
 ```
+
+A family folder has no `SKILL.md` of its own. Its skills are listed under the
+family and linked as `<family>-<name>`, so CLIs that read only one level of
+folders still find them.
 
 The folder is the source of truth. Loom reads it and never edits it, so any
 agent can use the same skills and tasks without Loom.
