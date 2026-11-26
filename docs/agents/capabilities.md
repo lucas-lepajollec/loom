@@ -21,7 +21,7 @@ agent can use the same skills and tasks without Loom.
 
 - **Agent access**: the [Loom MCP gateway](../agent-access.md) for agents that
   should reach your machines and sessions.
-- **Capabilities folder**: choose it once. If the Files folder already has
+- **Capabilities folder**: choose it once, inside your home folder. If the Files folder already has
   `skills/` or `tasks/`, Loom suggests it.
 - **Agents on this machine**: for each user skills folder read by agent CLIs,
   Loom shows how many of the folder's skills are linked:

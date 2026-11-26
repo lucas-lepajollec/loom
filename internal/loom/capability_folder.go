@@ -296,8 +296,8 @@ func handleCapabilitiesFolder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		dir := strings.TrimSpace(body.Path)
+		h, _ := os.UserHomeDir()
 		if strings.HasPrefix(dir, "~/") {
-			h, _ := os.UserHomeDir()
 			dir = filepath.Join(h, dir[2:])
 		}
 		if dir != "" {
@@ -305,7 +305,13 @@ func handleCapabilitiesFolder(w http.ResponseWriter, r *http.Request) {
 				sendJSON(w, 400, map[string]any{"ok": false, "error": "absolute folder path required"})
 				return
 			}
+			// The folder's skills are linked into the user's own skill
+			// folders: it must live in the user's home.
 			dir = filepath.Clean(dir)
+			if h == "" || !strings.HasPrefix(dir, filepath.Clean(h)+string(filepath.Separator)) {
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "choose a folder inside your home folder"})
+				return
+			}
 			if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 				sendJSON(w, 400, map[string]any{"ok": false, "error": "folder not found"})
 				return

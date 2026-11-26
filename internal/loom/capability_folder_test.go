@@ -26,7 +26,7 @@ func capabilitiesFixture(t *testing.T) (folder, home string) {
 	testHome(t)
 	home = t.TempDir()
 	t.Setenv("HOME", home)
-	folder = t.TempDir()
+	folder = filepath.Join(home, "capabilities")
 	write := func(rel, content string) {
 		path := filepath.Join(folder, rel)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -51,6 +51,9 @@ func TestCapabilitiesFolderListsSkillsTasksAndClients(t *testing.T) {
 	folder, _ := capabilitiesFixture(t)
 	if code, out := capCall(t, handleCapabilitiesFolder, "/api/capabilities/folder", `{"path":"relative/path"}`); code != 400 {
 		t.Fatalf("relative path accepted: %d %v", code, out)
+	}
+	if code, out := capCall(t, handleCapabilitiesFolder, "/api/capabilities/folder", `{"path":"`+t.TempDir()+`"}`); code != 400 {
+		t.Fatalf("folder outside home accepted: %d %v", code, out)
 	}
 	code, out := capCall(t, handleCapabilitiesFolder, "/api/capabilities/folder", `{"path":"`+folder+`"}`)
 	if code != 200 || out["dir"] != folder {
