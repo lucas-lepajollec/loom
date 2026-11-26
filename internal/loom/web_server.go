@@ -173,6 +173,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	api("/api/skills/sources", handleSkillSources)            // sources de skills liées
 	api("/api/capabilities/folder", handleCapabilitiesFolder) // dossier des capacités (skills + tâches)
 	api("/api/capabilities/link", handleCapabilitiesLink)     // lie ses skills aux dossiers des CLI
+	api("/api/capabilities/skill", handleCapabilitySkill)
 	api("/api/machines", handleRemoteMachines)
 	api("/api/machines/pair", handleMachinesPair)
 	api("/api/machines/discover", handleMachinesDiscover)

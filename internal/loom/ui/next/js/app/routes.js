@@ -15,6 +15,7 @@ import { JarvisPage } from '../features/voice/jarvis.js';
 import { AgentsPage } from '../features/agents/page.js';
 import { QuotasPage } from '../features/agents/quotas.js';
 import { FilesPage } from '../features/files/page.js';
+import { ConnectionsPage } from '../features/connections/page.js';
 import { GROUPS } from './sections.js';
 import { SessionsPage } from './sessions.js';
 import { InboxPage } from './inbox.js';
@@ -36,6 +37,7 @@ export const ROUTES = [
   { id: 'market', page: MarketPage },
   { id: 'machines', page: MachinesPage },
   { id: 'files', page: FilesPage },
+  { id: 'connections', page: ConnectionsPage },
   { id: 'engine', page: EnginePage },
   { id: 'workspaces', page: WorkspacesPage },
   { id: 'settings', page: SettingsPage },

@@ -7,6 +7,11 @@
   Home Screen apps; Loom now uses the default style, an opaque status bar in the theme colour
   with the app starting right below it. Remove Loom from the Home Screen and add it again: iOS
   only reads this setting when the app is added.
+- **Connections** moves out of Agents to its own sidebar entry and becomes a
+  plugins-style page: search, All / Skills / MCP filters, one card per skill or
+  skill family and for the Loom MCP gateway, and a side panel with the skill's
+  instructions and files. Skill descriptions written as YAML block scalars
+  (`description: >-`) are now read in full, in Connections and through MCP.
 - Agents › Connections shows agent access to Loom and a **capabilities folder**
   (`skills/` + `tasks/`). The folder's skills appear in the library and through
   MCP. A click links them into `~/.claude/skills` and `~/.agents/skills`, and

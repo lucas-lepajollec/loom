@@ -1,5 +1,5 @@
 // Pages de la barre latérale : les modèles, la gestion des agents, les
-// machines, les fichiers du second cerveau et l'activité. Les pages d'un même groupe partagent une rangée
+// machines, les fichiers du second cerveau, l'activité et les connexions. Les pages d'un même groupe partagent une rangée
 // d'onglets ; les sessions elles-mêmes sont dans la liste en dessous.
 import { html, useStore } from '../core/lib.js';
 import { t } from '../core/i18n.js';
@@ -20,6 +20,8 @@ export const GROUPS = [
   { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')]] },
   { id: 'files', icon: 'folder', get label() { return t('files.title'); }, tabs: [['files', () => t('files.title')]] },
   { id: 'activity', icon: 'chart', get label() { return t('app.groups.activity'); }, tabs: [['quotas', () => t('quotas.title')], ['usage', () => t('app.routes.usage')], ['market', () => t('market.title')]] },
+  // Skills et MCP communs à tous les agents de la machine, pas seulement à Codeman.
+  { id: 'connections', icon: 'plug', get label() { return t('agents.links.title'); }, tabs: [['connections', () => t('agents.links.title')]] },
 ];
 
 export const groupOf = section => GROUPS.find(g => g.tabs.some(([id]) => id === section));

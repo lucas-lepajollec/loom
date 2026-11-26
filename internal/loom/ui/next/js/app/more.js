@@ -50,6 +50,7 @@ function MoreList() {
     ['agents', 'agent', t('agents.title')],
     ['machines', 'server', t('settings.page.machines')],
     ['files', 'folder', t('files.title'), t('files.second_brain')],
+    ['connections', 'plug', t('agents.links.title'), t('connections.more_sub')],
     ['settings', 'gear', t('app.palette.reglages')],
     ['more/jarvis', 'waveform', t('mobile.talk_jarvis')],
   ];

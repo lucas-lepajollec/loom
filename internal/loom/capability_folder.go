@@ -377,3 +377,54 @@ func handleCapabilitiesLink(w http.ResponseWriter, r *http.Request) {
 	}
 	sendJSON(w, 200, capabilitiesFolderState())
 }
+
+// handleCapabilitySkill returns one skill of the folder, found by its listed
+// name (never by a path from the request): its SKILL.md body and its files.
+func handleCapabilitySkill(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodGet) {
+		return
+	}
+	dir := capabilitiesDir()
+	if dir == "" {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "choose a capabilities folder first"})
+		return
+	}
+	name := r.URL.Query().Get("name")
+	for _, s := range readFolderSkills(filepath.Join(dir, "skills")) {
+		if s.Name != name {
+			continue
+		}
+		raw, err := readSmall(filepath.Join(s.Dir, "SKILL.md"))
+		if err != nil {
+			sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		_, body := resources.ParseSkillMarkdown(raw)
+		rel, _ := filepath.Rel(dir, s.Dir)
+		sendJSON(w, 200, map[string]any{"ok": true, "skill": s, "path": filepath.ToSlash(rel), "body": body, "files": skillFiles(s.Dir)})
+		return
+	}
+	sendJSON(w, 404, map[string]any{"ok": false, "error": "skill not found"})
+}
+
+// skillFiles lists a skill's files besides SKILL.md, relative to its folder.
+func skillFiles(dir string) []string {
+	out := []string{}
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || len(out) >= 200 {
+			return filepath.SkipDir
+		}
+		if d.IsDir() {
+			if path != dir && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if rel, err := filepath.Rel(dir, path); err == nil && rel != "SKILL.md" {
+			out = append(out, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	sort.Strings(out)
+	return out
+}

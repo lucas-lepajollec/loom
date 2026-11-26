@@ -2,7 +2,7 @@
 // le moteur (sessions, tmux, CLI natifs, orchestration) ; Loom affiche et
 // pilote par son API officielle. Les sessions vivent dans la liste de la
 // barre latérale ; la page Agents sert à gérer Codeman. Routes :
-// #/agents (vue d'ensemble), #/agents/cron (tâches), #/agents/connections,
+// #/agents (vue d'ensemble), #/agents/cron (tâches),
 // #/agents/settings,
 // #/agents/s/<id> (une session) et #/agents/grid (la mosaïque).
 import { lt } from './labels.js';
@@ -29,7 +29,6 @@ import { ControlCenter } from './control.js';
 import { Grid, ShapeIcon } from './grid.js';
 import { CodemanSettings } from './settings.js';
 import { CronPage } from './cron.js';
-import { ConnectionsPage } from './connections.js';
 import { ConnectionPanel } from './connection.js';
 import { openSession } from './nav.js';
 
@@ -160,7 +159,7 @@ function LayoutPicker({ currentId }) {
     </${Popover}>`}`;
 }
 
-const SUBS = ['', 'cron', 'connections', 'settings'];
+const SUBS = ['', 'cron', 'settings'];
 function Top({ sub, phone }) {
   const tabs = SUBS.map(v => ({ href: '#/agents' + (v ? '/' + v : ''), label: lt('nav', v), current: sub === v }));
   return html`<header class="cm-admin-top">
@@ -178,6 +177,8 @@ export function AgentsPage({ route }) {
     const timer = setInterval(() => { if (!document.hidden) refreshConnection(); }, 10000);
     return () => clearInterval(timer);
   }, [ready]);
+  // Connexions a quitté Agents pour sa propre page (#/connections).
+  useEffect(() => { if (route.sub === 'connections') location.replace('#/connections'); }, [route.sub]);
   const sub = SUBS.includes(route.sub) || route.sub === 's' || route.sub === 'grid' ? route.sub : route.sub === 'control' ? '' : '';
   const work = sub === 's' || sub === 'grid';
   const currentId = sub === 's' ? route.id : '';
@@ -187,8 +188,8 @@ export function AgentsPage({ route }) {
     const key = e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g' && innerWidth > 760) { e.preventDefault(); e.stopPropagation(); if (layout.get().count === 1) { toggleGrid(currentId); go('agents', 'grid'); } else { toggleGrid(currentId); if (currentId) openSession(currentId); } } };
     addEventListener('keydown', key, true); return () => removeEventListener('keydown', key, true);
   }, [currentId]);
-  // Réglages et Connexions restent utiles sans Codeman (dossier, skills, MCP Loom).
-  const gated = sub !== 'settings' && sub !== 'connections' && state !== 'ready';
+  // Les réglages restent utiles sans Codeman.
+  const gated = sub !== 'settings' && state !== 'ready';
   const narrowView = usePhone();
   const hasSession = useStore(agents, s => !!s.sessions[currentId]);
   const server = conn.url + '\n' + conn.username;
@@ -199,7 +200,6 @@ export function AgentsPage({ route }) {
     ${gated ? gate
       : work ? html`<${Workspace} route=${route} />`
       : sub === 'cron' ? html`<${CronPage} key=${server} phone=${narrowView} />`
-      : sub === 'connections' ? html`<${ConnectionsPage} phone=${narrowView} />`
       : sub === 'settings' ? html`<div class="cm-scroll"><${CodemanSettings} /></div>`
       : html`<${ControlCenter} key=${server} phone=${narrowView} />`}
   </div>`;
