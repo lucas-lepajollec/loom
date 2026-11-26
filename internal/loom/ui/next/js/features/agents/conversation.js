@@ -1,74 +1,71 @@
 // Conversation d'une session : les blocs que Codeman reconstitue pour chaque
-// CLI (prompt, réponse, statut, outil). Pour Claude ils viennent de sa
-// transcription JSONL ; pour Codex de son rollout ; pour les autres CLI de la
-// segmentation de l'écran. Rien n'est inventé : sans bloc, la vue renvoie au
-// terminal natif.
+// CLI (prompt, réponses, statuts, outils), rangés en tours avec le kit commun
+// (features/conversation). Pour Claude ils viennent de sa transcription JSONL,
+// pour Codex de son rollout, pour les autres CLI de la segmentation de
+// l'écran. Les fichiers modifiés viennent de l'historique d'édition de
+// Codeman, les commandes en cours de ses outils actifs. Rien n'est inventé :
+// sans bloc, la vue renvoie au terminal natif.
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { toast } from '../../ui/dialog.js';
 import { md } from '../chat/md.js';
 import { api, sendPrompt, flattenPrompt } from './client.js';
-import { agents, stateOf, approvalsFor, capsOf, cliOf } from './store.js';
-import { agentDraftKey, interrupt, answerApproval, dismissApproval } from './actions.js';
+import { agents, stateOf, capsOf, cliOf } from './store.js';
+import { agentDraftKey, interrupt, answerApproval, answerOnScreen, dismissApproval } from './actions.js';
 import { AgentTerminal } from './terminal.js';
 import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
+import { buildTurns, changedFiles, screenChoices, duration } from '../conversation/turns.js';
+import { WorkFold, workLabel, Step, Changes, TurnFoot, JumpBottom, Tray } from '../conversation/kit.js';
+import { Minimap } from '../conversation/minimap.js';
 
-// Regroupe les statuts/outils consécutifs d'un tour en un pli d'activité.
-export function groupBlocks(blocks) {
-  const out = [];
-  for (const b of blocks || []) {
-    if (!b || typeof b.text !== 'string') continue;
-    if (b.kind === 'status' || b.kind === 'tool') {
-      const last = out[out.length - 1];
-      if (last && last.kind === 'activity') last.items.push(b);
-      else out.push({ kind: 'activity', items: [b] });
-    } else {
-      // Les réponses successives d'un même tour forment un seul message.
-      const last = out[out.length - 1];
-      if (b.kind === 'response' && last && last.kind === 'response' && last.turn === b.turn) out[out.length - 1] = { ...last, text: last.text + '\n\n' + b.text };
-      else out.push(b);
-    }
+// Choix d'une demande : réponse par Codeman (Claude), sinon touche lue à
+// l'écran (Codex…), sinon renvoi au terminal.
+export function approvalChoices(item, session, run) {
+  const answerable = !item.answerInTerminal && capsOf(session?.mode).approvals === 'answer';
+  if (answerable) {
+    const options = item.options?.length ? item.options : [{ n: 1, label: t('agents.approval.approve') }];
+    const list = options.map((o, i) => ({ label: o.label, primary: i === 0 && item.kind !== 'question',
+      run: () => run(() => answerApproval(item, item.options?.length ? { action: 'option', option: o.n } : { action: 'approve' })) }));
+    if (item.kind !== 'question') list.push({ label: t('agents.approval.deny'), deny: true, hint: 'Esc', run: () => run(() => answerApproval(item, { action: 'deny' })) });
+    return { list, deny: () => answerApproval(item, { action: 'deny' }) };
   }
-  return out;
+  const screen = screenChoices(item.context);
+  if (screen.length) {
+    return {
+      list: screen.map((c, i) => ({ label: c.label, hint: c.hint, primary: i === 0 && !c.deny, deny: c.deny, run: () => run(() => answerOnScreen(item, c)) })),
+      deny: () => { const d = screen.find(c => c.deny); return d ? answerOnScreen(item, d) : Promise.resolve(); },
+    };
+  }
+  return { list: [], deny: null };
 }
 
-function Activity({ items }) {
-  const [open, setOpen] = useState(false);
-  const tools = items.filter(i => i.kind === 'tool').length;
-  return html`<div class=${cls('work', open && 'open')}>
-    <button type="button" class="work-h" aria-expanded=${String(open)} onClick=${() => setOpen(!open)}>
-      <${Icon} n=${tools ? 'tool' : 'activity'} /><span>${tools ? t('agents.conv.tools', { n: tools }) : t('agents.conv.status', { n: items.length })}</span><${Icon} n="chevron" class="caret" /></button>
-    ${open && html`<div class="work-b cm-activity">${items.map((b, i) => html`<pre key=${i} class=${'cm-act ' + b.kind}>${b.text}</pre>`)}</div>`}
-  </div>`;
-}
-
-export function Approval({ item, session, onTerminal, children, disabled = false }) {
+export function ApprovalTray({ item, session, onTerminal }) {
   const [busy, setBusy] = useState(false);
-  const run = async body => {
+  const cli = cliOf(session?.mode).label;
+  const run = async fn => {
     setBusy(true);
-    try { await answerApproval(item, body); }
+    try { await fn(); }
     catch (e) { toast(e.code === 'CONFLICT' ? t('agents.approval.gone') : e.message, 'err'); }
     finally { setBusy(false); }
   };
-  const inTerminal = item.answerInTerminal || capsOf(session?.mode).approvals !== 'answer';
-  return html`<div class="cm-approval anim-rise" role="alert">
-    ${children}
-    <div class="cm-approval-h"><${Icon} n="alert" /><b>${item.kind === 'question' ? t('agents.approval.question') : t('agents.approval.permission')}</b>
-      ${item.toolName && html`<span class="tag">${item.toolName}</span>`}</div>
-    ${(item.toolSummary || item.message) && html`<p class="cm-approval-msg">${item.toolSummary || item.message}</p>`}
-    ${item.context && html`<details class="cm-approval-ctx"><summary>${t('agents.approval.screen')}</summary><pre>${item.context}</pre></details>`}
-    <div class="cm-approval-acts">
-      ${inTerminal ? html`<span class="muted">${t('agents.approval.in_terminal')}</span><button class="btn sm primary" onClick=${onTerminal}><${Icon} n="terminal" />${t('agents.approval.open_terminal')}</button>`
-        : html`${(item.options && item.options.length ? item.options : [{ n: 1, label: t('agents.approval.approve') }]).map(o => html`<button class=${cls('btn sm', o.n === 1 && 'primary')} disabled=${busy || disabled}
-              onClick=${() => run(item.options && item.options.length ? { action: 'option', option: o.n } : { action: 'approve' })}>${o.label}</button>`)}
-          <button class="btn sm danger" disabled=${busy || disabled} onClick=${() => run({ action: 'deny' })}>${t('agents.approval.deny')}</button>`}
-      <span class="grow"></span>
-      <button class="btn sm" disabled=${busy || disabled} title=${t('agents.approval.dismiss_hint')} onClick=${() => dismissApproval(item).catch(e => toast(e.message, 'err'))}>${t('agents.approval.dismiss')}</button>
-    </div></div>`;
+  const { list } = approvalChoices(item, session, run);
+  const question = item.kind === 'question';
+  const title = question ? (item.message || item.toolSummary || t('agents.tray.question', { cli }))
+    : item.toolName ? t('agents.tray.wants_tool', { cli, tool: item.toolName }) : t('agents.tray.wants', { cli });
+  const detail = question ? '' : item.toolSummary || item.message || '';
+  const extra = !list.length && onTerminal && html`<button type="button" class="cv-choice" onClick=${onTerminal}><span class="cv-choice-t"><span>${t('agents.approval.open_terminal')}</span></span></button>`;
+  const aside = html`<button type="button" class="cv-quiet" disabled=${busy} title=${t('agents.approval.dismiss_hint')} onClick=${() => dismissApproval(item).catch(e => toast(e.message, 'err'))}>${t('agents.approval.dismiss')}</button>`;
+  return html`<${Tray} icon=${question ? 'info' : 'lock'} title=${title} detail=${detail} busy=${busy} vertical=${question}
+    meta=${!list.length ? t('agents.approval.in_terminal') : ''} choices=${list} extra=${extra} aside=${aside} />`;
 }
 
-export function Composer({ session, onTerminal, compact, phone }) {
+// Gardé pour la boîte de réception : la même carte, hors du composeur.
+export function Approval({ item, session, onTerminal, children }) {
+  return html`<div class="cv-approval">${children}<${ApprovalTray} item=${item} session=${session} onTerminal=${onTerminal} /></div>`;
+}
+
+export function Composer({ session, onTerminal, compact, phone, approval }) {
   const state = stateOf(session);
   const draftKey = agentDraftKey(session.id);
   const [text, setText] = useState(() => { try { return sessionStorage.getItem(draftKey) || ''; } catch (_) { return ''; } });
@@ -77,9 +74,10 @@ export function Composer({ session, onTerminal, compact, phone }) {
   const [over, setOver] = useState(false);
   const area = useRef(), file = useRef(), inflight = useRef(false);
   const ready = state === 'idle' || state === 'working' || state === 'waiting';
+  const cli = cliOf(session.mode);
   useEffect(() => { try { setText(sessionStorage.getItem(draftKey) || ''); } catch (_) { setText(''); } setFiles([]); }, [session.id]);
   useEffect(() => { try { text ? sessionStorage.setItem(draftKey, text) : sessionStorage.removeItem(draftKey); } catch (_) {} }, [text]);
-  useEffect(() => { const a = area.current; if (a) { a.style.height = 'auto'; a.style.height = Math.min(compact || phone ? 140 : 240, a.scrollHeight) + 'px'; } }, [text, phone]);
+  useEffect(() => { const a = area.current; if (a) { a.style.height = 'auto'; a.style.height = Math.min(compact || phone ? 140 : Math.round(innerHeight * 0.4), a.scrollHeight) + 'px'; } }, [text, phone]);
   useEffect(() => () => files.forEach(f => f.preview && URL.revokeObjectURL(f.preview)), []);
   // Chaque fichier part tout de suite vers Codeman ; le prompt n'est envoyé
   // qu'une fois tous les chemins connus.
@@ -98,8 +96,15 @@ export function Composer({ session, onTerminal, compact, phone }) {
   const send = async () => {
     if (inflight.current || !ready || pending || !flattenPrompt(body())) return;
     inflight.current = true; setSending(true);
-    try { await sendPrompt(session.id, body()); setText(''); files.forEach(f => f.preview && URL.revokeObjectURL(f.preview)); setFiles([]); }
-    catch (e) { toast(e.code === 'NOT_DELIVERED' ? t('agents.composer.not_delivered') : e.message, 'err'); }
+    try {
+      // Une demande est ouverte : écrire, c'est dire à l'agent quoi faire à la
+      // place. On la refuse d'abord, puis on envoie le message.
+      if (approval) {
+        const { deny } = approvalChoices(approval, session, fn => fn());
+        if (deny) { await deny(); await new Promise(r => setTimeout(r, 400)); }
+      }
+      await sendPrompt(session.id, body()); setText(''); files.forEach(f => f.preview && URL.revokeObjectURL(f.preview)); setFiles([]);
+    } catch (e) { toast(e.code === 'NOT_DELIVERED' ? t('agents.composer.not_delivered') : e.code === 'CONFLICT' ? t('agents.approval.gone') : e.message, 'err'); }
     finally { inflight.current = false; setSending(false); area.current?.focus(); }
   };
   const onPaste = e => { const list = filesOf(e.clipboardData); if (list.length && ready) { e.preventDefault(); add(list); } };
@@ -110,90 +115,148 @@ export function Composer({ session, onTerminal, compact, phone }) {
   };
   const touch = matchMedia('(hover: none)').matches;
   const hint = state === 'starting' ? t('agents.composer.starting') : state === 'stopped' ? t('agents.composer.stopped') : /\n/.test(text) ? t('agents.composer.single_line') : '';
-  return html`<div class=${cls('composer-wrap cm-composer', compact && 'compact', phone && 'phone-composer')} ...${dnd}>
-    <div class=${cls('composer', over && 'drop-on')}>
-      ${files.length > 0 && html`<div class="cm-attach">${files.map(f => html`<span key=${f.key} class=${cls('cm-att', !f.path && 'busy')} title=${f.path || f.name}>
-        ${f.preview ? html`<img src=${f.preview} alt="" />` : html`<${Icon} n="file" />`}
-        <span class="trunc">${f.name}</span>${!f.path && html`<span class="spinner"></span>`}
-        <button type="button" class="cm-att-x" aria-label=${t('agents.attach.remove')} onClick=${() => drop(f.key)}><${Icon} n="close" /></button></span>`)}</div>`}
-      <input type="file" multiple ref=${file} hidden onChange=${e => { const list = [...(e.target.files || [])]; e.target.value = ''; add(list); }} />
-      ${phone && html`<button type="button" class="icon-btn composer-add" aria-label=${t('agents.composer.attach')} disabled=${!ready} onClick=${() => file.current.click()}><${Icon} n="plus" /></button>`}
-      <textarea ref=${area} rows="1" value=${text} disabled=${!ready && state !== 'starting'}
-        aria-label=${t('chat.composer.message')} placeholder=${t('agents.composer.placeholder', { cli: phone ? session.name || cliOf(session.mode).label : cliOf(session.mode).label })}
-        onInput=${e => setText(e.target.value)} onPaste=${onPaste}
-        onKeyDown=${e => { if (e.key === 'Enter' && !e.shiftKey && !touch && !e.isComposing) { e.preventDefault(); send(); } }}></textarea>
-      <div class="composer-bar">
-        ${!phone && html`<button class="icon-btn" aria-label=${t('agents.composer.attach')} title=${t('agents.composer.attach_hint')} disabled=${!ready} onClick=${() => file.current.click()}><${Icon} n="paperclip" /></button>`}
-        ${onTerminal && html`<button class="icon-btn" aria-label=${t('agents.view.terminal')} title=${t('agents.view.terminal')} onClick=${onTerminal}><${Icon} n="terminal" /></button>`}
-        ${!phone && html`<span class="grow composer-hint ${hint ? 'warn' : ''}">${over ? t('agents.attach.drop') : hint}</span>`}
-        ${state === 'working' && html`<button class=${phone ? 'send stop' : 'btn sm'} aria-label=${t('agents.composer.interrupt')} onClick=${() => interrupt(session.id).catch(e => toast(e.message, 'err'))} title=${t('agents.composer.interrupt_hint')}><${Icon} n="stop" />${compact || phone ? '' : t('agents.composer.interrupt')}</button>`}
-        ${(!phone || state !== 'working' || !!flattenPrompt(body())) && html`<button class=${phone ? 'send cm-send' : 'btn primary cm-send'} aria-label=${t('agents.composer.send')} disabled=${!ready || sending || pending || !flattenPrompt(body())} onClick=${send}>${sending ? html`<span class="spinner"></span>` : html`<${Icon} n="arrowUp" />`}</button>`}
+  const placeholder = approval ? t('agents.tray.instead', { cli: cli.label })
+    : t('agents.composer.placeholder', { cli: phone ? session.name || cli.label : cli.label });
+  const model = session.displayModel?.model;
+  const canSend = ready && !sending && !pending && !!flattenPrompt(body());
+  return html`<div class=${cls('composer-wrap cm-composer cv-comp', compact && 'compact', phone && 'phone-composer')} ...${dnd}>
+    <div class="cv-stack">
+      ${approval && html`<${ApprovalTray} key=${approval.id} item=${approval} session=${session} onTerminal=${onTerminal} />`}
+      <div class=${cls('composer', over && 'drop-on')}>
+        ${files.length > 0 && html`<div class="cm-attach">${files.map(f => html`<span key=${f.key} class=${cls('cm-att', !f.path && 'busy')} title=${f.path || f.name}>
+          ${f.preview ? html`<img src=${f.preview} alt="" />` : html`<${Icon} n="file" />`}
+          <span class="trunc">${f.name}</span>${!f.path && html`<span class="spinner"></span>`}
+          <button type="button" class="cm-att-x" aria-label=${t('agents.attach.remove')} onClick=${() => drop(f.key)}><${Icon} n="close" /></button></span>`)}</div>`}
+        <input type="file" multiple ref=${file} hidden onChange=${e => { const list = [...(e.target.files || [])]; e.target.value = ''; add(list); }} />
+        <textarea ref=${area} rows="1" value=${text} disabled=${!ready && state !== 'starting'}
+          aria-label=${t('chat.composer.message')} placeholder=${placeholder}
+          onInput=${e => setText(e.target.value)} onPaste=${onPaste}
+          onKeyDown=${e => { if (e.key === 'Enter' && !e.shiftKey && !touch && !e.isComposing) { e.preventDefault(); send(); } }}></textarea>
+        <div class="composer-bar">
+          <button type="button" class="icon-btn" aria-label=${t('agents.composer.attach')} title=${t('agents.composer.attach_hint')} disabled=${!ready} onClick=${() => file.current.click()}><${Icon} n="plus" /></button>
+          ${model && !phone && html`<span class="cv-chip" title=${t('agents.info.model')}>${model}</span>`}
+          ${onTerminal && !phone && html`<button type="button" class="icon-btn" aria-label=${t('agents.view.terminal')} title=${t('agents.view.terminal')} onClick=${onTerminal}><${Icon} n="terminal" /></button>`}
+          <span class=${cls('grow composer-hint', hint && 'warn')}>${over ? t('agents.attach.drop') : phone ? '' : hint}</span>
+          ${state === 'working' && !canSend ? html`<button type="button" class="send stop" aria-label=${t('agents.composer.interrupt')} title=${t('agents.composer.interrupt_hint')}
+              onClick=${() => interrupt(session.id).catch(e => toast(e.message, 'err'))}><${Icon} n="stop" /></button>`
+            : html`<button type="button" class="send cm-send" aria-label=${t('agents.composer.send')} disabled=${!canSend} onClick=${send}>${sending ? html`<span class="spinner"></span>` : html`<${Icon} n="arrowUp" />`}</button>`}
+        </div>
       </div>
+      ${!phone && !compact && html`<div class="cv-hint"><span><kbd>${t('conv.key_enter')}</kbd> ${t('conv.send')}</span><span><kbd>${t('conv.key_shift_enter')}</kbd> ${t('conv.newline')}</span>${state === 'working' && html`<span><kbd>Esc</kbd> ${t('agents.composer.interrupt').toLowerCase()}</span>`}</div>`}
+      ${phone && hint && html`<span class="composer-hint warn">${hint}</span>`}
     </div>
-    ${phone && hint && html`<span class="composer-hint warn">${hint}</span>`}
+  </div>`;
+}
+
+// Demande de l'utilisateur : les fichiers joints (chemins déposés par Codeman)
+// deviennent des puces ; une interruption est une simple ligne.
+const UPLOAD = /(?:^|\s)(\/\S*\.codeman-uploads\/\S+)/g;
+function Prompt({ text }) {
+  if (/^\[Request interrupted by user[^\]]*\]$/.test(text.trim())) return html`<div class="cv-note">${t('conv.interrupted')}</div>`;
+  const files = [...text.matchAll(UPLOAD)].map(m => m[1]);
+  const rest = text.replace(UPLOAD, ' ').trim();
+  return html`<div class="msg-user" data-mark="user">
+    ${files.length > 0 && html`<div class="cv-atts">${files.map(f => html`<span class="cv-att" title=${f}><${Icon} n="file" />${f.split('/').pop().replace(/^paste-\d+-/, '')}</span>`)}</div>`}
+    ${rest && html`<div class="bubble">${rest}</div>`}</div>`;
+}
+
+// Lignes de travail d'un tour : ce que l'agent dit en route, ses étapes.
+const WorkItems = ({ items }) => items.map((x, i) => x.k === 'say'
+  ? html`<div key=${i} class="cv-say md" dangerouslySetInnerHTML=${{ __html: md(x.text) }}></div>`
+  : html`<${Step} key=${i} icon=${x.kind === 'tool' ? 'terminal' : 'activity'} title=${x.full}>${x.text}</${Step}>`);
+
+function Turn({ turn, session, tools, waiting, loadDiff, model }) {
+  const changes = changedFiles(turn.edits);
+  if (turn.live) {
+    return html`<div class="cv-turn msg-ai" data-mark="ai">
+      <${WorkItems} items=${turn.items} />
+      ${waiting ? html`<${Step} live>${t('agents.tray.waiting')}</${Step}>`
+        : tools.length ? tools.map(x => html`<${Step} key=${x.id || x.command} live since=${x.startedAt}>${t('conv.running')} <code>${x.command}</code></${Step}>`)
+        : html`<${Step} live since=${turn.start || Date.now()}>${t('conv.working')}</${Step}>`}
+      <${Changes} changes=${changes} loadDiff=${loadDiff} />
+    </div>`;
+  }
+  return html`<div class="cv-turn msg-ai" data-mark="ai">
+    ${turn.work.length > 0 && html`<${WorkFold} label=${workLabel(turn.ms)}><${WorkItems} items=${turn.work} /></${WorkFold}>`}
+    ${turn.answer && html`<div class="md" dangerouslySetInnerHTML=${{ __html: md(turn.answer) }}></div>`}
+    <${Changes} changes=${changes} loadDiff=${loadDiff} />
+    ${turn.answer && html`<${TurnFoot} parts=${[turn.ms >= 1000 && duration(turn.ms), model]} copy=${turn.answer} />`}
   </div>`;
 }
 
 export function Conversation({ session, onTerminal, terminalVisible, compact, phone }) {
   const id = session.id;
-  const turn = useStore(agents, s => s.turns[id] || 0);
+  const turnSeq = useStore(agents, s => s.turns[id] || 0);
   const approvals = useStore(agents, s => s.approvals.filter(a => a.sessionId === id && a.kind !== 'idle'));
   const state = stateOf(session);
+  const live = state === 'working' || state === 'waiting';
   const [blocks, setBlocks] = useState(null);
+  const [edits, setEdits] = useState([]);
   const [failed, setFailed] = useState('');
   const [tools, setTools] = useState([]);
+  const [count, setCount] = useState(30);
   const scroller = useRef(), stick = useRef(true), seq = useRef(0);
-  const load = async () => {
+  const load = async sync => {
     const mine = ++seq.current;
+    // L'historique d'édition peut être long à relire : il n'attend pas le fil.
+    if (session.mode === 'claude') api.edits(id, sync).then(e => { if (mine === seq.current && Array.isArray(e?.entries)) setEdits(e.entries); }).catch(() => {});
     try {
       const r = await api.transcript(id);
       if (mine !== seq.current) return;
       setBlocks(Array.isArray(r?.messages) ? r.messages : []); setFailed('');
     } catch (e) { if (mine === seq.current) setFailed(e.message); }
   };
-  useEffect(() => { setBlocks(null); stick.current = true; load(); api.viewed(id).catch(() => {}); }, [id]);
-  useEffect(() => { if (turn) load(); }, [turn]);
+  useEffect(() => { setBlocks(null); setEdits([]); setCount(30); stick.current = true; load(true); api.viewed(id).catch(() => {}); }, [id]);
+  useEffect(() => { if (turnSeq) load(true); }, [turnSeq]);
   // Pendant un tour, la transcription grandit sans événement dédié pour la
   // plupart des CLI : relecture régulière tant que la session travaille.
   useEffect(() => {
-    if (state !== 'working' && state !== 'waiting') { setTools([]); return; }
+    if (!live) { setTools([]); return; }
+    let n = 0;
     const timer = setInterval(() => {
       if (document.hidden) return;
-      load();
-      if (session.mode === 'claude') api.activeTools(id).then(r => setTools(Array.isArray(r?.tools) ? r.tools : [])).catch(() => {});
+      load(++n % 4 === 0);
+      if (session.mode === 'claude') api.activeTools(id).then(r => setTools(Array.isArray(r?.tools) ? r.tools.filter(x => x && x.command) : [])).catch(() => {});
     }, 2500);
     return () => clearInterval(timer);
-  }, [id, state]);
-  useEffect(() => { const el = scroller.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [blocks, approvals.length, state]);
-  const grouped = groupBlocks(blocks);
-  const hasPrompt = (blocks || []).some(b => b.role === 'user');
+  }, [id, live]);
+  useEffect(() => { const el = scroller.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [blocks, edits, approvals.length, state, tools.length]);
+  const turns = buildTurns(blocks, edits, live);
+  const hasPrompt = turns.length > 0;
   // Un prompt a été soumis mais Codeman ne sait pas le distinguer à l'écran de
   // ce CLI : l'écran en direct reste la vue fidèle.
   const submitted = !hasPrompt && !!session.lastSubmitAt;
-  // Avant le premier prompt, les blocs ne sont que la bannière du CLI : on
-  // montre son écran réel, où se règlent mises à jour et dialogues de confiance.
-  const shown = hasPrompt ? grouped : [];
   const cli = cliOf(session.mode);
+  const loadDiff = async file => {
+    const parts = await Promise.all(file.ids.map(e => api.editDiff(id, e)));
+    return { text: parts.map(p => p?.diff || '').join('\n'), truncated: parts.some(p => p?.truncated) };
+  };
+  const model = session.displayModel?.model;
+  const approval = approvals[approvals.length - 1];
   return html`<div class=${cls('cm-conv', compact && 'compact')}>
-    <div class="thread" ref=${scroller} onScroll=${e => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
-      <div class="thread-in">
-        ${blocks === null && !failed && html`<div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:120px;width:80%"></div>`}
-        ${failed && html`<div class="msg-err"><${Icon} n="alert" /><span>${t('agents.conv.unavailable')} — ${failed}</span></div>`}
-        ${blocks && !hasPrompt && !terminalVisible && session.mode !== 'shell' && html`<div class=${cls('cm-boot anim-rise', submitted && 'live')}>
-          <div class="cm-boot-h"><b>${state === 'starting' ? t('agents.conv.empty_starting', { cli: cli.label }) : submitted ? t('agents.conv.live_title', { cli: cli.label }) : t('agents.conv.boot_title', { cli: cli.label })}</b>
-            <span class="muted">${submitted ? t('agents.conv.live_text') : t('agents.conv.boot_text')}</span></div>
-          <div class="cm-boot-term"><${AgentTerminal} sessionId=${id} mode=${session.mode} scrollback=${2000} /></div></div>`}
-        ${blocks && !grouped.length && (terminalVisible || session.mode === 'shell') && html`<div class="cm-conv-empty">
-          <p>${t('agents.conv.empty', { cli: cli.label })}</p></div>`}
-        ${hasPrompt && capsOf(session.mode).transcript === 'screen' && html`<p class="cm-screen-note muted"><${Icon} n="info" />${t('agents.conv.screen_note')}</p>`}
-        ${shown.map((b, i) => b.kind === 'activity' ? html`<${Activity} key=${'a' + i} items=${b.items} />`
-          : b.role === 'user' ? html`<div key=${i} class="msg-user"><div class="bubble">${b.text}</div></div>`
-          : html`<div key=${i} class="msg-ai"><div class="md" dangerouslySetInnerHTML=${{ __html: md(b.text) }}></div></div>`)}
-        ${(state === 'working') && html`<div class="cm-working"><span class="spinner"></span><span>${t('agents.conv.working', { cli: cli.label })}</span>
-          ${tools.map(x => html`<span class="tag">${x.name || x.toolName || x}</span>`)}</div>`}
-        ${approvals.map(a => html`<${Approval} key=${a.id} item=${a} session=${session} onTerminal=${onTerminal} />`)}
+    <div class="cv-wrap">
+      ${!compact && !phone && html`<${Minimap} scroller=${scroller} />`}
+      <div class="thread" ref=${scroller} onScroll=${e => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
+        <div class="thread-in">
+          ${blocks === null && !failed && html`<div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:120px;width:80%"></div>`}
+          ${failed && html`<div class="msg-err"><${Icon} n="alert" /><span>${t('agents.conv.unavailable')} — ${failed}</span></div>`}
+          ${blocks && !hasPrompt && !terminalVisible && session.mode !== 'shell' && html`<div class=${cls('cm-boot anim-rise', submitted && 'live')}>
+            <div class="cm-boot-h"><b>${state === 'starting' ? t('agents.conv.empty_starting', { cli: cli.label }) : submitted ? t('agents.conv.live_title', { cli: cli.label }) : t('agents.conv.boot_title', { cli: cli.label })}</b>
+              <span class="muted">${submitted ? t('agents.conv.live_text') : t('agents.conv.boot_text')}</span></div>
+            <div class="cm-boot-term"><${AgentTerminal} sessionId=${id} mode=${session.mode} scrollback=${2000} /></div></div>`}
+          ${blocks && !hasPrompt && (terminalVisible || session.mode === 'shell') && html`<div class="cm-conv-empty">
+            <p>${t('agents.conv.empty', { cli: cli.label })}</p></div>`}
+          ${hasPrompt && capsOf(session.mode).transcript === 'screen' && html`<p class="cm-screen-note muted"><${Icon} n="info" />${t('agents.conv.screen_note')}</p>`}
+          ${turns.length > count && html`<button type="button" class="cv-more" onClick=${() => { stick.current = false; setCount(count + 30); }}>${t('conv.earlier', { n: turns.length - count })}</button>`}
+          ${turns.slice(-count).map(turn => html`<div key=${turn.key} class="cv-pair">
+            <${Prompt} text=${turn.prompt} />
+            <${Turn} turn=${turn} session=${session} tools=${tools} waiting=${!!approval} loadDiff=${loadDiff} model=${model} />
+          </div>`)}
+        </div>
       </div>
+      <${JumpBottom} scroller=${scroller} watch=${turns.length} />
     </div>
-    <${Composer} session=${session} compact=${compact} phone=${phone} />
+    <${Composer} session=${session} compact=${compact} phone=${phone} onTerminal=${onTerminal} approval=${approval} />
   </div>`;
 }
+

@@ -92,6 +92,19 @@ export async function answerApproval(item, body) {
   await api.answer(item.id, body);
   agents.set({ approvals: agents.get().approvals.filter(a => a.id !== item.id) });
 }
+// Accord lu à l'écran (Codex et les CLI auxquels Codeman ne répond pas) :
+// Loom envoie la touche du choix, seulement si la fenêtre est encore affichée.
+const plainScreen = s => String(s || '').replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\u001b\][^\u0007]*\u0007/g, '');
+export async function answerOnScreen(item, choice) {
+  const r = await api.terminal(item.sessionId, 'tail=120');
+  const screen = plainScreen(r?.terminalBuffer).replace(/\s+/g, ' ');
+  if (!screen.includes(choice.label.replace(/\s+/g, ' ').slice(0, 28))) {
+    const e = new Error('dialog gone'); e.code = 'CONFLICT'; throw e;
+  }
+  await sendKeys(item.sessionId, choice.key);
+  await api.dismiss(item.id).catch(() => {});
+  agents.set({ approvals: agents.get().approvals.filter(a => a.id !== item.id) });
+}
 export async function dismissApproval(item) {
   await api.dismiss(item.id);
   agents.set({ approvals: agents.get().approvals.filter(a => a.id !== item.id) });

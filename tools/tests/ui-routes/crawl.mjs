@@ -355,7 +355,7 @@ try {
         await reply.waitFor({ state: 'detached' });
       }
       if (phone && scenario === 'phone-layout' && r === 'agents/s/fixture-session-0') {
-        await page.locator('.cm-conv .cm-approval').waitFor();
+        await page.locator('.cm-conv .cv-tray').waitFor();
         await page.getByRole('tab', { name: dictionary['agents.view.terminal'], exact: true }).click();
         await page.locator('.cm-line-keys').click();
         await page.locator('.cm-acc').getByRole('button', { name: dictionary['mobile.key_ctrl_c'], exact: true }).waitFor();
