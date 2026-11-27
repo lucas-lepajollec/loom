@@ -354,6 +354,9 @@ func voiceInstallArtifact(ctx context.Context, a voiceArtifact, engine bool) err
 	return nil
 }
 func voiceDeleteModel(id string) error {
+	if id == "" || strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") || filepath.Base(id) != id {
+		return errors.New("invalid voice model id")
+	}
 	voiceRuntime.mu.Lock()
 	defer voiceRuntime.mu.Unlock()
 	if voiceRuntime.busyLocked() || voiceJob.snapshot().Running {
@@ -363,10 +366,15 @@ func voiceDeleteModel(id string) error {
 	if c.STT == id || c.TTS == id || c.VAD == id {
 		return errors.New("deselect the active voice model before deleting it")
 	}
-	if err := os.RemoveAll(voiceModelDir(id)); err != nil {
+	dir := voiceModelDir(id)
+	modelsRoot := filepath.Join(voiceRoot(), "models")
+	if !archivePathWithin(modelsRoot, dir) {
+		return errors.New("invalid voice model path")
+	}
+	if err := os.RemoveAll(dir); err != nil {
 		return err
 	}
-	return os.RemoveAll(voiceModelDir(id) + ".previous")
+	return os.RemoveAll(dir + ".previous")
 }
 func voiceRollback(ctx context.Context) error {
 	voiceRuntime.mu.Lock()

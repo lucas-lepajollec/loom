@@ -28,10 +28,12 @@ test('markdown links and images reject script schemes and escape attributes', ()
     assert.doesNotMatch(out, /" onmouseover=/i);
   }
   assert.match(render('[docs](https://example.test/docs)'), /rel="noopener noreferrer"/);
+  assert.doesNotMatch(render('[evil](javascript:alert%281%29)'), /data-file-href=/);
+  assert.match(render('[plan](docs/plan.md)'), /href="#"[^>]*data-file-href="docs\/plan\.md"/);
 });
 
 test('code blocks remain inert and retain readable code', () => {
   const out = render('```html\n<script>alert(1)</script>\n```');
-  assert.doesNotMatch(out, /<script>/);
-  assert.match(out, /&lt;script&gt;/);
+  assert.doesNotMatch(out, /<script>/i);
+  assert.match(out, /&lt;script&gt;/i);
 });

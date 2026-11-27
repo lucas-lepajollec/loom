@@ -616,6 +616,9 @@ func downloadWithProgress(url, dest string, total int64, logf func(string)) erro
 // entrée qui s'échapperait du dossier (zip-slip).
 func extractArchive(path, dir string) error {
 	safe := func(name string) (string, error) {
+		if name == "" || strings.Contains(name, "..") || strings.HasPrefix(name, "/") || strings.HasPrefix(name, "\\") || filepath.IsAbs(name) {
+			return "", fmt.Errorf("suspicious archive entry: %s", name)
+		}
 		p := filepath.Join(dir, filepath.FromSlash(name))
 		if !archivePathWithin(dir, p) {
 			return "", fmt.Errorf("suspicious archive entry: %s", name)
@@ -636,6 +639,9 @@ func extractArchive(path, dir string) error {
 		}
 		defer zr.Close()
 		for _, f := range zr.File {
+			if strings.Contains(f.Name, "..") {
+				return fmt.Errorf("suspicious archive entry: %s", f.Name)
+			}
 			p, err := safe(f.Name)
 			if err != nil {
 				return err
@@ -700,6 +706,9 @@ func extractArchive(path, dir string) error {
 		}
 		if err != nil {
 			return err
+		}
+		if strings.Contains(h.Name, "..") {
+			return fmt.Errorf("suspicious archive entry: %s", h.Name)
 		}
 		p, err := safe(h.Name)
 		if err != nil {

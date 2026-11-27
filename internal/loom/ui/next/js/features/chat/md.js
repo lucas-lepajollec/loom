@@ -3,6 +3,13 @@ import { t } from '../../core/i18n.js';
 // réponse ne peut pas injecter de balises ou de scripts dans l'interface.
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const safeUrl = u => /^(https?:|mailto:|#|\/)/i.test(String(u || '').trim()) ? u : '#';
+const fileHref = u => {
+  const s = String(u || '').trim();
+  if (!s || s.startsWith('#') || s.startsWith('//')) return '';
+  if (/^file:\/\//i.test(s)) return s;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return '';
+  return s;
+};
 
 let ready = false;
 function setup() {
@@ -14,7 +21,11 @@ function setup() {
       html(token) { return esc(typeof token === 'string' ? token : token.text || token.raw || ''); },
       link(href, title, text) {
         if (typeof href === 'object') { ({ href, title, text } = href); }
-        return `<a href="${esc(safeUrl(href))}" target="_blank" rel="noopener noreferrer"${title ? ` title="${esc(title)}"` : ''}>${text}</a>`;
+        const local = fileHref(href);
+        const safe = safeUrl(href);
+        const extra = local ? ` data-file-href="${esc(local)}"` : '';
+        const target = local ? '' : ' target="_blank" rel="noopener noreferrer"';
+        return `<a href="${esc(safe)}"${target}${extra}${title ? ` title="${esc(title)}"` : ''}>${text}</a>`;
       },
       image(href, title, text) {
         if (typeof href === 'object') { ({ href, title, text } = href); }

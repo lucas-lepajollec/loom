@@ -24,6 +24,7 @@ import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf }
 import { Conversation } from './conversation.js';
 import { AgentTerminal } from './terminal.js';
 import { Inspector } from './inspector.js';
+import { panelState } from './panel-state.js';
 import { CliMark } from './new-session.js';
 import { ControlCenter } from './control.js';
 import { Grid, ShapeIcon } from './grid.js';
@@ -68,7 +69,9 @@ function SessionPane({ s, narrowView }) {
   const [view, setViewState] = useState(viewOf(s));
   const [insp, setInspState] = useState(() => { try { return !narrowView && innerWidth > 1180 && localStorage.getItem('loom.codeman.inspOpen') !== '0'; } catch (_) { return false; } });
   const phoneTerminal = useStore(layout, l => l.phoneTerminal === s.id);
+  const openReq = useStore(panelState, p => p.openRequest);
   useEffect(() => { setViewState(viewOf(s)); }, [s.id]);
+  useEffect(() => { if (openReq) setInspState(true); }, [openReq]);
   useEffect(() => () => { if (layout.get().phoneTerminal === s.id) layout.set({ phoneTerminal: '' }); }, [s.id]);
   const setView = v => {
     if (narrowView) layout.set({ phoneTerminal: v === 'term' ? s.id : '' });
@@ -106,6 +109,8 @@ function GridArea() {
   const focusId = useStore(layout, l => l.cells[l.focus]);
   const session = useStore(agents, s => (focusId && s.sessions[focusId]) || null);
   const insp = useStore(gridInsp, g => g.open);
+  const openReq = useStore(panelState, p => p.openRequest);
+  useEffect(() => { if (openReq && session) gridInsp.set({ open: true }); }, [openReq]);
   return html`<div class=${cls('cm-pane', insp && session && 'with-insp')}>
     <div class="cm-main">
       <header class="cm-sh cm-grid-h"><b>${t('agents.nav.grid')}</b><span class="grow"></span>

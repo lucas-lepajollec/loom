@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+- **Resizable tabbed agent side panel, document preview & responsive login**:
+  - The agent session panel can now be resized smoothly from its left handle
+    (persisted width, double-click or keyboard reset) and is organized into
+    dedicated tabs: **Session**, **Changes**, **Files**, **Subagents**, and a
+    dynamic **Preview** tab.
+  - **Changes** renders expandable file cards with inline unified diffs and a
+    quick-preview button, **Files** adds live tree filtering and opens directly
+    in the Preview tab, and **Subagents** displays live badges and inline
+    transcripts without forcing modals.
+  - **Preview** appears automatically when an agent references Markdown or code
+    files in conversation (with clickable doc chips and file links in the thread,
+    a quick button in the panel, Markdown rendered/source toggle, and a recent
+    doc switcher).
+  - The Loom sign-in screen is redesigned for desktop and mobile viewports
+    (safe-area padding, show/hide password toggle, crisp error banner, keyboard
+    scrolling), alongside subtle desktop sidebar polish.
+- **Security & CodeQL hardening**:
+  - Added explicit path-traversal guards in prebuilt archive extraction
+    (`extractArchive`) and voice model deletion (`voiceDeleteModel`), bounded
+    model shard discovery and download buffer allocations, quoted plain-text
+    tool output identifiers with `%q`, and tightened the markdown security test
+    pattern.
 - **Performance and responsiveness (UI, server & nodes)**:
   - Agent conversations now use an in-memory LRU cache (`stale-while-revalidate`)
     with scroll restoration, `AbortController`, overlap guards, and structural
