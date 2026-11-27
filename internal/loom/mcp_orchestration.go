@@ -22,9 +22,9 @@ import (
 
 type subagentSpawnArgs struct {
 	Role       string `json:"role" jsonschema:"short role label for this worker (e.g. 'backend-dev', 'reviewer', 'researcher')"`
-	Task       string `json:"task" jsonschema:"clear, actionable initial task prompt delivered to the worker once started"`
-	CLI        string `json:"cli,omitempty" jsonschema:"Codeman CLI mode: claude, codex, gemini, opencode, antigravity, pi, grok, deepseek, omp, copilot, shell (default: inherits parent CLI or claude)"`
-	Model      string `json:"model,omitempty" jsonschema:"optional model override supported by the chosen CLI"`
+	Task       string `json:"task,omitempty" jsonschema:"optional initial task prompt delivered once started; leave empty to open an interactive sub-session for the human"`
+	CLI        string `json:"cli,omitempty" jsonschema:"Codeman CLI mode from loom_subagent_catalog (default: inherits parent CLI or claude)"`
+	Model      string `json:"model,omitempty" jsonschema:"optional model id from loom_subagent_catalog"`
 	Effort     string `json:"effort,omitempty" jsonschema:"optional reasoning effort (low, medium, high, xhigh, max)"`
 	Workspace  string `json:"workspace,omitempty" jsonschema:"inherit (default, shares parent working directory) or worktree (creates an isolated Git worktree and branch)"`
 	Branch     string `json:"branch,omitempty" jsonschema:"optional Git branch name when workspace is worktree (default: loom/<slug>)"`
@@ -93,14 +93,15 @@ type subagentWaitArgs struct {
 }
 
 type subagentWaitOutcome struct {
-	SessionID   string `json:"session_id"`
-	Role        string `json:"role,omitempty"`
-	Signal      string `json:"signal,omitempty"`
-	Status      string `json:"status,omitempty"`
-	TimedOut    bool   `json:"timed_out,omitempty"`
-	Ended       bool   `json:"ended,omitempty"`
-	LimitPaused bool   `json:"limit_paused,omitempty"`
-	Error       string `json:"error,omitempty"`
+	SessionID       string               `json:"session_id"`
+	Role            string               `json:"role,omitempty"`
+	Signal          string               `json:"signal,omitempty"`
+	Status          string               `json:"status,omitempty"`
+	TimedOut        bool                 `json:"timed_out,omitempty"`
+	Ended           bool                 `json:"ended,omitempty"`
+	LimitPaused     bool                 `json:"limit_paused,omitempty"`
+	PendingApproval *codemanApprovalInfo `json:"pending_approval,omitempty"`
+	Error           string               `json:"error,omitempty"`
 }
 
 type subagentWaitResult struct {
@@ -109,18 +110,24 @@ type subagentWaitResult struct {
 }
 
 type subagentReadArgs struct {
-	SessionID   string `json:"session_id" jsonschema:"target sub-session id in your orchestration tree"`
-	IncludeDiff bool   `json:"include_diff,omitempty" jsonschema:"include compact git status summary when available"`
+	SessionID    string `json:"session_id" jsonschema:"target sub-session id in your orchestration tree"`
+	Mode         string `json:"mode,omitempty" jsonschema:"last (default, compact final answer) or full (entire conversation transcript so you can inspect a sub-session the human chatted with)"`
+	MaxMessages  int    `json:"max_messages,omitempty" jsonschema:"maximum transcript messages when mode=full (default 40, max 120)"`
+	IncludeDiff  bool   `json:"include_diff,omitempty" jsonschema:"include compact git status summary when available"`
+	IncludeEdits bool   `json:"include_edits,omitempty" jsonschema:"include list of files edited by this sub-session"`
 }
 
 type subagentReadResult struct {
-	SessionID  string `json:"session_id"`
-	Role       string `json:"role,omitempty"`
-	CLI        string `json:"cli,omitempty"`
-	Branch     string `json:"branch,omitempty"`
-	Source     string `json:"source,omitempty"` // "transcript" | "terminal"
-	Response   string `json:"response"`
-	GitSummary string `json:"git_summary,omitempty"`
+	SessionID   string                 `json:"session_id"`
+	Role        string                 `json:"role,omitempty"`
+	CLI         string                 `json:"cli,omitempty"`
+	Branch      string                 `json:"branch,omitempty"`
+	Mode        string                 `json:"mode"`
+	Source      string                 `json:"source,omitempty"` // "transcript" | "terminal"
+	Response    string                 `json:"response"`
+	Messages    []codemanTranscriptMsg `json:"messages,omitempty"`
+	EditedFiles []string               `json:"edited_files,omitempty"`
+	GitSummary  string                 `json:"git_summary,omitempty"`
 }
 
 type subagentStopArgs struct {
@@ -401,7 +408,7 @@ func spawnLoomSubagent(ctx context.Context, caller SessionScope, args subagentSp
 		return subagentSpawnResult{}, err
 	}
 
-	if err := codemanStartSession(ctx, created.ID, cli == "shell"); err != nil {
+	if err := startSubagentWithPermissions(ctx, created.ID, cli, workspaceMode, settings); err != nil {
 		orchMarkStopped(created.ID)
 		return subagentSpawnResult{}, fmt.Errorf("session %s created but failed to start: %w", created.ID, err)
 	}
@@ -447,7 +454,57 @@ func spawnLoomSubagent(ctx context.Context, caller SessionScope, args subagentSp
 	}, nil
 }
 
+var codemanSpawnPermMu sync.Mutex
+
+// startSubagentWithPermissions starts the Codeman PTY, temporarily applying
+// autonomous permissions ONLY when the user explicitly configured Loom's
+// SubagentPermissions ceiling ("full_access", or "worktree_auto" inside an
+// isolated worktree), then restoring Codeman's original setting immediately.
+func startSubagentWithPermissions(ctx context.Context, sessionID, cli, workspaceMode string, settings OrchestrationSettings) error {
+	wantAuto := settings.SubagentPermissions == "full_access" ||
+		(settings.SubagentPermissions == "worktree_auto" && workspaceMode == "worktree")
+	cliLow := strings.ToLower(strings.TrimSpace(cli))
+	if !wantAuto || (cliLow != "claude" && cliLow != "codex") {
+		return codemanStartSession(ctx, sessionID, cliLow == "shell")
+	}
+
+	codemanSpawnPermMu.Lock()
+	defer codemanSpawnPermMu.Unlock()
+
+	var restorePatch map[string]any
+	if cur, err := codemanGetSettings(ctx); err == nil && cur != nil {
+		if cliLow == "claude" {
+			if prev, _ := cur["claudeMode"].(string); prev != "" && prev != "dangerously-skip-permissions" {
+				if codemanPutSettings(ctx, map[string]any{"claudeMode": "dangerously-skip-permissions"}) == nil {
+					restorePatch = map[string]any{"claudeMode": prev}
+				}
+			}
+		} else if cliLow == "codex" {
+			if prev, _ := cur["codexDangerouslyBypassApprovals"].(bool); !prev {
+				if codemanPutSettings(ctx, map[string]any{"codexDangerouslyBypassApprovals": true}) == nil {
+					restorePatch = map[string]any{"codexDangerouslyBypassApprovals": false}
+				}
+			}
+		}
+	}
+	if restorePatch != nil {
+		defer func() {
+			rctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = codemanPutSettings(rctx, restorePatch)
+		}()
+	}
+	return codemanStartSession(ctx, sessionID, false)
+}
+
 func registerLoomOrchestrationTools(server *mcp.Server) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "loom_subagent_catalog",
+		Description: "Discover all installed/enabled Codeman agent CLIs, available model IDs, effort levels, and active permission settings before spawning subagents.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, SubagentCatalog, error) {
+		return nil, buildSubagentCatalog(ctx), nil
+	})
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "loom_subagent_spawn",
 		Description: "Spawn a tracked Loom sub-session under the current orchestrator in any Codeman CLI/model, with automatic scoped Loom MCP access and optional isolated Git worktree + branch.",
@@ -567,6 +624,19 @@ func registerLoomOrchestrationTools(server *mcp.Server) {
 			nodes = append(nodes, n)
 		}
 
+		pendingBySession := func(c context.Context) map[string]codemanApprovalInfo {
+			m := map[string]codemanApprovalInfo{}
+			if list, err := codemanListApprovals(c); err == nil {
+				for _, a := range list {
+					if a.SessionID != "" && a.Kind != "idle" {
+						m[a.SessionID] = a
+					}
+				}
+			}
+			return m
+		}
+		initialApprovals := pendingBySession(ctx)
+
 		waitCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		outcomes := make([]subagentWaitOutcome, len(nodes))
@@ -576,12 +646,26 @@ func registerLoomOrchestrationTools(server *mcp.Server) {
 			wg.Add(1)
 			go func(idx int, node OrchestrationNode) {
 				defer wg.Done()
-				wr, err := codemanWaitSession(waitCtx, node.SessionID, "stop,idle,blocked,exit", timeoutMs, false)
+				if appr, ok := initialApprovals[node.SessionID]; ok {
+					a := appr
+					outcomes[idx] = subagentWaitOutcome{
+						SessionID:       node.SessionID,
+						Role:            node.Role,
+						Signal:          "blocked",
+						Status:          "waiting",
+						PendingApproval: &a,
+					}
+					if mode == "any" {
+						firstOnce.Do(cancel)
+					}
+					return
+				}
+				wr, err := codemanWaitSession(waitCtx, node.SessionID, codemanWaitSignals(node.CLI), timeoutMs, false)
 				if err != nil {
 					outcomes[idx] = subagentWaitOutcome{SessionID: node.SessionID, Role: node.Role, Error: err.Error()}
 					return
 				}
-				outcomes[idx] = subagentWaitOutcome{
+				oc := subagentWaitOutcome{
 					SessionID:   node.SessionID,
 					Role:        node.Role,
 					Signal:      wr.Wait.Signal,
@@ -590,6 +674,13 @@ func registerLoomOrchestrationTools(server *mcp.Server) {
 					Ended:       wr.Wait.Ended,
 					LimitPaused: wr.LimitPaused,
 				}
+				if wr.Wait.Signal == "blocked" {
+					if appr, ok := pendingBySession(ctx)[node.SessionID]; ok {
+						a := appr
+						oc.PendingApproval = &a
+					}
+				}
+				outcomes[idx] = oc
 				if mode == "any" && (wr.Wait.Signal != "" || wr.Wait.Ended) {
 					firstOnce.Do(cancel)
 				}
@@ -601,7 +692,7 @@ func registerLoomOrchestrationTools(server *mcp.Server) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "loom_subagent_read",
-		Description: "Read the latest structured response from a sub-session (transcript or ANSI-stripped terminal tail) plus an optional compact git status summary to keep orchestrator context small.",
+		Description: "Read a sub-session's latest answer (mode='last', default) or full human/agent conversation transcript (mode='full'), plus optional git status and edited files summary.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args subagentReadArgs) (*mcp.CallToolResult, subagentReadResult, error) {
 		caller := resolveCallerScope(ctx, "")
@@ -609,17 +700,43 @@ func registerLoomOrchestrationTools(server *mcp.Server) {
 		if err != nil {
 			return nil, subagentReadResult{}, err
 		}
-		txt, src, err := codemanReadLastResponse(ctx, args.SessionID)
-		if err != nil {
-			return nil, subagentReadResult{}, err
+		readMode := strings.ToLower(strings.TrimSpace(args.Mode))
+		if readMode != "full" {
+			readMode = "last"
 		}
 		res := subagentReadResult{
 			SessionID: node.SessionID,
 			Role:      node.Role,
 			CLI:       node.CLI,
 			Branch:    node.Branch,
-			Source:    src,
-			Response:  txt,
+			Mode:      readMode,
+		}
+		if readMode == "full" {
+			msgs, lastTxt, err := codemanReadFullConversation(ctx, args.SessionID, args.MaxMessages)
+			if err == nil && (len(msgs) > 0 || lastTxt != "") {
+				res.Source = "transcript"
+				res.Messages = msgs
+				res.Response = lastTxt
+			} else {
+				txt, src, rerr := codemanReadLastResponse(ctx, args.SessionID)
+				if rerr != nil {
+					return nil, subagentReadResult{}, rerr
+				}
+				res.Source = src
+				res.Response = txt
+			}
+		} else {
+			txt, src, err := codemanReadLastResponse(ctx, args.SessionID)
+			if err != nil {
+				return nil, subagentReadResult{}, err
+			}
+			res.Source = src
+			res.Response = txt
+		}
+		if args.IncludeEdits {
+			if files, err := codemanReadEdits(ctx, args.SessionID); err == nil {
+				res.EditedFiles = files
+			}
 		}
 		if args.IncludeDiff && node.WorkingDir != "" {
 			if out, err := gitStatusShort(ctx, node.WorkingDir); err == nil {

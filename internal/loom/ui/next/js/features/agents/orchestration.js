@@ -11,15 +11,40 @@ const DEFAULT_SETTINGS = {
   auto_write_worktree_mcp: true,
   max_depth: 2,
   max_children_per_root: 6,
+  subagent_permissions: 'inherit',
 };
 
 export const orchestration = createStore({
   nodes: {},
   boardCounts: {},
   boards: {},
+  catalog: null,
   settings: DEFAULT_SETTINGS,
   loaded: false,
 });
+
+export async function refreshCatalog() {
+  try {
+    const r = await get('/api/orchestration/catalog');
+    if (r && r.ok && r.catalog) {
+      orchestration.set({ catalog: r.catalog });
+      return r.catalog;
+    }
+  } catch (_) {}
+  return orchestration.get().catalog;
+}
+
+export async function reparentSession(sessionId, parentId) {
+  const r = await post('/api/orchestration/reparent', { session_id: sessionId, parent_id: parentId || '' });
+  if (!r || r.ok === false) throw new Error(r?.error || 'reparent failed');
+  return r.node;
+}
+
+export async function pruneStopped(rootId, cleanupWorktrees = false) {
+  const r = await post('/api/orchestration/prune-stopped', { root_id: rootId || '', cleanup_worktrees: cleanupWorktrees });
+  if (!r || r.ok === false) throw new Error(r?.error || 'prune failed');
+  return r.removed || 0;
+}
 
 export async function refreshOrchestration() {
   try {

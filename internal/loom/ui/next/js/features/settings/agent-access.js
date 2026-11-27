@@ -129,5 +129,13 @@ export function AgentAccess() {
       <${Seg} size="sm" label=${t('agent_access.orch_children')} value=${String(orch.max_children_per_root)} onChange=${v => saveOrch({ max_children_per_root: Number(v) })}
         options=${[{ value: '3', label: '3' }, { value: '6', label: '6' }, { value: '10', label: '10' }, { value: '16', label: '16' }]} />
     </${Line}>
+    <${Line} label=${t('agent_access.orch_perms')} tip=${t('agent_access.orch_perms_tip')}>
+      <${Seg} size="sm" label=${t('agent_access.orch_perms')} value=${orch.subagent_permissions || 'inherit'} onChange=${v => saveOrch({ subagent_permissions: v })}
+        options=${[
+          { value: 'inherit', label: t('agent_access.orch_perms_inherit') },
+          { value: 'worktree_auto', label: t('agent_access.orch_perms_wt') },
+          { value: 'full_access', label: t('agent_access.orch_perms_full') },
+        ]} />
+    </${Line}>
   </${Group}>`}`;
 }

@@ -14,8 +14,9 @@ import { md } from '../chat/md.js';
 import { request } from '../../core/api.js';
 import { api, sendPrompt } from './client.js';
 import { ago } from './rail.js';
-import { agents, cliOf, onDomain, upsertSession, stateOf, attentionOf, projectOf, hasConversation, sessionList, queueCommand } from './store.js';
+import { agents, cliOf, onDomain, upsertSession, stateOf, attentionOf, approvalsFor, projectOf, hasConversation, sessionList, queueCommand } from './store.js';
 import { closeSession, renameSession, createSession } from './actions.js';
+import { ApprovalTray } from './conversation.js';
 import { CliMark } from './new-session.js';
 import { openSession, officialLink } from './nav.js';
 import { HarnessQuota } from './quotas.js';
@@ -26,7 +27,7 @@ import {
   previewFor, setPanelTab, openPreview, closePreview, isMarkdownPath, normalizeSessionPath,
 } from './panel-state.js';
 import {
-  orchestration, descendantsOf, rootIdOf, loadBoard, postBoard, spawnSubagent, stopTree, cleanupWorktree,
+  orchestration, descendantsOf, rootIdOf, loadBoard, postBoard, spawnSubagent, stopTree, cleanupWorktree, refreshCatalog, pruneStopped,
 } from './orchestration.js';
 
 const today = ms => new Date(ms).toDateString() === new Date().toDateString();
@@ -324,27 +325,45 @@ function SubagentView({ agent, onBack }) {
 
 function SpawnSubagentForm({ session, onCancel, onSpawned }) {
   const allClis = useStore(agents, s => s.clis);
-  const clis = useMemo(() => allClis.filter(c => c.enabled !== false && c.installed !== false), [allClis]);
+  const catalog = useStore(orchestration, o => o.catalog);
+  useEffect(() => { refreshCatalog(); }, []);
+  const clis = useMemo(() => {
+    const catClis = (catalog?.clis || []).filter(c => c.installed && c.enabled);
+    if (catClis.length) return catClis;
+    return allClis.filter(c => c.enabled !== false && c.installed !== false && c.kind !== 'shell');
+  }, [catalog, allClis]);
   const [role, setRole] = useState('');
   const [cli, setCli] = useState(session.mode && session.mode !== 'shell' ? session.mode : (clis[0]?.id || 'claude'));
-  const [workspace, setWorkspace] = useState('worktree');
+  const [model, setModel] = useState('');
+  const [effort, setEffort] = useState('');
+  const [workspace, setWorkspace] = useState('inherit');
   const [task, setTask] = useState('');
+  const [openNow, setOpenNow] = useState(true);
   const [busy, setBusy] = useState(false);
+
+  const curCli = clis.find(c => c.id === cli);
+  const models = curCli?.models || [];
+  const efforts = curCli?.efforts || [];
+  useEffect(() => { setModel(''); setEffort(''); }, [cli]);
 
   const submit = async e => {
     e.preventDefault();
-    if (!role.trim() || !task.trim() || busy) return;
+    if (busy) return;
     setBusy(true);
+    const chosenRole = role.trim() || cli || 'subagent';
     try {
       const created = await spawnSubagent({
         parent_id: session.id,
-        role: role.trim(),
+        role: chosenRole,
         cli,
+        model: model || undefined,
+        effort: effort || undefined,
         workspace,
         task: task.trim(),
       });
-      toast(t('agents.orch.spawned', { role: created.role || role.trim() }));
+      toast(t('agents.orch.spawned', { role: created.role || chosenRole }));
       onSpawned?.(created);
+      if (openNow && created?.session_id) openSession(created.session_id);
     } catch (err) {
       toast(err.message, 'err');
     } finally {
@@ -357,20 +376,32 @@ function SpawnSubagentForm({ session, onCancel, onSpawned }) {
       <b>${t('agents.orch.new_subagent')}</b>
       <button type="button" class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${onCancel}><${Icon} n="close" /></button>
     </div>
-    <input class="input" value=${role} placeholder=${t('agents.orch.role_ph')} aria-label=${t('agents.orch.role')} onInput=${e => setRole(e.target.value)} required />
+    <input class="input" value=${role} placeholder=${t('agents.orch.role_ph')} aria-label=${t('agents.orch.role')} onInput=${e => setRole(e.target.value)} />
     <div class="cm-orch-spawn-row">
       <select class="input" value=${cli} aria-label=${t('agents.new.cli')} onChange=${e => setCli(e.target.value)}>
         ${(clis.length ? clis : [{ id: 'claude', label: 'Claude Code' }, { id: 'codex', label: 'Codex' }]).map(c => html`<option key=${c.id} value=${c.id}>${c.label}</option>`)}
       </select>
       <${Seg} size="sm" label=${t('agents.orch.workspace')} value=${workspace} onChange=${setWorkspace} options=${[
-        { value: 'worktree', label: t('agents.orch.ws_worktree') },
         { value: 'inherit', label: t('agents.orch.ws_inherit') },
+        { value: 'worktree', label: t('agents.orch.ws_worktree') },
       ]} />
     </div>
-    <textarea class="textarea" rows="3" value=${task} placeholder=${t('agents.orch.task_ph')} aria-label=${t('agents.orch.task')} onInput=${e => setTask(e.target.value)} required></textarea>
+    ${(models.length > 0 || efforts.length > 0) && html`<div class="cm-orch-spawn-row">
+      ${models.length > 0 && html`<select class="input" value=${model} aria-label=${t('agents.info.model')} onChange=${e => setModel(e.target.value)}>
+        <option value="">${t('agents.cfg.cli_default')}</option>
+        ${models.map(m => html`<option key=${m.id} value=${m.id}>${m.label}</option>`)}
+      </select>`}
+      ${efforts.length > 0 && html`<select class="input" value=${effort} aria-label=${t('agents.cfg.effort')} onChange=${e => setEffort(e.target.value)}>
+        <option value="">${t('agents.cfg.effort')} (${t('agents.cfg.cli_default')})</option>
+        ${efforts.map(ef => html`<option key=${ef} value=${ef}>${effortLabel(ef)}</option>`)}
+      </select>`}
+    </div>`}
+    <textarea class="textarea" rows="3" value=${task} placeholder=${t('agents.orch.task_opt_ph')} aria-label=${t('agents.orch.task')} onInput=${e => setTask(e.target.value)}></textarea>
     <div class="cm-orch-spawn-foot">
+      <label class="cm-orch-open-chk"><input type="checkbox" checked=${openNow} onChange=${e => setOpenNow(e.target.checked)} /><span>${t('agents.orch.open_after')}</span></label>
+      <span class="grow"></span>
       <button type="button" class="btn sm" disabled=${busy} onClick=${onCancel}>${t('agents.cancel')}</button>
-      <button type="submit" class="btn sm primary" disabled=${busy || !role.trim() || !task.trim()}>${busy ? t('agents.new.starting') : t('agents.orch.launch')}</button>
+      <button type="submit" class="btn sm primary" disabled=${busy}>${busy ? t('agents.new.starting') : t('agents.orch.launch')}</button>
     </div>
   </form>`;
 }
@@ -438,6 +469,7 @@ function SubagentsTab({ session, subState, refreshSub }) {
   const orchNodes = useStore(orchestration, o => o.nodes);
   const boardCounts = useStore(orchestration, o => o.boardCounts);
   const liveSessions = useStore(agents, a => a.sessions);
+  useStore(agents, a => a.approvals);
   const nativeList = Array.isArray(subState.data) ? subState.data : [];
 
   const curNode = orchNodes[session.id] || null;
@@ -445,6 +477,7 @@ function SubagentsTab({ session, subState, refreshSub }) {
   const parentLive = curNode?.parent_id ? liveSessions[curNode.parent_id] : null;
   const loomChildren = useMemo(() => descendantsOf(session.id, orchNodes), [session.id, orchNodes]);
   const activeChildren = loomChildren.filter(n => n.status !== 'stopped' && liveSessions[n.session_id]);
+  const stoppedChildren = loomChildren.filter(n => n.status === 'stopped' || !liveSessions[n.session_id]);
   const boardCount = boardCounts[rootId] || 0;
   const showBoardSwitch = loomChildren.length > 0 || !!curNode?.parent_id || boardCount > 0;
 
@@ -503,24 +536,35 @@ function SubagentsTab({ session, subState, refreshSub }) {
 
     ${view === 'board' ? html`<${BoardView} rootId=${rootId} nodes=${orchNodes} />` : html`
       ${loomChildren.length > 0 && html`<section class="cm-orch-sec">
-        <div class="cm-orch-sec-h"><span>${t('agents.orch.loom_sessions')}</span><small>${activeChildren.length}/${loomChildren.length}</small></div>
+        <div class="cm-orch-sec-h">
+          <span>${t('agents.orch.loom_sessions')}</span>
+          <span class="grow"></span>
+          ${stoppedChildren.length > 0 && html`<button type="button" class="btn sm" onClick=${() => pruneStopped(rootId, true).then(n => n > 0 && toast(t('agents.orch.pruned', { n }))).catch(e => toast(e.message, 'err'))}>${t('agents.orch.prune_stopped')}</button>`}
+          <small>${activeChildren.length}/${loomChildren.length}</small>
+        </div>
         <ul class="cm-orch-list">${loomChildren.map(child => {
           const live = liveSessions[child.session_id] || null;
           const st = live ? attentionOf(live) : 'stopped';
           const busy = st === 'working' || st === 'starting';
-          return html`<li key=${child.session_id} class=${cls('cm-orch-card', !live && 'is-stopped')}>
-            <button type="button" class="cm-orch-main" disabled=${!live} onClick=${() => live && openSession(child.session_id)}>
-              ${busy ? html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${CliMark} mode=${child.cli || live?.mode || 'claude'} size="xs" />`}
-              <span class="cm-orch-copy">
-                <b class=${cls('trunc', busy && 'shimmer-text')}>${child.role || child.name || child.session_id.slice(0, 8)}</b>
-                <small class="muted trunc">${[cliOf(child.cli || live?.mode).label, child.branch, lt('state', st)].filter(Boolean).join(' · ')}</small>
-              </span>
-            </button>
-            <div class="cm-orch-acts">
-              ${live && html`<button type="button" class="icon-btn" aria-label=${t('agents.orch.send_msg')} title=${t('agents.orch.send_msg')} onClick=${() => quickSend(child)}><${Icon} n="chat" /></button>`}
-              ${live && html`<button type="button" class="icon-btn" aria-label=${t('agents.session.close')} title=${t('agents.session.close')} onClick=${() => quickClose(child)}><${Icon} n="close" /></button>`}
-              ${!live && child.worktree_path && html`<button type="button" class="btn sm" onClick=${() => quickCleanWT(child)}>${t('agents.orch.clean_wt')}</button>`}
+          const childApprovals = live ? approvalsFor(child.session_id).filter(a => a.kind !== 'idle') : [];
+          return html`<li key=${child.session_id} class=${cls('cm-orch-card-wrap', !live && 'is-stopped')}>
+            <div class="cm-orch-card">
+              <button type="button" class="cm-orch-main" disabled=${!live} onClick=${() => live && openSession(child.session_id)}>
+                ${busy ? html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${CliMark} mode=${child.cli || live?.mode || 'claude'} size="xs" />`}
+                <span class="cm-orch-copy">
+                  <b class=${cls('trunc', busy && 'shimmer-text')}>${child.role || child.name || child.session_id.slice(0, 8)}</b>
+                  <small class="muted trunc">${[cliOf(child.cli || live?.mode).label, child.model, child.branch, lt('state', st)].filter(Boolean).join(' · ')}</small>
+                </span>
+              </button>
+              <div class="cm-orch-acts">
+                ${live && html`<button type="button" class="icon-btn" aria-label=${t('agents.orch.send_msg')} title=${t('agents.orch.send_msg')} onClick=${() => quickSend(child)}><${Icon} n="chat" /></button>`}
+                ${live && html`<button type="button" class="icon-btn" aria-label=${t('agents.session.close')} title=${t('agents.session.close')} onClick=${() => quickClose(child)}><${Icon} n="close" /></button>`}
+                ${!live && child.worktree_path && html`<button type="button" class="btn sm" onClick=${() => quickCleanWT(child)}>${t('agents.orch.clean_wt')}</button>`}
+              </div>
             </div>
+            ${childApprovals.length > 0 && html`<div class="cm-orch-appr">
+              <${ApprovalTray} item=${childApprovals[0]} session=${live} onTerminal=${() => openSession(child.session_id)} />
+            </div>`}
           </li>`;
         })}</ul>
       </section>`}

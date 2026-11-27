@@ -32,6 +32,43 @@ type codemanSessionInfo struct {
 	CreatedAt      int64  `json:"createdAt"`
 }
 
+type codemanCLIInfo struct {
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	Kind      string `json:"kind"`
+	Installed *bool  `json:"installed"`
+	Enabled   *bool  `json:"enabled"`
+	Version   string `json:"version"`
+}
+
+type codemanApprovalInfo struct {
+	ID          string `json:"id"`
+	SessionID   string `json:"sessionId"`
+	SessionName string `json:"sessionName"`
+	Kind        string `json:"kind"`
+	ToolName    string `json:"toolName,omitempty"`
+	ToolSummary string `json:"toolSummary,omitempty"`
+	Message     string `json:"message,omitempty"`
+	CreatedAt   int64  `json:"createdAt,omitempty"`
+}
+
+type codemanTranscriptMsg struct {
+	Role      string `json:"role,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	Label     string `json:"label,omitempty"`
+	Text      string `json:"text"`
+	Timestamp any    `json:"timestamp,omitempty"`
+}
+
+type codemanEditEntry struct {
+	ID      string `json:"id"`
+	RelPath string `json:"relPath"`
+	Path    string `json:"path"`
+	Added   int    `json:"added"`
+	Removed int    `json:"removed"`
+	Created bool   `json:"created"`
+}
+
 type codemanCreateSessionReq struct {
 	WorkingDir   string            `json:"workingDir"`
 	Mode         string            `json:"mode"`
@@ -146,6 +183,94 @@ func codemanListSessions(ctx context.Context) ([]codemanSessionInfo, error) {
 		return nil, err
 	}
 	return list, nil
+}
+
+func codemanListCLIs(ctx context.Context) ([]codemanCLIInfo, error) {
+	var list []codemanCLIInfo
+	if err := codemanAPIRequest(ctx, http.MethodGet, "/clis", nil, nil, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func codemanGetSettings(ctx context.Context) (map[string]any, error) {
+	var out map[string]any
+	if err := codemanAPIRequest(ctx, http.MethodGet, "/settings", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func codemanPutSettings(ctx context.Context, patch map[string]any) error {
+	return codemanAPIRequest(ctx, http.MethodPut, "/settings", patch, nil, nil)
+}
+
+func codemanListApprovals(ctx context.Context) ([]codemanApprovalInfo, error) {
+	var resp struct {
+		Approvals []codemanApprovalInfo `json:"approvals"`
+	}
+	if err := codemanAPIRequest(ctx, http.MethodGet, "/approvals", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Approvals, nil
+}
+
+func codemanWaitSignals(cli string) string {
+	switch strings.ToLower(strings.TrimSpace(cli)) {
+	case "claude", "deepseek":
+		return "stop,idle,blocked,exit"
+	case "codex", "omp":
+		return "idle,blocked,exit"
+	default:
+		return "idle,exit"
+	}
+}
+
+func codemanReadFullConversation(ctx context.Context, id string, maxMessages int) ([]codemanTranscriptMsg, string, error) {
+	if maxMessages <= 0 || maxMessages > 120 {
+		maxMessages = 40
+	}
+	var resp struct {
+		Text     string                 `json:"text"`
+		Messages []codemanTranscriptMsg `json:"messages"`
+	}
+	if err := codemanAPIRequest(ctx, http.MethodGet, "/sessions/"+url.PathEscape(id)+"/last-response?context=full", nil, nil, &resp); err != nil {
+		return nil, "", err
+	}
+	msgs := resp.Messages
+	if len(msgs) > maxMessages {
+		msgs = msgs[len(msgs)-maxMessages:]
+	}
+	// Bound total characters per message so a giant tool dump never floods the orchestrator.
+	const maxPerMsg = 4000
+	for i := range msgs {
+		if len(msgs[i].Text) > maxPerMsg {
+			msgs[i].Text = msgs[i].Text[:maxPerMsg] + "…"
+		}
+	}
+	return msgs, strings.TrimSpace(resp.Text), nil
+}
+
+func codemanReadEdits(ctx context.Context, id string) ([]string, error) {
+	var resp struct {
+		Entries []codemanEditEntry `json:"entries"`
+	}
+	if err := codemanAPIRequest(ctx, http.MethodGet, "/sessions/"+url.PathEscape(id)+"/edits", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var files []string
+	for _, e := range resp.Entries {
+		p := strings.TrimSpace(e.RelPath)
+		if p == "" {
+			p = strings.TrimSpace(e.Path)
+		}
+		if p != "" && !seen[p] {
+			seen[p] = true
+			files = append(files, p)
+		}
+	}
+	return files, nil
 }
 
 func codemanGetSession(ctx context.Context, id string) (*codemanSessionInfo, error) {

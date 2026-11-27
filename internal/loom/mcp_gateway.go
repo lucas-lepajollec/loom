@@ -30,7 +30,7 @@ func gatewayURL() string {
 func gatewayToolNames(upstream []tools.MCPGatewayTool) []string {
 	used := map[string]bool{
 		"loom_gateway_status": true, "loom_overview": true, "loom_machines": true, "loom_machine_run": true,
-		"loom_subagent_spawn": true, "loom_subagent_list": true, "loom_subagent_send": true,
+		"loom_subagent_catalog": true, "loom_subagent_spawn": true, "loom_subagent_list": true, "loom_subagent_send": true,
 		"loom_subagent_wait": true, "loom_subagent_read": true, "loom_subagent_stop": true,
 		"loom_board_post": true, "loom_board_read": true,
 		"brain_search": true, "brain_pack": true, "brain_read": true, "brain_write": true, "brain_edit": true,
@@ -72,7 +72,11 @@ type gatewayStatusResult struct {
 }
 
 func gatewayServer(reader brain.Reader) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "loom-gateway", Version: Version}, &mcp.ServerOptions{Instructions: agentGuide})
+	instructions := agentGuide
+	if cat := buildSubagentCatalog(context.Background()); cat.CodemanConnected && cat.Summary != "" {
+		instructions += " " + cat.Summary + "."
+	}
+	server := mcp.NewServer(&mcp.Implementation{Name: "loom-gateway", Version: Version}, &mcp.ServerOptions{Instructions: instructions})
 	brain.RegisterMCPTools(server, reader)
 	registerLoomAgentTools(server)
 	registerLoomOrchestrationTools(server)

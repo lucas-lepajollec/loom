@@ -14,19 +14,31 @@ import (
 
 func registerOrchestrationRoutes(mux *http.ServeMux, api func(string, http.HandlerFunc)) {
 	api("/api/orchestration/state", handleOrchestrationState)
+	api("/api/orchestration/catalog", handleOrchestrationCatalog)
 	api("/api/orchestration/settings", handleOrchestrationSettings)
 	api("/api/orchestration/board", handleOrchestrationBoard)
 	api("/api/orchestration/spawn", handleOrchestrationSpawn)
+	api("/api/orchestration/reparent", handleOrchestrationReparent)
+	api("/api/orchestration/prune-stopped", handleOrchestrationPruneStopped)
 	api("/api/orchestration/stop-tree", handleOrchestrationStopTree)
 	api("/api/orchestration/cleanup-worktree", handleOrchestrationCleanupWorktree)
 	mux.HandleFunc("/api/orchestration/events", requireWebAuth(handleOrchestrationEvents))
+}
+
+func handleOrchestrationCatalog(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodGet) {
+		return
+	}
+	cat := buildSubagentCatalog(r.Context())
+	sendJSON(w, 200, map[string]any{"ok": true, "catalog": cat})
 }
 
 func handleOrchestrationState(w http.ResponseWriter, r *http.Request) {
 	if !workspaceMethod(w, r, http.MethodGet) {
 		return
 	}
-	// Best-effort quick sync with Codeman so deleted sessions mark stopped.
+	// Best-effort quick sync with Codeman so deleted sessions mark stopped
+	// and live sessions always have their 0600 bridge file ready.
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	if live, err := codemanListSessions(ctx); err == nil {
 		ids := make(map[string]bool, len(live))
@@ -34,6 +46,7 @@ func handleOrchestrationState(w http.ResponseWriter, r *http.Request) {
 			ids[s.ID] = true
 		}
 		orchSyncWithLive(ids)
+		orchEnsureBridgeFiles(live)
 	}
 	cancel()
 	sendJSON(w, 200, map[string]any{
@@ -42,6 +55,52 @@ func handleOrchestrationState(w http.ResponseWriter, r *http.Request) {
 		"board_counts": orchBoardCounts(),
 		"settings":     loadOrchestrationSettings(),
 	})
+}
+
+func handleOrchestrationReparent(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		SessionID string `json:"session_id"`
+		ParentID  string `json:"parent_id"`
+	}
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	liveMap := map[string]codemanSessionInfo{}
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	if live, err := codemanListSessions(ctx); err == nil {
+		for _, s := range live {
+			liveMap[s.ID] = s
+		}
+	}
+	cancel()
+	node, err := orchReparent(req.SessionID, req.ParentID, liveMap)
+	if err != nil {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "node": node})
+}
+
+func handleOrchestrationPruneStopped(w http.ResponseWriter, r *http.Request) {
+	if !workspaceMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		RootID           string `json:"root_id"`
+		CleanupWorktrees bool   `json:"cleanup_worktrees"`
+	}
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	rootID := strings.TrimSpace(req.RootID)
+	if rootID != "" {
+		rootID = orchResolveScope(rootID).RootID
+	}
+	removed := orchPruneStopped(r.Context(), rootID, req.CleanupWorktrees)
+	sendJSON(w, 200, map[string]any{"ok": true, "removed": removed})
 }
 
 func handleOrchestrationSettings(w http.ResponseWriter, r *http.Request) {

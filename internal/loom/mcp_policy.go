@@ -18,6 +18,7 @@ func gatewayToolFallback(subject string) policy.Decision {
 	case "mcp.tool:loom/loom_overview",
 		"mcp.tool:loom/loom_machines",
 		"mcp.tool:loom/loom_gateway_status",
+		"mcp.tool:loom/loom_subagent_catalog",
 		"mcp.tool:loom/loom_subagent_spawn",
 		"mcp.tool:loom/loom_subagent_list",
 		"mcp.tool:loom/loom_subagent_send",
