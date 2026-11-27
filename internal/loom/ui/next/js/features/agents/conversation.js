@@ -18,6 +18,7 @@ import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
 import { buildTurns, changedFiles, screenChoices, duration } from '../conversation/turns.js';
 import { WorkFold, workLabel, Step, Changes, TurnFoot, JumpBottom, Tray } from '../conversation/kit.js';
 import { Minimap } from '../conversation/minimap.js';
+import { openPreview, openPanelTab, setDetectedDocs, extractMentionedFiles, normalizeSessionPath } from './panel-state.js';
 
 // Cache LRU par session (stale-while-revalidate) : revenir sur une conversation
 // déjà ouverte l'affiche immédiatement sans squelettes, puis la rafraîchit en
@@ -226,22 +227,29 @@ const WorkItems = ({ items }) => items.map((x, i) => x.k === 'say'
   ? html`<div key=${i} class="cv-say md" dangerouslySetInnerHTML=${{ __html: md(x.text) }}></div>`
   : html`<${Step} key=${i} icon=${x.kind === 'tool' ? 'terminal' : 'activity'} title=${x.full}>${x.text}</${Step}>`);
 
-function Turn({ turn, tools, waiting, loadDiff, model }) {
+function Turn({ turn, tools, waiting, loadDiff, model, workingDir, onPreview, onReview }) {
   const changes = useMemo(() => changedFiles(turn.edits), [turn.edits]);
   const answerHtml = useMemo(() => (turn.answer ? md(turn.answer) : ''), [turn.answer]);
+  const docs = useMemo(() => extractMentionedFiles([turn], workingDir).slice(0, 4), [turn.answer, turn.items, turn.work, workingDir]);
   if (turn.live) {
     return html`<div class="cv-turn msg-ai" data-mark="ai">
       <${WorkItems} items=${turn.items} />
       ${waiting ? html`<${Step} live>${t('agents.tray.waiting')}</${Step}>`
         : tools.length ? tools.map(x => html`<${Step} key=${x.id || x.command} live since=${x.startedAt}>${t('conv.running')} <code>${x.command}</code></${Step}>`)
         : html`<${Step} live since=${turn.start || Date.now()}>${t('conv.working')}</${Step}>`}
-      <${Changes} changes=${changes} loadDiff=${loadDiff} />
+      <${Changes} changes=${changes} loadDiff=${loadDiff} onReview=${onReview} />
     </div>`;
   }
   return html`<div class="cv-turn msg-ai" data-mark="ai">
     ${turn.work.length > 0 && html`<${WorkFold} label=${workLabel(turn.ms)}><${WorkItems} items=${turn.work} /></${WorkFold}>`}
     ${answerHtml && html`<div class="md" dangerouslySetInnerHTML=${{ __html: answerHtml }}></div>`}
-    <${Changes} changes=${changes} loadDiff=${loadDiff} />
+    ${docs.length > 0 && html`<div class="cv-docs">${docs.map(p => {
+      const name = p.slice(p.lastIndexOf('/') + 1);
+      return html`<button type="button" key=${p} class="cv-doc-chip" title=${p} onClick=${() => onPreview(p)}>
+        <${Icon} n="file" /><span class="trunc">${name}</span><${Icon} n="eye" class="cv-doc-eye" />
+      </button>`;
+    })}</div>`}
+    <${Changes} changes=${changes} loadDiff=${loadDiff} onReview=${onReview} />
     ${turn.answer && html`<${TurnFoot} parts=${[turn.ms >= 1000 && duration(turn.ms), model]} copy=${turn.answer} />`}
   </div>`;
 }
@@ -381,6 +389,24 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
   }, [blocks, edits, approval?.id, state, tools.length]);
 
   const turns = useMemo(() => buildTurns(blocks, edits, live), [blocks, edits, live]);
+  const detectedDocs = useMemo(() => extractMentionedFiles(turns, session.workingDir), [turns, session.workingDir]);
+  useEffect(() => { setDetectedDocs(id, detectedDocs); }, [id, detectedDocs]);
+  const onPreview = useCallback(path => openPreview(id, path), [id]);
+  const onReview = useCallback(() => openPanelTab('changes'), []);
+  const onThreadClick = useCallback(e => {
+    const a = e.target.closest('a');
+    if (a) {
+      const raw = a.getAttribute('data-file-href') || a.getAttribute('href') || '';
+      const rel = normalizeSessionPath(raw, session.workingDir);
+      if (rel) { e.preventDefault(); openPreview(id, rel); }
+      return;
+    }
+    const code = e.target.closest('code');
+    if (code && !code.closest('pre')) {
+      const rel = normalizeSessionPath(code.textContent, session.workingDir);
+      if (rel) openPreview(id, rel);
+    }
+  }, [id, session.workingDir]);
   const hasPrompt = turns.length > 0;
   // Un prompt a été soumis mais Codeman ne sait pas le distinguer à l'écran de
   // ce CLI : l'écran en direct reste la vue fidèle.
@@ -399,7 +425,7 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
     <div class="cv-wrap">
       ${!compact && !phone && html`<${Minimap} scroller=${scroller} />`}
       <div class="thread" ref=${scroller} onScroll=${onScroll}>
-        <div class="thread-in">
+        <div class="thread-in" onClick=${onThreadClick}>
           ${blocks === null && !failed && html`<div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:120px;width:80%"></div>`}
           ${failed && html`<div class="msg-err"><${Icon} n="alert" /><span>${t('agents.conv.unavailable')} — ${failed}</span></div>`}
           ${blocks && !hasPrompt && !terminalVisible && session.mode !== 'shell' && html`<div class=${cls('cm-boot anim-rise', submitted && 'live')}>
@@ -412,7 +438,7 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
           ${turns.length > count && html`<button type="button" class="cv-more" onClick=${() => { stick.current = false; setCount(count + 30); }}>${t('conv.earlier', { n: turns.length - count })}</button>`}
           ${turns.slice(-count).map(turn => html`<div key=${turn.key} class="cv-pair">
             <${Prompt} text=${turn.prompt} />
-            <${Turn} turn=${turn} tools=${turn.live ? tools : EMPTY_TOOLS} waiting=${turn.live && !!approval} loadDiff=${loadDiff} model=${model} />
+            <${Turn} turn=${turn} tools=${turn.live ? tools : EMPTY_TOOLS} waiting=${turn.live && !!approval} loadDiff=${loadDiff} model=${model} workingDir=${session.workingDir} onPreview=${onPreview} onReview=${onReview} />
           </div>`)}
         </div>
       </div>
