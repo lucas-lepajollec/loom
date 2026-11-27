@@ -15,34 +15,56 @@ export function Minimap({ scroller }) {
   const [seen, setSeen] = useState([0, -1]);
   const [hover, setHover] = useState(-1);
   const list = useRef([]);
+  const offsets = useRef([]);
   useEffect(() => {
     const box = scroller.current; if (!box) return;
-    let frame = 0;
-    const visible = () => {
-      const top = box.scrollTop, bottom = top + box.clientHeight;
-      let first = -1, last = -1;
-      list.current.forEach((el, i) => {
-        const a = el.offsetTop, b = a + el.offsetHeight;
-        if (b > top + 8 && a < bottom - 8) { if (first < 0) first = i; last = i; }
+    let collectFrame = 0, scrollFrame = 0;
+    const measureOffsets = () => {
+      offsets.current = list.current.map(el => {
+        const top = el.offsetTop;
+        return { top, bottom: top + el.offsetHeight };
       });
+    };
+    const visible = () => {
+      scrollFrame = 0;
+      const top = box.scrollTop, bottom = top + box.clientHeight;
+      const pos = offsets.current;
+      let first = -1, last = -1;
+      for (let i = 0; i < pos.length; i++) {
+        const p = pos[i];
+        if (p.bottom > top + 8 && p.top < bottom - 8) {
+          if (first < 0) first = i;
+          last = i;
+        } else if (first >= 0 && p.top >= bottom - 8) {
+          break;
+        }
+      }
       setSeen(s => s[0] === first && s[1] === last ? s : [first, last]);
     };
+    const onScroll = () => { if (!scrollFrame) scrollFrame = requestAnimationFrame(visible); };
     const collect = () => {
-      frame = 0;
+      collectFrame = 0;
+      if (!box.isConnected) return;
       const els = [...box.querySelectorAll(MARKS)].filter(el => !el.closest('.work-b, .fold-b'));
       const same = els.length === list.current.length && els.every((el, i) => el === list.current[i]);
       list.current = els;
       if (!same) setMarks(els.map(el => ({ user: el.classList.contains('msg-user'), text: preview(el) })));
+      measureOffsets();
       visible();
     };
-    const later = () => { if (!frame) frame = requestAnimationFrame(collect); };
+    const later = () => { if (!collectFrame) collectFrame = requestAnimationFrame(collect); };
     const watch = new MutationObserver(later);
     watch.observe(box, { childList: true, subtree: true });
     const size = new ResizeObserver(later);
     size.observe(box);
-    box.addEventListener('scroll', visible, { passive: true });
+    box.addEventListener('scroll', onScroll, { passive: true });
     collect();
-    return () => { watch.disconnect(); size.disconnect(); box.removeEventListener('scroll', visible); if (frame) cancelAnimationFrame(frame); };
+    return () => {
+      watch.disconnect(); size.disconnect();
+      box.removeEventListener('scroll', onScroll);
+      if (collectFrame) cancelAnimationFrame(collectFrame);
+      if (scrollFrame) cancelAnimationFrame(scrollFrame);
+    };
   }, [scroller.current]);
   if (marks.length < 3) return null;
   // Un long fil garde une fenêtre de traits autour de ce qui est visible.

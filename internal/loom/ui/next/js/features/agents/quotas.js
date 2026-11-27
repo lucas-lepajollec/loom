@@ -313,7 +313,7 @@ function Evolution({ account, samples }) {
 // Sessions arrêtées sur une limite : Codeman les relance seul à la remise à
 // zéro (reprise automatique, réglable par session dans Infos).
 function Paused() {
-  useStore(agents, s => [s.order, s.sessions]);
+  useStore(agents, s => ({ order: s.order, sessions: s.sessions }));
   const list = sessionList().filter(s => stateOf(s) === 'limited').sort((a, b) => a.autoResumeAt - b.autoResumeAt);
   if (!list.length) return null;
   return html`<section class="activity-section"><div class="activity-heading"><h2>${t('quotas.paused')}<${Tip} text=${t('quotas.paused_tip')} /></h2></div>

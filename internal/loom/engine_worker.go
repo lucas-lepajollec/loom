@@ -22,6 +22,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
 )
 
 func isEngineWorker() bool { return os.Getenv("LOOM_UI_SERVICE") == "loom-node" }
@@ -440,6 +442,7 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	proxy := httputil.NewSingleHostReverseProxy(u)
+	proxy.Transport = nodeInferenceTransport
 	director := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		director(req)
@@ -458,6 +461,15 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 	}
 	proxy.ServeHTTP(w, r)
 }
+var nodeInferenceTransport = &http.Transport{
+	Proxy:                 nil,
+	DialContext:           (&net.Dialer{Timeout: 4 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+	MaxIdleConns:          32,
+	MaxIdleConnsPerHost:   16,
+	IdleConnTimeout:       90 * time.Second,
+	ExpectContinueTimeout: time.Second,
+}
+
 func localLoopbackHost(host string) bool {
 	return host == "localhost" || (net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback())
 }
@@ -503,7 +515,7 @@ func serveEngineWorker(addr string) error {
 	go voiceLifecycle(ctx)
 	terminal := newNodeTerminalServer(defaultNodeTerminalLimit)
 	defer terminal.stop()
-	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: newEngineWorkerMuxModules(token, terminal), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: web.WithCompression(newEngineWorkerMuxModules(token, terminal)), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	go func() {
 		<-ctx.Done()
 		terminal.stop()

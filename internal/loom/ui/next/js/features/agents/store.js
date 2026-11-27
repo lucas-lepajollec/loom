@@ -1,7 +1,8 @@
 // État du domaine Agents : connexion à Codeman, sessions vivantes, historique,
 // CLI disponibles, approbations. Tenu à jour par le flux SSE ; chaque
 // (re)connexion relit l'état complet pour rattraper ce qui a été manqué.
-import { createStore, useStore, useEffect } from '../../core/lib.js';
+import { createStore, useStore, useEffect, useMemo } from '../../core/lib.js';
+import { singleFlight } from '../../core/poll.js';
 import { api, gateway, connectEvents, sendPrompt } from './client.js';
 
 const SEEN_KEY = 'loom.agents.seen';
@@ -118,7 +119,20 @@ function drop(id) {
   const completed = { ...st.completed }; delete completed[id];
   agents.set({ sessions, completed, order: st.order.filter(x => x !== id), approvals: st.approvals.filter(a => a.sessionId !== id) });
 }
-function bumpTurn(id) { const t = agents.get().turns; agents.set({ turns: { ...t, [id]: (t[id] || 0) + 1 } }); }
+const bumpTimers = new Map();
+function bumpTurnNow(id) {
+  if (!id) return;
+  const pending = bumpTimers.get(id);
+  if (pending) { clearTimeout(pending); bumpTimers.delete(id); }
+  const t = agents.get().turns;
+  agents.set({ turns: { ...t, [id]: (t[id] || 0) + 1 } });
+}
+function bumpTurn(id, immediate = false) {
+  if (!id) return;
+  if (immediate) return bumpTurnNow(id);
+  if (bumpTimers.has(id)) return;
+  bumpTimers.set(id, setTimeout(() => bumpTurnNow(id), 250));
+}
 
 export async function refreshConnection() {
   try {
@@ -128,6 +142,7 @@ export async function refreshConnection() {
     const prev = agents.get().conn;
     if (conn.url !== prev.url || conn.username !== prev.username || conn.role !== prev.role) {
       historyRevision++;
+      historyRequested = false;
       agents.set({
         conn, sessions: {}, order: [], unified: [], historyOffset: 0, historyTotal: -1, historyError: '',
         approvals: [], restore: [], clis: [], cases: [], settings: {}, planUsage: null, turns: {}, completed: {}, loaded: false, live: false,
@@ -144,9 +159,11 @@ export async function refreshConnection() {
   }
 }
 
-export async function refreshAll() {
+export const refreshAll = singleFlight(async () => {
   const conn = agents.get().conn;
-  loadHistory().catch(() => {});
+  // Ne relance l'historique unifié (scan disque de 500 sessions) que s'il a
+  // déjà été demandé : évite de saturer Codeman à chaque retour d'onglet.
+  if (historyRequested) loadHistory().catch(() => {});
   const [sessions, clis, approvals, restore, cases, status, settings] = await Promise.allSettled([api.sessions(), api.clis(), api.approvals(), api.rebootRestore(), api.cases(), api.status(), api.settings()]);
   if (!sameServer(conn)) return;
   if (sessions.status === 'fulfilled' && Array.isArray(sessions.value)) setSessions(sessions.value);
@@ -159,13 +176,19 @@ export async function refreshAll() {
   if (settings.status === 'fulfilled' && settings.value) patch.settings = settings.value;
   agents.set(patch);
   if (sessions.status === 'rejected') throw sessions.reason;
-}
+});
 const sameServer = conn => {
   const current = agents.get().conn;
   return current.state === 'ready' && current.url === conn.url && current.username === conn.username && current.role === conn.role;
 };
-let unifiedTimer, historyRevision = 0;
+let unifiedTimer, historyRevision = 0, historyRequested = false;
+export function ensureHistory() {
+  if (historyRequested && agents.get().historyTotal >= 0) return;
+  historyRequested = true;
+  loadHistory().catch(() => {});
+}
 export async function loadHistory(more = false) {
+  historyRequested = true;
   const revision = ++historyRevision;
   const { conn, unified, historyOffset } = agents.get();
   const offset = more ? historyOffset : 0;
@@ -185,6 +208,7 @@ export async function loadHistory(more = false) {
   }
 }
 export function refreshUnified() {
+  if (!historyRequested) return;
   clearTimeout(unifiedTimer);
   unifiedTimer = setTimeout(() => loadHistory().catch(() => {}), 600);
 }
@@ -226,13 +250,13 @@ function onEvent(name, d) {
     case 'session:updated': upsert(sessionFrom(d)); break;
     case 'session:deleted': drop(idOf(d)); refreshUnified(); break;
     case 'session:working': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, isWorking: true, status: 'busy' }); break; }
-    case 'session:idle': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, isWorking: false, status: 'idle' }); bumpTurn(id); break; }
-    case 'session:exit': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, pid: null, isWorking: false, status: 'stopped' }); bumpTurn(id); break; }
+    case 'session:idle': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, isWorking: false, status: 'idle' }); bumpTurn(id, true); break; }
+    case 'session:exit': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, pid: null, isWorking: false, status: 'stopped' }); bumpTurn(id, true); break; }
     case 'session:error': { const id = idOf(d); if (agents.get().sessions[id]) upsert({ id, lastError: d.error, status: 'error' }); break; }
     case 'session:interactive': case 'session:running': { const id = idOf(d); if (id) api.session(id).then(upsert).catch(() => {}); break; }
     case 'session:completion': case 'hook:stop': case 'transcript:complete': {
       const id = d?.sessionId || idOf(d);
-      recordCompletion(id); bumpTurn(id); break;
+      recordCompletion(id); bumpTurn(id, true); break;
     }
     case 'hook:prompt_submitted': case 'transcript:tool_end':
       bumpTurn(idOf(d)); break;
@@ -307,3 +331,7 @@ export const restorable = s => {
   for (const x of Object.values(s.sessions || {})) for (const k of [x.id, x.resumeSessionId, x.claudeSessionId]) if (k) live.add(k);
   return s.restore.filter(e => e && e.id && !live.has(e.id));
 };
+export function useRestorable() {
+  const { restore, sessions } = useStore(agents, s => ({ restore: s.restore, sessions: s.sessions }));
+  return useMemo(() => restorable({ restore, sessions }), [restore, sessions]);
+}

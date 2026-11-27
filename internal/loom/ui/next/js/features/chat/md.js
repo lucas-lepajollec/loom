@@ -34,11 +34,32 @@ function fix(s) {
   return String(s || '').replace(/([^\n])(\s*)(```+|~~~+)(?=\w*\s*\n)/g, '$1\n$3').replace(/\n{3,}/g, '\n\n');
 }
 
+// Cache LRU borné : évite de re-parser le Markdown des messages inchangés à
+// chaque tick ou changement d'état du fil. La clé inclut le libellé du bouton
+// Copier pour suivre un changement de langue sans importer i18n/getLang.
+const MD_CACHE_MAX = 400;
+const MD_CACHE_MAX_LEN = 200000;
+const mdCache = new Map();
+
 export function md(src) {
   setup();
   if (!src) return '';
   if (!window.marked) return '<p>' + esc(src).replace(/\n/g, '<br>') + '</p>';
-  return window.marked.parse(fix(src));
+  const text = String(src);
+  if (text.length <= MD_CACHE_MAX_LEN) {
+    const key = t('chat.md.copier') + '\0' + text;
+    const hit = mdCache.get(key);
+    if (hit !== undefined) {
+      mdCache.delete(key);
+      mdCache.set(key, hit);
+      return hit;
+    }
+    const out = window.marked.parse(fix(text));
+    mdCache.set(key, out);
+    if (mdCache.size > MD_CACHE_MAX) mdCache.delete(mdCache.keys().next().value);
+    return out;
+  }
+  return window.marked.parse(fix(text));
 }
 export const plain = src => '<p>' + esc(src || '').replace(/\n/g, '<br>') + '</p>';
 

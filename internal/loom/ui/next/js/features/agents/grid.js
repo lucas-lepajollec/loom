@@ -108,7 +108,7 @@ function Divider({ axis, index, style, box, onLive }) {
 export function Grid() {
   const l = useStore(layout, x => x);
   const loaded = useStore(agents, s => s.loaded);
-  useStore(agents, s => [s.order, s.sessions, s.approvals]);
+  useStore(agents, s => ({ order: s.order, sessions: s.sessions, approvals: s.approvals }));
   const sessions = agents.get().sessions;
   const box = useRef();
   const [live, setLive] = useState({ col: null, row: null });

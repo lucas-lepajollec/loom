@@ -261,8 +261,19 @@ func handleNodeInfo(w http.ResponseWriter, r *http.Request) {
 
 // Control credentials belong to the explicitly linked endpoint. Even redirects
 // to a sibling host must not receive them or silently change the engine target.
-var nodeClient = &http.Client{Timeout: 15 * time.Second,
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+var nodeClient = &http.Client{
+	Timeout: 15 * time.Second,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 4 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		MaxIdleConns:          64,
+		MaxIdleConnsPerHost:   16,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	},
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
 
 func cleanNodeURL(raw string) (string, *url.URL, error) {
 	raw = strings.TrimRight(strings.TrimSpace(raw), "/")

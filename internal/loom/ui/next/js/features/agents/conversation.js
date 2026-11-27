@@ -6,7 +6,7 @@
 // Codeman, les commandes en cours de ses outils actifs. Rien n'est inventé :
 // sans bloc, la vue renvoie au terminal natif.
 import { t } from '../../core/i18n.js';
-import { html, useState, useEffect, useRef, useStore, cls } from '../../core/lib.js';
+import { html, useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { toast } from '../../ui/dialog.js';
 import { md } from '../chat/md.js';
@@ -18,6 +18,62 @@ import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
 import { buildTurns, changedFiles, screenChoices, duration } from '../conversation/turns.js';
 import { WorkFold, workLabel, Step, Changes, TurnFoot, JumpBottom, Tray } from '../conversation/kit.js';
 import { Minimap } from '../conversation/minimap.js';
+
+// Cache LRU par session (stale-while-revalidate) : revenir sur une conversation
+// déjà ouverte l'affiche immédiatement sans squelettes, puis la rafraîchit en
+// arrière-plan. Borné en nombre de sessions pour garder la mémoire légère.
+const CONV_CACHE_MAX = 24;
+const convCache = new Map();
+function cacheGet(id) {
+  const hit = convCache.get(id);
+  if (!hit) return null;
+  convCache.delete(id);
+  convCache.set(id, hit);
+  return hit;
+}
+function cacheSet(id, patch) {
+  const next = { ...(convCache.get(id) || { blocks: null, edits: [], scrollTop: 0, stick: true }), ...patch };
+  convCache.delete(id);
+  convCache.set(id, next);
+  while (convCache.size > CONV_CACHE_MAX) convCache.delete(convCache.keys().next().value);
+}
+export function evictConversationCache(id) {
+  if (id) convCache.delete(id);
+  else convCache.clear();
+}
+
+function sameBlocks(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  if (!a.length) return true;
+  const i = a.length - 1;
+  const x = a[i], y = b[i];
+  if (x?.text !== y?.text || x?.role !== y?.role || x?.kind !== y?.kind || x?.timestamp !== y?.timestamp) return false;
+  const f1 = a[0], f2 = b[0];
+  if (f1?.text !== f2?.text || f1?.timestamp !== f2?.timestamp) return false;
+  if (i > 1) {
+    const p1 = a[i - 1], p2 = b[i - 1];
+    if (p1?.text !== p2?.text || p1?.timestamp !== p2?.timestamp) return false;
+  }
+  return true;
+}
+
+function sameEdits(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  if (!a.length) return true;
+  const i = a.length - 1;
+  return a[i]?.id === b[i]?.id && a[0]?.id === b[0]?.id;
+}
+
+function sameTools(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.id !== b[i]?.id || a[i]?.command !== b[i]?.command || a[i]?.startedAt !== b[i]?.startedAt) return false;
+  }
+  return true;
+}
 
 // Choix d'une demande : réponse par Codeman (Claude), sinon touche lue à
 // l'écran (Codex…), sinon renvoi au terminal.
@@ -165,8 +221,9 @@ const WorkItems = ({ items }) => items.map((x, i) => x.k === 'say'
   ? html`<div key=${i} class="cv-say md" dangerouslySetInnerHTML=${{ __html: md(x.text) }}></div>`
   : html`<${Step} key=${i} icon=${x.kind === 'tool' ? 'terminal' : 'activity'} title=${x.full}>${x.text}</${Step}>`);
 
-function Turn({ turn, session, tools, waiting, loadDiff, model }) {
-  const changes = changedFiles(turn.edits);
+function Turn({ turn, tools, waiting, loadDiff, model }) {
+  const changes = useMemo(() => changedFiles(turn.edits), [turn.edits]);
+  const answerHtml = useMemo(() => (turn.answer ? md(turn.answer) : ''), [turn.answer]);
   if (turn.live) {
     return html`<div class="cv-turn msg-ai" data-mark="ai">
       <${WorkItems} items=${turn.items} />
@@ -178,7 +235,7 @@ function Turn({ turn, session, tools, waiting, loadDiff, model }) {
   }
   return html`<div class="cv-turn msg-ai" data-mark="ai">
     ${turn.work.length > 0 && html`<${WorkFold} label=${workLabel(turn.ms)}><${WorkItems} items=${turn.work} /></${WorkFold}>`}
-    ${turn.answer && html`<div class="md" dangerouslySetInnerHTML=${{ __html: md(turn.answer) }}></div>`}
+    ${answerHtml && html`<div class="md" dangerouslySetInnerHTML=${{ __html: answerHtml }}></div>`}
     <${Changes} changes=${changes} loadDiff=${loadDiff} />
     ${turn.answer && html`<${TurnFoot} parts=${[turn.ms >= 1000 && duration(turn.ms), model]} copy=${turn.answer} />`}
   </div>`;
@@ -187,56 +244,156 @@ function Turn({ turn, session, tools, waiting, loadDiff, model }) {
 export function Conversation({ session, onTerminal, terminalVisible, compact, phone }) {
   const id = session.id;
   const turnSeq = useStore(agents, s => s.turns[id] || 0);
-  const approvals = useStore(agents, s => s.approvals.filter(a => a.sessionId === id && a.kind !== 'idle'));
+  // Retourne directement le dernier accord actif de cette session (ou null) :
+  // évite de créer un tableau neuf et de re-rendre toute la conversation à
+  // chaque événement SSE des autres sessions.
+  const approval = useStore(agents, s => {
+    const list = s.approvals;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const a = list[i];
+      if (a && a.sessionId === id && a.kind !== 'idle') return a;
+    }
+    return null;
+  });
   const state = stateOf(session);
   const live = state === 'working' || state === 'waiting';
-  const [blocks, setBlocks] = useState(null);
-  const [edits, setEdits] = useState([]);
+  const initial = cacheGet(id);
+  const [blocks, setBlocks] = useState(() => initial?.blocks ?? null);
+  const [edits, setEdits] = useState(() => initial?.edits ?? []);
   const [failed, setFailed] = useState('');
   const [tools, setTools] = useState([]);
   const [count, setCount] = useState(30);
-  const scroller = useRef(), stick = useRef(true), seq = useRef(0);
-  const load = async sync => {
+  const scroller = useRef();
+  const stick = useRef(initial ? initial.stick : true);
+  const restoreScroll = useRef(initial && !initial.stick ? initial.scrollTop : -1);
+  const seq = useRef(0);
+  const inflight = useRef(null);
+  const editsInflight = useRef(null);
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
+  const editsRef = useRef(edits);
+  editsRef.current = edits;
+
+  const load = useCallback(async (sync, { force = false } = {}) => {
+    // Évite d'empiler des lectures complètes de transcription quand un sondage
+    // arrive avant la fin du précédent.
+    if (!force && inflight.current) return;
+    if (inflight.current) { inflight.current.abort(); inflight.current = null; }
+    const ac = new AbortController();
+    inflight.current = ac;
     const mine = ++seq.current;
-    // L'historique d'édition peut être long à relire : il n'attend pas le fil.
-    if (session.mode === 'claude') api.edits(id, sync).then(e => { if (mine === seq.current && Array.isArray(e?.entries)) setEdits(e.entries); }).catch(() => {});
+    // L'historique d'édition peut être long à relire : il n'attend pas le fil,
+    // et n'est pas lancé en double.
+    if (session.mode === 'claude' && (force || !editsInflight.current)) {
+      if (editsInflight.current) editsInflight.current.abort();
+      const eac = new AbortController();
+      editsInflight.current = eac;
+      api.edits(id, sync, { signal: eac.signal }).then(e => {
+        if (mine !== seq.current || !Array.isArray(e?.entries)) return;
+        if (!sameEdits(editsRef.current, e.entries)) {
+          setEdits(e.entries);
+          cacheSet(id, { edits: e.entries });
+        }
+      }).catch(() => {}).finally(() => { if (editsInflight.current === eac) editsInflight.current = null; });
+    }
     try {
-      const r = await api.transcript(id);
+      const r = await api.transcript(id, { signal: ac.signal });
       if (mine !== seq.current) return;
-      setBlocks(Array.isArray(r?.messages) ? r.messages : []); setFailed('');
-    } catch (e) { if (mine === seq.current) setFailed(e.message); }
-  };
-  useEffect(() => { setBlocks(null); setEdits([]); setCount(30); stick.current = true; load(true); api.viewed(id).catch(() => {}); }, [id]);
-  useEffect(() => { if (turnSeq) load(true); }, [turnSeq]);
+      const next = Array.isArray(r?.messages) ? r.messages : [];
+      if (!sameBlocks(blocksRef.current, next)) {
+        setBlocks(next);
+        cacheSet(id, { blocks: next });
+      } else if (blocksRef.current === null) {
+        setBlocks(next);
+        cacheSet(id, { blocks: next });
+      }
+      setFailed('');
+    } catch (e) {
+      if (e?.name === 'AbortError') return;
+      if (mine === seq.current && blocksRef.current === null) setFailed(e.message);
+    } finally {
+      if (inflight.current === ac) inflight.current = null;
+    }
+  }, [id, session.mode]);
+
+  useEffect(() => {
+    const cached = cacheGet(id);
+    setBlocks(cached?.blocks ?? null);
+    setEdits(cached?.edits ?? []);
+    setFailed('');
+    setCount(30);
+    stick.current = cached ? cached.stick : true;
+    restoreScroll.current = cached && !cached.stick ? cached.scrollTop : -1;
+    // Avec un cache chaud, l'ouverture est immédiate ; la synchronisation des
+    // éditions suit sans bloquer la transcription.
+    load(!cached, { force: true });
+    api.viewed(id).catch(() => {});
+    const onVis = () => { if (!document.hidden) load(false); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      const el = scroller.current;
+      if (el) cacheSet(id, { scrollTop: el.scrollTop, stick: stick.current });
+      if (inflight.current) { inflight.current.abort(); inflight.current = null; }
+      if (editsInflight.current) { editsInflight.current.abort(); editsInflight.current = null; }
+    };
+  }, [id, load]);
+
+  useEffect(() => { if (turnSeq) load(true, { force: true }); }, [turnSeq, load]);
+
   // Pendant un tour, la transcription grandit sans événement dédié pour la
   // plupart des CLI : relecture régulière tant que la session travaille.
   useEffect(() => {
-    if (!live) { setTools([]); return; }
-    let n = 0;
+    if (!live) { setTools(prev => prev.length ? [] : prev); return; }
+    let n = 0, alive = true, toolsBusy = false;
+    const pollTools = () => {
+      if (session.mode !== 'claude' || toolsBusy) return;
+      toolsBusy = true;
+      api.activeTools(id).then(r => {
+        if (!alive) return;
+        const next = Array.isArray(r?.tools) ? r.tools.filter(x => x && x.command) : [];
+        setTools(prev => sameTools(prev, next) ? prev : next);
+      }).catch(() => {}).finally(() => { toolsBusy = false; });
+    };
+    pollTools();
     const timer = setInterval(() => {
       if (document.hidden) return;
       load(++n % 4 === 0);
-      if (session.mode === 'claude') api.activeTools(id).then(r => setTools(Array.isArray(r?.tools) ? r.tools.filter(x => x && x.command) : [])).catch(() => {});
+      pollTools();
     }, 2500);
-    return () => clearInterval(timer);
-  }, [id, live]);
-  useEffect(() => { const el = scroller.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [blocks, edits, approvals.length, state, tools.length]);
-  const turns = buildTurns(blocks, edits, live);
+    return () => { alive = false; clearInterval(timer); };
+  }, [id, live, session.mode, load]);
+
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    if (restoreScroll.current >= 0) {
+      el.scrollTop = restoreScroll.current;
+      restoreScroll.current = -1;
+      return;
+    }
+    if (stick.current) el.scrollTop = el.scrollHeight;
+  }, [blocks, edits, approval?.id, state, tools.length]);
+
+  const turns = useMemo(() => buildTurns(blocks, edits, live), [blocks, edits, live]);
   const hasPrompt = turns.length > 0;
   // Un prompt a été soumis mais Codeman ne sait pas le distinguer à l'écran de
   // ce CLI : l'écran en direct reste la vue fidèle.
   const submitted = !hasPrompt && !!session.lastSubmitAt;
   const cli = cliOf(session.mode);
-  const loadDiff = async file => {
+  const loadDiff = useCallback(async file => {
     const parts = await Promise.all(file.ids.map(e => api.editDiff(id, e)));
     return { text: parts.map(p => p?.diff || '').join('\n'), truncated: parts.some(p => p?.truncated) };
-  };
+  }, [id]);
   const model = session.displayModel?.model;
-  const approval = approvals[approvals.length - 1];
+  const onScroll = e => {
+    const el = e.currentTarget;
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
   return html`<div class=${cls('cm-conv', compact && 'compact')}>
     <div class="cv-wrap">
       ${!compact && !phone && html`<${Minimap} scroller=${scroller} />`}
-      <div class="thread" ref=${scroller} onScroll=${e => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
+      <div class="thread" ref=${scroller} onScroll=${onScroll}>
         <div class="thread-in">
           ${blocks === null && !failed && html`<div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:120px;width:80%"></div>`}
           ${failed && html`<div class="msg-err"><${Icon} n="alert" /><span>${t('agents.conv.unavailable')} — ${failed}</span></div>`}
@@ -250,7 +407,7 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
           ${turns.length > count && html`<button type="button" class="cv-more" onClick=${() => { stick.current = false; setCount(count + 30); }}>${t('conv.earlier', { n: turns.length - count })}</button>`}
           ${turns.slice(-count).map(turn => html`<div key=${turn.key} class="cv-pair">
             <${Prompt} text=${turn.prompt} />
-            <${Turn} turn=${turn} session=${session} tools=${tools} waiting=${!!approval} loadDiff=${loadDiff} model=${model} />
+            <${Turn} turn=${turn} tools=${turn.live ? tools : EMPTY_TOOLS} waiting=${turn.live && !!approval} loadDiff=${loadDiff} model=${model} />
           </div>`)}
         </div>
       </div>
@@ -259,4 +416,5 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
     <${Composer} session=${session} compact=${compact} phone=${phone} onTerminal=${onTerminal} approval=${approval} />
   </div>`;
 }
+const EMPTY_TOOLS = [];
 
