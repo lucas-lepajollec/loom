@@ -28,7 +28,14 @@ func gatewayURL() string {
 }
 
 func gatewayToolNames(upstream []tools.MCPGatewayTool) []string {
-	used := map[string]bool{"loom_gateway_status": true, "loom_overview": true, "loom_machines": true, "loom_machine_run": true, "brain_search": true, "brain_pack": true, "brain_read": true, "brain_write": true, "brain_edit": true, "remember": true, "update_memory": true, "forget_memory": true, "list_memory": true}
+	used := map[string]bool{
+		"loom_gateway_status": true, "loom_overview": true, "loom_machines": true, "loom_machine_run": true,
+		"loom_subagent_spawn": true, "loom_subagent_list": true, "loom_subagent_send": true,
+		"loom_subagent_wait": true, "loom_subagent_read": true, "loom_subagent_stop": true,
+		"loom_board_post": true, "loom_board_read": true,
+		"brain_search": true, "brain_pack": true, "brain_read": true, "brain_write": true, "brain_edit": true,
+		"remember": true, "update_memory": true, "forget_memory": true, "list_memory": true,
+	}
 	names := make([]string, len(upstream))
 	order := make([]int, len(upstream))
 	for i := range order {
@@ -68,6 +75,7 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "loom-gateway", Version: Version}, &mcp.ServerOptions{Instructions: agentGuide})
 	brain.RegisterMCPTools(server, reader)
 	registerLoomAgentTools(server)
+	registerLoomOrchestrationTools(server)
 	// Upstreams: the person's MCP servers, then Codeman's agent tools started
 	// by Loom itself. Each tool remembers which pool serves it.
 	type source struct {
@@ -136,12 +144,19 @@ func requireGatewayAuth(next http.HandlerFunc) http.HandlerFunc {
 	fallback := requireWebAuth(next)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/mcp/loom" || r.URL.Path == "/mcp/brain" {
+			if scope, ok := lookupScopedBearer(r); ok {
+				next(w, r.WithContext(withSessionScope(r.Context(), scope)))
+				return
+			}
 			state, err := loadGatewayState()
 			if err != nil {
 				webAuthUnavailable(w)
 				return
 			}
 			if state.TokenHash != "" && checkBearer(r, state.TokenHash) {
+				if sid := strings.TrimSpace(r.Header.Get("X-Loom-Session-Id")); sid != "" {
+					r = r.WithContext(withSessionScope(r.Context(), orchResolveScope(sid)))
+				}
 				next(w, r)
 				return
 			}

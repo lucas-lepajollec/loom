@@ -117,12 +117,21 @@ func TestGatewayDiscoveryProxyAndStatus(t *testing.T) {
 	for _, tool := range list.Tools {
 		names[tool.Name] = true
 	}
-	for _, name := range []string{"brain_search", "brain_pack", "brain_read", "brain_write", "brain_edit", "memory_index", "memory_read", "memory_write", "memory_delete", "list_skills", "read_skill", "search_discussions", "loom_gateway_status", "loom_overview", "loom_machines", "loom_machine_run", "ok-server__echo"} {
+	for _, name := range []string{
+		"brain_search", "brain_pack", "brain_read", "brain_write", "brain_edit",
+		"memory_index", "memory_read", "memory_write", "memory_delete",
+		"list_skills", "read_skill", "search_discussions",
+		"loom_gateway_status", "loom_overview", "loom_machines", "loom_machine_run",
+		"loom_subagent_spawn", "loom_subagent_list", "loom_subagent_send",
+		"loom_subagent_wait", "loom_subagent_read", "loom_subagent_stop",
+		"loom_board_post", "loom_board_read",
+		"ok-server__echo",
+	} {
 		if !names[name] {
 			t.Fatal("missing", name)
 		}
 	}
-	if len(names) != 17 || names["ok-server__hidden"] {
+	if len(names) != 25 || names["ok-server__hidden"] {
 		t.Fatal(names)
 	}
 	if init := session.InitializeResult(); init == nil || !strings.Contains(init.Instructions, "loom_overview") {

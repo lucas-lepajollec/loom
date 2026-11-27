@@ -244,7 +244,8 @@ func runMachineCommand(ctx context.Context, a machineRunArgs) (machineRunResult,
 
 const agentGuide = "Loom connects you to the person's machines and agent sessions. " +
 	"Start with loom_overview. loom_machines lists the machines; loom_machine_run runs a non-interactive command on one (by id or name) and returns its exit code and output. " +
-	"agents__* tools (when available) start Codeman agent sessions in any installed CLI, send them prompts, wait for them and read their answers; delete the sessions you start once done, and never prompt sessions you did not start. " +
+	"To delegate work cleanly, prefer loom_subagent_spawn (supports any CLI/model and optional workspace='worktree' Git isolation), loom_subagent_list, loom_subagent_send, loom_subagent_wait, loom_subagent_read, loom_subagent_stop, and the shared tree board (loom_board_post / loom_board_read). " +
+	"Sub-sessions stay strictly scoped to your tree, respect depth/concurrency limits, and inherit user approval rules; close finished workers when done. " +
 	"brain_* and memory tools read and write the person's second brain. " +
 	"A call may wait for the person's approval in Loom, or be refused, when Loom's permissions ask for it: say so instead of retrying."
 

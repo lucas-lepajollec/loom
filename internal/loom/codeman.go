@@ -463,6 +463,28 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 		body = http.MaxBytesReader(w, r.Body, codemanBodyLimit)
 	}
 	auth := codemanAuthHeader(c)
+	interceptCreate := cleanPolicy == "sessions" && r.Method == http.MethodPost && body != http.NoBody && loadOrchestrationSettings().AutoInjectMCP
+	var createdSessionMeta struct {
+		Name       string
+		Mode       string
+		WorkingDir string
+	}
+	if interceptCreate {
+		raw, readErr := io.ReadAll(body)
+		if readErr != nil {
+			codemanError(w, 400, "INVALID_INPUT", "could not read Codeman session request")
+			return
+		}
+		var reqObj map[string]any
+		if json.Unmarshal(raw, &reqObj) == nil && reqObj != nil {
+			createdSessionMeta.Name, _ = reqObj["name"].(string)
+			createdSessionMeta.Mode, _ = reqObj["mode"].(string)
+			createdSessionMeta.WorkingDir, _ = reqObj["workingDir"].(string)
+		}
+		// Forward the exact untouched body to Codeman (Codeman allowlists envOverrides keys).
+		body = bytes.NewReader(raw)
+		contentLength = int64(len(raw))
+	}
 	if cleanPolicy == "settings" && r.Method == http.MethodPut && body != http.NoBody {
 		raw, readErr := io.ReadAll(body)
 		if readErr != nil {
@@ -539,6 +561,70 @@ func handleCodemanProxy(w http.ResponseWriter, r *http.Request) {
 	if resp.StatusCode == http.StatusUnauthorized {
 		codemanError(w, 502, "CODEMAN_AUTH", "Codeman rejected the configured credentials")
 		return
+	}
+	if interceptCreate {
+		respBytes, _ := io.ReadAll(io.LimitReader(resp.Body, codemanBodyLimit))
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			var created struct {
+				Data struct {
+					ID      string `json:"id"`
+					Session struct {
+						ID         string `json:"id"`
+						Name       string `json:"name"`
+						Mode       string `json:"mode"`
+						WorkingDir string `json:"workingDir"`
+					} `json:"session"`
+				} `json:"data"`
+			}
+			if json.Unmarshal(respBytes, &created) == nil {
+				sid := created.Data.Session.ID
+				if sid == "" {
+					sid = created.Data.ID
+				}
+				if sid != "" {
+					name := created.Data.Session.Name
+					if name == "" {
+						name = createdSessionMeta.Name
+					}
+					mode := created.Data.Session.Mode
+					if mode == "" {
+						mode = createdSessionMeta.Mode
+					}
+					wd := created.Data.Session.WorkingDir
+					if wd == "" {
+						wd = createdSessionMeta.WorkingDir
+					}
+					if tok, err := mintSessionToken(SessionScope{SessionID: sid, RootID: sid, Depth: 0, WorkingDir: wd}); err == nil {
+						_ = writeSessionBridgeFile(sid, gatewayURL(), tok)
+					}
+					_, _ = orchRegisterNode(OrchestrationNode{
+						SessionID:  sid,
+						RootID:     sid,
+						Depth:      0,
+						Name:       name,
+						CLI:        mode,
+						WorkingDir: wd,
+						Status:     "active",
+					})
+				}
+			}
+		}
+		for _, h := range codemanForwardResponseHeaders {
+			if v := resp.Header.Get(h); v != "" {
+				w.Header().Set(h, v)
+			}
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Add("Content-Security-Policy", "default-src 'none'; sandbox")
+		w.WriteHeader(resp.StatusCode)
+		_, _ = w.Write(respBytes)
+		return
+	}
+	if r.Method == http.MethodDelete && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if sid, ok := strings.CutPrefix(clean, "sessions/"); ok && sid != "" && !strings.Contains(sid, "/") {
+			orchMarkStopped(sid)
+		}
 	}
 	if cleanPolicy == "settings" {
 		switch {

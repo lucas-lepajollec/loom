@@ -11,6 +11,7 @@ import { get, post } from '../core/api.js';
 import { app, go, refreshNav, refreshStatus, runtimeKind } from '../core/state.js';
 import { chat, open, newDiscussion } from '../features/chat/engine.js';
 import { agents, attentionOf, ATTENTION, sessionList, useRestorable, cliOf, projectOf } from '../features/agents/store.js';
+import { orchestration, useOrchestrationLive, visibleParentOf, nodeOf, stopTree } from '../features/agents/orchestration.js';
 import { closeSession, renameSession } from '../features/agents/actions.js';
 import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
@@ -86,7 +87,7 @@ function chatMenu(it) {
   ];
 }
 
-function agentMenu(it) {
+function agentMenu(it, hasKids = false) {
   const s = it.s;
   return [
     { label: t('agents.session.rename'), icon: 'edit', run: async () => {
@@ -94,6 +95,10 @@ function agentMenu(it) {
       if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
     } },
     ...moveItems(it),
+    ...(hasKids ? ['-', { label: t('agents.orch.stop_tree'), icon: 'stop', danger: true, run: async () => {
+      if (!await confirm(t('agents.orch.stop_tree_title'), t('agents.orch.stop_tree_text'), { ok: t('agents.orch.stop_tree'), danger: true })) return;
+      try { await stopTree(s.id, { mode: 'close' }); toast(t('agents.orch.tree_stopped')); } catch (e) { toast(e.message, 'err'); }
+    } }] : []),
     '-',
     { label: t('agents.session.close'), icon: 'trash', danger: true, run: async () => {
       if (!await confirm(t('agents.session.close_title'), t('agents.session.close_text', { name: s.name || s.id.slice(0, 8) }), { ok: t('agents.session.close'), danger: true })) return;
@@ -102,26 +107,63 @@ function agentMenu(it) {
   ];
 }
 
+function collectTreeIds(parentId, kidsMap, out = []) {
+  for (const k of kidsMap.get(parentId) || []) {
+    out.push(k);
+    collectTreeIds(k.id, kidsMap, out);
+  }
+  return out;
+}
+
 let dragged = null;
-function Row({ it, current }) {
+function Row({ it, current, kidsMap, collapsed, toggleCollapse, isCurrent, depth = 0 }) {
   const [menu, setMenu] = useState(null);
   const agent = it.kind === 'agent';
+  const kids = agent && kidsMap ? (kidsMap.get(it.id) || []) : [];
+  const hasKids = kids.length > 0;
+  const isOpen = hasKids && !(collapsed && collapsed.has(it.id));
+  const orchNode = useStore(orchestration, o => (agent ? o.nodes[it.id] || null : null));
   const state = useStore(agents, () => agent ? attentionOf(it.s) : '');
-  const busy = agent ? state === 'working' || state === 'starting' : it.c.status === 'running';
+  const desc = hasKids ? collectTreeIds(it.id, kidsMap) : [];
+  const childRollup = useStore(agents, () => {
+    if (!desc.length) return { busy: false, attention: '' };
+    let busy = false, attention = '';
+    for (const c of desc) {
+      const st = attentionOf(c.s);
+      if (st === 'approval' || st === 'question') { attention = st; break; }
+      if (st === 'working' || st === 'starting') busy = true;
+    }
+    return { busy, attention };
+  });
+  const busy = agent ? (state === 'working' || state === 'starting' || (!isOpen && childRollup.busy)) : it.c.status === 'running';
+  const shownFlag = agent && ATTENTION.has(state) ? state : (!isOpen && childRollup.attention ? childRollup.attention : '');
   const activate = () => { if (agent) openSession(it.id); else { open(it.id); go('chat'); } };
-  return html`<div class=${cls('chat-link', 'ses-row', agent && 'st-' + state, busy && 'is-busy')} aria-current=${current ? 'page' : undefined} role="button" tabindex="0" draggable="true" title=${agent ? it.s.workingDir || '' : ''}
+  const branchTag = orchNode?.branch ? orchNode.branch.replace(/^loom\//, '') : '';
+  const rowTip = agent ? [orchNode?.role, branchTag && ('⎇ ' + orchNode.branch), it.s.workingDir].filter(Boolean).join(' · ') : '';
+
+  const rowEl = html`<div class=${cls('chat-link', 'ses-row', depth > 0 && 'ses-child', agent && 'st-' + state, busy && 'is-busy')} aria-current=${current ? 'page' : undefined} role="button" tabindex="0" draggable="true" title=${rowTip}
       onDragStart=${e => { e.dataTransfer.effectAllowed = 'move'; if (agent) e.dataTransfer.setData(DRAG_TYPE, it.id); else e.dataTransfer.setData('application/x-loom-chat', it.id); dragged = it; }}
       onDragEnd=${() => { dragged = null; }}
       onClick=${activate} onKeyDown=${e => e.key === 'Enter' && activate()}>
+    ${hasKids && html`<button type="button" class="ses-tree-toggle" aria-label=${isOpen ? t('agents.orch.collapse') : t('agents.orch.expand')} aria-expanded=${String(isOpen)}
+      onClick=${e => { e.stopPropagation(); toggleCollapse?.(it.id); }}><${Icon} n=${isOpen ? 'chevron' : 'right'} /></button>`}
     <span class="ses-ico">${agent ? html`<${CliMark} mode=${it.s.mode} size="xs" />` : html`<${Icon} n="chat" />`}</span>
     <span class=${cls('ses-title', busy && 'shimmer-text')}>${it.title}</span>
-    ${agent && ATTENTION.has(state) ? html`<small class=${'ses-flag st-' + state}>${lt('state', state)}</small>`
+    ${hasKids && html`<em class="ses-tree-cnt" title=${t('agents.orch.children_count', { n: desc.length })}>${desc.length}</em>`}
+    ${shownFlag ? html`<small class=${'ses-flag st-' + shownFlag}>${lt('state', shownFlag)}</small>`
       : busy ? html`<span class="loom-pulse ses-pulse" title=${agent ? lt('state', state) : ''} aria-hidden="true"><i></i><i></i><i></i><i></i></span>`
       : agent && state === 'error' ? html`<small class="ses-flag st-error">${lt('state', state)}</small>`
       : agent && state === 'limited' ? html`<small class="ses-flag st-limited">${lt('state', state)}</small>`
       : it.at ? html`<small class="ses-when">${ago(it.at)}</small>` : ''}
     <button class="icon-btn more" aria-label=${t('app.shell.actions')} onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
-    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${agent ? agentMenu(it) : chatMenu(it)} />`}
+    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${agent ? agentMenu(it, hasKids) : chatMenu(it)} />`}
+  </div>`;
+
+  if (!hasKids) return rowEl;
+  return html`<div class="ses-tree">
+    ${rowEl}
+    ${isOpen && html`<div class="ses-tree-kids">${kids.map(k => html`<${Row} key=${k.kind + k.id} it=${k} current=${isCurrent ? isCurrent(k) : false}
+      kidsMap=${kidsMap} collapsed=${collapsed} toggleCollapse=${toggleCollapse} isCurrent=${isCurrent} depth=${depth + 1} />`)}</div>`}
   </div>`;
 }
 
@@ -134,7 +176,7 @@ function dropZone(folder, setOver) {
   };
 }
 
-function Folder({ p, items, open: isOpen, toggle, isCurrent, phone }) {
+function Folder({ p, items, open: isOpen, toggle, isCurrent, phone, kidsMap, collapsed, toggleCollapse }) {
   const [menu, setMenu] = useState(null);
   const [over, setOver] = useState(false);
   const items_ = [
@@ -159,7 +201,7 @@ function Folder({ p, items, open: isOpen, toggle, isCurrent, phone }) {
       <button class="icon-btn" type="button" aria-label=${t('side.folder_actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
     </div>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items_} />`}
-    ${isOpen && html`<div class="phone-folder-items">${items.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} />`)}</div>`}
+    ${isOpen && html`<div class="phone-folder-items">${items.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} kidsMap=${kidsMap} />`)}</div>`}
   </div>`;
   return html`<div class=${cls('ses-folder', over && 'drop-on')} ...${dropZone(p.id, setOver)}>
     <div class="chat-link ses-folder-h" role="button" tabindex="0" aria-expanded=${String(isOpen)} onClick=${toggle} onKeyDown=${e => e.key === 'Enter' && toggle()}>
@@ -168,7 +210,7 @@ function Folder({ p, items, open: isOpen, toggle, isCurrent, phone }) {
       <button class="icon-btn more" aria-label=${t('side.folder_actions')} onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
     </div>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items_} />`}
-    ${isOpen && html`<div class="ses-folder-in">${items.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} />`)}</div>`}
+    ${isOpen && html`<div class="ses-folder-in">${items.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} kidsMap=${kidsMap} collapsed=${collapsed} toggleCollapse=${toggleCollapse} isCurrent=${isCurrent} />`)}</div>`}
   </div>`;
 }
 
@@ -178,19 +220,21 @@ function phoneState(it) {
 }
 const usePhoneState = it => useStore(agents, () => phoneState(it));
 
-function PhoneSessionRow({ it }) {
+function PhoneSessionRow({ it, kidsMap, depth = 0 }) {
   const [menu, setMenu] = useState(null);
   const action = useRef(), swipe = useRef(null), hold = useRef(null), suppress = useRef(0);
   const agent = it.kind === 'agent';
+  const kids = agent && kidsMap ? (kidsMap.get(it.id) || []) : [];
   const state = usePhoneState(it);
-  const model = agent ? [cliOf(it.s.mode).label, it.s.workingDir && projectOf(it.s.workingDir)]
+  const orchNode = useStore(orchestration, o => (agent ? o.nodes[it.id] || null : null));
+  const model = agent ? [orchNode?.role, cliOf(it.s.mode).label, orchNode?.branch || (it.s.workingDir && projectOf(it.s.workingDir))]
     : [baseName(it.c.model).replace(/\.gguf$/i, ''), it.c.runtime_id && (runtimeKind(it.c.runtime_id) === 'cloud' ? t('chat.picker.cloud')
       : runtimeKind(it.c.runtime_id) === 'local' ? t('chat.picker.local') : t('mobile.archive'))];
   const stateLabel = ['approval', 'question', 'unseen', 'working', 'starting', 'error', 'limited'].includes(state) ? lt('state', state) : '';
   const showMenu = () => { suppress.current = Date.now() + 400; setMenu(action.current); };
   const cancelHold = () => clearTimeout(hold.current);
   useEffect(() => cancelHold, []);
-  return html`<div class="phone-session-row" onContextMenu=${e => { e.preventDefault(); showMenu(); }}
+  const row = html`<div class=${cls('phone-session-row', depth > 0 && 'phone-child')} onContextMenu=${e => { e.preventDefault(); showMenu(); }}
     onTouchStart=${e => {
       cancelHold();
       swipe.current = e.touches.length === 1 ? e.touches[0] : null;
@@ -217,11 +261,13 @@ function PhoneSessionRow({ it }) {
         : it.at ? html`<small class="phone-row-time">${ago(it.at)}</small>` : ''}
     </button>
     <button type="button" class="icon-btn" ref=${action} aria-label=${t('app.shell.actions')} onClick=${showMenu}><${Icon} n="more" /></button>
-    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${agent ? agentMenu(it) : chatMenu(it)} label=${it.title} />`}
+    ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${agent ? agentMenu(it, kids.length > 0) : chatMenu(it)} label=${it.title} />`}
   </div>`;
+  if (!kids.length) return row;
+  return html`<div class="phone-tree">${row}<div class="phone-tree-kids">${kids.map(k => html`<${PhoneSessionRow} key=${k.kind + k.id} it=${k} kidsMap=${kidsMap} depth=${depth + 1} />`)}</div></div>`;
 }
 
-function PhoneSessions({ filter, setFilter, items, folders, openFolders, toggleFolder, cut, conn, newFolder }) {
+function PhoneSessions({ filter, setFilter, items, kidsMap, folders, openFolders, toggleFolder, cut, conn, newFolder }) {
   // Relit les états d'attention quand un accord, une fin ou une ouverture change.
   useStore(agents, st => ({ approvals: st.approvals, completed: st.completed, seen: st.seen }));
   const nativeRunning = useStore(chat, s => s.mode === 'native' && s.busy);
@@ -232,7 +278,7 @@ function PhoneSessions({ filter, setFilter, items, folders, openFolders, toggleF
   const model = useStore(app, defaultModel);
   useStore(chat, s => s.localTarget);
   const pull = usePullRefresh(() => Promise.allSettled([refreshNav(), refreshAgentFolders(), refreshStatus(), refreshAgentInbox()]));
-  const sessionRows = rows => rows.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} />`);
+  const sessionRows = rows => rows.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} kidsMap=${kidsMap} />`);
   return html`<div class="view phone-page phone-sessions">
     <header class="phone-title"><h1>${t('mobile.sessions')}</h1>
       <button type="button" class="icon-btn" aria-label=${t('app.palette.rechercher')} onClick=${openPalette}><${Icon} n="search" /></button>
@@ -244,7 +290,7 @@ function PhoneSessions({ filter, setFilter, items, folders, openFolders, toggleF
       ${active.length > 0 && html`<section><h2>${t('mobile.in_progress')}</h2>${sessionRows(active)}</section>`}
       <section><div class="phone-section-head"><h2>${t('mobile.recent')}</h2><button type="button" class="icon-btn" aria-label=${t('side.new_folder')} onClick=${newFolder}><${Icon} n="folder" /></button></div>
         ${sessionRows(recent)}
-        ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${shown.filter(it => it.folder === p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} phone />`)}
+        ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${shown.filter(it => it.folder === p.id)} kidsMap=${kidsMap} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} phone />`)}
         ${!items.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}
       </section>
       ${conn.configured && conn.state !== 'ready' && filter !== 'chats' && html`<a class="phone-link" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span><${Icon} n="right" /></a>`}
@@ -261,14 +307,18 @@ export function Sessions({ phone = false, mode }) {
   const { route, nav, workspaceMode } = useStore(app, s => ({ route: s.route, nav: s.nav, workspaceMode: s.workspaceMode }));
   const conn = useStore(agents, s => s.conn);
   useStore(agents, s => ({ order: s.order, sessions: s.sessions }));
+  const orchNodes = useStore(orchestration, o => o.nodes);
+  useOrchestrationLive();
   const folderMap = useStore(agentFolders, s => s.map);
   const chatId = useStore(chat, s => s.sessionId) || nav.active;
   const [filter, setFilterState] = useState(() => { const f = load('loom.side.filter', 'all'); return FILTERS.includes(f) ? f : 'all'; });
   const [openFolders, setOpenFolders] = useState(() => new Set(load('loom.next.proj', [])));
+  const [collapsed, setCollapsed] = useState(() => new Set(load('loom.orch.collapsed', [])));
   const [overLoose, setOverLoose] = useState(false);
   useEffect(() => { refreshAgentFolders(); }, []);
   const setFilter = f => { setFilterState(f); save('loom.side.filter', f); };
   const toggleFolder = id => { const n = new Set(openFolders); n.has(id) ? n.delete(id) : n.add(id); setOpenFolders(n); save('loom.next.proj', [...n]); };
+  const toggleCollapse = id => { const n = new Set(collapsed); n.has(id) ? n.delete(id) : n.add(id); setCollapsed(n); save('loom.orch.collapsed', [...n]); };
   const agentsOn = conn.configured;
   const ready = conn.state === 'ready';
   const cut = useRestorable();
@@ -277,9 +327,28 @@ export function Sessions({ phone = false, mode }) {
 
   const chats = effectiveFilter === 'agents' ? [] : nav.conversations.map(c => ({ kind: 'chat', id: c.id, c, title: c.title || t('app.shell.nouvelle_discussion'), folder: c.project_id || '', pinned: !!c.fav, at: c.updated_at || c.saved_at || 0 }));
   const live = effectiveFilter === 'chats' || !agentsOn ? [] : sessionList().map(s => ({ kind: 'agent', id: s.id, s, title: s.name || s.id.slice(0, 8), folder: folderMap[s.id] || '', pinned: false, at: s.lastActivityAt || s.createdAt || 0 }));
+
+  // Imbriquer les sous-sessions sous leur parent (sans jamais perdre un enfant si le parent est fermé).
+  const visibleAgentIds = new Set(live.map(it => it.id));
+  const kidsMap = new Map();
+  const topLive = [];
+  for (const it of live) {
+    const pid = visibleParentOf(it.id, visibleAgentIds, orchNodes);
+    if (pid) {
+      const list = kidsMap.get(pid) || [];
+      list.push(it);
+      kidsMap.set(pid, list);
+    } else {
+      topLive.push(it);
+    }
+  }
+  for (const list of kidsMap.values()) {
+    list.sort((a, b) => (a.s.createdAt || 0) - (b.s.createdAt || 0));
+  }
+
   const folders = nav.projects || [];
   const known = new Set(folders.map(p => p.id));
-  const all = [...chats, ...live].map(it => (known.has(it.folder) ? it : { ...it, folder: '' }))
+  const all = [...chats, ...topLive].map(it => (known.has(it.folder) ? it : { ...it, folder: '' }))
     .sort((a, b) => (b.pinned - a.pinned) || (b.at - a.at));
   const inFolder = id => all.filter(it => it.folder === id);
   const loose = all.filter(it => !it.folder);
@@ -292,7 +361,7 @@ export function Sessions({ phone = false, mode }) {
     const r = await post('/api/projects', { name });
     if (!r.ok) toast(r.error || t('app.shell.creation_impossible'), 'err'); refreshNav();
   };
-  if (phone) return html`<${PhoneSessions} filter=${filter} setFilter=${setFilter} items=${all} folders=${folders} openFolders=${openFolders}
+  if (phone) return html`<${PhoneSessions} filter=${filter} setFilter=${setFilter} items=${all} kidsMap=${kidsMap} folders=${folders} openFolders=${openFolders}
     toggleFolder=${toggleFolder} cut=${cut} conn=${conn} newFolder=${newFolder} />`;
   const mosaic = activeMode === 'agents' && agentsOn && ready && innerWidth > 760;
 
@@ -306,8 +375,8 @@ export function Sessions({ phone = false, mode }) {
     </div>
     <div class=${cls('side-list', overLoose && 'drop-on')} ...${dropZone('', setOverLoose)}>
       ${activeMode === 'agents' && agentsOn && ready && cut.length > 0 && html`<a class="chat-link sub ses-restore" href="#/agents"><${Icon} n="refresh" /><span>${t('agents.restore.side', { n: cut.length })}</span></a>`}
-      ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${inFolder(p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} isCurrent=${isCurrent} />`)}
-      ${loose.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} />`)}
+      ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${inFolder(p.id)} kidsMap=${kidsMap} collapsed=${collapsed} toggleCollapse=${toggleCollapse} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} isCurrent=${isCurrent} />`)}
+      ${loose.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} kidsMap=${kidsMap} collapsed=${collapsed} toggleCollapse=${toggleCollapse} isCurrent=${isCurrent} />`)}
       ${!all.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}
       ${activeMode === 'agents' && agentsOn && !ready && html`<a class="chat-link sub" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span></a>`}
     </div>

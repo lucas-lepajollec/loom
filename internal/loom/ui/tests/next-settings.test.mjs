@@ -629,8 +629,8 @@ test('agent access reports the last agent and toggles the two confirm rules with
   h.env.post = async (url, body) => { h.posts.push([url, body]); return body; };
   await ask().props.onChange(true);
   const on = h.posts.at(-1)[1].rules;
-  assert.deepEqual(plain(on.map(r => r.id)), ['kept', 'agent-access-ask-run', 'agent-access-ask-session']);
-  assert.deepEqual(plain(on.slice(1).map(r => [r.subject, r.decision])), [['mcp.tool:loom/loom_machine_run', 'confirm'], ['mcp.tool:agents/start_session', 'confirm']]);
+  assert.deepEqual(plain(on.map(r => r.id)), ['kept', 'agent-access-ask-run', 'agent-access-ask-session', 'agent-access-ask-subagent']);
+  assert.deepEqual(plain(on.slice(1).map(r => [r.subject, r.decision])), [['mcp.tool:loom/loom_machine_run', 'confirm'], ['mcp.tool:agents/start_session', 'confirm'], ['mcp.tool:loom/loom_subagent_spawn', 'confirm']]);
   assert.equal(ask().props.checked, true);
   await ask().props.onChange(false);
   assert.deepEqual(plain(h.posts.at(-1)[1].rules.map(r => r.id)), ['kept']);
