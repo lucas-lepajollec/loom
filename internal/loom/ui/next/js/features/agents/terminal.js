@@ -11,6 +11,10 @@ import { api, sendPrompt, terminalClientId } from './client.js';
 import { agentDraftKey } from './actions.js';
 import { toast } from '../../ui/dialog.js';
 import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
+import {
+  panelState, previewFor, openPreview, mergeDetectedDocs,
+  normalizeSessionPath, extractOsc8Uris, extractFilesFromText, findFileLinksInLine,
+} from './panel-state.js';
 
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 // Mêmes seuils que Codeman (MobileDetection.getDeviceType) : il refuse la taille
@@ -76,8 +80,9 @@ const glOff = () => { try { return sessionStorage.getItem('loom.term.nogl') === 
 const markGlOff = () => { try { sessionStorage.setItem('loom.term.nogl', '1'); } catch (_) {} };
 const historyQuery = (shell, lines) => `full=1&tail=${TAIL}&lines=${lines}` + (shell ? '&alt=recording' : '');
 
-export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true, fontSize = 13, focus = false, readOnly = false, scrollback = 20000, onState, phoneControls = false }) {
-  const box = useRef(), termRef = useRef();
+export function AgentTerminal({ sessionId, mode = '', workingDir = '', shell = false, fit = true, fontSize = 13, focus = false, readOnly = false, scrollback = 20000, onState, phoneControls = false }) {
+  const box = useRef(), termRef = useRef(), workingDirRef = useRef(workingDir);
+  workingDirRef.current = workingDir;
   const [state, setState] = useState('connecting');
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
@@ -106,8 +111,94 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         fontFamily: cssVar('--mono') || 'monospace', fontSize, lineHeight: 1.18, letterSpacing: 0, cursorBlink: false,
         cursorStyle: 'bar', scrollback, allowProposedApi: true, convertEol: false, minimumContrastRatio: light ? 4.5 : 1,
         disableStdin: readOnly, theme: theme(),
+        // Hyperliens OSC 8 émis par les CLI (Antigravity, Claude, Codex…) :
+        // les liens file:// ou chemins locaux ouvrent l'onglet Aperçu.
+        linkHandler: {
+          activate(_ev, uri) {
+            const rel = normalizeSessionPath(uri, workingDirRef.current);
+            if (rel) { openPreview(sessionId, rel); return; }
+            if (/^https?:\/\//i.test(uri)) window.open(uri, '_blank', 'noopener,noreferrer');
+          },
+        },
       });
       termRef.current = term;
+      // Liens cliquables sur les chemins de fichiers imprimés en texte brut dans
+      // le terminal (y compris sur plusieurs lignes enveloppées).
+      const linkDisposable = term.registerLinkProvider?.({
+        provideLinks(bufferLineNumber, callback) {
+          try {
+            const buf = term.buffer?.active;
+            if (!buf) { callback(undefined); return; }
+            let first = bufferLineNumber - 1;
+            while (first > 0 && buf.getLine(first)?.isWrapped) first--;
+            const segs = [];
+            let full = '';
+            for (let row = first; row < buf.length; row++) {
+              const line = buf.getLine(row);
+              if (!line) break;
+              if (row > first && !line.isWrapped) break;
+              const nextLine = buf.getLine(row + 1);
+              const str = line.translateToString(!(nextLine && nextLine.isWrapped));
+              segs.push({ y: row + 1, offset: full.length, len: str.length });
+              full += str;
+            }
+            const known = previewFor(panelState.get(), sessionId).detected;
+            const matches = findFileLinksInLine(full, workingDirRef.current, known);
+            if (!matches.length) { callback(undefined); return; }
+            const toXY = idx => {
+              const clamped = Math.max(0, Math.min(idx, Math.max(0, full.length - 1)));
+              for (let i = segs.length - 1; i >= 0; i--) {
+                const seg = segs[i];
+                if (clamped >= seg.offset) return { x: (clamped - seg.offset) + 1, y: seg.y };
+              }
+              return { x: 1, y: bufferLineNumber };
+            };
+            callback(matches.map(m => ({
+              range: { start: toXY(m.start), end: toXY(Math.max(m.start, m.end - 1)) },
+              text: m.raw,
+              activate() { openPreview(sessionId, m.path); },
+            })));
+          } catch (_) { callback(undefined); }
+        },
+      });
+      // Détection automatique des fichiers cités par le CLI (liens OSC 8 et
+      // chemins dans les dernières lignes du buffer) pour faire apparaître
+      // l'onglet et le bouton Aperçu sans intervention manuelle.
+      const oscUris = [];
+      let scanTimer = 0;
+      const recordOsc8 = chunk => {
+        const uris = extractOsc8Uris(chunk);
+        if (!uris.length) return;
+        for (const u of uris) {
+          oscUris.push(u);
+          if (oscUris.length > 32) oscUris.shift();
+        }
+      };
+      const scanDocs = () => {
+        scanTimer = 0;
+        if (!alive || !term?.buffer?.active) return;
+        try {
+          const buf = term.buffer.active;
+          const total = buf.length;
+          const start = Math.max(0, total - 160);
+          const logical = [];
+          for (let i = start; i < total; i++) {
+            const line = buf.getLine(i);
+            if (!line) continue;
+            const nextLine = buf.getLine(i + 1);
+            const str = line.translateToString(!(nextLine && nextLine.isWrapped));
+            if (line.isWrapped && logical.length) logical[logical.length - 1] += str;
+            else logical.push(str);
+          }
+          const found = extractFilesFromText(logical.join('\n'), workingDirRef.current, oscUris);
+          if (found.length) mergeDetectedDocs(sessionId, found);
+        } catch (_) {}
+      };
+      const scheduleScan = () => {
+        if (!alive) return;
+        clearTimeout(scanTimer);
+        scanTimer = setTimeout(scanDocs, 450);
+      };
       fitAddon = new w.FitAddon.FitAddon();
       term.loadAddon(fitAddon);
       term.open(box.current);
@@ -162,7 +253,8 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
         if (!alive || outBusy || !outQ.length) return;
         const data = outQ.length === 1 ? outQ[0] : outQ.join('');
         outQ = []; outBusy = true;
-        term.write(data, () => { outBusy = false; if (outQ.length) outSchedule(); });
+        recordOsc8(data);
+        term.write(data, () => { outBusy = false; scheduleScan(); if (outQ.length) outSchedule(); });
       };
       const outSchedule = () => { if (!outFrame) outFrame = document.hidden ? setTimeout(outFlush, 100) : requestAnimationFrame(outFlush); };
       const output = d => { outQ.push(d); outSchedule(); };
@@ -243,9 +335,11 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
           // Une seule écriture : xterm.js la découpe déjà lui-même dans le temps
           // (le découper en plus faisait geler l'écran avec le rendu GPU).
           const data = r?.terminalBuffer || '';
+          recordOsc8(data);
           await new Promise(done => (data ? term.write(data, done) : done()));
           if (!alive || gen !== screenGen) return;
           restore();
+          scheduleScan();
           // Pas d'historique tmux : le CLI dessine en plein écran et garde lui-même son historique.
           hollow = r?.paneHistoryLines === 0;
           if (alive) setFullscreen(hollow && !shell);
@@ -449,7 +543,7 @@ export function AgentTerminal({ sessionId, mode = '', shell = false, fit = true,
       el.addEventListener('dragover', onOver);
       el.addEventListener('dragleave', onLeave);
       el.addEventListener('drop', onDrop, true);
-      detach = () => { stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart, true); el.removeEventListener('touchmove', onTouchMove, true); el.removeEventListener('touchend', onTouchEnd); el.removeEventListener('touchcancel', onTouchCancel); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
+      detach = () => { clearTimeout(scanTimer); try { linkDisposable?.dispose?.(); } catch (_) {} stopGlide(); cancelAnimationFrame(frame); el.removeEventListener('touchstart', onTouchStart, true); el.removeEventListener('touchmove', onTouchMove, true); el.removeEventListener('touchend', onTouchEnd); el.removeEventListener('touchcancel', onTouchCancel); document.fonts?.removeEventListener?.('loadingdone', remeasure); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); el.removeEventListener('pointerdown', onBack); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('paste', onPaste, true); el.removeEventListener('dragover', onOver); el.removeEventListener('dragleave', onLeave); el.removeEventListener('drop', onDrop, true); };
     })().catch(() => report('error'));
     return () => { try { saveRef.current?.(); } catch (_) {} alive = false; clearTimeout(resizeTimer); detach?.(); ro?.disconnect(); stopConn?.(); disposeTerm(term); };
   }, [sessionId, readOnly]);

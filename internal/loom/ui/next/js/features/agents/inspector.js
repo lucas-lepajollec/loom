@@ -11,6 +11,7 @@ import { DropdownButton, Switch, Empty, Seg, Menu } from '../../ui/controls.js';
 import { toast, prompt, confirm } from '../../ui/dialog.js';
 import { copyText } from '../../ui/clipboard.js';
 import { md } from '../chat/md.js';
+import { request } from '../../core/api.js';
 import { api, sendPrompt } from './client.js';
 import { ago } from './rail.js';
 import { agents, cliOf, onDomain, upsertSession, stateOf, projectOf, hasConversation, sessionList, queueCommand } from './store.js';
@@ -233,6 +234,17 @@ function SubagentsTab({ subState, refreshSub }) {
   </div>`;
 }
 
+async function readOutsideFile(absPath) {
+  const rel = String(absPath || '').replace(/^\/+/, '');
+  if (!rel) return { outside: true };
+  const r = await request('/api/files/read?scope=machine&path=' + encodeURIComponent(rel), { timeout: 15000 });
+  let d = null;
+  try { d = await r.json(); } catch (_) {}
+  if (!r.ok || !d || d.ok === false) return { outside: true };
+  if (d.binary || d.too_large) return { binary: true, truncated: !!d.too_large };
+  return { content: typeof d.content === 'string' ? d.content : null };
+}
+
 function PreviewTab({ session, preview }) {
   const id = session.id;
   const activePath = preview.active || preview.detected[0] || preview.recent[0] || '';
@@ -251,11 +263,12 @@ function PreviewTab({ session, preview }) {
   const [mode, setMode] = useState('rendered');
   useEffect(() => { setMode('rendered'); }, [activePath]);
 
-  const outsideRoot = activePath.startsWith('/');
+  const isAbs = activePath.startsWith('/');
   const [st, run] = useRead(
-    () => (!activePath || outsideRoot) ? Promise.resolve(null) : api.fileContent(id, activePath),
-    [id, activePath, outsideRoot],
+    () => !activePath ? Promise.resolve(null) : isAbs ? readOutsideFile(activePath) : api.fileContent(id, activePath),
+    [id, activePath, isAbs],
   );
+  const outsideRoot = !!st.data?.outside;
   const content = typeof st.data?.content === 'string' ? st.data.content : null;
   const renderedHtml = useMemo(() => (markdown && mode === 'rendered' && content !== null ? md(content) : ''), [markdown, mode, content]);
 
@@ -292,13 +305,13 @@ function PreviewTab({ session, preview }) {
           <button type="button" class=${cls(mode === 'raw' && 'on')} onClick=${() => setMode('raw')}>${t('agents.preview.raw')}</button>
         </div>`}
         <button type="button" class="icon-btn" aria-label=${t('agents.files.copy_path')} title=${t('agents.files.copy_path')} onClick=${() => copyText(activePath).then(() => toast(t('agents.copied')))}><${Icon} n="copy" /></button>
-        ${!outsideRoot && html`<button type="button" class="icon-btn" aria-label=${t('common.refresh')} title=${t('common.refresh')} onClick=${() => run()}><${Icon} n="refresh" /></button>`}
+        <button type="button" class="icon-btn" aria-label=${t('common.refresh')} title=${t('common.refresh')} onClick=${() => run()}><${Icon} n="refresh" /></button>
         <button type="button" class="icon-btn" aria-label=${t('agents.preview.close')} title=${t('agents.preview.close')} onClick=${() => closePreview(id)}><${Icon} n="close" /></button>
       </div>
     </div>
     <div class="cm-preview-body">
-      ${outsideRoot ? html`<div class="cm-preview-msg"><${Icon} n="info" /><span>${t('agents.preview.outside')}</span></div>`
-        : st.loading && !st.data ? html`<${Loading} />`
+      ${st.loading && !st.data ? html`<${Loading} />`
+        : outsideRoot ? html`<div class="cm-preview-msg"><${Icon} n="info" /><span>${t('agents.preview.outside')}</span></div>`
         : st.error ? html`<${Failed} error=${st.error} retry=${run} />`
         : content === null ? html`<p class="muted">${t('agents.files.binary')}</p>`
         : markdown && mode === 'rendered' ? html`<div class="md cm-preview-md" onClick=${onMdClick} dangerouslySetInnerHTML=${{ __html: renderedHtml }}></div>`

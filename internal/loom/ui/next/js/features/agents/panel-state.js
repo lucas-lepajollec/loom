@@ -4,12 +4,14 @@
 import { createStore } from '../../core/lib.js';
 import {
   DEFAULT_PANEL_WIDTH, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH,
-  clampPanelWidth, isMarkdownPath, normalizeSessionPath, extractMentionedFiles,
+  clampPanelWidth, isMarkdownPath, normalizeSessionPath,
+  extractMentionedFiles, extractFilesFromText, extractOsc8Uris, findFileLinksInLine,
 } from './panel-helpers.js';
 
 export {
   DEFAULT_PANEL_WIDTH, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH,
-  clampPanelWidth, isMarkdownPath, normalizeSessionPath, extractMentionedFiles,
+  clampPanelWidth, isMarkdownPath, normalizeSessionPath,
+  extractMentionedFiles, extractFilesFromText, extractOsc8Uris, findFileLinksInLine,
 };
 
 const WIDTH_KEY = 'loom.codeman.inspWidth';
@@ -100,5 +102,25 @@ export function setDetectedDocs(sessionId, paths) {
   if (cur.detected.length === list.length && cur.detected.every((p, i) => p === list[i])) return;
   panelState.set({
     previews: { ...st.previews, [sessionId]: { ...cur, detected: list } },
+  });
+}
+
+// Fusionne des documents détectés (ex: flux terminal CLI + conversation en vue
+// partagée) sans effacer ceux déjà repérés.
+export function mergeDetectedDocs(sessionId, paths) {
+  if (!sessionId || !Array.isArray(paths) || !paths.length) return;
+  const st = panelState.get();
+  const cur = st.previews[sessionId] || EMPTY_PREVIEW;
+  const merged = [];
+  const seen = new Set();
+  for (const p of [...paths, ...cur.detected]) {
+    if (!p || seen.has(p)) continue;
+    seen.add(p);
+    merged.push(p);
+    if (merged.length >= 8) break;
+  }
+  if (cur.detected.length === merged.length && cur.detected.every((p, i) => p === merged[i])) return;
+  panelState.set({
+    previews: { ...st.previews, [sessionId]: { ...cur, detected: merged } },
   });
 }
