@@ -20,6 +20,7 @@ import (
 // Worktrees live under <repo>/.loom-worktrees/<slug>, excluded automatically
 // via <git-common-dir>/info/exclude so tracked .gitignore and git status stay
 // clean while remaining inside Codeman's authorized workspace directory.
+// All repository/worktree file I/O is confined with os.OpenRoot.
 
 const loomWorktreesDir = ".loom-worktrees"
 
@@ -37,7 +38,27 @@ type WorktreeStatus struct {
 	Ahead      int    `json:"ahead"`
 }
 
-var wtSlugBadRe = regexp.MustCompile(`[^a-z0-9-]+`)
+var (
+	wtSlugBadRe = regexp.MustCompile(`[^a-z0-9-]+`)
+	wtBranchRe  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9/_-]{0,63}$`)
+	wtSlugRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,47}$`)
+)
+
+const (
+	slugAlphabet   = "abcdefghijklmnopqrstuvwxyz0123456789-"
+	branchAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_-"
+)
+
+func filterAlphabet(raw, alphabet string, maxLen int) string {
+	var b strings.Builder
+	for i := 0; i < len(raw) && b.Len() < maxLen; i++ {
+		idx := strings.IndexByte(alphabet, raw[i])
+		if idx >= 0 {
+			b.WriteByte(alphabet[idx])
+		}
+	}
+	return b.String()
+}
 
 func slugifyWorktree(raw string) string {
 	s := strings.ToLower(strings.TrimSpace(raw))
@@ -48,54 +69,89 @@ func slugifyWorktree(raw string) string {
 	for strings.Contains(s, "--") {
 		s = strings.ReplaceAll(s, "--", "-")
 	}
+	s = filterAlphabet(s, slugAlphabet, 32)
+	s = strings.Trim(s, "-")
 	if s == "" {
 		s = "worker"
 	}
-	if len(s) > 32 {
-		s = strings.TrimRight(s[:32], "-")
-	}
-	return s + "-" + randomHexID(3)
+	return s + "-" + filterAlphabet(randomHexID(3), slugAlphabet, 6)
 }
 
-func runGit(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+func validateExistingDir(dir string) (string, error) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" || strings.ContainsRune(dir, '\x00') {
+		return "", errors.New("working directory is required")
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	realPath, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", err
+	}
+	st, err := os.Stat(realPath)
+	if err != nil || !st.IsDir() {
+		return "", errors.New("working directory does not exist")
+	}
+	return filepath.Clean(realPath), nil
+}
+
+func execGitFixed(ctx context.Context, dir string, argv ...string) (string, error) {
+	cleanDir, err := validateExistingDir(dir)
+	if err != nil {
+		return "", err
+	}
+	cmd := hideCmd(exec.CommandContext(ctx, "git", argv...))
+	cmd.Dir = cleanDir
 	out, err := cmd.CombinedOutput()
 	trimmed := strings.TrimSpace(string(out))
 	if err != nil {
 		if trimmed != "" {
-			return trimmed, fmt.Errorf("git %s: %s", strings.Join(args, " "), trimmed)
+			return trimmed, fmt.Errorf("git %s: %s", argv[0], trimmed)
 		}
-		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+		return "", fmt.Errorf("git %s: %w", argv[0], err)
 	}
 	return trimmed, nil
 }
 
 func gitRepoRoot(ctx context.Context, dir string) (string, error) {
-	dir = strings.TrimSpace(dir)
-	if dir == "" {
-		return "", errors.New("working directory is required for worktree isolation")
-	}
-	root, err := runGit(ctx, dir, "rev-parse", "--show-toplevel")
+	root, err := execGitFixed(ctx, dir, "rev-parse", "--show-toplevel")
 	if err != nil || root == "" {
 		return "", errors.New("working directory is not inside a Git repository")
 	}
-	return filepath.Clean(root), nil
+	return validateExistingDir(root)
+}
+
+func gitStatusShort(ctx context.Context, dir string) (string, error) {
+	return execGitFixed(ctx, dir, "status", "--short")
 }
 
 func ensureGitExclude(ctx context.Context, repoRoot string, entries ...string) error {
-	commonDir, err := runGit(ctx, repoRoot, "rev-parse", "--git-common-dir")
+	commonDir, err := execGitFixed(ctx, repoRoot, "rev-parse", "--git-common-dir")
 	if err != nil || commonDir == "" {
 		return err
 	}
 	if !filepath.IsAbs(commonDir) {
 		commonDir = filepath.Join(repoRoot, commonDir)
 	}
-	excludePath := filepath.Join(commonDir, "info", "exclude")
-	if err := os.MkdirAll(filepath.Dir(excludePath), 0o755); err != nil {
+	commonDir, err = validateExistingDir(commonDir)
+	if err != nil {
 		return err
 	}
-	existingBytes, _ := os.ReadFile(excludePath)
-	existing := string(existingBytes)
+	gitRoot, err := os.OpenRoot(commonDir)
+	if err != nil {
+		return err
+	}
+	defer gitRoot.Close()
+
+	_ = gitRoot.Mkdir("info", 0o755)
+	var existing string
+	if f, err := gitRoot.Open("info/exclude"); err == nil {
+		raw, _ := io.ReadAll(io.LimitReader(f, 256<<10))
+		_ = f.Close()
+		existing = string(raw)
+	}
 	lines := map[string]bool{}
 	for _, line := range strings.Split(existing, "\n") {
 		lines[strings.TrimSpace(line)] = true
@@ -120,19 +176,50 @@ func ensureGitExclude(ctx context.Context, repoRoot string, entries ...string) e
 		b.WriteString(e)
 		b.WriteByte('\n')
 	}
-	return os.WriteFile(excludePath, []byte(b.String()), 0o644)
-}
-
-func copyFileContent(src, dst string, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	out, err := gitRoot.OpenFile("info/exclude", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
 		return err
 	}
-	in, err := os.Open(src)
+	defer out.Close()
+	_, err = io.WriteString(out, b.String())
+	return err
+}
+
+func mkdirAllInRoot(root *os.Root, relDir string) error {
+	relDir = filepath.ToSlash(filepath.Clean(relDir))
+	if relDir == "." || relDir == "" {
+		return nil
+	}
+	parts := strings.Split(relDir, "/")
+	cur := ""
+	for _, p := range parts {
+		if p == "" || p == "." {
+			continue
+		}
+		if cur == "" {
+			cur = p
+		} else {
+			cur = cur + "/" + p
+		}
+		if err := root.Mkdir(cur, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFileInRoots(srcRoot, dstRoot *os.Root, rel string, mode os.FileMode) error {
+	if parent := filepath.Dir(rel); parent != "." && parent != "" {
+		if err := mkdirAllInRoot(dstRoot, parent); err != nil {
+			return err
+		}
+	}
+	in, err := srcRoot.Open(rel)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode.Perm())
+	out, err := dstRoot.OpenFile(rel, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode.Perm())
 	if err != nil {
 		return err
 	}
@@ -141,8 +228,8 @@ func copyFileContent(src, dst string, mode os.FileMode) error {
 	return err
 }
 
-func copyPathRecursive(src, dst string) error {
-	st, err := os.Lstat(src)
+func copyPathInRoots(srcRoot, dstRoot *os.Root, rel string) error {
+	st, err := srcRoot.Lstat(rel)
 	if err != nil {
 		return err
 	}
@@ -150,17 +237,23 @@ func copyPathRecursive(src, dst string) error {
 		return nil // Never follow symlinks across repo boundaries.
 	}
 	if !st.IsDir() {
-		return copyFileContent(src, dst, st.Mode())
+		return copyFileInRoots(srcRoot, dstRoot, rel, st.Mode())
 	}
-	if err := os.MkdirAll(dst, st.Mode().Perm()); err != nil {
+	if err := mkdirAllInRoot(dstRoot, rel); err != nil {
 		return err
 	}
-	entries, err := os.ReadDir(src)
+	dir, err := srcRoot.Open(rel)
+	if err != nil {
+		return err
+	}
+	entries, err := dir.ReadDir(-1)
+	_ = dir.Close()
 	if err != nil {
 		return err
 	}
 	for _, e := range entries {
-		if err := copyPathRecursive(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+		child := filepath.ToSlash(filepath.Join(rel, e.Name()))
+		if err := copyPathInRoots(srcRoot, dstRoot, child); err != nil {
 			return err
 		}
 	}
@@ -169,9 +262,8 @@ func copyPathRecursive(src, dst string) error {
 
 // copyWorktreeIncludes copies files listed in <repoRoot>/.worktreeinclude into
 // the new worktree (T3 Code convention for local untracked bootstrap files).
-func copyWorktreeIncludes(repoRoot, wtPath string) ([]string, error) {
-	incPath := filepath.Join(repoRoot, ".worktreeinclude")
-	f, err := os.Open(incPath)
+func copyWorktreeIncludes(repoFS, wtFS *os.Root) ([]string, error) {
+	f, err := repoFS.Open(".worktreeinclude")
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -180,10 +272,6 @@ func copyWorktreeIncludes(repoRoot, wtPath string) ([]string, error) {
 	}
 	defer f.Close()
 
-	absRoot, err := filepath.Abs(repoRoot)
-	if err != nil {
-		return nil, err
-	}
 	var copied []string
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
@@ -191,21 +279,15 @@ func copyWorktreeIncludes(repoRoot, wtPath string) ([]string, error) {
 		if line == "" || strings.HasPrefix(line, "#") || filepath.IsAbs(line) {
 			continue
 		}
-		clean := filepath.Clean(line)
-		if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
+		clean := filepath.ToSlash(filepath.Clean(line))
+		if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || strings.ContainsRune(clean, '\x00') {
 			continue
 		}
-		src := filepath.Join(absRoot, clean)
-		rel, err := filepath.Rel(absRoot, src)
-		if err != nil || strings.HasPrefix(rel, "..") {
+		if _, err := repoFS.Lstat(clean); err != nil {
 			continue
 		}
-		if _, err := os.Lstat(src); err != nil {
-			continue
-		}
-		dst := filepath.Join(wtPath, rel)
-		if err := copyPathRecursive(src, dst); err == nil {
-			copied = append(copied, filepath.ToSlash(rel))
+		if err := copyPathInRoots(repoFS, wtFS, clean); err == nil {
+			copied = append(copied, clean)
 		}
 	}
 	return copied, sc.Err()
@@ -213,10 +295,9 @@ func copyWorktreeIncludes(repoRoot, wtPath string) ([]string, error) {
 
 // writeWorktreeMCPConfig drops a secret-free .mcp.json inside a Loom-owned
 // worktree so MCP clients automatically discover Loom via `loom mcp-bridge`
-// using the session's injected LOOM_MCP_URL / LOOM_MCP_TOKEN env vars.
-func writeWorktreeMCPConfig(wtPath string) error {
-	mcpFile := filepath.Join(wtPath, ".mcp.json")
-	if _, err := os.Stat(mcpFile); err == nil {
+// using the session's scoped 0600 bridge file.
+func writeWorktreeMCPConfig(wtFS *os.Root) error {
+	if _, err := wtFS.Stat(".mcp.json"); err == nil {
 		// Respect an existing project .mcp.json — never overwrite tracked config.
 		return nil
 	}
@@ -241,23 +322,25 @@ func writeWorktreeMCPConfig(wtPath string) error {
 		return err
 	}
 	raw = append(raw, '\n')
-	return os.WriteFile(mcpFile, raw, 0o644)
+	f, err := wtFS.OpenFile(".mcp.json", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write(raw)
+	return err
 }
 
 func sanitizeBranchHint(branchHint, slug string) string {
-	b := strings.TrimSpace(branchHint)
-	if b == "" {
+	raw := strings.TrimSpace(branchHint)
+	if raw == "" || !wtBranchRe.MatchString(raw) || strings.Contains(raw, "..") || strings.HasSuffix(raw, "/") || raw == "main" || raw == "master" || raw == "HEAD" {
 		return "loom/" + slug
 	}
-	// Strip unsafe Git ref characters.
-	b = strings.ReplaceAll(b, " ", "-")
-	b = strings.ReplaceAll(b, "..", "-")
-	b = strings.TrimLeft(b, "/-")
-	b = strings.TrimRight(b, "/.")
-	if b == "" || b == "main" || b == "master" || b == "HEAD" {
+	safe := filterAlphabet(raw, branchAlphabet, 64)
+	if safe == "" || safe != raw || strings.HasPrefix(safe, "-") || strings.HasPrefix(safe, "/") {
 		return "loom/" + slug
 	}
-	return b
+	return safe
 }
 
 func createLoomWorktree(ctx context.Context, baseDir, nameHint, branchHint string, writeMCP bool) (WorktreeInfo, error) {
@@ -274,25 +357,41 @@ func createLoomWorktree(ctx context.Context, baseDir, nameHint, branchHint strin
 		}
 	}
 	slug := slugifyWorktree(nameHint)
+	if !wtSlugRe.MatchString(slug) {
+		slug = "worker-" + randomHexID(4)
+	}
 	branch := sanitizeBranchHint(branchHint, slug)
-	wtRoot := filepath.Join(repoRoot, loomWorktreesDir)
-	if err := os.MkdirAll(wtRoot, 0o755); err != nil {
+
+	repoFS, err := os.OpenRoot(repoRoot)
+	if err != nil {
+		return WorktreeInfo{}, fmt.Errorf("open repository root: %w", err)
+	}
+	defer repoFS.Close()
+
+	if err := repoFS.Mkdir(loomWorktreesDir, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 		return WorktreeInfo{}, fmt.Errorf("create worktree base dir: %w", err)
 	}
 	_ = ensureGitExclude(ctx, repoRoot, loomWorktreesDir+"/")
 
-	wtPath := filepath.Join(wtRoot, slug)
-	if _, err := runGit(ctx, repoRoot, "worktree", "add", "-b", branch, wtPath, "HEAD"); err != nil {
+	relWT := loomWorktreesDir + "/" + slug
+	wtPath := filepath.Join(repoRoot, loomWorktreesDir, slug)
+	if _, err := execGitFixed(ctx, repoRoot, "worktree", "add", "-b", branch, "--", relWT, "HEAD"); err != nil {
 		// Retry once with a unique branch name if requested branch already exists.
 		branch = "loom/" + slug
-		if _, err2 := runGit(ctx, repoRoot, "worktree", "add", "-b", branch, wtPath, "HEAD"); err2 != nil {
+		if _, err2 := execGitFixed(ctx, repoRoot, "worktree", "add", "-b", branch, "--", relWT, "HEAD"); err2 != nil {
 			return WorktreeInfo{}, err2
 		}
 	}
 
-	copied, _ := copyWorktreeIncludes(repoRoot, wtPath)
+	wtFS, err := repoFS.OpenRoot(relWT)
+	if err != nil {
+		return WorktreeInfo{}, fmt.Errorf("open worktree root: %w", err)
+	}
+	defer wtFS.Close()
+
+	copied, _ := copyWorktreeIncludes(repoFS, wtFS)
 	if writeMCP {
-		if err := writeWorktreeMCPConfig(wtPath); err == nil {
+		if err := writeWorktreeMCPConfig(wtFS); err == nil {
 			_ = ensureGitExclude(ctx, wtPath, ".mcp.json")
 		}
 	}
@@ -305,18 +404,15 @@ func createLoomWorktree(ctx context.Context, baseDir, nameHint, branchHint strin
 }
 
 func worktreeStatus(ctx context.Context, wtPath string) WorktreeStatus {
-	wtPath = strings.TrimSpace(wtPath)
-	if wtPath == "" {
-		return WorktreeStatus{}
-	}
-	if st, err := os.Stat(wtPath); err != nil || !st.IsDir() {
+	cleanDir, err := validateExistingDir(wtPath)
+	if err != nil {
 		return WorktreeStatus{Exists: false}
 	}
 	res := WorktreeStatus{Exists: true}
-	if b, err := runGit(ctx, wtPath, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
+	if b, err := execGitFixed(ctx, cleanDir, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
 		res.Branch = b
 	}
-	if out, err := runGit(ctx, wtPath, "status", "--porcelain"); err == nil && out != "" {
+	if out, err := execGitFixed(ctx, cleanDir, "status", "--porcelain"); err == nil && out != "" {
 		for _, line := range strings.Split(out, "\n") {
 			if strings.TrimSpace(line) != "" {
 				res.DirtyFiles++
@@ -327,34 +423,46 @@ func worktreeStatus(ctx context.Context, wtPath string) WorktreeStatus {
 }
 
 func removeLoomWorktree(ctx context.Context, repoRoot, wtPath string, force bool) error {
-	repoRoot = filepath.Clean(strings.TrimSpace(repoRoot))
-	wtPath = filepath.Clean(strings.TrimSpace(wtPath))
-	if repoRoot == "" || wtPath == "" {
-		return errors.New("repo_root and worktree_path are required")
+	cleanRepo, err := validateExistingDir(repoRoot)
+	if err != nil {
+		return errors.New("repo_root is invalid")
 	}
-	wtBase := filepath.Join(repoRoot, loomWorktreesDir)
+	wtPath = filepath.Clean(strings.TrimSpace(wtPath))
+	if wtPath == "" {
+		return errors.New("worktree_path is required")
+	}
+	wtBase := filepath.Join(cleanRepo, loomWorktreesDir)
 	rel, err := filepath.Rel(wtBase, wtPath)
-	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+	if err != nil || rel == "." || rel == ".." || strings.ContainsAny(rel, "/\\") || !wtSlugRe.MatchString(rel) {
 		return errors.New("refusing to remove path outside .loom-worktrees")
 	}
-	if _, err := os.Stat(wtPath); errors.Is(err, os.ErrNotExist) {
-		_, _ = runGit(ctx, repoRoot, "worktree", "prune")
+	relWT := loomWorktreesDir + "/" + rel
+
+	repoFS, err := os.OpenRoot(cleanRepo)
+	if err != nil {
+		return err
+	}
+	defer repoFS.Close()
+
+	if _, err := repoFS.Stat(relWT); errors.Is(err, os.ErrNotExist) {
+		_, _ = execGitFixed(ctx, cleanRepo, "worktree", "prune")
 		return nil
 	}
 	if !force {
-		st := worktreeStatus(ctx, wtPath)
+		st := worktreeStatus(ctx, filepath.Join(cleanRepo, loomWorktreesDir, rel))
 		if st.DirtyFiles > 0 {
 			return fmt.Errorf("worktree has %d uncommitted file(s); commit or pass force=true to remove", st.DirtyFiles)
 		}
 	}
-	args := []string{"worktree", "remove"}
 	if force {
-		args = append(args, "--force")
+		if _, err := execGitFixed(ctx, cleanRepo, "worktree", "remove", "--force", "--", relWT); err != nil {
+			return err
+		}
+	} else {
+		if _, err := execGitFixed(ctx, cleanRepo, "worktree", "remove", "--", relWT); err != nil {
+			return err
+		}
 	}
-	args = append(args, wtPath)
-	if _, err := runGit(ctx, repoRoot, args...); err != nil {
-		return err
-	}
-	_, _ = runGit(ctx, repoRoot, "worktree", "prune")
+	_, _ = execGitFixed(ctx, cleanRepo, "worktree", "prune")
 	return nil
 }

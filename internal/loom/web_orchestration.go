@@ -123,6 +123,13 @@ func handleOrchestrationSpawn(w http.ResponseWriter, r *http.Request) {
 	if !workspaceDecode(w, r, &args) {
 		return
 	}
+	if strings.TrimSpace(args.ParentID) == "" {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "parent_id is required"})
+		return
+	}
+	// Derive working_dir strictly from the parent Codeman session / registered node,
+	// never from an untrusted HTTP path parameter.
+	args.WorkingDir = ""
 	caller := orchResolveScope(args.ParentID)
 	res, err := spawnLoomSubagent(r.Context(), caller, args)
 	if err != nil {

@@ -341,7 +341,6 @@ function SpawnSubagentForm({ session, onCancel, onSpawned }) {
         role: role.trim(),
         cli,
         workspace,
-        working_dir: session.workingDir || '',
         task: task.trim(),
       });
       toast(t('agents.orch.spawned', { role: created.role || role.trim() }));

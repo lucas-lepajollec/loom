@@ -622,7 +622,7 @@ func registerLoomOrchestrationTools(server *mcp.Server) {
 			Response:  txt,
 		}
 		if args.IncludeDiff && node.WorkingDir != "" {
-			if out, err := runGit(ctx, node.WorkingDir, "status", "--short"); err == nil {
+			if out, err := gitStatusShort(ctx, node.WorkingDir); err == nil {
 				res.GitSummary = out
 			}
 		}
