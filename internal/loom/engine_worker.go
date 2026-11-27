@@ -442,7 +442,6 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	proxy := httputil.NewSingleHostReverseProxy(u)
-	proxy.Transport = nodeInferenceTransport
 	director := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		director(req)
@@ -461,15 +460,6 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 	}
 	proxy.ServeHTTP(w, r)
 }
-var nodeInferenceTransport = &http.Transport{
-	Proxy:                 nil,
-	DialContext:           (&net.Dialer{Timeout: 4 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-	MaxIdleConns:          32,
-	MaxIdleConnsPerHost:   16,
-	IdleConnTimeout:       90 * time.Second,
-	ExpectContinueTimeout: time.Second,
-}
-
 func localLoopbackHost(host string) bool {
 	return host == "localhost" || (net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback())
 }
@@ -504,6 +494,7 @@ func serveEngineWorker(addr string) error {
 	}
 	host, port, _ := net.SplitHostPort(addr)
 	webBound.host, webBound.port = host, func() int { n, _ := strconv.Atoi(port); return n }()
+	tuneDefaultHTTPTransport()
 	cleanStalePartFiles()
 	lcRestoreOnce.Do(lcRestore)
 	go engineAutoLoop()

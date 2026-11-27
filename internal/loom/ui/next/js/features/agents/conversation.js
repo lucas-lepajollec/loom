@@ -128,10 +128,15 @@ export function Composer({ session, onTerminal, compact, phone, approval }) {
   const [sending, setSending] = useState(false);
   const [files, setFiles] = useState([]);
   const [over, setOver] = useState(false);
-  const area = useRef(), file = useRef(), inflight = useRef(false);
+  const area = useRef(), file = useRef(), inflight = useRef(false), prevId = useRef(session.id);
   const ready = state === 'idle' || state === 'working' || state === 'waiting';
   const cli = cliOf(session.mode);
-  useEffect(() => { try { setText(sessionStorage.getItem(draftKey) || ''); } catch (_) { setText(''); } setFiles([]); }, [session.id]);
+  useEffect(() => {
+    if (prevId.current === session.id) return;
+    prevId.current = session.id;
+    try { setText(sessionStorage.getItem(draftKey) || ''); } catch (_) { setText(''); }
+    setFiles([]);
+  }, [session.id]);
   useEffect(() => { try { text ? sessionStorage.setItem(draftKey, text) : sessionStorage.removeItem(draftKey); } catch (_) {} }, [text]);
   useEffect(() => { const a = area.current; if (a) { a.style.height = 'auto'; a.style.height = Math.min(compact || phone ? 140 : Math.round(innerHeight * 0.4), a.scrollHeight) + 'px'; } }, [text, phone]);
   useEffect(() => () => files.forEach(f => f.preview && URL.revokeObjectURL(f.preview)), []);

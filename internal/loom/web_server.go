@@ -42,6 +42,7 @@ func cmdWeb(args []string) error {
 	defer ln.Close()
 	webBound.host, webBound.port = host, port
 	// Only once the port is ours: these write to Loom's data.
+	tuneDefaultHTTPTransport()
 	loadRememberedProviderKeys()
 	go engineAutoLoop()
 	go vllmAutoLoop()
