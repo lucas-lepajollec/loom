@@ -109,16 +109,16 @@ function Row({ it, current }) {
   const state = useStore(agents, () => agent ? attentionOf(it.s) : '');
   const busy = agent ? state === 'working' || state === 'starting' : it.c.status === 'running';
   const activate = () => { if (agent) openSession(it.id); else { open(it.id); go('chat'); } };
-  return html`<div class=${cls('chat-link', 'ses-row', agent && 'st-' + state)} aria-current=${current ? 'page' : undefined} role="button" tabindex="0" draggable="true" title=${agent ? it.s.workingDir || '' : ''}
+  return html`<div class=${cls('chat-link', 'ses-row', agent && 'st-' + state, busy && 'is-busy')} aria-current=${current ? 'page' : undefined} role="button" tabindex="0" draggable="true" title=${agent ? it.s.workingDir || '' : ''}
       onDragStart=${e => { e.dataTransfer.effectAllowed = 'move'; if (agent) e.dataTransfer.setData(DRAG_TYPE, it.id); else e.dataTransfer.setData('application/x-loom-chat', it.id); dragged = it; }}
       onDragEnd=${() => { dragged = null; }}
       onClick=${activate} onKeyDown=${e => e.key === 'Enter' && activate()}>
     <span class="ses-ico">${agent ? html`<${CliMark} mode=${it.s.mode} size="xs" />` : html`<${Icon} n="chat" />`}</span>
-    <span>${it.title}</span>
+    <span class=${cls('ses-title', busy && 'shimmer-text')}>${it.title}</span>
     ${agent && ATTENTION.has(state) ? html`<small class=${'ses-flag st-' + state}>${lt('state', state)}</small>`
-      : busy ? html`<i class="run" title=${agent ? lt('state', state) : ''}></i>`
-      : agent && state === 'error' ? html`<i class="dot red" title=${lt('state', state)}></i>`
-      : agent && state === 'limited' ? html`<i class="dot" title=${lt('state', state)}></i>`
+      : busy ? html`<span class="loom-pulse ses-pulse" title=${agent ? lt('state', state) : ''} aria-hidden="true"><i></i><i></i><i></i><i></i></span>`
+      : agent && state === 'error' ? html`<small class="ses-flag st-error">${lt('state', state)}</small>`
+      : agent && state === 'limited' ? html`<small class="ses-flag st-limited">${lt('state', state)}</small>`
       : it.at ? html`<small class="ses-when">${ago(it.at)}</small>` : ''}
     <button class="icon-btn more" aria-label=${t('app.shell.actions')} onClick=${e => { e.stopPropagation(); setMenu(e.currentTarget); }}><${Icon} n="more" /></button>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${agent ? agentMenu(it) : chatMenu(it)} />`}
@@ -212,8 +212,8 @@ function PhoneSessionRow({ it }) {
       if (agent) openSession(it.id); else go('chat', it.id);
     }}>
       ${agent ? html`<${CliMark} mode=${it.s.mode} size="sm" />` : html`<${Icon} n="chat" />`}
-      <span><b class="trunc">${it.title}</b>${model.some(Boolean) && html`<small class="trunc">${model.filter(Boolean).join(' · ')}</small>`}</span>
-      ${stateLabel ? html`<small class=${'phone-row-state st-' + state}>${!ATTENTION.has(state) && html`<${StateDot} state=${state} />`}${stateLabel}</small>`
+      <span><b class=${cls('trunc', (state === 'working' || state === 'starting') && 'shimmer-text')}>${it.title}</b>${model.some(Boolean) && html`<small class="trunc">${model.filter(Boolean).join(' · ')}</small>`}</span>
+      ${stateLabel ? html`<small class=${cls('phone-row-state', 'st-' + state, (state === 'working' || state === 'starting') && 'shimmer-text')}>${(state === 'working' || state === 'starting') && html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}${stateLabel}</small>`
         : it.at ? html`<small class="phone-row-time">${ago(it.at)}</small>` : ''}
     </button>
     <button type="button" class="icon-btn" ref=${action} aria-label=${t('app.shell.actions')} onClick=${showMenu}><${Icon} n="more" /></button>

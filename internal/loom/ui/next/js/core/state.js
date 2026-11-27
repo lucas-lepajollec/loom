@@ -11,7 +11,7 @@ const observation = url => value => value === null || validData(value, url);
 export const app = createStore({
   route: parseRoute(),
   theme: localStorage.getItem('loom-theme') || 'dark',
-  palette: false, inspector: innerWidth > 1100 && localStorage.getItem('loom.next.insp') !== '0', phoneDraft: null, phoneChatRevision: 0,
+  palette: false, inspector: false, phoneDraft: null, phoneChatRevision: 0,
   status: null, serverInfo: null, gpus: [], ram: null, engineNode: null,
   workspace: null, presets: [], models: [],
   nav: { conversations: [], projects: [], active: '' }, unavailable: {},
@@ -97,7 +97,7 @@ export function setTheme(localT) {
   document.documentElement.dataset.theme = localT;
   try { localStorage.setItem('loom-theme', localT); } catch (_) {}
   const meta = document.querySelector('meta[name=theme-color]');
-  if (meta) meta.content = localT === 'light' ? '#ffffff' : '#111113'; // fond des pages : la barre d'état s'y fond
+  if (meta) meta.content = localT === 'light' ? '#ffffff' : '#101012'; // fond des pages : la barre d'état s'y fond
   app.set({ theme: localT });
 }
 

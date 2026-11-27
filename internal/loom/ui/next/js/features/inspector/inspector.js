@@ -14,6 +14,7 @@ import { chat, open } from '../chat/engine.js';
 import { currentExec } from '../chat/picker.js';
 import { openTerminalWith } from '../terminals/page.js';
 import { LocalParams } from './params.js';
+import { panelState, DEFAULT_PANEL_WIDTH, clampPanelWidth, setLivePanelWidth, savePanelWidth } from '../agents/panel-state.js';
 
 const KV = ({ k, children }) => html`<div class="kv"><span>${k}</span><span>${children}</span></div>`;
 
@@ -49,12 +50,43 @@ export function Inspector({ open, onClose, phone }) {
   // currentExec() dépend de la discussion et du registre des runtimes (chargé après).
   useStore(chat, c => (c.mode || '') + ':' + ((c.session && c.session.runtime_id) || ''));
   useStore(app, a => a.workspace && a.workspace.runtimes);
+  const width = useStore(panelState, p => p.width);
+  const dragRef = useRef(null);
+  useEffect(() => () => { document.body.classList.remove('cm-dragging'); }, []);
   const exec = currentExec();
   const title = exec.kind === 'local' ? t("inspector.inspector.parametres") : exec.kind === 'cloud' ? t("inspector.inspector.modele") : t("inspector.inspector.session");
   const content = exec.kind === 'local' ? html`<${LocalParams} />` : exec.kind === 'cloud' ? html`<${CloudPanel} />` : html`<p class="note">${t('runtime.retired')}</p>`;
   if (phone) return open ? html`<${Modal} title=${title} onClose=${onClose} class="chat-inspector-sheet" focusField=${false}>${content}</${Modal}>` : null;
-  return html`<aside class=${cls('insp', open && 'open')} aria-label="${t("inspector.inspector.panneau")}" aria-hidden=${String(!open)}>
-    <div class="insp-in">
+  const onResizeDown = e => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX, startW: width, lastW: width };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    document.body.classList.add('cm-dragging');
+  };
+  const onResizeMove = e => {
+    if (!dragRef.current) return;
+    dragRef.current.lastW = setLivePanelWidth(dragRef.current.startW + (dragRef.current.startX - e.clientX));
+  };
+  const onResizeUp = e => {
+    if (!dragRef.current) return;
+    const finalW = dragRef.current.lastW;
+    dragRef.current = null;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_) {}
+    document.body.classList.remove('cm-dragging');
+    savePanelWidth(finalW);
+  };
+  const onResizeKey = e => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); savePanelWidth(width + 24); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); savePanelWidth(width - 24); }
+    else if (e.key === 'Enter' || e.key === '0') { e.preventDefault(); savePanelWidth(DEFAULT_PANEL_WIDTH); }
+  };
+  const wPx = clampPanelWidth(width);
+  return html`<aside class=${cls('insp', open && 'open')} style=${open ? `width:${wPx}px` : undefined} aria-label="${t("inspector.inspector.panneau")}" aria-hidden=${String(!open)}>
+    ${open && html`<div class="cm-insp-resize" role="separator" aria-orientation="vertical" aria-label=${t('agents.insp.resize')} title=${t('agents.insp.resize')} tabIndex="0"
+      onPointerDown=${onResizeDown} onPointerMove=${onResizeMove} onPointerUp=${onResizeUp} onPointerCancel=${onResizeUp}
+      onDblClick=${() => savePanelWidth(DEFAULT_PANEL_WIDTH)} onKeyDown=${onResizeKey}><i></i></div>`}
+    <div class="insp-in" style=${open ? `width:${wPx}px` : undefined}>
       <header class="insp-head">
         <b class="insp-title">${title}</b>
         <button class="icon-btn" aria-label="${t("inspector.inspector.fermer_le_panneau")}" onClick=${onClose}><${Icon} n="close" /></button>

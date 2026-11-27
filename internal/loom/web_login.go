@@ -109,8 +109,18 @@ type webSession struct {
 	Expires    int64  `json:"expires"`
 }
 
+func sessionCookieName() string {
+	// Browsers scope cookies by host, not port: isolate non-default ports
+	// (e.g. a local dev/test server alongside production) so two Loom
+	// instances on the same IP never overwrite each other's session cookie.
+	if webBound.port > 0 && webBound.port != 2510 && webBound.port != 2543 && webBound.port != 80 && webBound.port != 443 {
+		return fmt.Sprintf("%s_%d", webSessionCookie, webBound.port)
+	}
+	return webSessionCookie
+}
+
 func sessionRecordKey(r *http.Request) string {
-	c, err := r.Cookie(webSessionCookie)
+	c, err := r.Cookie(sessionCookieName())
 	if err != nil || len(c.Value) != 64 {
 		return ""
 	}
@@ -197,7 +207,7 @@ func sessionCookie(r *http.Request, token string, expires time.Time) *http.Cooki
 	if token == "" {
 		maxAge = -1
 	}
-	return &http.Cookie{Name: webSessionCookie, Value: token, Path: "/", HttpOnly: true,
+	return &http.Cookie{Name: sessionCookieName(), Value: token, Path: "/", HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode, MaxAge: maxAge, Expires: expires}
 }

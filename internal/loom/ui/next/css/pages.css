@@ -294,8 +294,8 @@
 .ws-checks .check{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--text)}
 /* machines : une carte par machine */
 .mcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
-.mcard{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);color:inherit;text-decoration:none;transition:border-color var(--fast)}
-.mcard:hover{border-color:var(--line-strong)}
+.mcard{display:flex;flex-direction:column;border:0;border-radius:var(--r-lg);background:var(--surface);box-shadow:none;color:inherit;text-decoration:none;transition:background-color var(--fast)}
+.mcard:hover{background:var(--surface-2)}
 .mcard-h{display:flex;align-items:center;gap:12px;padding:16px 18px}
 .mcard-h .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
 .mcard-h b{font-size:14px;font-weight:600}

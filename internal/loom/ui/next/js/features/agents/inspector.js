@@ -195,9 +195,9 @@ function SubagentView({ agent, onBack }) {
       <button type="button" class="icon-btn" aria-label=${t('common.refresh')} onClick=${() => run()}><${Icon} n="refresh" /></button>
     </div>
     <div class="cm-sub-meta">
-      <i class=${cls('dot', agent.status === 'active' ? 'amber' : agent.status === 'idle' ? 'green' : '')}></i>
+      ${agent.status === 'active' ? html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${Icon} n="agent" />`}
       <div class="grow">
-        <b>${agent.description || agent.agentId}</b>
+        <b class=${cls(agent.status === 'active' && 'shimmer-text')}>${agent.description || agent.agentId}</b>
         <small class="muted">${[agent.model, agent.status, agent.toolCallCount ? t('agents.sub.tools', { n: agent.toolCallCount }) : ''].filter(Boolean).join(' · ')}</small>
       </div>
     </div>
@@ -224,9 +224,9 @@ function SubagentsTab({ subState, refreshSub }) {
       <button type="button" class="icon-btn" aria-label=${t('common.refresh')} onClick=${refreshSub}><${Icon} n="refresh" /></button>
     </div>
     <ul class="cm-subs">${list.map(a => html`<li key=${a.agentId}><button type="button" onClick=${() => setSelected(a)}>
-      <i class=${cls('dot', a.status === 'active' ? 'amber' : a.status === 'idle' ? 'green' : '')}></i>
+      ${a.status === 'active' ? html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${Icon} n="agent" class="cm-sub-ico" />`}
       <span class="grow">
-        <b class="trunc">${a.description || a.agentId}</b>
+        <b class=${cls('trunc', a.status === 'active' && 'shimmer-text')}>${a.description || a.agentId}</b>
         <small class="muted">${[a.model, a.status, a.toolCallCount ? t('agents.sub.tools', { n: a.toolCallCount }) : ''].filter(Boolean).join(' · ')}</small>
       </span>
       <${Icon} n="right" class="cm-sub-chev" />
@@ -520,7 +520,7 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
           }
         }}>
         <span>${tb.label}</span>
-        ${tb.active && html`<i class="dot amber" aria-hidden="true"></i>`}
+        ${tb.active && html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}
         ${tb.dot && html`<i class="cm-ptab-dot" aria-hidden="true"></i>`}
         ${tb.count > 0 && html`<em class="cm-ptab-n">${tb.count}</em>`}
       </button>`)}

@@ -41,15 +41,16 @@ function ApprovalRow({ a }) {
 
 function SessionRow({ s, state }) {
   const activity = s.lastActivityAt || s.createdAt;
+  const busy = state === 'working' || state === 'starting';
   return html`<li class=${cls('cm-session-row', 'st-' + state)}>
     <button class="cm-session-open" type="button" onClick=${() => openSession(s.id)}>
       <${CliMark} mode=${s.mode} size="sm" />
       <span class="cm-session-title">
-        <b class="trunc" title=${s.name}>${s.name || s.id.slice(0, 8)}</b>
+        <b class=${cls('trunc', busy && 'shimmer-text')} title=${s.name}>${s.name || s.id.slice(0, 8)}</b>
         ${s.workingDir && html`<small class="trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</small>`}
       </span>
       <span class="cm-session-meta">
-        <span class="cm-cc-state"><${StateDot} state=${state} /><span>${lt('state', state)}</span></span>
+        <span class="cm-cc-state">${busy && html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}<span class=${cls(busy && 'shimmer-text')}>${lt('state', state)}</span></span>
         ${activity && html`<time datetime=${new Date(activity).toISOString()} title=${new Date(activity).toLocaleString(locale())}>${ago(activity)}</time>`}
       </span>
     </button>

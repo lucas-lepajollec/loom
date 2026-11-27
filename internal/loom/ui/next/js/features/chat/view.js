@@ -3,6 +3,7 @@ import { t } from '../../core/i18n.js';
 // Vue discussion : en-tête (exécution, projet, panneau), fil, composeur.
 import { html, useRef, useEffect, useLayoutEffect, useStore, useState, cls } from '../../core/lib.js';
 import { Icon, LoomMark } from '../../ui/icons.js';
+import { AmbientField } from '../../ui/ambient.js';
 import { app } from '../../core/state.js';
 import { chat, open } from './engine.js';
 import { Messages, Starting } from './messages.js';
@@ -35,8 +36,8 @@ function Thread({ phone }) {
   const exec = currentExec();
   return html`<div class="cv-wrap">${!phone && !loading && !empty && html`<${Minimap} scroller=${box} />`}<div class="thread" ref=${box} onScroll=${onScroll}>
     ${loading ? html`<div class="thread-in"><div class="skeleton" style="height:44px;width:46%;margin-left:auto"></div><div class="skeleton" style="height:16px;width:80%;margin-top:26px"></div><div class="skeleton" style="height:16px;width:64%;margin-top:10px"></div></div>`
-      : empty ? html`<div class="welcome anim-rise">${!phone && html`<${SessionType} />`}<div class="welcome-mark"><${LoomMark} /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
-          <p>${exec.name ? html`${t("chat.view.la_discussion_part_avec")} <b>${exec.name}</b>${t("chat.view.tu_pourras_changer_de_modele_en_cours_de_route")}` : t("chat.view.choisis_un_modele_local_cloud_ou_un_harness_en_haut_pour_commence")}</p></div>`
+      : empty ? html`<div class="welcome anim-rise"><div class="welcome-in">${!phone && html`<${SessionType} />`}<div class="welcome-mark"><${LoomMark} /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
+          <p>${exec.name ? html`${t("chat.view.la_discussion_part_avec")} <b>${exec.name}</b>${t("chat.view.tu_pourras_changer_de_modele_en_cours_de_route")}` : t("chat.view.choisis_un_modele_local_cloud_ou_un_harness_en_haut_pour_commence")}</p></div></div>`
       : html`<div class="thread-in"><${Messages} items=${items} gen=${gen} compacting=${compacting} root=${root} sessionId=${sessionId} />${starting && html`<${Starting} starting=${starting} />`}</div>`}
   </div><${JumpBottom} scroller=${box} watch=${items.length} /></div>`;
 }
@@ -69,6 +70,7 @@ export function ChatView({ route }) {
   if (voice) return html`<div class="view chat-view"><${VoiceMode} discussionId=${voice.discussion} internet=${!!voice.internet} onClose=${async injected => { app.set({ voiceMode: null }); if (injected && voice.discussion) await open(voice.discussion, true); }} /></div>`;
   return html`<div class="view chat-view">
     <div class=${cls('chat-col', empty && 'is-empty')}>
+      ${empty && !phone && html`<${AmbientField} variant="calm" />`}
       <header class=${cls('topbar', phone && 'phone-session-head')}>
         ${phone ? html`<${BackButton} /><div class="phone-chat-model"><${Picker} phone /><${ChatTitle} /></div>` : html`<${Picker} /><${ChatTitle} /><span class="grow"></span>`}
         <button class=${cls('icon-btn', insp && 'on')} aria-label="${t("chat.view.panneau")}" title="${t("chat.view.parametres_et_contexte")}" onClick=${toggle}><${Icon} n=${phone ? 'more' : 'panel'} /></button>

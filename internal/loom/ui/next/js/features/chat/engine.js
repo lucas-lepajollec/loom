@@ -249,6 +249,7 @@ export async function newDiscussion(projectId, { navigate = true } = {}) {
   const ep = ++epoch; opening = true; if (abort) abort.abort();
   remember('');
   restartNative(false);
+  app.set({ inspector: false });
   chat.set({ sessionId: '', session: null, context: null, loading: false });
   let r;
   try { r = await post('/api/chat/reset', { project_id: projectId || '' }); }

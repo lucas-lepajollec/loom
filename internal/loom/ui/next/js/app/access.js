@@ -2,6 +2,7 @@ import { t } from '../core/i18n.js';
 import { html, useState, useEffect, useRef, cls } from '../core/lib.js';
 import { authAction } from '../core/api.js';
 import { Icon, LoomMark } from '../ui/icons.js';
+import { AmbientField } from '../ui/ambient.js';
 import { Modal } from '../ui/dialog.js';
 
 // One password per Loom. No credential is written to browser storage.
@@ -59,6 +60,7 @@ export function PasswordForm({ mode = 'login', needsKey = false, onDone, title, 
 
 export function AccessScreen({ status, onDone }) {
   return html`<div class="access-screen">
+    <${AmbientField} variant="hero" />
     <div class="access-shell anim-rise">
       <header class="access-head">
         <span class="access-mark" aria-hidden="true"><${LoomMark} size=${30} /></span>
