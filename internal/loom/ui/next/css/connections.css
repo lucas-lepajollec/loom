@@ -88,15 +88,20 @@
 
 @media (max-width:760px){
   .cx-page{gap:16px}
+  .cx-head{align-items:flex-start;text-align:left;margin-bottom:0}
+  .cx-head p{margin-top:0}
   .cx-toolbar{flex-direction:column;align-items:stretch;gap:10px}
-  .cx-toolbar>.seg{width:100%}
-  .cx-toolbar>.seg button{flex:1}
-  .cx-search{width:100%}
-  .cx-source{flex-wrap:wrap;padding:14px}
+  .cx-toolbar>.seg{width:100%;padding:0;background:transparent;border-radius:var(--r-pill);gap:4px}
+  .cx-toolbar>.seg button{flex:1;min-height:var(--touch-target);border-radius:var(--r-pill)}
+  .cx-toolbar>.seg .ind{border-radius:var(--r-pill);background:var(--surface-2)}
+  .cx-search{width:100%;min-height:var(--touch-target);border-radius:var(--r-pill)}
+  .cx-source{flex-wrap:wrap;padding:14px 16px;border-radius:18px}
   .cx-source-text{flex:1 1 calc(100% - 48px)}
   .cx-source-acts{width:100%;padding-top:4px}
   .cx-source-acts .btn{flex:1 1 auto}
   .cx-grid{grid-template-columns:minmax(0,1fr)}
+  .cx-card,.cx-rows{border-radius:18px;overflow:hidden}
+  .cx-row{min-height:52px}
   .drawer-panel.cx-drawer{width:100vw}
   .cx-fact{grid-template-columns:minmax(0,1fr);gap:2px}
 }

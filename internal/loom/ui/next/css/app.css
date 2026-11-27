@@ -19,8 +19,8 @@
      ombre sur la coquille. Couleur réservée aux logos et aux états. */
   --bg:#0b0b0c;--bg-2:#0d0d0f;--panel:#101012;--surface:#151518;--surface-2:#1b1b1f;--surface-3:#242429;--raised:#17171b;
   --panel-veil:rgba(16,16,18,.22);--surface-veil:rgba(21,21,24,.88);--surface-veil-2:rgba(27,27,31,.93);
-  --line:rgba(255,255,255,.065);--line-soft:rgba(255,255,255,.045);--line-strong:rgba(255,255,255,.11);
-  --text:#f0f0f2;--text-2:#9a9aa3;--text-3:#686872;--text-4:#45454d;
+  --line:rgba(255,255,255,.075);--line-soft:rgba(255,255,255,.05);--line-strong:rgba(255,255,255,.13);
+  --text:#f0f0f2;--text-2:#a4a4ad;--text-3:#7b7b86;--text-4:#54545e;
   --accent:#f0f0f2;--accent-2:#ffffff;--accent-bg:rgba(255,255,255,.06);--accent-line:rgba(255,255,255,.18);--accent-fill:#f0f0f2;--on-accent:#0b0b0c;
   --ink:#f0f0f2;--on-ink:#0b0b0c;
   --blue:#9a9aa3;--blue-bg:rgba(255,255,255,.055);--blue-line:rgba(255,255,255,.16);
@@ -37,8 +37,8 @@
   color-scheme:light;
   --bg:#f5f5f6;--bg-2:#f8f8f9;--panel:#ffffff;--surface:#f7f7f8;--surface-2:#efeff1;--surface-3:#e4e4e7;--raised:#ffffff;
   --panel-veil:rgba(255,255,255,.32);--surface-veil:rgba(247,247,248,.92);--surface-veil-2:rgba(239,239,241,.96);
-  --line:rgba(9,9,11,.075);--line-soft:rgba(9,9,11,.05);--line-strong:rgba(9,9,11,.13);
-  --text:#0b0b0d;--text-2:#52525b;--text-3:#73737c;--text-4:#a1a1aa;
+  --line:rgba(9,9,11,.085);--line-soft:rgba(9,9,11,.058);--line-strong:rgba(9,9,11,.15);
+  --text:#0b0b0d;--text-2:#4a4a53;--text-3:#63636d;--text-4:#8e8e98;
   --accent:#111113;--accent-2:#000000;--accent-bg:rgba(9,9,11,.045);--accent-line:rgba(9,9,11,.2);--accent-fill:#111113;--on-accent:#ffffff;
   --ink:#111113;--on-ink:#ffffff;
   --blue:#52525b;--blue-bg:rgba(9,9,11,.045);--blue-line:rgba(9,9,11,.16);
@@ -545,6 +545,11 @@ html,body{overscroll-behavior:none}
 
 /* ---------- page de connexion responsive (plat mat) ---------- */
 .access-screen{position:fixed;inset:0;display:grid;place-items:center;overflow-y:auto;overscroll-behavior:contain;padding:max(24px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:var(--bg)}
+html.touch .access-screen{top:var(--app-top,0);height:var(--app-h,100dvh);bottom:auto}
+.access-lang{position:fixed;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:2;display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-pill);background:var(--surface);border:1px solid var(--line-soft)}
+.access-lang button{min-width:34px;min-height:28px;padding:0 9px;border-radius:var(--r-pill);font-size:12px;font-weight:500;color:var(--text-3);transition:background-color var(--fast),color var(--fast)}
+.access-lang button[aria-pressed="true"]{background:var(--surface-3);color:var(--text)}
+@media (max-width:760px){.access-lang button{min-width:40px;min-height:36px;padding:0 11px}}
 .access-shell{position:relative;z-index:1;width:min(388px,100%);display:flex;flex-direction:column;gap:18px;margin:auto}
 .access-head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
 .access-mark{width:40px;height:40px;display:grid;place-items:center;border:0;background:transparent;color:var(--text)}

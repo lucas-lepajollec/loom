@@ -15,11 +15,12 @@ import { PreviewPanel } from '../previews/panel.js';
 import { loadXterm, disposeTerm } from '../../ui/xterm.js';
 import { app, go } from '../../core/state.js';
 import { usePhone } from '../../core/viewport.js';
+import { BackButton } from '../../app/phone-nav.js';
 
 const TOUCH_KEYS = [
+  { label: 'Ctrl+C', data: '\u0003', danger: true },
   { label: 'Esc', data: '\u001b' },
   { label: 'Tab', data: '\t' },
-  { label: 'Ctrl+C', data: '\u0003', danger: true },
   { label: '↑', data: '\u001b[A' },
   { label: '↓', data: '\u001b[B' },
   { label: '←', data: '\u001b[D' },
@@ -208,7 +209,7 @@ export function TerminalsPage({ route }) {
   return html`<div class=${cls('view term-page', phone && 'term-page-phone')}>
     <h1 class="sr">${t("terminals.page.terminaux")}</h1>
     <header class="term-head">
-      ${!phone && html`<a class="btn sm machine-back" href="#/machines"><${Icon} n="left" /><span>${t('settings.machines.machines')}</span></a>`}
+      ${phone ? html`<${BackButton} />` : html`<a class="btn sm machine-back" href="#/machines"><${Icon} n="left" /><span>${t('settings.machines.machines')}</span></a>`}
       <nav class="terminal-tabs" aria-label=${t('settings.machines.open_terminals')}>
         ${(list || []).map(term => html`<div class=${cls('terminal-tab', cur?.id === term.id && 'current')} key=${term.id}>
           <a href=${terminalHref(term.id)} aria-current=${cur?.id === term.id ? 'page' : undefined} title=${term.title + ' · ' + (names.get(term.target) || term.target)}>
@@ -219,7 +220,7 @@ export function TerminalsPage({ route }) {
       </nav>
       <div class="term-head-acts">
         <button class=${cls(phone ? 'icon-btn' : 'btn sm term-ghost-btn')} aria-label=${t('terminals.page.previews')} title=${t('terminals.page.previews')} onClick=${() => setPreviews(true)}><${Icon} n="globe" />${!phone && html`<span>${t('terminals.page.previews')}</span>`}</button>
-        <button class=${cls(phone ? 'icon-btn' : 'btn sm primary')} disabled=${!supported} aria-label=${t("terminals.page.nouveau_terminal")} title=${t("terminals.page.nouveau_terminal")} onClick=${() => setDlg(true)}><${Icon} n="plus" />${!phone && html`<span>${t("terminals.page.nouveau_terminal")}</span>`}</button>
+        <button class=${cls(phone ? 'icon-btn phone-new' : 'btn sm primary')} disabled=${!supported} aria-label=${t("terminals.page.nouveau_terminal")} title=${t("terminals.page.nouveau_terminal")} onClick=${() => setDlg(true)}><${Icon} n="plus" />${!phone && html`<span>${t("terminals.page.nouveau_terminal")}</span>`}</button>
       </div>
     </header>
     <div class="term-stage">

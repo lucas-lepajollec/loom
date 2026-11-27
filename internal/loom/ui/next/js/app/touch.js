@@ -103,11 +103,17 @@ function followVisualViewport() {
 function swipeBack() {
   let origin;
   const delta = p => [p.clientX - origin.clientX, p.clientY - origin.clientY];
+  const blockedSwipe = target => {
+    const rail = target.closest('.cm-acc,.terminal-tabs,.fl-toolbar,.cm-panel-tabs,.cm-term-box,.term-box,.xterm');
+    if (!rail) return false;
+    if (rail.matches('.cm-term-box,.term-box,.xterm')) return true;
+    return rail.scrollWidth > rail.clientWidth + 2 && rail.scrollLeft > 0;
+  };
   document.addEventListener('touchstart', e => {
     const p = e.touches[0];
     const inside = e.target.closest('.app,.scrim');
     const layer = document.querySelector('.scrim,.voice-mode');
-    origin = isPhone() && inside && e.touches.length === 1 && p.clientX <= 24 &&
+    origin = isPhone() && inside && !blockedSwipe(e.target) && e.touches.length === 1 && p.clientX <= 24 &&
       (layer || !phoneTab(app.get().route)) ? p : null;
   }, { passive: true, capture: true });
   document.addEventListener('touchmove', e => {
@@ -151,8 +157,9 @@ export function usePullRefresh(refresh) {
       if (!start || el.scrollTop > 0 || e.changedTouches[0].clientY - start.clientY < 64) return;
       pending.current = true;
       el.setAttribute('aria-busy', 'true');
+      el.classList.add('is-refreshing');
       try { await refresh(); } catch (_) {}
-      finally { pending.current = false; el.removeAttribute('aria-busy'); }
+      finally { pending.current = false; el.removeAttribute('aria-busy'); el.classList.remove('is-refreshing'); }
     },
   };
 }

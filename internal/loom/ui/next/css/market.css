@@ -98,30 +98,30 @@
   .market-rank-tools{justify-content:flex-end}
 }
 @media(max-width:760px){
-  .market-tools{justify-content:flex-start}
-  .market-pages .icon-btn,.market-sort .icon-btn{width:44px;height:44px}
+  .market-tools{justify-content:flex-start;gap:8px}
+  .market-pages .icon-btn,.market-sort .icon-btn{width:44px;height:44px;border-radius:var(--r-pill)}
   .market-credit,.market-sort .select,.market-filter,.market-filters .search,.market-filters .select{min-height:44px}
-  .market-releases{gap:0;border-radius:14px;background:var(--surface)}
-  .market-release{padding:14px;border-radius:0;background:transparent}
+  .market-releases{gap:0;border-radius:18px;overflow:hidden;border:1px solid var(--line-soft);background:var(--surface)}
+  .market-release{padding:14px 16px;border:0;border-radius:0;background:transparent}
   .market-release + .market-release{border-top:1px solid var(--line-soft)}
-  .market-actions .btn{min-height:44px}
-  .market-list > .market-list-top,.market-filters,.market-row{padding-inline:14px}
-  .market-row{padding-block:10px}
+  .market-actions{gap:8px;padding-top:10px}
+  .market-actions .btn{min-height:44px;border-radius:var(--r-pill);padding-inline:14px}
+  .market-list > .market-list-top,.market-filters,.market-row{padding-inline:16px}
+  .market-row{padding-block:12px}
+  .market-row:last-child{border-radius:0}
   .market-catalogue .market-row{grid-template-columns:repeat(3,minmax(0,1fr))}
   .market-catalogue .market-thead{display:none}
   .market-catalogue .market-row > :first-child{grid-column:1/-1}
   .market-catalogue .market-row:first-of-type + .market-row{border-top:0}
   .market-catalogue .market-value{display:grid;gap:2px;text-align:start}
   .market-catalogue .market-value::before{content:attr(data-label);color:var(--text-3);font:12px/1.5 var(--font)}
-  .market-filters{gap:6px 10px}
+  .market-filters{gap:8px 10px;padding-block:12px}
   .market-filters .search,.market-filters .select{flex:1 1 100%}
   .market-filters .search input{font-size:16px}
   .market-filter input{width:16px;height:16px}
-  .market-setting{padding-inline:14px}
-  .market-setting{min-height:52px}
-  
+  .market-setting{padding:10px 16px;min-height:54px}
   .market-delivery > p{flex-basis:100%}
-  .market-delivery{gap:0}
+  .market-delivery{gap:6px}
 }
 .market-open{color:var(--green)}
 .market-ranking-meta .note{margin:0;flex:1;min-width:0}

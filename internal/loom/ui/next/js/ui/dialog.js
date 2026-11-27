@@ -39,6 +39,12 @@ export function Portal({ children }) {
 
 // Dialogue générique (composant) : scrim + panneau, Échap et clic extérieur ferment.
 export const topModal = () => [...document.querySelectorAll('.dialog[aria-modal="true"]')].at(-1);
+let activeModals = 0;
+function setBackgroundInert(delta) {
+  activeModals = Math.max(0, activeModals + delta);
+  const root = document.getElementById('app');
+  if (root && 'inert' in root) root.inert = activeModals > 0;
+}
 
 export function Modal({ title, sub, onClose, children, foot, wide, class: c, focusField = true }) {
   const box = useRef(), close = useRef(onClose), previous = useRef(document.activeElement);
@@ -70,6 +76,7 @@ export function Modal({ title, sub, onClose, children, foot, wide, class: c, foc
     return () => document.removeEventListener('keydown', key);
   }, []);
   useEffect(() => {
+    setBackgroundInert(1);
     const prev = previous.current;
     const panel = box.current;
     const frame = requestAnimationFrame(() => {
@@ -80,6 +87,7 @@ export function Modal({ title, sub, onClose, children, foot, wide, class: c, foc
     });
     return () => {
       cancelAnimationFrame(frame);
+      setBackgroundInert(-1);
       const current = topModal();
       if (prev?.isConnected && (!current || current === panel || current.contains(prev))) prev.focus({ preventScroll: true });
     };

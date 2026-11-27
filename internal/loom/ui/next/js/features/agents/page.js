@@ -103,12 +103,13 @@ function SessionPane({ s, narrowView }) {
     else { setViewOf(s.id, v); setViewState(v); }
   };
   const setInsp = v => { setInspState(v); if (!isPhone()) try { localStorage.setItem('loom.codeman.inspOpen', v ? '1' : '0'); } catch (_) {} };
-  const mode = narrowView ? (phoneTerminal || s.mode === 'shell' ? 'term' : 'chat') : hasConversation(s.mode) ? view : 'term';
+  const canChat = hasConversation(s.mode);
+  const mode = narrowView ? (phoneTerminal || !canChat ? 'term' : 'chat') : canChat ? view : 'term';
   const toTerm = () => setView(narrowView ? 'term' : 'split');
   return html`<div class=${cls('cm-pane', insp && !narrowView && 'with-insp')}>
     <div class="cm-main">
       <${SessionHeader} s=${s} narrowView=${narrowView} insp=${insp} setInsp=${setInsp} />
-      ${narrowView && s.mode !== 'shell' && html`<div class="phone-agent-views">
+      ${narrowView && canChat && html`<div class="phone-agent-views">
         <${Seg} value=${mode} onChange=${setView} label=${t('agents.view.label')} options=${[
           { value: 'chat', label: t('agents.view.chat') }, { value: 'term', label: t('agents.view.terminal') },
         ]} />

@@ -632,7 +632,7 @@ export function SettingsPage({ route }) {
   }, [route.sub, phone]);
   const View = { general: General, internet: Internet, startup: StartupSettings, notifications: NotificationSettings, policy: PolicySettings, doctor: DoctorSettings, security: Security, about: About }[sec];
   if (phone) return html`<div class="view page"><div class="page-in settings-page">
-    <h1 class="phone-management-title">${selected ? selected[1] : t('settings.page.reglages')}</h1>
+    ${selected && html`<h1 class="phone-management-title">${selected[1]}</h1>`}
     ${selected ? html`<div class="set-body settings-body" key=${sec}><${View} route=${route} phone /></div>`
       : html`<${PhoneSettings} sections=${sections} />`}
   </div></div>`;

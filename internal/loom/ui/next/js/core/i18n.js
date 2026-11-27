@@ -67,6 +67,13 @@ export function tSource(text) {
   return text;
 }
 
+export function setLocalLang(lang) {
+  if (!valid(lang)) return false;
+  revision++;
+  apply(lang);
+  return true;
+}
+
 // Update synchronously; serialize saves so the last selection wins on the server.
 export function setLang(lang) {
   if (!valid(lang)) return Promise.resolve(false);
