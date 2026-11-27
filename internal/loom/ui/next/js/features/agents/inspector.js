@@ -25,6 +25,9 @@ import {
   panelState, DEFAULT_PANEL_WIDTH, clampPanelWidth, setLivePanelWidth, savePanelWidth,
   previewFor, setPanelTab, openPreview, closePreview, isMarkdownPath, normalizeSessionPath,
 } from './panel-state.js';
+import {
+  orchestration, descendantsOf, rootIdOf, loadBoard, postBoard, spawnSubagent, stopTree, cleanupWorktree,
+} from './orchestration.js';
 
 const today = ms => new Date(ms).toDateString() === new Date().toDateString();
 const time = ms => !ms ? '' : today(ms) ? new Date(ms).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : new Date(ms).toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
@@ -319,29 +322,225 @@ function SubagentView({ agent, onBack }) {
   </div>`;
 }
 
-function SubagentsTab({ subState, refreshSub }) {
-  const [selected, setSelected] = useState(null);
-  const list = Array.isArray(subState.data) ? subState.data : [];
-  useEffect(() => {
-    if (selected && !list.some(a => a.agentId === selected.agentId)) setSelected(null);
-  }, [list.length]);
-  if (selected) return html`<${SubagentView} agent=${selected} onBack=${() => setSelected(null)} />`;
-  if (subState.error) return html`<${Failed} error=${subState.error} retry=${refreshSub} />`;
-  if (subState.loading && !subState.data) return html`<${Loading} />`;
-  if (!list.length) return html`<${Empty} icon="agent" title=${t('agents.insp.subagents')} text=${t('agents.sub.none')} />`;
-  return html`<div class="cm-subs-wrap">
-    <div class="cm-insp-bar">
-      <span class="muted">${list.length}</span>
-      <button type="button" class="icon-btn" aria-label=${t('common.refresh')} onClick=${refreshSub}><${Icon} n="refresh" /></button>
+function SpawnSubagentForm({ session, onCancel, onSpawned }) {
+  const allClis = useStore(agents, s => s.clis);
+  const clis = useMemo(() => allClis.filter(c => c.enabled !== false && c.installed !== false), [allClis]);
+  const [role, setRole] = useState('');
+  const [cli, setCli] = useState(session.mode && session.mode !== 'shell' ? session.mode : (clis[0]?.id || 'claude'));
+  const [workspace, setWorkspace] = useState('worktree');
+  const [task, setTask] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async e => {
+    e.preventDefault();
+    if (!role.trim() || !task.trim() || busy) return;
+    setBusy(true);
+    try {
+      const created = await spawnSubagent({
+        parent_id: session.id,
+        role: role.trim(),
+        cli,
+        workspace,
+        task: task.trim(),
+      });
+      toast(t('agents.orch.spawned', { role: created.role || role.trim() }));
+      onSpawned?.(created);
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return html`<form class="cm-orch-spawn" onSubmit=${submit}>
+    <div class="cm-orch-spawn-h">
+      <b>${t('agents.orch.new_subagent')}</b>
+      <button type="button" class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${onCancel}><${Icon} n="close" /></button>
     </div>
-    <ul class="cm-subs">${list.map(a => html`<li key=${a.agentId}><button type="button" onClick=${() => setSelected(a)}>
-      ${a.status === 'active' ? html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${Icon} n="agent" class="cm-sub-ico" />`}
-      <span class="grow">
-        <b class=${cls('trunc', a.status === 'active' && 'shimmer-text')}>${a.description || a.agentId}</b>
-        <small class="muted">${[a.model, a.status, a.toolCallCount ? t('agents.sub.tools', { n: a.toolCallCount }) : ''].filter(Boolean).join(' · ')}</small>
-      </span>
-      <${Icon} n="right" class="cm-sub-chev" />
-    </button></li>`)}</ul>
+    <input class="input" value=${role} placeholder=${t('agents.orch.role_ph')} aria-label=${t('agents.orch.role')} onInput=${e => setRole(e.target.value)} required />
+    <div class="cm-orch-spawn-row">
+      <select class="input" value=${cli} aria-label=${t('agents.new.cli')} onChange=${e => setCli(e.target.value)}>
+        ${(clis.length ? clis : [{ id: 'claude', label: 'Claude Code' }, { id: 'codex', label: 'Codex' }]).map(c => html`<option key=${c.id} value=${c.id}>${c.label}</option>`)}
+      </select>
+      <${Seg} size="sm" label=${t('agents.orch.workspace')} value=${workspace} onChange=${setWorkspace} options=${[
+        { value: 'worktree', label: t('agents.orch.ws_worktree') },
+        { value: 'inherit', label: t('agents.orch.ws_inherit') },
+      ]} />
+    </div>
+    <textarea class="textarea" rows="3" value=${task} placeholder=${t('agents.orch.task_ph')} aria-label=${t('agents.orch.task')} onInput=${e => setTask(e.target.value)} required></textarea>
+    <div class="cm-orch-spawn-foot">
+      <button type="button" class="btn sm" disabled=${busy} onClick=${onCancel}>${t('agents.cancel')}</button>
+      <button type="submit" class="btn sm primary" disabled=${busy || !role.trim() || !task.trim()}>${busy ? t('agents.new.starting') : t('agents.orch.launch')}</button>
+    </div>
+  </form>`;
+}
+
+function BoardView({ rootId, nodes }) {
+  const messages = useStore(orchestration, o => o.boards[rootId] || []);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (rootId) loadBoard(rootId).catch(() => {}); }, [rootId]);
+
+  const send = async e => {
+    e.preventDefault();
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    try {
+      await postBoard(rootId, text.trim(), 'human');
+      setText('');
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const labelFor = sid => {
+    if (!sid) return '';
+    const n = nodes[sid];
+    return n?.role || n?.name || sid.slice(0, 8);
+  };
+
+  const kindLabel = k => ({
+    update: t('agents.orch.kind.update'),
+    question: t('agents.orch.kind.question'),
+    result: t('agents.orch.kind.result'),
+    handoff: t('agents.orch.kind.handoff'),
+    human: t('agents.orch.kind.human'),
+  })[k] || t('agents.orch.kind.update');
+
+  return html`<div class="cm-board">
+    <div class="cm-board-list">
+      ${messages.length === 0 ? html`<${Empty} icon="chat" title=${t('agents.orch.board')} text=${t('agents.orch.board_empty')} />`
+        : messages.map(m => html`<article key=${m.id} class=${cls('cm-board-msg', 'kind-' + (m.kind || 'update'))}>
+          <header class="cm-board-meta">
+            <b>${m.from_role || labelFor(m.from_session) || t('agents.orch.agent')}</b>
+            ${m.to_session && html`<span class="muted">→ ${labelFor(m.to_session)}</span>`}
+            <span class="cm-board-kind">${kindLabel(m.kind)}</span>
+            <span class="grow"></span>
+            ${m.created_at && html`<time class="muted">${time(m.created_at)}</time>`}
+          </header>
+          <p class="cm-board-body">${m.text}</p>
+        </article>`)}
+    </div>
+    <form class="cm-board-form" onSubmit=${send}>
+      <input class="input" value=${text} placeholder=${t('agents.orch.board_ph')} aria-label=${t('agents.orch.board_ph')} onInput=${e => setText(e.target.value)} disabled=${busy} />
+      <button type="submit" class="btn sm primary" disabled=${busy || !text.trim()}>${t('agents.orch.board_send')}</button>
+    </form>
+  </div>`;
+}
+
+function SubagentsTab({ session, subState, refreshSub }) {
+  const [selected, setSelected] = useState(null);
+  const [view, setView] = useState('sessions');
+  const [spawning, setSpawning] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const orchNodes = useStore(orchestration, o => o.nodes);
+  const boardCounts = useStore(orchestration, o => o.boardCounts);
+  const liveSessions = useStore(agents, a => a.sessions);
+  const nativeList = Array.isArray(subState.data) ? subState.data : [];
+
+  const curNode = orchNodes[session.id] || null;
+  const rootId = rootIdOf(session.id, orchNodes);
+  const parentLive = curNode?.parent_id ? liveSessions[curNode.parent_id] : null;
+  const loomChildren = useMemo(() => descendantsOf(session.id, orchNodes), [session.id, orchNodes]);
+  const activeChildren = loomChildren.filter(n => n.status !== 'stopped' && liveSessions[n.session_id]);
+  const boardCount = boardCounts[rootId] || 0;
+  const showBoardSwitch = loomChildren.length > 0 || !!curNode?.parent_id || boardCount > 0;
+
+  useEffect(() => {
+    if (selected && !nativeList.some(a => a.agentId === selected.agentId)) setSelected(null);
+  }, [nativeList.length]);
+  useEffect(() => { setSpawning(false); }, [session.id]);
+
+  if (selected) return html`<${SubagentView} agent=${selected} onBack=${() => setSelected(null)} />`;
+
+  const doStopTree = async () => {
+    if (!await confirm(t('agents.orch.stop_tree_title'), t('agents.orch.stop_tree_text'), { ok: t('agents.orch.stop_tree'), danger: true })) return;
+    setStopping(true);
+    try {
+      await stopTree(session.id, { mode: 'close' });
+      toast(t('agents.orch.tree_stopped'));
+    } catch (e) { toast(e.message, 'err'); }
+    finally { setStopping(false); }
+  };
+
+  const quickSend = async child => {
+    const msg = await prompt(t('agents.orch.send_to', { name: child.role || child.name }), { placeholder: t('agents.orch.send_ph') });
+    if (!msg) return;
+    try { await sendPrompt(child.session_id, msg); toast(t('agents.orch.sent')); } catch (e) { toast(e.message, 'err'); }
+  };
+
+  const quickClose = async child => {
+    if (!await confirm(t('agents.session.close_title'), t('agents.session.close_text', { name: child.name || child.role || child.session_id.slice(0, 8) }), { ok: t('agents.session.close'), danger: true })) return;
+    try { await closeSession(child.session_id, true); } catch (e) { toast(e.message, 'err'); }
+  };
+
+  const quickCleanWT = async child => {
+    try { await cleanupWorktree(child.session_id, false); toast(t('agents.orch.wt_cleaned')); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+
+  return html`<div class="cm-subs-wrap">
+    <div class="cm-insp-bar cm-orch-bar">
+      ${showBoardSwitch ? html`<${Seg} size="sm" label=${t('agents.insp.subagents')} value=${view} onChange=${setView} options=${[
+        { value: 'sessions', label: t('agents.orch.tab_sessions') + (loomChildren.length ? ` (${loomChildren.length})` : '') },
+        { value: 'board', label: t('agents.orch.board') + (boardCount ? ` (${boardCount})` : '') },
+      ]} />` : html`<span class="muted">${t('agents.orch.loom_sessions')}</span>`}
+      <span class="grow"></span>
+      ${view === 'sessions' && !spawning && html`<button type="button" class="btn sm" onClick=${() => setSpawning(true)}><${Icon} n="plus" /><span>${t('agents.orch.spawn_btn')}</span></button>`}
+      ${view === 'sessions' && activeChildren.length > 0 && html`<button type="button" class="btn sm danger" disabled=${stopping} onClick=${doStopTree} title=${t('agents.orch.stop_tree')}><${Icon} n="stop" /></button>`}
+      <button type="button" class="icon-btn" aria-label=${t('common.refresh')} onClick=${() => { refreshSub(); if (rootId) loadBoard(rootId).catch(() => {}); }}><${Icon} n="refresh" /></button>
+    </div>
+
+    ${parentLive && html`<button type="button" class="cm-orch-parent" onClick=${() => openSession(parentLive.id)}>
+      <${Icon} n="left" />
+      <span class="trunc"><small class="muted">${t('agents.orch.parent_session')}</small><b>${parentLive.name || parentLive.id.slice(0, 8)}</b></span>
+      ${curNode?.branch && html`<code class="cm-branch mono trunc">${curNode.branch}</code>`}
+    </button>`}
+
+    ${spawning && html`<${SpawnSubagentForm} session=${session} onCancel=${() => setSpawning(false)} onSpawned=${() => setSpawning(false)} />`}
+
+    ${view === 'board' ? html`<${BoardView} rootId=${rootId} nodes=${orchNodes} />` : html`
+      ${loomChildren.length > 0 && html`<section class="cm-orch-sec">
+        <div class="cm-orch-sec-h"><span>${t('agents.orch.loom_sessions')}</span><small>${activeChildren.length}/${loomChildren.length}</small></div>
+        <ul class="cm-orch-list">${loomChildren.map(child => {
+          const live = liveSessions[child.session_id] || null;
+          const st = live ? attentionOf(live) : 'stopped';
+          const busy = st === 'working' || st === 'starting';
+          return html`<li key=${child.session_id} class=${cls('cm-orch-card', !live && 'is-stopped')}>
+            <button type="button" class="cm-orch-main" disabled=${!live} onClick=${() => live && openSession(child.session_id)}>
+              ${busy ? html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${CliMark} mode=${child.cli || live?.mode || 'claude'} size="xs" />`}
+              <span class="cm-orch-copy">
+                <b class=${cls('trunc', busy && 'shimmer-text')}>${child.role || child.name || child.session_id.slice(0, 8)}</b>
+                <small class="muted trunc">${[cliOf(child.cli || live?.mode).label, child.branch, lt('state', st)].filter(Boolean).join(' · ')}</small>
+              </span>
+            </button>
+            <div class="cm-orch-acts">
+              ${live && html`<button type="button" class="icon-btn" aria-label=${t('agents.orch.send_msg')} title=${t('agents.orch.send_msg')} onClick=${() => quickSend(child)}><${Icon} n="chat" /></button>`}
+              ${live && html`<button type="button" class="icon-btn" aria-label=${t('agents.session.close')} title=${t('agents.session.close')} onClick=${() => quickClose(child)}><${Icon} n="close" /></button>`}
+              ${!live && child.worktree_path && html`<button type="button" class="btn sm" onClick=${() => quickCleanWT(child)}>${t('agents.orch.clean_wt')}</button>`}
+            </div>
+          </li>`;
+        })}</ul>
+      </section>`}
+
+      ${nativeList.length > 0 && html`<section class="cm-orch-sec">
+        <div class="cm-orch-sec-h"><span>${t('agents.orch.native_subagents')}</span><small>${nativeList.length}</small></div>
+        <ul class="cm-subs">${nativeList.map(a => html`<li key=${a.agentId}><button type="button" onClick=${() => setSelected(a)}>
+          ${a.status === 'active' ? html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${Icon} n="agent" class="cm-sub-ico" />`}
+          <span class="grow">
+            <b class=${cls('trunc', a.status === 'active' && 'shimmer-text')}>${a.description || a.agentId}</b>
+            <small class="muted">${[a.model, a.status, a.toolCallCount ? t('agents.sub.tools', { n: a.toolCallCount }) : ''].filter(Boolean).join(' · ')}</small>
+          </span>
+          <${Icon} n="right" class="cm-sub-chev" />
+        </button></li>`)}</ul>
+      </section>`}
+
+      ${!loomChildren.length && !nativeList.length && !spawning && (subState.loading && !subState.data ? html`<${Loading} />`
+        : subState.error ? html`<${Failed} error=${subState.error} retry=${refreshSub} />`
+        : html`<${Empty} icon="agent" title=${t('agents.insp.subagents')} text=${t('agents.sub.none')} />`)}
+    `}
   </div>`;
 }
 
@@ -555,8 +754,16 @@ export function Inspector({ session, open: isOpen = true, onClose, view, setView
   const agentEditCount = useMemo(() => changedFiles(editsState.data?.entries || []).files.length, [editsState.data]);
   const gitChangesCount = (gitState.data?.repos || []).reduce((acc, r) => acc + (r?.status?.counts?.uncommitted || r?.status?.files?.length || 0), 0);
   const changesCount = agentEditCount || gitChangesCount;
+  const orchNodes = useStore(orchestration, o => o.nodes);
+  const liveSessions = useStore(agents, a => a.sessions);
+  const loomSubs = useMemo(() => (sid ? descendantsOf(sid, orchNodes).filter(n => n.status !== 'stopped' && liveSessions[n.session_id]) : []), [sid, orchNodes, liveSessions]);
+  const loomSubActive = loomSubs.some(n => {
+    const st = attentionOf(liveSessions[n.session_id]);
+    return st === 'working' || st === 'starting';
+  });
   const subList = Array.isArray(subState.data) ? subState.data : [];
-  const subActive = subList.some(a => a.status === 'active');
+  const subTotal = subList.length + loomSubs.length;
+  const subActive = loomSubActive || subList.some(a => a.status === 'active');
   const hasPreview = !!(preview.active || preview.detected.length || preview.recent.length);
   const activeTab = tab === 'preview' && !hasPreview ? 'session' : tab;
 
@@ -656,7 +863,7 @@ export function Inspector({ session, open: isOpen = true, onClose, view, setView
     { id: 'session', label: t('agents.insp.info') },
     { id: 'changes', label: t('agents.panel.changes'), count: changesCount },
     { id: 'files', label: t('agents.insp.files') },
-    { id: 'subagents', label: t('agents.insp.subagents'), count: subList.length, active: subActive },
+    { id: 'subagents', label: t('agents.insp.subagents'), count: subTotal, active: subActive },
     ...(hasPreview ? [{ id: 'preview', label: t('agents.insp.preview'), dot: !preview.active && preview.detected.length > 0, count: !preview.active && preview.detected.length > 1 ? preview.detected.length : 0 }] : []),
   ];
 
@@ -744,7 +951,7 @@ export function Inspector({ session, open: isOpen = true, onClose, view, setView
           </div>`}
         ${activeTab === 'changes' && html`<${ChangesTab} id=${s.id} workingDir=${s.workingDir} editsState=${editsState} refreshEdits=${refreshEdits} gitState=${gitState} refreshGit=${refreshGit} />`}
         ${activeTab === 'files' && html`<${FilesTab} id=${s.id} />`}
-        ${activeTab === 'subagents' && html`<${SubagentsTab} subState=${subState} refreshSub=${refreshSub} />`}
+        ${activeTab === 'subagents' && html`<${SubagentsTab} session=${s} subState=${subState} refreshSub=${refreshSub} />`}
         ${activeTab === 'preview' && html`<${PreviewTab} session=${s} preview=${preview} />`}
       </div>`}
     </div>

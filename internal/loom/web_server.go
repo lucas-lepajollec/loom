@@ -119,6 +119,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	registerRetiredIntegrations(mux)
 	api := webAPI(mux)
 	registerCodemanRoutes(mux, api)
+	registerOrchestrationRoutes(mux, api)
 	api("/api/policy", handlePolicy)
 	api("/api/policy/evaluate", handlePolicyEvaluate)
 	api("/api/policy/audit", handlePolicyAudit)

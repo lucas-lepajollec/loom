@@ -25,7 +25,8 @@ import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf }
 import { Conversation } from './conversation.js';
 import { AgentTerminal } from './terminal.js';
 import { Inspector } from './inspector.js';
-import { panelState, previewFor, openPreview } from './panel-state.js';
+import { panelState, previewFor, openPreview, setPanelTab } from './panel-state.js';
+import { orchestration, descendantsOf } from './orchestration.js';
 import { CliMark, AgentNewStudio } from './new-session.js';
 import { ControlCenter } from './control.js';
 import { Grid, ShapeIcon } from './grid.js';
@@ -40,6 +41,16 @@ import { openSession } from './nav.js';
 function SessionHeader({ s, narrowView, insp, setInsp }) {
   const state = stateOf(s), cli = cliOf(s.mode);
   const preview = useStore(panelState, p => previewFor(p, s.id));
+  const orchNodes = useStore(orchestration, o => o.nodes);
+  const liveSessions = useStore(agents, a => a.sessions);
+  const node = orchNodes[s.id] || null;
+  const parentLive = node?.parent_id ? liveSessions[node.parent_id] : null;
+  const parentLabel = parentLive?.name || (node?.parent_id ? (orchNodes[node.parent_id]?.name || node.parent_id.slice(0, 8)) : '');
+  const desc = descendantsOf(s.id, orchNodes).filter(n => n.status !== 'stopped' && liveSessions[n.session_id]);
+  const descWorking = desc.some(n => {
+    const st = attentionOf(liveSessions[n.session_id]);
+    return st === 'working' || st === 'starting';
+  });
   const peekPath = preview.active || preview.detected[0] || '';
   const shown = attentionOf(s) === 'unseen' ? state : attentionOf(s);
   const busy = shown === 'working' || shown === 'starting';
@@ -48,19 +59,28 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
     if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
   };
   const restart = () => api.start(s.id, s.mode === 'shell').then(() => api.session(s.id).then(upsertSession)).catch(e => toast(e.message, 'err'));
+  const openSubsTab = () => { setPanelTab('subagents'); setInsp(true); };
   if (narrowView) return html`<header class="cm-sh phone-session-head">
     <${BackButton} />
     <div class="phone-agent-title">
       <span><${CliMark} mode=${s.mode} size="xs" /><b class=${cls('trunc', busy && 'shimmer-text')}>${s.name || s.id.slice(0, 8)}</b></span>
-      <small class=${cls('st-' + shown, busy && 'shimmer-text')}>${busy && html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}<span class="trunc">${[lt('state', shown), s.displayModel?.model, s.workingDir && projectOf(s.workingDir)].filter(Boolean).join(' · ')}</span></small>
+      <small class=${cls('st-' + shown, busy && 'shimmer-text')}>${busy && html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}<span class="trunc">${[node?.role, node?.branch, lt('state', shown), s.displayModel?.model, s.workingDir && projectOf(s.workingDir)].filter(Boolean).join(' · ')}</span></small>
     </div>
     <button type="button" class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} aria-expanded=${String(insp)} onClick=${() => setInsp(!insp)}><${Icon} n="more" /></button>
   </header>`;
   return html`<header class="cm-sh">
+    ${parentLive && html`<button type="button" class="btn sm cm-sh-crumb" title=${t('agents.orch.back_parent')} onClick=${() => openSession(parentLive.id)}>
+      <${Icon} n="left" /><span class="trunc">${parentLabel}</span></button><span class="cm-sh-sep" aria-hidden="true">/</span>`}
     <span class="cm-sh-cli"><${CliMark} mode=${s.mode} size="sm" /><b>${cli.label}</b>${s.displayModel?.model && html`<span class="muted">${s.displayModel.model}</span>`}</span>
     <span class="cm-sh-sep" aria-hidden="true">/</span>
     <button class="btn sm cm-sh-name" onClick=${rename} title=${t('agents.session.rename')}><span class="trunc">${s.name || s.id.slice(0, 8)}</span></button>
+    ${node?.role && html`<span class="cm-sh-role">${node.role}</span>`}
+    ${node?.branch && html`<span class="cm-sh-branch mono trunc" title=${node.worktree_path || node.branch}>${node.branch}</span>`}
     <span class="grow"></span>
+    ${desc.length > 0 && html`<button type="button" class="btn sm cm-sh-orch" onClick=${openSubsTab} title=${t('agents.insp.subagents')}>
+      ${descWorking ? html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${Icon} n="agent" />`}
+      <span>${t('agents.orch.children_count', { n: desc.length })}</span>
+    </button>`}
     ${!insp && peekPath && html`<button type="button" class="btn sm cm-sh-peek" title=${peekPath} onClick=${() => openPreview(s.id, peekPath)}>
       <${Icon} n="eye" /><span>${t('agents.insp.preview')}</span>${preview.detected.length > 1 && html`<em class="cm-ptab-n">${preview.detected.length}</em>`}</button>`}
     ${state === 'stopped' ? html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`
