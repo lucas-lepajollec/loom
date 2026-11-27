@@ -37,8 +37,9 @@
 .cv-step-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cv-step code{font:12px var(--mono);color:var(--text-2);background:none;padding:0}
 .cv-meta{flex:none;font-size:12px;color:var(--text-4)}
-.cv-step.live .cv-step-t{background:linear-gradient(90deg,var(--text-3) 0%,var(--text) 50%,var(--text-3) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 2s linear infinite}
+.cv-step.live .cv-step-t{animation:text-sweep 2.15s linear infinite}
 .cv-step.live code{color:inherit}
+.cv-fold-b,.cm-chg-body{animation:in-view 180ms var(--out)}
 .cv-spin{width:13px;height:13px;flex:none;border-radius:50%;border:1.5px solid var(--line-strong);border-top-color:var(--text-2);animation:spin .9s linear infinite}
 @media (prefers-reduced-motion:reduce){.cv-step.live .cv-step-t{animation:none;color:var(--text-2)}.cv-spin{animation:none}}
 

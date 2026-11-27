@@ -10,12 +10,13 @@
 .cm-ws{flex:1;min-height:0;display:flex}
 .cm-ws>*{flex:1;min-width:0}
 
-.cm-blank{display:flex;align-items:center;justify-content:center}
+.cm-blank{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.cm-blank-in{position:relative;z-index:1}
 .cm-pane{min-width:0;min-height:0;display:flex}
 .cm-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
 
 /* en-tête de session */
-.cm-sh{flex:none;display:flex;align-items:center;gap:10px;height:58px;padding:0 10px 0 16px;border-bottom:1px solid var(--line-soft)}
+.cm-sh{flex:none;display:flex;align-items:center;gap:10px;height:var(--head-h);padding:0 10px 0 16px;border-bottom:1px solid var(--line-soft)}
 .cm-sh .seg{flex:none}
 
 /* corps : conversation, terminal ou les deux */
@@ -78,18 +79,18 @@
 .cm-insp-err span{flex:1}
 .cm-panel-peek,.cm-sh-peek{gap:5px;padding-inline:8px;min-height:26px;font-size:12px;background:var(--surface-2);color:var(--text)}
 .cm-panel-peek .ico,.cm-sh-peek .ico{width:13px;height:13px}
-.cm-panel-tabs{flex:none;display:flex;align-items:center;gap:2px;padding:6px 10px;border-bottom:1px solid var(--line-soft);overflow-x:auto;scrollbar-width:none}
+.cm-panel-tabs{flex:none;display:flex;align-items:center;gap:2px;padding:0 12px;border-bottom:1px solid var(--line-soft);overflow-x:auto;scrollbar-width:none}
 .cm-panel-tabs::-webkit-scrollbar{display:none}
-.cm-ptab{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 10px;border-radius:var(--r-sm);font-size:12.5px;font-weight:500;color:var(--text-3);white-space:nowrap;transition:background-color var(--fast),color var(--fast)}
-.cm-ptab:hover{background:var(--hover);color:var(--text)}
-.cm-ptab.on,.cm-ptab[aria-selected="true"]{background:var(--surface-2);color:var(--text)}
-.cm-ptab-n{font:500 11px/1 var(--font);font-style:normal;font-variant-numeric:tabular-nums;padding:2px 5px;border-radius:999px;background:var(--surface-3);color:var(--text-2)}
-.cm-ptab.on .cm-ptab-n{background:var(--panel);color:var(--text)}
+.cm-ptab{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;height:38px;padding:0 10px;border-radius:0;font-size:12.5px;font-weight:500;color:var(--text-3);white-space:nowrap;transition:color var(--fast)}
+.cm-ptab:hover{background:transparent;color:var(--text)}
+.cm-ptab.on,.cm-ptab[aria-selected="true"]{background:transparent;color:var(--text);box-shadow:inset 0 -1.5px 0 var(--text)}
+.cm-ptab-n{font:500 11px/1 var(--font);font-style:normal;font-variant-numeric:tabular-nums;padding:2px 5px;border-radius:999px;background:var(--surface-2);color:var(--text-2)}
+.cm-ptab.on .cm-ptab-n{background:var(--surface-3);color:var(--text)}
 .cm-ptab-dot{width:6px;height:6px;border-radius:50%;background:var(--text-2)}
 .cm-ptab .dot{width:6px;height:6px}
 .cm-panel-body.is-preview{padding:0;gap:0;overflow:hidden}
 /* fichiers cités dans l'onglet Session */
-.cm-cited-box{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:var(--r-lg);border:1px solid var(--line-soft);background:var(--surface)}
+.cm-cited-box{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:var(--r);border:0;background:var(--surface)}
 .cm-cited-h{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:500;color:var(--text-3);padding:0 2px}
 .cm-cited-h small{font-variant-numeric:tabular-nums}
 .cm-cited-list{display:flex;flex-direction:column;gap:2px}
@@ -103,7 +104,7 @@
 .cm-cited-row:hover .cm-cited-eye{opacity:1;color:var(--text)}
 /* modifications style Codex / Claude Desktop */
 .cm-git{display:flex;flex-direction:column;gap:12px;min-width:0}
-.cm-chg-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden}
+.cm-chg-list{display:flex;flex-direction:column;border:0;border-radius:var(--r);background:var(--surface);overflow:hidden}
 .cm-chg-file{border-top:1px solid var(--line-soft)}
 .cm-chg-file:first-child{border-top:0}
 .cm-chg-row{display:flex;align-items:center;min-width:0}
@@ -131,7 +132,7 @@
 .cm-sub-chev{width:14px;height:14px;flex:none;color:var(--text-4)}
 .cm-sub-view{display:flex;flex-direction:column;gap:10px;min-width:0}
 .cm-sub-head{display:flex;align-items:center;gap:4px}
-.cm-sub-meta{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r-lg);border:1px solid var(--line-soft);background:var(--surface)}
+.cm-sub-meta{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r);border:0;background:var(--surface)}
 .cm-sub-meta .grow{display:flex;flex-direction:column;min-width:0}
 .cm-sub-meta b{font-size:13px;font-weight:500;overflow-wrap:anywhere}
 .cm-sub-meta small{font-size:12px}
@@ -155,13 +156,13 @@
 .cm-preview-body{flex:1;min-height:0;overflow:auto;padding:14px 16px 24px;display:flex;flex-direction:column;gap:12px}
 .cm-preview-md{font-size:13.5px;line-height:1.6}
 .cm-preview-md>:first-child{margin-top:0}
-.cm-preview-code{margin:0;padding:12px 14px;border-radius:var(--r);border:1px solid var(--line-soft);background:var(--bg-2);font:12px/1.55 var(--mono);color:var(--text);overflow:auto;white-space:pre;tab-size:2}
-.cm-preview-msg{display:flex;align-items:flex-start;gap:8px;padding:12px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line-soft);color:var(--text-2);font-size:13px}
+.cm-preview-code{margin:0;padding:12px 14px;border-radius:var(--r);border:0;background:var(--bg-2);font:12px/1.55 var(--mono);color:var(--text);overflow:auto;white-space:pre;tab-size:2}
+.cm-preview-msg{display:flex;align-items:flex-start;gap:8px;padding:12px;border-radius:var(--r);background:var(--surface);border:0;color:var(--text-2);font-size:13px}
 .cm-preview-msg .ico{width:15px;height:15px;margin-top:2px;flex:none;color:var(--text-3)}
 /* puces de documents cités dans la conversation */
 .cv-docs{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
-.cv-doc-chip{display:inline-flex;align-items:center;gap:6px;max-width:260px;height:28px;padding:0 9px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--surface);font-size:12px;font-weight:500;color:var(--text-2);transition:background-color var(--fast),border-color var(--fast),color var(--fast)}
-.cv-doc-chip:hover{background:var(--surface-2);border-color:var(--line-strong);color:var(--text)}
+.cv-doc-chip{display:inline-flex;align-items:center;gap:6px;max-width:260px;height:27px;padding:0 9px;border-radius:var(--r-sm);border:0;background:var(--surface-2);font-size:12px;font-weight:500;color:var(--text-2);transition:background-color var(--fast),color var(--fast)}
+.cv-doc-chip:hover{background:var(--surface-3);color:var(--text)}
 .cv-doc-chip .ico{width:13px;height:13px;flex:none;color:var(--text-3)}
 .cv-doc-eye{opacity:.65}
 .cv-doc-chip:hover .cv-doc-eye{opacity:1;color:var(--text)}
@@ -278,17 +279,22 @@
 .ses-row.st-stopped{color:var(--text-4)}
 .ses-row.st-stopped .ses-ico{opacity:.5}
 .ses-row>.dot{width:7px;height:7px}
-/* pastilles d'état : même place que la durée, au bord, effacées au survol */
-.ses-row>.dot,.ses-row>.run{flex:none;margin-left:auto;margin-right:4px}
-.ses-when{flex:none;margin-left:auto;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
-/* la durée colle au bord ; au survol elle laisse la place aux « ⋯ » */
+/* pastilles retirées : indicateur pixel-matrix + texte balayé façon Codex */
+.ses-row>.loom-pulse,.ses-row>.dot,.ses-row>.run{flex:none;margin-left:auto;margin-right:2px}
+.ses-when{flex:none;margin-left:auto;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums;transition:opacity var(--fast)}
+/* la durée ou l'animation reste visible tant qu'on ne survole pas ; les « ⋯ »
+   n'apparaissent qu'au survol ou au focus, jamais par-dessus sur la session active */
 .ses-row{padding-right:8px}
-.ses-row>.more{position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0}
-.ses-row:hover>.more,.ses-row:focus-visible>.more,.ses-row:has(:focus-visible)>.more{opacity:1}
-.ses-row:is(:hover,:focus-visible,:has(:focus-visible))>:is(.ses-when,.dot,.run,.ses-flag){visibility:hidden}
-/* Ce qui attend l'utilisateur : un mot sobre, sans pastille. */
-.ses-flag{flex:none;margin-left:auto;font-size:12px;font-weight:500;color:var(--text)}
+.ses-row>.more,.ses-row[aria-current="page"]>.more{position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0;pointer-events:none;transition:opacity var(--fast)}
+.ses-row:is(:hover,:focus-visible,:has(:focus-visible))>.more{opacity:1;pointer-events:auto}
+.ses-row:is(:hover,:focus-visible,:has(:focus-visible))>:is(.ses-when,.dot,.run,.loom-pulse,.ses-flag){opacity:0;visibility:hidden}
+/* États de session sobres, sans bulle ni pastille colorée */
+.ses-flag{flex:none;margin-left:auto;font-size:11.5px;font-weight:500;color:var(--text)}
+.ses-flag:is(.st-approval,.st-question){animation:soft-breathe 2.4s var(--ease) infinite}
 .ses-flag.st-unseen{font-weight:400;color:var(--text-2)}
+.ses-flag.st-limited{font-weight:400;color:var(--text-3)}
+.ses-flag.st-error{color:var(--red)}
+.cm-sub-ico{width:14px;height:14px;flex:none;color:var(--text-3)}
 .ses-folder-h small{flex:none;font-size:11.5px;color:var(--text-4)}
 .ses-folder-in .chat-link{padding-left:22px}
 .ses-folder.drop-on,.ses .side-list.drop-on{border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line-strong)}
@@ -414,12 +420,13 @@ html.touch .cm-term-box{-webkit-text-size-adjust:100%}
 .cm-sh-cli .muted{font-size:14px}
 .cm-sh-sep{color:var(--text-4)}
 .cm-sh-name{flex:0 1 auto}
-.cm-sh-state{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:13px;background:var(--surface-2);font-size:12.5px;font-weight:500;color:var(--text-2);white-space:nowrap}
-.cm-sh-state.st-working,.cm-sh-state.st-starting{background:var(--amber-bg);color:var(--amber)}
-.cm-sh-state.st-waiting{background:var(--blue-bg);color:var(--text)}
-.cm-sh-state.st-error{background:var(--red-bg);color:var(--red)}
-.cm-panel-h{flex:none;display:flex;align-items:center;gap:2px;height:58px;padding:0 8px 0 18px;border-bottom:1px solid var(--line-soft)}
-.cm-panel-h b{font-size:14px;font-weight:600}
+.cm-sh-state{display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 4px;border-radius:0;background:transparent;font-size:12.5px;font-weight:500;color:var(--text-3);white-space:nowrap}
+.cm-sh-state.st-working,.cm-sh-state.st-starting{background:transparent;color:var(--text-2)}
+.cm-sh-state.st-waiting,.cm-sh-state.st-approval,.cm-sh-state.st-question{background:transparent;color:var(--text);animation:soft-breathe 2.4s var(--ease) infinite}
+.cm-sh-state.st-error{background:transparent;color:var(--red)}
+.cm-panel-body>*{animation:in-view 180ms var(--out)}
+.cm-panel-h{flex:none;display:flex;align-items:center;gap:4px;height:var(--head-h);padding:0 8px 0 16px;border-bottom:1px solid var(--line-soft)}
+.cm-panel-h b{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
 .cm-panel-body{flex:1;min-height:0;overflow-y:auto;padding:14px 16px 20px;display:flex;flex-direction:column;gap:16px;font-size:13px}
 .cm-panel-body>.seg{width:100%}
 .cm-panel-body>.seg button{flex:1}

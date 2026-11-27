@@ -43,8 +43,8 @@ function Tile({ s, i, focused, hidden }) {
       onPointerDownCapture=${() => focusCell(i)} ...${dropProps(i, setOver)} aria-label=${s.name || s.id.slice(0, 8)}>
     <header class="cm-tile-h" draggable="true" onDblClick=${toggleZoom}
         onDragStart=${e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData(DRAG_TYPE, s.id); }}>
-      <${StateDot} state=${state} /><${CliMark} mode=${s.mode} size="xs" />
-      <span class="cm-tile-t trunc"><b>${s.name || s.id.slice(0, 8)}</b><small>${state === 'idle' ? projectOf(s.workingDir) : lt('state', state)}${s.displayModel?.model ? ' · ' + s.displayModel.model : ''}</small></span>
+      ${(state === 'working' || state === 'starting') && html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}<${CliMark} mode=${s.mode} size="xs" />
+      <span class="cm-tile-t trunc"><b class=${cls((state === 'working' || state === 'starting') && 'shimmer-text')}>${s.name || s.id.slice(0, 8)}</b><small>${state === 'idle' ? projectOf(s.workingDir) : lt('state', state)}${s.displayModel?.model ? ' · ' + s.displayModel.model : ''}</small></span>
       ${hasConversation(s.mode) && html`<button class="icon-btn" aria-label=${term ? t('agents.view.chat') : t('agents.view.terminal')} title=${term ? t('agents.view.chat') : t('agents.view.terminal')}
         onClick=${() => pick(term ? 'chat' : 'term')}><${Icon} n=${term ? 'chat' : 'terminal'} /></button>`}
       <button class="icon-btn" aria-label=${zoom && focused ? t('agents.grid.unzoom') : t('agents.grid.zoom')} title=${zoom && focused ? t('agents.grid.unzoom') : t('agents.grid.zoom_hint')}

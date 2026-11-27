@@ -24,11 +24,12 @@
 /* fil */
 .thread{flex:1;min-height:0;overflow-y:auto;position:relative;scroll-behavior:auto}
 .thread-in{max-width:760px;margin:0 auto;padding:32px 28px 24px;display:flex;flex-direction:column;gap:18px}
-.welcome{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:24px}
-.welcome-mark{display:grid;place-items:center;color:var(--text);margin:6px 0 10px}
-.welcome-mark .loom-mark{width:44px;height:44px}
-.welcome h1{margin:0;font-size:26px;font-weight:600;letter-spacing:-.03em}
-.welcome p{margin:0;max-width:420px;color:var(--text-2);font-size:14.5px}
+.welcome{position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:24px}
+.welcome-in{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:8px}
+.welcome-mark{display:grid;place-items:center;border:0;background:transparent;color:var(--text);margin:0 0 4px}
+.welcome-mark .loom-mark{width:32px;height:32px}
+.welcome h1{margin:0;font-size:23px;font-weight:600;letter-spacing:-.03em}
+.welcome p{margin:0;max-width:420px;color:var(--text-2);font-size:13.5px;line-height:1.5}
 
 .msg-user{align-self:flex-end;max-width:78%;display:flex;flex-direction:column;align-items:flex-end;gap:6px;animation:in-rise var(--slow) var(--out)}
 .msg-user .bubble{padding:10px 15px;border-radius:18px 18px 6px 18px;background:var(--surface-2);font-size:15px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
@@ -225,11 +226,25 @@
 @media (max-width:720px){.chat-view{gap:0}.chat-col{border:0;border-radius:0}}
 .insp-model{flex-direction:column;align-items:flex-start;gap:2px}
 .insp-model:has(.logo-mark){flex-direction:row;align-items:center;gap:10px}
-/* plat */
-.chat-col,.insp.open{box-shadow:none}
-.composer,[data-theme="light"] .composer{box-shadow:none;border-color:var(--line-strong)}
-.composer:focus-within{box-shadow:none;border-color:var(--text-4)}
-.msg-user .bubble{border:0}
+/* Plat mat bord-à-bord (Paradev × Codex) : zéro cadre imbriqué, filets fins */
+.chat-view{background:var(--panel);gap:0;overflow:hidden}
+.chat-col{position:relative;background:transparent;border:0;border-radius:0;box-shadow:none;overflow:hidden}
+.chat-col>.topbar,.chat-col>.cv-wrap,.chat-col>.composer-wrap{position:relative;z-index:1}
+@media (min-width:761px){
+  .chat-col.is-empty>.topbar{background:transparent;border-bottom-color:transparent}
+  .chat-col.is-empty>.cv-wrap{flex:0 0 auto;margin-top:auto}
+  .chat-col.is-empty .welcome{height:auto;padding:12px 24px 18px}
+  .chat-col.is-empty>.composer-wrap{margin-bottom:auto;padding-bottom:8vh}
+}
+.insp{position:relative;background:var(--panel);border:0;border-radius:0;margin-left:0;transition:none}
+.insp.open{margin-left:0;border:0;border-left:1px solid var(--line-soft);box-shadow:none}
+.insp-head{height:var(--head-h);padding:0 8px 0 16px;border-bottom:1px solid var(--line-soft)}
+.insp-title{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.composer,[data-theme="light"] .composer{background:var(--surface);border:1px solid var(--line-strong);border-radius:14px;box-shadow:none;padding:12px 12px 9px}
+.composer:focus-within,[data-theme="light"] .composer:focus-within{border-color:color-mix(in srgb,var(--text) 22%,transparent);box-shadow:none}
+.msg-user .bubble{border:1px solid var(--line-soft);border-radius:12px;background:var(--surface);padding:10px 14px;font-size:14.5px;box-shadow:none}
+.vram{border:0;background:var(--surface)}
+.tc,.plan,.approval{border:1px solid var(--line-soft)}
 .insp-head .tag{display:none}
 .insp-head .seg{flex:0 1 auto}
 .insp-head{justify-content:space-between}

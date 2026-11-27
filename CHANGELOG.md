@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+- **Flat edge-to-edge workspace redesign, Pixel Matrix ambient canvas & Codex-style live motion**:
+  - Switched the desktop shell to a flat, borderless edge-to-edge monochrome
+    layout (Paradev / Codex / Linear grammar) with whisper-quiet hairlines,
+    unified `48 px` headers, flat matte cards, and a resizable side panel shared
+    between both Agent sessions and Discussions.
+  - Added a lightweight monochrome **Pixel Matrix** dithered ambient canvas
+    (`ui/ambient.js`) behind the sign-in screen and empty new-session views,
+    with centered welcome + composer framing and auto-pause when hidden.
+  - Replaced colored session dots and status bubbles with Codex-style metallic
+    text shimmer (`.shimmer-text`) and a 2×2 monochrome pixel-matrix live
+    indicator (`.loom-pulse`) across the sidebar, session header, overview,
+    mosaic, subagents, and live conversation steps; kept `⋯` row actions strictly
+    hover/focus-only so they never overlap the active session status.
+  - Kept the discussion parameters panel closed by default on startup and on
+    **New session**; isolated session cookie names on non-default ports
+    (`loom_session_<port>`) so running a local test server alongside production
+    on the same IP no longer logs either session out.
 - **Resizable tabbed agent side panel, document preview & responsive login**:
   - The agent session panel can now be resized smoothly from its left handle
     (persisted width, double-click or keyboard reset) and is organized into

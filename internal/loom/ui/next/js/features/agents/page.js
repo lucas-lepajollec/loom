@@ -9,6 +9,7 @@ import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
 import { html, useState, useEffect, useRef, useStore, cls, createStore } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
+import { AmbientField } from '../../ui/ambient.js';
 import { Empty, Popover, Seg, Switch } from '../../ui/controls.js';
 import { prompt, toast } from '../../ui/dialog.js';
 import { Drawer } from '../../ui/drawer.js';
@@ -40,9 +41,8 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
   const state = stateOf(s), cli = cliOf(s.mode);
   const preview = useStore(panelState, p => previewFor(p, s.id));
   const peekPath = preview.active || preview.detected[0] || '';
-  // Accord ou question : un mot, sans pastille.
   const shown = attentionOf(s) === 'unseen' ? state : attentionOf(s);
-  const dot = ATTENTION.has(shown) ? '' : html`<${StateDot} state=${shown} />`;
+  const busy = shown === 'working' || shown === 'starting';
   const rename = async () => {
     const name = await prompt(t('agents.session.rename'), { value: s.name || '' });
     if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
@@ -51,8 +51,8 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
   if (narrowView) return html`<header class="cm-sh phone-session-head">
     <${BackButton} />
     <div class="phone-agent-title">
-      <span><${CliMark} mode=${s.mode} size="xs" /><b class="trunc">${s.name || s.id.slice(0, 8)}</b></span>
-      <small class=${'st-' + shown}>${dot}<span class="trunc">${[lt('state', shown), s.displayModel?.model, s.workingDir && projectOf(s.workingDir)].filter(Boolean).join(' · ')}</span></small>
+      <span><${CliMark} mode=${s.mode} size="xs" /><b class=${cls('trunc', busy && 'shimmer-text')}>${s.name || s.id.slice(0, 8)}</b></span>
+      <small class=${cls('st-' + shown, busy && 'shimmer-text')}>${busy && html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}<span class="trunc">${[lt('state', shown), s.displayModel?.model, s.workingDir && projectOf(s.workingDir)].filter(Boolean).join(' · ')}</span></small>
     </div>
     <button type="button" class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} aria-expanded=${String(insp)} onClick=${() => setInsp(!insp)}><${Icon} n="more" /></button>
   </header>`;
@@ -64,7 +64,7 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
     ${!insp && peekPath && html`<button type="button" class="btn sm cm-sh-peek" title=${peekPath} onClick=${() => openPreview(s.id, peekPath)}>
       <${Icon} n="eye" /><span>${t('agents.insp.preview')}</span>${preview.detected.length > 1 && html`<em class="cm-ptab-n">${preview.detected.length}</em>`}</button>`}
     ${state === 'stopped' ? html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`
-      : html`<span class=${'cm-sh-state st-' + shown}>${dot}${lt('state', shown)}</span>`}
+      : html`<span class=${cls('cm-sh-state', 'st-' + shown)}>${busy && html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}<span class=${cls(busy && 'shimmer-text')}>${lt('state', shown)}</span></span>`}
     <button class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} title=${t('agents.insp.title')} aria-pressed=${String(!!insp)} onClick=${() => setInsp(!insp)}><${Icon} n="panel" /></button>
   </header>`;
 }
@@ -105,8 +105,8 @@ function SessionPane({ s, narrowView }) {
 
 // Aucune session ouverte : la liste est dans la barre latérale.
 function Home() {
-  return html`<div class="cm-main cm-blank"><${Empty} icon="agent" title=${t('agents.home.pick')} text=${t('agents.home.pick_text')}>
-    <button class="btn primary" onClick=${() => agents.set({ creating: {} })}><${Icon} n="plus" />${t('agents.rail.new')}</button></${Empty}></div>`;
+  return html`<div class="cm-main cm-blank"><${AmbientField} variant="calm" /><div class="cm-blank-in"><${Empty} icon="agent" title=${t('agents.home.pick')} text=${t('agents.home.pick_text')}>
+    <button class="btn primary" onClick=${() => agents.set({ creating: {} })}><${Icon} n="plus" />${t('agents.rail.new')}</button></${Empty}></div></div>`;
 }
 
 // Grille : l'inspecteur suit le volet qui a le focus.

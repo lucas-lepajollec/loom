@@ -24,8 +24,8 @@ export const workLabel = msValue => msValue >= 1000 ? t('conv.worked', { time: d
 // Une ligne grise par étape. live : texte qui scintille, durée qui avance.
 export function Step({ icon = 'tool', children, meta, live, since, title }) {
   return html`<div class=${cls('cv-step', live && 'live')} title=${title}>
-    ${live ? html`<span class="cv-spin" aria-hidden="true"></span>` : html`<${Icon} n=${icon} />`}
-    <span class="cv-step-t">${children}</span>
+    ${live ? html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>` : html`<${Icon} n=${icon} />`}
+    <span class=${cls('cv-step-t', live && 'shimmer-text')}>${children}</span>
     ${live && since ? html`<${Elapsed} since=${since} />` : meta && html`<span class="cv-meta">${meta}</span>`}
   </div>`;
 }

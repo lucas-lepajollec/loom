@@ -77,10 +77,12 @@
 .cm-session-title small,.cm-session-open time,.cm-history-link time{font-size:12px;color:var(--text-3)}
 .cm-session-meta{grid-template-columns:124px 62px;gap:10px}
 .cm-session-meta time{justify-self:end;white-space:nowrap;font-variant-numeric:tabular-nums}
-.cm-cc-state{display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--text-3)}
+.cm-cc-state{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px;color:var(--text-3)}
 .cm-cc-state>.dot{flex:none}
-.cm-session-row:is(.st-working,.st-limited) .cm-cc-state{color:var(--amber)}
-.cm-session-row:is(.st-waiting,.st-error) .cm-cc-state{color:var(--red)}
+.cm-session-row:is(.st-working,.st-starting) .cm-cc-state{color:var(--text-2)}
+.cm-session-row.st-limited .cm-cc-state{color:var(--text-3)}
+.cm-session-row.st-waiting .cm-cc-state{color:var(--text);animation:soft-breathe 2.4s var(--ease) infinite}
+.cm-session-row.st-error .cm-cc-state{color:var(--red)}
 .cm-session-stop{grid-area:1/2;justify-self:start;z-index:1}
 
 .cm-server{display:flex;align-items:center;gap:14px;padding:14px 16px}
