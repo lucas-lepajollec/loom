@@ -42,10 +42,11 @@ async function upload(file) {
   return { path, name: file.name };
 }
 
+const EMPTY_RUNTIMES = [];
 export function Composer({ phone } = {}) {
   const c = useStore(chat, s => ({ busy: s.busy, mode: s.mode, ctx: s.ctxUsed, session: s.session, context: s.context, notice: s.notice, starting: s.starting, engineError: s.engineError, localTarget: s.localTarget }));
   const status = useStore(app, s => s.status);
-  const runtimes = useStore(app, s => s.workspace?.runtimes || []);
+  const runtimes = useStore(app, s => s.workspace?.runtimes || EMPTY_RUNTIMES);
   const draft = useStore(app, s => phone && s.phoneDraft);
   const [text, setText] = useState(draft?.text || '');
   const dictation = useDictation(result => setText(current => [current.trimEnd(), result].filter(Boolean).join(' ')));

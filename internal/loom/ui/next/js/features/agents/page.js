@@ -175,7 +175,7 @@ export function AgentsPage({ route }) {
   const conn = useStore(agents, s => s.conn);
   const { state } = conn;
   const ready = state === 'ready';
-  useEffect(() => { refreshConnection(); }, []);
+  useEffect(() => { if (agents.get().conn.state !== 'ready') refreshConnection(); }, []);
   useEffect(() => {
     if (ready) return;
     const timer = setInterval(() => { if (!document.hidden) refreshConnection(); }, 10000);

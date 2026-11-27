@@ -22,6 +22,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/web"
 )
 
 func isEngineWorker() bool { return os.Getenv("LOOM_UI_SERVICE") == "loom-node" }
@@ -492,6 +494,7 @@ func serveEngineWorker(addr string) error {
 	}
 	host, port, _ := net.SplitHostPort(addr)
 	webBound.host, webBound.port = host, func() int { n, _ := strconv.Atoi(port); return n }()
+	tuneDefaultHTTPTransport()
 	cleanStalePartFiles()
 	lcRestoreOnce.Do(lcRestore)
 	go engineAutoLoop()
@@ -503,7 +506,7 @@ func serveEngineWorker(addr string) error {
 	go voiceLifecycle(ctx)
 	terminal := newNodeTerminalServer(defaultNodeTerminalLimit)
 	defer terminal.stop()
-	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: newEngineWorkerMuxModules(token, terminal), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	srv := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Handler: web.WithCompression(newEngineWorkerMuxModules(token, terminal)), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	go func() {
 		<-ctx.Done()
 		terminal.stop()

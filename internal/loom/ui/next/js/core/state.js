@@ -166,11 +166,31 @@ export function engineState(s) {
 }
 
 let stopPolling;
+const ENGINE_SECTIONS = new Set(['chat', 'local', 'engine', 'machines', 'voice', 'jarvis']);
 export function startPolling() {
   if (stopPolling) return stopPolling;
 
+  // Quand le moteur local est arrêté et qu'on travaille sur une autre section
+  // (sessions d'agent, fichiers, réglages…), inutile de sonder le GPU et l'état
+  // toutes les 4 s : on relâche à 12 s tout en restant à 4 s dès qu'il tourne.
+  let statusTicks = 0, hwTicks = 0;
+  const fastPoll = () => {
+    const s = app.get();
+    return !s.status || s.status.active || !!s.status.model || ENGINE_SECTIONS.has(s.route?.section);
+  };
+  const tickStatus = () => {
+    if (!fastPoll() && ++statusTicks % 3 !== 0) return;
+    statusTicks = 0;
+    return refreshStatus();
+  };
+  const tickHardware = () => {
+    if (!fastPoll() && ++hwTicks % 3 !== 0) return;
+    hwTicks = 0;
+    return refreshHardware();
+  };
+
   // A suspended initial load must recover without forcing a page reload.
-  const stops = [visibleRefresh(refreshStatus, 4000), visibleRefresh(refreshHardware, 4000), visibleRefresh(() => Promise.allSettled([refreshEngineNode(), refreshWorkspace(), refreshNav(), refreshLibrary()]), 30000)];
+  const stops = [visibleRefresh(tickStatus, 4000), visibleRefresh(tickHardware, 4000), visibleRefresh(() => Promise.allSettled([refreshEngineNode(), refreshWorkspace(), refreshNav(), refreshLibrary()]), 30000)];
   stopPolling = () => { stops.forEach(stop => stop()); stopPolling = null; };
   return stopPolling;
 }

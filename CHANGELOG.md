@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- **Performance and responsiveness (UI, server & nodes)**:
+  - Agent conversations now use an in-memory LRU cache (`stale-while-revalidate`)
+    with scroll restoration, `AbortController`, overlap guards, and structural
+    equality checks: returning to an active session displays immediately with no
+    loading skeletons while refreshing silently in the background.
+  - Bounded Markdown LRU cache (`md.js`), memoized turn/diff rendering,
+    rAF-throttled minimap with cached offsets, fixed array-returning store
+    selectors that caused unnecessary re-renders, on-demand Codeman history
+    loading, coalesced mid-turn transcript updates, and adaptive engine/VRAM
+    polling when the local engine is stopped.
+  - HTTP `gzip` compression (with automatic bypass for SSE, WebSockets, binary
+    media and small bodies) on both Loom web (HTTP/HTTPS) and `loom node serve`,
+    `ETag` / `304 Not Modified` revalidation on `/next/*` UI assets, lazy-loaded
+    secondary pages, pooled keep-alive transports for remote nodes, and
+    zero-sleep cached `/proc/stat` deltas for faster local and node metrics.
 - **Session states that ask for attention**: Approval, Question, and "Done ·
   not seen" for work that finished since you last opened the session. They
   appear as plain words, with no coloured dot, in the sidebar, the phone

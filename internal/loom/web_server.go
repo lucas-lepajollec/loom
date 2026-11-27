@@ -42,6 +42,7 @@ func cmdWeb(args []string) error {
 	defer ln.Close()
 	webBound.host, webBound.port = host, port
 	// Only once the port is ours: these write to Loom's data.
+	tuneDefaultHTTPTransport()
 	loadRememberedProviderKeys()
 	go engineAutoLoop()
 	go vllmAutoLoop()
@@ -51,7 +52,8 @@ func cmdWeb(args []string) error {
 	go voiceLifecycle(lifecycleCtx)
 	go codemanQuotaLoop(lifecycleCtx)
 	mux := newWebMux(lifecycleCtx)
-	if err := webHTTPS.start(lifecycleCtx, mux, host); err != nil {
+	handler := web.WithCompression(mux)
+	if err := webHTTPS.start(lifecycleCtx, handler, host); err != nil {
 		fmt.Printf("[loom web] HTTPS unavailable: %v\n", err)
 	}
 	fmt.Printf("[loom web] http://%s  (Ctrl-C to stop)\n", addr)
@@ -69,7 +71,7 @@ func cmdWeb(args []string) error {
 	// immobilise une goroutine pour toujours, même sur l'interface locale.
 	// Surtout PAS de WriteTimeout ici : il couperait les flux SSE du chat, qui
 	// restent ouverts aussi longtemps que l'utilisateur regarde la page.
-	srv := &http.Server{Handler: web.WithSecurityHeaders(mux, nil), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	srv := &http.Server{Handler: web.WithSecurityHeaders(handler, nil), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	return srv.Serve(ln)
 }
 

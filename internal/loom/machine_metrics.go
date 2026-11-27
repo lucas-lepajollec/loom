@@ -128,21 +128,56 @@ func machineGPUs(gpus []map[string]any) []MachineGPUMetrics {
 	return out
 }
 
+var prevProcStatMu sync.Mutex
+var prevProcStatText string
+var prevProcStatAt time.Time
+
+func readProcStatPair(ctx context.Context) (string, string, error) {
+	read := func() string { b, _ := os.ReadFile("/proc/stat"); return string(b) }
+	now := time.Now()
+	prevProcStatMu.Lock()
+	age := now.Sub(prevProcStatAt)
+	if prevProcStatText != "" && age >= 200*time.Millisecond && age <= 15*time.Second {
+		first := prevProcStatText
+		second := read()
+		if second != "" {
+			prevProcStatText = second
+			prevProcStatAt = now
+		}
+		prevProcStatMu.Unlock()
+		return first, second, nil
+	}
+	prevProcStatMu.Unlock()
+
+	first := read()
+	timer := time.NewTimer(300 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return "", "", ctx.Err()
+	case <-timer.C:
+	}
+	second := read()
+	if second != "" {
+		prevProcStatMu.Lock()
+		prevProcStatText = second
+		prevProcStatAt = time.Now()
+		prevProcStatMu.Unlock()
+	}
+	return first, second, nil
+}
+
 func collectLocalMachineMetrics(ctx context.Context) (any, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	m := MachineMetrics{At: time.Now().UnixMilli(), OS: runtime.GOOS, Cores: runtime.NumCPU(), Partial: true}
 	if runtime.GOOS == "linux" {
 		read := func(name string) string { b, _ := os.ReadFile("/proc/" + name); return string(b) }
-		first := read("stat")
-		timer := time.NewTimer(300 * time.Millisecond)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-timer.C:
+		first, second, err := readProcStatPair(ctx)
+		if err != nil {
+			return nil, err
 		}
-		m = parseProcMachineMetrics(first, read("stat"), read("meminfo"), read("loadavg"), read("uptime"))
+		m = parseProcMachineMetrics(first, second, read("meminfo"), read("loadavg"), read("uptime"))
 	} else {
 		used, total := ramUsageMB()
 		m.RAMUsed, m.RAMTotal = uint64(used)<<20, uint64(total)<<20

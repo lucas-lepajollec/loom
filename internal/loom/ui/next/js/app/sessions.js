@@ -10,7 +10,7 @@ import { prompt, confirm, toast } from '../ui/dialog.js';
 import { get, post } from '../core/api.js';
 import { app, go, refreshNav, refreshStatus, runtimeKind } from '../core/state.js';
 import { chat, open, newDiscussion } from '../features/chat/engine.js';
-import { agents, attentionOf, ATTENTION, sessionList, restorable, cliOf, projectOf } from '../features/agents/store.js';
+import { agents, attentionOf, ATTENTION, sessionList, useRestorable, cliOf, projectOf } from '../features/agents/store.js';
 import { closeSession, renameSession } from '../features/agents/actions.js';
 import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
@@ -223,7 +223,7 @@ function PhoneSessionRow({ it }) {
 
 function PhoneSessions({ filter, setFilter, items, folders, openFolders, toggleFolder, cut, conn, newFolder }) {
   // Relit les états d'attention quand un accord, une fin ou une ouverture change.
-  useStore(agents, st => ({ approvals: st.approvals.map(a => a.id), completed: st.completed, seen: st.seen }));
+  useStore(agents, st => ({ approvals: st.approvals, completed: st.completed, seen: st.seen }));
   const nativeRunning = useStore(chat, s => s.mode === 'native' && s.busy);
   const nativeId = useStore(app, s => s.nav.active);
   const shown = nativeRunning && nativeId ? items.map(it => it.kind === 'chat' && it.id === nativeId ? { ...it, c: { ...it.c, status: 'running' } } : it) : items;
@@ -260,7 +260,7 @@ export function SessionsPage() {
 export function Sessions({ phone = false }) {
   const { route, nav } = useStore(app, s => ({ route: s.route, nav: s.nav }));
   const conn = useStore(agents, s => s.conn);
-  useStore(agents, s => [s.order, s.sessions]);
+  useStore(agents, s => ({ order: s.order, sessions: s.sessions }));
   const folderMap = useStore(agentFolders, s => s.map);
   const chatId = useStore(chat, s => s.sessionId) || nav.active;
   const [filter, setFilterState] = useState(() => { const f = load('loom.side.filter', 'all'); return FILTERS.includes(f) ? f : 'all'; });
@@ -272,7 +272,7 @@ export function Sessions({ phone = false }) {
   const toggleFolder = id => { const n = new Set(openFolders); n.has(id) ? n.delete(id) : n.add(id); setOpenFolders(n); save('loom.next.proj', [...n]); };
   const agentsOn = conn.configured;
   const ready = conn.state === 'ready';
-  const cut = useStore(agents, restorable);
+  const cut = useRestorable();
 
   const chats = filter === 'agents' ? [] : nav.conversations.map(c => ({ kind: 'chat', id: c.id, c, title: c.title || t('app.shell.nouvelle_discussion'), folder: c.project_id || '', pinned: !!c.fav, at: c.updated_at || c.saved_at || 0 }));
   const live = filter === 'chats' || !agentsOn ? [] : sessionList().map(s => ({ kind: 'agent', id: s.id, s, title: s.name || s.id.slice(0, 8), folder: folderMap[s.id] || '', pinned: false, at: s.lastActivityAt || s.createdAt || 0 }));

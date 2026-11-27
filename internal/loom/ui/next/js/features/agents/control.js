@@ -6,7 +6,7 @@ import { html, useState, useEffect, useStore, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { api, cm } from './client.js';
-import { agents, stateOf, projectOf, cliOf, capsOf, onDomain, loadHistory, refreshAll, restorable } from './store.js';
+import { agents, stateOf, projectOf, cliOf, capsOf, onDomain, ensureHistory, loadHistory, refreshAll, useRestorable } from './store.js';
 import { answerApproval, dismissApproval, interrupt } from './actions.js';
 import { StateDot, ago } from './rail.js';
 import { HistoryRow } from './side.js';
@@ -164,6 +164,7 @@ function ResumeList({ sessions }) {
   const error = useStore(agents, s => s.historyError);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [busy, setBusy] = useState(false);
+  useEffect(() => { ensureHistory(); }, []);
   const rows = unified.filter(r => r.workingDir && !r.remote && !sessions[r.sessionId] && !r.sources?.includes('live'))
     .sort((a, b) => timeOf(b) - timeOf(a));
   const more = offset < total;
@@ -193,7 +194,7 @@ function ResumeList({ sessions }) {
 // Codeman garde le plan, Loom propose de les relancer d'un clic. Chaque CLI
 // reprend sa conversation dans son dossier ; l'historique du terminal est perdu.
 export function RestoreBanner() {
-  const entries = useStore(agents, restorable);
+  const entries = useRestorable();
   const [busy, setBusy] = useState('');
   if (!entries.length) return null;
   const run = async ids => {

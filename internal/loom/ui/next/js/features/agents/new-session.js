@@ -2,14 +2,14 @@
 // Codeman (pas forcément la machine de Loom), un nom et, selon le CLI, un
 // modèle. Les modes de permission restent ceux réglés dans Codeman.
 import { t } from '../../core/i18n.js';
-import { html, useState, useEffect, useStore, useRef, cls } from '../../core/lib.js';
+import { html, useState, useEffect, useMemo, useStore, useRef, cls } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
 import { Modal, toast } from '../../ui/dialog.js';
 import { ListPick } from '../../ui/listpick.js';
 import { app } from '../../core/state.js';
 import { api, flattenPrompt, sendPrompt } from './client.js';
-import { agents, cliLogo } from './store.js';
+import { agents, cliLogo, ensureHistory } from './store.js';
 import { agentDraftKey, createSession, supportsModel } from './actions.js';
 import { fileAgent } from '../../app/sessions.js';
 import { startPhoneDiscussion } from '../../app/phone-discussion.js';
@@ -40,13 +40,17 @@ function Browser({ start, onPick }) {
   </div>`;
 }
 
+const EMPTY_LIST = [];
+const EMPTY_OBJ = {};
 export function NewSession({ onClose, onCreated, preset, phone, initialType = 'agent', folder: initialFolder = '' }) {
-  const clis = useStore(agents, s => s.clis.filter(c => c.enabled !== false));
+  const allClis = useStore(agents, s => s.clis);
+  const clis = useMemo(() => allClis.filter(c => c.enabled !== false), [allClis]);
   const unified = useStore(agents, s => s.unified);
   const cases = useStore(agents, s => s.cases);
-  const defaults = useStore(agents, s => s.settings || {});
+  const defaults = useStore(agents, s => s.settings || EMPTY_OBJ);
   const ready = useStore(agents, s => s.conn.state === 'ready');
-  const projects = useStore(app, s => s.nav.projects || []);
+  const projects = useStore(app, s => s.nav.projects || EMPTY_LIST);
+  useEffect(() => { if (ready) ensureHistory(); }, [ready]);
   const [type, setType] = useState(initialType);
   const [folder, setFolder] = useState(initialFolder);
   const [firstMessage, setFirstMessage] = useState('');

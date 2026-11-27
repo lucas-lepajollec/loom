@@ -4,11 +4,31 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"io/fs"
 	"net/http"
 	"path"
 	"strings"
 )
+
+func contentETag(b []byte) string {
+	sum := sha256.Sum256(b)
+	return `"` + hex.EncodeToString(sum[:8]) + `"`
+}
+
+func etagMatches(header, etag string) bool {
+	if header == "" {
+		return false
+	}
+	for _, part := range strings.Split(header, ",") {
+		tag := strings.TrimSpace(part)
+		tag = strings.TrimPrefix(tag, "W/")
+		if tag == "*" || tag == etag {
+			return true
+		}
+	}
+	return false
+}
 
 const offlineCSP = "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 
@@ -100,6 +120,12 @@ func (a Assets) Next(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy", UIContentSecurityPolicy(b))
 	}
 	w.Header().Set("Cache-Control", "no-cache")
+	etag := contentETag(b)
+	w.Header().Set("ETag", etag)
+	if etagMatches(r.Header.Get("If-None-Match"), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	if r.Method == http.MethodGet {
 		_, _ = w.Write(b)
 	}
