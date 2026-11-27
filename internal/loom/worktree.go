@@ -90,10 +90,11 @@ func validateExistingDir(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	st, err := os.Stat(realPath)
-	if err != nil || !st.IsDir() {
+	root, err := os.OpenRoot(realPath)
+	if err != nil {
 		return "", errors.New("working directory does not exist")
 	}
+	_ = root.Close()
 	return filepath.Clean(realPath), nil
 }
 
