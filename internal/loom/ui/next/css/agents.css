@@ -76,8 +76,8 @@
 .cm-insp-bar>span{flex:1;font-size:12px}
 .cm-insp-err{display:flex;align-items:center;gap:8px;color:var(--red);font-size:12.5px}
 .cm-insp-err span{flex:1}
-.cm-panel-peek{gap:5px;padding-inline:8px;min-height:26px;font-size:12px;background:var(--surface-2);color:var(--text)}
-.cm-panel-peek .ico{width:13px;height:13px}
+.cm-panel-peek,.cm-sh-peek{gap:5px;padding-inline:8px;min-height:26px;font-size:12px;background:var(--surface-2);color:var(--text)}
+.cm-panel-peek .ico,.cm-sh-peek .ico{width:13px;height:13px}
 .cm-panel-tabs{flex:none;display:flex;align-items:center;gap:2px;padding:6px 10px;border-bottom:1px solid var(--line-soft);overflow-x:auto;scrollbar-width:none}
 .cm-panel-tabs::-webkit-scrollbar{display:none}
 .cm-ptab{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 10px;border-radius:var(--r-sm);font-size:12.5px;font-weight:500;color:var(--text-3);white-space:nowrap;transition:background-color var(--fast),color var(--fast)}

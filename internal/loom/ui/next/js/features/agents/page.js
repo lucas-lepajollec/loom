@@ -7,7 +7,7 @@
 // #/agents/s/<id> (une session) et #/agents/grid (la mosaïque).
 import { lt } from './labels.js';
 import { t } from '../../core/i18n.js';
-import { html, useState, useEffect, useStore, cls, createStore } from '../../core/lib.js';
+import { html, useState, useEffect, useRef, useStore, cls, createStore } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty, Popover, Seg, Switch } from '../../ui/controls.js';
 import { prompt, toast } from '../../ui/dialog.js';
@@ -24,7 +24,7 @@ import { layout, COUNTS, setCount, toggleGrid, placeSession, viewOf, setViewOf }
 import { Conversation } from './conversation.js';
 import { AgentTerminal } from './terminal.js';
 import { Inspector } from './inspector.js';
-import { panelState } from './panel-state.js';
+import { panelState, previewFor, openPreview } from './panel-state.js';
 import { CliMark } from './new-session.js';
 import { ControlCenter } from './control.js';
 import { Grid, ShapeIcon } from './grid.js';
@@ -38,6 +38,8 @@ import { openSession } from './nav.js';
 // discussion.
 function SessionHeader({ s, narrowView, insp, setInsp }) {
   const state = stateOf(s), cli = cliOf(s.mode);
+  const preview = useStore(panelState, p => previewFor(p, s.id));
+  const peekPath = preview.active || preview.detected[0] || '';
   // Accord ou question : un mot, sans pastille.
   const shown = attentionOf(s) === 'unseen' ? state : attentionOf(s);
   const dot = ATTENTION.has(shown) ? '' : html`<${StateDot} state=${shown} />`;
@@ -59,6 +61,8 @@ function SessionHeader({ s, narrowView, insp, setInsp }) {
     <span class="cm-sh-sep" aria-hidden="true">/</span>
     <button class="btn sm cm-sh-name" onClick=${rename} title=${t('agents.session.rename')}><span class="trunc">${s.name || s.id.slice(0, 8)}</span></button>
     <span class="grow"></span>
+    ${!insp && peekPath && html`<button type="button" class="btn sm cm-sh-peek" title=${peekPath} onClick=${() => openPreview(s.id, peekPath)}>
+      <${Icon} n="eye" /><span>${t('agents.insp.preview')}</span>${preview.detected.length > 1 && html`<em class="cm-ptab-n">${preview.detected.length}</em>`}</button>`}
     ${state === 'stopped' ? html`<button class="btn sm" onClick=${restart}><${Icon} n="play" />${t('agents.session.restart')}</button>`
       : html`<span class=${'cm-sh-state st-' + shown}>${dot}${lt('state', shown)}</span>`}
     <button class=${cls('icon-btn', insp && 'on')} aria-label=${t('agents.insp.title')} title=${t('agents.insp.title')} aria-pressed=${String(!!insp)} onClick=${() => setInsp(!insp)}><${Icon} n="panel" /></button>
@@ -70,8 +74,9 @@ function SessionPane({ s, narrowView }) {
   const [insp, setInspState] = useState(() => { try { return !narrowView && innerWidth > 1180 && localStorage.getItem('loom.codeman.inspOpen') !== '0'; } catch (_) { return false; } });
   const phoneTerminal = useStore(layout, l => l.phoneTerminal === s.id);
   const openReq = useStore(panelState, p => p.openRequest);
+  const lastReq = useRef(openReq);
   useEffect(() => { setViewState(viewOf(s)); }, [s.id]);
-  useEffect(() => { if (openReq) setInspState(true); }, [openReq]);
+  useEffect(() => { if (openReq !== lastReq.current) { lastReq.current = openReq; setInspState(true); } }, [openReq]);
   useEffect(() => () => { if (layout.get().phoneTerminal === s.id) layout.set({ phoneTerminal: '' }); }, [s.id]);
   const setView = v => {
     if (narrowView) layout.set({ phoneTerminal: v === 'term' ? s.id : '' });
@@ -90,7 +95,7 @@ function SessionPane({ s, narrowView }) {
       </div>`}
       <div class=${cls('cm-body', 'v-' + mode)}>
         ${(mode === 'chat' || mode === 'split') && html`<${Conversation} key=${'c' + s.id} session=${s} onTerminal=${toTerm} terminalVisible=${mode === 'split'} phone=${narrowView} />`}
-        ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} shell=${s.mode === 'shell'} scrollback=${agents.get().settings?.terminalScrollbackLines || 50000} focus=${mode === 'term'} phoneControls=${narrowView} /></div>`}
+        ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} workingDir=${s.workingDir} shell=${s.mode === 'shell'} scrollback=${agents.get().settings?.terminalScrollbackLines || 50000} focus=${mode === 'term'} phoneControls=${narrowView} /></div>`}
       </div>
     </div>
     ${insp && (narrowView ? html`<${Drawer} title=${t('agents.insp.info')} onClose=${() => setInsp(false)}><${Inspector} session=${s} view=${mode} setView=${setView} narrowView /></${Drawer}>`
@@ -110,7 +115,8 @@ function GridArea() {
   const session = useStore(agents, s => (focusId && s.sessions[focusId]) || null);
   const insp = useStore(gridInsp, g => g.open);
   const openReq = useStore(panelState, p => p.openRequest);
-  useEffect(() => { if (openReq && session) gridInsp.set({ open: true }); }, [openReq]);
+  const lastReq = useRef(openReq);
+  useEffect(() => { if (openReq !== lastReq.current) { lastReq.current = openReq; if (session) gridInsp.set({ open: true }); } }, [openReq]);
   return html`<div class=${cls('cm-pane', insp && session && 'with-insp')}>
     <div class="cm-main">
       <header class="cm-sh cm-grid-h"><b>${t('agents.nav.grid')}</b><span class="grow"></span>

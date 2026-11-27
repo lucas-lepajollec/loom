@@ -18,7 +18,7 @@ import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
 import { buildTurns, changedFiles, screenChoices, duration } from '../conversation/turns.js';
 import { WorkFold, workLabel, Step, Changes, TurnFoot, JumpBottom, Tray } from '../conversation/kit.js';
 import { Minimap } from '../conversation/minimap.js';
-import { openPreview, openPanelTab, setDetectedDocs, extractMentionedFiles, normalizeSessionPath } from './panel-state.js';
+import { openPreview, openPanelTab, mergeDetectedDocs, extractMentionedFiles, normalizeSessionPath } from './panel-state.js';
 
 // Cache LRU par session (stale-while-revalidate) : revenir sur une conversation
 // déjà ouverte l'affiche immédiatement sans squelettes, puis la rafraîchit en
@@ -390,7 +390,7 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
 
   const turns = useMemo(() => buildTurns(blocks, edits, live), [blocks, edits, live]);
   const detectedDocs = useMemo(() => extractMentionedFiles(turns, session.workingDir), [turns, session.workingDir]);
-  useEffect(() => { setDetectedDocs(id, detectedDocs); }, [id, detectedDocs]);
+  useEffect(() => { if (detectedDocs.length) mergeDetectedDocs(id, detectedDocs); }, [id, detectedDocs]);
   const onPreview = useCallback(path => openPreview(id, path), [id]);
   const onReview = useCallback(() => openPanelTab('changes'), []);
   const onThreadClick = useCallback(e => {
@@ -431,7 +431,7 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
           ${blocks && !hasPrompt && !terminalVisible && session.mode !== 'shell' && html`<div class=${cls('cm-boot anim-rise', submitted && 'live')}>
             <div class="cm-boot-h"><b>${state === 'starting' ? t('agents.conv.empty_starting', { cli: cli.label }) : submitted ? t('agents.conv.live_title', { cli: cli.label }) : t('agents.conv.boot_title', { cli: cli.label })}</b>
               <span class="muted">${submitted ? t('agents.conv.live_text') : t('agents.conv.boot_text')}</span></div>
-            <div class="cm-boot-term"><${AgentTerminal} sessionId=${id} mode=${session.mode} scrollback=${2000} /></div></div>`}
+            <div class="cm-boot-term"><${AgentTerminal} sessionId=${id} mode=${session.mode} workingDir=${session.workingDir} scrollback=${2000} /></div></div>`}
           ${blocks && !hasPrompt && (terminalVisible || session.mode === 'shell') && html`<div class="cm-conv-empty">
             <p>${t('agents.conv.empty', { cli: cli.label })}</p></div>`}
           ${hasPrompt && capsOf(session.mode).transcript === 'screen' && html`<p class="cm-screen-note muted"><${Icon} n="info" />${t('agents.conv.screen_note')}</p>`}
