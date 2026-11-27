@@ -35,10 +35,11 @@ const (
 )
 
 type OrchestrationSettings struct {
-	AutoInjectMCP        bool `json:"auto_inject_mcp"`
-	AutoWriteWorktreeMCP bool `json:"auto_write_worktree_mcp"`
-	MaxDepth             int  `json:"max_depth"`
-	MaxChildrenPerRoot   int  `json:"max_children_per_root"`
+	AutoInjectMCP        bool   `json:"auto_inject_mcp"`
+	AutoWriteWorktreeMCP bool   `json:"auto_write_worktree_mcp"`
+	MaxDepth             int    `json:"max_depth"`
+	MaxChildrenPerRoot   int    `json:"max_children_per_root"`
+	SubagentPermissions  string `json:"subagent_permissions"` // "inherit" | "worktree_auto" | "full_access"
 }
 
 func defaultOrchestrationSettings() OrchestrationSettings {
@@ -47,6 +48,7 @@ func defaultOrchestrationSettings() OrchestrationSettings {
 		AutoWriteWorktreeMCP: true,
 		MaxDepth:             orchDefaultMaxDepth,
 		MaxChildrenPerRoot:   orchDefaultMaxChildren,
+		SubagentPermissions:  "inherit",
 	}
 }
 
@@ -60,6 +62,12 @@ func clampOrchestrationSettings(s OrchestrationSettings) OrchestrationSettings {
 		s.MaxChildrenPerRoot = 1
 	} else if s.MaxChildrenPerRoot > 16 {
 		s.MaxChildrenPerRoot = 16
+	}
+	switch strings.ToLower(strings.TrimSpace(s.SubagentPermissions)) {
+	case "inherit", "worktree_auto", "full_access":
+		s.SubagentPermissions = strings.ToLower(strings.TrimSpace(s.SubagentPermissions))
+	default:
+		s.SubagentPermissions = "inherit"
 	}
 	return s
 }
@@ -701,6 +709,178 @@ func orchSyncWithLive(liveIDs map[string]bool) {
 	if changed {
 		orchHub.publish("tree", map[string]any{"action": "sync"})
 	}
+}
+
+// orchEnsureBridgeFiles guarantees every live Codeman session has an owner-only
+// 0600 bridge file under <LoomHome>/mcp-sessions/<id>.json when AutoInjectMCP is
+// enabled, so sessions created before a Loom restart or outside Loom UI still
+// connect seamlessly through `loom mcp-bridge`.
+func orchEnsureBridgeFiles(live []codemanSessionInfo) {
+	if !loadOrchestrationSettings().AutoInjectMCP || len(live) == 0 {
+		return
+	}
+	dir := sessionBridgeDir()
+	_ = os.MkdirAll(dir, 0o700)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return
+	}
+	defer root.Close()
+	for _, s := range live {
+		if strings.TrimSpace(s.ID) == "" {
+			continue
+		}
+		name := safeSessionFileName(s.ID)
+		if name == "" {
+			continue
+		}
+		if _, err := root.Stat(name); err == nil {
+			continue
+		}
+		scope := orchResolveScope(s.ID)
+		if scope.WorkingDir == "" {
+			scope.WorkingDir = s.WorkingDir
+		}
+		if tok, err := mintSessionToken(scope); err == nil {
+			_ = writeSessionBridgeFile(s.ID, gatewayURL(), tok)
+		}
+	}
+}
+
+// orchReparent attaches an existing session under a new parent orchestrator
+// (or detaches it to a root session when newParentID is empty), updating root_id
+// and depth recursively with cycle protection.
+func orchReparent(sessionID, newParentID string, liveMap map[string]codemanSessionInfo) (OrchestrationNode, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	newParentID = strings.TrimSpace(newParentID)
+	if sessionID == "" {
+		return OrchestrationNode{}, errors.New("session_id is required")
+	}
+	if sessionID == newParentID {
+		return OrchestrationNode{}, errors.New("cannot attach a session to itself")
+	}
+
+	orchMu.Lock()
+	nodes := loadOrchNodesLocked()
+	// Prevent cycles: newParentID cannot be a descendant of sessionID.
+	if newParentID != "" {
+		cur := newParentID
+		seen := map[string]bool{}
+		for cur != "" && !seen[cur] {
+			if cur == sessionID {
+				orchMu.Unlock()
+				return OrchestrationNode{}, errors.New("cannot attach a session under its own descendant")
+			}
+			seen[cur] = true
+			cur = nodes[cur].ParentID
+		}
+	}
+
+	now := time.Now().Unix()
+	if newParentID != "" {
+		if _, ok := nodes[newParentID]; !ok {
+			p := OrchestrationNode{SessionID: newParentID, RootID: newParentID, Depth: 0, Status: "active", CreatedAt: now, UpdatedAt: now}
+			if live, ok := liveMap[newParentID]; ok {
+				p.Name = live.Name
+				p.CLI = live.Mode
+				p.WorkingDir = live.WorkingDir
+			}
+			nodes[newParentID] = p
+		}
+	}
+	node, exists := nodes[sessionID]
+	if !exists {
+		node = OrchestrationNode{SessionID: sessionID, Status: "active", WorkspaceMode: "inherit", CreatedAt: now}
+		if live, ok := liveMap[sessionID]; ok {
+			node.Name = live.Name
+			node.CLI = live.Mode
+			node.WorkingDir = live.WorkingDir
+		}
+	}
+	if newParentID == "" {
+		node.ParentID = ""
+		node.RootID = sessionID
+		node.Depth = 0
+	} else {
+		parent := nodes[newParentID]
+		root := parent.RootID
+		if root == "" {
+			root = parent.SessionID
+		}
+		node.ParentID = newParentID
+		node.RootID = root
+		node.Depth = parent.Depth + 1
+	}
+	node.UpdatedAt = now
+	nodes[sessionID] = node
+
+	// Recompute root_id and depth for all descendants of sessionID.
+	queue := []string{sessionID}
+	for len(queue) > 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		pNode := nodes[pid]
+		for id, child := range nodes {
+			if child.ParentID == pid {
+				child.RootID = pNode.RootID
+				child.Depth = pNode.Depth + 1
+				child.UpdatedAt = now
+				nodes[id] = child
+				queue = append(queue, id)
+			}
+		}
+	}
+	err := saveOrchNodesLocked(nodes)
+	orchMu.Unlock()
+	if err != nil {
+		return OrchestrationNode{}, err
+	}
+	orchHub.publish("tree", map[string]any{"action": "sync"})
+	return node, nil
+}
+
+// orchPruneStopped removes stopped sub-session records for a given root (or all
+// roots when rootID is empty), optionally removing clean worktrees first.
+func orchPruneStopped(ctx context.Context, rootID string, cleanupWorktrees bool) int {
+	rootID = strings.TrimSpace(rootID)
+	orchMu.Lock()
+	nodes := loadOrchNodesLocked()
+	var candidates []OrchestrationNode
+	for _, n := range nodes {
+		if n.Status != "stopped" || n.ParentID == "" {
+			continue
+		}
+		if rootID != "" && n.RootID != rootID {
+			continue
+		}
+		candidates = append(candidates, n)
+	}
+	orchMu.Unlock()
+
+	removed := 0
+	for _, n := range candidates {
+		if cleanupWorktrees && n.WorktreePath != "" && n.BaseRepo != "" {
+			if err := removeLoomWorktree(ctx, n.BaseRepo, n.WorktreePath, false); err == nil {
+				orchClearWorktree(n.SessionID)
+				n.WorktreePath = ""
+			}
+		}
+		if n.WorktreePath != "" {
+			continue // Keep record visible while an uncleaned worktree still exists.
+		}
+		orchMu.Lock()
+		cur := loadOrchNodesLocked()
+		if curNode, ok := cur[n.SessionID]; ok && curNode.Status == "stopped" && curNode.WorktreePath == "" {
+			delete(cur, n.SessionID)
+			_ = saveOrchNodesLocked(cur)
+			removed++
+		}
+		orchMu.Unlock()
+	}
+	if removed > 0 {
+		orchHub.publish("tree", map[string]any{"action": "sync"})
+	}
+	return removed
 }
 
 func normalizeBoardKind(kind string) string {

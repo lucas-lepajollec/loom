@@ -11,7 +11,8 @@ import { get, post } from '../core/api.js';
 import { app, go, refreshNav, refreshStatus, runtimeKind } from '../core/state.js';
 import { chat, open, newDiscussion } from '../features/chat/engine.js';
 import { agents, attentionOf, ATTENTION, sessionList, useRestorable, cliOf, projectOf } from '../features/agents/store.js';
-import { orchestration, useOrchestrationLive, visibleParentOf, nodeOf, stopTree } from '../features/agents/orchestration.js';
+import { orchestration, useOrchestrationLive, visibleParentOf, nodeOf, stopTree, reparentSession } from '../features/agents/orchestration.js';
+import { setPanelTab, panelState } from '../features/agents/panel-state.js';
 import { closeSession, renameSession } from '../features/agents/actions.js';
 import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
@@ -89,11 +90,20 @@ function chatMenu(it) {
 
 function agentMenu(it, hasKids = false) {
   const s = it.s;
+  const node = nodeOf(s.id);
+  const parents = sessionList().filter(x => x.id !== s.id && x.id !== node?.parent_id && nodeOf(x.id)?.parent_id !== s.id).slice(0, 6);
   return [
+    { label: t('agents.orch.new_subagent'), icon: 'plus', run: () => {
+      openSession(s.id);
+      setPanelTab('subagents');
+      panelState.set({ openRequest: panelState.get().openRequest + 1 });
+    } },
     { label: t('agents.session.rename'), icon: 'edit', run: async () => {
       const name = await prompt(t('agents.session.rename'), { value: s.name || '' });
       if (name && name !== s.name) renameSession(s.id, name).catch(e => toast(e.message, 'err'));
     } },
+    ...(node?.parent_id ? [{ label: t('agents.orch.detach'), icon: 'left', run: () => reparentSession(s.id, '').then(() => toast(t('agents.orch.detached'))).catch(e => toast(e.message, 'err')) }]
+      : parents.slice(0, 3).map(p => ({ label: t('agents.orch.attach_to', { name: p.name || p.id.slice(0, 8) }), icon: 'agent', run: () => reparentSession(s.id, p.id).then(() => toast(t('agents.orch.attached'))).catch(e => toast(e.message, 'err')) }))),
     ...moveItems(it),
     ...(hasKids ? ['-', { label: t('agents.orch.stop_tree'), icon: 'stop', danger: true, run: async () => {
       if (!await confirm(t('agents.orch.stop_tree_title'), t('agents.orch.stop_tree_text'), { ok: t('agents.orch.stop_tree'), danger: true })) return;

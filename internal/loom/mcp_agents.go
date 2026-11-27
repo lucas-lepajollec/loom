@@ -101,11 +101,12 @@ func agentMachines() []agentMachine {
 }
 
 type agentOverview struct {
-	Loom     string            `json:"loom"`
-	Machines []agentMachine    `json:"machines"`
-	Roles    map[string]string `json:"roles"`
-	Agents   string            `json:"agents"`
-	Guide    string            `json:"guide"`
+	Loom            string            `json:"loom"`
+	Machines        []agentMachine    `json:"machines"`
+	Roles           map[string]string `json:"roles"`
+	Agents          string            `json:"agents"`
+	SubagentCatalog SubagentCatalog   `json:"subagent_catalog"`
+	Guide           string            `json:"guide"`
 }
 
 // agentsState: available, codeman_not_connected or codeman_cli_missing.
@@ -243,16 +244,17 @@ func runMachineCommand(ctx context.Context, a machineRunArgs) (machineRunResult,
 }
 
 const agentGuide = "Loom connects you to the person's machines and agent sessions. " +
-	"Start with loom_overview. loom_machines lists the machines; loom_machine_run runs a non-interactive command on one (by id or name) and returns its exit code and output. " +
-	"To delegate work cleanly, prefer loom_subagent_spawn (supports any CLI/model and optional workspace='worktree' Git isolation), loom_subagent_list, loom_subagent_send, loom_subagent_wait, loom_subagent_read, loom_subagent_stop, and the shared tree board (loom_board_post / loom_board_read). " +
-	"Sub-sessions stay strictly scoped to your tree, respect depth/concurrency limits, and inherit user approval rules; close finished workers when done. " +
+	"Start with loom_overview or loom_subagent_catalog to see exact installed CLIs, model IDs, effort levels, and active permission modes without guessing. " +
+	"loom_machines lists machines; loom_machine_run runs a non-interactive command on one and returns its exit code and output. " +
+	"To delegate work cleanly, prefer loom_subagent_spawn (supports any CLI/model from the catalog and optional workspace='worktree' Git isolation), loom_subagent_list, loom_subagent_send, loom_subagent_wait (reports signal='blocked' with pending_approval if human consent is needed), loom_subagent_read (mode='last' for compact output, or mode='full' to inspect a full conversation the human had inside a sub-session), loom_subagent_stop, and the shared tree board (loom_board_post / loom_board_read). " +
+	"Always close finished autonomous workers with loom_subagent_stop (mode='close') once you have collected their results; keep interactive human sub-sessions open unless asked. " +
 	"brain_* and memory tools read and write the person's second brain. " +
 	"A call may wait for the person's approval in Loom, or be refused, when Loom's permissions ask for it: say so instead of retrying."
 
 func registerLoomAgentTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{Name: "loom_overview", Description: "Start here: what this Loom offers to agents, its machines, which machine provides each brick (engine, voice, codeman, files) and whether agent sessions are available.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
+	mcp.AddTool(server, &mcp.Tool{Name: "loom_overview", Description: "Start here: what this Loom offers to agents, its machines, which machine provides each brick (engine, voice, codeman, files), and the live catalog of available subagent CLIs and models.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
 		func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, agentOverview, error) {
-			return nil, agentOverview{Loom: Version, Machines: agentMachines(), Roles: machineRoles(), Agents: agentsStatus(), Guide: agentGuide}, nil
+			return nil, agentOverview{Loom: Version, Machines: agentMachines(), Roles: machineRoles(), Agents: agentsStatus(), SubagentCatalog: buildSubagentCatalog(ctx), Guide: agentGuide}, nil
 		})
 	mcp.AddTool(server, &mcp.Tool{Name: "loom_machines", Description: "List the machines Loom can reach: this machine (id local), paired Loom nodes and saved SSH machines, with their modules and whether a command can run there.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
 		func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, struct {

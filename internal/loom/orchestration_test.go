@@ -160,8 +160,36 @@ func TestMCPOrchestrationEndToEndAndGuardrails(t *testing.T) {
 			sessions[id] = info
 			createdParents[id] = r.Header.Get("X-Codeman-Parent-Session")
 			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"session": info}})
+		case r.Method == http.MethodGet && p == "/clis":
+			tr := true
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": []codemanCLIInfo{
+				{ID: "claude", Label: "Claude Code", Kind: "agent", Installed: &tr, Enabled: &tr},
+				{ID: "codex", Label: "Codex", Kind: "agent", Installed: &tr, Enabled: &tr},
+			}})
+		case r.Method == http.MethodGet && p == "/settings":
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{
+				"claudeMode": "normal", "codexDangerouslyBypassApprovals": false,
+			}})
+		case r.Method == http.MethodPut && p == "/settings":
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{}})
+		case r.Method == http.MethodGet && p == "/approvals":
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"approvals": []any{}}})
+		case r.Method == http.MethodGet && strings.HasPrefix(p, "/sessions/") && strings.HasSuffix(p, "/edits"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"entries": []map[string]any{
+				{"id": "e1", "relPath": "api/handler.go", "added": 12, "removed": 2},
+			}}})
 		case r.Method == http.MethodGet && strings.HasPrefix(p, "/sessions/") && strings.HasSuffix(p, "/last-response"):
 			id := strings.TrimSuffix(strings.TrimPrefix(p, "/sessions/"), "/last-response")
+			if r.URL.Query().Get("context") == "full" {
+				_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{
+					"text": "Finished work for " + id,
+					"messages": []map[string]any{
+						{"role": "user", "text": "Inspect mobile views"},
+						{"role": "assistant", "text": "Finished work for " + id},
+					},
+				}})
+				return
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"text": "Finished work for " + id}})
 		case r.Method == http.MethodGet && strings.HasPrefix(p, "/sessions/") && strings.HasSuffix(p, "/wait-output"):
 			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"wait": map[string]any{"matched": true}}})
@@ -227,6 +255,16 @@ func TestMCPOrchestrationEndToEndAndGuardrails(t *testing.T) {
 	}
 	defer session.Close()
 
+	// 0. Dynamic catalog reports live CLIs & models.
+	catRes, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "loom_subagent_catalog", Arguments: map[string]any{}})
+	if err != nil || catRes.IsError {
+		t.Fatalf("catalog failed: %v %+v", err, catRes)
+	}
+	rawCat, _ := json.Marshal(catRes.StructuredContent)
+	if !strings.Contains(string(rawCat), `"codex"`) || !strings.Contains(string(rawCat), `"opus"`) {
+		t.Fatalf("unexpected catalog: %s", string(rawCat))
+	}
+
 	// 1. Spawn a worktree subagent via MCP.
 	spawnRes, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name: "loom_subagent_spawn",
@@ -291,17 +329,22 @@ func TestMCPOrchestrationEndToEndAndGuardrails(t *testing.T) {
 		t.Fatalf("board message missing: %s", string(rawBoard))
 	}
 
-	// 4. Orchestrator reads worker result and stops it with worktree cleanup.
+	// 4. Orchestrator reads full conversation + edits and stops worker with worktree cleanup.
 	readRes, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "loom_subagent_read",
-		Arguments: map[string]any{"session_id": "worker-1", "include_diff": true},
+		Arguments: map[string]any{"session_id": "worker-1", "mode": "full", "include_diff": true, "include_edits": true},
 	})
 	if err != nil || readRes.IsError {
 		t.Fatalf("subagent read failed: %v %+v", err, readRes)
 	}
 	rawRead, _ := json.Marshal(readRes.StructuredContent)
-	if !strings.Contains(string(rawRead), "Finished work for worker-1") {
-		t.Fatalf("unexpected read payload: %s", string(rawRead))
+	if !strings.Contains(string(rawRead), "Finished work for worker-1") || !strings.Contains(string(rawRead), "Inspect mobile views") || !strings.Contains(string(rawRead), "api/handler.go") {
+		t.Fatalf("unexpected full read payload: %s", string(rawRead))
+	}
+
+	// Verify reparent cycle protection + detach/re-attach.
+	if _, err := orchReparent("root-1", "worker-1", nil); err == nil {
+		t.Fatal("expected cycle protection to reject attaching parent under child")
 	}
 
 	// Fail-closed self-delete check.

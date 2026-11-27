@@ -98,12 +98,22 @@ export async function answerApproval(item, body) {
   agents.set({ approvals: agents.get().approvals.filter(a => a.id !== item.id) });
 }
 // Accord lu à l'écran (Codex et les CLI auxquels Codeman ne répond pas) :
-// Loom envoie la touche du choix, seulement si la fenêtre est encore affichée.
-const plainScreen = s => String(s || '').replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\u001b\][^\u0007]*\u0007/g, '');
+// Loom vérifie le panneau rendu (full=1 ; tail= est en octets ANSI bruts) puis
+// envoie la touche du choix. Les TUI positionnent parfois les mots sans espaces
+// littéraux : on normalise donc les espaces avant de confirmer la présence.
+const plainScreen = s => String(s || '').replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, '').replace(/\u001b[()][A-Za-z0-9]/g, '');
+export function screenHasChoice(buffer, choice) {
+  const plain = plainScreen(buffer);
+  const spaced = plain.replace(/\s+/g, ' ').toLowerCase();
+  const compact = plain.replace(/\s+/g, '').toLowerCase();
+  const labelSpaced = String(choice?.label || '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 28);
+  const labelCompact = labelSpaced.replace(/\s+/g, '').slice(0, 20);
+  if (!labelCompact) return false;
+  return spaced.includes(labelSpaced) || compact.includes(labelCompact);
+}
 export async function answerOnScreen(item, choice) {
-  const r = await api.terminal(item.sessionId, 'tail=120');
-  const screen = plainScreen(r?.terminalBuffer).replace(/\s+/g, ' ');
-  if (!screen.includes(choice.label.replace(/\s+/g, ' ').slice(0, 28))) {
+  const r = await api.terminal(item.sessionId, 'full=1').catch(() => api.terminal(item.sessionId, 'tail=8000'));
+  if (!screenHasChoice(r?.terminalBuffer, choice)) {
     const e = new Error('dialog gone'); e.code = 'CONFLICT'; throw e;
   }
   await sendKeys(item.sessionId, choice.key);
