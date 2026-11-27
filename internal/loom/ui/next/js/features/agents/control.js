@@ -26,7 +26,7 @@ function ApprovalRow({ a }) {
   const terminal = a.answerInTerminal || capsOf(s?.mode).approvals !== 'answer';
   const run = async body => { setBusy(true); try { await answerApproval(a, body); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); } };
   return html`<li class="cm-cc-appr">
-    <i class="dot blue"></i>${s && html`<${CliMark} mode=${s.mode} size="sm" />`}
+    ${s ? html`<${CliMark} mode=${s.mode} size="sm" />` : html`<${Icon} n="alert" class="cm-appr-ico" />`}
     <div class="cm-cc-appr-t"><b>${a.sessionName || (s && s.name) || a.sessionId.slice(0, 8)}</b>
       <span class="muted">${a.kind === 'question' ? t('agents.approval.question') : a.kind === 'idle' ? t('agents.approval.idle') : t('agents.approval.permission')}${a.toolName ? ' · ' + a.toolName : ''} · ${ago(a.createdAt)}</span>
       ${(a.toolSummary || a.message) && html`<p>${a.toolSummary || a.message}</p>`}</div>

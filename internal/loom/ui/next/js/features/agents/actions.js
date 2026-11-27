@@ -26,12 +26,17 @@ export const autoResumeDefault = () => { try { return localStorage.getItem('loom
 export const setAutoResumeDefault = on => { try { localStorage.setItem('loom.codeman.autoresume', on ? '1' : '0'); } catch (_) {} };
 export const agentDraftKey = id => 'loom.codeman.draft.' + id;
 
-export async function createSession({ mode, workingDir, name, model }) {
+export async function createSession({ mode, workingDir, name, model, effort }) {
   const body = { workingDir, mode, name: (name || '').trim() || nextName(workingDir) };
   const m = String(model || '').trim();
-  if (m && supportsModel(mode)) {
-    if (mode === 'claude') body.model = m;
-    else body[CONFIG_KEY[mode]] = { model: m };
+  const ef = String(effort || '').trim();
+  if (mode === 'claude') {
+    if (m && supportsModel(mode)) body.model = m;
+  } else if (CONFIG_KEY[mode] && (m || (mode === 'codex' && ef))) {
+    const cfg = {};
+    if (m && supportsModel(mode)) cfg.model = m;
+    if (mode === 'codex' && ef) cfg.reasoningEffort = ef;
+    if (Object.keys(cfg).length) body[CONFIG_KEY[mode]] = cfg;
   }
   const created = await api.create(body);
   const session = created?.session || created;

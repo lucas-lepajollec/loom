@@ -43,7 +43,7 @@ async function upload(file) {
 }
 
 const EMPTY_RUNTIMES = [];
-export function Composer({ phone } = {}) {
+export function Composer({ phone, dock } = {}) {
   const c = useStore(chat, s => ({ busy: s.busy, mode: s.mode, ctx: s.ctxUsed, session: s.session, context: s.context, notice: s.notice, starting: s.starting, engineError: s.engineError, localTarget: s.localTarget }));
   const status = useStore(app, s => s.status);
   const runtimes = useStore(app, s => s.workspace?.runtimes || EMPTY_RUNTIMES);
@@ -157,6 +157,7 @@ export function Composer({ phone } = {}) {
         ${sendBtn}
       </div>`}
     </div>
+    ${dock && html`<div class="composer-dock">${dock}</div>`}
     ${draft?.failed ? html`<div class="composer-hint err" role="alert">${blocked}<button class="btn sm" onClick=${() => startPhoneDiscussion(draft.folder, text, false)}>${t('agents.retry')}</button></div>`
       : c.starting ? null
       : c.engineError ? html`<div class="composer-hint err" role="alert">${c.engineError}<button class="btn sm" onClick=${submit}>${t('agents.retry')}</button></div>`

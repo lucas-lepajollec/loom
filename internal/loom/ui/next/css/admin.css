@@ -5,26 +5,29 @@
 .vx-page .set-group > h3,
 .mc-page .set-group > h3 {
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-2);
+  letter-spacing: -0.005em;
 }
 
 .settings-body .card,
 .vx-page .card,
 .mc-page .card {
   background: var(--surface);
-  border: 0;
+  border: 1px solid var(--line-soft);
   border-radius: var(--r-lg);
+  overflow: hidden;
 }
 
 .settings-body .set-line,
 .vx-page .set-line,
 .mc-page .set-line {
   min-height: 52px;
-  padding: 8px 16px;
+  padding: 9px 16px;
   gap: 14px;
   border-top: 1px solid var(--line-soft);
+  transition: background-color var(--fast);
 }
 
 .settings-body .set-line:first-child,
@@ -57,6 +60,27 @@
 .set-label small {
   font-size: 12.5px;
   color: var(--text-3);
+}
+
+.settings-body .set-c .btn.sm,
+.vx-page .set-c .btn.sm {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.settings-body .set-c .btn.sm:hover:not(:disabled),
+.vx-page .set-c .btn.sm:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.settings-body .set-c .btn.sm.primary,
+.vx-page .set-c .btn.sm.primary {
+  background: var(--ink);
+  border-color: transparent;
+  color: var(--on-ink);
 }
 
 .settings-body .set-c .select,
@@ -134,7 +158,8 @@
 }
 
 .mc-page.machine-detail {
-  max-width: 940px;
+  max-width: 1080px;
+  gap: 20px;
 }
 
 .mc-page .page-head,
@@ -154,25 +179,32 @@
 
 .machine-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 256px), 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 296px), 1fr));
+  gap: 14px;
 }
 
 .machine-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
-  padding: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--line-soft);
   border-radius: var(--r-lg);
   background: var(--surface);
+  transition: background-color var(--fast), border-color var(--fast);
+}
+
+.machine-card:hover {
+  background: color-mix(in srgb, var(--surface) 72%, var(--surface-2));
+  border-color: var(--line);
 }
 
 .machine-card-head,
 .machine-detail-identity {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -181,18 +213,29 @@
 }
 
 .machine-card h2 {
-  margin: 0 0 4px;
+  margin: 0 0 3px;
   font-size: 15px;
   font-weight: 600;
+  letter-spacing: -0.015em;
   overflow-wrap: anywhere;
 }
 
 .machine-card h2 a:hover {
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .machine-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
   color: var(--text-2);
+}
+
+.machine-icon .ico {
+  width: 16px;
+  height: 16px;
 }
 
 .machine-card-tags,
@@ -207,11 +250,12 @@
 }
 
 .machine-interface {
-  padding: 3px 7px;
-  border-radius: 6px;
-  background: var(--surface-3);
-  color: var(--text);
-  font-size: 11.5px;
+  padding: 2px 7px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -280,16 +324,18 @@
 
 .machine-chip {
   padding: 3px 8px;
-  border: 0;
-  background: var(--surface-2);
-  color: var(--text-2);
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--text-3);
   line-height: 1.3;
+  font-size: 12px;
 }
 
 .machine-chip.provided {
-  border: 0;
-  background: var(--ink);
-  color: var(--on-ink);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 500;
 }
 
 .machine-chip .ico {
@@ -299,8 +345,11 @@
 }
 
 .machine-chips > .machine-agent {
-  padding: 4px 7px;
-  background: var(--surface-2);
+  padding: 3px 8px;
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  font-size: 12px;
+  color: var(--text-2);
 }
 
 .machine-agent-version {
@@ -330,9 +379,9 @@
 }
 
 .machine-meter-track {
-  height: 5px;
+  height: 3px;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 3px;
   background: var(--surface-3);
 }
 
@@ -340,7 +389,8 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--text-3);
+  background: var(--text-2);
+  transition: width var(--slow) var(--out);
 }
 
 .machine-meter.warm .machine-meter-track > i {
@@ -353,10 +403,23 @@
 
 .machine-card-foot {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: 12px;
   border-top: 1px solid var(--line-soft);
+}
+
+.machine-card-foot .machine-actions .btn {
+  background: transparent;
+  color: var(--text-2);
+  min-height: 28px;
+  padding-inline: 8px;
+  font-size: 12.5px;
+}
+
+.machine-card-foot .machine-actions .btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
 }
 
 .machine-card-foot .machine-actions > a {
@@ -387,8 +450,32 @@
   padding: 12px 16px;
 }
 
+.machine-detail-top {
+  display: flex;
+  align-items: center;
+  margin-bottom: -6px;
+}
+
 .machine-back {
   align-self: flex-start;
+  background: transparent;
+  color: var(--text-2);
+  padding-inline: 8px;
+  margin-left: -8px;
+  min-height: 30px;
+  font-size: 13px;
+}
+
+.machine-back:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.machine-detail-hero {
+  padding: 20px 22px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 }
 
 .machine-detail-head,
@@ -397,11 +484,51 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 10px 16px;
+  gap: 12px 18px;
+}
+
+.machine-icon-lg {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--r);
+}
+
+.machine-icon-lg .ico {
+  width: 20px;
+  height: 20px;
 }
 
 .machine-detail-identity small {
-  margin-top: 3px;
+  margin-top: 2px;
+}
+
+.machine-detail-addr {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.machine-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.machine-detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .machine-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .machine-detail-col {
+    gap: 18px;
+  }
 }
 
 .machine-section {
@@ -413,18 +540,26 @@
   align-items: center;
   gap: 8px;
   margin: 0 0 8px;
-  font-size: 15px;
+  padding-left: 2px;
+  font-size: 12.5px;
   font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: -0.005em;
 }
 
 .machine-row {
   display: flex;
   align-items: center;
   gap: 10px 14px;
-  min-height: 52px;
+  min-height: 50px;
   min-width: 0;
-  padding: 8px 16px;
+  padding: 10px 16px;
   overflow-wrap: anywhere;
+  transition: background-color var(--fast);
+}
+
+.machine-row:hover {
+  background: var(--hover);
 }
 
 .machine-row + .machine-row,
@@ -443,11 +578,12 @@
 
 .machine-row-text b {
   font-weight: 500;
+  font-size: 13.5px;
 }
 
 .machine-row-text small {
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .machine-row-text .machine-provides {
@@ -459,12 +595,39 @@
   margin-left: auto;
 }
 
+.machine-detail .machine-row .machine-actions .btn,
+.machine-detail .machine-detail-controls .btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.machine-detail .machine-row .machine-actions .btn:hover:not(:disabled),
+.machine-detail .machine-detail-controls .btn:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.machine-detail .machine-row .machine-actions .btn.primary,
+.machine-detail .machine-detail-controls .btn.primary {
+  background: var(--ink);
+  border-color: transparent;
+  color: var(--on-ink);
+}
+
 .machine-file-root {
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin-top: 5px;
   color: var(--text-3);
+}
+
+.machine-file-root code {
+  font-size: 11.5px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
 }
 
 .machine-file-root .machine-update {
@@ -474,15 +637,17 @@
 .machine-install > summary {
   padding: 12px 16px;
   color: var(--text-2);
+  font-size: 13px;
   cursor: pointer;
 }
 
 .machine-resource-body {
-  padding: 14px 16px;
+  padding: 16px 18px;
 }
 
 .machine-resource-body .machine-meters {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 14px 24px;
 }
 
 .machine-terminal-link {
@@ -525,24 +690,40 @@
   flex-wrap: wrap;
 }
 
-/* Terminals opened from Machines: one line of actions, light tabs, the
-   terminal itself without a window bar */
-.term-top { display: flex; align-items: center; gap: 8px; }
-.term-top .machine-back { margin-left: -10px; color: var(--text-2); }
-.terminal-tabs { display: flex; gap: 4px; margin-top: 14px; overflow-x: auto; scrollbar-width: none; }
-.terminal-tab { position: relative; display: flex; align-items: center; flex: none; max-width: 240px; border-radius: 8px; color: var(--text-3); }
-.terminal-tab:hover { color: var(--text-2); background: var(--hover); }
-.terminal-tab.current { color: var(--text); background: var(--surface-2); }
-.terminal-tab a { display: flex; align-items: center; gap: 7px; min-width: 0; height: 32px; padding: 0 30px 0 10px; color: inherit; font-size: 13px; text-decoration: none; }
-.terminal-tab a .dot { width: 6px; height: 6px; flex: none; }
-.terminal-tab b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.terminal-tab small { color: var(--text-3); font-size: 12px; white-space: nowrap; }
-.terminal-tab .icon-btn { position: absolute; right: 3px; width: 24px; height: 24px; opacity: 0; }
-.terminal-tab .icon-btn .ico { width: 13px; height: 13px; }
-.terminal-tab:is(:hover, .current, :focus-within) .icon-btn { opacity: 1; }
-.machine-terminal-page .term-view { position: relative; height: clamp(360px, calc(100dvh - 170px), 900px); margin-top: 10px; border: 0; border-radius: 12px; }
-.machine-terminal-page .term-box { overflow: hidden; padding: 12px 6px 6px 14px; }
-.term-state { position: absolute; top: 10px; right: 12px; z-index: 2; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
+/* Terminaux : espace plein cadre bord-à-bord (bureau + mobile avec touches tactiles) */
+.term-page{display:flex;flex-direction:column;min-height:0;overflow:hidden;background:var(--panel)}
+.term-head{flex:none;display:flex;align-items:center;gap:10px;min-height:var(--head-h);padding:6px 14px;border-bottom:1px solid var(--line-soft);min-width:0}
+.term-head .machine-back{align-self:center;margin-left:0;height:30px;min-height:30px;padding-inline:8px;flex:none}
+.terminal-tabs{flex:1;min-width:0;display:flex;align-items:center;gap:4px;overflow-x:auto;scrollbar-width:none}
+.terminal-tabs::-webkit-scrollbar{display:none}
+.terminal-tab{position:relative;display:flex;align-items:center;flex:none;max-width:230px;border-radius:var(--r-sm);color:var(--text-3);transition:background-color var(--fast),color var(--fast)}
+.terminal-tab:hover{color:var(--text-2);background:var(--hover)}
+.terminal-tab.current{color:var(--text);background:var(--surface-2)}
+.terminal-tab a{display:flex;align-items:center;gap:7px;min-width:0;height:30px;padding:0 28px 0 10px;color:inherit;font-size:12.5px;text-decoration:none}
+.terminal-tab a .dot{width:6px;height:6px;flex:none}
+.terminal-tab b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.terminal-tab small{color:var(--text-3);font-size:11.5px;white-space:nowrap}
+.terminal-tab .icon-btn{position:absolute;right:2px;width:24px;height:24px;color:var(--text-2);opacity:0;transition:opacity var(--fast),color var(--fast)}
+.terminal-tab .icon-btn:hover{color:var(--text)}
+.terminal-tab .icon-btn .ico{width:13px;height:13px}
+.terminal-tab:is(:hover,.current,:focus-within) .icon-btn{opacity:1}
+.term-head-acts{flex:none;display:flex;align-items:center;gap:6px}
+.term-ghost-btn{background:transparent;border:1px solid var(--line);color:var(--text-2)}
+.term-ghost-btn:hover:not(:disabled){background:var(--hover);border-color:var(--line-strong);color:var(--text)}
+.term-stage{flex:1;min-height:0;display:flex;flex-direction:column;padding:12px 14px 14px;background:var(--panel)}
+.term-stage>.empty{margin:auto}
+.term-skeleton{flex:1;min-height:240px;border-radius:var(--r-lg)}
+.term-stage .term-view{position:relative;flex:1;min-height:0;border:1px solid var(--line-soft);border-radius:var(--r-lg);background:var(--bg-2)}
+.term-stage .term-box{flex:1;min-height:0;overflow:hidden;padding:12px 6px 8px 14px}
+.term-stage .term-box .xterm-viewport{background:transparent!important}
+.term-stage .term-box .xterm-rows,.term-stage .term-box .xterm-rows span{letter-spacing:0!important}
+.term-state{position:absolute;top:10px;right:12px;z-index:2;padding:3px 9px;border-radius:99px;background:var(--surface-2);color:var(--text-2);font-size:12px;pointer-events:none}
+.term-page-phone .term-head{padding:4px 8px;gap:6px;min-height:46px}
+.term-page-phone .term-stage{padding:0}
+.term-page-phone .term-view{border:0;border-radius:0;height:auto}
+.term-page-phone .term-box{padding:8px 4px 6px 10px}
+.term-page-phone .term-acc{padding-bottom:calc(6px + var(--phone-bottom,env(safe-area-inset-bottom)))}
+.term-page-phone .term-box .xterm-helper-textarea{font-size:16px!important}
 
 @media (max-width: 760px) {
   .mc-page {

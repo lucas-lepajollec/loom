@@ -40,6 +40,7 @@ const BLOCKS = [
   { id: 'code', label: () => t('files.block_code'), mark: '{ }', hint: '```', run: c => c.toggleCodeBlock() },
   { id: 'hr', label: () => t('files.block_divider'), mark: '—', hint: '---', run: c => c.setHorizontalRule() },
   { id: 'table', label: () => t('files.block_table'), mark: '⊞', run: c => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }) },
+  { id: 'image', label: () => t('files.image'), mark: '◫', action: ed => askImage(ed) },
 ];
 // Le Markdown enregistré garde une seule ligne vide entre deux blocs (hors
 // blocs de code) et finit par un retour à la ligne.
@@ -61,17 +62,47 @@ async function askImage(editor) {
   if (src) editor.chain().focus().setImage({ src }).run();
 }
 
+// Bureau : bulle de formatage discrète au-dessus de la sélection (façon Notion /
+// Linear), les blocs passant par « / ». Mobile : barre ancrée compacte en bas.
 function Toolbar({ editor, narrow }) {
   const [, tick] = useState(0);
   const [style, setStyle] = useState(null);
-  useEffect(() => { const f = () => tick(n => n + 1); editor.on('transaction', f); return () => editor.off('transaction', f); }, [editor]);
+  const [pos, setPos] = useState(null);
+  useEffect(() => {
+    const sync = () => {
+      tick(n => n + 1);
+      if (narrow) return;
+      const { from, to, empty } = editor.state.selection;
+      if (empty || editor.isActive('codeBlock')) { setPos(null); setStyle(null); return; }
+      try {
+        const a = editor.view.coordsAtPos(from);
+        const b = editor.view.coordsAtPos(to);
+        const midX = (a.left + b.right) / 2;
+        const topY = Math.min(a.top, b.top);
+        const x = Math.max(150, Math.min(innerWidth - 150, midX));
+        const y = topY > 64 ? topY - 46 : Math.max(a.bottom, b.bottom) + 8;
+        setPos({ x, y });
+      } catch (_) { setPos(null); }
+    };
+    const hide = () => { if (!narrow) { setPos(null); setStyle(null); } };
+    editor.on('transaction', sync);
+    editor.on('selectionUpdate', sync);
+    editor.on('blur', hide);
+    return () => {
+      editor.off('transaction', sync);
+      editor.off('selectionUpdate', sync);
+      editor.off('blur', hide);
+    };
+  }, [editor, narrow]);
+  if (!narrow && !pos) return null;
   const on = (name, attrs) => editor.isActive(name, attrs);
   const level = [1, 2, 3].find(l => on('heading', { level: l }));
   const styleLabel = (BLOCKS.find(b => b.id === (level ? 'h' + level : 'p')) || BLOCKS[0]).label();
   const btn = (label, active, run, body) => html`<button type="button" class="icon-btn fl-tb-b" aria-label=${label} title=${label} aria-pressed=${String(!!active)}
     onMouseDown=${e => e.preventDefault()} onClick=${run}>${body}</button>`;
   const c = () => editor.chain().focus();
-  return html`<div class=${cls('fl-toolbar', narrow && 'docked')} role="toolbar" aria-label=${t('files.format')}>
+  return html`<div class=${cls('fl-toolbar', narrow ? 'docked' : 'bubble')} role="toolbar" aria-label=${t('files.format')}
+      style=${!narrow && pos ? `left:${pos.x}px;top:${pos.y}px` : undefined}>
     <${DropdownButton} class="sm fit" open=${style} onMouseDown=${e => e.preventDefault()} onClick=${e => setStyle(e.currentTarget)}>${styleLabel}</${DropdownButton}>
     ${style && html`<${Menu} anchor=${style} onClose=${() => setStyle(null)} items=${BLOCKS.slice(0, 4).map(b => ({ label: b.label(), icon: (b.id === 'p' ? !level : level === +b.id.slice(1)) ? 'check' : '', run: () => b.run(c()).run() }))} />`}
     <i class="fl-tb-sep"></i>
@@ -80,17 +111,9 @@ function Toolbar({ editor, narrow }) {
     ${btn(t('files.strike'), on('strike'), () => c().toggleStrike().run(), html`<s>S</s>`)}
     ${btn(t('files.code'), on('code'), () => c().toggleCode().run(), html`<span class="mono">${'</>'}</span>`)}
     ${btn(t('files.link'), on('link'), () => askLink(editor), html`<${Icon} n="link" />`)}
-    <i class="fl-tb-sep"></i>
+    ${narrow && html`<i class="fl-tb-sep"></i>
     ${btn(t('files.block_bullets'), on('bulletList'), () => c().toggleBulletList().run(), html`<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5.5h9M8 10h9M8 14.5h9"/><circle cx="4" cy="5.5" r=".9"/><circle cx="4" cy="10" r=".9"/><circle cx="4" cy="14.5" r=".9"/></svg>`)}
-    ${btn(t('files.block_numbers'), on('orderedList'), () => c().toggleOrderedList().run(), html`<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5.5h9M8 10h9M8 14.5h9M3.5 4.5l1-.8v3.6M3.3 12.8a1 1 0 0 1 1.9.4l-1.9 2.3h2"/></svg>`)}
-    ${btn(t('files.block_tasks'), on('taskList'), () => c().toggleTaskList().run(), html`<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="M6.5 10l2.5 2.5 4.5-5"/></svg>`)}
-    ${!narrow && html`<i class="fl-tb-sep"></i>
-    ${btn(t('files.block_quote'), on('blockquote'), () => c().toggleBlockquote().run(), html`<span class="fl-tb-q">“</span>`)}
-    ${btn(t('files.block_divider'), false, () => c().setHorizontalRule().run(), html`<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h14"/></svg>`)}
-    ${btn(t('files.block_table'), on('table'), () => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), html`<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8.5h14M3 12.5h14M8.5 4v12"/></svg>`)}
-    ${btn(t('files.image'), false, () => askImage(editor), html`<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="8.5" r="1.3"/><path d="M17 13l-4-4-7 7"/></svg>`)}
-    <i class="fl-tb-sep"></i>
-    ${btn(t('files.undo'), false, () => c().undo().run(), html`<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5L3.5 8.5 7 12M3.5 8.5H12a4.5 4.5 0 0 1 0 9h-2"/></svg>`)}`}
+    ${btn(t('files.block_tasks'), on('taskList'), () => c().toggleTaskList().run(), html`<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="M6.5 10l2.5 2.5 4.5-5"/></svg>`)}`}
   </div>`;
 }
 
@@ -162,7 +185,17 @@ export function NoteEditor({ path, file, raw, onState, onSaved, onReload, narrow
     setSlash({ from: $from.start(), to: $from.pos, items, index: Math.min(slashRef.current?.index || 0, Math.max(0, items.length - 1)),
       x: Math.min(at.left, innerWidth - 272), y: below ? at.bottom + 6 : Math.max(8, at.top - height - 6) });
   };
-  const pickBlock = (ed, b) => { const s = slashRef.current; if (!s) return; b.run(ed.chain().focus().deleteRange({ from: s.from, to: s.to })).run(); setSlash(null); };
+  const pickBlock = (ed, b) => {
+    const s = slashRef.current;
+    if (!s) return;
+    setSlash(null);
+    if (b.action) {
+      ed.chain().focus().deleteRange({ from: s.from, to: s.to }).run();
+      b.action(ed);
+      return;
+    }
+    b.run(ed.chain().focus().deleteRange({ from: s.from, to: s.to })).run();
+  };
 
   useEffect(() => {
     if (raw) return;

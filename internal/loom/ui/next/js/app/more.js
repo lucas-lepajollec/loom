@@ -46,7 +46,8 @@ function MoreList() {
   const node = useStore(app, s => s.engineNode);
   const pull = usePullRefresh(() => Promise.allSettled([refreshStatus(), refreshEngineNode()]));
   const links = [
-    ['local', 'chip', t('app.groups.models')],
+    ['local', 'chip', t('chat.picker.local')],
+    ['cloud', 'cloud', t('app.routes.cloud')],
     ['agents', 'agent', t('agents.title')],
     ['machines', 'server', t('settings.page.machines')],
     ['files', 'folder', t('files.title'), t('files.second_brain')],

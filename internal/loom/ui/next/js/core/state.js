@@ -7,9 +7,23 @@ import { visibleRefresh, singleFlight } from './poll.js';
 import { validShape, validData } from './shape.js';
 import { isPhone } from './viewport.js';
 
+const CHAT_MODE_SECTIONS = new Set(['chat', 'local', 'cloud', 'voice', 'jarvis', 'engine']);
+const AGENT_MODE_SECTIONS = new Set(['agents', 'machines', 'files', 'connections', 'terminals']);
+function modeForRoute(route, fallback) {
+  const sec = route?.section || '';
+  if (AGENT_MODE_SECTIONS.has(sec)) return 'agents';
+  if (CHAT_MODE_SECTIONS.has(sec)) return 'chat';
+  return fallback === 'agents' ? 'agents' : 'chat';
+}
+function savedWorkspaceMode() {
+  try { return localStorage.getItem('loom.workspaceMode') === 'agents' ? 'agents' : 'chat'; } catch (_) { return 'chat'; }
+}
+
+const initialRoute = parseRoute();
 const observation = url => value => value === null || validData(value, url);
 export const app = createStore({
-  route: parseRoute(),
+  route: initialRoute,
+  workspaceMode: modeForRoute(initialRoute, savedWorkspaceMode()),
   theme: localStorage.getItem('loom-theme') || 'dark',
   palette: false, inspector: false, phoneDraft: null, phoneChatRevision: 0,
   status: null, serverInfo: null, gpus: [], ram: null, engineNode: null,
@@ -17,6 +31,12 @@ export const app = createStore({
   nav: { conversations: [], projects: [], active: '' }, unavailable: {},
 }, { models: v => validData(v, '/api/models'), presets: v => validData(v, '/api/presets'), gpus: v => validData(v, '/api/vram'), status: observation('/api/status'), serverInfo: observation('/api/ping'), ram: observation('/api/ram'), engineNode: value => value === null || typeof value?.remote === 'boolean' && validData(value, '/api/engine/node'),
   workspace: observation('/api/workspace'), nav: { conversations: [], projects: [], active: '' }, unavailable: {}, voiceMode: value => value === null || validShape(value, { discussion: '', internet: false }), welcome: false, newPreset: false });
+
+export function setWorkspaceMode(mode) {
+  const next = mode === 'agents' ? 'agents' : 'chat';
+  try { localStorage.setItem('loom.workspaceMode', next); } catch (_) {}
+  if (app.get().workspaceMode !== next) app.set({ workspaceMode: next });
+}
 
 // ---------- routes : #/section/sous-section/id ----------
 export function parseRoute() {
@@ -52,7 +72,9 @@ addEventListener('hashchange', () => {
   const route = parseRoute();
   if (isPhone()) markBack(true);
   const phoneDraft = route.section === 'chat' && !route.sub ? app.get().phoneDraft : null;
-  app.set({ route, phoneDraft, inspector: isPhone() ? false : app.get().inspector,
+  const workspaceMode = modeForRoute(route, app.get().workspaceMode);
+  try { localStorage.setItem('loom.workspaceMode', workspaceMode); } catch (_) {}
+  app.set({ route, workspaceMode, phoneDraft, inspector: isPhone() ? false : app.get().inspector,
     voiceMode: route.section === 'chat' ? app.get().voiceMode ?? null : null });
 });
 globalThis.matchMedia?.('(max-width: 760px)').addEventListener('change', () => {

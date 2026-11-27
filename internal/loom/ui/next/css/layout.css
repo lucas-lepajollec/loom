@@ -9,12 +9,12 @@
   .view.page,.view.cm .cm-scroll{scrollbar-gutter:stable both-edges}
   .view.page > .page-in.page-in{max-width:1040px;margin-inline:auto;padding:var(--page-top) 40px 48px}
   .view.page > .page-in.page-in:has(> .sec-tabs){padding-top:0}
-  .view.page > .page-in > .sec-tabs.sec-tabs{position:sticky;top:0;z-index:6;flex:none;align-items:flex-end;height:auto;margin-top:0;padding-top:var(--page-top);border:0;background:var(--panel)}
-  .view.page > .page-in > .sec-tabs a{height:42px}
-  /* onglet courant : le même trait partout */
-  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs .sec-pill{display:none}
-  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs{gap:24px}
-  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs a[aria-current="page"]{color:var(--text);box-shadow:inset 0 -2px var(--text)}
+  .view.page > .page-in > .sec-tabs.sec-tabs{position:sticky;top:0;z-index:6;flex:none;align-items:flex-end;height:auto;margin-top:0;padding-top:var(--page-top);border-bottom:1px solid var(--line-soft);background:var(--panel)}
+  .view.page > .page-in > .sec-tabs a{height:40px}
+  /* onglet courant : barre animée FLIP (.sec-pill) sur toutes les pages */
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs{gap:22px;border-bottom:1px solid var(--line-soft)}
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs .sec-pill{display:block;height:1.5px;border-radius:2px;background:var(--text)}
+  :is(.view.page > .page-in, .view.cm > .cm-admin-top) > .sec-tabs a[aria-current="page"]{color:var(--text);box-shadow:none}
   .view.cm > .cm-admin-top.cm-admin-top{padding-top:var(--page-top)}
   .view.cm > .cm-admin-top.cm-admin-top,.view.cm .cm-scroll > :is(.cm-cc,.cm-cron,.cm-cfg){width:100%;max-width:1040px;margin-inline:auto;padding-inline:40px}
 }

@@ -212,7 +212,7 @@ try {
       if (phone && scenario === 'phone-layout' && r === 'local') {
         const chips = page.locator('.phone-section-tabs a');
         await chips.last().waitFor();
-        if (await chips.count() !== 5 || await chips.first().getAttribute('aria-current') !== 'page') throw new Error('Missing model sections');
+        if (await chips.count() !== 4 || await chips.first().getAttribute('aria-current') !== 'page') throw new Error('Missing model sections');
         const rows = page.locator('.models-compact-row');
         await rows.nth(1).waitFor();
         await checkTrigger(rows.first().locator('[aria-haspopup="menu"]'), page.getByRole('menu'));

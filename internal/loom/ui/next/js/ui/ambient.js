@@ -49,6 +49,7 @@ export function AmbientField({ variant = 'calm', class: className = '' }) {
 
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const hero = variant === 'hero';
+    const page = variant === 'page';
     const step = 5; // grain fin haute densité (5 px)
     const px = 1.6; // micro-point net
     let w = 0, h = 0, cols = 0, rows = 0, dpr = 1;
@@ -93,16 +94,23 @@ export function AmbientField({ variant = 'calm', class: className = '' }) {
       const [r, g, b] = ink;
       const levels = hero
         ? [
-            `rgba(${r},${g},${b},0.065)`,
-            `rgba(${r},${g},${b},0.14)`,
-            `rgba(${r},${g},${b},0.25)`,
-            `rgba(${r},${g},${b},0.40)`,
+            `rgba(${r},${g},${b},0.075)`,
+            `rgba(${r},${g},${b},0.16)`,
+            `rgba(${r},${g},${b},0.28)`,
+            `rgba(${r},${g},${b},0.44)`,
+          ]
+        : page
+        ? [
+            `rgba(${r},${g},${b},0.06)`,
+            `rgba(${r},${g},${b},0.135)`,
+            `rgba(${r},${g},${b},0.235)`,
+            `rgba(${r},${g},${b},0.37)`,
           ]
         : [
-            `rgba(${r},${g},${b},0.055)`,
-            `rgba(${r},${g},${b},0.12)`,
-            `rgba(${r},${g},${b},0.21)`,
-            `rgba(${r},${g},${b},0.34)`,
+            `rgba(${r},${g},${b},0.065)`,
+            `rgba(${r},${g},${b},0.145)`,
+            `rgba(${r},${g},${b},0.25)`,
+            `rgba(${r},${g},${b},0.39)`,
           ];
 
       const b0 = [], b1 = [], b2 = [], b3 = [];

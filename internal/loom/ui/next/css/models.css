@@ -45,12 +45,14 @@
 
 .models-section-head h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: -.005em;
 }
 
 .models-engine-layout .models-section-head h2 {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .models-section-head small, .models-row small, .models-row-meta, .models-empty {
@@ -60,19 +62,25 @@
 
 .models-card, .models-engine-maintenance .card {
   min-width: 0;
-  border: 0;
+  border: 1px solid var(--line-soft);
   border-radius: var(--r-lg);
   background: var(--surface);
   box-shadow: none;
+  overflow: hidden;
 }
 
 .models-row, .models-status {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
-  min-height: 56px;
-  padding: 8px 16px;
+  min-height: 54px;
+  padding: 10px 16px;
+  transition: background-color var(--fast);
+}
+
+.models-card .models-row:hover {
+  background: var(--hover);
 }
 
 .models-row + .models-row, .models-card > summary + .models-row {
@@ -138,13 +146,60 @@ p.models-row-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
 .models-toolbar .search {
   flex: 1 1 240px;
   min-width: 0;
+  min-height: 34px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.models-toolbar .search:focus-within {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.models-toolbar > .seg {
+  padding: 2px;
+  border-radius: var(--r);
+  background: var(--surface);
+}
+
+.models-toolbar > .seg button {
+  border-radius: 7px;
+  min-height: 28px;
+  padding: 0 11px;
+}
+
+.models-toolbar > .seg .ind {
+  border-radius: 7px;
+  background: var(--surface-3);
+}
+
+.models-card .models-row .btn.sm,
+.models-actions .btn.sm {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.models-card .models-row .btn.sm:hover:not(:disabled),
+.models-actions .btn.sm:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.models-card .models-row .btn.sm.primary,
+.models-actions .btn.sm.primary {
+  background: var(--ink);
+  border-color: transparent;
+  color: var(--on-ink);
 }
 
 .models-hub-result:hover {
@@ -198,7 +253,7 @@ p.models-row-meta {
 }
 
 .models-layout .gauge {
-  height: 5px;
+  height: 3px;
   background: var(--surface-3);
 }
 

@@ -5,7 +5,7 @@
 // quand l'utilisateur ouvre un fichier.
 import { lt } from './labels.js';
 import { t, locale } from '../../core/i18n.js';
-import { html, useState, useEffect, useRef, useMemo, useStore, cls, fmtTok } from '../../core/lib.js';
+import { html, useState, useEffect, useLayoutEffect, useRef, useMemo, useStore, cls, fmtTok } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { DropdownButton, Switch, Empty, Seg, Menu } from '../../ui/controls.js';
 import { toast, prompt, confirm } from '../../ui/dialog.js';
@@ -14,11 +14,12 @@ import { md } from '../chat/md.js';
 import { request } from '../../core/api.js';
 import { api, sendPrompt } from './client.js';
 import { ago } from './rail.js';
-import { agents, cliOf, onDomain, upsertSession, stateOf, projectOf, hasConversation, sessionList, queueCommand } from './store.js';
+import { agents, cliOf, onDomain, upsertSession, stateOf, attentionOf, projectOf, hasConversation, sessionList, queueCommand } from './store.js';
 import { closeSession, renameSession, createSession } from './actions.js';
 import { CliMark } from './new-session.js';
 import { openSession, officialLink } from './nav.js';
 import { HarnessQuota } from './quotas.js';
+import { changedFiles } from '../conversation/turns.js';
 import { go } from '../../core/state.js';
 import {
   panelState, DEFAULT_PANEL_WIDTH, clampPanelWidth, setLivePanelWidth, savePanelWidth,
@@ -63,13 +64,30 @@ function ActivityTab({ id }) {
 
 const cleanDiffLines = text => String(text || '').split('\n').filter(l => !/^(diff --git|index |--- |\+\+\+ )/.test(l));
 
-function DiffLines({ text, truncated }) {
-  const lines = useMemo(() => cleanDiffLines(text), [text]);
-  return html`<pre class="cv-diff cm-chg-diff">${lines.map((l, i) => html`<span key=${i} class=${l.startsWith('@@') ? 'h' : l[0] === '+' ? 'a' : l[0] === '-' ? 'd' : ''}>${l || ' '}</span>`)}${truncated && html`<span class="h">…</span>`}</pre>`;
+function diffStats(text) {
+  let add = 0, del = 0;
+  for (const l of cleanDiffLines(text)) {
+    if (l[0] === '+') add++;
+    else if (l[0] === '-') del++;
+  }
+  return { add, del };
 }
 
-// Ligne de modification style Codex / Claude Desktop : nom de fichier mis en
-// avant, dossier atténué, badge d'état, aperçu rapide et diff dépliable sur place.
+function DiffLines({ text, truncated }) {
+  const lines = useMemo(() => cleanDiffLines(text), [text]);
+  return html`<div class="cm-chg-diff" role="region">${lines.map((l, i) => {
+    const hunk = l.startsWith('@@');
+    const sign = !hunk && (l[0] === '+' || l[0] === '-') ? l[0] : '';
+    const body = sign ? l.slice(1) : l;
+    return html`<div key=${i} class=${cls('cm-dl', hunk ? 'h' : sign === '+' ? 'a' : sign === '-' ? 'd' : '')}>
+      ${!hunk && html`<span class="cm-dl-g" aria-hidden="true">${sign || ' '}</span>`}
+      <span class="cm-dl-t">${body || ' '}</span>
+    </div>`;
+  })}${truncated && html`<div class="cm-dl h"><span class="cm-dl-t">…</span></div>`}</div>`;
+}
+
+// Ligne de modification style labos (Codex / Claude Desktop / Cursor) :
+// nom de fichier net, dossier discret, compteur +N -M, actions au survol et diff unifié lisible.
 function ChangeRow({ id, repoRoot, file, onPreview }) {
   const [open, setOpen] = useState(false);
   const [diff, setDiff] = useState(null);
@@ -83,56 +101,149 @@ function ChangeRow({ id, repoRoot, file, onPreview }) {
     }
   };
   const { dir, name } = splitPath(file.path);
-  const code = file.kind === 'untracked' ? '?' : file.kind === 'conflicted' ? '!' : (file.kind === 'staged' ? file.index : file.worktree) || 'M';
+  const code = file.kind === 'untracked' ? 'U' : file.kind === 'conflicted' ? '!' : (file.kind === 'staged' ? file.index : file.worktree) || 'M';
   const deleted = code === 'D';
+  const stats = useMemo(() => (diff?.data?.diff ? diffStats(diff.data.diff) : null), [diff]);
   return html`<div class=${cls('cm-chg-file', open && 'open')}>
     <div class="cm-chg-row">
       <button type="button" class="cm-chg-btn" aria-expanded=${String(open)} onClick=${toggle}>
-        <i class=${'gk ' + file.kind} title=${lt('gitKind', file.kind)}>${code}</i>
+        <${Icon} n="right" class="cm-chg-caret" />
         <span class="cm-chg-path" title=${file.path}><span class="name">${name}</span>${dir && html`<span class="dir">${dir}</span>`}</span>
-        <${Icon} n="chevron" class="cm-chg-caret" />
+        ${stats && (stats.add > 0 || stats.del > 0) && html`<span class="cm-chg-stat">${stats.add > 0 && html`<em class="a">+${stats.add}</em>`}${stats.del > 0 && html`<em class="d">-${stats.del}</em>`}</span>`}
+        <i class=${'gk ' + file.kind} title=${lt('gitKind', file.kind)}>${code}</i>
       </button>
-      ${!deleted && html`<button type="button" class="icon-btn cm-chg-eye" aria-label=${t('agents.preview.open')} title=${t('agents.preview.open')} onClick=${() => onPreview(file.path)}><${Icon} n="eye" /></button>`}
+      <div class="cm-chg-acts">
+        <button type="button" class="icon-btn cm-chg-eye" aria-label=${t('agents.files.copy_path')} title=${t('agents.files.copy_path')} onClick=${() => copyText(file.path).then(() => toast(t('agents.copied')))}><${Icon} n="copy" /></button>
+        ${!deleted && html`<button type="button" class="icon-btn cm-chg-eye" aria-label=${t('agents.preview.open')} title=${t('agents.preview.open')} onClick=${() => onPreview(file.path)}><${Icon} n="eye" /></button>`}
+      </div>
     </div>
-    ${open && html`<div class="cm-chg-body">
-      ${diff === null ? html`<div class="cv-diff-wait"><span class="spinner"></span></div>`
-        : diff.error ? html`<p class="cv-diff-err">${diff.error}</p>`
-        : diff.data?.binary ? html`<p class="muted cm-chg-msg">${t('agents.git.binary')}</p>`
-        : !diff.data?.diff ? html`<p class="muted cm-chg-msg">${t('agents.git.clean')}</p>`
-        : html`<${DiffLines} text=${diff.data.diff} truncated=${diff.data.truncated} />`}
-      ${diff?.data?.truncated && html`<p class="muted cm-chg-msg">${t('agents.git.truncated')}</p>`}
-    </div>`}
+    <div class="cm-chg-wrap" aria-hidden=${String(!open)}>
+      <div class="cm-chg-inner">
+        ${(open || diff !== null) && html`<div class="cm-chg-body">
+          ${diff === null ? html`<div class="cv-diff-wait"><span class="spinner"></span></div>`
+            : diff.error ? html`<p class="cv-diff-err">${diff.error}</p>`
+            : diff.data?.binary ? html`<p class="muted cm-chg-msg">${t('agents.git.binary')}</p>`
+            : !diff.data?.diff ? html`<p class="muted cm-chg-msg">${t('agents.git.clean')}</p>`
+            : html`<${DiffLines} text=${diff.data.diff} truncated=${diff.data.truncated} />`}
+          ${diff?.data?.truncated && html`<p class="muted cm-chg-msg">${t('agents.git.truncated')}</p>`}
+        </div>`}
+      </div>
+    </div>
   </div>`;
 }
 
-function ChangesTab({ id, gitState, refreshGit }) {
-  if (gitState.error) return html`<${Failed} error=${gitState.error} retry=${() => refreshGit(true)} />`;
-  if (gitState.loading && !gitState.data) return html`<${Loading} />`;
-  const d = gitState.data || {};
-  if (d.state === 'not-a-repo') return html`<${Empty} icon="folder" title=${t('agents.panel.changes')} text=${t('agents.git.none')} />`;
-  if (d.state === 'unsupported') return html`<p class="muted">${t('agents.git.unsupported')}</p>`;
-  if (d.state === 'error') return html`<p class="muted">${d.error}</p>`;
-  return html`<div class="cm-git">
-    <div class="cm-insp-bar">
-      <span class="muted">${t('agents.git.checked', { time: time(d.checkedAt) })}</span>
-      <button type="button" class="icon-btn" aria-label=${t('common.refresh')} onClick=${() => refreshGit(true)}><${Icon} n="refresh" /></button>
+function EditChangeRow({ id, workingDir, file, onPreview }) {
+  const [open, setOpen] = useState(false);
+  const [diff, setDiff] = useState(null);
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && diff === null) {
+      Promise.all((file.ids || []).map(eid => api.editDiff(id, eid)))
+        .then(parts => setDiff({
+          data: {
+            diff: parts.map(p => p?.diff || '').filter(Boolean).join('\n'),
+            truncated: parts.some(p => p?.truncated),
+          },
+        }))
+        .catch(e => setDiff({ error: e.message }));
+    }
+  };
+  const displayPath = normalizeSessionPath(file.path, workingDir) || file.path;
+  const { dir, name } = splitPath(displayPath);
+  const code = file.created ? 'A' : 'M';
+  const kind = file.created ? 'staged' : 'unstaged';
+  return html`<div class=${cls('cm-chg-file', open && 'open')}>
+    <div class="cm-chg-row">
+      <button type="button" class="cm-chg-btn" aria-expanded=${String(open)} onClick=${toggle}>
+        <${Icon} n="right" class="cm-chg-caret" />
+        <span class="cm-chg-path" title=${file.path}><span class="name">${name}</span>${dir && html`<span class="dir">${dir}</span>`}</span>
+        ${(file.added > 0 || file.removed > 0) && html`<span class="cm-chg-stat">${file.added > 0 && html`<em class="a">+${file.added}</em>`}${file.removed > 0 && html`<em class="d">-${file.removed}</em>`}</span>`}
+        <i class=${'gk ' + kind} title=${file.created ? t('agents.changes.created') : t('agents.changes.modified')}>${code}</i>
+      </button>
+      <div class="cm-chg-acts">
+        <button type="button" class="icon-btn cm-chg-eye" aria-label=${t('agents.files.copy_path')} title=${t('agents.files.copy_path')} onClick=${() => copyText(displayPath).then(() => toast(t('agents.copied')))}><${Icon} n="copy" /></button>
+        <button type="button" class="icon-btn cm-chg-eye" aria-label=${t('agents.preview.open')} title=${t('agents.preview.open')} onClick=${() => onPreview(displayPath)}><${Icon} n="eye" /></button>
+      </div>
     </div>
-    ${(d.repos || []).map(repo => {
-      const s = repo.status || {};
-      const files = s.files || [];
-      return html`<section class="cm-repo" key=${repo.path}>
-        <header class="cm-repo-h">
-          <b>${repo.name}</b>
-          <span class="tag">${s.branch || t('agents.git.detached')}</span>
-          ${s.ahead ? html`<span class="tag green">↑${s.ahead}</span>` : ''}
-          ${s.behind ? html`<span class="tag amber">↓${s.behind}</span>` : ''}
-        </header>
-        ${s.state === 'error' ? html`<p class="muted">${s.error}</p>` : html`
-          <p class="muted cm-repo-sum">${s.counts && s.counts.uncommitted ? t('agents.git.changes', { n: s.counts.uncommitted }) : t('agents.git.clean')}${s.unpushedCount ? ' · ' + t('agents.git.unpushed', { n: s.unpushedCount }) : ''}</p>
-          ${files.length > 0 && html`<div class="cm-chg-list">${files.map(f => html`<${ChangeRow} key=${f.kind + ':' + f.path} id=${id} repoRoot=${s.repoRoot} file=${f} onPreview=${p => openPreview(id, p)} />`)}</div>`}
-          ${(s.unpushed || []).length > 0 && html`<details class="cm-commits"><summary>${t('agents.git.commits')} (${s.unpushed.length})</summary>${s.unpushed.map(c => html`<div key=${c.hash}><code>${c.hash.slice(0, 7)}</code> ${c.subject}</div>`)}</details>`}`}
-      </section>`;
-    })}
+    <div class="cm-chg-wrap" aria-hidden=${String(!open)}>
+      <div class="cm-chg-inner">
+        ${(open || diff !== null) && html`<div class="cm-chg-body">
+          ${diff === null ? html`<div class="cv-diff-wait"><span class="spinner"></span></div>`
+            : diff.error ? html`<p class="cv-diff-err">${diff.error}</p>`
+            : !diff.data?.diff ? html`<p class="muted cm-chg-msg">${t('agents.git.clean')}</p>`
+            : html`<${DiffLines} text=${diff.data.diff} truncated=${diff.data.truncated} />`}
+          ${diff?.data?.truncated && html`<p class="muted cm-chg-msg">${t('agents.git.truncated')}</p>`}
+        </div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function ChangesTab({ id, workingDir, editsState, refreshEdits, gitState, refreshGit }) {
+  const agentChanges = useMemo(() => changedFiles(editsState.data?.entries || []), [editsState.data]);
+  const hasAgentEdits = agentChanges.files.length > 0;
+  const refreshAll = () => { refreshEdits(true); refreshGit(true); };
+
+  if (!hasAgentEdits && gitState.error) return html`<${Failed} error=${gitState.error} retry=${refreshAll} />`;
+  if (!hasAgentEdits && (gitState.loading && !gitState.data) && (editsState.loading && !editsState.data)) return html`<${Loading} />`;
+
+  const d = gitState.data || {};
+  const repos = Array.isArray(d.repos) ? d.repos : [];
+  const sortedRepos = useMemo(() => [...repos].sort((a, b) => {
+    const ca = a?.status?.counts?.uncommitted || a?.status?.files?.length || 0;
+    const cb = b?.status?.counts?.uncommitted || b?.status?.files?.length || 0;
+    return (cb > 0 ? 1 : 0) - (ca > 0 ? 1 : 0);
+  }), [repos]);
+  const showGit = !gitState.error && d.state !== 'not-a-repo' && d.state !== 'unsupported' && d.state !== 'error' && sortedRepos.length > 0;
+
+  if (!hasAgentEdits && !showGit) {
+    if (d.state === 'not-a-repo') return html`<${Empty} icon="folder" title=${t('agents.panel.changes')} text=${t('agents.git.none')} />`;
+    if (d.state === 'unsupported') return html`<p class="muted">${t('agents.git.unsupported')}</p>`;
+    if (d.state === 'error') return html`<p class="muted">${d.error}</p>`;
+    return html`<${Empty} icon="folder" title=${t('agents.panel.changes')} text=${t('agents.git.clean')} />`;
+  }
+
+  const checkedTitle = d.checkedAt ? t('agents.git.checked', { time: time(d.checkedAt) }) : t('common.refresh');
+  return html`<div class="cm-git">
+    ${hasAgentEdits && html`<section class="cm-repo cm-agent-edits">
+      <header class="cm-repo-h">
+        <div class="cm-repo-id">
+          <b class="trunc">${t('agents.changes.by_agent')}</b>
+          <span class="cm-branch mono">${agentChanges.files.length}</span>
+          ${(agentChanges.added > 0 || agentChanges.removed > 0) && html`<span class="cm-chg-stat">
+            ${agentChanges.added > 0 && html`<em class="a">+${agentChanges.added}</em>`}
+            ${agentChanges.removed > 0 && html`<em class="d">-${agentChanges.removed}</em>`}
+          </span>`}
+        </div>
+        <button type="button" class="icon-btn cm-repo-ref" aria-label=${t('common.refresh')} title=${checkedTitle} onClick=${refreshAll}><${Icon} n="refresh" /></button>
+      </header>
+      <div class="cm-chg-list">${agentChanges.files.map(f => html`<${EditChangeRow} key=${f.path} id=${id} workingDir=${workingDir} file=${f} onPreview=${p => openPreview(id, p)} />`)}</div>
+    </section>`}
+    ${showGit && html`${hasAgentEdits && html`<div class="cm-chg-subh">${t('agents.changes.workspace')}</div>`}
+      ${sortedRepos.map((repo, idx) => {
+        const s = repo.status || {};
+        const files = s.files || [];
+        const count = s.counts?.uncommitted || files.length;
+        return html`<section class="cm-repo" key=${repo.path}>
+          <header class="cm-repo-h">
+            <div class="cm-repo-id">
+              <b class="trunc">${repo.name}</b>
+              <span class="cm-branch mono trunc">${s.branch || t('agents.git.detached')}</span>
+              ${s.ahead ? html`<span class="cm-sync up">↑${s.ahead}</span>` : ''}
+              ${s.behind ? html`<span class="cm-sync down">↓${s.behind}</span>` : ''}
+            </div>
+            ${!hasAgentEdits && idx === 0 && html`<button type="button" class="icon-btn cm-repo-ref" aria-label=${t('common.refresh')} title=${checkedTitle} onClick=${refreshAll}><${Icon} n="refresh" /></button>`}
+          </header>
+          ${s.state === 'error' ? html`<p class="muted cm-repo-sum">${s.error}</p>` : html`
+            <div class="cm-repo-meta">
+              <span>${count ? t('agents.git.changes', { n: count }) : t('agents.git.clean')}</span>
+              ${s.unpushedCount ? html`<span>· ${t('agents.git.unpushed', { n: s.unpushedCount })}</span>` : ''}
+            </div>
+            ${files.length > 0 && html`<div class="cm-chg-list">${files.map(f => html`<${ChangeRow} key=${f.kind + ':' + f.path} id=${id} repoRoot=${s.repoRoot} file=${f} onPreview=${p => openPreview(id, p)} />`)}</div>`}
+            ${(s.unpushed || []).length > 0 && html`<details class="cm-commits"><summary>${t('agents.git.commits')} (${s.unpushed.length})</summary><div class="cm-commit-list">${s.unpushed.map(c => html`<div class="cm-commit-row" key=${c.hash}><code>${c.hash.slice(0, 7)}</code><span class="trunc">${c.subject}</span></div>`)}</div></details>`}`}
+        </section>`;
+      })}`}
   </div>`;
 }
 
@@ -376,13 +487,15 @@ function SessionMenu({ s, phone }) {
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}`;
 }
 
-// Sections repliables secondaires dans l'onglet Session.
+// Sections repliables secondaires dans l'onglet Session (accordéon fluide 0fr → 1fr).
 const openKey = 'loom.codeman.panel.open';
 const readOpen = () => { try { return JSON.parse(localStorage.getItem(openKey)) || []; } catch (_) { return []; } };
 function Section({ id, label, hint, open, toggle, children }) {
+  const [seen, setSeen] = useState(open);
+  useEffect(() => { if (open && !seen) setSeen(true); }, [open, seen]);
   return html`<section class=${cls('cm-ps', open && 'open')}>
-    <button type="button" class="cm-ps-h" aria-expanded=${String(open)} onClick=${() => toggle(id)}><span>${label}</span>${hint && html`<small>${hint}</small>`}<${Icon} n=${open ? 'chevron' : 'right'} /></button>
-    ${open && html`<div class="cm-ps-b">${children}</div>`}
+    <button type="button" class="cm-ps-h" aria-expanded=${String(open)} onClick=${() => toggle(id)}><span>${label}</span>${hint && html`<small>${hint}</small>`}<${Icon} n="right" class="cm-ps-caret" /></button>
+    <div class="cm-ps-wrap" aria-hidden=${String(!open)}><div class="cm-ps-inner">${seen && html`<div class="cm-ps-b">${children}</div>`}</div></div>
   </section>`;
 }
 
@@ -414,31 +527,81 @@ function OthersTab({ s }) {
   return html`<ul class="cm-others">${others.map(o => html`<li key=${o.id}><button type="button" onClick=${() => openSession(o.id)}><span class="trunc">${o.name || o.id.slice(0, 8)}</span><small class="muted">${projectOf(o.workingDir)} · ${ago(o.lastActivityAt)}</small></button></li>`)}</ul>`;
 }
 
-export function Inspector({ session, onClose, view, setView, narrowView }) {
+export function Inspector({ session, open: isOpen = true, onClose, view, setView, narrowView }) {
   const [open, setOpen] = useState(readOpen);
   const [busy, setBusy] = useState('');
+  const [mounted, setMounted] = useState(!!isOpen);
+  useEffect(() => { if (isOpen && !mounted) setMounted(true); }, [isOpen, mounted]);
   const tab = useStore(panelState, p => p.tab);
   const width = useStore(panelState, p => p.width);
   const preview = useStore(panelState, p => previewFor(p, session?.id));
   const turn = useStore(agents, a => (session && a.turns[session.id]) || 0);
   const sid = session?.id || '';
+  const liveFetch = !!(isOpen && sid);
 
-  // Chargements légers partagés par les badges d'onglet et leurs vues dédiées.
-  const [gitState, refreshGit] = useRead(fresh => sid ? api.gitStatus(sid, fresh) : Promise.resolve(null), [sid]);
-  const [subState, refreshSub] = useRead(() => sid ? api.subagents(sid) : Promise.resolve([]), [sid]);
-  useEffect(() => { if (sid && turn) refreshGit(false); }, [sid, turn]);
-  useEffect(() => (sid ? onDomain('subagent', () => refreshSub()) : undefined), [sid]);
+  // Chargements légers partagés par les badges d'onglet et leurs vues dédiées (uniquement quand ouvert).
+  const [editsState, refreshEdits] = useRead(sync => liveFetch ? api.edits(sid, !!sync).catch(() => ({ entries: [] })) : Promise.resolve({ entries: [] }), [sid, liveFetch]);
+  const [gitState, refreshGit] = useRead(fresh => liveFetch ? api.gitStatus(sid, fresh) : Promise.resolve(null), [sid, liveFetch]);
+  const [subState, refreshSub] = useRead(() => liveFetch ? api.subagents(sid) : Promise.resolve([]), [sid, liveFetch]);
+  useEffect(() => { if (liveFetch && turn) { refreshEdits(true); refreshGit(false); } }, [sid, turn, liveFetch]);
+  useEffect(() => (liveFetch ? onDomain('subagent', () => refreshSub()) : undefined), [sid, liveFetch]);
 
   const dragRef = useRef(null);
+  const tabNavRef = useRef(null);
+  const tabIndRef = useRef(null);
+  const [tabScroll, setTabScroll] = useState({ left: false, right: false });
   useEffect(() => () => { document.body.classList.remove('cm-dragging'); }, []);
 
-  if (!session) return html`<aside class="cm-insp"><${Empty} icon="info" title=${t('agents.insp.none')} /></aside>`;
-
-  const changesCount = (gitState.data?.repos || []).reduce((acc, r) => acc + (r?.status?.counts?.uncommitted || r?.status?.files?.length || 0), 0);
+  const agentEditCount = useMemo(() => changedFiles(editsState.data?.entries || []).files.length, [editsState.data]);
+  const gitChangesCount = (gitState.data?.repos || []).reduce((acc, r) => acc + (r?.status?.counts?.uncommitted || r?.status?.files?.length || 0), 0);
+  const changesCount = agentEditCount || gitChangesCount;
   const subList = Array.isArray(subState.data) ? subState.data : [];
   const subActive = subList.some(a => a.status === 'active');
   const hasPreview = !!(preview.active || preview.detected.length || preview.recent.length);
   const activeTab = tab === 'preview' && !hasPreview ? 'session' : tab;
+
+  // Indicateur animé glissant sous l'onglet actif + détection du débordement horizontal.
+  useLayoutEffect(() => {
+    const nav = tabNavRef.current, ind = tabIndRef.current;
+    if (!nav || !ind || !isOpen) return;
+    const syncScroll = () => {
+      const left = nav.scrollLeft > 4;
+      const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 4;
+      setTabScroll(prev => (prev.left === left && prev.right === right ? prev : { left, right }));
+    };
+    const place = () => {
+      const cur = nav.querySelector('.cm-ptab[aria-selected="true"]');
+      if (!cur) { ind.style.opacity = '0'; }
+      else {
+        ind.style.opacity = '1';
+        ind.style.width = cur.offsetWidth + 'px';
+        ind.style.transform = `translateX(${cur.offsetLeft}px)`;
+      }
+      syncScroll();
+    };
+    place();
+    const cur = nav.querySelector('.cm-ptab[aria-selected="true"]');
+    if (cur && typeof cur.scrollIntoView === 'function') cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    nav.addEventListener('scroll', syncScroll, { passive: true });
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null;
+    ro?.observe(nav);
+    return () => { nav.removeEventListener('scroll', syncScroll); ro?.disconnect(); };
+  }, [activeTab, isOpen, hasPreview, changesCount, subList.length, width]);
+
+  const onTabsWheel = e => {
+    const nav = tabNavRef.current;
+    if (!nav || nav.scrollWidth <= nav.clientWidth) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      nav.scrollLeft += e.deltaY;
+    }
+  };
+  const nudgeTabs = dir => {
+    const nav = tabNavRef.current;
+    if (nav) nav.scrollBy({ left: dir * 140, behavior: 'smooth' });
+  };
+
+  if (!session) return html`<aside class="cm-insp"><${Empty} icon="info" title=${t('agents.insp.none')} /></aside>`;
 
   const toggle = secId => {
     const n = open.includes(secId) ? open.filter(x => x !== secId) : [...open, secId];
@@ -446,6 +609,8 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
     try { localStorage.setItem(openKey, JSON.stringify(n)); } catch (_) {}
   };
   const s = session, c = cliOf(s.mode);
+  const shown = attentionOf(s) === 'unseen' ? stateOf(s) : attentionOf(s);
+  const working = shown === 'working' || shown === 'starting';
   const shell = async () => {
     setBusy('shell');
     try { openSession(await createSession({ mode: 'shell', workingDir: s.workingDir })); } catch (e) { toast(e.message, 'err'); } finally { setBusy(''); }
@@ -495,12 +660,8 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
     ...(hasPreview ? [{ id: 'preview', label: t('agents.insp.preview'), dot: !preview.active && preview.detected.length > 0, count: !preview.active && preview.detected.length > 1 ? preview.detected.length : 0 }] : []),
   ];
 
-  const panelStyle = !narrowView ? `width:${clampPanelWidth(width)}px` : undefined;
-
-  return html`<aside class="cm-insp cm-panel" style=${panelStyle} aria-label=${t('agents.insp.title')}>
-    ${!narrowView && html`<div class="cm-insp-resize" role="separator" aria-orientation="vertical" aria-label=${t('agents.insp.resize')} title=${t('agents.insp.resize')} tabIndex="0"
-      onPointerDown=${onResizeDown} onPointerMove=${onResizeMove} onPointerUp=${onResizeUp} onPointerCancel=${onResizeUp}
-      onDblClick=${() => savePanelWidth(DEFAULT_PANEL_WIDTH)} onKeyDown=${onResizeKey}><i></i></div>`}
+  const wPx = clampPanelWidth(width);
+  const inner = html`<aside class=${cls('cm-insp cm-panel', !narrowView && isOpen && 'open')} style=${!narrowView ? `width:${wPx}px` : undefined} aria-label=${t('agents.insp.title')}>
     ${!narrowView && html`<header class="cm-panel-h">
       <b>${t('agents.insp.info')}</b>
       <span class="grow"></span>
@@ -509,59 +670,91 @@ export function Inspector({ session, onClose, view, setView, narrowView }) {
       <${SessionMenu} s=${s} />
       ${onClose && html`<button type="button" class="icon-btn" aria-label=${t('agents.insp.close')} onClick=${onClose}><${Icon} n="close" /></button>`}
     </header>`}
-    <nav class="cm-panel-tabs" role="tablist" aria-label=${t('agents.insp.tabs')}>
-      ${tabs.map(tb => html`<button type="button" key=${tb.id} role="tab" aria-selected=${String(activeTab === tb.id)}
-        class=${cls('cm-ptab', activeTab === tb.id && 'on')}
-        onClick=${() => {
-          if (tb.id === 'preview' && !preview.active && (preview.detected[0] || preview.recent[0])) {
-            openPreview(s.id, preview.detected[0] || preview.recent[0], { openPanel: false });
-          } else {
-            setPanelTab(tb.id);
-          }
-        }}>
-        <span>${tb.label}</span>
-        ${tb.active && html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}
-        ${tb.dot && html`<i class="cm-ptab-dot" aria-hidden="true"></i>`}
-        ${tb.count > 0 && html`<em class="cm-ptab-n">${tb.count}</em>`}
-      </button>`)}
-    </nav>
+    <div class=${cls('cm-panel-tabs-wrap', tabScroll.left && 'has-left', tabScroll.right && 'has-right')}>
+      ${tabScroll.left && html`<button type="button" class="cm-ptab-scroll left" tabIndex="-1" aria-hidden="true" onClick=${() => nudgeTabs(-1)}><${Icon} n="left" /></button>`}
+      <nav class="cm-panel-tabs" role="tablist" aria-label=${t('agents.insp.tabs')} ref=${tabNavRef} onWheel=${onTabsWheel}>
+        <span class="cm-ptab-ind" ref=${tabIndRef} aria-hidden="true"></span>
+        ${tabs.map(tb => html`<button type="button" key=${tb.id} role="tab" aria-selected=${String(activeTab === tb.id)}
+          class=${cls('cm-ptab', activeTab === tb.id && 'on')}
+          onClick=${() => {
+            if (tb.id === 'preview' && !preview.active && (preview.detected[0] || preview.recent[0])) {
+              openPreview(s.id, preview.detected[0] || preview.recent[0], { openPanel: false });
+            } else {
+              setPanelTab(tb.id);
+            }
+          }}>
+          <span>${tb.label}</span>
+          ${tb.active && html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}
+          ${tb.dot && html`<i class="cm-ptab-dot" aria-hidden="true"></i>`}
+          ${tb.count > 0 && html`<em class="cm-ptab-n">${tb.count}</em>`}
+        </button>`)}
+      </nav>
+      ${tabScroll.right && html`<button type="button" class="cm-ptab-scroll right" tabIndex="-1" aria-hidden="true" onClick=${() => nudgeTabs(1)}><${Icon} n="right" /></button>`}
+    </div>
     <div class=${cls('cm-panel-body', activeTab === 'preview' && 'is-preview')}>
-      ${activeTab === 'session' && html`
-        ${!narrowView && setView && hasConversation(s.mode) && html`<${Seg} value=${view} options=${views} onChange=${setView} label=${t('agents.view.label')} />`}
-        <div class="cm-panel-rows">
-          <div class="cm-kv"><span>${t('agents.info.cli')}</span><b class="cm-panel-cli"><${CliMark} mode=${s.mode} size="xs" />${c.label}${s.cliVersion ? ' ' + s.cliVersion : ''}</b></div>
-          <${ModelRow} s=${s} />
-          <div class="cm-kv"><span>${t('agents.info.dir')}</span><b class="mono trunc" title=${s.workingDir}>${projectOf(s.workingDir)}</b></div>
-        </div>
-        <div class="cm-panel-acts">
-          ${narrowView && html`<${SessionMenu} s=${s} phone />`}
-          ${s.mode !== 'shell' && html`<button type="button" class="btn sm" disabled=${!!busy} onClick=${shell}>${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}<span>${t('agents.panel.shell')}</span></button>`}
-          ${s.mode === 'claude' ? html`
-            <button type="button" class="btn sm" disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>
-            <button type="button" class="btn sm" disabled=${!!busy} onClick=${() => slash('/clear', true)}><${Icon} n="refresh" /><span>${t('agents.panel.clear')}</span></button>`
-          : link ? html`<a class="btn sm" href=${link} target="codeman" rel="noopener"><${Icon} n="link" /><span>${t('agents.panel.codeman')}</span></a>` : ''}
-        </div>
-        ${preview.detected.length > 0 && html`<section class="cm-cited-box">
-          <div class="cm-cited-h"><span>${t('agents.preview.cited')}</span><small>${preview.detected.length}</small></div>
-          <div class="cm-cited-list">${preview.detected.slice(0, 4).map(p => {
-            const sp = splitPath(p);
-            return html`<button type="button" key=${p} class="cm-cited-row" title=${p} onClick=${() => openPreview(s.id, p, { openPanel: false })}>
-              <${Icon} n="file" />
-              <span class="trunc"><b>${sp.name}</b>${sp.dir && html`<small class="mono">${sp.dir}</small>`}</span>
-              <${Icon} n="eye" class="cm-cited-eye" />
-            </button>`;
-          })}</div>
-        </section>`}
-        <${HarnessQuota} mode=${s.mode} />
-        <div class="cm-panel-secs">
-          <${Section} id="activity" label=${lt('insp', 'activity')} hint=${ago(s.lastActivityAt)} open=${open.includes('activity')} toggle=${toggle}><${ActivityTab} id=${s.id} /></${Section}>
-          <${Section} id="others" label=${t('agents.panel.others', { cli: c.label })} hint=${String(sessionList().filter(x => x.mode === s.mode && x.id !== s.id).length || '')} open=${open.includes('others')} toggle=${toggle}><${OthersTab} s=${s} /></${Section}>
-          <${Section} id="info" label=${t('agents.panel.details')} hint=${s.tokens?.total > 0 ? fmtTok(s.tokens.total) + ' ' + t('agents.panel.tokens') : ''} open=${open.includes('info')} toggle=${toggle}><${InfoTab} session=${s} /></${Section}>
-        </div>`}
-      ${activeTab === 'changes' && html`<${ChangesTab} id=${s.id} gitState=${gitState} refreshGit=${refreshGit} />`}
-      ${activeTab === 'files' && html`<${FilesTab} id=${s.id} />`}
-      ${activeTab === 'subagents' && html`<${SubagentsTab} subState=${subState} refreshSub=${refreshSub} />`}
-      ${activeTab === 'preview' && html`<${PreviewTab} session=${s} preview=${preview} />`}
+      ${mounted && html`<div class="cm-tab-pane" key=${activeTab}>
+        ${activeTab === 'session' && html`
+          ${!narrowView && setView && hasConversation(s.mode) && html`<${Seg} value=${view} options=${views} onChange=${setView} label=${t('agents.view.label')} />`}
+          <div class="cm-hero-card">
+            <div class="cm-hero-top">
+              <${CliMark} mode=${s.mode} size="sm" />
+              <div class="cm-hero-id">
+                <b class="trunc">${c.label}${s.cliVersion ? ' ' + s.cliVersion : ''}</b>
+                <small class=${cls('cm-hero-state', 'st-' + shown)}>
+                  ${working && html`<span class="loom-pulse sm" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}
+                  <span class=${cls(working && 'shimmer-text')}>${lt('state', shown)}</span>
+                </small>
+              </div>
+              ${(s.tokens?.total > 0 || s.totalCost > 0) && html`<div class="cm-hero-stat">
+                ${s.tokens?.total > 0 && html`<span>${fmtTok(s.tokens.total)} ${t('agents.panel.tokens')}</span>`}
+                ${s.totalCost > 0 && html`<b>$${s.totalCost.toFixed(2)}</b>`}
+              </div>`}
+            </div>
+            ${s.workingDir && html`<button type="button" class="cm-hero-dir" title=${s.workingDir} onClick=${() => copyText(s.workingDir).then(() => toast(t('agents.copied')))}>
+              <${Icon} n="folder" /><span class="mono trunc">${s.workingDir}</span><${Icon} n="copy" class="cm-hero-copy" />
+            </button>`}
+          </div>
+          <div class="cm-panel-acts">
+            ${narrowView && html`<${SessionMenu} s=${s} phone />`}
+            ${s.mode !== 'shell' && html`<button type="button" class="btn sm" disabled=${!!busy} onClick=${shell}>${busy === 'shell' ? html`<span class="spinner"></span>` : html`<${Icon} n="terminal" />`}<span>${t('agents.panel.shell')}</span></button>`}
+            ${s.mode === 'claude' ? html`
+              <button type="button" class="btn sm" disabled=${!!busy} onClick=${() => slash('/compact')}><${Icon} n="sliders" /><span>${t('agents.panel.compact')}</span></button>
+              <button type="button" class="btn sm" disabled=${!!busy} onClick=${() => slash('/clear', true)}><${Icon} n="refresh" /><span>${t('agents.panel.clear')}</span></button>`
+            : link ? html`<a class="btn sm" href=${link} target="codeman" rel="noopener"><${Icon} n="link" /><span>${t('agents.panel.codeman')}</span></a>` : ''}
+          </div>
+          ${(s.mode === 'claude' || s.displayModel?.model) && html`<div class="cm-panel-rows">
+            <${ModelRow} s=${s} />
+          </div>`}
+          ${preview.detected.length > 0 && html`<section class="cm-cited-box">
+            <div class="cm-cited-h"><span>${t('agents.preview.cited')}</span><small>${preview.detected.length}</small></div>
+            <div class="cm-cited-list">${preview.detected.slice(0, 4).map(p => {
+              const sp = splitPath(p);
+              return html`<button type="button" key=${p} class="cm-cited-row" title=${p} onClick=${() => openPreview(s.id, p, { openPanel: false })}>
+                <${Icon} n="file" />
+                <span class="trunc"><b>${sp.name}</b>${sp.dir && html`<small class="mono">${sp.dir}</small>`}</span>
+                <${Icon} n="eye" class="cm-cited-eye" />
+              </button>`;
+            })}</div>
+          </section>`}
+          <${HarnessQuota} mode=${s.mode} />
+          <div class="cm-panel-secs">
+            <${Section} id="activity" label=${lt('insp', 'activity')} hint=${ago(s.lastActivityAt)} open=${open.includes('activity')} toggle=${toggle}><${ActivityTab} id=${s.id} /></${Section}>
+            <${Section} id="others" label=${t('agents.panel.others', { cli: c.label })} hint=${String(sessionList().filter(x => x.mode === s.mode && x.id !== s.id).length || '')} open=${open.includes('others')} toggle=${toggle}><${OthersTab} s=${s} /></${Section}>
+            <${Section} id="info" label=${t('agents.panel.details')} hint=${s.tokens?.total > 0 ? fmtTok(s.tokens.total) + ' ' + t('agents.panel.tokens') : ''} open=${open.includes('info')} toggle=${toggle}><${InfoTab} session=${s} /></${Section}>
+          </div>`}
+        ${activeTab === 'changes' && html`<${ChangesTab} id=${s.id} workingDir=${s.workingDir} editsState=${editsState} refreshEdits=${refreshEdits} gitState=${gitState} refreshGit=${refreshGit} />`}
+        ${activeTab === 'files' && html`<${FilesTab} id=${s.id} />`}
+        ${activeTab === 'subagents' && html`<${SubagentsTab} subState=${subState} refreshSub=${refreshSub} />`}
+        ${activeTab === 'preview' && html`<${PreviewTab} session=${s} preview=${preview} />`}
+      </div>`}
     </div>
   </aside>`;
+
+  if (narrowView) return inner;
+  return html`<div class=${cls('cm-insp-shell', isOpen && 'open')} style=${isOpen ? `width:${wPx}px` : undefined} aria-hidden=${String(!isOpen)}>
+    ${isOpen && html`<div class="cm-insp-resize" role="separator" aria-orientation="vertical" aria-label=${t('agents.insp.resize')} title=${t('agents.insp.resize')} tabIndex="0"
+      onPointerDown=${onResizeDown} onPointerMove=${onResizeMove} onPointerUp=${onResizeUp} onPointerCancel=${onResizeUp}
+      onDblClick=${() => savePanelWidth(DEFAULT_PANEL_WIDTH)} onKeyDown=${onResizeKey}><i></i></div>`}
+    ${inner}
+  </div>`;
 }
