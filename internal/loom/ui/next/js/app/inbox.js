@@ -9,6 +9,7 @@ import { CliMark } from '../features/agents/new-session.js';
 import { openSession } from '../features/agents/nav.js';
 import { ago } from '../features/agents/rail.js';
 import { usePullRefresh } from './touch.js';
+import { BurgerButton } from './phone-nav.js';
 import { loomApprovals, LoomApproval, refreshLoomApprovals } from './approvals.js';
 
 export function inboxItems(st) {
@@ -64,7 +65,7 @@ export function InboxPage({ route }) {
     target?.focus({ preventScroll: true });
   }, [route.sub, matched]);
   return html`<div class="view phone-page">
-    <header class="phone-title"><h1>${t('mobile.inbox')}</h1></header>
+    <header class="phone-title"><${BurgerButton} /><h1>${t('mobile.inbox')}</h1></header>
     <div class="phone-scroll inbox-list" ref=${list} ...${pull}>
       ${st.conn.configured && !ready && html`<a class="inbox-card phone-link" href="#/agents"><${Icon} n="alert" /><span>${t('mobile.inbox_unavailable')}</span><${Icon} n="right" /></a>`}
       ${waiting.map(item => html`<div key=${item.request_id} class="inbox-item"><${LoomApproval} item=${item} class="inbox-card" /></div>`)}

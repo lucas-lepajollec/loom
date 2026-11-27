@@ -224,8 +224,10 @@ try {
         await page.getByRole('menu').waitFor({ state: 'detached' });
         await page.locator('.models-phone-download').click();
         await page.locator('.phone-section-tabs a[href="#/local/hub"][aria-current=page]').waitFor();
-        await page.locator('.phone-back-link[href="#/more"]').click();
-        await page.locator('.more-links').waitFor();
+        await page.locator('.phone-burger').click();
+        await page.locator('.phone-drawer').waitFor();
+        await page.locator('.phone-drawer-item[href="#/sessions"]').click();
+        await page.locator('.phone-tabs').waitFor();
       }
       if (scenario === 'phone-layout' && r === 'agents') {
         if (phone) {
@@ -285,8 +287,10 @@ try {
         await page.locator('.phone-setting-link[href="#/settings/notifications"]').click();
         await page.locator('.phone-back-link[href="#/settings"]').click();
         await page.locator('.phone-settings').waitFor();
-        await page.locator('.phone-back-link[href="#/more"]').click();
-        await page.locator('.phone-tabs a[href="#/more"][aria-current=page]').waitFor();
+        await page.locator('.phone-burger').click();
+        await page.locator('.phone-drawer').waitFor();
+        await page.locator('.phone-drawer a[href="#/sessions"]').click();
+        await page.locator('.phone-tabs a[href="#/sessions"][aria-current=page]').waitFor();
       }
       if (scenario === 'phone-layout' && r === 'agents/settings') {
         await page.locator('.cm-cfg-body .set-group').first().waitFor();
@@ -303,7 +307,7 @@ try {
       if (phone && scenario === 'phone-layout' && r === 'sessions') {
         const tabBar = page.locator('.phone-tabs');
         const tabs = await tabBar.locator('a').evaluateAll(items => items.map(a => a.getAttribute('href')));
-        if (tabs.join(',') !== '#/sessions,#/inbox,#/quotas,#/more') throw new Error('Wrong phone tabs or order');
+        if (tabs.join(',') !== '#/sessions,#/inbox,#/files,#/machines,#/quotas') throw new Error('Wrong phone tabs or order');
         await tabBar.locator('.phone-badge', { hasText: '2' }).waitFor();
         await page.getByRole('tab', { name: dictionary['side.filter_chats'], exact: true }).click();
         if (await page.locator('.phone-session-row .logo-mark').count()) throw new Error('Discussion filter retained an agent');
@@ -319,7 +323,7 @@ try {
         await search.waitFor({ state: 'detached' });
         await page.getByRole('button', { name: dictionary['side.new_session'], exact: true }).click();
         const newSession = page.locator('.phone-new-session');
-        await newSession.locator('.phone-session-types button').nth(1).click();
+        await newSession.getByRole('tab', { name: dictionary['side.type_agent'], exact: true }).click();
         await newSession.locator('.cm-cli-grid').waitFor();
         await newSession.getByRole('textbox', { name: dictionary['mobile.first_message'] }).waitFor();
         await newSession.getByRole('button', { name: dictionary['mobile.session_folder'], exact: true }).click();
@@ -327,8 +331,8 @@ try {
         await folders.getByRole('option').last().click();
         await folders.waitFor({ state: 'detached' });
         await inspect(page, errors, label + ' phone launch sheet');
-        await newSession.locator('.dialog-head .icon-btn').click();
-        await page.locator('.phone-quick button').click();
+        await newSession.getByRole('tab', { name: dictionary['side.type_chat'], exact: true }).click();
+        await newSession.getByRole('button', { name: dictionary['agents.new.start'], exact: true }).click();
         await page.waitForFunction(() => document.activeElement === document.querySelector('.phone-composer textarea'));
         const aboveBottom = await page.locator('.phone-composer').evaluate(el => el.parentElement.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom);
         if (aboveBottom > 2) throw new Error('An empty discussion should keep its composer at the bottom');
@@ -372,8 +376,7 @@ try {
       }
       if (phone && scenario === 'phone-layout' && r === 'more') {
         await page.locator('.more-links a[href="#/files"]').click();
-        await page.locator('.files .phone-back').click();
-        await page.locator('.more-links').waitFor();
+        await page.locator('.phone-tabs a[href="#/files"][aria-current=page]').waitFor();
       }
       await inspect(page, errors, label + ' degraded');
       if (!['fresh', 'healthy', 'phone-layout'].includes(scenario) && !injected) failures.push(`${label}: scenario injected no API failures`);

@@ -1,5 +1,5 @@
-import { t } from '../core/i18n.js';
-import { html, useState, useEffect, useRef, cls } from '../core/lib.js';
+import { t, language, setLocalLang } from '../core/i18n.js';
+import { html, useState, useEffect, useRef, useStore, cls } from '../core/lib.js';
 import { authAction } from '../core/api.js';
 import { Icon, LoomMark } from '../ui/icons.js';
 import { AmbientField } from '../ui/ambient.js';
@@ -59,8 +59,13 @@ export function PasswordForm({ mode = 'login', needsKey = false, onDone, title, 
 }
 
 export function AccessScreen({ status, onDone }) {
+  const lang = useStore(language);
   return html`<div class="access-screen">
     <${AmbientField} variant="hero" />
+    <div class="access-lang" role="group" aria-label=${t('settings.language.label')}>
+      <button type="button" aria-pressed=${String(lang === 'fr')} onClick=${() => setLocalLang('fr')}>FR</button>
+      <button type="button" aria-pressed=${String(lang === 'en')} onClick=${() => setLocalLang('en')}>EN</button>
+    </div>
     <div class="access-shell anim-rise">
       <header class="access-head">
         <span class="access-mark" aria-hidden="true"><${LoomMark} size=${30} /></span>

@@ -99,13 +99,10 @@ function FamilyDetail({ card, onOpen }) {
 function Detail({ open, onClose }) {
   const [inner, setInner] = useState('');
   useEffect(() => setInner(''), [open]);
-  const title = open.kind === 'mcp' ? 'MCP' : t('connections.kind.skill');
+  const title = open.kind === 'mcp' ? 'Loom MCP' : t('connections.kind.skill');
   return html`<${Drawer} title=${title} class="cx-drawer" onClose=${onClose}>
     ${open.kind === 'mcp' ? html`<div class="cx-detail">
-        <div class="cx-detail-hero">
-          <div class="cx-detail-head"><${Tile} icon="plug" /><div class="cx-detail-title"><h2>Loom</h2><span class="tag">MCP</span></div></div>
-          <p class="cx-lead">${t('connections.loom_lead')}</p>
-        </div>
+        <p class="cx-lead">${t('connections.loom_lead')}</p>
         <div class="set-body cx-access"><${AgentAccess} /></div>
       </div>`
       : open.kind === 'family' && !inner ? html`<${FamilyDetail} card=${open} onOpen=${setInner} />`
@@ -142,7 +139,7 @@ export function ConnectionsPage() {
 
   return html`<div class="view page"><div class="page-in cx-page">
     <div class="page-head cx-head">
-      <div><h1>${t('agents.links.title')}</h1><p>${t('connections.lead')}</p></div>
+      <div>${!phone && html`<h1>${t('agents.links.title')}</h1>`}<p>${t('connections.lead')}</p></div>
     </div>
     <div class="cx-toolbar">
       <${Seg} label=${t('connections.filter')} value=${filter} onChange=${setFilter} options=${[

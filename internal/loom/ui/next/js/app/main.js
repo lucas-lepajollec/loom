@@ -5,7 +5,7 @@ import { loomApprovals, refreshLoomApprovals } from './approvals.js';
 import { Component } from 'preact';
 import { Icon } from '../ui/icons.js';
 import { AmbientField } from '../ui/ambient.js';
-import { app, phoneParent, phoneTab, startPolling, setTheme } from '../core/state.js';
+import { app, phoneParent, phoneDrawerSection, phoneTab, startPolling, setTheme } from '../core/state.js';
 import { usePhone } from '../core/viewport.js';
 import { Layers } from '../ui/dialog.js';
 import { Sidebar, useShortcuts } from './shell.js';
@@ -18,7 +18,7 @@ import { Welcome, initWelcome } from '../features/onboarding/welcome.js';
 import { authStatus } from '../core/api.js';
 import { AccessScreen } from './access.js';
 import { initTouch } from './touch.js';
-import { BackButton, PhoneBackLink, PhoneTabs } from './phone-nav.js';
+import { BackButton, BurgerButton, PhoneBackLink, PhoneDrawerMenu, PhoneTabs } from './phone-nav.js';
 import { groupOf } from './sections.js';
 import { agents, useAgentsPresence } from '../features/agents/store.js';
 import { NewSessionHost } from '../features/agents/side.js';
@@ -71,16 +71,21 @@ window.addEventListener('unhandledrejection', e => { const r = e.reason; if (r &
 function Main({ route, phone }) {
   const Page = pageFor(route.section) || Placeholder;
   const parent = phone && phoneParent(route);
-  const group = parent && groupOf(route.section);
-  const title = group?.id === 'local' || group?.id === 'cloud' || group?.id === 'agents' ? group.label : '';
-  const ownHeader = ['chat', 'files'].includes(route.section) || route.section === 'agents' && ['s', 'grid', 'new'].includes(route.sub)
-    || route.section === 'more' && route.sub === 'jarvis';
+  const drawerSec = phone && phoneDrawerSection(route);
+  const managed = !!(parent || drawerSec);
+  const group = managed && groupOf(route.section);
+  const title = drawerSec
+    ? (group?.id === 'local' || group?.id === 'cloud' || group?.id === 'agents' || group?.id === 'connections'
+      ? group.label
+      : route.section === 'settings' ? t('settings.page.reglages') : '')
+    : '';
+  const ownHeader = ['chat', 'files', 'terminals', 'machines', 'more'].includes(route.section) || route.section === 'agents' && ['s', 'grid', 'new'].includes(route.sub);
   const showAmbient = !phone && !(route.section === 'agents' && ['s', 'grid', 'new'].includes(route.sub)) && !['chat', 'files', 'terminals'].includes(route.section);
-  return html`<main class=${cls('main', parent && 'phone-management', showAmbient && 'with-ambient')}>
+  return html`<main class=${cls('main', managed && 'phone-management', showAmbient && 'with-ambient')}>
     ${showAmbient && html`<${AmbientField} variant="page" />`}
-    ${parent ? html`<header class="phone-management-head"><${PhoneBackLink} parent=${parent} />
-      ${title && html`<h1 class="phone-management-title">${title}</h1>`}</header>`
-    : phone && !phoneTab(route) && !ownHeader && html`<header class="phone-subhead"><${BackButton} /></header>`}
+    ${parent ? html`<header class="phone-management-head phone-back-bar"><${PhoneBackLink} parent=${parent} /><span class="grow"></span><${BurgerButton} /></header>`
+    : drawerSec ? html`<header class="phone-management-head phone-drawer-bar"><${BurgerButton} />${title && html`<h1 class="phone-management-title">${title}</h1>`}</header>`
+    : phone && !phoneTab(route) && !ownHeader && html`<header class="phone-subhead"><${BackButton} /><span class="grow"></span><${BurgerButton} /></header>`}
     <${PageGuard} key=${route.section} name=${route.section} sub=${route.sub || ''} back=${phone && ownHeader}><${Page} route=${route} /></${PageGuard}></main>`;
 }
 
@@ -99,6 +104,7 @@ function App() {
     ${!phone && html`<${Sidebar} />`}
     <${Main} route=${route} phone=${phone} />
     ${phone && html`<${PhoneTabs} route=${route} count=${count} />`}
+    ${phone && html`<${PhoneDrawerMenu} route=${route} count=${count} />`}
     <${Palette} />
     <${NewSessionHost} phone=${phone} />
     <${Layers} />

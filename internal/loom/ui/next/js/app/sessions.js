@@ -21,7 +21,7 @@ import { DRAG_TYPE } from '../features/agents/grid.js';
 import { lt } from '../features/agents/labels.js';
 import { ago, StateDot } from '../features/agents/rail.js';
 import { openPalette } from './palette.js';
-import { defaultModel, startPhoneDiscussion } from './phone-discussion.js';
+import { BurgerButton } from './phone-nav.js';
 import { refreshAgentInbox } from './inbox.js';
 import { usePullRefresh } from './touch.js';
 
@@ -266,9 +266,14 @@ function PhoneSessionRow({ it, kidsMap, depth = 0 }) {
       if (agent) openSession(it.id); else go('chat', it.id);
     }}>
       ${agent ? html`<${CliMark} mode=${it.s.mode} size="sm" />` : html`<${Icon} n="chat" />`}
-      <span><b class=${cls('trunc', (state === 'working' || state === 'starting') && 'shimmer-text')}>${it.title}</b>${model.some(Boolean) && html`<small class="trunc">${model.filter(Boolean).join(' · ')}</small>`}</span>
-      ${stateLabel ? html`<small class=${cls('phone-row-state', 'st-' + state, (state === 'working' || state === 'starting') && 'shimmer-text')}>${(state === 'working' || state === 'starting') && html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}${stateLabel}</small>`
-        : it.at ? html`<small class="phone-row-time">${ago(it.at)}</small>` : ''}
+      <span>
+        <b class=${cls('phone-row-title', (state === 'working' || state === 'starting') && 'shimmer-text')}>${it.title}</b>
+        ${(model.some(Boolean) || stateLabel || it.at) && html`<span class="phone-row-meta">
+          ${model.some(Boolean) && html`<small class="trunc">${model.filter(Boolean).join(' · ')}</small>`}
+          ${stateLabel ? html`<small class=${cls('phone-row-state', 'st-' + state, (state === 'working' || state === 'starting') && 'shimmer-text')}>${(state === 'working' || state === 'starting') && html`<span class="loom-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`}${stateLabel}</small>`
+            : it.at ? html`<small class="phone-row-time">${ago(it.at)}</small>` : ''}
+        </span>`}
+      </span>
     </button>
     <button type="button" class="icon-btn" ref=${action} aria-label=${t('app.shell.actions')} onClick=${showMenu}><${Icon} n="more" /></button>
     ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${agent ? agentMenu(it, kids.length > 0) : chatMenu(it)} label=${it.title} />`}
@@ -285,12 +290,12 @@ function PhoneSessions({ filter, setFilter, items, kidsMap, folders, openFolders
   const shown = nativeRunning && nativeId ? items.map(it => it.kind === 'chat' && it.id === nativeId ? { ...it, c: { ...it.c, status: 'running' } } : it) : items;
   const active = shown.filter(it => ['approval', 'question', 'unseen', 'working', 'starting'].includes(phoneState(it)));
   const recent = shown.filter(it => !it.folder && !active.includes(it));
-  const model = useStore(app, defaultModel);
-  useStore(chat, s => s.localTarget);
   const pull = usePullRefresh(() => Promise.allSettled([refreshNav(), refreshAgentFolders(), refreshStatus(), refreshAgentInbox()]));
   const sessionRows = rows => rows.map(it => html`<${PhoneSessionRow} key=${it.kind + it.id} it=${it} kidsMap=${kidsMap} />`);
   return html`<div class="view phone-page phone-sessions">
-    <header class="phone-title"><h1>${t('mobile.sessions')}</h1>
+    <header class="phone-title">
+      <${BurgerButton} />
+      <h1>${t('mobile.sessions')}</h1>
       <button type="button" class="icon-btn" aria-label=${t('app.palette.rechercher')} onClick=${openPalette}><${Icon} n="search" /></button>
       <button type="button" class="icon-btn phone-new" aria-label=${t('side.new_session')} onClick=${() => agents.set({ creating: { type: 'chat' } })}><${Icon} n="plus" /></button>
     </header>
@@ -305,7 +310,6 @@ function PhoneSessions({ filter, setFilter, items, kidsMap, folders, openFolders
       </section>
       ${conn.configured && conn.state !== 'ready' && filter !== 'chats' && html`<a class="phone-link" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span><${Icon} n="right" /></a>`}
     </div>
-    <div class="phone-quick"><button type="button" class="composer" onClick=${() => startPhoneDiscussion()}><span class="trunc">${model ? t('mobile.write_to', { model }) : t('chat.composer.placeholder')}</span><${Icon} n="mic" /></button></div>
   </div>`;
 }
 

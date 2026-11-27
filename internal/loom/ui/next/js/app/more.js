@@ -7,6 +7,7 @@ import { controlEngine, engineKind } from '../features/local/page.js';
 import { ownsVllm, useVllm } from '../features/settings/vllm.js';
 import { VoiceMode } from '../features/voice/mode.js';
 import { usePullRefresh } from './touch.js';
+import { BurgerButton } from './phone-nav.js';
 
 function EngineStatus({ node, vllm }) {
   const { status, unavailable } = useStore(app, s => ({ status: s.status, unavailable: s.unavailable.status }));
@@ -33,7 +34,7 @@ function EngineStatus({ node, vllm }) {
       <b>${label}</b>
       <small>${[kind, node?.hostname || app.get().serverInfo?.hostname, model].filter(Boolean).join(' · ')}</small>
     </span></a>
-    ${!direct && html`<button type="button" class=${cls('btn', !running && 'primary')} onClick=${toggle} disabled=${busy || !status || unavailable}>
+    ${!direct && html`<button type="button" class="btn" onClick=${toggle} disabled=${busy || !status || unavailable}>
       ${running ? t('local.page.arreter') : t('local.page.demarrer')}
     </button>`}
   </section>`;
@@ -56,7 +57,7 @@ function MoreList() {
     ['more/jarvis', 'waveform', t('mobile.talk_jarvis')],
   ];
   return html`<div class="view phone-page">
-    <header class="phone-title"><h1>${t('mobile.more')}</h1></header>
+    <header class="phone-title"><${BurgerButton} /><h1>${t('mobile.more')}</h1></header>
     <div class="phone-scroll more-list" ...${pull}>
       ${node?.direct && node.kind === 'vllm' ? html`<${VllmStatus} node=${node} />` : html`<${EngineStatus} node=${node} />`}
       <nav class="more-links" aria-label=${t('mobile.more')}>

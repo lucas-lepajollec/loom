@@ -89,17 +89,24 @@ export function enterPhoneChat(draft) {
   app.set({ route: parseRoute(), phoneDraft: draft, phoneChatRevision: app.get().phoneChatRevision + 1 });
 }
 
-export function phoneTab({ section, sub }) {
-  if (section === 'sessions' || section === 'inbox' || (section === 'more' && !sub)) return section;
+export function phoneTab({ section, sub, id }) {
+  if (section === 'sessions' || section === 'inbox') return section;
+  if (section === 'files' && !id) return 'files';
+  if (section === 'machines' && !sub) return 'machines';
   if (['quotas', 'usage', 'market'].includes(section)) return 'usage';
   return '';
+}
+
+export function phoneDrawerSection({ section, sub }) {
+  if (section === 'settings' && sub) return false;
+  if (section === 'agents' && ['s', 'grid', 'new'].includes(sub)) return false;
+  return ['local', 'cloud', 'voice', 'jarvis', 'engine', 'agents', 'connections', 'settings'].includes(section);
 }
 
 export function phoneParent({ section, sub }) {
   if (section === 'machines' && sub) return 'machines';
   if (section === 'settings' && sub) return 'settings';
-  if (section === 'agents' && ['s', 'grid'].includes(sub)) return '';
-  return ['local', 'cloud', 'voice', 'jarvis', 'engine', 'agents', 'machines', 'settings'].includes(section) ? 'more' : '';
+  return '';
 }
 
 export function phoneBack() {
@@ -109,7 +116,7 @@ export function phoneBack() {
   if (history.state?.loomBack) return history.back();
   const { section, sub, id } = route;
   const session = section === 'chat' || (section === 'agents' && ['s', 'grid'].includes(sub));
-  const parent = session ? 'sessions' : section === 'files' && id ? 'files' : 'more';
+  const parent = session ? 'sessions' : section === 'agents' && sub === 'new' ? 'agents' : section === 'terminals' ? 'machines' : section === 'files' && id ? 'files' : 'sessions';
   history.replaceState({ ...history.state, loomBack: false }, '', '#/' + parent);
   app.set({ route: parseRoute(), inspector: false, phoneDraft: null, voiceMode: null });
 }

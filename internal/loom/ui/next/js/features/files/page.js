@@ -14,7 +14,7 @@ import { get, post } from '../../core/api.js';
 import { app, go } from '../../core/state.js';
 import { NoteEditor, isNote } from './editor.js';
 import { usePhone } from '../../core/viewport.js';
-import { BackButton } from '../../app/phone-nav.js';
+import { BackButton, BurgerButton } from '../../app/phone-nav.js';
 import { usePullRefresh } from '../../app/touch.js';
 import { ago } from '../agents/rail.js';
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
@@ -186,7 +186,7 @@ function Tree({ data, current, refresh, header, phone }) {
   const recent = phone && !query ? recentlyModified(nodes, Date.now() - 86400000).sort((a, b) => b.modified - a.modified).slice(0, 4) : [];
   const pull = usePullRefresh(refresh);
   return html`<nav class="fl-tree" aria-label=${t('files.tree')}>
-    ${header(html`
+    ${header(!phone && html`
       <button class="icon-btn" aria-label=${t('files.new_note')} title=${t('files.new_note')} onClick=${() => newNote(current ? parentOf(current) : '', refresh)}><${Icon} n="edit" /></button>
       <button class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder(current ? parentOf(current) : '', refresh)}><${Icon} n="folder" /></button>`)}
     <label class="search fl-search"><${Icon} n="search" /><input placeholder=${t('files.search')} value=${q} onInput=${e => setQ(e.target.value)} aria-label=${t('files.search')} /></label>
@@ -324,7 +324,14 @@ export function FilesPage({ route }) {
     if (r.ok === false) return toast(r.error || t('files.failed'), 'err');
     toast(t('files.brain_set', { path })); await refresh(); setScope('brain');
   };
-  const phoneHeader = narrow && html`<header class="fl-head phone-subhead"><${BackButton} /><h1>${t('files.title')}</h1></header>`;
+  const phoneHeader = narrow && html`<header class="phone-title">
+    <${BurgerButton} />
+    <h1>${t('files.title')}</h1>
+    ${scopeNow === 'brain' && data?.exists && !setup && html`
+      <button type="button" class="icon-btn" aria-label=${t('files.new_folder')} title=${t('files.new_folder')} onClick=${() => newFolder('', refresh)}><${Icon} n="folder" /></button>
+      <button type="button" class="icon-btn phone-new" aria-label=${t('files.new_note')} title=${t('files.new_note')} onClick=${() => newNote('', refresh)}><${Icon} n="edit" /></button>
+    `}
+  </header>`;
   if (!data) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<div class="fl-body">${failed ? html`<${Empty} icon="alert" title=${t('files.failed')} text=${failed}><button class="btn" onClick=${refresh}>${t('common.refresh')}</button></${Empty}>` : html`<span class="spinner"></span>`}</div></div>`;
   const header = (actions, reload = refresh) => html`<${Source} scopeNow=${scopeNow} onScope=${setScope} onRoot=${() => setSetup(true)} refresh=${narrow ? reload : refresh} rootLabel=${t('files.second_brain')} rootPath=${data.root} actions=${actions} />`;
   if (scopeNow === 'brain' && (!data.exists || setup)) return html`<div class=${cls('view files', narrow && 'narrow')}>${phoneHeader}<${RootSetup} data=${data} done=${async () => { setSetup(false); await refresh(); }} /></div>`;

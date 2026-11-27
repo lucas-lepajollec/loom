@@ -4,6 +4,7 @@ import { get, post } from '../../core/api.js';
 import { visibleRefresh } from '../../core/poll.js';
 import { go } from '../../core/state.js';
 import { usePhone } from '../../core/viewport.js';
+import { BurgerButton } from '../../app/phone-nav.js';
 import { Icon } from '../../ui/icons.js';
 import { Empty } from '../../ui/controls.js';
 import { toast } from '../../ui/dialog.js';
@@ -118,7 +119,13 @@ export function MachinesPage({ route }) {
     revision,
   });
 
-  return html`<div class="view page"><div class=${target ? 'page-in mc-page machine-detail' : 'page-in mc-page'}>
+  return html`<div class="view page">
+    ${phone && !target && html`<header class="phone-title">
+      <${BurgerButton} />
+      <h1>${t('settings.machines.machines')}</h1>
+      <button type="button" class="icon-btn phone-new machine-add" aria-label=${t('machines.add.title')} onClick=${() => setPair({})}><${Icon} n="plus" /></button>
+    </header>`}
+    <div class=${target ? 'page-in mc-page machine-detail' : 'page-in mc-page'}>
     ${target ? machine ? html`<${MachineDetail} key=${machine.id} ...${observations(machine)} names=${names} phone=${phone}
         terminals=${open.filter(term => term.target === machine.id)}
         codemanStatus=${codeman?.provider === machine.id ? codeman.status : null}
@@ -126,13 +133,12 @@ export function MachinesPage({ route }) {
       : html`${!phone && html`<${MachinesBack} />`}
         ${remote === null && !error ? html`<div class="skeleton machine-loading"></div>`
           : html`<${Empty} icon="server" title=${error ? t('settings.machines.load_failed') : t('settings.machines.machine_introuvable')} text=${error} />`}`
-    : html`<div class="page-head">
-      <h1 class=${phone ? 'phone-management-title' : undefined}>${t('settings.machines.machines')}</h1>
+    : html`${!phone && html`<div class="page-head">
+      <h1>${t('settings.machines.machines')}</h1>
       <div class="acts">
-        <button class=${phone ? 'icon-btn machine-add' : 'btn primary'} aria-label=${phone ? t('machines.add.title') : undefined}
-          onClick=${() => setPair({})}><${Icon} n="plus" />${!phone && t('machines.add.title')}</button>
+        <button class="btn primary" onClick=${() => setPair({})}><${Icon} n="plus" />${t('machines.add.title')}</button>
       </div>
-    </div>
+    </div>`}
     <div class="machine-grid">
       ${machines.map(machine => html`<${MachineCard} key=${machine.id} ...${observations(machine)} phone=${phone} />`)}
     </div>

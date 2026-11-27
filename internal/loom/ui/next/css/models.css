@@ -544,6 +544,27 @@ p.models-row-meta {
 
   .models-toolbar > .search {
     flex-basis: 100%;
+    min-height: var(--touch-target);
+    border-radius: var(--r-pill);
+  }
+
+  .models-toolbar > .seg {
+    width: 100%;
+    padding: 0;
+    gap: 4px;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .models-toolbar > .seg button {
+    flex: 1;
+    min-height: 40px;
+    border-radius: var(--r-pill);
+  }
+
+  .models-toolbar > .seg .ind {
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
   }
 
   .models-engine-column .models-row {

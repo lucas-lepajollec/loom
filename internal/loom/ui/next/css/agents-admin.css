@@ -249,6 +249,9 @@
   .cm-job-run{grid-column:2;justify-self:start;margin-left:30px}
   .cm-cron-folder .cm-job{grid-template-columns:minmax(0,1fr)}
   .cm-cron-folder .cm-job>.btn{justify-self:start;margin-left:34px}
+  .cm-runs li{padding:10px 0}
+  .cm-run-main{flex:1;min-width:0}
+  .cm-runs .btn{flex:none;white-space:nowrap}
   .cm-job-sheet .cm-job-editor{padding:0;background:transparent}
   .cm-job-editor .input[type=datetime-local]{min-width:0;max-width:100%}
   .cm-cfg-nav{position:static}

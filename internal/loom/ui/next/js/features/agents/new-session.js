@@ -2,21 +2,21 @@
 // Codeman (pas forcément la machine de Loom), un nom et, selon le CLI, un
 // modèle. Les modes de permission restent ceux réglés dans Codeman.
 import { t } from '../../core/i18n.js';
-import { html, useState, useEffect, useMemo, useStore, useRef, cls } from '../../core/lib.js';
+import { html, useState, useEffect, useMemo, useStore, useRef, cls, baseName } from '../../core/lib.js';
 import { Icon, LoomMark } from '../../ui/icons.js';
 import { Logo } from '../../ui/logo.js';
 import { AmbientField } from '../../ui/ambient.js';
-import { Popover, Menu } from '../../ui/controls.js';
+import { Popover, Menu, Seg } from '../../ui/controls.js';
 import { Modal, toast } from '../../ui/dialog.js';
 import { ListPick } from '../../ui/listpick.js';
-import { app } from '../../core/state.js';
+import { app, refreshLibrary, refreshWorkspace } from '../../core/state.js';
 import { api, flattenPrompt, sendPrompt } from './client.js';
 import { agents, cliLogo, ensureHistory, projectOf, queueCommand } from './store.js';
 import { agentDraftKey, createSession, supportsModel } from './actions.js';
 import { filesOf, hasFiles, quotePath, uploadFiles } from './attach.js';
 import { openSession } from './nav.js';
 import { fileAgent } from '../../app/sessions.js';
-import { startPhoneDiscussion } from '../../app/phone-discussion.js';
+import { defaultModel, startPhoneDiscussion } from '../../app/phone-discussion.js';
 
 export const CliMark = ({ mode, size }) => {
   if (mode === 'shell') return html`<span class=${cls('logo-mark', size)} aria-hidden="true"><${Icon} n="terminal" /></span>`;
@@ -53,10 +53,18 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
   const cases = useStore(agents, s => s.cases);
   const defaults = useStore(agents, s => s.settings || EMPTY_OBJ);
   const ready = useStore(agents, s => s.conn.state === 'ready');
-  const projects = useStore(app, s => s.nav.projects || EMPTY_LIST);
+  const { projects, workspace, localModels, presets, status } = useStore(app, s => ({
+    projects: s.nav.projects || EMPTY_LIST,
+    workspace: s.workspace,
+    localModels: s.models || EMPTY_LIST,
+    presets: s.presets || EMPTY_LIST,
+    status: s.status,
+  }));
   useEffect(() => { if (ready) ensureHistory(); }, [ready]);
+  useEffect(() => { if (phone) { refreshLibrary(); refreshWorkspace(); } }, [phone]);
   const [type, setType] = useState(initialType);
   const [folder, setFolder] = useState(initialFolder);
+  const [chatModel, setChatModel] = useState('');
   const [firstMessage, setFirstMessage] = useState('');
   const usable = id => clis.some(c => c.id === id && c.installed !== false);
   const preferred = preset?.mode || (usable(defaults.runMode) ? defaults.runMode : usable('claude') ? 'claude' : (clis.find(c => c.installed && c.kind === 'agent') || {}).id || 'shell');
@@ -71,6 +79,32 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
   const folders = [...new Set([...recent, ...cases.filter(c => c.location !== 'remote').map(c => c.path)])].slice(0, 10);
   useEffect(() => { if (!dir && folders.length) setDir(folders[0]); }, [folders.length]);
   useEffect(() => { if (phone && !preset?.mode && !clis.some(c => c.id === mode)) setMode(preferred); }, [phone, clis, preferred]);
+  const chatChoices = useMemo(() => {
+    if (!phone) return { options: EMPTY_LIST, map: new Map() };
+    const wsModels = workspace?.models || EMPTY_LIST;
+    const visible = new Map(wsModels.filter(m => m.kind === 'local').flatMap(m => [[m.model, m.enabled], [m.engine_value || m.model, m.enabled]]));
+    const defName = defaultModel({ workspace, status });
+    const options = [{ value: '', label: defName || t('agents.cfg.cli_default'), note: defName ? t('agents.cfg.cli_default') : '' }];
+    const map = new Map();
+    for (let i = 0; i < presets.length; i++) {
+      const p = presets[i], id = 'p:' + p.id;
+      options.push({ value: id, label: p.name || p.id, note: p.model ? baseName(p.model).replace(/\.gguf$/i, '') : '', group: t('chat.picker.presets') });
+      map.set(id, { kind: 'local', target: { presetIndex: i + 1, name: p.name, model: p.model } });
+    }
+    for (const m of localModels) {
+      if (/mmproj/i.test(m.name) || visible.get(m.path || m.value) === false) continue;
+      const id = 'l:' + (m.path || m.value || m.name);
+      options.push({ value: id, label: m.name.replace(/\.gguf$/i, ''), group: t('chat.picker.local') });
+      map.set(id, { kind: 'local', target: { path: m.path, model: m.value || m.path, name: m.name } });
+    }
+    for (const m of wsModels) {
+      if (m.kind !== 'cloud' || !m.enabled) continue;
+      const id = 'c:' + m.id;
+      options.push({ value: id, label: m.name, note: m.provider_name || '', group: t('chat.picker.cloud') });
+      map.set(id, { kind: 'cloud', model: m });
+    }
+    return { options, map };
+  }, [phone, workspace, localModels, presets, status]);
   const cli = clis.find(c => c.id === mode);
   const discussion = phone && type === 'chat';
   const canStart = discussion || (!!dir.trim() && cli?.installed !== false && (!phone || ready && !!cli));
@@ -78,7 +112,12 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
   const submit = async () => {
     if (submitting.current || !canStart) return;
     submitting.current = true;
-    if (discussion) { onClose(); startPhoneDiscussion(folder, firstMessage.trim()); return; }
+    if (discussion) {
+      const chosen = chatModel ? chatChoices.map.get(chatModel) : null;
+      onClose();
+      startPhoneDiscussion(folder, firstMessage.trim(), !!firstMessage.trim(), chosen);
+      return;
+    }
     setBusy(true);
     try {
       const id = await createSession({ mode, workingDir: dir.trim(), name, model });
@@ -105,9 +144,14 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
       class=${phone ? 'phone-new-session' : undefined} focusField=${!phone}
       foot=${html`${!phone && html`<button type="button" class="btn" onClick=${onClose}>${t('agents.cancel')}</button>`}
         <button type="button" class="btn primary" disabled=${busy || !canStart} onClick=${submit}>${busy ? t('agents.new.starting') : t('agents.new.start')}</button>`}>
-    ${phone && html`<div class="phone-session-types" role="group" aria-label=${t('side.session_type')}>
-      <button type="button" class="btn" aria-pressed=${String(discussion)} disabled=${busy} onClick=${() => setType('chat')}><${Icon} n="chat" /><b>${t('side.type_chat')}</b><small>${t('mobile.new_chat_desc')}</small></button>
-      <button type="button" class="btn" aria-pressed=${String(!discussion)} disabled=${busy} onClick=${() => setType('agent')}><${Icon} n="agent" /><b>${t('side.type_agent')}</b><small>${t('mobile.new_agent_desc')}</small></button>
+    ${phone && html`<div class="phone-session-types">
+      <${Seg} label=${t('side.session_type')} value=${type} onChange=${v => { if (!busy) setType(v); }} options=${[
+        { value: 'chat', label: t('side.type_chat'), icon: 'chat' },
+        { value: 'agent', label: t('side.type_agent'), icon: 'agent' },
+      ]} />
+    </div>`}
+    ${phone && discussion && html`<div class="field"><span>${t('chat.picker.choisir_un_modele')}</span>
+      <${ListPick} label=${t('chat.picker.choisir_un_modele')} value=${chatModel} onChange=${setChatModel} options=${chatChoices.options} />
     </div>`}
     ${phone && !discussion && !ready && html`<a class="btn" href="#/agents/settings" onClick=${onClose}>${t('mobile.connect_agents')}</a>`}
     ${!discussion && (!phone || ready) && html`
@@ -128,6 +172,7 @@ export function NewSession({ onClose, onCreated, preset, phone, initialType = 'a
           options=${[{ value: '', label: t('mobile.no_folder') }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
       </div>`}
       <label class="field"><span>${t('mobile.first_message')}</span><textarea class="textarea" rows="2" disabled=${busy}
+        placeholder=${t('chat.composer.placeholder')}
         value=${firstMessage} onInput=${e => setFirstMessage(e.target.value)}></textarea></label>`}
   </${Modal}>`;
 }

@@ -40,10 +40,14 @@ function Thread({ phone }) {
 }
 
 // Titre de la discussion dans l'en-tête.
-function ChatTitle({ phone }) {
+function useChatTitle() {
   const title = useStore(chat, c => (c.session && c.session.title) || '');
   const navTitle = useStore(app, a => { const id = chat.get().sessionId || (a.nav && a.nav.active); const c = id && (a.nav.conversations || []).find(x => x.id === id); return c ? c.title : ''; });
-  const text = title || navTitle;
+  return title || navTitle;
+}
+
+function ChatTitle({ phone }) {
+  const text = useChatTitle();
   return text ? html`<span class="chat-title">${phone && html`<i aria-hidden="true">/</i>`}<span>${text}</span></span>` : null;
 }
 
@@ -55,12 +59,13 @@ export function ChatView({ route }) {
   const toggle = () => { const v = !app.get().inspector; if (innerWidth > 1100) { try { localStorage.setItem('loom.next.insp', v ? '1' : '0'); } catch (_) {} } app.set({ inspector: v }); };
   const voice = useStore(app, s => s.voiceMode);
   const empty = useStore(chat, s => !s.loading && !(s.frozen || s.items || []).length);
+  const hasTitle = !!useChatTitle();
   if (voice) return html`<div class="view chat-view"><${VoiceMode} discussionId=${voice.discussion} internet=${!!voice.internet} onClose=${async injected => { app.set({ voiceMode: null }); if (injected && voice.discussion) await open(voice.discussion, true); }} /></div>`;
   return html`<div class="view chat-view">
     <div class=${cls('chat-col', empty && 'is-empty')}>
       ${empty && !phone && html`<${AmbientField} variant="calm" />`}
       <header class=${cls('topbar', phone && 'phone-session-head')}>
-        ${phone ? html`<${BackButton} /><div class="phone-chat-model"><${Picker} phone /><${ChatTitle} phone /></div>` : html`<${ChatTitle} /><span class="grow"></span>`}
+        ${phone ? html`<${BackButton} /><div class=${cls('phone-chat-model', hasTitle && 'has-title')}><${Picker} phone /><${ChatTitle} phone /></div>` : html`<${ChatTitle} /><span class="grow"></span>`}
         <button class=${cls('icon-btn', insp && 'on')} aria-label="${t("chat.view.panneau")}" title="${t("chat.view.parametres_et_contexte")}" onClick=${toggle}><${Icon} n=${phone ? 'more' : 'panel'} /></button>
       </header>
       <${Thread} phone=${phone} />
