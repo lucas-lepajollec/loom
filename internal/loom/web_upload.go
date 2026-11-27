@@ -300,6 +300,12 @@ func handleChatFile(w http.ResponseWriter, r *http.Request) {
 		if off+length > st.Size() {
 			length = st.Size() - off
 		}
+		if length < 0 {
+			length = 0
+		}
+		if length > downloadChunkMax {
+			length = downloadChunkMax
+		}
 		buf := make([]byte, length)
 		// ReadAt : positionne et lit en une fois, et remplit tout le tampon (ce
 		// qu'un simple Read ne garantit pas). io.EOF sur la dernière tranche est

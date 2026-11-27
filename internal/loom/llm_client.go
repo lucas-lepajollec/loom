@@ -1117,18 +1117,18 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if werr := MemAdd(label, content); werr != nil {
 						result = "[error] " + werr.Error()
 					} else {
-						result = fmt.Sprintf("[ok] page '%s' created", label)
+						result = fmt.Sprintf("[ok] page %q created", label)
 						diff = addedDiff(content)
 					}
 				case "mem_edit":
 					oldText, _ := args["old"].(string)
 					newText, _ := args["new"].(string)
 					if werr := MemEdit(label, oldText, newText); errors.Is(werr, errAlreadyApplied) {
-						result = fmt.Sprintf("[ok] page '%s' %s", label, werr.Error())
+						result = fmt.Sprintf("[ok] page %q %s", label, werr.Error())
 					} else if werr != nil {
 						result = "[error] " + werr.Error()
 					} else {
-						result = fmt.Sprintf("[ok] page '%s' modified", label)
+						result = fmt.Sprintf("[ok] page %q modified", label)
 						diff = lineDiff(oldText, newText)
 					}
 				case "brain_write":
@@ -1137,7 +1137,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if werr := secondBrainWriteSource(source, label, content); werr != nil {
 						result = "[error] " + werr.Error()
 					} else {
-						result = fmt.Sprintf("[ok] primary second brain page '%s' saved", label)
+						result = fmt.Sprintf("[ok] primary second brain page %q saved", label)
 						diff = addedDiff(content)
 					}
 				case "brain_edit":
@@ -1147,7 +1147,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if werr := secondBrainEditSource(source, label, oldText, newText); werr != nil {
 						result = "[error] " + werr.Error()
 					} else {
-						result = fmt.Sprintf("[ok] primary second brain page '%s' updated", label)
+						result = fmt.Sprintf("[ok] primary second brain page %q updated", label)
 						diff = lineDiff(oldText, newText)
 					}
 				case "write":
@@ -1176,7 +1176,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if werr := MemDelete(label); werr != nil {
 						result = "[error] " + werr.Error()
 					} else {
-						result = fmt.Sprintf("[ok] page '%s' deleted", label)
+						result = fmt.Sprintf("[ok] page %q deleted", label)
 					}
 				case "see_image":
 					result, visionImg = toolSeeImage(label)

@@ -61,12 +61,14 @@ func isFollowerShard(name string) bool {
 	return ok && idx > 1
 }
 
+const maxModelShards = 128
+
 // shardFamily renvoie les noms de TOUTES les tranches de la famille de name (y
 // compris name), dans l'ordre. Un fichier simple se renvoie lui-même.
 func shardFamily(name string) []string {
 	base := baseName(name)
 	_, total, ok := shardInfo(base)
-	if !ok {
+	if !ok || total <= 0 || total > maxModelShards {
 		return []string{base}
 	}
 	out := make([]string, 0, total)
