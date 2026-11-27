@@ -8,20 +8,20 @@ import { usePhone } from '../core/viewport.js';
 import { TabNav } from '../ui/tabnav.js';
 
 export const GROUPS = [
-  { id: 'models', icon: 'chip', get label() { return t('app.groups.models'); }, tabs: [
+  { id: 'local', icon: 'chip', mode: 'chat', get label() { return t('chat.picker.local'); }, tabs: [
     ['local', () => t('local.page.bibliotheque')],
     ['local/hub', () => t('local.page.hub')],
-    ['cloud', () => t('app.routes.cloud')],
     ['voice', () => t('voice.title')],
     ['jarvis'],
     ['engine', () => t('models.engine.tab')],
   ] },
-  { id: 'agents', icon: 'agent', get label() { return t('agents.title'); }, tabs: [['agents', () => t('agents.title')]] },
-  { id: 'machines', icon: 'server', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')]] },
-  { id: 'files', icon: 'folder', get label() { return t('files.title'); }, tabs: [['files', () => t('files.title')]] },
-  { id: 'activity', icon: 'chart', get label() { return t('app.groups.activity'); }, tabs: [['quotas', () => t('quotas.title')], ['usage', () => t('app.routes.usage')], ['market', () => t('market.title')]] },
+  { id: 'cloud', icon: 'cloud', mode: 'chat', get label() { return t('app.routes.cloud'); }, tabs: [['cloud', () => t('app.routes.cloud')]] },
+  { id: 'agents', icon: 'agent', mode: 'agents', get label() { return t('agents.title'); }, tabs: [['agents', () => t('agents.title')]] },
+  { id: 'machines', icon: 'server', mode: 'agents', get label() { return t('settings.page.machines'); }, tabs: [['machines', () => t('settings.page.machines')]] },
+  { id: 'files', icon: 'folder', mode: 'agents', get label() { return t('files.title'); }, tabs: [['files', () => t('files.title')]] },
+  { id: 'activity', icon: 'chart', mode: 'both', get label() { return t('app.groups.activity'); }, tabs: [['quotas', () => t('quotas.title')], ['usage', () => t('app.routes.usage')], ['market', () => t('market.title')]] },
   // Skills et MCP communs à tous les agents de la machine, pas seulement à Codeman.
-  { id: 'connections', icon: 'plug', get label() { return t('agents.links.title'); }, tabs: [['connections', () => t('agents.links.title')]] },
+  { id: 'connections', icon: 'plug', mode: 'agents', get label() { return t('agents.links.title'); }, tabs: [['connections', () => t('agents.links.title')]] },
 ];
 
 export const groupOf = section => GROUPS.find(g => g.tabs.some(([id]) => id === section));
@@ -34,7 +34,7 @@ export function SectionTabs() {
   if (tabs.length < 2) return null;
   // Un onglet peut viser une sous-page (« local/hub ») : il l'emporte alors.
   const exact = section + (sub ? '/' + sub : '');
-  const phoneChips = phone && group.id === 'models';
+  const phoneChips = phone && group.id === 'local';
   const here = tabs.some(([id]) => id === exact) ? exact : phoneChips && section === 'jarvis' ? 'voice' : section;
   return html`<${TabNav} id=${group.id} label=${group.label} phoneChips=${phoneChips}
     tabs=${tabs.map(([id, label]) => ({ href: '#/' + id, label: phoneChips && id === 'engine' ? t('local.page.moteur') : label(), current: id === here }))} />`;

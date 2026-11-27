@@ -4,6 +4,7 @@ import { visibleRefresh } from '../core/poll.js';
 import { loomApprovals, refreshLoomApprovals } from './approvals.js';
 import { Component } from 'preact';
 import { Icon } from '../ui/icons.js';
+import { AmbientField } from '../ui/ambient.js';
 import { app, phoneParent, phoneTab, startPolling, setTheme } from '../core/state.js';
 import { usePhone } from '../core/viewport.js';
 import { Layers } from '../ui/dialog.js';
@@ -71,10 +72,12 @@ function Main({ route, phone }) {
   const Page = pageFor(route.section) || Placeholder;
   const parent = phone && phoneParent(route);
   const group = parent && groupOf(route.section);
-  const title = group?.id === 'models' || group?.id === 'agents' ? group.label : '';
-  const ownHeader = ['chat', 'files'].includes(route.section) || route.section === 'agents' && ['s', 'grid'].includes(route.sub)
+  const title = group?.id === 'local' || group?.id === 'cloud' || group?.id === 'agents' ? group.label : '';
+  const ownHeader = ['chat', 'files'].includes(route.section) || route.section === 'agents' && ['s', 'grid', 'new'].includes(route.sub)
     || route.section === 'more' && route.sub === 'jarvis';
-  return html`<main class=${cls('main', parent && 'phone-management')}>
+  const showAmbient = !phone && !(route.section === 'agents' && ['s', 'grid', 'new'].includes(route.sub)) && !['chat', 'files', 'terminals'].includes(route.section);
+  return html`<main class=${cls('main', parent && 'phone-management', showAmbient && 'with-ambient')}>
+    ${showAmbient && html`<${AmbientField} variant="page" />`}
     ${parent ? html`<header class="phone-management-head"><${PhoneBackLink} parent=${parent} />
       ${title && html`<h1 class="phone-management-title">${title}</h1>`}</header>`
     : phone && !phoneTab(route) && !ownHeader && html`<header class="phone-subhead"><${BackButton} /></header>`}

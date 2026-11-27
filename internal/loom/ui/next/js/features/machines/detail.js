@@ -285,36 +285,43 @@ export function MachineDetail({ machine, metric, roles, clis, codemanStatus, ter
   const resources = html`<${MachineSection} title=${t('settings.machines.resources')}><div class="machine-resource-body"><${ResourceMeters} metric=${metric} detailed /></div></${MachineSection}>`;
   const version = html`<${MachineVersion} machine=${machine} loom=${loom} />`;
   return html`
-    ${!phone && html`<${MachinesBack} />`}
-    <header class="machine-detail-head">
-      <div class="machine-detail-identity">
-        ${!phone && html`<span class="logo-mark machine-icon" aria-hidden="true"><${Icon} n="server" /></span>`}
-        <div class="machine-row-text">
-          <h1 class=${phone ? 'phone-management-title' : undefined}>${machine.name}</h1>
-          <div class="machine-card-tags">
-            ${isLocal && !phone && html`<span class="machine-interface">${t('settings.machines.interface')}</span>`}
-            <${MachineStatus} machine=${machine} metric=${metric} loom=${loom} test=${test} />
-            ${phone && version}
-            ${!isLocal && html`<span class="tag" title=${machine.user ? t('machines.ssh.card_note') : t('machines.pair.card_note')}>${machine.user ? t('machines.link.ssh') : t('machines.link.paired')}</span>`}
+    ${!phone && html`<div class="machine-detail-top"><${MachinesBack} /></div>`}
+    <header class="machine-detail-hero">
+      <div class="machine-detail-head">
+        <div class="machine-detail-identity">
+          ${!phone && html`<span class="logo-mark machine-icon machine-icon-lg" aria-hidden="true"><${Icon} n="server" /></span>`}
+          <div class="machine-row-text">
+            <h1 class=${phone ? 'phone-management-title' : undefined}>${machine.name}</h1>
+            <div class="machine-card-tags">
+              ${isLocal && !phone && html`<span class="machine-interface">${t('settings.machines.interface')}</span>`}
+              <${MachineStatus} machine=${machine} metric=${metric} loom=${loom} test=${test} />
+              ${phone && version}
+              ${!isLocal && html`<span class="tag" title=${machine.user ? t('machines.ssh.card_note') : t('machines.pair.card_note')}>${machine.user ? t('machines.link.ssh') : t('machines.link.paired')}</span>`}
+            </div>
+            <small class="mono machine-detail-addr">${[address, machine.os].filter(Boolean).join(' · ')}</small>
           </div>
-          <small class="mono">${[address, machine.os].filter(Boolean).join(' · ')}</small>
         </div>
-      </div>
-      <div class="machine-detail-controls">
-        ${!phone && version}
-        <div class="machine-actions">
-          <${MachineTerminalButton} machine=${machine} />
-          <${OverflowMenu} label=${t('settings.machines.more_actions')} items=${items} />
+        <div class="machine-detail-controls">
+          ${!phone && version}
+          <div class="machine-actions">
+            <${MachineTerminalButton} machine=${machine} />
+            <${OverflowMenu} label=${t('settings.machines.more_actions')} items=${items} />
+          </div>
         </div>
       </div>
     </header>
-    <${Bricks} machine=${machine} roles=${roles} revision=${revision} onChange=${onChange} codemanStatus=${codemanStatus} phone=${phone} />
-    ${phone && resources}
-    ${roles?.engine === machine.id && (isLocal ? !engine : engine && !engine.direct) && html`<${ModelDirs} key=${engine?.url || 'local'} />`}
-    <${MachineAgents} machine=${machine} clis=${clis} onChange=${onChange} />
-    <${MachineConnection} machine=${machine} node=${loom.node} onChange=${onChange} />
-    ${!phone && resources}
-    <${WorkingFolders} machine=${machine} onChange=${onChange} />
-    <${MachineTerminals} machine=${machine} terminals=${terminals} names=${names} />
+    ${resources}
+    <div class="machine-detail-grid">
+      <div class="machine-detail-col">
+        <${Bricks} machine=${machine} roles=${roles} revision=${revision} onChange=${onChange} codemanStatus=${codemanStatus} phone=${phone} />
+        ${roles?.engine === machine.id && (isLocal ? !engine : engine && !engine.direct) && html`<${ModelDirs} key=${engine?.url || 'local'} />`}
+        <${WorkingFolders} machine=${machine} onChange=${onChange} />
+      </div>
+      <div class="machine-detail-col">
+        <${MachineAgents} machine=${machine} clis=${clis} onChange=${onChange} />
+        <${MachineConnection} machine=${machine} node=${loom.node} onChange=${onChange} />
+        <${MachineTerminals} machine=${machine} terminals=${terminals} names=${names} />
+      </div>
+    </div>
   `;
 }

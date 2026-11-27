@@ -257,15 +257,14 @@ export function SessionsPage() {
   return html`<${Sessions} phone />`;
 }
 
-export function Sessions({ phone = false }) {
-  const { route, nav } = useStore(app, s => ({ route: s.route, nav: s.nav }));
+export function Sessions({ phone = false, mode }) {
+  const { route, nav, workspaceMode } = useStore(app, s => ({ route: s.route, nav: s.nav, workspaceMode: s.workspaceMode }));
   const conn = useStore(agents, s => s.conn);
   useStore(agents, s => ({ order: s.order, sessions: s.sessions }));
   const folderMap = useStore(agentFolders, s => s.map);
   const chatId = useStore(chat, s => s.sessionId) || nav.active;
   const [filter, setFilterState] = useState(() => { const f = load('loom.side.filter', 'all'); return FILTERS.includes(f) ? f : 'all'; });
   const [openFolders, setOpenFolders] = useState(() => new Set(load('loom.next.proj', [])));
-  const [fmenu, setFmenu] = useState(null);
   const [overLoose, setOverLoose] = useState(false);
   useEffect(() => { refreshAgentFolders(); }, []);
   const setFilter = f => { setFilterState(f); save('loom.side.filter', f); };
@@ -273,9 +272,11 @@ export function Sessions({ phone = false }) {
   const agentsOn = conn.configured;
   const ready = conn.state === 'ready';
   const cut = useRestorable();
+  const activeMode = mode || workspaceMode || 'chat';
+  const effectiveFilter = phone ? filter : (activeMode === 'agents' ? 'agents' : 'chats');
 
-  const chats = filter === 'agents' ? [] : nav.conversations.map(c => ({ kind: 'chat', id: c.id, c, title: c.title || t('app.shell.nouvelle_discussion'), folder: c.project_id || '', pinned: !!c.fav, at: c.updated_at || c.saved_at || 0 }));
-  const live = filter === 'chats' || !agentsOn ? [] : sessionList().map(s => ({ kind: 'agent', id: s.id, s, title: s.name || s.id.slice(0, 8), folder: folderMap[s.id] || '', pinned: false, at: s.lastActivityAt || s.createdAt || 0 }));
+  const chats = effectiveFilter === 'agents' ? [] : nav.conversations.map(c => ({ kind: 'chat', id: c.id, c, title: c.title || t('app.shell.nouvelle_discussion'), folder: c.project_id || '', pinned: !!c.fav, at: c.updated_at || c.saved_at || 0 }));
+  const live = effectiveFilter === 'chats' || !agentsOn ? [] : sessionList().map(s => ({ kind: 'agent', id: s.id, s, title: s.name || s.id.slice(0, 8), folder: folderMap[s.id] || '', pinned: false, at: s.lastActivityAt || s.createdAt || 0 }));
   const folders = nav.projects || [];
   const known = new Set(folders.map(p => p.id));
   const all = [...chats, ...live].map(it => (known.has(it.folder) ? it : { ...it, folder: '' }))
@@ -293,24 +294,22 @@ export function Sessions({ phone = false }) {
   };
   if (phone) return html`<${PhoneSessions} filter=${filter} setFilter=${setFilter} items=${all} folders=${folders} openFolders=${openFolders}
     toggleFolder=${toggleFolder} cut=${cut} conn=${conn} newFolder=${newFolder} />`;
-  const filterItems = FILTERS.map(f => ({ label: filterLabel(f), icon: f === filter ? 'check' : '', run: () => setFilter(f) }));
-  const mosaic = agentsOn && ready && innerWidth > 760;
+  const mosaic = activeMode === 'agents' && agentsOn && ready && innerWidth > 760;
 
-  return html`<div class="side-sec grow ses">
+  return html`<div class="side-sec grow ses" key=${activeMode}>
     <div class="side-sec-h ses-h">
-      <button class="ses-filter" aria-haspopup="menu" aria-expanded=${String(!!fmenu)} onClick=${e => setFmenu(fmenu ? null : e.currentTarget)}>${filterLabel(filter)}<${Icon} n="chevron" /></button>
+      <span class="ses-label">${activeMode === 'agents' ? t('side.sessions_agents') : t('side.sessions_chat')}</span>
       <span class="grow"></span>
       <button class="icon-btn" aria-label=${t('side.new_folder')} title=${t('side.new_folder')} onClick=${newFolder}><${Icon} n="folder" /></button>
       ${mosaic && html`<button class=${cls('icon-btn', layout.get().count > 1 && route.section === 'agents' && 'on')} aria-label=${t('side.mosaic')} title=${t('side.mosaic')}
         onClick=${() => { if (layout.get().count === 1) toggleGrid(route.section === 'agents' && route.sub === 's' ? route.id : ''); go('agents', 'grid'); }}><${Icon} n="grid" /></button>`}
     </div>
-    ${fmenu && html`<${Menu} anchor=${fmenu} onClose=${() => setFmenu(null)} items=${filterItems} />`}
     <div class=${cls('side-list', overLoose && 'drop-on')} ...${dropZone('', setOverLoose)}>
-      ${agentsOn && ready && cut.length > 0 && filter !== 'chats' && html`<a class="chat-link sub ses-restore" href="#/agents"><${Icon} n="refresh" /><span>${t('agents.restore.side', { n: cut.length })}</span></a>`}
+      ${activeMode === 'agents' && agentsOn && ready && cut.length > 0 && html`<a class="chat-link sub ses-restore" href="#/agents"><${Icon} n="refresh" /><span>${t('agents.restore.side', { n: cut.length })}</span></a>`}
       ${folders.map(p => html`<${Folder} key=${p.id} p=${p} items=${inFolder(p.id)} open=${openFolders.has(p.id)} toggle=${() => toggleFolder(p.id)} isCurrent=${isCurrent} />`)}
       ${loose.map(it => html`<${Row} key=${it.kind + it.id} it=${it} current=${isCurrent(it)} />`)}
       ${!all.length && !folders.length && html`<p class="ses-empty">${t('side.empty')}</p>`}
-      ${agentsOn && !ready && filter !== 'chats' && html`<a class="chat-link sub" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span></a>`}
+      ${activeMode === 'agents' && agentsOn && !ready && html`<a class="chat-link sub" href="#/agents"><i class="dot amber"></i><span>${lt('conn', conn.state)}</span></a>`}
     </div>
   </div>`;
 }

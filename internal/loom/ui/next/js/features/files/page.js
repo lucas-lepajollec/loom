@@ -222,6 +222,40 @@ function RootSetup({ data, done }) {
   </${Empty}></div>`;
 }
 
+const allFiles = nodes => (nodes || []).flatMap(n => n.dir ? allFiles(n.children || []) : [n]);
+const hasFile = (nodes, target) => (nodes || []).some(n => n.dir ? hasFile(n.children || [], target) : n.path === target);
+
+function FilesHome({ data, refresh }) {
+  const recent = allFiles(data?.tree)
+    .sort((a, b) => (b.modified || 0) - (a.modified || 0))
+    .slice(0, 6);
+  return html`<section class="fl-view fl-home-wrap" aria-label=${t('files.second_brain')}>
+    <div class="fl-home anim-rise">
+      <div class="fl-home-head">
+        <h1>${t('files.second_brain')}</h1>
+        ${data?.root && html`<p class="mono fl-home-root" title=${data.root}>${data.root}</p>`}
+        <div class="fl-home-acts">
+          <button type="button" class="btn primary sm" onClick=${() => newNote('', refresh)}><${Icon} n="edit" /><span>${t('files.new_note')}</span></button>
+          <button type="button" class="btn sm fl-ghost-btn" onClick=${() => newFolder('', refresh)}><${Icon} n="folder" /><span>${t('files.new_folder')}</span></button>
+        </div>
+      </div>
+      ${recent.length > 0 ? html`<div class="fl-home-sec">
+        <h2>${t('mobile.files_recent')}</h2>
+        <div class="fl-home-grid">${recent.map(n => html`<button type="button" key=${n.path} class="fl-home-card" onClick=${() => openPath(n.path)}>
+          <div class="fl-home-card-top">
+            <${Icon} n="file" />
+            <b class="trunc">${/\.md$/i.test(n.name) ? n.name.replace(/\.md$/i, '') : n.name}</b>
+            ${n.outside && html`<i class="fl-dot" title=${t('files.changed_outside')}></i>`}
+          </div>
+          <small class="trunc">${[parentOf(n.path) || '/', n.modified ? ago(n.modified) : ''].filter(Boolean).join(' · ')}</small>
+        </button>`)}</div>
+      </div>` : html`<div class="fl-home-empty">
+        <p>${t('files.pick_text')}</p>
+      </div>`}
+    </div>
+  </section>`;
+}
+
 function Viewer({ path, refresh, narrow }) {
   const [file, setFile] = useState(null);
   const [raw, setRaw] = useState(false);
@@ -244,11 +278,11 @@ function Viewer({ path, refresh, narrow }) {
   ];
   return html`<section class="fl-view" aria-label=${path}>
     <header class="fl-head">
-      ${narrow && html`<${BackButton} />`}
+      ${narrow ? html`<${BackButton} />` : html`<button type="button" class="icon-btn fl-home-btn" aria-label=${t('files.second_brain')} title=${t('files.second_brain')} onClick=${() => { save('loom.files.last.' + scope, ''); go('files'); }}><${Icon} n="folder" /></button>`}
       <span class="fl-crumbs">${crumbs.map((c, i) => html`${i > 0 && html`<i>/</i>`}<span class=${i === crumbs.length - 1 ? 'here' : ''}>${i === crumbs.length - 1 ? c.replace(/\.md$/i, '') : c}</span>`)}</span>
       <span class="grow"></span>
       <span class=${cls('fl-state', state)}>${state === 'saving' ? t('files.saving') : state === 'dirty' ? t('files.unsaved') : state === 'conflict' ? t('files.conflict_short') : file && file.modified ? t('files.saved') : ''}</span>
-      <button class="icon-btn" aria-label=${t('files.actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
+      <button class="icon-btn fl-head-more" aria-label=${t('files.actions')} onClick=${e => setMenu(e.currentTarget)}><${Icon} n="more" /></button>
       ${menu && html`<${Menu} anchor=${menu} onClose=${() => setMenu(null)} items=${items} />`}
     </header>
     ${!file ? html`<div class="fl-body"><div class="skeleton" style="height:28px;width:50%"></div><div class="skeleton" style="height:16px;margin-top:18px"></div></div>`
@@ -277,8 +311,12 @@ export function FilesPage({ route }) {
   useEffect(() => {
     save('loom.files.scope', scopeNow);
     const key = 'loom.files.last.' + scopeNow;
-    if (current) save(key, current); else if (!narrow) { const last = load(key, ''); if (last) openPath(last); }
-  }, [current, scopeNow]);
+    if (current) save(key, current);
+    else if (!narrow && scopeNow === 'brain' && data?.tree) {
+      const last = load(key, '');
+      if (last && hasFile(data.tree, last)) openPath(last);
+    }
+  }, [current, scopeNow, !!data]);
   const setScope = v => { save('loom.files.scope', v); scope = v; const last = narrow ? '' : load('loom.files.last.' + v, ''); go('files', v === 'machine' ? 'm' : 'n', last || undefined); };
   const setBrain = async (rootDir, rel) => {
     const path = (rootDir.replace(/\/+$/, '') + '/' + rel).replace(/^\/\//, '/');
@@ -296,6 +334,6 @@ export function FilesPage({ route }) {
     ${showTree && (scopeNow === 'machine' ? html`<${MachineTree} key=${'m'} current=${current} onSetBrain=${setBrain} header=${header} />`
       : html`<${Tree} data=${data} current=${current} refresh=${refresh} header=${header} phone=${narrow} />`)}
     ${current ? html`<${Viewer} key=${scopeNow + current} path=${current} refresh=${refresh} narrow=${narrow} />`
-      : !narrow && html`<section class="fl-view"><${Empty} icon="file" title=${t('files.pick')} text=${t('files.pick_text')} /></section>`}
+      : !narrow && html`<${FilesHome} data=${data} refresh=${refresh} />`}
   </div>`;
 }

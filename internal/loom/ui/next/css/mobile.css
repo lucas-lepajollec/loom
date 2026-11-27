@@ -360,9 +360,19 @@
 .phone-settings .card .phone-link,.phone-settings .phone-setting-link{border-radius:0}
 .phone-settings .card>:is(.phone-link,.set-line)+:is(.phone-link,.set-line){border-top:1px solid var(--line-soft)}
 @media (max-width:760px){
-  /* Machines : titre à gauche, bouton d'ajout sur la même ligne */
+  /* Machines : titre à gauche, bouton d'ajout sur la même ligne + détail aéré */
   .phone-management .mc-page .page-head{flex-direction:row;align-items:center;justify-content:space-between;text-align:start}
   .phone-management .mc-page .page-head h1{margin:0}
+  .machine-detail-hero{padding:16px;border-radius:var(--r-xl)}
+  .machine-detail-head{flex-direction:column;align-items:stretch;gap:12px}
+  .machine-detail-controls{width:100%;justify-content:space-between}
+  .machine-detail-controls .machine-actions{width:100%}
+  .machine-detail-controls .machine-actions .btn{flex:1}
+  .machine-row{flex-wrap:wrap;padding:12px 14px}
+  .machine-row .machine-actions{width:100%;justify-content:flex-start;margin-left:0}
+  .machine-resource-body{padding:14px}
+  .drawer-sheet .cx-detail-hero,.drawer-sheet .cx-facts,.drawer-sheet .cx-md-box,.drawer-sheet .cx-access .card{border-radius:var(--r-lg)}
+  .drawer-sheet .cx-fact{grid-template-columns:minmax(0,1fr);gap:2px}
 }
 @media (max-width:760px){
   /* Un seul fond du haut en bas, comme les autres écrans du téléphone. */

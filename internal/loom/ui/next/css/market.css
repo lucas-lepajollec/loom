@@ -43,7 +43,8 @@
 .market-sort{display:none;align-items:center;gap:6px;min-width:0}
 .market-sort .select{min-width:0;text-overflow:ellipsis}
 .market-sort .icon-btn{flex:none}
-.market-row{display:grid;align-items:center;gap:8px 10px;min-height:46px;padding:7px 16px}
+.market-row{display:grid;align-items:center;gap:8px 10px;min-height:46px;padding:8px 16px;transition:background-color var(--fast)}
+.market-row:not(.market-thead):hover{background:var(--hover)}
 .market-row + .market-row{border-top:1px solid var(--line-soft)}
 .market-ranking .market-row{
   grid-template-columns:minmax(0,2.4fr) minmax(90px,.8fr) minmax(110px,.9fr) minmax(110px,.9fr)
@@ -61,13 +62,13 @@
 .market-thead button:hover,.market-thead [aria-sort]{color:var(--text)}
 .market-thead button .ico{width:12px;height:12px;flex:none}
 .market-down{transform:rotate(180deg)}
-.market-value{min-width:0;overflow-wrap:anywhere;font-size:13px}
+.market-value{min-width:0;overflow-wrap:anywhere;font-size:13px;font-variant-numeric:tabular-nums}
 .market-rank{
-  display:grid;place-items:center;flex:none;min-width:25px;height:23px;padding:0 3px;
-  border-radius:5px;background:var(--surface-2);color:var(--text-3);font-size:12px;font-variant-numeric:tabular-nums
+  display:grid;place-items:center;flex:none;min-width:25px;height:22px;padding:0 4px;
+  border-radius:5px;background:var(--surface-2);color:var(--text-3);font-size:11.5px;font-variant-numeric:tabular-nums
 }
-.market-top-three{background:color-mix(in srgb,var(--amber) 6%,var(--surface))}
-.market-top-three .market-rank{background:var(--amber-bg);color:var(--amber);font-weight:600}
+.market-top-three{background:transparent}
+.market-top-three .market-rank{background:var(--ink);color:var(--on-ink);font-weight:600}
 .market-filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 14px}
 .market-filters .search{flex:1 1 200px;min-width:0;max-width:100%}
 .market-filters .select{flex:0 1 176px;min-width:0;max-width:100%;text-overflow:ellipsis}

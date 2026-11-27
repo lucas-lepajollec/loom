@@ -148,8 +148,8 @@ export function CloudPage() {
       ${connected.length > 0 && group(t('models.cloud.saved'), connected.map(([e, p]) => row(e, p)))}
       ${groups.map(g => group(g.name, g.items.map(e => row(e, null))))}
       ${!connected.length && !groups.length && html`<div class="models-card"><${Empty} icon="search" title=${t('local.page.aucun_resultat')} text=${t('local.page.essaie_un_autre_filtre')} /></div>`}`}
-    ${opened && html`<${Drawer} title=${opened.name} onClose=${() => setOpen(null)}><${ProviderDetail} p=${opened} models=${models} onModels=${() => setDlg({ provider: opened })} onForget=${() => forget(opened)} onInspect=${setSelected} /></${Drawer}>`}
-    ${selection && selectionProvider && html`<${Drawer} title=${selection.name} onClose=${() => setSelected(null)}><${SelectionInfo} model=${selection} provider=${selectionProvider} /></${Drawer}>`}
+    ${opened && html`<${Drawer} title=${opened.name} class="cx-drawer" onClose=${() => setOpen(null)}><${ProviderDetail} p=${opened} models=${models} onModels=${() => setDlg({ provider: opened })} onForget=${() => forget(opened)} onInspect=${setSelected} /></${Drawer}>`}
+    ${selection && selectionProvider && html`<${Drawer} title=${selection.name} class="cx-drawer" onClose=${() => setSelected(null)}><${SelectionInfo} model=${selection} provider=${selectionProvider} /></${Drawer}>`}
     ${dlg && html`<${Connect} provider=${dlg.provider} entry=${dlg.entry} onClose=${() => setDlg(null)} />`}
   </div></div>`;
 }

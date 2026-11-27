@@ -55,7 +55,7 @@ function Row({ title, sub, right, active, loaded, nested, onPick }) {
   </button>`;
 }
 
-export function Picker({ phone } = {}) {
+export function Picker({ phone, place } = {}) {
   const [anchor, setAnchor] = useState(null);
   const { status, workspace, models, presets, unavailable } = useStore(app, s => ({ status: s.status, workspace: s.workspace, models: s.models, presets: s.presets, unavailable: s.unavailable }));
   const route = useStore(chat, executionKey);
@@ -94,12 +94,12 @@ export function Picker({ phone } = {}) {
 
   const extra = cur.kind === 'local' ? quantOf(status && (status.model_name || status.model)) : cur.sub;
   return html`<${DropdownButton} class="exec-btn" popup="dialog" open=${anchor} onClick=${open}>
-      ${cur.name ? html`<i class=${cls('dot', cur.kind !== 'local' || (status && status.health) ? 'green' : '')}></i><b>${cur.name}</b><span class="exec-sub"><span class="exec-route">${tag}</span>${extra ? ' · ' + extra : ''}</span>` : html`<b>${t("chat.picker.choisir_un_modele")}</b>`}
+      ${cur.name ? html`<${Icon} n=${cur.kind === 'cloud' ? 'cloud' : 'chip'} class="exec-ico" /><b>${cur.name}</b><span class="exec-sub"><span class="exec-route">${tag}</span>${extra ? ' · ' + extra : ''}</span>` : html`<${Icon} n="chip" class="exec-ico" /><b>${t("chat.picker.choisir_un_modele")}</b>`}
     </${DropdownButton}>
-    ${anchor && html`<${Popover} sheet anchor=${anchor} onClose=${close} label=${t('chat.picker.choisir_un_modele')} width=${430} heightLimit=${560} heightRatio=${0.75} class="picker">
+    ${anchor && html`<${Popover} sheet anchor=${anchor} place=${place} onClose=${close} label=${t('chat.picker.choisir_un_modele')} width=${468} heightLimit=${560} heightRatio=${0.76} class="picker">
       <div class="pick-top">
         <label class="search pick-q"><${Icon} n="search" /><input autofocus=${!phone} aria-label=${t('mobile.search_models')} placeholder="${t("chat.picker.rechercher_un_modele_un_preset_un_harness")}" value=${q} onInput=${e => setQ(e.target.value)} /></label>
-        <${Seg} value=${tab} onChange=${setTab} label="${t("chat.picker.type_d_execution")}" options=${[
+        <${Seg} value=${tab} size="sm" onChange=${setTab} label="${t("chat.picker.type_d_execution")}" options=${[
           { value: 'all', label: t('chat.picker.all') },
           { value: 'local', label: t("chat.picker.local"), count: lists.local.length },
           { value: 'cloud', label: t("chat.picker.cloud"), count: lists.cloud.length }]} />

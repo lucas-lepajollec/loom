@@ -14,6 +14,20 @@ import { visibleConnection } from '../../core/poll.js';
 import { PreviewPanel } from '../previews/panel.js';
 import { loadXterm, disposeTerm } from '../../ui/xterm.js';
 import { app, go } from '../../core/state.js';
+import { usePhone } from '../../core/viewport.js';
+
+const TOUCH_KEYS = [
+  { label: 'Esc', data: '\u001b' },
+  { label: 'Tab', data: '\t' },
+  { label: 'Ctrl+C', data: '\u0003', danger: true },
+  { label: '↑', data: '\u001b[A' },
+  { label: '↓', data: '\u001b[B' },
+  { label: '←', data: '\u001b[D' },
+  { label: '→', data: '\u001b[C' },
+  { label: '/', data: '/' },
+  { label: '|', data: '|' },
+  { label: '~', data: '~' },
+];
 
 const home = p => String(p || '').replace(/^\/home\/[^/]+/, '~');
 const terminalHref = id => '#/terminals/' + encodeURIComponent(id);
@@ -43,8 +57,10 @@ export async function openTerminalWith(spec) {
 
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-export function TermView({ t: localT, machineName, onExit }) {
+export function TermView({ t: localT, machineName, onExit, phone }) {
   const box = useRef();
+  const wsRef = useRef(null);
+  const termRef = useRef(null);
   const [state, setState] = useState('connexion');
   useEffect(() => {
     let term, fit, ws, ro, stopConnection, alive = true;
@@ -52,9 +68,10 @@ export function TermView({ t: localT, machineName, onExit }) {
       const w = await loadXterm();
       if (!alive) return;
       term = new w.Terminal({
-        fontFamily: cssVar('--mono') || 'monospace', fontSize: 13, lineHeight: 1.2, cursorBlink: true, scrollback: 5000,
+        fontFamily: cssVar('--mono') || 'monospace', fontSize: phone ? 12.5 : 13, lineHeight: 1.25, cursorBlink: true, scrollback: 5000,
         theme: { background: cssVar('--bg-2') || '#111', foreground: cssVar('--text') || '#eee', cursor: cssVar('--text') || '#eee', selectionBackground: 'rgba(127,127,127,.35)' },
       });
+      termRef.current = term;
       fit = new w.FitAddon.FitAddon();
       term.loadAddon(fit);
       term.open(box.current);
@@ -71,7 +88,7 @@ export function TermView({ t: localT, machineName, onExit }) {
         if (!owner.alive()) return;
         if (!tk.ok || typeof tk.ticket !== 'string') { setState('disconnected'); owner.retry(); return; }
         const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/terminals/ws?ticket=' + encodeURIComponent(tk.ticket));
-        ws = socket; socket.binaryType = 'arraybuffer';
+        ws = socket; wsRef.current = socket; socket.binaryType = 'arraybuffer';
         let exited = false;
         socket.onopen = () => { if (owner.alive()) { term.reset(); setState(localT.running ? 'ouvert' : 'finished'); size(); term.focus(); } };
         socket.onmessage = e => {
@@ -81,17 +98,24 @@ export function TermView({ t: localT, machineName, onExit }) {
         };
         socket.onclose = () => { if (owner.alive() && !exited) { setState('disconnected'); owner.retry(); } };
         socket.onerror = () => {};
-        return () => { socket.onopen = null; socket.onmessage = null; socket.onclose = null; socket.close(); };
+        return () => { if (wsRef.current === socket) wsRef.current = null; socket.onopen = null; socket.onmessage = null; socket.onclose = null; socket.close(); };
       });
       term.onData(d => { if (ws?.readyState === 1) ws.send(d); });
       ro = new ResizeObserver(size); ro.observe(box.current);
     })().catch(() => setState('erreur'));
-    return () => { alive = false; ro && ro.disconnect(); stopConnection && stopConnection(); disposeTerm(term); };
+    return () => { alive = false; wsRef.current = null; termRef.current = null; ro && ro.disconnect(); stopConnection && stopConnection(); disposeTerm(term); };
   }, [localT.id]);
+  const sendKey = data => {
+    if (wsRef.current?.readyState === 1) wsRef.current.send(data);
+    termRef.current?.focus();
+  };
   const label = { connexion: t('terminals.status.connecting'), ouvert: t('terminals.status.open'), finished: t('terminals.status.finished'), disconnected: t('terminals.status.disconnected'), introuvable: t('common.not_found'), erreur: t('common.error') }[state] || state;
-  return html`<div class="term-view" aria-label=${localT.title + ' · ' + (machineName || localT.target)}>
+  return html`<div class=${cls('term-view', phone && 'term-view-phone')} aria-label=${localT.title + ' · ' + (machineName || localT.target)}>
     ${state !== 'ouvert' && html`<span class="term-state" role="status">${label}</span>`}
     <div class="term-box" ref=${box}></div>
+    ${phone && html`<div class="cm-acc term-acc" role="toolbar" aria-label=${t('terminals.page.terminaux')}>
+      ${TOUCH_KEYS.map(k => html`<button type="button" key=${k.label} class=${cls(k.danger && 'cm-acc-break')} onClick=${() => sendKey(k.data)}><span>${k.label}</span></button>`)}
+    </div>`}
   </div>`;
 }
 
@@ -132,6 +156,7 @@ function NewTerminal({ onClose, preset }) {
 }
 
 export function TerminalsPage({ route }) {
+  const phone = usePhone();
   const [list, setList] = useState(null);
   const [supported, setSupported] = useState(true);
   const [dlg, setDlg] = useState(false);
@@ -180,27 +205,30 @@ export function TerminalsPage({ route }) {
     if (localT.id === cur?.id) go('terminals', remaining.at(-1)?.id);
     load();
   };
-  return html`<div class="view page"><div class="page-in wide machine-terminal-page">
+  return html`<div class=${cls('view term-page', phone && 'term-page-phone')}>
     <h1 class="sr">${t("terminals.page.terminaux")}</h1>
-    <div class="term-top">
-      <a class="btn machine-back" href="#/machines"><${Icon} n="left" />${t('settings.machines.machines')}</a>
-      <span class="grow"></span>
-      <button class="btn" onClick=${() => setPreviews(true)}><${Icon} n="globe" />${t('terminals.page.previews')}</button>
-      <button class="btn primary" disabled=${!supported} onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.nouveau_terminal")}</button>
+    <header class="term-head">
+      ${!phone && html`<a class="btn sm machine-back" href="#/machines"><${Icon} n="left" /><span>${t('settings.machines.machines')}</span></a>`}
+      <nav class="terminal-tabs" aria-label=${t('settings.machines.open_terminals')}>
+        ${(list || []).map(term => html`<div class=${cls('terminal-tab', cur?.id === term.id && 'current')} key=${term.id}>
+          <a href=${terminalHref(term.id)} aria-current=${cur?.id === term.id ? 'page' : undefined} title=${term.title + ' · ' + (names.get(term.target) || term.target)}>
+            <i class=${cls('dot', term.running && 'green')}></i><b>${term.title}</b><small>${names.get(term.target) || term.target}</small>
+          </a>
+          <button class="icon-btn" aria-label=${t("terminals.page.fermer_2") + term.title} onClick=${() => close(term)}><${Icon} n="close" /></button>
+        </div>`)}
+      </nav>
+      <div class="term-head-acts">
+        <button class=${cls(phone ? 'icon-btn' : 'btn sm term-ghost-btn')} aria-label=${t('terminals.page.previews')} title=${t('terminals.page.previews')} onClick=${() => setPreviews(true)}><${Icon} n="globe" />${!phone && html`<span>${t('terminals.page.previews')}</span>`}</button>
+        <button class=${cls(phone ? 'icon-btn' : 'btn sm primary')} disabled=${!supported} aria-label=${t("terminals.page.nouveau_terminal")} title=${t("terminals.page.nouveau_terminal")} onClick=${() => setDlg(true)}><${Icon} n="plus" />${!phone && html`<span>${t("terminals.page.nouveau_terminal")}</span>`}</button>
+      </div>
+    </header>
+    <div class="term-stage">
+      ${!supported ? html`<${Empty} icon="info" title="${t("terminals.page.pas_encore_disponible_sur_ce_systeme")}" text="${t("terminals.page.les_terminaux_fonctionnent_sous_linux_et_macos_windows_arrive_plu")}" />`
+        : !list ? html`<div class="skeleton term-skeleton"></div>`
+        : !list.length ? html`<${Empty} icon="terminal" title="${t("terminals.page.aucun_terminal_ouvert")}" text="${t("terminals.page.un_terminal_reste_ouvert_meme_si_tu_fermes_l_onglet_tu_le_retrouv")}"><button class="btn primary sm" onClick=${() => setDlg(true)}><${Icon} n="plus" />${t("terminals.page.ouvrir_un_terminal")}</button></${Empty}>`
+        : cur && html`<${TermView} key=${cur.id} t=${cur} machineName=${names.get(cur.target) || cur.target} onExit=${load} phone=${phone} />`}
     </div>
-    ${!supported ? html`<${Empty} icon="info" title="${t("terminals.page.pas_encore_disponible_sur_ce_systeme")}" text="${t("terminals.page.les_terminaux_fonctionnent_sous_linux_et_macos_windows_arrive_plu")}" />`
-      : !list ? html`<div class="skeleton" style="height:320px"></div>`
-      : !list.length ? html`<${Empty} icon="terminal" title="${t("terminals.page.aucun_terminal_ouvert")}" text="${t("terminals.page.un_terminal_reste_ouvert_meme_si_tu_fermes_l_onglet_tu_le_retrouv")}"><button class="btn" onClick=${() => setDlg(true)}>${t("terminals.page.ouvrir_un_terminal")}</button></${Empty}>`
-      : html`<nav class="terminal-tabs" aria-label=${t('settings.machines.open_terminals')}>
-          ${list.map(term => html`<div class=${cls('terminal-tab', cur?.id === term.id && 'current')} key=${term.id}>
-            <a href=${terminalHref(term.id)} aria-current=${cur?.id === term.id ? 'page' : undefined} title=${term.title + ' · ' + (names.get(term.target) || term.target)}>
-              <i class=${cls('dot', term.running && 'green')}></i><b>${term.title}</b><small>${names.get(term.target) || term.target}</small>
-            </a>
-            <button class="icon-btn" aria-label=${t("terminals.page.fermer_2") + term.title} onClick=${() => close(term)}><${Icon} n="close" /></button>
-          </div>`)}
-        </nav>
-        ${cur && html`<${TermView} key=${cur.id} t=${cur} machineName=${names.get(cur.target) || cur.target} onExit=${load} />`}`}
     ${previews && html`<${Modal} title=${t('previews.title')} onClose=${() => setPreviews(false)}><${PreviewPanel} target=${cur?.target || 'local'} /></${Modal}>`}
     ${dlg && html`<${NewTerminal} onClose=${() => { setDlg(false); load(); }} />`}
-  </div></div>`;
+  </div>`;
 }

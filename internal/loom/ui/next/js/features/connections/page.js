@@ -57,7 +57,7 @@ const Tile = ({ icon }) => html`<span class="cx-tile" aria-hidden="true"><${Icon
 
 function Card({ icon, name, description, meta, status, onOpen }) {
   return html`<button type="button" class="cx-card" onClick=${onOpen}>
-    <span class="cx-card-top"><${Tile} icon=${icon} /><span class="cx-name">${name}</span>${status && html`<span class="cx-status">${status}</span>`}</span>
+    <span class="cx-card-top"><${Tile} icon=${icon} /><span class="cx-name">${name}</span>${status && html`<span class="cx-status">${status}</span>`}<${Icon} n="right" class="cx-card-arrow" /></span>
     <span class="cx-desc">${description}</span>
     ${meta && html`<span class="cx-meta">${meta}</span>`}
   </button>`;
@@ -66,26 +66,30 @@ function Card({ icon, name, description, meta, status, onOpen }) {
 function SkillDetail({ name, onBack }) {
   const [d, setD] = useState(null);
   useEffect(() => { get('/api/capabilities/skill?name=' + encodeURIComponent(name)).then(setD).catch(e => setD({ ok: false, error: e.message })); }, [name]);
-  if (!d) return html`<p class="cx-note">…</p>`;
-  if (d.ok === false) return html`<p role="alert" class="cx-note msg-err">${d.error}</p>`;
+  if (!d) return html`<div class="cx-detail"><div class="skeleton" style="height:56px"></div><div class="skeleton" style="height:120px"></div></div>`;
+  if (d.ok === false) return html`<div class="cx-detail"><p role="alert" class="cx-note msg-err">${d.error}</p></div>`;
   return html`<div class="cx-detail">
-    ${onBack && html`<button type="button" class="btn sm ghost cx-back" onClick=${onBack}><${Icon} n="left" />${onBack.label}</button>`}
-    <div class="cx-detail-head"><${Tile} icon="tool" /><div><h2>${d.skill.name}</h2><span class="tag">${t('connections.kind.skill')}</span></div></div>
-    <p class="cx-lead">${d.skill.description}</p>
+    ${onBack && html`<button type="button" class="btn sm cx-back" onClick=${onBack}><${Icon} n="left" /><span>${onBack.label}</span></button>`}
+    <div class="cx-detail-hero">
+      <div class="cx-detail-head"><${Tile} icon="tool" /><div class="cx-detail-title"><h2>${d.skill.name}</h2><span class="tag">${t('connections.kind.skill')}</span></div></div>
+      ${d.skill.description && html`<p class="cx-lead">${d.skill.description}</p>`}
+    </div>
     <dl class="cx-facts">
-      <dt>${t('connections.detail.path')}</dt><dd class="mono">${d.path}</dd>
-      ${d.skill.title && html`<dt>${t('connections.detail.name')}</dt><dd class="mono">${d.skill.title}</dd>`}
-      ${d.files.length > 0 && html`<dt>${t('connections.detail.files')}</dt><dd class="mono cx-files">${d.files.slice(0, 12).map(f => html`<span>${f}</span>`)}${d.files.length > 12 && html`<span>${t('connections.detail.more', { n: d.files.length - 12 })}</span>`}</dd>`}
+      <div class="cx-fact"><dt>${t('connections.detail.path')}</dt><dd class="mono">${d.path}</dd></div>
+      ${d.skill.title && html`<div class="cx-fact"><dt>${t('connections.detail.name')}</dt><dd class="mono">${d.skill.title}</dd></div>`}
+      ${d.files.length > 0 && html`<div class="cx-fact"><dt>${t('connections.detail.files')}</dt><dd class="mono cx-files">${d.files.slice(0, 12).map(f => html`<span>${f}</span>`)}${d.files.length > 12 && html`<span>${t('connections.detail.more', { n: d.files.length - 12 })}</span>`}</dd></div>`}
     </dl>
     <h3 class="cx-section">${t('connections.detail.instructions')}</h3>
-    <div class="md cx-md" dangerouslySetInnerHTML=${{ __html: md(d.body) }}></div>
+    <div class="cx-md-box"><div class="md cx-md" dangerouslySetInnerHTML=${{ __html: md(d.body) }}></div></div>
   </div>`;
 }
 
 function FamilyDetail({ card, onOpen }) {
   return html`<div class="cx-detail">
-    <div class="cx-detail-head"><${Tile} icon="grid" /><div><h2>${card.name}</h2><span class="tag">${t('agents.links.skills', { n: card.members.length })}</span></div></div>
-    <p class="cx-lead">${t('connections.family_lead', { family: card.name })}</p>
+    <div class="cx-detail-hero">
+      <div class="cx-detail-head"><${Tile} icon="grid" /><div class="cx-detail-title"><h2>${card.name}</h2><span class="tag">${t('agents.links.skills', { n: card.members.length })}</span></div></div>
+      <p class="cx-lead">${t('connections.family_lead', { family: card.name })}</p>
+    </div>
     <div class="cx-rows">${card.members.map(m => html`<button type="button" key=${m.name} class="cx-row" onClick=${() => onOpen(m.name)}>
       <span class="cx-row-name">${m.name.slice(card.name.length + 1)}</span><span class="cx-row-desc">${m.description}</span><${Icon} n="right" />
     </button>`)}</div>
@@ -96,11 +100,13 @@ function Detail({ open, onClose }) {
   const [inner, setInner] = useState('');
   useEffect(() => setInner(''), [open]);
   const title = open.kind === 'mcp' ? 'MCP' : t('connections.kind.skill');
-  return html`<${Drawer} title=${title} onClose=${onClose}>
+  return html`<${Drawer} title=${title} class="cx-drawer" onClose=${onClose}>
     ${open.kind === 'mcp' ? html`<div class="cx-detail">
-        <div class="cx-detail-head"><${Tile} icon="plug" /><div><h2>Loom</h2><span class="tag">MCP</span></div></div>
-        <p class="cx-lead">${t('connections.loom_lead')}</p>
-        <div class="set-body"><${AgentAccess} /></div>
+        <div class="cx-detail-hero">
+          <div class="cx-detail-head"><${Tile} icon="plug" /><div class="cx-detail-title"><h2>Loom</h2><span class="tag">MCP</span></div></div>
+          <p class="cx-lead">${t('connections.loom_lead')}</p>
+        </div>
+        <div class="set-body cx-access"><${AgentAccess} /></div>
       </div>`
       : open.kind === 'family' && !inner ? html`<${FamilyDetail} card=${open} onOpen=${setInner} />`
       : html`<${SkillDetail} name=${inner || open.id} onBack=${inner ? Object.assign(() => setInner(''), { label: open.name }) : null} />`}
@@ -137,26 +143,30 @@ export function ConnectionsPage() {
   return html`<div class="view page"><div class="page-in cx-page">
     <div class="page-head cx-head">
       <div><h1>${t('agents.links.title')}</h1><p>${t('connections.lead')}</p></div>
+    </div>
+    <div class="cx-toolbar">
+      <${Seg} label=${t('connections.filter')} value=${filter} onChange=${setFilter} options=${[
+        { value: 'all', label: t('connections.all') },
+        { value: 'skills', label: t('connections.kind.skills'), count: skillCount || '' },
+        { value: 'mcp', label: 'MCP', count: 1 },
+      ]} />
       <label class="search cx-search"><${Icon} n="search" /><input type="search" aria-label=${t('connections.search')} placeholder=${t('connections.search')} value=${q} onInput=${e => setQ(e.target.value)} /></label>
     </div>
-    <${Seg} label=${t('connections.filter')} value=${filter} onChange=${setFilter} options=${[
-      { value: 'all', label: t('connections.all') },
-      { value: 'skills', label: t('connections.kind.skills'), count: skillCount || '' },
-      { value: 'mcp', label: 'MCP', count: 1 },
-    ]} />
 
     <div class="cx-source">
-      <${Icon} n="folder" />
+      <${Tile} icon="folder" />
       <div class="cx-source-text">
-        <span class="mono cx-path">${state === null ? '…' : dir ? homePath(dir) : t('agents.links.not_set')}</span>
+        <span class="mono cx-path" title=${dir || undefined}>${state === null ? '…' : dir ? homePath(dir) : t('agents.links.not_set')}</span>
         <span class="cx-source-state">${!dir ? t('connections.no_folder')
           : state?.error ? state.error
           : todo ? t('connections.to_link', { n: todo })
           : t('connections.linked_all')}${dir && !state?.error && links.blocked ? ' · ' + t('agents.links.blocked', { n: links.blocked }) : ''}</span>
       </div>
-      ${dir && !state?.error && todo > 0 && html`<button class="btn sm primary" disabled=${busy} onClick=${link}>${t('agents.links.link')}</button>`}
-      ${!dir && state?.suggested && html`<button class="btn sm primary" onClick=${() => post('/api/capabilities/folder', { path: state.suggested }).then(setState)}>${t('connections.use_suggested', { path: homePath(state.suggested) })}</button>`}
-      <button class="btn sm" aria-haspopup="dialog" onClick=${() => setEditing(true)}>${dir ? t('connections.change') : t('settings.brain.choose')}</button>
+      <div class="cx-source-acts">
+        ${dir && !state?.error && todo > 0 && html`<button class="btn sm primary" disabled=${busy} onClick=${link}>${t('agents.links.link')}</button>`}
+        ${!dir && state?.suggested && html`<button class="btn sm primary" onClick=${() => post('/api/capabilities/folder', { path: state.suggested }).then(setState)}>${t('connections.use_suggested', { path: homePath(state.suggested) })}</button>`}
+        <button class="btn sm cx-source-btn" aria-haspopup="dialog" onClick=${() => setEditing(true)}>${dir ? t('connections.change') : t('settings.brain.choose')}</button>
+      </div>
     </div>
 
     ${shownMcp.length > 0 && html`<section class="cx-group">

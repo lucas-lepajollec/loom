@@ -26,7 +26,7 @@ import { Conversation } from './conversation.js';
 import { AgentTerminal } from './terminal.js';
 import { Inspector } from './inspector.js';
 import { panelState, previewFor, openPreview } from './panel-state.js';
-import { CliMark } from './new-session.js';
+import { CliMark, AgentNewStudio } from './new-session.js';
 import { ControlCenter } from './control.js';
 import { Grid, ShapeIcon } from './grid.js';
 import { CodemanSettings } from './settings.js';
@@ -98,15 +98,14 @@ function SessionPane({ s, narrowView }) {
         ${(mode === 'term' || mode === 'split') && html`<div class="cm-term-wrap"><${AgentTerminal} key=${'t' + s.id} sessionId=${s.id} mode=${s.mode} workingDir=${s.workingDir} shell=${s.mode === 'shell'} scrollback=${agents.get().settings?.terminalScrollbackLines || 50000} focus=${mode === 'term'} phoneControls=${narrowView} /></div>`}
       </div>
     </div>
-    ${insp && (narrowView ? html`<${Drawer} title=${t('agents.insp.info')} onClose=${() => setInsp(false)}><${Inspector} session=${s} view=${mode} setView=${setView} narrowView /></${Drawer}>`
-      : html`<${Inspector} session=${s} onClose=${() => setInsp(false)} view=${mode} setView=${setView} />`)}
+    ${narrowView ? (insp && html`<${Drawer} title=${t('agents.insp.info')} onClose=${() => setInsp(false)}><${Inspector} session=${s} open=${true} view=${mode} setView=${setView} narrowView /></${Drawer}>`)
+      : html`<${Inspector} session=${s} open=${insp} onClose=${() => setInsp(false)} view=${mode} setView=${setView} />`}
   </div>`;
 }
 
-// Aucune session ouverte : la liste est dans la barre latérale.
+// Aucune session ouverte ou création : studio plein cadre sur fond pixel-matrix.
 function Home() {
-  return html`<div class="cm-main cm-blank"><${AmbientField} variant="calm" /><div class="cm-blank-in"><${Empty} icon="agent" title=${t('agents.home.pick')} text=${t('agents.home.pick_text')}>
-    <button class="btn primary" onClick=${() => agents.set({ creating: {} })}><${Icon} n="plus" />${t('agents.rail.new')}</button></${Empty}></div></div>`;
+  return html`<${AgentNewStudio} />`;
 }
 
 // Grille : l'inspecteur suit le volet qui a le focus.
@@ -124,7 +123,7 @@ function GridArea() {
         <button class="icon-btn" aria-label=${t('agents.grid.close')} title=${t('agents.grid.close')} onClick=${() => { toggleGrid(focusId || ''); if (focusId) openSession(focusId); }}><${Icon} n="close" /></button></header>
       <${Grid} />
     </div>
-    ${insp && session && html`<${Inspector} key=${session.id} session=${session} onClose=${() => gridInsp.set({ open: false })} />`}
+    ${session && html`<${Inspector} key=${session.id} session=${session} open=${insp} onClose=${() => gridInsp.set({ open: false })} />`}
   </div>`;
 }
 const gridInsp = createStore({ open: false });
@@ -139,6 +138,7 @@ function Workspace({ route }) {
   // Dernière session ouverte, sur grand écran ; une session demandée par
   // l'adresse entre dans la grille quand elle est ouverte.
   useEffect(() => {
+    if (route.sub === 'new') return;
     if (id) {
       try { localStorage.setItem('loom.codeman.last', id); } catch (_) {}
       if (grid && loaded && agents.get().sessions[id] && !layout.get().cells.includes(id)) placeSession(id);
@@ -147,7 +147,8 @@ function Workspace({ route }) {
     if (narrowView || !loaded || grid) return;
     let last = ''; try { last = localStorage.getItem('loom.codeman.last') || ''; } catch (_) {}
     if (last && agents.get().sessions[last]) openSession(last);
-  }, [id, loaded, narrowView, grid]);
+  }, [id, route.sub, loaded, narrowView, grid]);
+  if (route.sub === 'new') return html`<div class="cm-ws"><${AgentNewStudio} /></div>`;
   if (grid) return html`<div class="cm-ws"><${GridArea} /></div>`;
   return html`<div class=${cls('cm-ws', narrowView && id && 'focus')}>
     ${session ? html`<${SessionPane} key=${session.id} s=${session} narrowView=${narrowView} />`
@@ -194,8 +195,8 @@ export function AgentsPage({ route }) {
   }, [ready]);
   // Connexions a quitté Agents pour sa propre page (#/connections).
   useEffect(() => { if (route.sub === 'connections') location.replace('#/connections'); }, [route.sub]);
-  const sub = SUBS.includes(route.sub) || route.sub === 's' || route.sub === 'grid' ? route.sub : route.sub === 'control' ? '' : '';
-  const work = sub === 's' || sub === 'grid';
+  const sub = SUBS.includes(route.sub) || route.sub === 's' || route.sub === 'grid' || route.sub === 'new' ? route.sub : route.sub === 'control' ? '' : '';
+  const work = sub === 's' || sub === 'grid' || sub === 'new';
   const currentId = sub === 's' ? route.id : '';
   // #/agents/grid ouvre la mosaïque ; Ctrl+Maj+G l'ouvre ou la referme.
   useEffect(() => { if (sub === 'grid' && innerWidth > 760 && layout.get().count === 1) toggleGrid(''); }, [sub]);
@@ -203,8 +204,8 @@ export function AgentsPage({ route }) {
     const key = e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g' && innerWidth > 760) { e.preventDefault(); e.stopPropagation(); if (layout.get().count === 1) { toggleGrid(currentId); go('agents', 'grid'); } else { toggleGrid(currentId); if (currentId) openSession(currentId); } } };
     addEventListener('keydown', key, true); return () => removeEventListener('keydown', key, true);
   }, [currentId]);
-  // Les réglages restent utiles sans Codeman.
-  const gated = sub !== 'settings' && state !== 'ready';
+  // Les réglages et l'écran de nouvelle session restent accessibles sans Codeman.
+  const gated = sub !== 'settings' && sub !== 'new' && state !== 'ready';
   const narrowView = usePhone();
   const hasSession = useStore(agents, s => !!s.sessions[currentId]);
   const server = conn.url + '\n' + conn.username;

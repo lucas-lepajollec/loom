@@ -10,9 +10,6 @@ import { Messages, Starting } from './messages.js';
 import { Composer } from './composer.js';
 import { Picker, currentExec } from './picker.js';
 import { Inspector } from '../inspector/inspector.js';
-import { Seg } from '../../ui/controls.js';
-import { agents } from '../agents/store.js';
-import { go } from '../../core/state.js';
 import { BackButton } from '../../app/phone-nav.js';
 import { usePhone } from '../../core/viewport.js';
 import { Minimap } from '../conversation/minimap.js';
@@ -36,27 +33,18 @@ function Thread({ phone }) {
   const exec = currentExec();
   return html`<div class="cv-wrap">${!phone && !loading && !empty && html`<${Minimap} scroller=${box} />`}<div class="thread" ref=${box} onScroll=${onScroll}>
     ${loading ? html`<div class="thread-in"><div class="skeleton" style="height:44px;width:46%;margin-left:auto"></div><div class="skeleton" style="height:16px;width:80%;margin-top:26px"></div><div class="skeleton" style="height:16px;width:64%;margin-top:10px"></div></div>`
-      : empty ? html`<div class="welcome anim-rise"><div class="welcome-in">${!phone && html`<${SessionType} />`}<div class="welcome-mark"><${LoomMark} /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
+      : empty ? html`<div class="welcome anim-rise"><div class="welcome-in"><div class="welcome-mark"><${LoomMark} /></div><h1>${exec.name ? t("chat.view.que_veux_tu_faire") : t("chat.view.bienvenue_dans_loom")}</h1>
           <p>${exec.name ? html`${t("chat.view.la_discussion_part_avec")} <b>${exec.name}</b>${t("chat.view.tu_pourras_changer_de_modele_en_cours_de_route")}` : t("chat.view.choisis_un_modele_local_cloud_ou_un_harness_en_haut_pour_commence")}</p></div></div>`
       : html`<div class="thread-in"><${Messages} items=${items} gen=${gen} compacting=${compacting} root=${root} sessionId=${sessionId} />${starting && html`<${Starting} starting=${starting} />`}</div>`}
   </div><${JumpBottom} scroller=${box} watch=${items.length} /></div>`;
 }
 
-// Une nouvelle session est une discussion (un modèle) ou une session d'agent
-// (un harness lancé par Codeman). Choisir Agent ouvre la fenêtre de Codeman.
-function SessionType() {
-  const conn = useStore(agents, s => s.conn);
-  const pick = v => { if (v !== 'agent') return; if (conn.state === 'ready') agents.set({ creating: {} }); else go('agents', 'settings'); };
-  return html`<div class="welcome-type"><${Seg} value="chat" size="lg" onChange=${pick} label=${t('side.session_type')}
-    options=${[{ value: 'chat', label: html`<${Icon} n="chat" />${t('side.type_chat')}` }, { value: 'agent', label: html`<${Icon} n="agent" />${t('side.type_agent')}` }]} /></div>`;
-}
-
-// Titre de la discussion à côté du modèle, comme le nom d'une session d'agent.
-function ChatTitle() {
+// Titre de la discussion dans l'en-tête.
+function ChatTitle({ phone }) {
   const title = useStore(chat, c => (c.session && c.session.title) || '');
   const navTitle = useStore(app, a => { const id = chat.get().sessionId || (a.nav && a.nav.active); const c = id && (a.nav.conversations || []).find(x => x.id === id); return c ? c.title : ''; });
   const text = title || navTitle;
-  return text ? html`<span class="chat-title"><i aria-hidden="true">/</i><span>${text}</span></span>` : null;
+  return text ? html`<span class="chat-title">${phone && html`<i aria-hidden="true">/</i>`}<span>${text}</span></span>` : null;
 }
 
 // Le mode vocal remplace la discussion le temps de l'échange avec Jarvis.
@@ -72,11 +60,11 @@ export function ChatView({ route }) {
     <div class=${cls('chat-col', empty && 'is-empty')}>
       ${empty && !phone && html`<${AmbientField} variant="calm" />`}
       <header class=${cls('topbar', phone && 'phone-session-head')}>
-        ${phone ? html`<${BackButton} /><div class="phone-chat-model"><${Picker} phone /><${ChatTitle} /></div>` : html`<${Picker} /><${ChatTitle} /><span class="grow"></span>`}
+        ${phone ? html`<${BackButton} /><div class="phone-chat-model"><${Picker} phone /><${ChatTitle} phone /></div>` : html`<${ChatTitle} /><span class="grow"></span>`}
         <button class=${cls('icon-btn', insp && 'on')} aria-label="${t("chat.view.panneau")}" title="${t("chat.view.parametres_et_contexte")}" onClick=${toggle}><${Icon} n=${phone ? 'more' : 'panel'} /></button>
       </header>
       <${Thread} phone=${phone} />
-      <${Composer} phone=${phone} key=${phone ? route?.sub + '/' + phoneRevision : undefined} />
+      <${Composer} phone=${phone} dock=${!phone && html`<${Picker} place="above" />`} key=${phone ? route?.sub + '/' + phoneRevision : undefined} />
     </div>
     <${Inspector} open=${insp} onClose=${toggle} phone=${phone} />
   </div>`;
