@@ -103,7 +103,8 @@ func (m *runtimeSessions) compactSnapshot(ctx context.Context, s RuntimeSession,
 		if !sameModelPath(s.Model, ReadConfig()["MODEL"]) {
 			return s, "", false, errors.New("load the selected model before compacting")
 		}
-		endpoint, key, model = engineBase()+"/v1/chat/completions", engineAPIKey(), engineRequestModel()
+		endpoint, key, model = engineRequestTarget()
+		endpoint += "/v1/chat/completions"
 	} else if key == "" {
 		return s, "", false, errors.New("missing key: reconnect the provider in Models → Providers")
 	}

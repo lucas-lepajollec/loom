@@ -512,7 +512,10 @@ func allowControlAction(w http.ResponseWriter, r *http.Request, path string, lin
 		if strings.HasSuffix(path, "/update/apply") || remoteEngine && path == "/api/llamacpp/update" {
 			subject = "node.update"
 		}
-		if remoteEngine && path == "/api/engines/vllm" && r.Body != nil {
+		if remoteEngine && path == "/api/engines/ollama/pull" {
+			subject = "node.install"
+		}
+		if remoteEngine && pythonEngineControlPath(path) && r.Body != nil {
 			raw, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
 			_ = r.Body.Close()
 			if err != nil || len(raw) > 1<<20 {
@@ -533,7 +536,7 @@ func allowControlAction(w http.ResponseWriter, r *http.Request, path string, lin
 		if machine == "" {
 			machine = "local"
 		}
-		if remoteEngine && (strings.HasPrefix(path, "/api/llamacpp/") || path == "/api/engines/vllm" || strings.HasPrefix(path, "/api/engine/node/update")) {
+		if remoteEngine && (strings.HasPrefix(path, "/api/llamacpp/") || pythonEngineControlPath(path) || path == "/api/engines/ollama/pull" || strings.HasPrefix(path, "/api/engine/node/update")) {
 			machine = engineCapabilityOwner(linked)
 			for _, saved := range loadRemoteMachines() {
 				if node := savedMachineNode(saved); node != nil && node.URL == linked.URL {
@@ -610,4 +613,8 @@ func handlePolicyPending(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	sendJSON(w, 200, map[string]any{"ok": true, "requests": workspaceSessions.pendingPolicyRequests()})
+}
+
+func pythonEngineControlPath(path string) bool {
+	return path == "/api/engines/vllm" || path == "/api/engines/sglang" || path == "/api/engines/mlx"
 }

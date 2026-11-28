@@ -6,15 +6,96 @@ router-capable llama-server starts once and loads models through its API.
 The existing llama.cpp parameter/preset and automatic-update workflows are
 unchanged.
 
-Settings › Engines exposes vLLM installation, its Hugging Face model library,
-per-model parameters, version and updates. The authenticated APIs below back
-those controls. **Local vLLM requires Linux and a
-supported NVIDIA GPU with CUDA or AMD GPU with ROCm.** This Loom workflow does
-not install native vLLM on macOS or Windows. Those Loom installations can use
-llama.cpp or link a Linux inference server by address (or another Loom).
-Merely listing parameters/cache entries does not launch inference.
+## Find and link an engine
 
-## Installation and lifecycle
+Open **Local › Engine** for the catalog. Loom reports the selected machine's
+OS, architecture and accelerator support. **Scan** checks the standard
+loopback ports for Ollama, LM Studio, SGLang, TabbyAPI, KoboldCpp, Lemonade and
+exo in parallel. exo is discovered on port `52415`. Start the engine on its host,
+then use **Link** to confirm its address and select a model. Install or link on your own Loom
+or, after selecting a paired Loom Node as your engine, on that node.
+
+| Engine | Setup | Common model formats |
+| --- | --- | --- |
+| llama.cpp | Prebuilt, compile, existing binary, or server URL | GGUF |
+| ik_llama.cpp | Build the fork and choose its backend in a preset, or link a server | GGUF and IQ quants |
+| vLLM | Managed Linux environment with CUDA or ROCm, or server URL | Safetensors, AWQ, GPTQ, FP8 |
+| SGLang | Managed Linux environment with CUDA or ROCm, or server URL | Safetensors, FP8, AWQ |
+| MLX | Managed with `mlx-lm` on Apple Silicon, or link a Mac by URL | MLX |
+| Ollama | Guided install or link a running server | GGUF, Modelfile |
+| LM Studio | Guided install or link a running server | GGUF, MLX |
+| Strata | [Desktop or terminal setup](https://github.com/Niko1221/Strata/blob/main/docs/INSTALL.md), then link on port 8080 | GGUF, `.strata` |
+| Basalt | [NVIDIA Blackwell](https://github.com/jesdga95/basalt/blob/main/docs/platforms.md) or [Apple Silicon](https://github.com/goodmai/basalt/blob/main/docs/install.md), then link on port 8080 | `.basalt` on Blackwell, MLX and GGUF on Mac |
+| mistral.rs | [Release binary or source build](https://github.com/EricLBuehler/mistral.rs/blob/master/docs/src/content/docs/reference/installer.md), then link on port 1234 | GGUF, Safetensors with optional ISQ |
+| TabbyAPI | Link by URL | EXL2, EXL3 |
+| KoboldCpp | Link by URL | GGUF |
+| Lemonade | Link by URL | ONNX, GGUF |
+| KTransformers | [Standalone server setup](https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/install.md), then link on port 10002 | GGUF, Safetensors |
+| exo | [macOS app or Linux/macOS source setup](https://github.com/exo-explore/exo), then link on port 52415 | MLX, Safetensors |
+| OpenAI-compatible | Link by URL | Determined by the server |
+
+Loom highlights the Basalt Blackwell build when the selected machine reports
+compute capability 12.0 or 12.1. Apple Silicon machines get the MLX installation
+guide. Check the selected upstream guide for driver and OS requirements.
+
+**Saved engines** remembers each direct server address and selected model.
+Activating a saved link switches inference. Unlinking returns to the machine's
+native engine and keeps the saved profile. Removing the active profile unlinks
+it. Active direct links survive a restart. Loom-owned Python servers run on
+temporary loopback ports for the lifetime of the process.
+
+`GET /api/engines/catalog` returns `host`, `engines`, `connections` and
+`active_engine`. `GET /api/engines/connections` returns the saved profiles
+and active selection. POST actions are `save` with `name`, `url`, `key`,
+`model` and `activate`, `activate` with `id` and an optional `model`,
+`unlink`, or `delete` with `id`. Credentials are encrypted in BoltDB.
+Responses indicate whether a credential is set. The existing direct-link
+action on `/api/engine/node` also saves the link.
+
+When Ollama is active, the library shows reported model sizes, quantization
+and loaded state. **Download model** and **Unload** call the selected saved
+Ollama server via `POST /api/engines/ollama/pull` and `/unload`, with
+`{"model":"qwen3:8b"}`. Pull observes the machine's installation policy.
+LM Studio model rows show reported state, architecture and context length.
+
+## SGLang and MLX
+
+`GET/POST /api/engines/sglang` and `/api/engines/mlx` expose installation,
+update, start and stop. Loom installs each within its own Python environment
+under `LOOM_HOME/engines`, using uv or a system Python venv. A GPU and matching
+drivers are required. The Linux AMD SGLang build uses the upstream ROCm 7.2
+Python 3.10 wheels for x86-64. Other ROCm setups can use a separately running
+server and link it by address. [SGLang installation](https://docs.sglang.io/docs/get-started/install) ·
+[Upstream ROCm package](https://github.com/sgl-project/sglang/blob/main/3rdparty/amd/wheel/sglang/pyproject.toml) ·
+[MLX LM server](https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/SERVER.md)
+
+**Local › Library** and **Hub** share one Hugging Face cache for vLLM and
+SGLang. Pick SGLang to load a cached model or edit its native settings.
+`GET/POST /api/engines/sglang/params` uses the same per-model parameter contract
+as vLLM below. SGLang's memory fraction defaults to 0.85. RadixAttention
+prefix caching is enabled by default, and executing model repository code is
+off by default. Starting a model launches the native server and selects it
+once ready. Stop or unload releases its process. To start an MLX model, enter
+its Hugging Face ID in the MLX engine settings.
+
+## External coding clients
+
+Open **Local › Engine › API › Connect an external coding client** to copy a
+configuration for OpenCode, Codex, Claude Code, Pi, Continue or a generic
+OpenAI client. `GET /api/engines/harness-snippets` returns the loopback
+address, any exposed LAN address, the model ID and the snippets. Use a Loom
+inference key when the snippet shows `<LOOM_API_KEY>`. For linked engines,
+the address uses Loom's web listener, which relays supported inference paths
+with the saved upstream credential.
+
+Codex requires an engine that serves OpenAI Responses. Claude Code uses
+Anthropic Messages. If the selected engine only exposes OpenAI chat, use a
+separate Anthropic-compatible bridge for Claude Code. The snippets are for
+manual client setup. [OpenCode providers](https://opencode.ai/docs/providers/) ·
+[Codex configuration](https://developers.openai.com/codex/config-reference) ·
+[Claude Code gateways](https://code.claude.com/docs/en/llm-gateway)
+
+## vLLM installation and lifecycle
 
 `GET /api/engines/vllm` reports `installed`, `version` (empty if unknown),
 `missing`, `running`, `model`, `job`, `error`, `dir`, the bounded `log` and

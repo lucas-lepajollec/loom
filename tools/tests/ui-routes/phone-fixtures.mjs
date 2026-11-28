@@ -51,6 +51,35 @@ export function phoneFixtures(ws, remote) {
     '/sessions/fixture-session-0/terminal': { terminalBuffer: 'Fixture terminal output\r\n', captureCols: 38, paneHistoryLines: 1 },
   };
   const localModel = { name: 'synthetic-model-with-a-long-name-Q4_K_M.gguf', path: '/synthetic-model-library/model.gguf', dir: '/synthetic-model-library', size: 1073741824 };
+  const engines = [
+    { id: 'llama.cpp', name: 'llama.cpp', category: 'managed', status: 'active', installed: true, default_port: 8080,
+      formats: ['GGUF'], capabilities: ['router', 'presets', 'vram'], install_options: ['prebuilt', 'source'] },
+    { id: 'sglang', name: 'SGLang', category: 'managed', status: 'installed', installed: true, default_port: 30000,
+      formats: ['Safetensors', 'FP8', 'AWQ'], capabilities: ['radix', 'structured', 'multi_gpu'], install_options: ['python'] },
+    { id: 'ollama', name: 'Ollama', category: 'runtime', status: 'detected', detected_url: 'http://127.0.0.1:11434', default_port: 11434,
+      formats: ['GGUF', 'Modelfile'], capabilities: ['pull', 'unload'], install_options: ['guide'] },
+    { id: 'mlx', name: 'MLX', category: 'server', status: 'available', requirement_note: 'apple_silicon', default_port: 8080,
+      formats: ['MLX'], capabilities: ['unified'], install_options: [] },
+    { id: 'strata', name: 'Strata', category: 'runtime', status: 'available', default_port: 8080,
+      formats: ['GGUF', '.strata'], capabilities: ['expert_streaming', 'speculative', 'openai', 'anthropic'], install_options: ['guide'] },
+    { id: 'basalt', name: 'Basalt', category: 'runtime', status: 'available', default_port: 8080,
+      formats: ['.basalt'], capabilities: ['moe', 'nvfp4', 'vision_offload', 'openai', 'anthropic'], install_options: ['guide'],
+      hardware_badge: 'blackwell', install_hint: 'basalt_cuda', install_guide: 'https://github.com/jesdga95/basalt/blob/main/docs/platforms.md' },
+    { id: 'mistral.rs', name: 'mistral.rs', category: 'runtime', status: 'available', default_port: 1234,
+      formats: ['GGUF', 'Safetensors', 'ISQ'], capabilities: ['paged', 'isq', 'vision_audio'], install_options: ['guide'] },
+    { id: 'ktransformers', name: 'KTransformers', category: 'server', status: 'available', default_port: 10002,
+      formats: ['GGUF', 'Safetensors'], capabilities: ['moe', 'heterogeneous'], install_options: ['guide'] },
+    { id: 'exo', name: 'exo', category: 'server', status: 'detected', detected_url: 'http://127.0.0.1:52415', default_port: 52415,
+      formats: ['MLX', 'Safetensors'], capabilities: ['lan_cluster', 'model_sharding'], install_options: ['guide'] },
+  ].map(engine => ({ compatible: true, installed: false, link_options: ['url'], ...engine }));
+  const savedEngines = [
+    { id: 'saved-ollama', name: 'Ollama on a machine with a long name', kind: 'ollama', url: 'http://127.0.0.1:11434', model: 'qwen3:8b', active: false, key_set: false },
+    { id: 'saved-tabby', name: 'TabbyAPI', kind: 'tabbyapi', url: 'http://192.0.2.12:5000', model, active: false, key_set: true },
+  ];
+  const harnessSnippets = Object.fromEntries(['opencode', 'codex', 'claude', 'pi', 'continue', 'openai'].map(id => [id, {
+    file: id === 'codex' ? '~/.codex/config.toml' : '',
+    content: 'Fixture model: ' + model + '\nAPI: http://127.0.0.1:8080/v1\nKey: <LOOM_API_KEY>',
+  }]));
   const observations = {
     '/api/workspace': { ...ws, runtimes: ws.runtimes.filter(r => ['local', 'cloud'].includes(r.kind)), models: [
       { id: 'fixture-cloud', name: model, model, kind: 'cloud', runtime_id: 'openai-compatible', provider_id: 'fixture', provider_name: 'Fixture cloud', enabled: true, ready: true },
@@ -60,6 +89,14 @@ export function phoneFixtures(ws, remote) {
     '/api/machines': { ok: true, machines: [remote] },
     '/api/machines/local': { ok: true, hostname: 'Fixture workstation', os: 'Linux' },
     '/api/machines/metrics': { ok: true, metrics: { [remote.id]: { cpu: 27, cores: 4, ram_total: 8 * 1024 ** 3, ram_used: 2 * 1024 ** 3 } } },
+    '/api/engines/catalog': { ok: true, engines, connections: savedEngines, active_engine: { kind: 'llama.cpp' },
+      host: { os: 'linux', arch: 'amd64', accelerators: ['CPU', 'CUDA'], gpu_count: 1 } },
+    '/api/engines/harness-snippets': { ok: true, model, url_local: 'http://127.0.0.1:8080/v1', url_lan: '',
+      key_required: true, key_placeholder: '<LOOM_API_KEY>', snippets: harnessSnippets },
+    '/api/engines/vllm': { ok: true, installed: true, running: false, job: '' },
+    '/api/engines/sglang': { ok: true, installed: true, running: false, job: '' },
+    '/api/engines/vllm/models': { ok: true, models: [{ id: 'Qwen/Qwen3-8B', size: 4096, servable: true }], cache: '/fixture/huggingface/hub' },
+    '/api/engines/vllm/download': { ok: true, download: null },
     '/api/models': [localModel],
     '/api/presets': [{ id: 'fixture-preset', name: 'A preset with a long title', model: localModel.path, ctx: 4096 }],
     '/api/chat/history': { ok: true, projects, conversations: [] },

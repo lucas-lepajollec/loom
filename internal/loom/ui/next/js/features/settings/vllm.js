@@ -10,22 +10,32 @@ import { Switch, Tip, Empty, OverflowMenu } from '../../ui/controls.js';
 import { inspectTrigger } from '../../ui/drawer.js';
 import { Modal, confirm, toast } from '../../ui/dialog.js';
 import { get, post } from '../../core/api.js';
-import { app, refreshEngineNode, refreshLibrary, refreshStatus } from '../../core/state.js';
+import { app, refreshEngineNode, refreshLibrary, refreshStatus, refreshWorkspace } from '../../core/state.js';
 import { Line, Group } from './kit.js';
 
 const VERDICT = () => ({ fits: ['green', t('vllm.verdict.fits')], tensor_parallel: ['amber', t('vllm.verdict.tp')], no: ['red', t('vllm.verdict.no')], unknown: ['', t('vllm.verdict.unknown')] });
-export const ownsVllm = (node, status) => node?.direct && node.kind === 'vllm'
-  && /^http:\/\/127\.0\.0\.1:/.test(node.url || '') && status?.running && node.model === status.model;
+export const ownsVllm = (node, state) => node?.direct && node.kind === 'vllm'
+  && (node.managed === 'vllm' || node.managed == null && /^http:\/\/127\.0\.0\.1:/.test(node.url || '')
+    && state?.running && node.model === state.model);
 
 // Réglages enregistrés pour un modèle : le catalogue vient du serveur, les
 // valeurs vides laissent vLLM choisir.
-function Params({ model, onClose, onStart }) {
+function Params({ model, onClose, onStart, kind }) {
   const [d, setD] = useState(null);
   const [v, setV] = useState({});
   const [more, setMore] = useState(false);
-  useEffect(() => { get('/api/engines/vllm/params?model=' + encodeURIComponent(model)).then(r => { setD(r); setV(r.values || {}); }).catch(e => toast(e.message, 'err')); }, [model]);
+  const endpoint = '/api/engines/' + kind + '/params';
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    get(endpoint + '?model=' + encodeURIComponent(model), { signal: controller.signal })
+      .then(r => { setD(r); setV(r.values || {}); }).catch(e => { if (!controller.signal.aborted) toast(e.message, 'err'); });
+    return () => controller.abort();
+  }, [endpoint, model]);
   const save = async start => {
-    const r = await post('/api/engines/vllm/params', { model, values: v }).catch(e => ({ ok: false, error: e.message }));
+    setSaving(true);
+    const r = await post(endpoint, { model, values: v }).catch(e => ({ ok: false, error: e.message }));
+    setSaving(false);
     if (r.ok === false) return toast(r.error || t('settings.page.action_impossible'), 'err');
     toast(t('vllm.params.saved'));
     onClose();
@@ -43,12 +53,12 @@ function Params({ model, onClose, onStart }) {
   const row = p => html`<div class=${cls('prow', p.dangerous && 'danger')} key=${p.id}><div class="prow-l"><span>${tSource(p.label)}</span>${p.tip && html`<${Tip} text=${tSource(p.tip)} />`}${p.dangerous && html`<span class="tag red">${t('vllm.params.danger')}</span>`}</div><div class="prow-c">${control(p)}</div></div>`;
   const specs = d ? (d.params || []).filter(p => p.available !== false) : [];
   return html`<${Modal} wide title=${t('vllm.params.title')} sub=${model} onClose=${onClose}
-      foot=${html`<button class="btn" onClick=${() => setV({})}>${t('vllm.params.reset')}</button><span class="grow"></span><button class="btn" onClick=${() => save(false)}>${t('vllm.params.save')}</button><button class="btn primary" onClick=${() => save(true)}>${t('vllm.params.save_start')}</button>`}>
+      foot=${html`<button class="btn" onClick=${() => setV({})}>${t('vllm.params.reset')}</button><span class="grow"></span><button class="btn" disabled=${saving || !d} onClick=${() => save(false)}>${t('vllm.params.save')}</button><button class="btn primary" disabled=${saving || !d} onClick=${() => save(true)}>${t('vllm.params.save_start')}</button>`}>
     ${!d ? html`<div class="skeleton" style="height:160px"></div>` : html`
       <div class="vl-params">${specs.filter(p => p.tier === 'essential').map(row)}</div>
       <button class="btn sm" onClick=${() => setMore(!more)}><${Icon} n=${more ? 'chevron' : 'right'} />${t('vllm.params.advanced')}</button>
       ${more && html`<div class="vl-params">${specs.filter(p => p.tier !== 'essential').map(row)}</div>`}
-      <p class="note">${t('vllm.params.note')}</p>`}
+      <p class="note">${kind === 'sglang' ? t('engines.sglang.params_note') : t('vllm.params.note')}</p>`}
   </${Modal}>`;
 }
 
@@ -92,60 +102,64 @@ function Search({ onDownload, busy, enginePicker, initialQuery = '' }) {
     <p class="models-row-meta">${t('vllm.search.estimate')}</p>`;
 }
 
-// État vLLM partagé par Local (bibliothèque, Hub, moteur) et les Réglages
-// (installation, mises à jour). Un seul module, plusieurs vues.
-const vstore = { source: '', revision: 0, x: null, lib: null, cache: '', dl: null, subs: new Set(), timer: null };
+// Runtime state is per engine. The Hugging Face library and downloads
+// belong to the selected machine and are shared by both runtimes.
+const vstore = { source: '', revision: 0, states: {}, lib: null, cache: '', dl: null, subs: new Set(), timer: null };
 const vemit = () => vstore.subs.forEach(f => f());
 async function vread(path, update) {
   const revision = vstore.revision;
   try {
-    const data = await get('/api/engines/vllm' + path);
+    const data = await get('/api/engines/' + path);
     if (revision === vstore.revision) { update(data); vemit(); }
   } catch (_) {}
 }
-const vload = () => vread('', data => { vstore.x = data; });
-const vloadLib = () => vread('/models', data => { vstore.lib = data.models || []; vstore.cache = data.cache || ''; });
-const vloadDl = () => vread('/download', data => { vstore.dl = data.download; });
+const vload = kind => vread(kind, data => { vstore.states[kind] = data; });
+const vloadLib = () => vread('vllm/models', data => { vstore.lib = data.models || []; vstore.cache = data.cache || ''; });
+const vloadDl = () => vread('vllm/download', data => { vstore.dl = data.download; });
 const dlActive = dl => dl && !dl.finished && !dl.canceled && !dl.error;
+const refreshSelection = async () => {
+  await refreshEngineNode();
+  await Promise.allSettled([refreshLibrary(), refreshStatus(), refreshWorkspace()]);
+};
 function vtick() {
   if (vstore.timer) return;
   const revision = vstore.revision;
-  vstore.timer = setInterval(async () => {
-    const wasDl = dlActive(vstore.dl), wasJob = vstore.x && vstore.x.job;
-    if (wasJob) await vload();
+  const poll = async () => {
+    const kinds = Object.keys(vstore.states).filter(kind => vstore.states[kind]?.job);
+    const wasDl = dlActive(vstore.dl);
+    await Promise.all([...kinds.map(vload), ...(wasDl ? [vloadDl()] : [])]);
     if (revision !== vstore.revision) return;
-    if (wasDl) await vloadDl();
-    if (revision !== vstore.revision) return;
-    if (wasDl && vstore.dl?.finished) vloadLib();
-    if (wasJob && vstore.x?.installed && vstore.lib === null) vloadLib();
-    if (vstore.x && !vstore.x.job && vstore.x.running && wasJob) { refreshEngineNode(); refreshStatus(); }
-    if (!(vstore.x && vstore.x.job) && !dlActive(vstore.dl)) { clearInterval(vstore.timer); vstore.timer = null; }
-  }, 1800);
+    if (wasDl && vstore.dl?.finished || kinds.some(kind => kind !== 'mlx' && vstore.states[kind]?.installed) && vstore.lib === null) vloadLib();
+    if (kinds.some(kind => !vstore.states[kind]?.job)) refreshSelection();
+    vstore.timer = null;
+    if (Object.values(vstore.states).some(x => x?.job) || dlActive(vstore.dl)) vtick();
+  };
+  vstore.timer = setTimeout(poll, 1500);
 }
-export function useVllm() {
+export function useVllm(kind = 'vllm') {
   const source = useStore(app, s => s.engineNode?.direct ? 'local' : s.engineNode?.url || 'local');
   const [, bump] = useState(0);
   useEffect(() => {
     const f = () => bump(n => n + 1);
     vstore.subs.add(f);
     if (vstore.source !== source) {
-      clearInterval(vstore.timer);
-      Object.assign(vstore, { source, revision: vstore.revision + 1, x: null, lib: null, cache: '', dl: null, timer: null });
+      clearTimeout(vstore.timer);
+      Object.assign(vstore, { source, revision: vstore.revision + 1, states: {}, lib: null, cache: '', dl: null, timer: null });
     }
     const revision = vstore.revision;
-    if (!vstore.x) vload().then(() => { if (revision === vstore.revision && vstore.x?.installed) vloadLib(); });
-    vloadDl().then(() => { if (revision === vstore.revision) vtick(); });
+    vload(kind).then(() => {
+      if (revision !== vstore.revision) return;
+      if (kind !== 'mlx' && vstore.states[kind]?.installed) vloadLib();
+      vtick();
+    });
+    if (kind === 'vllm') vloadDl().then(() => { if (revision === vstore.revision) vtick(); });
     return () => vstore.subs.delete(f);
-  }, [source]);
+  }, [source, kind]);
   const act = async body => {
-    const r = await post('/api/engines/vllm', body).catch(e => ({ ok: false, error: e.message }));
+    const r = await post('/api/engines/' + kind, body).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) { toast(r.error || t('settings.page.action_impossible'), 'err'); return false; }
-    await vload();
-    if (body.action === 'stop') {
-      await refreshEngineNode();
-      refreshLibrary();
-      refreshStatus();
-    }
+    await vload(kind);
+    if (body.action === 'stop') await refreshSelection();
     vtick();
     return true;
   };
@@ -161,7 +175,8 @@ export function useVllm() {
     vloadLib();
   };
   const data = vstore.source === source ? vstore : { x: null, lib: null, cache: '', dl: null };
-  return { ...data, act, start: model => act({ action: 'start', model }), download, remove, reload: vload, reloadDl: vloadDl };
+  const label = { vllm: 'vLLM', sglang: 'SGLang', mlx: 'MLX' }[kind];
+  return { ...data, x: data.states?.[kind], kind, label, act, start: model => act({ action: 'start', model }), download, remove, reload: () => vload(kind), reloadDl: vloadDl };
 }
 
 function DownloadRow({ v }) {
@@ -193,7 +208,7 @@ export function VllmLibraryStatus({ v }) {
   return html`
     <section class="models-card models-status" aria-label=${t('local.page.moteur')}>
       <i class=${cls('dot', loading ? 'amber' : x.running ? 'green' : '')} aria-hidden="true"></i>
-      <div class="models-row-main"><b>${t('models.engine.state', { engine: 'vLLM', state })}</b>
+      <div class="models-row-main"><b>${t('models.engine.state', { engine: v.label, state })}</b>
         <small>${[active && x.model, x.version].filter(Boolean).join(' · ')}</small>
       </div>
       ${!active && startModel && html`<${ListPick} class="models-start-model" label=${t('local.page.modele')} value=${startModel}
@@ -245,7 +260,7 @@ export function VllmLibrary({ v, onHub, enginePicker, phone, defaultModel }) {
               <${OverflowMenu} label=${t('models.row.actions', { name: m.id })} disabled=${!phone && on} items=${items} />
             </div>
           </div>`;
-        }) : html`<${Empty} icon="download" title=${q ? t('local.page.aucun_resultat') : t('vllm.lib.empty_title')} text=${q ? t('local.page.essaie_un_autre_filtre') : t('vllm.lib.empty')}>
+        }) : html`<${Empty} icon="download" title=${q ? t('local.page.aucun_resultat') : t('engines.library.empty_title', { engine: v.label })} text=${q ? t('local.page.essaie_un_autre_filtre') : t('engines.library.empty', { engine: v.label })}>
           ${!phone && !q && html`<button class="btn" onClick=${onHub}>${t('vllm.lib.add')}</button>`}
         </${Empty}>`}
       </div>`}
@@ -258,7 +273,7 @@ export function VllmLibrary({ v, onHub, enginePicker, phone, defaultModel }) {
     </details>`}
     ${v.cache && html`<p class="models-row-meta">${t('vllm.lib.cache')} <code class="mono">${v.cache.replace(/^\/home\/[^/]+/, '~')}</code></p>`}
     ${phone && html`<a class="btn models-phone-download" href="#/local/hub">${t('local.page.telecharger_un_modele')}</a>`}
-    ${params && html`<${Params} model=${params} onClose=${() => setParams(null)} onStart=${v.start} />`}`;
+    ${params && html`<${Params} kind=${v.kind} model=${params} onClose=${() => setParams(null)} onStart=${v.start} />`}`;
 }
 
 // Local › Hub (vLLM) : recherche sur Hugging Face avec estimation de VRAM.
@@ -271,7 +286,7 @@ export function VllmEngine({ v }) {
   const x = v.x;
   if (!x) return html`<div class="skeleton" style="height:120px"></div>`;
   return html`<section class="models-group">
-    <div class="models-section-head"><h2>vLLM</h2></div>
+    <div class="models-section-head"><h2>${v.label}</h2></div>
     <div class="models-card">
       <div class="models-row">
         <i class=${cls('dot', x.job ? 'amber' : x.running && 'green')} aria-hidden="true"></i>
@@ -279,7 +294,7 @@ export function VllmEngine({ v }) {
           <small>${[x.model, x.version].filter(Boolean).join(' · ')}</small></div>
         ${(x.running || x.job === 'start') && html`<button class="btn sm" onClick=${() => v.act({ action: 'stop' })}>${t('settings.page.arreter')}</button>`}
       </div>
-      ${x.log && html`<details class="models-extra"><summary>${t('settings.page.journal_vllm')}</summary><pre class="log mono vl-log">${x.log.split('\n').slice(-120).join('\n')}</pre></details>`}
+      ${x.log && html`<details class="models-extra"><summary>${t('local.page.journal_du_moteur')}</summary><pre class="log mono vl-log">${x.log.split('\n').slice(-120).join('\n')}</pre></details>`}
     </div>
     ${(x.error || x.auto_update?.last_error) && html`<div class="alert red"><${Icon} n="alert" /><span>${x.error || x.auto_update?.last_error}</span></div>`}
     ${!x.running && !x.job && html`<p class="note">${t('vllm.eng.hint')}</p>`}

@@ -25,7 +25,7 @@ func forwardEngineServiceControl(w http.ResponseWriter, r *http.Request) bool {
 			}
 			r.Body = io.NopCloser(bytes.NewReader(body))
 		}
-		req, err := http.NewRequestWithContext(r.Context(), r.Method, engineBase()+strings.Replace(r.URL.Path, "/api/", "/loom/", 1), bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(r.Context(), r.Method, localEngineBase()+strings.Replace(r.URL.Path, "/api/", "/loom/", 1), bytes.NewReader(body))
 		if err == nil {
 			req.Host = r.Host
 			req.Header.Set("Authorization", "Bearer "+loomInferenceSecret())

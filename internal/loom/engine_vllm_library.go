@@ -378,6 +378,13 @@ func deleteVLLMCache(model string) error {
 	if (vllm.cmd != nil || vllm.job == "start") && vllm.model == model || vllm.job == "start" && vllm.pendingModel == model {
 		return errors.New("model used by vLLM")
 	}
+	for _, engine := range []*pythonEngine{sglang, mlx} {
+		engine.mu.Lock()
+		defer engine.mu.Unlock()
+		if engine.servingModel == model || engine.job == "start" && engine.model == model {
+			return fmt.Errorf("model used by %s", engine.label)
+		}
+	}
 	vllmDownloads.mu.Lock()
 	defer vllmDownloads.mu.Unlock()
 	if vllmDownloads.state != nil && !vllmDownloads.state.Finished && vllmDownloads.state.Model == model {

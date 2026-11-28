@@ -47,6 +47,14 @@ func registerEngineControlRoutes(api func(string, http.HandlerFunc)) {
 	for _, path := range []string{"/api/engine/keys", "/api/engine/keys/update", "/api/engine/keys/delete", "/api/engine/keys/rotate"} {
 		api(path, handleEngineKeys)
 	}
+	api("/api/engines/catalog", handleEngineCatalog)
+	api("/api/engines/connections", handleEngineConnections)
+	api("/api/engines/harness-snippets", handleHarnessSnippets)
+	api("/api/engines/ollama/pull", handleOllamaPull)
+	api("/api/engines/ollama/unload", handleOllamaUnload)
+	api("/api/engines/sglang", handleSGLang)
+	api("/api/engines/sglang/params", handleSGLangParams)
+	api("/api/engines/mlx", handleMLX)
 	api("/api/engines/vllm", handleVLLM)
 	api("/api/engines/vllm/params", handleVLLMParams)
 	api("/api/engines/vllm/auto-update", handleVLLMAuto)

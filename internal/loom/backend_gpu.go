@@ -140,9 +140,13 @@ func detectGPUs() ([]gpuInfo, error) {
 		}
 		return nil, fmt.Errorf("nvidia-smi not found — GPU selection via `loom gpu` is only available on NVIDIA")
 	}
-	out, err := hideCmd(exec.Command("nvidia-smi",
-		"--query-gpu=index,name,memory.total,memory.used,compute_cap",
-		"--format=csv,noheader,nounits")).Output()
+	return queryNvidiaGPUs(func(name string, args ...string) ([]byte, error) {
+		return hideCmd(exec.Command(name, args...)).Output()
+	})
+}
+
+func queryNvidiaGPUs(run gpuCommandRunner) ([]gpuInfo, error) {
+	out, err := run("nvidia-smi", "--query-gpu=index,name,memory.total,memory.used,compute_cap", "--format=csv,noheader,nounits")
 	if err != nil {
 		return nil, fmt.Errorf("nvidia-smi failed: %w", err)
 	}

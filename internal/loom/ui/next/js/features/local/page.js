@@ -14,6 +14,8 @@ import { ParamsEditor, draftSource, liveSource } from '../inspector/params.js';
 import { Config } from '../inspector/config.js';
 import { useVllm, VllmLibrary, VllmLibraryStatus, VllmHub, ownsVllm } from '../settings/vllm.js';
 import { Hub } from './hub.js';
+import { KIND_LABEL } from '../settings/page.js';
+import { refreshEngineSelection, selectLibrary } from './engines.js';
 
 const modelName = name => (name || '').replace(/\.gguf$/i, '');
 const QUANT = /(?:^|[-_.])((?:I?Q\d(?:_[A-Z0-9]+)*)|F16|BF16|F32)(?=[-_.]|$)/i;
@@ -333,7 +335,14 @@ function Library({ enginePicker, phone = false, defaultModel }) {
     </${Drawer}>`}`;
 }
 
-export const engineKind = kind => kind === 'vllm' ? 'vLLM' : kind === 'openai' ? t('local.page.serveur_compatible_openai') : kind || 'llama.cpp';
+export const engineKind = kind => KIND_LABEL[kind] || kind || 'llama.cpp';
+
+export function observedDirectEngine(node, status) {
+  if (node?.direct) return node;
+  if (!node || !status?.engine_direct) return null;
+  return { direct: true, kind: status.engine_kind, managed: status.engine_managed, model: status.model,
+    hostname: status.hostname || node.hostname, url: status.engine_url, reachable: status.health };
+}
 
 export function useEngineServer() {
   const [server, setServer] = useState(null);
@@ -366,13 +375,13 @@ export function serverActivity(server) {
   ].filter(Boolean);
 }
 
-export function EngineRuntime({ node, location, vllm, management, access, maintenance }) {
+export function EngineRuntime({ node, location, managed, management, access, maintenance }) {
   const server = useEngineServer();
   const { status, unavailable } = useStore(app, s => ({ status: s.status, unavailable: s.unavailable?.status }));
   const [log, setLog] = useState(null);
   const [acting, setActing] = useState(false);
-  const direct = node?.direct && !vllm;
-  const x = vllm?.x;
+  const direct = node?.direct && !managed;
+  const x = managed?.x;
   const kind = engineKind(node?.kind || status?.engine_kind || server?.engine_kind);
   const running = x?.running ?? status?.active;
   const starting = x ? x.job === 'start' : running && !status?.health;
@@ -393,9 +402,9 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
   const act = async action => {
     setActing(true);
     try {
-      if (vllm) {
-        if (action === 'stop') await vllm.act({ action });
-        else if (model) await vllm.start(model);
+      if (managed) {
+        if (action === 'stop') await managed.act({ action });
+        else if (model) await managed.start(model);
       } else {
         await controlEngine(action);
       }
@@ -420,7 +429,7 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
           ${running || x?.job === 'start' ? html`
             ${x?.job !== 'start' && html`<button class="btn sm" disabled=${acting || unavailable} onClick=${() => act('restart')}>${t('local.page.redemarrer')}</button>`}
             <button class="btn sm" disabled=${acting || unavailable} onClick=${() => act('stop')}>${t('local.page.arreter')}</button>`
-            : vllm ? html`<a class="btn sm" href="#/local">${t('local.page.bibliotheque')}</a>`
+            : managed ? html`<a class="btn sm" href="#/local">${t('local.page.bibliotheque')}</a>`
               : html`<button class="btn sm primary" disabled=${acting || unavailable || !status} onClick=${() => act('start')}>${t('local.page.demarrer')}</button>`}
         </div>`}
       </div>
@@ -440,16 +449,31 @@ export function EngineRuntime({ node, location, vllm, management, access, mainte
   </div>`;
 }
 
-function DirectLibrary({ node, hub, defaultModel }) {
+function DirectLibrary({ node, hub, defaultModel, enginePicker }) {
   const { models, unavailable } = useStore(app, s => ({ models: s.models, unavailable: s.unavailable.models }));
   useEffect(() => { refreshLibrary(); }, []);
   const list = models.filter(m => m.remote);
   const kind = engineKind(node.kind);
+  const ollama = node.kind === 'ollama';
+  const [pull, setPull] = useState(false);
+  const [model, setModel] = useState('');
+  const [busy, setBusy] = useState('');
+  const act = async (action, name) => {
+    if (!name || busy) return;
+    setBusy(action);
+    try {
+      const r = await post('/api/engines/ollama/' + action, { model: name },
+        { timeout: action === 'pull' ? 60 * 60_000 : 20_000, retryAuth: false }).catch(e => ({ ok: false, error: e.message }));
+      if (!r.ok) return toast(r.error || t('local.page.action_impossible'), 'err');
+      if (action === 'pull') { setPull(false); setModel(''); }
+      toast(t(action === 'pull' ? 'engines.ollama.pulled' : 'engines.ollama.unloaded', { model: name }));
+      await refreshLibrary();
+    } finally { setBusy(''); }
+  };
   const pick = async m => {
     const r = await post('/api/load-model', { model: m });
     if (!r.ok) return toast(r.error || t('local.page.action_impossible'), 'err');
-    refreshEngineNode();
-    refreshStatus();
+    await refreshEngineSelection();
     toast(t('local.page.modele_utilise') + m);
   };
   return html`
@@ -459,52 +483,87 @@ function DirectLibrary({ node, hub, defaultModel }) {
         <small>${[node.reachable ? t('common.reachable') : t('common.unreachable'), node.model, node.url].filter(Boolean).join(' · ')}</small></div>
       <a class="btn" href="#/engine">${t('local.page.emplacement_du_moteur')}</a>
     </section>
+    ${enginePicker && html`<div class="models-toolbar">${enginePicker}</div>`}
     ${hub ? html`<div class="models-card"><${Empty} icon="server" title=${t('models.hub.direct_title')} text=${t('models.hub.direct_hint')}>
       <a class="btn" href="#/local">${t('local.page.bibliotheque')}</a>
     </${Empty}></div>` : html`
       <section class="models-group">
-        <div class="models-section-head"><h2>${t('local.page.modeles_servis')}</h2></div>
-        <div class="models-card">${list.length ? list.map(m => html`<div class="models-row" key=${m.value}>
-          <div class="models-row-main"><b>${m.name}</b>${m.name !== m.value && html`<small>${m.value}</small>`}
-            ${m.value === defaultModel && html`<small>${t('settings.default.label')}</small>`}</div>
-          ${node.model === m.value ? html`<span class="models-good">${t('local.page.utilise_par_loom')}</span>`
-            : html`<button class="btn sm" onClick=${() => pick(m.value)}>${t('local.page.utiliser')}</button>`}
-        </div>`) : html`<div class="models-row models-empty">${unavailable ? t('engine.na.unreachable') : t('local.page.aucun_modele')}</div>`}</div>
-      </section>`}`;
+        <div class="models-section-head"><h2>${t('local.page.modeles_servis')}</h2>
+          ${ollama && html`<button class="btn" disabled=${!!busy || !node.reachable} onClick=${() => setPull(true)}><${Icon} n="plus" />${t('engines.ollama.pull')}</button>`}
+        </div>
+        <div class="models-card">${list.length ? list.map(m => {
+          const details = [
+            m.quantization, m.size > 0 && fmtBytes(m.size), m.architecture,
+            m.max_context_length > 0 && t('models.library.native_context', { context: m.max_context_length }),
+          ].filter(Boolean).join(' · ');
+          return html`<div class="models-row engine-direct-row" key=${m.value}>
+            <div class="models-row-main"><b>${m.name}</b>${m.name !== m.value && html`<small>${m.value}</small>`}
+              ${details && html`<small>${details}</small>`}
+              ${typeof m.loaded === 'boolean' && html`<small class=${m.loaded ? 'models-good' : ''}>${t(m.loaded ? 'local.page.charge' : 'engines.model.not_loaded')}</small>`}
+              ${m.value === defaultModel && html`<small>${t('settings.default.label')}</small>`}</div>
+            <div class="models-actions">
+              ${node.model === m.value ? html`<span class="models-good">${t('local.page.utilise_par_loom')}</span>`
+                : html`<button class="btn sm" onClick=${() => pick(m.value)}>${t('local.page.utiliser')}</button>`}
+              ${ollama && m.loaded === true && html`<button class="btn sm" disabled=${!!busy} onClick=${() => act('unload', m.value)}>${t('local.page.decharger')}</button>`}
+            </div>
+          </div>`;
+        }) : html`<div class="models-row models-empty">${unavailable ? t('engine.na.unreachable') : t('local.page.aucun_modele')}</div>`}</div>
+      </section>`}
+    ${pull && html`<${Modal} title=${t('engines.ollama.pull')} onClose=${() => { if (!busy) setPull(false); }}
+      foot=${html`<button class="btn" disabled=${!!busy} onClick=${() => setPull(false)}>${t('local.page.annuler')}</button>
+        <button class="btn primary" disabled=${!!busy || !model.trim()} onClick=${() => act('pull', model.trim())}>${t('engines.ollama.pull')}</button>`}>
+      <label class="field"><span>${t('local.page.modele')}</span><input autofocus class="input" placeholder="qwen3:8b" value=${model} disabled=${!!busy}
+        onInput=${e => setModel(e.target.value)} onKeyDown=${e => { if (e.key === 'Enter') act('pull', model.trim()); }} /></label>
+      ${busy && html`<p class="state" role="status"><span class="spinner"></span>${t('engines.ollama.pulling')}</p>`}
+    </${Modal}>`}`;
+
 }
 
 export function LocalPage({ route }) {
   const phone = usePhone();
-  const node = useStore(app, a => a.engineNode);
+  const { node, status } = useStore(app, a => ({ node: a.engineNode, status: a.status }));
   const defaultModel = useStore(app, ({ workspace: ws }) => phone ? ws?.models?.find(m => m.kind === 'local' && m.enabled && m.id === ws.chat?.default_choice)?.model : undefined);
   const v = useVllm();
+  const sglang = useVllm('sglang');
   const [engine, setEngineState] = useState(() => {
     try { return localStorage.getItem('loom.local.engine') || ''; } catch (_) { return ''; }
   });
   const setEngine = value => {
     setEngineState(value);
-    try { localStorage.setItem('loom.local.engine', value); } catch (_) {}
+    selectLibrary(value);
   };
+  const [entered, setEntered] = useState(false);
   if (route.sub === 'engine') { go('engine'); return null; }
   const hub = route.sub === 'hub';
   const hubQuery = hub ? route.id : '';
-  const ownedVllm = ownsVllm(node, v.x);
-  const direct = node?.direct && !ownedVllm;
-  const which = v.x?.installed && (engine === 'vllm' || (!engine && (ownedVllm || v.x.running))) ? 'vllm' : 'llama';
-  const enginePicker = v.x?.installed && html`<${Seg} size="sm" label=${t('vllm.local.engine')} value=${which} onChange=${setEngine}
-    options=${[{ value: 'llama', label: 'llama.cpp' }, { value: 'vllm', label: 'vLLM' }]} />`;
-  const owner = node?.url || 'local';
-  const hubKey = owner + '/' + hubQuery;
+  const direct = observedDirectEngine(node, status);
+  const owned = ownsVllm(direct, v.x) ? v : direct?.managed === 'sglang' ? sglang : null;
+  const options = [
+    ...(direct && !owned ? [{ value: 'direct', label: engineKind(direct.kind) }] : []),
+    { value: 'llama', label: 'llama.cpp' },
+    ...(v.x?.installed ? [{ value: 'vllm', label: 'vLLM' }] : []),
+    ...(sglang.x?.installed ? [{ value: 'sglang', label: 'SGLang' }] : []),
+  ];
+  const fallback = options.find(o => o.value === (owned?.kind || (direct ? 'direct' : (sglang.x?.running ? 'sglang' : v.x?.running ? 'vllm' : 'llama'))))?.value || options[0].value;
+  const pickEngine = value => { setEntered(true); setEngine(value); };
+  const which = (!direct || owned || entered || engine === 'direct') && options.some(o => o.value === engine) ? engine : fallback;
+  const enginePicker = options.length > 1 && html`<${Seg} class="engine-library-picker" size="sm" label=${t('vllm.local.engine')} value=${which} onChange=${pickEngine} options=${options} />`;
+  const runtime = which === 'sglang' ? sglang : which === 'vllm' ? v : null;
+  const owner = direct?.url || node?.url || 'local';
+  const hubKey = owner + '/' + hubQuery + '/' + which;
   return html`<div class="view page models-page" key=${route.sub}><div class=${cls('page-in models-layout', !hub && 'models-library')}>
     <${SectionTabs} />
     ${!phone && html`<h1 class="sr">${hub ? t('local.page.hub') : t('local.page.bibliotheque')}</h1>`}
-    ${direct ? html`<${DirectLibrary} key=${owner} node=${node} hub=${hub} defaultModel=${defaultModel} />`
-      : which === 'vllm' ? (hub ? html`<${VllmHub} key=${hubKey} v=${v} enginePicker=${enginePicker} initialQuery=${hubQuery} />`
-        : html`<${VllmLibrary} key=${owner} v=${v} onHub=${() => go('local', 'hub')} enginePicker=${enginePicker} phone=${phone} defaultModel=${defaultModel} />`)
+    ${which === 'direct' ? html`<${DirectLibrary} key=${owner} node=${direct} hub=${hub} defaultModel=${defaultModel} enginePicker=${enginePicker} />`
+      : runtime ? (hub ? html`<${VllmHub} key=${hubKey} v=${runtime} enginePicker=${enginePicker} initialQuery=${hubQuery} />`
+        : html`<${VllmLibrary} key=${owner + '/' + which} v=${runtime} onHub=${() => go('local', 'hub')} enginePicker=${enginePicker} phone=${phone} defaultModel=${defaultModel} />`)
       : hub ? html`<${Hub} key=${hubKey} enginePicker=${enginePicker} initialQuery=${hubQuery} />`
-      : ownedVllm ? html`<${VllmLibraryStatus} v=${v} />
+      : owned?.x ? html`<${VllmLibraryStatus} v=${owned} />
           <div class="models-toolbar">${enginePicker}</div>
-          <p class="models-row-meta">${t('models.library.stop_vllm_hint')}</p>`
+          <p class="models-row-meta">${t('engines.library.stop_hint', { engine: owned.label })}</p>`
+      : direct ? html`<div class="models-toolbar">${enginePicker}</div>
+          <p class="models-row-meta">${t('engines.library.unlink_hint', { engine: engineKind(direct.kind) })}</p>
+          <a class="btn" href="#/engine">${t('local.page.emplacement_du_moteur')}</a>`
       : html`<${Library} key=${owner} enginePicker=${enginePicker} phone=${phone} defaultModel=${defaultModel} />`}
   </div></div>`;
 }

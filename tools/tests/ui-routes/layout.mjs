@@ -15,6 +15,7 @@ export function phoneLayoutIssues() {
     '.phone-tabs a', '.phone-back', '.phone-title button', '.phone-row-open', '.phone-link',
     '.phone-composer .send', '.inbox-reply .send', '.cm-phone-line .send', '.cm-acc button',
     '.phone-back-link', '.phone-section-tabs a', '.machine-card-link', '.machine-add', '.models-compact-row [role=button]',
+    '.engine-catalog button.btn', '.engine-harness button.btn', '.engine-library-picker button',
     '.phone-management [aria-haspopup=menu].icon-btn', '.phone-settings :is(.seg button, .select, .switch)',
   ].join(', ');
   for (const el of elements) {

@@ -11,7 +11,8 @@ import { Tip } from '../../ui/controls.js';
 import { DirectEngineForm, Engine, ModelDirs } from '../settings/page.js';
 import { ApiSettings } from '../settings/api.js';
 import { useVllm, VllmEngine, VLLMEngine, ownsVllm } from '../settings/vllm.js';
-import { engineKind, EngineRuntime } from '../local/page.js';
+import { engineKind, EngineRuntime, observedDirectEngine } from '../local/page.js';
+import { EngineCatalog } from '../local/engines.js';
 import { EngineMemory, EngineSlots, EngineRecent } from '../local/service.js';
 import { WorkspaceManager } from '../workspaces/folders.js';
 
@@ -56,11 +57,15 @@ function LocationRow({ node }) {
 
 function EnginePanels({ node }) {
   const v = useVllm();
-  const ownedVllm = ownsVllm(node, v.x);
-  return html`<${EngineRuntime} node=${node} location=${html`<${LocationRow} node=${node} />`} vllm=${ownedVllm ? v : null}
+  const sglang = useVllm('sglang');
+  const mlx = useVllm('mlx');
+  const status = useStore(app, s => s.status);
+  const direct = observedDirectEngine(node, status);
+  const managed = ownsVllm(direct, v.x) ? v : direct?.managed === 'sglang' ? sglang : direct?.managed === 'mlx' ? mlx : null;
+  return html`<${EngineRuntime} node=${direct || node} location=${html`<${LocationRow} node=${node} />`} managed=${managed}
     management=${server => html`
       <${EngineMemory} local=${node?.direct}><${EngineSlots} server=${server} /></${EngineMemory}>
-      ${!ownedVllm && server?.engine_kind !== 'vllm' && (v.x?.running || v.x?.job === 'start') && html`<${VllmEngine} v=${v} />`}`}
+      ${managed !== v && server?.engine_kind !== 'vllm' && (v.x?.running || v.x?.job === 'start') && html`<${VllmEngine} v=${v} />`}`}
     access=${server => html`<${ApiSettings} compact server=${server}><${EngineRecent} server=${server} /></${ApiSettings}>`}
     maintenance=${html`<details class="models-extra models-card models-engine-maintenance">
       <summary>${t('models.engine.advanced')}</summary>
@@ -78,6 +83,7 @@ export function EnginePage() {
     <${SectionTabs} />
     <h1 class="sr">${t('models.engine.tab')}</h1>
     <${EnginePanels} key=${node?.url || 'local'} node=${node} />
+    <${EngineCatalog} source=${node?.url || 'local'} />
   </div></div>`;
 }
 

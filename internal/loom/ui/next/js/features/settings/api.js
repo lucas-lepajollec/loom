@@ -25,6 +25,55 @@ function Copyable({ value, what, big }) {
     <button class="icon-btn" aria-label=${t('api.copy', { what })} title=${t('api.copy', { what })} onClick=${() => copy(value, what)}><${Icon} n="copy" /></button></span>`;
 }
 
+const harnessTabs = [
+  ['opencode', 'OpenCode'], ['codex', 'Codex'], ['claude', 'Claude Code'],
+  ['pi', 'Pi'], ['continue', 'Continue'], ['openai', 'OpenAI'],
+];
+
+function HarnessContent({ source }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(false);
+  const [client, setClient] = useState('opencode');
+  const [lan, setLAN] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = () => get('/api/engines/harness-snippets', { signal: controller.signal, retryAuth: false })
+      .then(r => { if (!controller.signal.aborted) { setData(r); setError(false); } })
+      .catch(() => { if (!controller.signal.aborted) setError(true); });
+    load();
+    const off = onChanged(event => { if (/^\/api\/(engine\/keys|network|apikey)\b/.test(event.detail?.url)) load(); });
+    return () => { controller.abort(); off(); };
+  }, [source]);
+  if (error) return html`<p class="note" role="status">${t('api.unavailable')}</p>`;
+  if (!data) return html`<div class="skeleton models-loading"></div>`;
+  const snippet = data.snippets[client];
+  const label = harnessTabs.find(([id]) => client === id)[1];
+  const content = lan && snippet.lan ? snippet.lan : snippet.content;
+  return html`
+    <div class="engine-filter-pills" role="group" aria-label=${t('engines.harness.clients')}>
+      ${harnessTabs.map(([id, title]) => html`<button key=${id} class="btn pill" type="button" aria-pressed=${client === id} onClick=${() => setClient(id)}>
+        ${id === 'openai' ? t('engines.harness.openai') : title}</button>`)}
+    </div>
+    ${data.url_lan && html`<div class="engine-filter-pills" role="group" aria-label=${t('api.base_url')}>
+      <button class="btn pill" type="button" aria-pressed=${!lan} onClick=${() => setLAN(false)}>${t('api.this_machine')}</button>
+      <button class="btn pill" type="button" aria-pressed=${lan} onClick=${() => setLAN(true)}>${t('engines.harness.lan')}</button>
+    </div>`}
+    ${data.key_required && html`<p class="note">${t('engines.harness.key', { key: data.key_placeholder })}</p>`}
+    ${snippet.note && html`<p class="note">${t(`engines.harness.${snippet.note}`)}</p>`}
+    <div class="engine-snippet-head"><code class="mono engine-wrap">${snippet.file}</code>
+      <button class="btn sm" onClick=${() => copy(content, label)} aria-label=${t('api.copy', { what: label })}>${t('local.page.copier')}</button>
+    </div>
+    <pre class="engine-snippet mono">${content}</pre>`;
+}
+
+function HarnessWiring({ source }) {
+  const [open, setOpen] = useState(false);
+  return html`<details class="models-extra models-card engine-harness" onToggle=${e => setOpen(e.currentTarget.open)}>
+    <summary>${t('engines.harness.title')}</summary>
+    ${open && html`<div class="engine-harness-body"><${HarnessContent} source=${source} /></div>`}
+  </details>`;
+}
+
 export function ApiSettings({ compact = false, server, children }) {
   const node = useStore(app, a => a.engineNode);
   const status = useStore(app, a => a.status);
@@ -85,6 +134,8 @@ export function ApiSettings({ compact = false, server, children }) {
       <p class="note muted api-note">${t('api.models_note')}</p>`
     : html`<p class="note muted api-note">${err && !remote ? t('api.unavailable') : t('api.models_empty')}</p>`;
 
+  const snippets = html`<${HarnessWiring} source=${JSON.stringify([node?.url, node?.model, status?.model, status?.engine_url, exposed, keyRequired])} />`;
+
   if (compact) return html`
     <section class="models-group">
       <div class="models-section-head"><h2>${t('models.api.title')}</h2></div>
@@ -114,6 +165,7 @@ export function ApiSettings({ compact = false, server, children }) {
       </div>
     </section>
     <${EngineKeys} compact local=${direct} catalog=${models.map(m => m.id).filter(Boolean)} />
+    ${snippets}
     ${children}
     <details class="models-extra models-card">
       <summary>${direct ? t('models.api.this_machine') : t('api.app_title')}</summary>
@@ -148,6 +200,7 @@ export function ApiSettings({ compact = false, server, children }) {
     </${Group}>
 
     <${EngineKeys} />
+    ${snippets}
 
     <${Group} title=${t('api.models_title')}>${modelList}</${Group}>`;
 }

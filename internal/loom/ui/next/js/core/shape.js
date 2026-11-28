@@ -40,11 +40,19 @@ export const chatShape = { items: rows, frozen: rows, session: optional(session)
 const form = { required: strings, properties: value => value == null || isObject(value) && Object.values(value).every(v => validShape(v, { title: '', description: '', enum: list(value => value === null || ['string', 'number', 'boolean'].includes(typeof value)), enumNames: strings })) };
 const event = { type: '', text: '', error: '', seq: 0, session: optional(session), context: optional(context), state: null, modes: rows, options, files: list(value => typeof value === 'string' || validShape(value, {})), commands: rows, entries: rows, request: optional({ questions: list({ options: rows }), schema: optional(form) }), approval: optional({ options: rows }), tool: optional({ diffs: rows, locations: rows }), provenance: optional({ events: rows }) };
 export const eventShape = value => validShape(value, event) && (value.type !== 'files' || changedFiles(value.files));
+const engineModel = { name: '', size: 0, remote: false, quantization: '', architecture: '', loaded: optional(false), max_context_length: 0 };
+const engineConnection = value => validShape(value, { id: '', name: '', url: '', kind: '', model: '', active: false, key_set: false })
+  && typeof value.id === 'string' && typeof value.url === 'string' && typeof value.kind === 'string';
+const activeEngine = { kind: '', url: '', model: '', connection_id: '', managed: '' };
+const engineEntry = { id: '', name: '', status: '', compatible: false, installed: false, default_port: 0, formats: [''],
+  capabilities: [''], install_options: [''], link_options: [''], detected_url: '', requirement_note: '',
+  install_guide: '', install_hint: '', hardware_badge: '' };
+const snippet = value => validShape(value, { file: '', content: '', lan: '', note: '' }) && typeof value.content === 'string';
 const shapes = {
-  '/api/models': [value => validShape(value, { name: '' }) && typeof value.name === 'string'], '/api/presets': [{ id: '', name: '' }], '/api/vram': [{}], '/api/backends': [{}],
+  '/api/models': [value => validShape(value, engineModel) && typeof value.name === 'string'], '/api/presets': [{ id: '', name: '' }], '/api/vram': [{}], '/api/backends': [{}],
   '/api/models/download/status': [{}], '/api/backends/custom': [{}],
   '/api/chat/upload': { id: '', path: '' },
-  '/api/status': { active: false, health: false, model: '', model_name: '', preset_name: '' }, '/api/ping': { version: '', hostname: '' }, '/api/engine/node': { remote: false, degraded: rows, kind: '', models: strings },
+  '/api/status': { active: false, health: false, model: '', model_name: '', preset_name: '' }, '/api/ping': { version: '', hostname: '' }, '/api/engine/node': { remote: false, degraded: rows, kind: '', managed: '', models: strings },
   '/api/workspace': workspace, '/api/chat/history': { conversations: rows, projects: list(project) },
   '/api/runtime/sessions': { sessions: list(session), session: optional(session), context: optional(context) },
   '/api/agent': { pages: list(value => validShape(value, {}) && typeof value.name === 'string'), skills: list(value => validShape(value, {}) && typeof value.name === 'string') }, '/api/providers': { providers: list({ models: strings }) },
@@ -69,6 +77,16 @@ const shapes = {
   '/api/engine/params': { params: list({ choices: list([]) }) }, '/api/model-caps': { mmproj: strings, effort: strings },
   '/api/hub/search': { models: list(value => validShape(value, {}) && typeof value.id === 'string') }, '/api/hub/model': { files: list(value => validShape(value, {}) && typeof value.name === 'string') }, '/api/models/dirs': { dirs: rows },
   '/api/bench/tests': { tests: rows },'/api/bench/queue': { job: optional({ rows }), rows }, '/api/bench/runs': { runs: list({ rows }) },
+  '/api/engines/catalog': { host: { os: '', arch: '', accelerators: [''], gpu_count: 0 }, active_engine: activeEngine,
+    engines: [value => validShape(value, engineEntry) && typeof value.id === 'string' && typeof value.name === 'string' && Array.isArray(value.formats)
+      && Array.isArray(value.capabilities) && Array.isArray(value.install_options) && Array.isArray(value.link_options)],
+    connections: [engineConnection] },
+  '/api/engines/connections': { connections: [engineConnection], active_engine: activeEngine },
+  '/api/engines/harness-snippets': { url_local: '', url_lan: '', model: '', key_required: false, key_placeholder: '',
+    snippets: value => isObject(value) && ['opencode', 'codex', 'claude', 'pi', 'continue', 'openai'].every(id => snippet(value[id])) },
+  '/api/engines/sglang': { job: '', model: '', installed: false, running: false, requirement_note: '' },
+  '/api/engines/mlx': { job: '', model: '', installed: false, running: false, requirement_note: '' },
+  '/api/engines/sglang/params': { params: list({ choices: list([]) }), values: {} },
   '/api/engines/vllm': { job: '', download: null }, '/api/engines/vllm/download': { download: null }, '/api/engines/vllm/models': { models: rows }, '/api/engines/vllm/hub/search': { models: rows }, '/api/engines/vllm/params': { params: list({ choices: list([]) }), values: {} },
   '/api/policy/pending': { requests: rows }, '/api/policy': { rules: list(value => validShape(value, { conditions: optional({ command_prefixes: strings }) }) && typeof value.id === 'string') }, '/api/policy/audit': { entries: rows }, '/api/doctor/run': { checks: rows },
   '/api/startup': { services: rows, engines: optional({ vllm_models: strings }) }, '/api/https': { urls: strings },
@@ -83,9 +101,10 @@ export function validData(value, url = '') {
   const path = url.split('?')[0];
   // POST probe on this same endpoint returns a direct engine catalog, while
   // GET and link/unlink return the selected node. Preserve both contracts.
-  if (path === '/api/engine/node' && isObject(value) && !('remote' in value) && typeof value.kind === 'string') return validShape(value.models, ['']);
+  if (['/api/engine/node', '/api/engines/connections'].includes(path) && isObject(value) && !('remote' in value) && typeof value.kind === 'string') return validShape(value.models, ['']);
   let shape = shapes[path] || {};
-  const required = { '/api/workspace': ['models', 'runtimes', 'projects', 'providers', 'capabilities'], '/api/status': ['active'], '/api/ping': ['version'], '/api/engine/node': ['remote'], '/api/chat/history': ['conversations', 'projects'], '/api/usage': ['models', 'quotas'], '/api/usage/providers': ['providers'], '/api/engines/vllm/models': ['models', 'cache'], '/api/engines/vllm/download': ['download'] }[path];
+  const required = { '/api/workspace': ['models', 'runtimes', 'projects', 'providers', 'capabilities'], '/api/status': ['active'], '/api/ping': ['version'], '/api/engine/node': ['remote'], '/api/chat/history': ['conversations', 'projects'], '/api/usage': ['models', 'quotas'], '/api/usage/providers': ['providers'], '/api/engines/catalog': ['engines', 'connections', 'active_engine', 'host'],
+    '/api/engines/connections': ['connections', 'active_engine'], '/api/engines/harness-snippets': ['snippets', 'url_local'], '/api/engines/vllm/models': ['models', 'cache'], '/api/engines/vllm/download': ['download'] }[path];
   if (required && (!isObject(value) || !required.every(k => k in value))) return false;
   if (path === '/api/runtime/sessions' && (!isObject(value) || !('session' in value || 'sessions' in value))) return false;
   if (/^\/api\/runtime\/sessions\/(create|select|local|configure|continue|compact|import)$/.test(path)) shape = shapes['/api/runtime/sessions'];

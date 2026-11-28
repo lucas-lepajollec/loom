@@ -91,11 +91,12 @@ type engineNode struct {
 	LinkedAt  int64    `json:"linked_at"`      // unix ms
 	// Direct link (engine_direct.go): an inference server used by address,
 	// without Loom on its machine.
-	Direct bool   `json:"direct,omitempty"`
-	Kind   string `json:"kind,omitempty"`  // llama.cpp, vllm, openai
-	Model  string `json:"model,omitempty"` // served model used by discussions
-	Ctx    int    `json:"ctx,omitempty"`
-	Router bool   `json:"router,omitempty"`
+	Managed string `json:"-"` // transient Loom-owned child process
+	Direct  bool   `json:"direct,omitempty"`
+	Kind    string `json:"kind,omitempty"`  // llama.cpp, vllm, openai
+	Model   string `json:"model,omitempty"` // served model used by discussions
+	Ctx     int    `json:"ctx,omitempty"`
+	Router  bool   `json:"router,omitempty"`
 }
 
 var (
@@ -110,6 +111,10 @@ var (
 func currentEngineNode() *engineNode {
 	engineNodeMu.Lock()
 	defer engineNodeMu.Unlock()
+	return currentEngineNodeLocked()
+}
+
+func currentEngineNodeLocked() *engineNode {
 	if path := dbPath(); engineNodePath != path {
 		engineNodePath = path
 		engineNodeCache, engineNodeRead = nil, false
@@ -119,7 +124,7 @@ func currentEngineNode() *engineNode {
 	}
 	if !engineNodeRead {
 		var n engineNode
-		if getStoreJSON(bkState, engineNodeState, &n) && n.URL != "" {
+		if getStoreJSON(bkState, engineNodeState, &n) && (n.URL != "" || n.Direct && n.V1 != "") {
 			if migrated, err := unsealEngineNode(&n); err == nil {
 				engineNodeCache = &n
 				if migrated {
@@ -137,41 +142,56 @@ func currentEngineNode() *engineNode {
 func setEngineNode(n *engineNode) error {
 	engineNodeMu.Lock()
 	defer engineNodeMu.Unlock()
-	var err error
-	if n == nil {
-		err = putBytes(bkState, engineNodeState, nil)
-	} else {
-		var sealed *engineNode
-		sealed, err = sealEngineNode(n)
-		if err == nil {
-			err = putStoreJSON(bkState, engineNodeState, sealed)
-		}
-	}
-	if err == nil {
-		engineNodePath = dbPath()
-		if n == nil {
-			engineNodeCache = nil
-		} else {
-			cp := *n
-			engineNodeCache = &cp
-		}
-		engineNodeRead = true
-		engineModelsCache.Lock()
-		engineModelsCache.body, engineModelsCache.at = nil, time.Time{}
-		engineModelsCache.Unlock()
-	}
-	return err
+	return setEngineNodeLocked(n)
 }
 
-// engineBase is the origin of the engine's OpenAI-compatible API (no /v1).
+func setEngineNodeLocked(n *engineNode) error {
+	var profile *storedEngineConnection
+	if n != nil && n.Direct && n.Managed == "" {
+		p, err := connectionFromNode(n, "")
+		if err != nil {
+			return err
+		}
+		profile = &p
+	}
+	return writeEngineSelectionLocked(n, true, profile, "")
+}
+
+func cacheEngineNodeLocked(n *engineNode) {
+	engineNodePath, engineNodeRead = dbPath(), true
+	engineNodeCache = nil
+	if n != nil {
+		cp := *n
+		engineNodeCache = &cp
+	}
+	engineModelsCache.Lock()
+	engineModelsCache.body, engineModelsCache.at = nil, time.Time{}
+	engineModelsCache.Unlock()
+}
+
+func localEngineBase() string { return ownedEngineBase(LLMPort()) }
+
+// Capture the address, key and model together so a saved-engine switch
+// cannot send one server's credential to another server.
+func engineRequestTarget() (base, key, model string) {
+	n := currentEngineNode()
+	if n == nil {
+		return localEngineBase(), readAPIKey(), "loom"
+	}
+	model = "loom"
+	if n.Direct && n.Model != "" {
+		model = n.Model
+	}
+	return strings.TrimRight(n.V1, "/"), n.APIKey, model
+}
+
 func engineBase() string {
 	if n := currentEngineNode(); n != nil {
 		return strings.TrimRight(n.V1, "/")
 	}
-	return fmt.Sprintf("http://127.0.0.1:%d", LLMPort())
+	return localEngineBase()
 }
 
-// engineAPIKey is the key the engine's /v1 API expects.
 func engineAPIKey() string {
 	if n := currentEngineNode(); n != nil {
 		return n.APIKey
@@ -396,6 +416,9 @@ var engineRoutes = map[string]bool{
 	"/api/naked/remember": true, "/api/naked/defaults": true, "/api/llama-flags": true, "/api/engine/params": true,
 	"/api/model-caps": true, "/api/estimate": true, "/api/start": true, "/api/stop": true, "/api/restart": true,
 	"/api/apikey": true, "/api/network": true, "/api/engine/auto-update": true,
+	"/api/engines/harness-snippets": true, "/api/engines/catalog": true, "/api/engines/connections": true,
+	"/api/engines/ollama/pull": true, "/api/engines/ollama/unload": true,
+	"/api/engines/sglang": true, "/api/engines/sglang/params": true, "/api/engines/mlx": true,
 	"/api/engines/vllm": true, "/api/engines/vllm/params": true, "/api/engines/vllm/auto-update": true,
 	"/api/engines/vllm/models": true, "/api/engines/vllm/models/delete": true, "/api/engines/vllm/hub/search": true,
 	"/api/engines/vllm/download": true, "/api/engines/vllm/download/cancel": true,
@@ -405,7 +428,7 @@ var engineRoutes = map[string]bool{
 // nodeAware sends an engine route to the linked remote Loom, with its control
 // key in place of this browser's one. Without a link, the local handler runs.
 func nodeAware(path string, local http.HandlerFunc) http.HandlerFunc {
-	if !engineRoutes[path] {
+	if !engineRoutes[path] || path == "/api/engines/harness-snippets" {
 		return local
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -435,7 +458,7 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 		}
 		if n.Direct {
 			sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "direct": true, "kind": n.Kind, "url": n.V1, "hostname": directHostname(n), "degraded": degradedCapabilities.Snapshot(currentEngineCapabilityOwner()),
-				"model": n.Model, "ctx": n.Ctx, "reachable": directEngineHealthy(n)})
+				"model": n.Model, "ctx": n.Ctx, "managed": n.Managed, "reachable": directEngineHealthy(n)})
 			return
 		}
 		// Reachability, without secrets in the response.
@@ -491,15 +514,7 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 	if req.Probe {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
-		base, _, err := cleanNodeURL(strings.TrimSuffix(strings.TrimRight(strings.TrimSpace(req.URL), "/"), "/v1"))
-		if err == nil {
-			var e directEngine
-			if e, err = probeDirectEngine(ctx, base, strings.TrimSpace(req.Key)); err == nil {
-				sendJSON(w, 200, map[string]any{"ok": true, "kind": e.Kind, "models": e.Models, "ctx": e.Ctx, "router": e.Router})
-				return
-			}
-		}
-		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		probeEngineAddress(w, ctx, req.URL, req.Key)
 		return
 	}
 	if req.Unlink {
@@ -753,7 +768,7 @@ func refreshEngineNodeKey(ctx context.Context, n *engineNode) (*engineNode, bool
 	}
 	fresh := *n
 	fresh.APIKey = info.APIKey
-	if setEngineNode(&fresh) != nil {
+	if setEngineNodeIfCurrent(n, &fresh) != nil {
 		return nil, false
 	}
 	return &fresh, true

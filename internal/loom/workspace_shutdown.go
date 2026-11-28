@@ -14,7 +14,9 @@ func (m *runtimeSessions) installRuntimeShutdown() {
 			sig := <-signals
 			m.shutdownRuntimes()
 			shutdownTerminals()
-			vllm.stop()
+			vllm.cancelStartAndStop()
+			sglang.stop()
+			mlx.stop()
 			// A llama.cpp started by this process (no system service) would
 			// otherwise outlive it, unknown to the next Loom, holding VRAM.
 			if ownedLlamaManaged() {

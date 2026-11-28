@@ -89,7 +89,7 @@ func runBench(nPrompt, nPredict int) (*benchResult, error) {
 }
 
 func runCompletionBench(userPrompt string, nPredict int) (*benchResult, string, error) {
-	return runCompletionBenchContext(context.Background(), userPrompt, nPredict, nil)
+	return runCompletionBenchContext(context.Background(), userPrompt, nPredict, currentEngineNode())
 }
 
 func runCompletionBenchContext(ctx context.Context, userPrompt string, nPredict int, n *engineNode) (*benchResult, string, error) {
@@ -105,7 +105,7 @@ func runCompletionBenchModelContext(ctx context.Context, userPrompt string, nPre
 		nPredict = 256
 	}
 	payload := map[string]any{
-		"model":        engineRequestModel(),
+		"model":        "loom",
 		"messages":     []Message{{Role: "system", Content: benchSystemPrompt}, {Role: "user", Content: userPrompt}},
 		"max_tokens":   nPredict,
 		"stream":       false,
@@ -117,11 +117,13 @@ func runCompletionBenchModelContext(ctx context.Context, userPrompt string, nPre
 		payload["model"] = model
 		body, _ = json.Marshal(payload)
 	}
-	url := engineBase() + "/v1/chat/completions"
+	url := localEngineBase() + "/v1/chat/completions"
 	if n != nil {
-		url = n.V1 + "/v1/chat/completions"
-		payload["model"] = n.Model
-		body, _ = json.Marshal(payload)
+		url = strings.TrimRight(n.V1, "/") + "/v1/chat/completions"
+		if n.Direct && n.Model != "" {
+			payload["model"] = n.Model
+			body, _ = json.Marshal(payload)
+		}
 	}
 	t0 := time.Now()
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
@@ -130,7 +132,9 @@ func runCompletionBenchModelContext(ctx context.Context, userPrompt string, nPre
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if n == nil {
-		authHeader(req)
+		if key := readAPIKey(); key != "" {
+			req.Header.Set("Authorization", "Bearer "+key)
+		}
 		loomInferenceHeaders(req, "interactive") // CLI et files Bench sont lancés par l'utilisateur.
 	} else if n.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+n.APIKey)

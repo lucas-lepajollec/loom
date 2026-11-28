@@ -85,3 +85,30 @@ func TestDirectEngineDiscussionCatalogKeepsFullModelIDs(t *testing.T) {
 		t.Fatalf("selection: %+v %v", selected, err)
 	}
 }
+
+func TestEngineWorkerDiscussionCatalogUsesActiveNativeModels(t *testing.T) {
+	testHome(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/status":
+			if r.Header.Get("Authorization") != "Bearer control-fixture" {
+				t.Error("missing control authentication")
+			}
+			w.Write([]byte(`{"model":"Qwen/Qwen3-8B","engine_kind":"sglang","engine_direct":true}`))
+		case "/v1/models":
+			if r.Header.Get("Authorization") != "Bearer inference-fixture" {
+				t.Error("missing inference authentication")
+			}
+			w.Write([]byte(`{"data":[{"id":"Qwen/Qwen3-8B"}]}`))
+		default:
+			t.Error("unexpected route", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer server.Close()
+	n := &engineNode{URL: server.URL, V1: server.URL, WebKey: "control-fixture", APIKey: "inference-fixture", Role: "engine-node"}
+	choices := remoteEngineChoices(n)
+	if len(choices) != 1 || choices[0].Model != "Qwen/Qwen3-8B" || choices[0].ProviderName != "sglang" || !choices[0].Ready {
+		t.Fatalf("active native models = %+v", choices)
+	}
+}

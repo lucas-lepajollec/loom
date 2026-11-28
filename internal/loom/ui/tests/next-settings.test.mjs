@@ -406,7 +406,7 @@ test('node updates target only the node and warn about stopping engines', async 
 });
 
 test('node server view uses its protected endpoint without an ineffective network toggle', async () => {
-  const h = harness(local, 'EngineRuntime', { setInterval: () => 1, clearInterval: () => {}, engineState: () => ({ tone: 'muted' }) });
+  const h = harness(local, 'EngineRuntime', { KIND_LABEL: {}, setInterval: () => 1, clearInterval: () => {}, engineState: () => ({ tone: 'muted' }) });
   h.data['/api/server'] = { node_managed: true, key_required: true, url: 'http://fixture:2511/v1', slots: { items: [] }, stats: {} };
   const tree = await h.ready();
   assert.equal(nodes(tree, 'Switch').length, 0);
@@ -645,4 +645,20 @@ test('agent access can revoke an active token after confirmation', async () => {
   await button(tree, 'Révoquer').props.onClick();
   assert.equal(h.posts[0][0], '/api/mcp/gateway/token');
   assert.deepEqual(JSON.parse(JSON.stringify(h.posts[0][1])), { revoke: true });
+});
+
+test('engine catalog and connection probes validate their distinct API shapes', () => {
+  const catalog = {
+    host: { os: 'linux', arch: 'amd64', accelerators: ['CPU', 'CUDA'], gpu_count: 1 },
+    engines: [{ id: 'sglang', name: 'SGLang', formats: ['Safetensors'], capabilities: [], install_options: ['python'], link_options: ['url'] }],
+    connections: [{ id: 'saved', url: 'http://127.0.0.1:30000', kind: 'sglang', active: true, key_set: true }],
+    active_engine: { kind: 'sglang' },
+  };
+  assert.equal(validData(catalog, '/api/engines/catalog'), true);
+  assert.equal(validData({ ...catalog, engines: [{ ...catalog.engines[0], formats: null }] }, '/api/engines/catalog'), false);
+  assert.equal(validData({ ...catalog, connections: [{}] }, '/api/engines/catalog'), false);
+  assert.equal(validData({ ok: true, kind: 'ollama', models: [] }, '/api/engines/connections'), true);
+  assert.equal(validData({ ok: true, kind: 'ollama', models: {} }, '/api/engines/connections'), false);
+  assert.equal(validData([{ name: 'qwen', loaded: null, quantization: 'Q4_K_M' }], '/api/models'), true);
+  assert.equal(validData([{ name: 'qwen', loaded: 'true' }], '/api/models'), false);
 });

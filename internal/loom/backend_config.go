@@ -86,15 +86,6 @@ func ensureAPIKeyIfRequired() error {
 	return writeAPIKey(genAPIKey())
 }
 
-// authHeader sets the Authorization: Bearer header on req when an API key is
-// configured, so Loom's own internal calls (chat/web/bench/test) authenticate
-// against a protected llama-server. No-op when no key is set.
-func authHeader(req *http.Request) {
-	if k := engineAPIKey(); k != "" {
-		req.Header.Set("Authorization", "Bearer "+k)
-	}
-}
-
 // localAuthHeader authenticates to this machine's own llama-server/router,
 // even when this Loom uses a remote engine for its discussions.
 func localAuthHeader(req *http.Request) {
