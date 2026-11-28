@@ -20,7 +20,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func onDemandFixture(t *testing.T, calls *atomic.Int32) gatewayConfigFixture {
+func onDemandFixture(t testing.TB, calls *atomic.Int32) gatewayConfigFixture {
 	t.Helper()
 	config := gatewayConfigFixture{
 		"home":    {Command: "fixture", Enabled: true, Exposure: "on_demand", DisabledTools: []string{"hidden"}},
@@ -66,6 +66,7 @@ func onDemandFixture(t *testing.T, calls *atomic.Int32) gatewayConfigFixture {
 		t.Cleanup(func() { _ = peer.Close() })
 		return mcp.NewClient(&mcp.Implementation{Name: "fixture-client"}, nil).Connect(ctx, ct, nil)
 	})
+	pool.EnsureAll(config)
 	mcpMgr = &mcpManager{pool}
 	t.Cleanup(func() {
 		pool.CloseAll()
@@ -127,7 +128,7 @@ func TestOnDemandDiscoveryAndDiscussion(t *testing.T) {
 		t.Fatal(note)
 	}
 	for _, defs := range [][]Tool{mcpTools(), (cloudTools{mcp: true}).Definitions().([]Tool)} {
-		if len(defs) != 4 || defs[0].Function.Name != "mcp__direct__echo" || defs[1].Function.Name != mcpSearchTool {
+		if len(defs) != 5 || defs[0].Function.Name != "mcp__direct__echo" || defs[1].Function.Name != mcpSearchTool {
 			t.Fatal(defs)
 		}
 	}
@@ -190,7 +191,7 @@ func TestOnDemandDiscoveryAndDiscussion(t *testing.T) {
 	}
 	for _, bad := range []mcpTarget{{"home", "hidden"}, {"off", "light_level"}, {"direct", "echo"}, {"home", "unknown"}} {
 		for _, name := range []string{mcpDescribeTool, mcpCallTool} {
-			raw, _ := json.Marshal(mcpCallArgs{bad, json.RawMessage(`{}`)})
+			raw, _ := json.Marshal(mcpCallArgs{mcpTarget: bad, Arguments: json.RawMessage(`{}`)})
 			res, err := callMCPFixture(t.Context(), s, name, string(raw))
 			if err == nil && !res.IsError {
 				t.Fatalf("%s reached unavailable %v", name, bad)
@@ -338,6 +339,7 @@ func TestOnDemandBudgetAndMode(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatal(rec.Code, rec.Body.String())
 		}
+		mcpMgr.EnsureAll(config)
 		hub := externalMCPHub()
 		if (len(hub.lazy) == 3) != (mode == "smart") {
 			t.Fatal(mode, hub)
@@ -353,9 +355,10 @@ func TestOnDemandBudgetAndMode(t *testing.T) {
 	}
 	first, _ := json.Marshal(items[0].Tool)
 	second, _ := json.Marshal(items[1].Tool)
+	items[0].SchemaBytes, items[1].SchemaBytes = len(first), len(second)
 	budget := estimateMCPBudget(servers, items, "direct")
 	if budget.OnDemandTools != 1 || budget.DirectTools != 1 || budget.DirectTokens != (len(first)+len(second))/4 ||
-		budget.InjectedTokens != len(second)/4+350 || budget.SavedTokens != budget.DirectTokens-budget.InjectedTokens ||
+		budget.InjectedTokens != len(second)/4+mcpDiscoveryTokens || budget.SavedTokens != budget.DirectTokens-budget.InjectedTokens ||
 		budget.SavedPercent != budget.SavedTokens*100/budget.DirectTokens {
 		t.Fatal(budget)
 	}
@@ -441,5 +444,217 @@ func TestMCPSavePreservesExistingSettingsAndDefaultsNewServer(t *testing.T) {
 	cfg, err = LoadMCPConfig()
 	if err != nil || cfg["existing"].Exposure != "" || cfg["existing"].Command != old.Command {
 		t.Fatal(cfg, err)
+	}
+}
+
+func TestOnDemandCachedParallelDiscovery(t *testing.T) {
+	gatewayTestHome(t)
+	cfg := MCPServerConfig{Command: "fixture", Exposure: "on_demand", Enabled: true, Env: map[string]string{"KEY": "synthetic-credential"}}
+	for _, name := range []string{"one", "two"} {
+		if err := SetMCPServer(name, cfg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	source := nativeMCPConfig{}
+	// Seed through successful upstream discovery, then construct a new pool to
+	// exercise a restart with both configured servers unavailable.
+	upstream := mcp.NewServer(&mcp.Implementation{Name: "fixture"}, nil)
+	upstream.AddTool(&mcp.Tool{Name: "cached", Description: "discoverable", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return textResult([]byte("ok"), false), nil
+	})
+	first := tools.NewMCPManager(source, func(ctx context.Context, _ string, _ MCPServerConfig) (*mcp.ClientSession, error) {
+		st, ct := mcp.NewInMemoryTransports()
+		peer, err := upstream.Connect(ctx, st, nil)
+		if err != nil {
+			return nil, err
+		}
+		t.Cleanup(func() { _ = peer.Close() })
+		return mcp.NewClient(&mcp.Implementation{Name: "fixture"}, nil).Connect(ctx, ct, nil)
+	})
+	servers, _ := source.LoadMCPConfig()
+	first.EnsureAll(servers)
+	first.CloseAll()
+	if b := getBytes(catalogBucket, "one"); !strings.Contains(string(b), "discoverable") || strings.Contains(string(b), "synthetic-credential") {
+		t.Fatal("incorrect snapshot")
+	}
+	release := make(chan struct{})
+	started := make(chan string, 4)
+	pool := tools.NewMCPManager(source, func(ctx context.Context, name string, _ MCPServerConfig) (*mcp.ClientSession, error) {
+		started <- name
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-release:
+			return nil, fmt.Errorf("redacted error")
+		}
+	})
+	old := mcpMgr
+	mcpMgr = &mcpManager{pool}
+	t.Cleanup(func() { close(release); pool.CloseAll(); mcpMgr = old })
+	s := connectOnDemandGateway(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for range 2 {
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatal("discovery serialized")
+		}
+	}
+	list, err := s.ListTools(ctx, nil)
+	if err != nil || !slices.ContainsFunc(list.Tools, func(tool *mcp.Tool) bool { return tool.Name == mcpListTool && tool.Annotations.ReadOnlyHint }) {
+		t.Fatal(list, err)
+	}
+	res, err := callMCPFixture(ctx, s, mcpSearchTool, `{"query":"cached"}`)
+	if err != nil || res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, `"total_available":2`) {
+		t.Fatal(res, err)
+	}
+	for _, name := range []string{mcpListTool, "api"} {
+		var raw string
+		if name == "api" {
+			rec := httptest.NewRecorder()
+			handleMCP(rec, httptest.NewRequest("GET", "/api/mcp", nil))
+			raw = rec.Body.String()
+		} else {
+			res, err := callMCPFixture(ctx, s, name, `{}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw = res.Content[0].(*mcp.TextContent).Text
+		}
+		if !strings.Contains(raw, `"cached":true`) || !strings.Contains(raw, `"env_names":["KEY"]`) || strings.Contains(raw, "synthetic-credential") {
+			t.Fatal(raw)
+		}
+	}
+	cfg.Args = []string{"new"}
+	if err := SetMCPServer("one", cfg); err != nil {
+		t.Fatal(err)
+	}
+	hub := externalMCPHub()
+	if hits := hub.search(mcpSearchArgs{Query: "cached", Server: "one"}); len(hits.Matches) != 0 {
+		t.Fatal(hits)
+	}
+}
+
+func TestOnDemandManagementEditAndSecrets(t *testing.T) {
+	sessions := isolatePhase4b(t)
+	cfg := MCPServerConfig{URL: "https://example.test/mcp", Headers: map[string]string{"Authorization": "synthetic-private"}, Exposure: "direct"}
+	if err := SetMCPServer("remote", cfg); err != nil {
+		t.Fatal(err)
+	}
+	s := connectOnDemandGateway(t)
+	done := make(chan bool, 1)
+	update := func() {
+		go func() {
+			r, err := callMCPFixture(t.Context(), s, mcpRegisterTool, `{"action":"update","name":"remote","url":"https://example.test/new","disabled_tools":["write"],"exposure":"on_demand"}`)
+			done <- err == nil && !r.IsError
+		}()
+	}
+	for _, conflict := range []bool{true, false} {
+		update()
+		p := waitMCPApproval(t, sessions, "mcp.manage")
+		if !strings.Contains(p.Detail, "https://example.test/new") || !strings.Contains(p.Detail, "Authorization") || strings.Contains(p.Detail, "synthetic-private") {
+			t.Fatal(p.Detail)
+		}
+		if conflict {
+			cfg.Description = "edited while pending"
+			if err := SetMCPServer("remote", cfg); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := sessions.answerRequest(p.SessionID, p.RequestID, agent.RequestAnswer{Decision: "allow_once"}); err != nil {
+			t.Fatal(err)
+		}
+		if ok := <-done; ok == conflict {
+			t.Fatal("revision check failed")
+		}
+	}
+	rec := httptest.NewRecorder()
+	handleMCPSave(rec, httptest.NewRequest("POST", "/api/mcp/save", strings.NewReader(`{"name":"remote","description":"owner edit","headers":{"Authorization":"","X-Mode":"new"}}`)))
+	if rec.Code != 200 || strings.Contains(rec.Body.String(), "synthetic-private") {
+		t.Fatal(rec.Body.String())
+	}
+	cfgs, err := LoadMCPConfig()
+	got := cfgs["remote"]
+	if err != nil || got.Headers["Authorization"] != "synthetic-private" || got.Headers["X-Mode"] != "new" || got.URL != "https://example.test/new" || !got.ToolDisabled("write") || got.Exposure != "on_demand" {
+		t.Fatal("edit lost settings")
+	}
+	for _, action := range []string{`"action":"toggle","enabled":false`, `"action":"set_exposure","exposure":"direct"`, `"action":"delete"`} {
+		go func() {
+			r, err := callMCPFixture(t.Context(), s, mcpRegisterTool, `{"name":"remote",`+action+`}`)
+			done <- err == nil && !r.IsError
+		}()
+		p := waitMCPApproval(t, sessions, "mcp.manage")
+		if err := sessions.answerRequest(p.SessionID, p.RequestID, agent.RequestAnswer{Decision: "allow_once"}); err != nil {
+			t.Fatal(err)
+		}
+		if !<-done {
+			t.Fatal(action)
+		}
+	}
+	cfgs, _ = LoadMCPConfig()
+	if _, exists := cfgs["remote"]; exists {
+		t.Fatal("delete failed")
+	}
+}
+
+func TestOnDemandPayloadProjection(t *testing.T) {
+	r := textResult([]byte(`[{"entity":"light","attributes":{"name":"Kitchen","hidden":"private"}}]`), false)
+	out, err := compactCallResult(r, []string{"entity", "attributes.name"}, 12000)
+	if err != nil || out.Content[0].(*mcp.TextContent).Text != `[{"attributes":{"name":"Kitchen"},"entity":"light"}]` {
+		t.Fatal(out, err)
+	}
+	big := textResult([]byte(strings.Repeat("lamp", 50000)), false)
+	out, err = compactCallResult(big, nil, 90)
+	if err != nil || len(out.Content[0].(*mcp.TextContent).Text) > 90 || !strings.Contains(out.Content[0].(*mcp.TextContent).Text, `"trimmed":true`) {
+		t.Fatal(out, err)
+	}
+}
+
+// Run the warm request path through Loom's authenticated HTTP transport.
+// Fixture handshakes, key rotation and initial SDK registration are untimed.
+func BenchmarkMCPWarm(b *testing.B) {
+	b.Setenv("LOOM_HOME", b.TempDir())
+	b.Setenv("HOME", b.TempDir())
+	var calls atomic.Int32
+	onDemandFixture(b, &calls)
+	mux := http.NewServeMux()
+	registerBrainRoutes(mux, nil)
+	webAPI(mux)("/api/mcp", handleMCP)
+	token, err := rotateGatewayToken()
+	if err != nil {
+		b.Fatal(err)
+	}
+	if err := storeWebKey("fixture-control"); err != nil {
+		b.Fatal(err)
+	}
+	for _, tc := range []struct{ name, path, body string }{
+		{"Initialize", "/mcp/loom", `{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"bench","version":"1"},"capabilities":{}}}`},
+		{"ListTools", "/mcp/loom", `{"jsonrpc":"2.0","method":"tools/list","id":2,"params":{}}`},
+		{"Search", "/mcp/loom", `{"jsonrpc":"2.0","method":"tools/call","id":3,"params":{"name":"loom_mcp_search","arguments":{"query":"light"}}}`},
+		{"Status", "/api/mcp", ""},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			request := func() {
+				method, key := "POST", token
+				if tc.body == "" {
+					method, key = "GET", "fixture-control"
+				}
+				req := httptest.NewRequest(method, "http://localhost"+tc.path, strings.NewReader(tc.body))
+				req.Header.Set("Authorization", "Bearer "+key)
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Accept", "application/json, text/event-stream")
+				w := httptest.NewRecorder()
+				mux.ServeHTTP(w, req)
+				if w.Code != 200 || strings.Contains(w.Body.String(), `"error":{"code"`) {
+					b.Fatal(w.Code, w.Body.String())
+				}
+			}
+			request()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				request()
+			}
+		})
 	}
 }

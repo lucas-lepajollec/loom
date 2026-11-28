@@ -109,7 +109,7 @@ func registryArgs(args []registryArgument) []string {
 func registryInputs(inputs []registryInput) []registryInput {
 	out := make([]registryInput, 0, len(inputs))
 	for _, input := range inputs {
-		if input.Name == "" || strings.ContainsAny(input.Name, ":=\r\n") {
+		if strings.TrimSpace(input.Name) != input.Name || input.Name == "" || strings.ContainsAny(input.Name, ":= \t\r\n") {
 			continue
 		}
 		if input.Secret {
@@ -231,7 +231,7 @@ func (r *mcpRegistry) search(ctx context.Context, q string, limit int) ([]regist
 		return nil, errors.New("MCP Registry unavailable")
 	}
 	const maxBytes = 2 << 20
-	limited := &io.LimitedReader{R: resp.Body, N: maxBytes}
+	limited := &io.LimitedReader{R: resp.Body, N: maxBytes + 1}
 	body, err := io.ReadAll(limited)
 	if err != nil || limited.N == 0 {
 		return nil, errors.New("MCP Registry response unreadable or too large")

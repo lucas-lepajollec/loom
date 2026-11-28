@@ -73,12 +73,25 @@ func ConnectMCP(ctx context.Context, name string, cfg resources.MCPServerConfig,
 	case "stdio":
 		transport = &mcpsdk.CommandTransport{Command: cmd}
 	case "http":
+		if !resources.ValidMCPURL(cfg.URL) {
+			return nil, fmt.Errorf("invalid MCP URL")
+		}
 		endpoint, err := url.Parse(cfg.URL)
 		if err != nil {
 			return nil, fmt.Errorf("invalid MCP URL")
 		}
 		sse := cfg.Type == "sse"
 		httpCopy := *httpClient
+		redirect := httpCopy.CheckRedirect
+		httpCopy.CheckRedirect = func(r *http.Request, via []*http.Request) error {
+			if !strings.EqualFold(r.URL.Host, endpoint.Host) || r.URL.Scheme != endpoint.Scheme || len(via) >= 10 {
+				return http.ErrUseLastResponse
+			}
+			if redirect != nil {
+				return redirect(r, via)
+			}
+			return nil
+		}
 		if len(cfg.Headers) > 0 || sse {
 			base := httpCopy.Transport
 			if base == nil {

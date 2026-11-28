@@ -1,17 +1,15 @@
 package loom
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
+
 	"slices"
 	"sort"
 	"strings"
 	"unicode"
 
-	"github.com/lucas-lepajollec/loom/internal/loom/policy"
 	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 	"github.com/lucas-lepajollec/loom/internal/loom/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -51,7 +49,6 @@ type mcpHub struct {
 	direct, lazy []tools.MCPGatewayTool
 	servers      []onDemandServer
 	status       []tools.MCPGatewayStatus
-	legacy       bool
 }
 
 func externalMCPHub() mcpHub {
@@ -59,17 +56,14 @@ func externalMCPHub() mcpHub {
 	settings, _ := loadGatewayState()
 	hub := mcpHub{status: status}
 	exposures := make(map[string]string, len(status))
-	hasExplicit, hasInherited := false, false
+
 	for _, st := range status {
 		exposure := mcpExposure(st.Exposure, settings.ToolMode)
 		exposures[st.Name] = exposure
-		hasExplicit = hasExplicit || st.Exposure != ""
-		hasInherited = hasInherited || st.Enabled && st.Exposure == ""
 		if st.Enabled && exposure == resources.MCPOnDemand {
 			hub.servers = append(hub.servers, onDemandServer{st.Name, st.Tools, exposure})
 		}
 	}
-	hub.legacy = settings.ToolMode == "" && hasInherited && !hasExplicit
 	for _, t := range all {
 		if exposures[t.Server] == resources.MCPOnDemand {
 			hub.lazy = append(hub.lazy, t)
@@ -88,7 +82,7 @@ func (hub mcpHub) note() string {
 	for _, s := range hub.servers {
 		names = append(names, fmt.Sprintf("%s (%d tools)", strings.Join(strings.Fields(s.Name), " "), s.ToolsCount))
 	}
-	return "On-demand MCP servers (use loom_mcp_search -> loom_mcp_describe -> loom_mcp_call): " + strings.Join(names, ", ") + "."
+	return "On-demand MCP servers (use loom_mcp_search, loom_mcp_describe for the schema, then loom_mcp_call with fields/max_chars or loom_mcp_execute for a pipeline): " + strings.Join(names, ", ") + "."
 }
 
 func (hub mcpHub) discussionTools() []Tool {
@@ -107,6 +101,9 @@ func (hub mcpHub) discussionTools() []Tool {
 				Name: tool.Name, Description: tool.Description, Parameters: tool.InputSchema,
 			}})
 		}
+	}
+	if len(hub.servers) == 0 && slices.ContainsFunc(hub.status, func(s tools.MCPGatewayStatus) bool { return s.Enabled }) {
+		out = append(out, Tool{Type: "function", Function: tools.ToolFunction{Name: mcpExecuteTool, Description: executeDefinition.Description, Parameters: executeDefinition.InputSchema}})
 	}
 	return out
 }
@@ -146,6 +143,8 @@ type mcpTarget struct {
 type mcpCallArgs struct {
 	mcpTarget
 	Arguments json.RawMessage `json:"arguments"`
+	Fields    []string        `json:"fields,omitempty"`
+	MaxChars  int             `json:"max_chars,omitempty"`
 }
 type mcpSearchMatch struct {
 	mcpTarget
@@ -278,31 +277,25 @@ var mcpMetaTools = []*mcp.Tool{
 	{Name: mcpDescribeTool, Description: "Get the exact schema of one on-demand MCP tool.",
 		InputSchema: mcpObjectSchema([]string{"server", "tool"}, map[string]string{"server": "string", "tool": "string"}),
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
-	{Name: mcpCallTool, Description: "Call an on-demand MCP tool with its arguments.",
-		InputSchema: mcpObjectSchema([]string{"server", "tool", "arguments"}, map[string]string{"server": "string", "tool": "string", "arguments": "object"})},
+	{Name: mcpCallTool, Description: "Call an on-demand tool. Select JSON fields with dot paths. max_chars defaults to 12000 (maximum 65536).",
+		InputSchema: mcpObjectSchema([]string{"server", "tool", "arguments"}, map[string]string{"server": "string", "tool": "string", "arguments": "object", "fields": "strings", "max_chars": "integer"})},
+	executeDefinition,
 }
 
 func isMCPMetaTool(name string) bool {
-	return name == mcpSearchTool || name == mcpDescribeTool || name == mcpCallTool
+	return name == mcpSearchTool || name == mcpDescribeTool || name == mcpCallTool || name == mcpExecuteTool
 }
 
 func registerMCPHubTools(s *mcp.Server, hub mcpHub) {
-	if len(hub.servers) > 0 {
-		for _, definition := range mcpMetaTools {
-			s.AddTool(definition, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return executeMCPMetaTool(ctx, definition.Name, req.Params.Arguments)
-			})
+	for _, definition := range mcpMetaTools {
+		if len(hub.servers) == 0 && definition.Name != mcpExecuteTool {
+			continue
 		}
+		s.AddTool(definition, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return executeMCPMetaTool(ctx, definition.Name, req.Params.Arguments)
+		})
 	}
-	s.AddTool(&mcp.Tool{
-		Name: mcpRegisterTool, Description: "Propose a new external MCP server for approval. Put only environment variable names in env_names. Exposure defaults to on_demand.",
-		InputSchema: mcpObjectSchema([]string{"name", "transport"}, map[string]string{
-			"name": "string", "transport": "string", "command": "string", "args": "strings", "url": "string",
-			"env_names": "strings", "exposure": "string", "description": "string",
-		}),
-	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return registerProposedMCP(ctx, req.Params.Arguments)
-	})
+	registerMCPManagement(s)
 }
 
 func mcpJSONResult(value any) (*mcp.CallToolResult, error) {
@@ -336,93 +329,39 @@ func executeMCPMetaTool(ctx context.Context, name string, raw json.RawMessage) (
 		if json.Unmarshal(raw, &args) != nil || args.Server == "" || args.Tool == "" || len(args.Arguments) == 0 || args.Arguments[0] != '{' {
 			return nil, fmt.Errorf("server, tool and an arguments object are required")
 		}
-		if _, err := externalMCPHub().find(args.Server, args.Tool); err != nil {
+		if !slices.ContainsFunc(externalMCPHub().servers, func(s onDemandServer) bool { return s.Name == args.Server }) {
+			return nil, fmt.Errorf("MCP tool unavailable")
+		}
+		if err := validFields(args.Fields); err != nil {
 			return nil, err
 		}
-		subject := "mcp.tool:" + args.Server + "/" + args.Tool
-		if err := authorizeGatewayTool(ctx, "", subject, args.Arguments); err != nil {
+		if args.MaxChars < 0 || args.MaxChars > 65536 {
+			return nil, fmt.Errorf("max_chars must be between 1 and 65536")
+		}
+		result, err := authorizedMCPCall(ctx, args.mcpTarget, args.Arguments)
+		if err != nil {
 			return nil, err
 		}
-		return mcpMgr.GatewayCall(ctx, args.Server, args.Tool, args.Arguments)
+		return compactCallResult(result, args.Fields, args.MaxChars)
+	case mcpExecuteTool:
+		return executePipeline(ctx, raw, authorizedMCPCall)
 	}
 	return nil, fmt.Errorf("unknown MCP discovery tool")
 }
 
-type mcpRegistration struct {
-	Name        string   `json:"name"`
-	Transport   string   `json:"transport"`
-	Command     string   `json:"command"`
-	Args        []string `json:"args"`
-	URL         string   `json:"url"`
-	EnvNames    []string `json:"env_names"`
-	Exposure    string   `json:"exposure"`
-	Description string   `json:"description"`
-}
-
-var mcpEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
-func registerProposedMCP(ctx context.Context, raw json.RawMessage) (*mcp.CallToolResult, error) {
-	var args mcpRegistration
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if dec.Decode(&args) != nil {
-		return nil, fmt.Errorf("invalid MCP proposal; use env_names for names only")
-	}
-	name := strings.TrimSpace(args.Name)
-	if name == "" || mcpNameRe.MatchString(name) || strings.Contains(name, "__") {
-		return nil, fmt.Errorf("invalid MCP server name")
-	}
-	cfg := MCPServerConfig{
-		Command: strings.TrimSpace(args.Command), Args: args.Args, URL: strings.TrimSpace(args.URL),
-		Enabled: true, Exposure: args.Exposure, Description: args.Description,
-	}
-	if cfg.Exposure == "" {
-		cfg.Exposure = resources.MCPOnDemand
-	}
-	if cfg.Transport() != args.Transport || (args.Transport != "http" && args.Transport != "stdio") {
-		return nil, fmt.Errorf("transport must match the command or URL")
-	}
-	if args.Transport == "http" && (!resources.ValidMCPURL(cfg.URL) || len(args.Args) > 0 || len(args.EnvNames) > 0) {
-		return nil, fmt.Errorf("HTTP registration requires an HTTP(S) URL without embedded credentials")
-	}
-	if len(args.EnvNames) > 0 {
-		cfg.Env = make(map[string]string, len(args.EnvNames))
-		for _, name := range args.EnvNames {
-			if !mcpEnvName.MatchString(name) {
-				return nil, fmt.Errorf("env_names must contain environment variable names only")
-			}
-			cfg.Env[name] = ""
-		}
-	}
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
-	mgr, session := policyTurn(ctx)
-	in := sessionPolicyInput(session, "mcp.manage", policy.Confirm)
-	in.Command, in.Endpoint = cfg.Command, cfg.URL
-	detail, _ := json.Marshal(struct {
-		Name      string   `json:"name"`
-		Transport string   `json:"transport"`
-		Target    string   `json:"target"`
-		Args      []string `json:"args,omitempty"`
-	}{name, args.Transport, firstNonEmpty(cfg.Command, cfg.URL), cfg.Args})
-	in.Detail = string(detail)
-	if err := authorizeMCPPolicy(ctx, mgr, in, true); err != nil {
-		return nil, err
-	}
-	if err := setMCPServer(name, cfg, mcpSaveOptions{createOnly: true}); err != nil {
-		return nil, err
-	}
-	return mcpJSONResult(map[string]any{"name": name, "enabled": true, "exposure": cfg.Exposure, "env_to_fill": args.EnvNames})
+func authorizedMCPCall(ctx context.Context, target mcpTarget, raw json.RawMessage) (*mcp.CallToolResult, error) {
+	subject := "mcp.tool:" + target.Server + "/" + target.Tool
+	return mcpMgr.GatewayCallChecked(ctx, target.Server, target.Tool, raw, func(ctx context.Context) error { return authorizeGatewayTool(ctx, "", subject, raw) })
 }
 
 type mcpTokenBudget struct {
-	DirectTokens   int `json:"direct_tokens"`
-	InjectedTokens int `json:"injected_tokens"`
-	SavedTokens    int `json:"saved_tokens"`
-	SavedPercent   int `json:"saved_percent"`
-	OnDemandTools  int `json:"on_demand_tools"`
-	DirectTools    int `json:"direct_tools"`
+	CodeMode       bool `json:"code_mode"`
+	DirectTokens   int  `json:"direct_tokens"`
+	InjectedTokens int  `json:"injected_tokens"`
+	SavedTokens    int  `json:"saved_tokens"`
+	SavedPercent   int  `json:"saved_percent"`
+	OnDemandTools  int  `json:"on_demand_tools"`
+	DirectTools    int  `json:"direct_tools"`
 }
 
 func estimateMCPBudget(servers []MCPServerStatus, exposed []tools.MCPGatewayTool, mode string) mcpTokenBudget {
@@ -433,22 +372,24 @@ func estimateMCPBudget(servers []MCPServerStatus, exposed []tools.MCPGatewayTool
 	for _, st := range servers {
 		exposure := mcpExposure(st.Exposure, mode)
 		exposures[st.Name] = exposure
+		budget.CodeMode = budget.CodeMode || st.Enabled
 		lazy = lazy || st.Enabled && exposure == resources.MCPOnDemand
 	}
 	for _, item := range exposed {
-		data, _ := json.Marshal(item.Tool)
-		totalBytes += len(data)
+		totalBytes += item.SchemaBytes
 		if exposures[item.Server] == resources.MCPOnDemand {
 			budget.OnDemandTools++
 		} else {
 			budget.DirectTools++
-			directBytes += len(data)
+			directBytes += item.SchemaBytes
 		}
 	}
 	budget.DirectTokens = totalBytes / 4
 	budget.InjectedTokens = directBytes / 4
 	if lazy {
-		budget.InjectedTokens += 350
+		budget.InjectedTokens += mcpDiscoveryTokens
+	} else if budget.CodeMode {
+		budget.InjectedTokens += mcpExecuteTokens
 	}
 	budget.SavedTokens = max(0, budget.DirectTokens-budget.InjectedTokens)
 	if budget.DirectTokens > 0 {
@@ -456,3 +397,8 @@ func estimateMCPBudget(servers []MCPServerStatus, exposed []tools.MCPGatewayTool
 	}
 	return budget
 }
+
+func toolTokens(v any) int { raw, _ := json.Marshal(v); return len(raw) / 4 }
+
+var mcpDiscoveryTokens = toolTokens(mcpMetaTools)
+var mcpExecuteTokens = toolTokens(executeDefinition)

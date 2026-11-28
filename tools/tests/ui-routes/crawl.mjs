@@ -214,6 +214,16 @@ try {
         if ((await checked).postDataJSON()?.name !== snapshot.servers[0].name) throw new Error('MCP connection test targeted the wrong server');
         await drawer.getByRole('status').filter({ hasText: '31 ms' }).waitFor();
         await inspect(page, errors, label + ' MCP drawer');
+        await drawer.getByRole('button', { name: mcp('edit'), exact: true }).click();
+        const edit = page.getByRole('dialog', { name: mcp('edit_title') });
+        if ((await edit.getByLabel(mcp('headers')).inputValue()).trim() !== 'Authorization:') throw new Error('MCP edit must show the saved header name with a blank value');
+        await edit.getByLabel(mcp('url')).fill('https://mcp.example.test/updated');
+        await page.route('**/api/mcp/save', route => route.fulfill({ json: snapshot }));
+        const saved = page.waitForRequest(req => new URL(req.url()).pathname === '/api/mcp/save');
+        await edit.getByRole('button', { name: mcp('save'), exact: true }).click();
+        const patch = (await saved).postDataJSON();
+        if (patch.url !== 'https://mcp.example.test/updated' || patch.headers !== undefined) throw new Error('MCP partial edit must send the new URL and omit unchanged credentials');
+        await page.getByText(mcp('code_mode_on'), { exact: true }).waitFor();
         await page.keyboard.press('Escape');
       }
       // Exercise the collection consumer that triggered the iPhone

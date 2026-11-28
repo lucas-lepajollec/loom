@@ -43,21 +43,61 @@ resets that line. Only the token's hash is stored.
 | `brain_*`, `memory_*`, skills, discussions | The second brain tools, unchanged. |
 | `<server>__<tool>` | Tools from external MCP servers exposed directly. |
 | `loom_mcp_search`, `loom_mcp_describe`, `loom_mcp_call` | Find, inspect and call tools from on-demand external MCP servers. |
-| `loom_mcp_register` | Propose a new external stdio or HTTP MCP server for owner approval. |
+| `loom_mcp_execute` | Run a bounded pipeline against enabled external tools and return selected results. |
+| `loom_mcp_list` | List external servers, tool counts, connection status, discovery latency and credential key names. |
+| `loom_mcp_register` | Propose creating, updating or deleting a server, toggling it or changing its exposure. Every change requires owner approval. |
 
 For on-demand servers, the instructions list server names and tool counts.
 Search by keyword or use `query:"*"` with a `server` filter. Describe a result
 to get its full schema, then pass its exact server name, tool name and
 `arguments` object to `loom_mcp_call`. Local and Cloud discussions use the
-same three tools when MCP is enabled. See [MCP configuration](mcp-files.md)
-for exposure settings.
+same discovery and execution tools when on-demand MCP is active. A single call
+accepts `fields` (dot paths) and `max_chars` (default 12,000, maximum 65,536).
+Small native responses keep their MCP content blocks. See [MCP configuration](mcp-files.md).
 
-Registration adds a new enabled server to Loom's `mcp.json` after approval.
-Supply environment variable names in `env_names`. Loom stores empty
-placeholders so the owner can fill the values in Connections. A proposal
-cannot replace a server with the same name. For legacy direct-only
-configurations, the gateway instructions name the registration tool. It
-appears in the tool list when a gateway or per-server exposure mode is set.
+### Code Mode
+
+Pass ordered steps to `loom_mcp_execute`. Only the last result reaches the
+model. For example, this Home Assistant pipeline returns names of active
+entities from a server whose tool returns a JSON array.
+
+```json
+{
+  "steps": [
+    {"op":"call","id":"states","server":"home","tool":"get_states","args":{}},
+    {"op":"filter","id":"active","from":"states","where":{"field":"state","op":"eq","value":"on"}},
+    {"op":"return","from":"active","fields":["entity_id","attributes.friendly_name"]}
+  ]
+}
+```
+
+- `call` passes `args` to one enabled tool. A complete `{{step_id.path}}`
+  reference retains its JSON type. Scalar references can also appear in strings.
+- `parallel` takes a `calls` array of `{server,tool,args}` objects and returns
+  results in input order, with up to eight calls in flight.
+- `filter` supports `eq`, `neq`, `contains`, `gt`, `lt` and `exists`.
+  `map` and `pick` project nested fields from an array of objects or one object.
+- `foreach` takes `from` and one `call` with `{{item.path}}` references.
+  An explicit `limit` selects a prefix. The maximum is 25 items.
+- `return` selects `from` and optional fields. Omit `from` to select fields
+  across named steps. Dot paths can include zero-based array indices.
+
+Each pipeline has a 60-second deadline, 30 upstream calls, 256 KiB of
+intermediate JSON and 16 KiB of final output. Truncated output carries
+`trimmed`, `total_bytes` and a UTF-8 preview. Each call checks the real
+upstream policy subject and current enabled state. An error stops the pipeline.
+Calls that completed before an error may already have changed upstream state.
+
+### Managing external servers
+
+Use `loom_mcp_list` to identify the server, then propose a change with
+`loom_mcp_register`. The `action` field accepts `create` (default), `update`,
+`toggle`, `set_exposure` and `delete`. For example,
+`{"action":"update","name":"home","disabled_tools":["unlock_door"]}` replaces
+the hidden tool list. Omitted configuration fields retain their saved values.
+Supply new environment variable names in `env_names` and fill their values in
+Connections. A create requires a new name. If the server changes while an
+approval is pending, Loom asks the caller to submit a fresh proposal.
 
 ### Agent sessions through Codeman
 

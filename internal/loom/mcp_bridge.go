@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
 
 // cmdMCPBridge relays newline-delimited JSON-RPC from stdin to the stateless
@@ -47,7 +49,7 @@ func cmdMCPBridge(args []string) error {
 			if target == "" {
 				target = sf.URL
 			}
-			if token == "" {
+			if token == "" && target == sf.URL {
 				token = sf.Token
 			}
 		}
@@ -75,12 +77,22 @@ func readSessionBridgeFile(customHome, sessionID string) (sessionBridgeFile, boo
 		if dir == "" {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(dir, "mcp-sessions", name))
+		root, err := os.OpenRoot(filepath.Join(dir, "mcp-sessions"))
+		if err != nil {
+			continue
+		}
+		f, err := root.Open(name)
+		_ = root.Close()
+		if err != nil {
+			continue
+		}
+		raw, err := io.ReadAll(io.LimitReader(f, 8193))
+		_ = f.Close()
 		if err != nil {
 			continue
 		}
 		var sf sessionBridgeFile
-		if json.Unmarshal(raw, &sf) == nil && sf.URL != "" {
+		if len(raw) <= 8192 && json.Unmarshal(raw, &sf) == nil && sf.SessionID == sessionID && resources.ValidMCPURL(sf.URL) {
 			return sf, true
 		}
 	}
@@ -92,6 +104,11 @@ func mcpBridge(in io.Reader, out io.Writer, url, token string, client *http.Clie
 }
 
 func mcpBridgeWithSession(in io.Reader, out io.Writer, targetURL, token, sessionID string, client *http.Client) error {
+	if !resources.ValidMCPURL(targetURL) {
+		return errors.New("invalid gateway URL")
+	}
+	httpClient := *client
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	sc := bufio.NewScanner(in)
 	sc.Buffer(make([]byte, 64<<10), 8<<20)
 	for sc.Scan() {
@@ -111,9 +128,18 @@ func mcpBridgeWithSession(in io.Reader, out io.Writer, targetURL, token, session
 		if sessionID != "" {
 			req.Header.Set("X-Loom-Session-Id", sessionID)
 		}
-		resp, err := client.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "loom mcp-bridge:", err)
+			if err := bridgeError(out, line, "gateway unavailable"); err != nil {
+				return err
+			}
+			continue
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			_ = resp.Body.Close()
+			if err := bridgeError(out, line, fmt.Sprintf("gateway returned HTTP %d", resp.StatusCode)); err != nil {
+				return err
+			}
 			continue
 		}
 		ct := strings.ToLower(resp.Header.Get("Content-Type"))
@@ -139,11 +165,14 @@ func mcpBridgeWithSession(in io.Reader, out io.Writer, targetURL, token, session
 			_ = resp.Body.Close()
 			continue
 		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+		body, err := io.ReadAll(io.LimitReader(resp.Body, (16<<20)+1))
 		_ = resp.Body.Close()
 		body = bytes.TrimSpace(body)
 		// Notifications get 202 and no body; only responses go back.
-		if err != nil || len(body) == 0 {
+		if err != nil || len(body) > 16<<20 || !json.Valid(body) {
+			if err := bridgeError(out, line, "invalid or oversized gateway response"); err != nil {
+				return err
+			}
 			continue
 		}
 		if _, err := out.Write(append(body, '\n')); err != nil {
@@ -151,4 +180,14 @@ func mcpBridgeWithSession(in io.Reader, out io.Writer, targetURL, token, session
 		}
 	}
 	return sc.Err()
+}
+
+func bridgeError(out io.Writer, request []byte, message string) error {
+	var envelope struct {
+		ID json.RawMessage `json:"id"`
+	}
+	if json.Unmarshal(request, &envelope) != nil || len(envelope.ID) == 0 {
+		return nil
+	}
+	return json.NewEncoder(out).Encode(map[string]any{"jsonrpc": "2.0", "id": envelope.ID, "error": map[string]any{"code": -32000, "message": message}})
 }

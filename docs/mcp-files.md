@@ -57,16 +57,19 @@ presets fill the manual form for review. Saving an enabled server starts its
 connection. Registry queries send the search terms to the official registry,
 and results are cached for five minutes.
 
-- `on_demand` exposes three discovery tools in place of the server's full tool
+- `on_demand` exposes search, describe, call and Code Mode tools in place of the server's full tool
   schemas. `direct` injects the server's enabled tools with their existing names.
 - New entries created in Connections, imported from linked files or registered
   by an agent default to on demand. A missing `exposure` inherits the gateway
   setting. Legacy entries start in direct mode until the owner enables
   **Token-saver mode (on demand)** in Agent Access.
 - Connections estimates token usage at four JSON bytes per token, with
-  approximately 350 tokens for the discovery tools. The estimate covers
+  the actual serialized size of the discovery and Code Mode definitions. The estimate covers
   external tool definitions, with actual savings varying by tokenizer and tool
-  catalog. An upstream still connects to discover its available tools.
+  catalog. Listings read the in-memory catalog. On restart, matching BoltDB
+  snapshots supply the metadata while enabled servers reconnect in parallel.
+  Discovery refreshes in the background after five minutes of use. The Test
+  button discards the saved snapshot and requests a fresh connection.
 
 ## Linked sources
 
@@ -116,9 +119,16 @@ and the existing 128 KiB request limit.
 
 `GET /api/mcp` returns the owned-server status and configuration fields, the
 default `tool_mode` and `token_budget` (`direct_tokens`, `injected_tokens`,
-`saved_tokens`, `saved_percent`, `on_demand_tools`, `direct_tools`). You can
+`saved_tokens`, `saved_percent`, `on_demand_tools`, `direct_tools`, `code_mode`). You can
 update just `exposure` with `POST /api/mcp/save` and
 `{name,exposure,exposure_only:true}`. An empty exposure inherits the default. Use
 `create_only:true` on creation to reject a conflicting name. `POST /api/mcp/test`
 reconnects an enabled server and includes `latency_ms`. The existing delete,
 toggle and per-tool endpoints keep their request formats.
+
+Server rows include `cached`, `connected`, `latency_ms`, `env_names` and
+`header_names`. Latency measures the last discovery attempt. An enabled server
+with no tools, connection or error can still be starting. The editor shows
+credential names with empty values. An omitted credential map preserves its
+saved entries. In a submitted map, blank values keep existing values for the
+same keys, new values replace them, and removing a key removes that credential.

@@ -102,10 +102,10 @@ export function phoneFixtures(ws, remote) {
     '/api/chat/history': { ok: true, projects, conversations: [] },
     '/api/mcp': {
       ok: true, tool_mode: 'smart',
-      token_budget: { direct_tokens: 34200, injected_tokens: 380, saved_tokens: 33820, saved_percent: 98, on_demand_tools: 42, direct_tools: 1 },
+      token_budget: { code_mode: true, direct_tokens: 34200, injected_tokens: 380, saved_tokens: 33820, saved_percent: 98, on_demand_tools: 42, direct_tools: 1 },
       servers: [
         { name: 'Home-assistant-with-a-very-long-server-name-for-phone-layout', description: 'A synthetic home automation server', transport: 'http',
-          url: 'https://mcp.example.test/v0/stream', enabled: true, connected: true, exposure: 'on_demand',
+          url: 'https://mcp.example.test/v0/stream', header_names: ['Authorization'], latency_ms: 31, enabled: true, connected: true, exposure: 'on_demand',
           tools: ['inspect_a_device_with_a_very_long_tool_name_for_phone_layout', 'list_rooms'], disabled: ['list_rooms'] },
         { name: 'Local fixture', transport: 'stdio', command: 'fixture', enabled: false, connected: false, exposure: 'direct', tools: [], disabled: [] },
       ],

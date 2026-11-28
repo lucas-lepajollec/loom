@@ -2,12 +2,15 @@ package loom
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/brain"
 	"github.com/lucas-lepajollec/loom/internal/loom/tools"
@@ -71,26 +74,35 @@ type gatewayStatusResult struct {
 	Upstreams []tools.MCPGatewayStatus `json:"upstreams"`
 }
 
-func gatewayServer(reader brain.Reader) *mcp.Server {
-	instructions := agentGuide
-	if cat := buildSubagentCatalog(context.Background()); cat.CodemanConnected && cat.Summary != "" {
-		instructions += " " + cat.Summary + "."
+// Each transport owns its reader and cached server. Rebuild the SDK registry
+// only when the advertised definitions or instructions change.
+func cachedGatewayServer(reader brain.Reader) func(*http.Request) *mcp.Server {
+	var mu sync.Mutex
+	var previous mcpHub
+	var previousAgents []tools.MCPGatewayTool
+	var server *mcp.Server
+	return func(*http.Request) *mcp.Server {
+		mu.Lock()
+		defer mu.Unlock()
+		hub := externalMCPHub()
+		agents, _, _ := agentsMCP.GatewayTools()
+		if server == nil || !slices.Equal(hub.servers, previous.servers) || !slices.Equal(hub.direct, previous.direct) || !slices.Equal(agents, previousAgents) {
+			server = gatewayServer(reader, hub, agents)
+			previous, previousAgents = hub, agents
+		}
+		return server
 	}
-	hub := externalMCPHub()
+}
+func gatewayServer(reader brain.Reader, hub mcpHub, agentTools []tools.MCPGatewayTool) *mcp.Server {
+	instructions := agentGuide
 	if note := hub.note(); note != "" {
 		instructions += "\n" + note
-	}
-	if hub.legacy {
-		instructions += "\nPropose new external servers with loom_mcp_register."
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "loom-gateway", Version: Version}, &mcp.ServerOptions{Instructions: instructions})
 	brain.RegisterMCPTools(server, reader)
 	registerLoomAgentTools(server)
 	registerLoomOrchestrationTools(server)
 	registerMCPHubTools(server, hub)
-	if hub.legacy {
-		server.AddReceivingMiddleware(legacyMCPToolList)
-	}
 	// Upstreams: the person's MCP servers, then Codeman's agent tools started
 	// by Loom itself. Each tool remembers which pool serves it.
 	type source struct {
@@ -103,7 +115,7 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 		sources = append(sources, source{mcpMgr.MCPManager, item})
 		upstream = append(upstream, item)
 	}
-	agentTools, _, _ := agentsMCP.GatewayTools()
+
 	for _, item := range agentTools {
 		sources = append(sources, source{agentsMCP, item})
 		upstream = append(upstream, item)
@@ -128,24 +140,46 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 		}
 		return nil, gatewayStatusResult{status}, err
 	})
-	server.AddReceivingMiddleware(gatewayUsageMiddleware, gatewayPolicyMiddleware(subjects))
+	server.AddReceivingMiddleware(gatewayUsageMiddleware, gatewayPolicyMiddleware(subjects), cachedListSchemas)
 	return server
 }
 
-// Legacy configurations retain their original tool list. Registration remains
-// callable by name, and is listed once an exposure mode is configured.
-func legacyMCPToolList(next mcp.MethodHandler) mcp.MethodHandler {
+// The SDK handles pagination and protocol-specific response fields. Cache the
+// immutable wire schemas for this server revision so listing built-in tools
+// doesn't repeatedly validate and reflect over the same inferred Go schemas.
+func cachedListSchemas(next mcp.MethodHandler) mcp.MethodHandler {
+	var mu sync.Mutex
+	definitions := map[*mcp.Tool]*mcp.Tool{}
 	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 		res, err := next(ctx, method, req)
-		if list, ok := res.(*mcp.ListToolsResult); ok && method == "tools/list" {
-			for i, t := range list.Tools {
-				if t.Name == mcpRegisterTool {
-					list.Tools = append(list.Tools[:i:i], list.Tools[i+1:]...)
-					break
-				}
-			}
+		list, ok := res.(*mcp.ListToolsResult)
+		if method != "tools/list" || err != nil || !ok {
+			return res, err
 		}
-		return res, err
+		mu.Lock()
+		defer mu.Unlock()
+		for i, t := range list.Tools {
+			wire := definitions[t]
+			if wire == nil {
+				clone := *t
+				input, err := json.Marshal(t.InputSchema)
+				if err != nil {
+					return nil, err
+				}
+				clone.InputSchema = json.RawMessage(input)
+				if t.OutputSchema != nil {
+					output, err := json.Marshal(t.OutputSchema)
+					if err != nil {
+						return nil, err
+					}
+					clone.OutputSchema = json.RawMessage(output)
+				}
+				wire = &clone
+				definitions[t] = wire
+			}
+			list.Tools[i] = wire
+		}
+		return res, nil
 	}
 }
 

@@ -185,25 +185,9 @@ func (c cloudTools) ExecuteJSON(ctx context.Context, name string, raw json.RawMe
 		}
 		return cloudWebSearch{}.Execute(ctx, name, args)
 	case c.mcp && isMCPMetaTool(name):
-		return capWebOutput(discussionMCPResult(ctx, name, raw)), nil
+		return discussionMCPResult(ctx, name, raw), nil
 	case c.mcp && isMCPTool(name):
-		for _, item := range externalMCPHub().direct {
-			if tools.MCPExposedName(item.Server, item.Tool.Name) != name {
-				continue
-			}
-			if err := authorizeGatewayTool(ctx, "", "mcp.tool:"+item.Server+"/"+item.Tool.Name, raw); err != nil {
-				return "", err
-			}
-			result, err := mcpMgr.GatewayCall(ctx, item.Server, item.Tool.Name, raw)
-			if err != nil {
-				return "", err
-			}
-			out := capWebOutput(tools.FlattenMCPContent(result))
-			if result.IsError {
-				return "[the tool returned an error]\n" + out, nil
-			}
-			return out, nil
-		}
+		return discussionDirectMCP(ctx, name, raw)
 	}
 	return "", errors.New("tool not enabled for this discussion: " + name)
 }

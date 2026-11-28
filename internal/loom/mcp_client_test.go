@@ -28,6 +28,7 @@ func TestMCPEndToEnd(t *testing.T) {
 	}
 	t.Cleanup(mcpCloseAll)
 
+	mcpMgr.Ensure("everything", cfg)
 	tools := mcpTools()
 	if len(tools) == 0 {
 		t.Fatal("aucun outil MCP découvert (le serveur s'est-il connecté ?)")
@@ -38,7 +39,7 @@ func TestMCPEndToEnd(t *testing.T) {
 		if tl.Function.Name == echoName {
 			found = true
 		}
-		if !strings.HasPrefix(tl.Function.Name, "mcp__everything__") {
+		if tl.Function.Name != mcpExecuteTool && !strings.HasPrefix(tl.Function.Name, "mcp__everything__") {
 			t.Errorf("outil mal namespacé: %s", tl.Function.Name)
 		}
 	}

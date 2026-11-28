@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- MCP Code Mode chains, filters and projects external tool calls in one turn.
+  Gateway and chat discovery use cached catalogs while servers refresh in the
+  background. Agents can list servers and propose edits for owner approval.
+  Connections shows discovery latency and keeps saved credentials on partial edits.
+
 - **Paired node port recovery**. Loom verifies and saves a paired node's new
   listener after a connection failure on its old port. Machines and the agent
   gateway expose the saved node URL.

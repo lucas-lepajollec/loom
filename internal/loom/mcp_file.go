@@ -3,9 +3,11 @@ package loom
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
@@ -96,9 +98,14 @@ func loadMCPConfigLocked() (map[string]MCPServerConfig, error) {
 		return map[string]MCPServerConfig{}, err
 	}
 	// Detached snapshot: callers may mutate maps/slices without changing the cache.
-	data, _ := json.Marshal(mcpFileCache.servers)
-	var result map[string]MCPServerConfig
-	_ = json.Unmarshal(data, &result)
+	result := maps.Clone(mcpFileCache.servers)
+	for k, c := range result {
+		c.Env = maps.Clone(c.Env)
+		c.Headers = maps.Clone(c.Headers)
+		c.Args = slices.Clone(c.Args)
+		c.DisabledTools = slices.Clone(c.DisabledTools)
+		result[k] = c
+	}
 	return result, nil
 }
 
