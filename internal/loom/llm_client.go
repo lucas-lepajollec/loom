@@ -1072,7 +1072,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					continue
 				}
 				var perr error
-				if !isMCPMetaTool(tc.Function.Name) {
+				if !isMCPMetaTool(tc.Function.Name) && !isMCPTool(tc.Function.Name) {
 					perr = authorizeLocalTool(ctx, tc.Function.Name, label, args)
 				}
 				if perr != nil {
@@ -1104,7 +1104,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					continue
 				}
 				switch tc.Function.Name {
-				case mcpSearchTool, mcpDescribeTool, mcpCallTool:
+				case mcpSearchTool, mcpDescribeTool, mcpCallTool, mcpExecuteTool:
 					result = discussionMCPResult(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
 				case "mem_search":
 					lim := 0
@@ -1212,7 +1212,11 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					result = capWebOutput(toolWebGrep(args))
 				default:
 					if isMCPTool(tc.Function.Name) {
-						result = mcpCall(tc.Function.Name, args)
+						var err error
+						result, err = discussionDirectMCP(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
+						if err != nil {
+							result = "[error] " + err.Error()
+						}
 					} else {
 						result = "[error] unknown tool: " + tc.Function.Name
 					}

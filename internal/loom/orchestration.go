@@ -398,7 +398,7 @@ func writeSessionBridgeFile(sessionID, targetURL, rawToken string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, name), raw, 0o600)
+	return memWriteFileAtomic(filepath.Join(dir, name), raw, 0o600)
 }
 
 func removeSessionBridgeFile(sessionID string) {
@@ -715,7 +715,11 @@ func orchSyncWithLive(liveIDs map[string]bool) {
 // 0600 bridge file under <LoomHome>/mcp-sessions/<id>.json when AutoInjectMCP is
 // enabled, so sessions created before a Loom restart or outside Loom UI still
 // connect seamlessly through `loom mcp-bridge`.
+var bridgeRepairMu sync.Mutex
+
 func orchEnsureBridgeFiles(live []codemanSessionInfo) {
+	bridgeRepairMu.Lock()
+	defer bridgeRepairMu.Unlock()
 	if !loadOrchestrationSettings().AutoInjectMCP || len(live) == 0 {
 		return
 	}
@@ -742,7 +746,9 @@ func orchEnsureBridgeFiles(live []codemanSessionInfo) {
 			scope.WorkingDir = s.WorkingDir
 		}
 		if tok, err := mintSessionToken(scope); err == nil {
-			_ = writeSessionBridgeFile(s.ID, gatewayURL(), tok)
+			if err := writeSessionBridgeFile(s.ID, gatewayURL(), tok); err != nil {
+				deleteRawSessionToken(tok)
+			}
 		}
 	}
 }

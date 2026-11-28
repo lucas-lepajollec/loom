@@ -35,11 +35,11 @@ const choice = { reasoning_efforts: strings };
 const workspace = { models: list(choice), runtimes: list(runtime), providers: list({ models: strings }), projects: list(project), capabilities: rows, sessions: list(session) };
 const stringValues = value => isObject(value) && Object.values(value).every(v => typeof v === 'string');
 const mcpServer = value => validShape(value, {
-  args: strings, tools: strings, disabled: strings, env: stringValues, headers: stringValues,
+  args: strings, tools: strings, disabled: strings, env_names: strings, header_names: strings, cached: false, latency_ms: 0, env: stringValues, headers: stringValues,
   transport: '', type: '', exposure: '', command: '', url: '', description: '', error: '', enabled: false, connected: false,
 }) && typeof value.name === 'string';
 const mcpStatus = { servers: list(mcpServer), tool_mode: '', token_budget: {
-  direct_tokens: 0, injected_tokens: 0, saved_tokens: 0, saved_percent: 0, on_demand_tools: 0, direct_tools: 0,
+  code_mode: false, direct_tokens: 0, injected_tokens: 0, saved_tokens: 0, saved_percent: 0, on_demand_tools: 0, direct_tools: 0,
 } };
 const mcpRegistryInput = { name: '', value: '', isRequired: false, isSecret: false };
 const mcpRegistryPreset = { transport: '', type: '', command: '', args: strings, url: '', headers: list(mcpRegistryInput), env_vars: list(mcpRegistryInput) };

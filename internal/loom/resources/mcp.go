@@ -3,9 +3,13 @@ package resources
 import (
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
+
+	"golang.org/x/net/idna"
 )
 
 const (
@@ -104,7 +108,24 @@ func (c MCPServerConfig) Validate() error {
 
 func ValidMCPURL(raw string) bool {
 	u, err := url.Parse(raw)
-	return err == nil && u.Hostname() != "" && (u.Scheme == "https" || u.Scheme == "http") && u.User == nil
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Hostname() == "" || u.Fragment != "" || strings.HasSuffix(u.Host, ":") {
+		return false
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.ParseUint(port, 10, 16)
+		if err != nil || n == 0 {
+			return false
+		}
+	}
+	host := u.Hostname()
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return ip.IsValid() && (!ip.Is6() || strings.HasPrefix(u.Host, "["))
+	}
+	if strings.ContainsAny(u.Host, "[]") {
+		return false
+	}
+	_, err = idna.Lookup.ToASCII(host)
+	return err == nil
 }
 
 // SortedServerNames renvoie les noms triés, pour un ordre d'affichage/itération

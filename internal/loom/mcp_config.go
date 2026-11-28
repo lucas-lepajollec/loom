@@ -87,6 +87,18 @@ func saveMCPServerLocked(name string, cfg MCPServerConfig, opts mcpSaveOptions) 
 		old.Exposure = cfg.Exposure
 		cfg = old
 	} else if opts.preserveExisting {
+		if exists {
+			if cfg.Command == "" && cfg.URL == "" {
+				cfg.Command, cfg.URL = old.Command, old.URL
+			}
+			if cfg.Transport() == old.Transport() {
+				if cfg.Args == nil {
+					cfg.Args = old.Args
+				}
+				cfg.Env = preserveMCPSecrets(cfg.Env, old.Env)
+				cfg.Headers = preserveMCPSecrets(cfg.Headers, old.Headers)
+			}
+		}
 		cfg.DisabledTools = old.DisabledTools
 		if cfg.Exposure == "" && exists {
 			cfg.Exposure = old.Exposure
@@ -106,6 +118,9 @@ func saveMCPServerLocked(name string, cfg MCPServerConfig, opts mcpSaveOptions) 
 		if opts.preserveExisting && old.Transport() != cfg.Transport() {
 			cfg.Type = ""
 		}
+	}
+	if cfg.URL != "" && !resources.ValidMCPURL(cfg.URL) {
+		return fmt.Errorf("invalid MCP URL")
 	}
 	if err := cfg.Validate(); err != nil {
 		return err
@@ -193,4 +208,18 @@ func SetMCPToolEnabled(server, tool string, on bool) error {
 	}
 	mcpInvalidate(server)
 	return nil
+}
+
+// An omitted map preserves every saved key. A submitted map is the owner's
+// desired key set: blank values retain the existing secret for that key.
+func preserveMCPSecrets(submitted, saved map[string]string) map[string]string {
+	if submitted == nil {
+		return saved
+	}
+	for key, value := range submitted {
+		if value == "" {
+			submitted[key] = saved[key]
+		}
+	}
+	return submitted
 }

@@ -11,7 +11,9 @@ export const serverExposure = (server, mode) => server.exposure || (mode === 'sm
 export const exposureBadge = (server, mode) => msg(serverExposure(server, mode) === onDemand ? 'smart_badge' : 'direct');
 export const transportBadge = server => server.transport === 'http' ? (server.type === 'sse' ? 'HTTP · SSE' : 'HTTP') : 'stdio';
 export const serverStatus = server => !server.enabled ? msg('disabled')
-  : server.connected ? msg('connected', { n: server.tools?.length || 0 }) : msg('error');
+  : server.cached ? msg('cached', { n: server.tools?.length || 0 })
+  : server.connected ? msg('live', { n: server.tools?.length || 0, ms: server.latency_ms ?? 0 })
+  : server.error ? msg('error') : msg('discovering');
 
 export function useMCPServers() {
   const [data, setData] = useState(null);
@@ -48,6 +50,7 @@ export function MCPBudget({ budget }) {
   const values = { injected: fmt.format(budget.injected_tokens), direct: fmt.format(budget.direct_tokens), saved: fmt.format(budget.saved_percent) };
   return html`<div class="cx-mcp-budget">
     <strong>${msg(budget.saved_percent ? 'budget_saved' : 'budget', values)}</strong>
+    <span class="cx-code-mode">${msg(budget.code_mode ? 'code_mode_on' : 'code_mode_off')}</span>
     ${budget.on_demand_tools > 0 && html`<p>${msg('discovery_hint')}</p>`}
   </div>`;
 }
@@ -139,8 +142,8 @@ const inputsMap = items => Object.fromEntries((items || []).map(item => [item.na
 const formFrom = (server = {}, fallback = onDemand) => ({
   name: server.name || '', transport: server.transport || (server.command ? 'stdio' : 'http'),
   type: server.type || (server.command ? 'stdio' : 'http'), command: server.command || '', url: server.url || '',
-  args: server.args?.length ? JSON.stringify(server.args) : '', env: formatPairs(server.env, '='),
-  headers: formatPairs(server.headers, ': '), description: server.description || '',
+  args: server.args?.length ? JSON.stringify(server.args) : '', env: formatPairs(server.env || Object.fromEntries((server.env_names || []).map(key => [key, ''])), '='),
+  headers: formatPairs(server.headers || Object.fromEntries((server.header_names || []).map(key => [key, ''])), ': '), description: server.description || '',
   exposure: server.exposure || fallback, enabled: server.enabled ?? true,
 });
 
@@ -209,6 +212,7 @@ function MCPManualForm({ form, edit, busy, change, onError }) {
       ${field('command', 'command', { placeholder: 'npx', autocomplete: 'off', spellcheck: 'false' })}
       ${area('args', 'args', '["-y", "package-name"]')}
       ${area('env', 'env', 'API_KEY=')}`}
+    ${edit && html`<p class="cx-note">${msg('keep_secret')}</p>`}
     ${field('description', 'description')}
     <${Seg} class="cx-mcp-seg" label=${msg('exposure')} value=${form.exposure} options=${exposureOptions(busy)} onChange=${exposure => change({ exposure })} />
   </div>`;
@@ -311,7 +315,9 @@ export function MCPServerDialog({ server, mode, onClose, onSaved, onAdopt }) {
       if (form.transport === 'http') {
         body.url = form.url.trim();
         body.type = form.type;
-        body.headers = readPairs(form.headers, ':', 'bad_headers');
+        if (!server || server.transport !== 'http' || form.headers !== formFrom(server).headers) {
+          body.headers = readPairs(form.headers, ':', 'bad_headers');
+        }
       } else {
         body.command = form.command.trim();
         body.type = form.type;
@@ -319,7 +325,9 @@ export function MCPServerDialog({ server, mode, onClose, onSaved, onAdopt }) {
           body.args = form.args.trim() ? JSON.parse(form.args) : [];
           if (!Array.isArray(body.args) || !body.args.every(value => typeof value === 'string')) throw new Error();
         } catch (_) { throw new Error(msg('bad_args')); }
-        body.env = readPairs(form.env, '=', 'bad_env');
+        if (!server || server.transport !== 'stdio' || form.env !== formFrom(server).env) {
+          body.env = readPairs(form.env, '=', 'bad_env');
+        }
       }
     } catch (e) { setError(e.message); return; }
     setBusy(true); setError('');

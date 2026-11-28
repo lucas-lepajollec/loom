@@ -2,70 +2,85 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/resources"
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// MCPConfigSource leaves authoritative configuration and migration in Loom.
 type MCPConfigSource interface {
 	LoadMCPConfig() (map[string]resources.MCPServerConfig, error)
 }
-type MCPConnector func(context.Context, string, resources.MCPServerConfig) (*mcpsdk.ClientSession, error)
+type MCPConnector func(context.Context, string, resources.MCPServerConfig) (*mcp.ClientSession, error)
 
-func NewMCPManager(config MCPConfigSource, connect MCPConnector) *MCPManager {
-	return &MCPManager{config: config, connect: connect, sessions: map[string]*MCPSession{}, registry: map[string]mcpToolRef{}}
+// The application owns persistence. Each record is scoped to the named server
+// and only usable with the same configuration (including credentials).
+type MCPCatalogStore interface {
+	LoadCatalog(name, hash string) []*mcp.Tool
+	SaveCatalog(name, hash string, cfg resources.MCPServerConfig, definitions []*mcp.Tool)
+	ForgetCatalog(name string)
 }
+
+const (
+	mcpConnectTimeout = 12 * time.Second
+	catalogLifetime   = 5 * time.Minute
+	catalogRetry      = 15 * time.Second
+	mcpMaxOutput      = 12000
+)
+
+type MCPSession struct {
+	hash   string
+	ready  chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
+	// Immutable once ready closes.
+	sess *mcp.ClientSession
+	err  error
+	// Protected by the manager lock. Readers retain immutable tool definitions.
+	tools              []*mcp.Tool
+	schemaBytes        []int
+	cached, refreshing bool
+	next               time.Time
+	latency            int64
+	failed             bool
+}
+
 func (s *MCPSession) Ready() <-chan struct{} { return s.ready }
 func (s *MCPSession) Error() error           { return s.err }
 
-const (
-	// mcpConnectTimeout borne l'établissement d'une session (handshake initialize
-	// + tools/list). Un serveur qui rame ne doit pas figer le tour de chat.
-	mcpConnectTimeout = 20 * time.Second
-	// mcpCallTimeout borne un appel d'outil MCP.
-	mcpCallTimeout = 120 * time.Second
-	// mcpMaxOutput cap la sortie renvoyée au modèle (cohérent avec toolMaxOutput).
-	mcpMaxOutput = 12000
-)
-
-// MCPSession est une connexion vivante à un serveur MCP.
-//
-// L'entrée est publiée dans le pool AVANT que la connexion aboutisse, pour qu'un
-// second appelant se mette en attente au lieu de lancer un deuxième process. Les
-// champs sess/tools/err ne doivent donc être lus qu'une fois `ready` fermé.
-type MCPSession struct {
-	name  string
-	cfg   resources.MCPServerConfig
-	sess  *mcpsdk.ClientSession
-	tools []*mcpsdk.Tool
-	err   error         // dernière erreur de connexion/liste, pour l'UI
-	ready chan struct{} // fermé quand la tentative de connexion est terminée
-}
-
-// MCPManager détient le pool de sessions.
 type MCPManager struct {
 	config   MCPConfigSource
 	connect  MCPConnector
 	mu       sync.Mutex
 	sessions map[string]*MCPSession
-	// registry mappe un nom d'outil exposé au modèle → (serveur, outil réel).
-	registry map[string]mcpToolRef
+	workers  int
+	pending  []func()
+	store    MCPCatalogStore
+	storeMu  sync.Mutex // serialize snapshot commits with invalidation
 }
 
-type mcpToolRef struct {
-	server string
-	tool   string
+func NewMCPManager(config MCPConfigSource, connect MCPConnector) *MCPManager {
+	store, _ := config.(MCPCatalogStore)
+	return &MCPManager{config: config, connect: connect, store: store, sessions: map[string]*MCPSession{}}
 }
 
-// Probe only pings an existing connection. Doctor must not start a configured
-// command or sign in just to report its availability.
-func (m *MCPManager) Probe(ctx context.Context, name string) (observed, connected bool, err error) {
+func configHash(cfg resources.MCPServerConfig) string {
+	data, _ := json.Marshal(cfg)
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+func (m *MCPManager) Probe(ctx context.Context, name string) (bool, bool, error) {
 	m.mu.Lock()
 	s := m.sessions[name]
 	m.mu.Unlock()
@@ -78,288 +93,219 @@ func (m *MCPManager) Probe(ctx context.Context, name string) (observed, connecte
 		return true, false, ctx.Err()
 	}
 	if s.err != nil || s.sess == nil {
-		return true, false, fmt.Errorf("upstream unavailable")
+		return true, false, errors.New("upstream unavailable")
 	}
-	err = s.sess.Ping(ctx, nil)
+	err := s.sess.Ping(ctx, nil)
 	return true, err == nil, err
 }
 
-// Invalidate ferme et oublie la session d'un serveur (après un changement de
-// config), pour qu'elle soit reconstruite avec la nouvelle config au prochain
-// usage.
+func retireSession(s *MCPSession) {
+	if s == nil {
+		return
+	}
+	s.cancel()
+	select {
+	case <-s.ready:
+		if s.sess != nil {
+			go s.sess.Close()
+		}
+	default: // The connecting worker owns cleanup until publication.
+	}
+}
+
 func (m *MCPManager) Invalidate(name string) {
+	m.storeMu.Lock()
+	defer m.storeMu.Unlock()
 	m.mu.Lock()
-	s := m.sessions[name]
+	defer m.mu.Unlock()
+	retireSession(m.sessions[name])
 	delete(m.sessions, name)
-	// Purge le registre des outils de ce serveur.
-	for exposed, ref := range m.registry {
-		if ref.server == name {
-			delete(m.registry, exposed)
-		}
-	}
-	m.mu.Unlock()
-	// Une session encore en cours de connexion a sess == nil : c'est sa goroutine
-	// qui refermera ce qu'elle vient d'ouvrir, en constatant qu'elle n'est plus
-	// dans le pool.
-	if s != nil {
-		select {
-		case <-s.ready:
-			if s.sess != nil {
-				_ = s.sess.Close()
-			}
-		default:
-		}
+	if m.store != nil {
+		m.store.ForgetCatalog(name)
 	}
 }
 
-// CloseAll ferme toutes les sessions (arrêt du service).
 func (m *MCPManager) CloseAll() {
+	m.storeMu.Lock()
+	defer m.storeMu.Unlock()
 	m.mu.Lock()
-	sessions := m.sessions
-	m.sessions = map[string]*MCPSession{}
-	m.registry = map[string]mcpToolRef{}
-	m.mu.Unlock()
-	for _, s := range sessions {
-		select {
-		case <-s.ready:
-			if s.sess != nil {
-				_ = s.sess.Close()
-			}
-		default:
-		}
+	defer m.mu.Unlock()
+	for _, s := range m.sessions {
+		retireSession(s)
 	}
+	clear(m.sessions)
 }
 
-// Ensure renvoie une session vivante pour un serveur activé, en la (re)créant si
-// besoin. Doit être appelé sans détenir mgr.mu (il gère le lock lui-même).
-//
-// L'entrée est réservée dans le pool avant la connexion : deux appelants
-// simultanés (le pré-chauffage et un tour de chat, par exemple) partagent la même
-// tentative au lieu de lancer deux process stdio.
-func (m *MCPManager) Ensure(name string, cfg resources.MCPServerConfig) *MCPSession {
+// schedule returns immediately. A cold handshake and subsequent tools/list
+// refreshes share the same bounded worker pool across all request paths.
+func (m *MCPManager) schedule(name string, cfg resources.MCPServerConfig) *MCPSession {
+	hash := configHash(cfg)
 	m.mu.Lock()
-	if s, ok := m.sessions[name]; ok {
-		m.mu.Unlock()
-		<-s.ready // connexion peut-être encore en cours : on attend son issue
+	defer m.mu.Unlock()
+	s := m.sessions[name]
+	if s != nil && s.hash != hash {
+		retireSession(s)
+		s = nil
+	}
+	if s != nil && (s.refreshing || time.Now().Before(s.next)) {
 		return s
 	}
-	s := &MCPSession{name: name, cfg: cfg, ready: make(chan struct{})}
+	if s != nil && s.sess != nil && !s.failed {
+		s.refreshing = true
+		m.enqueueLocked(func() { m.discover(name, cfg, s, s.ctx, s.sess) })
+		return s
+	}
+	var cached []*mcp.Tool
+	if s != nil {
+		cached = s.tools
+		retireSession(s)
+	} else if m.store != nil {
+		cached = m.store.LoadCatalog(name, hash)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s = &MCPSession{hash: hash, ready: make(chan struct{}), ctx: ctx, cancel: cancel, tools: cached, cached: cached != nil, refreshing: true}
+	s.schemaBytes = measureSchemas(cached)
 	m.sessions[name] = s
-	m.mu.Unlock()
-
-	// Connexion hors-lock (peut être lente).
-	ctx, cancel := context.WithTimeout(context.Background(), mcpConnectTimeout)
-	defer cancel()
-	sess, err := m.connect(ctx, name, cfg)
-	if err != nil {
-		s.err = err
-	} else {
-		s.sess = sess
-		for tool, err := range sess.Tools(ctx, nil) {
-			if err != nil {
-				s.err = err
-				s.tools = nil
-				break
-			}
-			s.tools = append(s.tools, tool)
-		}
-	}
-
-	m.mu.Lock()
-	// La session a pu être invalidée pendant la connexion (changement de config,
-	// arrêt du service) : dans ce cas on ne la republie pas, on referme.
-	stale := m.sessions[name] != s
-	if !stale {
-		// (Re)peuple le registre pour ce serveur.
-		for exposed, ref := range m.registry {
-			if ref.server == name {
-				delete(m.registry, exposed)
-			}
-		}
-		for _, t := range s.tools {
-			m.registry[MCPExposedName(name, t.Name)] = mcpToolRef{server: name, tool: t.Name}
-		}
-	}
-	m.mu.Unlock()
-	if stale && s.sess != nil {
-		_ = s.sess.Close()
-		s.sess = nil
-	}
-	close(s.ready)
+	m.enqueueLocked(func() { m.discover(name, cfg, s, ctx, nil) })
 	return s
 }
 
-// EnsureAll connecte en parallèle tous les serveurs activés et attend qu'ils
-// soient tous fixés (connectés ou en erreur). C'est ce qui évite d'additionner
-// les temps de démarrage : le coût total est celui du serveur le plus lent.
-func (m *MCPManager) EnsureAll(servers map[string]resources.MCPServerConfig) {
-	var wg sync.WaitGroup
-	for _, name := range resources.SortedServerNames(servers) {
-		cfg := servers[name]
-		if !cfg.Enabled || cfg.Transport() == "" {
-			continue
-		}
-		wg.Add(1)
-		go func(name string, cfg resources.MCPServerConfig) {
-			defer wg.Done()
-			m.Ensure(name, cfg)
-		}(name, cfg)
+// Workers exit when the queue drains, including after shutdown. An entry
+// invalidated while queued is canceled before its connector can start.
+func (m *MCPManager) enqueueLocked(job func()) {
+	if m.workers >= 8 {
+		m.pending = append(m.pending, job)
+		return
 	}
-	wg.Wait()
+	m.workers++
+	go func() {
+		for {
+			job()
+			m.mu.Lock()
+			if len(m.pending) == 0 {
+				m.workers--
+				m.mu.Unlock()
+				return
+			}
+			job = m.pending[0]
+			m.pending[0] = nil
+			m.pending = m.pending[1:]
+			m.mu.Unlock()
+		}
+	}()
 }
 
-// Tools connecte les serveurs activés et renvoie leurs outils, prêts à être
-// annoncés au modèle. Réservé au mode agent (appelé par EnabledTools).
-func (m *MCPManager) Tools() []Tool {
-	servers, err := m.config.LoadMCPConfig()
-	if err != nil || len(servers) == 0 {
-		return nil
-	}
-	m.EnsureAll(servers) // connexions en parallèle, puis lecture du pool (instantanée)
-	var out []Tool
-	for _, name := range resources.SortedServerNames(servers) {
-		cfg := servers[name]
-		if !cfg.Enabled || cfg.Transport() == "" {
-			continue
-		}
-		s := m.Ensure(name, cfg)
-		if s.sess == nil {
-			continue // connexion échouée : signalé dans l'UI, pas au modèle
-		}
-		for _, t := range s.tools {
-			if cfg.ToolDisabled(t.Name) {
-				continue // outil masqué par l'utilisateur : pas annoncé au modèle
-			}
-			desc := t.Description
-			if desc == "" {
-				desc = t.Title
-			}
-			// Préfixe le serveur d'origine dans la description : aide le modèle à
-			// choisir entre outils similaires de serveurs différents.
-			desc = "[MCP: " + name + "] " + desc
-			out = append(out, Tool{
-				Type: "function",
-				Function: ToolFunction{
-					Name:        MCPExposedName(name, t.Name),
-					Description: desc,
-					Parameters:  MCPNormalizeSchema(t.InputSchema),
-				},
-			})
-		}
-	}
-	return out
-}
-
-// Call exécute un outil MCP à partir de son nom exposé et renvoie une chaîne
-// résultat (texte aplati), cappée. Reconnecte une fois si la session est morte.
-func (m *MCPManager) Call(name string, args map[string]any) string {
-	m.mu.Lock()
-	ref, ok := m.registry[name]
-	m.mu.Unlock()
-	if !ok {
-		return "[error] unknown MCP tool or server not connected: " + name
-	}
-	// The registry outlives configuration changes: a server switched off or a
-	// tool hidden since the last listing must not stay callable by name.
-	if servers, err := m.config.LoadMCPConfig(); err != nil {
-		return "[error] MCP configuration unavailable"
-	} else if cfg, exists := servers[ref.server]; !exists || !cfg.Enabled || cfg.ToolDisabled(ref.tool) {
-		return "[error] MCP tool not enabled: " + name
-	}
-
-	result, err := m.callOnce(ref, args)
-	if err != nil {
-		// Session peut-être morte (process stdio tombé) : on l'invalide et on
-		// retente une fois avec une reconnexion fraîche.
-		servers, _ := m.config.LoadMCPConfig()
-		cfg, exists := servers[ref.server]
-		if exists && cfg.Enabled {
-			m.Invalidate(ref.server)
-			m.Ensure(ref.server, cfg)
-			if result2, err2 := m.callOnce(ref, args); err2 == nil {
-				return result2
-			} else {
-				err = err2
-			}
-		}
-		return "[MCP error] " + err.Error()
-	}
-	return result
-}
-
-func (m *MCPManager) callOnce(ref mcpToolRef, args map[string]any) (string, error) {
-	m.mu.Lock()
-	s := m.sessions[ref.server]
-	m.mu.Unlock()
-	if s == nil || s.sess == nil {
-		return "", fmt.Errorf("server %s not connected", ref.server)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), mcpCallTimeout)
+func (m *MCPManager) discover(name string, cfg resources.MCPServerConfig, s *MCPSession, parent context.Context, live *mcp.ClientSession) {
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(parent, mcpConnectTimeout)
 	defer cancel()
-	res, err := s.sess.CallTool(ctx, &mcpsdk.CallToolParams{Name: ref.tool, Arguments: args})
-	if err != nil {
-		return "", err
+	session := live
+	err := ctx.Err()
+	// Recheck the authoritative config after queueing. In particular, an old
+	// reader racing an edit must never launch the superseded command.
+	if err == nil && m.config != nil {
+		latest, loadErr := m.config.LoadMCPConfig()
+		current, exists := latest[name]
+		if loadErr != nil || !exists || !current.Enabled || configHash(current) != s.hash {
+			err = errors.New("MCP configuration changed")
+		}
 	}
-	out := FlattenMCPContent(res)
-	if r := []rune(out); len(r) > mcpMaxOutput {
-		out = string(r[:mcpMaxOutput]) + "\n…[truncated]"
+	if err == nil && session == nil {
+		session, err = m.connect(ctx, name, cfg)
 	}
-	if res.IsError {
-		return "[the tool returned an error]\n" + out, nil
+	definitions := []*mcp.Tool{}
+	if err == nil {
+		for t, listErr := range session.Tools(ctx, nil) {
+			if listErr != nil {
+				err = listErr
+				break
+			}
+			if t == nil || t.Name == "" {
+				err = errors.New("invalid MCP tool definition")
+				break
+			}
+			if len(definitions) >= 8192 {
+				err = errors.New("MCP catalog too large")
+				break
+			}
+			definitions = append(definitions, t)
+		}
 	}
-	if strings.TrimSpace(out) == "" {
-		return "[ok] (no output)", nil
+	sort.Slice(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })
+	sizes := measureSchemas(definitions)
+	persist := err == nil && m.store != nil
+	if persist {
+		m.storeMu.Lock()
+		defer m.storeMu.Unlock()
 	}
-	return out, nil
-}
-
-// PromptLine renvoie une ligne système listant les serveurs MCP connectés et
-// leur nombre d'outils, pour situer le modèle. Ne force PAS de connexion : lit
-// seulement l'état déjà établi par Tools() (appelé par EnabledTools sur le
-// même tour), pour ne pas payer deux fois le handshake.
-func (m *MCPManager) PromptLine() string {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	var names []string
-	for name, s := range m.sessions {
-		select {
-		case <-s.ready:
-		default:
-			continue
+	current := m.sessions[name] == s
+	if live == nil {
+		if current && err == nil {
+			s.sess = session
+		} else if session != nil {
+			go session.Close()
 		}
-		if s.sess != nil && len(s.tools) > 0 {
-			names = append(names, fmt.Sprintf("%s (%d)", name, len(s.tools)))
+		s.err = err
+		close(s.ready)
+	}
+	if current {
+		s.refreshing = false
+		s.failed = err != nil
+		s.latency = time.Since(start).Milliseconds()
+		s.next = time.Now().Add(catalogRetry)
+		if err == nil {
+			s.tools, s.schemaBytes = definitions, sizes
+			s.cached = false
+			s.next = time.Now().Add(catalogLifetime)
+		} else {
+			s.cached = s.tools != nil
 		}
 	}
-	if len(names) == 0 {
-		return ""
+	m.mu.Unlock()
+	if current && persist {
+		m.store.SaveCatalog(name, s.hash, cfg, definitions)
 	}
-	sort.Strings(names)
-	return "\n\nMCP servers connected (their tools are prefixed mcp__<server>__<tool>): " + strings.Join(names, ", ") + "."
 }
 
-// MCPServerStatus est l'état d'un serveur pour l'UI web.
+func (m *MCPManager) Ensure(name string, cfg resources.MCPServerConfig) *MCPSession {
+	s := m.schedule(name, cfg)
+	<-s.ready
+	return s
+}
+
+func (m *MCPManager) EnsureAll(servers map[string]resources.MCPServerConfig) {
+	var pending []*MCPSession
+	for name, cfg := range servers {
+		if cfg.Enabled && cfg.Transport() != "" {
+			pending = append(pending, m.schedule(name, cfg))
+		}
+	}
+	for _, s := range pending {
+		<-s.ready
+	}
+}
+
 type MCPServerStatus struct {
 	Name        string   `json:"name"`
 	Transport   string   `json:"transport"`
 	Enabled     bool     `json:"enabled"`
 	Connected   bool     `json:"connected"`
+	Cached      bool     `json:"cached,omitempty"`
+	LatencyMS   int64    `json:"latency_ms,omitempty"`
 	Error       string   `json:"error,omitempty"`
-	Tools       []string `json:"tools"`    // tous les outils découverts sur le serveur
-	Disabled    []string `json:"disabled"` // sous-ensemble masqué (non exposé à l'IA)
+	Tools       []string `json:"tools"`
+	Disabled    []string `json:"disabled"`
 	Exposure    string   `json:"exposure,omitempty"`
 	Type        string   `json:"type,omitempty"`
 	Description string   `json:"description,omitempty"`
-	// Détail de config (pour pré-remplir le formulaire d'édition).
-	Command string            `json:"command,omitempty"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
-	URL     string            `json:"url,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
+	Command     string   `json:"command,omitempty"`
+	Args        []string `json:"args,omitempty"`
+	URL         string   `json:"url,omitempty"`
+	EnvNames    []string `json:"env_names,omitempty"`
+	HeaderNames []string `json:"header_names,omitempty"`
 }
 
-// Status renvoie l'état de tous les serveurs configurés, en tentant de
-// connecter ceux qui sont activés (pour refléter l'état réel dans l'UI).
 func (m *MCPManager) Status() ([]MCPServerStatus, error) {
 	out, _, err := m.StatusWithTools()
 	return out, err
@@ -370,45 +316,111 @@ func (m *MCPManager) StatusWithTools() ([]MCPServerStatus, []MCPGatewayTool, err
 	if err != nil {
 		return nil, nil, err
 	}
-	m.EnsureAll(servers) // en parallèle : le panneau MCP de l'UI n'attend plus la somme
 	out := make([]MCPServerStatus, 0, len(servers))
 	var exposed []MCPGatewayTool
 	for _, name := range resources.SortedServerNames(servers) {
 		cfg := servers[name]
 		st := MCPServerStatus{
-			Name:        name,
-			Transport:   cfg.Transport(),
-			Exposure:    cfg.Exposure,
-			Type:        cfg.Type,
-			Description: cfg.Description,
-			Enabled:     cfg.Enabled,
-			Command:     cfg.Command,
-			Args:        cfg.Args,
-			Env:         cfg.Env,
-			URL:         cfg.URL,
-			Headers:     cfg.Headers,
-			Tools:       []string{},
-			Disabled:    cfg.DisabledTools,
-		}
-		if st.Disabled == nil {
-			st.Disabled = []string{}
+			Name: name, Transport: cfg.Transport(), Enabled: cfg.Enabled, Type: cfg.Type,
+			Exposure: cfg.Exposure, Description: cfg.Description, Command: cfg.Command, Args: cfg.Args, URL: cfg.URL,
+			EnvNames: slices.Sorted(maps.Keys(cfg.Env)), HeaderNames: slices.Sorted(maps.Keys(cfg.Headers)),
+			Tools: []string{}, Disabled: append([]string{}, cfg.DisabledTools...),
 		}
 		if cfg.Enabled && cfg.Transport() != "" {
-			s := m.Ensure(name, cfg)
-			if s.err == nil && s.sess != nil {
-				st.Connected = true
-				for _, t := range s.tools {
-					st.Tools = append(st.Tools, t.Name)
-					if !cfg.ToolDisabled(t.Name) {
-						exposed = append(exposed, MCPGatewayTool{name, t})
-					}
-				}
+			s := m.schedule(name, cfg)
+			m.mu.Lock()
+			st.Connected = s.sess != nil && !s.failed
+			st.Cached = s.cached || s.refreshing && s.tools != nil
+			st.LatencyMS = s.latency
+			definitions, sizes := s.tools, s.schemaBytes
+			if s.failed {
+				st.Error = "upstream unavailable"
 			}
-			if s.err != nil {
-				st.Error = s.err.Error()
+			m.mu.Unlock()
+			for i, t := range definitions {
+				st.Tools = append(st.Tools, t.Name)
+				if !cfg.ToolDisabled(t.Name) {
+					exposed = append(exposed, MCPGatewayTool{name, t, sizes[i]})
+				}
 			}
 		}
 		out = append(out, st)
 	}
 	return out, exposed, nil
+}
+
+// Legacy blocking API for explicit discovery.
+func (m *MCPManager) Tools() []Tool {
+	servers, err := m.config.LoadMCPConfig()
+	if err != nil {
+		return nil
+	}
+	m.EnsureAll(servers)
+	all, _, _ := m.GatewayTools()
+	var out []Tool
+	for _, item := range all {
+		t := item.Tool
+		desc := t.Description
+		if desc == "" {
+			desc = t.Title
+		}
+		out = append(out, Tool{Type: "function", Function: ToolFunction{Name: MCPExposedName(item.Server, t.Name), Description: "[MCP: " + item.Server + "] " + desc, Parameters: MCPNormalizeSchema(t.InputSchema)}})
+	}
+	return out
+}
+func (m *MCPManager) PromptLine() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var names []string
+	for name, s := range m.sessions {
+		if s.sess != nil && len(s.tools) > 0 {
+			names = append(names, fmt.Sprintf("%s (%d)", name, len(s.tools)))
+		}
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		return ""
+	}
+	return "\n\nMCP servers connected (their tools are prefixed mcp__<server>__<tool>): " + strings.Join(names, ", ") + "."
+}
+
+func (m *MCPManager) Call(name string, args map[string]any) string {
+	all, _, _ := m.GatewayTools()
+	for _, item := range all {
+		if MCPExposedName(item.Server, item.Tool.Name) != name {
+			continue
+		}
+		raw, err := json.Marshal(args)
+		if err != nil {
+			return "[error] invalid MCP arguments"
+		}
+		result, err := m.GatewayCall(context.Background(), item.Server, item.Tool.Name, raw)
+		if err != nil {
+			result, err = m.GatewayCall(context.Background(), item.Server, item.Tool.Name, raw)
+		}
+		if err != nil {
+			return "[MCP error] " + err.Error()
+		}
+		out := FlattenMCPContent(result)
+		if runes := []rune(out); len(runes) > mcpMaxOutput {
+			out = string(runes[:mcpMaxOutput]) + "\n…[truncated]"
+		}
+		if result.IsError {
+			return "[the tool returned an error]\n" + out
+		}
+		if out == "" {
+			return "[ok] (no output)"
+		}
+		return out
+	}
+	return "[error] MCP tool not enabled: " + name
+}
+
+func measureSchemas(definitions []*mcp.Tool) []int {
+	sizes := make([]int, len(definitions))
+	for i, t := range definitions {
+		data, _ := json.Marshal(t)
+		sizes[i] = len(data)
+	}
+	return sizes
 }

@@ -30,3 +30,17 @@ func TestMCPBridgeRelaysResponsesAndSkipsNotifications(t *testing.T) {
 		t.Fatalf("%q %q", out.String(), seen)
 	}
 }
+
+func TestMCPBridgeReportsGatewayErrorsAndKeepsCredentialsAtOrigin(t *testing.T) {
+	redirected := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("followed gateway redirect") }))
+	defer redirected.Close()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, redirected.URL, http.StatusTemporaryRedirect)
+	}))
+	defer upstream.Close()
+	var out bytes.Buffer
+	err := mcpBridge(strings.NewReader(`{"jsonrpc":"2.0","method":"tools/list","id":"client-2"}`), &out, upstream.URL, "synthetic", upstream.Client())
+	if err != nil || !strings.Contains(out.String(), `"id":"client-2"`) || !strings.Contains(out.String(), "HTTP 307") || strings.Contains(out.String(), "synthetic") {
+		t.Fatal(out.String(), err)
+	}
+}

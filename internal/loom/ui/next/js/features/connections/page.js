@@ -204,7 +204,7 @@ export function ConnectionsPage() {
     ${open && html`<${Detail} open=${open} onClose=${() => setOpen(null)} onMCPModeChanged=${reloadMCP} />`}
     ${externalServer && !mcpDialog && html`<${MCPServerDrawer} server=${externalServer} mode=${mode} onClose=${() => setExternal('')}
       onChange=${setMCP} onEdit=${() => setMCPDialog({ server: externalServer })}
-      onDelete=${name => { setExternal(''); setMCP({ ...mcpData, servers: servers.filter(server => server.name !== name) }); reloadMCP(); }} />`}
+      onDelete=${() => { setExternal(''); reloadMCP(); }} />`}
     ${mcpDialog && html`<${MCPServerDialog} server=${mcpDialog.server} mode=${mode} onClose=${() => setMCPDialog(null)}
       onSaved=${result => { setMCP(result); setMCPDialog(null); }}
       onAdopt=${() => { reloadMCP(); setMCPDialog(null); }} />`}

@@ -84,7 +84,7 @@ func baseSystemPrompt(caps Caps) string {
 }
 
 func discussionMCPResult(ctx context.Context, name string, raw json.RawMessage) string {
-	if name != mcpCallTool {
+	if name != mcpCallTool && name != mcpExecuteTool {
 		subject := "mcp.tool:loom/" + name
 		if err := authorizeGatewayTool(ctx, name, subject, raw); err != nil {
 			return "[error] " + err.Error()
@@ -102,6 +102,24 @@ func discussionMCPResult(ctx context.Context, name string, raw json.RawMessage) 
 		return "[ok] (no output)"
 	}
 	return out
+}
+
+func discussionDirectMCP(ctx context.Context, name string, raw json.RawMessage) (string, error) {
+	for _, item := range externalMCPHub().direct {
+		if tools.MCPExposedName(item.Server, item.Tool.Name) != name {
+			continue
+		}
+		result, err := authorizedMCPCall(ctx, mcpTarget{item.Server, item.Tool.Name}, raw)
+		if err != nil {
+			return "", err
+		}
+		out := capWebOutput(tools.FlattenMCPContent(result))
+		if result.IsError {
+			return "[the tool returned an error]\n" + out, nil
+		}
+		return out, nil
+	}
+	return "", errors.New("MCP tool unavailable")
 }
 
 // prevYear returns the year before the given "2006"-formatted year string, used

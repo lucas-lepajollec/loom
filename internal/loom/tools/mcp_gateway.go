@@ -4,17 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"slices"
-	"sort"
 	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type MCPGatewayTool struct {
-	Server string
-	Tool   *mcpsdk.Tool
+	Server      string
+	Tool        *mcpsdk.Tool
+	SchemaBytes int
 }
 type MCPGatewayStatus struct {
 	Name      string `json:"name"`
@@ -26,50 +25,29 @@ type MCPGatewayStatus struct {
 }
 
 func (m *MCPManager) GatewayTools() ([]MCPGatewayTool, []MCPGatewayStatus, error) {
-	servers, err := m.config.LoadMCPConfig()
+	rows, out, err := m.StatusWithTools()
 	if err != nil {
 		return nil, nil, err
 	}
-	m.EnsureAll(servers)
-	out := []MCPGatewayTool{}
-	status := []MCPGatewayStatus{}
-	names := make([]string, 0, len(servers))
-	for name := range servers {
-		names = append(names, name)
+	status := make([]MCPGatewayStatus, 0, len(rows))
+	counts := map[string]int{}
+	for _, t := range out {
+		counts[t.Server]++
 	}
-	sort.Strings(names)
-	for _, name := range names {
-		cfg := servers[name]
-		st := MCPGatewayStatus{Name: name, Enabled: cfg.Enabled, Exposure: cfg.Exposure}
-		if cfg.Enabled {
-			s := m.Ensure(name, cfg)
-			if s.err != nil {
-				st.Error = "upstream unavailable"
-				slog.Warn("MCP gateway upstream unavailable", "server", name)
-			} else if s.sess != nil {
-				st.Connected = true
-				for _, tool := range s.tools {
-					if !cfg.ToolDisabled(tool.Name) {
-						out = append(out, MCPGatewayTool{name, tool})
-						st.Tools++
-					}
-				}
-			}
-		}
-		status = append(status, st)
+	for _, r := range rows {
+		status = append(status, MCPGatewayStatus{Name: r.Name, Enabled: r.Enabled, Exposure: r.Exposure, Connected: r.Connected, Error: r.Error, Tools: counts[r.Name]})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Server != out[j].Server {
-			return out[i].Server < out[j].Server
-		}
-		return out[i].Tool.Name < out[j].Tool.Name
-	})
 	return out, status, nil
 }
 
 func (m *MCPManager) GatewayCall(ctx context.Context, server, tool string, args json.RawMessage) (*mcpsdk.CallToolResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
+	return m.GatewayCallChecked(ctx, server, tool, args, nil)
+}
+
+// GatewayCallChecked binds an approval to the selected live tool and config.
+// A change while the caller is waiting for consent requires a new invocation.
+func (m *MCPManager) GatewayCallChecked(ctx context.Context, server, tool string, args json.RawMessage, authorize func(context.Context) error) (*mcpsdk.CallToolResult, error) {
+
 	servers, err := m.config.LoadMCPConfig()
 	if err != nil {
 		return nil, err
@@ -80,21 +58,32 @@ func (m *MCPManager) GatewayCall(ctx context.Context, server, tool string, args 
 	}
 	// Ensure shares the native pool's bounded connection attempt. Cancellation
 	// bounds the caller even while another client establishes the connection.
-	ready := make(chan *MCPSession, 1)
-	go func() { ready <- m.Ensure(server, cfg) }()
-	var s *MCPSession
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s := m.schedule(server, cfg)
+	discovery, stop := context.WithTimeout(ctx, 60*time.Second)
+	defer stop()
 	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case s = <-ready:
+	case <-discovery.Done():
+		return nil, discovery.Err()
+	case <-s.ready:
 	}
 	if s.err != nil || s.sess == nil {
 		return nil, fmt.Errorf("MCP upstream unavailable")
 	}
-	if !slices.ContainsFunc(s.tools, func(t *mcpsdk.Tool) bool { return t.Name == tool }) {
+	m.mu.Lock()
+	definitions := s.tools
+	m.mu.Unlock()
+	if !slices.ContainsFunc(definitions, func(t *mcpsdk.Tool) bool { return t.Name == tool }) {
 		return nil, fmt.Errorf("MCP tool unavailable")
 	}
-	// Re-read after connecting so a concurrent disable or edit takes effect.
+	if authorize != nil {
+		if err := authorize(ctx); err != nil {
+			return nil, err
+		}
+	}
+	// Re-read after discovery and approval so a concurrent edit takes effect.
 	servers, err = m.config.LoadMCPConfig()
 	if err != nil {
 		return nil, err
@@ -103,12 +92,20 @@ func (m *MCPManager) GatewayCall(ctx context.Context, server, tool string, args 
 	m.mu.Lock()
 	current := m.sessions[server] == s
 	m.mu.Unlock()
-	if !current || !ok || !cfg.Enabled || cfg.ToolDisabled(tool) {
+	if !current || !ok || !cfg.Enabled || cfg.ToolDisabled(tool) || configHash(cfg) != s.hash {
 		return nil, fmt.Errorf("MCP tool unavailable")
 	}
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
 	result, err := s.sess.CallTool(ctx, &mcpsdk.CallToolParams{Name: tool, Arguments: args})
 	if err != nil && ctx.Err() == nil {
-		m.Invalidate(server)
+		m.mu.Lock()
+		if m.sessions[server] == s {
+			retireSession(s)
+			delete(m.sessions, server)
+		}
+		m.mu.Unlock()
+		return nil, fmt.Errorf("MCP upstream call failed")
 	}
 	return result, err
 }

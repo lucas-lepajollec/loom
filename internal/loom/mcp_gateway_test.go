@@ -82,6 +82,7 @@ func gatewayFixturePool(t *testing.T) {
 		t.Cleanup(func() { _ = session.Close() })
 		return mcp.NewClient(&mcp.Implementation{Name: "loom"}, nil).Connect(ctx, ct, nil)
 	})
+	mgr.EnsureAll(cfg)
 	mcpMgr = &mcpManager{mgr}
 	t.Cleanup(func() { mgr.CloseAll(); mcpMgr = old })
 }
@@ -131,7 +132,7 @@ func TestGatewayDiscoveryProxyAndStatus(t *testing.T) {
 			t.Fatal("missing", name)
 		}
 	}
-	if len(names) != 26 || names["ok-server__hidden"] {
+	if len(names) != 29 || names["ok-server__hidden"] {
 		t.Fatal(names)
 	}
 	if init := session.InitializeResult(); init == nil || !strings.Contains(init.Instructions, "loom_overview") {

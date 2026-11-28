@@ -40,8 +40,12 @@ type codemanMCPSource struct{}
 
 func (codemanMCPSource) LoadMCPConfig() (map[string]resources.MCPServerConfig, error) {
 	// Only a connection the person saved: the default address is for discovery.
-	saved, bin := savedCodemanConfig(), codemanCLI()
-	if saved == nil || saved.URL == "" || bin == "" {
+	saved := savedCodemanConfig()
+	if saved == nil || saved.URL == "" {
+		return nil, nil
+	}
+	bin := codemanCLI()
+	if bin == "" {
 		return map[string]resources.MCPServerConfig{}, nil
 	}
 	cfg := *saved
@@ -129,7 +133,7 @@ func agentsStatus() string {
 	case "codeman_cli_missing":
 		return "unavailable: the codeman command is not installed on the machine serving Loom"
 	}
-	return "available through the agents__* tools (Codeman at " + savedCodemanConfig().URL + ")"
+	return "available through the agents__* tools"
 }
 
 type machineRunArgs struct {

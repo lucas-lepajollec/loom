@@ -16,7 +16,7 @@ import (
 // write tools default to Confirm; read-only discovery tools remain Allow.
 func gatewayToolFallback(subject string) policy.Decision {
 	switch subject {
-	case "mcp.tool:loom/" + mcpSearchTool, "mcp.tool:loom/" + mcpDescribeTool,
+	case "mcp.tool:loom/" + mcpListTool, "mcp.tool:loom/" + mcpSearchTool, "mcp.tool:loom/" + mcpDescribeTool,
 		"mcp.tool:loom/loom_overview",
 		"mcp.tool:loom/loom_machines",
 		"mcp.tool:loom/loom_gateway_status",
@@ -78,7 +78,7 @@ func gatewayPolicyMiddleware(subjects map[string]string) mcp.Middleware {
 			_ = json.Unmarshal(raw, &params)
 			// These handlers authorize the real upstream subject or mcp.manage
 			// after validating the proposal. The wrapper name is not a capability.
-			if params.Name == mcpCallTool || params.Name == mcpRegisterTool {
+			if params.Name == mcpExecuteTool || params.Name == mcpCallTool || params.Name == mcpRegisterTool {
 				return next(ctx, method, req)
 			}
 			subject := subjects[params.Name]
@@ -137,6 +137,14 @@ func authorizeMCPPolicy(ctx context.Context, mgr *runtimeSessions, in policy.Inp
 	case mgr == nil:
 		return errors.New("policy confirmation required for " + in.Subject)
 	default:
+		if gate, ok := ctx.Value(pipelineApprovalKey{}).(chan struct{}); ok {
+			select {
+			case gate <- struct{}{}:
+				defer func() { <-gate }()
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
 		return mgr.confirmPolicy(ctx, in)
 	}
 }

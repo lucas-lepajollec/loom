@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -117,23 +118,46 @@ func defaultModelsForCLI(cliID string) ([]CatalogModel, []string) {
 	}
 }
 
+// Overview and catalog share a short-lived observation. The permission
+// broker and session creation always consult the authoritative settings.
+var catalogObservation struct {
+	sync.Mutex
+	home     string
+	config   codemanConfig
+	settings OrchestrationSettings
+	until    time.Time
+	value    SubagentCatalog
+}
+
 func buildSubagentCatalog(ctx context.Context) SubagentCatalog {
 	settings := loadOrchestrationSettings()
 	out := SubagentCatalog{Settings: settings, CLIs: []SubagentCLICatalogItem{}}
-	if savedCodemanConfig() == nil {
+	saved := savedCodemanConfig()
+	if saved == nil || saved.URL == "" {
 		out.Summary = "Codeman not connected"
 		return out
 	}
+	home := LoomHome()
+	catalogObservation.Lock()
+	if catalogObservation.home == home && catalogObservation.config == *saved && catalogObservation.settings == settings && time.Now().Before(catalogObservation.until) {
+		cached := catalogObservation.value
+		catalogObservation.Unlock()
+		return cached
+	}
+	catalogObservation.Unlock()
 	cctx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 
+	settingsResult := make(chan map[string]any, 1)
+	go func() { v, _ := codemanGetSettings(cctx); settingsResult <- v }()
 	clis, err := codemanListCLIs(cctx)
+	cmSettings := <-settingsResult
 	if err != nil {
 		out.Summary = "Codeman unreachable"
 		return out
 	}
 	out.CodemanConnected = true
-	cmSettings, _ := codemanGetSettings(cctx)
+
 	claudeMode, _ := cmSettings["claudeMode"].(string)
 	codexBypass, _ := cmSettings["codexDangerouslyBypassApprovals"].(bool)
 
@@ -194,5 +218,9 @@ func buildSubagentCatalog(ctx context.Context) SubagentCatalog {
 	} else {
 		out.Summary = "No enabled agent CLIs reported by Codeman"
 	}
+	catalogObservation.Lock()
+	catalogObservation.home, catalogObservation.config, catalogObservation.settings = home, *saved, settings
+	catalogObservation.value, catalogObservation.until = out, time.Now().Add(10*time.Second)
+	catalogObservation.Unlock()
 	return out
 }

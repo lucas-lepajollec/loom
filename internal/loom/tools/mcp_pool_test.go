@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -138,4 +139,72 @@ func TestMCPPoolInvalidationDuringDiscovery(t *testing.T) {
 	if s.sess != nil {
 		t.Fatal("invalidated connection republished")
 	}
+}
+
+func TestMCPCatalogRefreshKeepsPreviousDefinitions(t *testing.T) {
+	cfg := mcpConfigFixture{"fixture": {Command: "fixture", Enabled: true}}
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "changing-catalog"}, nil)
+	add := func(name string) {
+		server.AddTool(&mcpsdk.Tool{Name: name, InputSchema: map[string]string{"type": "object"}}, func(context.Context, *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+			return &mcpsdk.CallToolResult{}, nil
+		})
+	}
+	add("first")
+	listed, release := make(chan struct{}), make(chan struct{})
+	var lists atomic.Int32
+	server.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+		return func(ctx context.Context, method string, req mcpsdk.Request) (mcpsdk.Result, error) {
+			if method == "tools/list" && lists.Add(1) == 2 {
+				close(listed)
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			}
+			return next(ctx, method, req)
+		}
+	})
+	var connections atomic.Int32
+	m := NewMCPManager(cfg, func(ctx context.Context, _ string, _ resources.MCPServerConfig) (*mcpsdk.ClientSession, error) {
+		connections.Add(1)
+		st, ct := mcpsdk.NewInMemoryTransports()
+		peer, err := server.Connect(ctx, st, nil)
+		if err != nil {
+			return nil, err
+		}
+		t.Cleanup(func() { _ = peer.Close() })
+		return mcpsdk.NewClient(&mcpsdk.Implementation{Name: "fixture"}, nil).Connect(ctx, ct, nil)
+	})
+	t.Cleanup(m.CloseAll)
+	session := m.Ensure("fixture", cfg["fixture"])
+	add("second")
+	m.mu.Lock()
+	session.next = time.Time{}
+	m.mu.Unlock()
+	rows, defs, err := m.StatusWithTools()
+	if err != nil || !rows[0].Cached || len(defs) != 1 {
+		t.Fatalf("stale metadata unavailable: %v %d %v", rows, len(defs), err)
+	}
+	select {
+	case <-listed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("refresh did not start")
+	}
+	for range 3 {
+		_, _, _ = m.GatewayTools()
+	}
+	close(release)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		rows, defs, err = m.StatusWithTools()
+		if err == nil && !rows[0].Cached && len(defs) == 2 {
+			if connections.Load() != 1 || lists.Load() != 2 {
+				t.Fatal("duplicate refresh or reconnect")
+			}
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("refreshed definitions never published")
 }
