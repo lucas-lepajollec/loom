@@ -21,7 +21,7 @@ export function addressWithPort(host, port) {
   return (bare.includes(':') ? '[' + bare + ']' : bare) + ':' + port;
 }
 
-export const nodeAddress = m => m.host ? addressWithPort(m.host, 2511) : '';
+export const nodeAddress = (m, node) => node?.url || m.node_url || (m.host ? addressWithPort(m.host, 2511) : '');
 
 export function PairDialog({ start, onClose }) {
   const [v, setV] = useState({ address: start?.address || '', code: '' });

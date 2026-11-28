@@ -63,10 +63,20 @@ func (a cloudRuntimeAdapter) Run(ctx context.Context, turn RuntimeTurn, emit Cha
 	if err := authorizeProviderTurn(ctx, a.provider); err != nil {
 		return nil, err
 	}
-	cloudTurn := openai.Turn{Messages: modelMessages(turn.Messages), MaxTokens: turn.MaxTokens}
+	messages := modelMessages(turn.Messages)
+	cloudTurn := openai.Turn{MaxTokens: turn.MaxTokens}
 	if turn.Caps.Internet || turn.Caps.MCP {
-		cloudTurn.Tools = cloudTools{web: turn.Caps.Internet, mcp: turn.Caps.MCP}
+		tools := cloudTools{web: turn.Caps.Internet, mcp: turn.Caps.MCP}
+		if turn.Caps.MCP {
+			hub := externalMCPHub()
+			tools.hub = &hub
+			if note := hub.discussionNote(); note != "" {
+				messages = append([]Message{{Role: "system", Content: note}}, messages...)
+			}
+		}
+		cloudTurn.Tools = tools
 	}
+	cloudTurn.Messages = messages
 	answer, err := (openai.Adapter{Provider: a, Credentials: a, Client: a}).Run(ctx,
 		cloudTurn, func(e openai.Event) bool {
 			event := StreamEvent{Content: e.Content}

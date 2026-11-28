@@ -2,6 +2,7 @@ package loom
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/policy"
+	"github.com/lucas-lepajollec/loom/internal/loom/tools"
 )
 
 const (
@@ -70,8 +72,8 @@ func baseSystemPrompt(caps Caps) string {
 		b.WriteString("Today is in " + year + ". If a query needs a year use ONLY " + year + ", never a remembered past year like " + prevYear(year) + " — it biases results toward stale pages; better still, omit the year. Don't hedge ('probably') about a fact a tool can verify — search instead.\n")
 	}
 	if caps.Agent || caps.MCP {
-		if line := mcpPromptLine(); line != "" {
-			b.WriteString(line)
+		if line := externalMCPHub().discussionNote(); line != "" {
+			b.WriteString("\n\n" + line)
 		}
 	}
 	if _, _, err := primarySecondBrain(); err == nil {
@@ -79,6 +81,27 @@ func baseSystemPrompt(caps Caps) string {
 	}
 	b.WriteString("\nDate: " + time.Now().Format("2006-01-02"))
 	return b.String()
+}
+
+func discussionMCPResult(ctx context.Context, name string, raw json.RawMessage) string {
+	if name != mcpCallTool {
+		subject := "mcp.tool:loom/" + name
+		if err := authorizeGatewayTool(ctx, name, subject, raw); err != nil {
+			return "[error] " + err.Error()
+		}
+	}
+	result, err := executeMCPMetaTool(ctx, name, raw)
+	if err != nil {
+		return "[error] " + err.Error()
+	}
+	out := tools.FlattenMCPContent(result)
+	if result.IsError {
+		return "[the tool returned an error]\n" + out
+	}
+	if out == "" {
+		return "[ok] (no output)"
+	}
+	return out
 }
 
 // prevYear returns the year before the given "2006"-formatted year string, used

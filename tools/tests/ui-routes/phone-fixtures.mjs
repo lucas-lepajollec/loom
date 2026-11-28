@@ -100,6 +100,32 @@ export function phoneFixtures(ws, remote) {
     '/api/models': [localModel],
     '/api/presets': [{ id: 'fixture-preset', name: 'A preset with a long title', model: localModel.path, ctx: 4096 }],
     '/api/chat/history': { ok: true, projects, conversations: [] },
+    '/api/mcp': {
+      ok: true, tool_mode: 'smart',
+      token_budget: { direct_tokens: 34200, injected_tokens: 380, saved_tokens: 33820, saved_percent: 98, on_demand_tools: 42, direct_tools: 1 },
+      servers: [
+        { name: 'Home-assistant-with-a-very-long-server-name-for-phone-layout', description: 'A synthetic home automation server', transport: 'http',
+          url: 'https://mcp.example.test/v0/stream', enabled: true, connected: true, exposure: 'on_demand',
+          tools: ['inspect_a_device_with_a_very_long_tool_name_for_phone_layout', 'list_rooms'], disabled: ['list_rooms'] },
+        { name: 'Local fixture', transport: 'stdio', command: 'fixture', enabled: false, connected: false, exposure: 'direct', tools: [], disabled: [] },
+      ],
+    },
+    '/api/mcp/gateway': { url: 'http://fixture.test/mcp/loom', token_set: false },
+    '/api/mcp/gateway/mode': { ok: true, tool_mode: 'smart' },
+    '/api/mcp/registry/search': { ok: true, servers: [{
+      id: 'org.example/fixture-registry', title: 'Registry fixture with a long title for phone layout', description: 'A synthetic registry entry',
+      suggested_name: 'fixture-registry', version: '1.2.3',
+      presets: [
+        { transport: 'http', type: 'streamable-http', url: 'https://mcp.example.test/long-registry-path-for-the-fixture', headers: [{ name: 'Authorization', isRequired: true, isSecret: true }] },
+        { transport: 'stdio', command: 'npx', args: ['-y', '@example/fixture@1.2.3'], env_vars: [{ name: 'API_KEY', isSecret: true }] },
+      ],
+    }] },
+    '/api/mcp/sources': {
+      ok: true, suggested: [{ path: '~/.cursor/mcp.json', label: 'Cursor' }],
+      sources: [{ path: '~/.claude.json', label: 'Claude Code', servers: [
+        { name: 'Fixture from Claude', source: '~/.claude.json', transport: 'stdio', env_names: ['API_KEY'], header_names: [] },
+      ] }],
+    },
     '/api/usage': { ok: true, quotas: [], models: [{ runtime_id: 'openai-compatible', name: model, provider: 'Fixture cloud', turns: 2, reported_turns: 2, usage: { prompt_tokens: 1000, completion_tokens: 200 }, price: { input: 1, output: 2 } }] },
     '/api/usage/providers': { ok: true, providers: [] },
     '/api/runtime/sessions': { ok: true, sessions: [{ message_count: 1, id: 'synthetic', title: 'Discussion with a long title for phone checks', runtime_id: 'openai-compatible', model, updated_at: 1767225600000 }] },

@@ -185,6 +185,7 @@ func engineRequestTarget() (base, key, model string) {
 	return strings.TrimRight(n.V1, "/"), n.APIKey, model
 }
 
+// engineBase is the origin of the engine's OpenAI-compatible API (no /v1).
 func engineBase() string {
 	if n := currentEngineNode(); n != nil {
 		return strings.TrimRight(n.V1, "/")
@@ -207,6 +208,83 @@ var engineModelsCache struct {
 	body []byte
 }
 
+// nodeControlGet sends an authenticated GET to an allowlisted control endpoint
+// on a linked Loom node, reconstructing the target URL from its validated
+// scheme, resolved local IP, numeric port, and literal path.
+func nodeControlGet(ctx context.Context, n *engineNode, endpoint string) (*http.Response, error) {
+	if n == nil {
+		return nil, errors.New("missing engine node")
+	}
+	_, parsed, err := cleanNodeURL(n.URL)
+	if err != nil {
+		return nil, err
+	}
+	var scheme string
+	var defaultPort int
+	switch strings.ToLower(parsed.Scheme) {
+	case "http":
+		scheme, defaultPort = "http", 80
+	case "https":
+		scheme, defaultPort = "https", 443
+	default:
+		return nil, errors.New("unsupported scheme")
+	}
+	portNum := defaultPort
+	if p := parsed.Port(); p != "" {
+		num, err := strconv.Atoi(p)
+		if err != nil || num < 1 || num > 65535 {
+			return nil, errors.New("invalid node port")
+		}
+		portNum = num
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return nil, errors.New("missing node host")
+	}
+	var resolvedIP net.IP
+	hostHeader := ""
+	if ip := net.ParseIP(host); ip != nil {
+		resolvedIP = ip
+	} else {
+		ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err != nil || len(ips) == 0 {
+			return nil, errors.New("cannot resolve node host")
+		}
+		resolvedIP = ips[0].IP
+		hostHeader = parsed.Host
+	}
+	if !localNetworkHost(resolvedIP.String()) {
+		return nil, errors.New("node host must be on the local network")
+	}
+	var fixedPath string
+	switch endpoint {
+	case "/api/status":
+		fixedPath = "/api/status"
+	case "/api/ping":
+		fixedPath = "/api/ping"
+	case "/api/config":
+		fixedPath = "/api/config"
+	case "/api/engine/execution-config":
+		fixedPath = "/api/engine/execution-config"
+	default:
+		return nil, errors.New("unsupported node control endpoint")
+	}
+	target := url.URL{
+		Scheme: scheme,
+		Host:   net.JoinHostPort(resolvedIP.String(), strconv.Itoa(portNum)),
+		Path:   fixedPath,
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if hostHeader != "" {
+		req.Host = hostHeader
+	}
+	req.Header.Set("Authorization", "Bearer "+n.WebKey)
+	return nodeControlClient(n).Do(req)
+}
+
 // engineCurrentModel names the model the engine serves, for attribution.
 func engineCurrentModel() string {
 	n := currentEngineNode()
@@ -216,9 +294,7 @@ func engineCurrentModel() string {
 	if n.Direct {
 		return n.Model
 	}
-	req, _ := http.NewRequest(http.MethodGet, n.URL+"/api/status", nil)
-	req.Header.Set("Authorization", "Bearer "+n.WebKey)
-	resp, err := nodeClient.Do(req)
+	resp, err := nodeControlGet(context.Background(), n, "/api/status")
 	if err != nil {
 		return ""
 	}
@@ -240,9 +316,7 @@ func engineContextSize() int {
 	if n.Direct {
 		return n.Ctx
 	}
-	req, _ := http.NewRequest(http.MethodGet, n.URL+"/api/status", nil)
-	req.Header.Set("Authorization", "Bearer "+n.WebKey)
-	resp, err := nodeClient.Do(req)
+	resp, err := nodeControlGet(context.Background(), n, "/api/status")
 	if err != nil {
 		return 0
 	}
@@ -462,12 +536,13 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Reachability, without secrets in the response.
-		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, n.URL+"/api/ping", nil)
-		req.Header.Set("Authorization", "Bearer "+n.WebKey)
 		reachable := false
-		if resp, err := nodeClient.Do(req); err == nil {
+		if resp, err := nodeControlGet(r.Context(), n, "/api/ping"); err == nil {
 			resp.Body.Close()
 			reachable = resp.StatusCode == 200
+			if next := currentEngineNode(); next != nil && next.NodeID == n.NodeID && next.WebKey == n.WebKey {
+				n = next
+			}
 		}
 		sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "url": n.URL, "v1": n.V1, "hostname": n.Hostname, "version": n.Version, "role": n.Role, "reachable": reachable, "degraded": degradedCapabilities.Snapshot(currentEngineCapabilityOwner())})
 		return
@@ -555,7 +630,7 @@ func proxyEngineNode(w http.ResponseWriter, r *http.Request, n *engineNode) {
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.FlushInterval = -1
-	proxy.Transport = nodeClient.Transport
+	proxy.Transport = nodeRecoveryTransport{nodeClient.Transport, n}
 	base := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		base(req)
@@ -715,12 +790,7 @@ func engineExecutionConfigFor(ctx context.Context, n *engineNode) (map[string]st
 	if n.Role == "engine-node" {
 		path = "/api/engine/execution-config"
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, n.URL+path, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+n.WebKey)
-	resp, err := nodeClient.Do(req)
+	resp, err := nodeControlGet(ctx, n, path)
 	if err != nil {
 		return nil, errors.New("remote engine configuration unavailable")
 	}

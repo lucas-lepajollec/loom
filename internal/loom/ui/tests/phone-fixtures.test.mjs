@@ -12,7 +12,8 @@ async function read(path, method = 'GET') {
   return { ...result, continued };
 }
 test('populated phone fixtures respect UI observation contracts', async () => {
-  for (const path of ['/api/workspace', '/api/machines', '/api/machines/metrics', '/api/models', '/api/presets', '/api/chat/history', '/api/runtime/sessions', '/api/usage', '/api/usage/providers', '/api/workspaces']) {
+  for (const path of ['/api/workspace', '/api/machines', '/api/machines/metrics', '/api/models', '/api/presets', '/api/chat/history', '/api/runtime/sessions', '/api/usage', '/api/usage/providers', '/api/workspaces',
+    '/api/mcp', '/api/mcp/gateway', '/api/mcp/registry/search?q=fixture', '/api/mcp/sources']) {
     const response = await read(path); assert.ok(response.json, path); assert.ok(validData(response.json, path), path);
   }
   const workspace = (await read('/api/workspace')).json;
@@ -20,7 +21,7 @@ test('populated phone fixtures respect UI observation contracts', async () => {
   assert.ok(workspace.projects.length);
 });
 test('phone fixtures refuse generation, login, imports, installs and writes', async () => {
-  for (const path of ['/api/runtime/sessions/send', '/api/runtimes/codex/account', '/api/terminals', '/api/harness-history/transfer', '/api/agents/catalog/add', '/api/agents/installations', '/api/projects/context']) {
+  for (const path of ['/api/runtime/sessions/send', '/api/runtimes/codex/account', '/api/terminals', '/api/harness-history/transfer', '/api/agents/catalog/add', '/api/agents/installations', '/api/projects/context', '/api/mcp/save', '/api/mcp/sources/adopt']) {
     const response = await read(path, 'POST'); assert.equal(response.status, 409, path); assert.equal(response.continued, false, path);
   }
   for (const path of ['/api/estimate']) assert.equal((await read(path, 'POST')).json.ok, true);

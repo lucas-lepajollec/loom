@@ -187,7 +187,7 @@ function MachineConnection({ machine, node, onChange }) {
   const isLocal = machine.id === 'local';
   const linked = node?.linked || machine.node_id;
   const legacySSH = machine.user && !linked;
-  const address = (node?.url || nodeAddress(machine)).replace(/^https?:\/\//, '');
+  const address = nodeAddress(machine, node);
   const ssh = machine.user && machine.host && machine.user + '@' + addressWithPort(machine.host, machine.port || 22);
   return html`<${MachineSection} title=${t('settings.machines.connection')}>
     ${isLocal ? html`<div class="machine-row">
@@ -201,7 +201,7 @@ function MachineConnection({ machine, node, onChange }) {
         </div>`}
       </div>
       <div class="machine-row">
-        <div class="machine-row-text"><b>${t('node.address')}</b><small class="mono">${node?.url || (machine.node_id ? '—' : t('machines.node.not_paired'))}</small></div>
+        <div class="machine-row-text"><b>${t('node.address')}</b><small class="mono">${node?.url || machine.node_url || (machine.node_id ? '—' : t('machines.node.not_paired'))}</small></div>
         ${!legacySSH && html`<div class="machine-actions"><button class="btn sm" onClick=${() => setPairing(true)}>${linked ? t('machines.node.repair') : t('machines.pair.ok')}</button></div>`}
       </div>
       ${linked ? html`<${NodeModuleSwitches} machine=${machine} modules=${machine.modules || node?.modules || []} onChange=${onChange} />`

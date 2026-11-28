@@ -2,6 +2,7 @@ package loom
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -143,9 +144,11 @@ func handleSearchTest(w http.ResponseWriter, r *http.Request) {
 // filesystem, private memory, MCP or arbitrary URL fetches through this seam.
 type cloudWebSearch struct{}
 
-// cloudTools is a cloud turn's toolbox: web_search and/or the MCP servers
-// declared in Brain, as the discussion's Tools menu chose.
-type cloudTools struct{ web, mcp bool }
+// cloudTools provides the web search and MCP capabilities selected for a turn.
+type cloudTools struct {
+	web, mcp bool
+	hub      *mcpHub
+}
 
 func (c cloudTools) Definitions() any {
 	defs := []Tool{}
@@ -153,19 +156,54 @@ func (c cloudTools) Definitions() any {
 		defs = append(defs, webSearchTool())
 	}
 	if c.mcp {
-		defs = append(defs, mcpTools()...)
+		hub := c.hub
+		if hub == nil {
+			snapshot := externalMCPHub()
+			hub = &snapshot
+		}
+		defs = append(defs, hub.discussionTools()...)
 	}
 	return defs
 }
 func (c cloudTools) Execute(ctx context.Context, name string, args map[string]any) (string, error) {
+	raw, err := json.Marshal(args)
+	if err != nil {
+		return "", err
+	}
+	return c.ExecuteJSON(ctx, name, raw)
+}
+
+func (c cloudTools) ExecuteJSON(ctx context.Context, name string, raw json.RawMessage) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
 	switch {
 	case c.web && name == "web_search":
+		var args map[string]any
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return "", err
+		}
 		return cloudWebSearch{}.Execute(ctx, name, args)
+	case c.mcp && isMCPMetaTool(name):
+		return capWebOutput(discussionMCPResult(ctx, name, raw)), nil
 	case c.mcp && isMCPTool(name):
-		return capWebOutput(mcpCall(name, args)), nil
+		for _, item := range externalMCPHub().direct {
+			if tools.MCPExposedName(item.Server, item.Tool.Name) != name {
+				continue
+			}
+			if err := authorizeGatewayTool(ctx, "", "mcp.tool:"+item.Server+"/"+item.Tool.Name, raw); err != nil {
+				return "", err
+			}
+			result, err := mcpMgr.GatewayCall(ctx, item.Server, item.Tool.Name, raw)
+			if err != nil {
+				return "", err
+			}
+			out := capWebOutput(tools.FlattenMCPContent(result))
+			if result.IsError {
+				return "[the tool returned an error]\n" + out, nil
+			}
+			return out, nil
+		}
 	}
 	return "", errors.New("tool not enabled for this discussion: " + name)
 }

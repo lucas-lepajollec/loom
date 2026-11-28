@@ -16,6 +16,7 @@ type nodeBridgeAccess struct {
 	Machine string `json:"machine"`
 	URL     string `json:"url"`
 	Token   string `json:"token"`
+	node    *engineNode
 }
 
 func nodeModules() []string {
@@ -64,7 +65,7 @@ func nodeMachineModuleAccess(m RemoteMachine, module string) (nodeBridgeAccess, 
 	if err := checkNodeHandshake(n.Handshake); err != nil {
 		return nodeBridgeAccess{}, err
 	}
-	return nodeBridgeAccess{Machine: m.ID, URL: n.URL, Token: n.WebKey}, nil
+	return nodeBridgeAccess{Machine: m.ID, URL: n.URL, Token: n.WebKey, node: n}, nil
 }
 
 func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, body io.Reader, result any) error {
@@ -88,7 +89,7 @@ func nodeMachineJSON(ctx context.Context, m RemoteMachine, method, path string, 
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	client := nodeClient
+	client := nodeControlClient(access.node)
 	resp, err := client.Do(request)
 	if ctx.Err() == nil {
 		workspaceSessions.observeHealth("node:"+m.ID, m.Name, m.ID, err == nil && resp.StatusCode == 200, false)

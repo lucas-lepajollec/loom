@@ -3,14 +3,22 @@ package resources
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
+)
+
+const (
+	MCPOnDemand = "on_demand"
+	MCPDirect   = "direct"
 )
 
 // MCPServerConfig décrit un serveur MCP configuré. Un seul des deux transports
 // est renseigné : Command => stdio, URL => http.
 type MCPServerConfig struct {
-	Type string `json:"type,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Exposure    string `json:"exposure,omitempty"`
+	Description string `json:"description,omitempty"`
 	// Transport stdio.
 	Command string            `json:"command,omitempty"`
 	Args    []string          `json:"args,omitempty"`
@@ -88,7 +96,15 @@ func (c MCPServerConfig) Validate() error {
 	case !hasCmd && !hasURL:
 		return fmt.Errorf("an MCP server must have either 'command' (stdio) or 'url' (http)")
 	}
+	if c.Exposure != "" && c.Exposure != MCPOnDemand && c.Exposure != MCPDirect {
+		return fmt.Errorf("MCP exposure must be on_demand or direct")
+	}
 	return nil
+}
+
+func ValidMCPURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.Hostname() != "" && (u.Scheme == "https" || u.Scheme == "http") && u.User == nil
 }
 
 // SortedServerNames renvoie les noms triés, pour un ordre d'affichage/itération

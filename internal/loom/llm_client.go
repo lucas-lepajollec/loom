@@ -633,6 +633,16 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 		if err != nil {
 			return extra, err
 		}
+		// Reading execution settings may have verified a moved node and repaired
+		// its link. Check policy for the new endpoint before sending turn data.
+		if node != nil && !node.Direct && node.NodeID != "" {
+			if next := currentEngineNode(); next != nil && !next.Direct && next.NodeID == node.NodeID && next.WebKey == node.WebKey && next.V1 != node.V1 {
+				if err := authorizeEngineDestination(ctx, next); err != nil {
+					return extra, err
+				}
+				node, base, key = next, strings.TrimRight(next.V1, "/"), next.APIKey
+			}
+		}
 		reasoningOn = reasoningActive(cfg["REASONING"])
 		payload := map[string]any{
 			"model": model,
@@ -1030,6 +1040,12 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				switch tc.Function.Name {
 				case "mem_search", "web_search":
 					label, _ = args["query"].(string)
+				case mcpSearchTool:
+					label, _ = args["query"].(string)
+				case mcpDescribeTool, mcpCallTool:
+					server, _ := args["server"].(string)
+					tool, _ := args["tool"].(string)
+					label = server + "/" + tool
 				case "mem_read", "mem_add", "mem_edit", "mem_delete", "brain_write", "brain_edit", "edit", "write", "see_image":
 					label, _ = args["file"].(string)
 				case "bash":
@@ -1055,7 +1071,11 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					extra = append(extra, toolMsg)
 					continue
 				}
-				if perr := authorizeLocalTool(ctx, tc.Function.Name, label, args); perr != nil {
+				var perr error
+				if !isMCPMetaTool(tc.Function.Name) {
+					perr = authorizeLocalTool(ctx, tc.Function.Name, label, args)
+				}
+				if perr != nil {
 					refused := "[error] " + perr.Error()
 					cb(StreamEvent{ToolUsed: &ToolUsedEvent{Name: tc.Function.Name, Label: label, Result: refused, Done: true, ArgToks: flushArgToks()}})
 					toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: refused}
@@ -1084,6 +1104,8 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					continue
 				}
 				switch tc.Function.Name {
+				case mcpSearchTool, mcpDescribeTool, mcpCallTool:
+					result = discussionMCPResult(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
 				case "mem_search":
 					lim := 0
 					if v, ok := args["limit"].(float64); ok {

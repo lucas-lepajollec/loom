@@ -180,6 +180,42 @@ try {
       const phone = form !== 'desktop';
       await page.goto(r === 'sessions' && phone && scenario === 'fresh' ? base : base + '#/' + r);
       await page.waitForTimeout(600);
+      if (r === 'connections' && scenario === 'phone-layout') {
+        const mcp = key => dictionary['connections.mcp.' + key];
+        const snapshot = await page.evaluate(async () => (await fetch('/api/mcp')).json());
+        await page.locator('.cx-mcp-add').click();
+        const dialog = page.getByRole('dialog', { name: mcp('add') });
+        await dialog.getByRole('button', { name: mcp('paste') }).click();
+        await dialog.getByLabel('mcpServers').fill(JSON.stringify({ mcpServers: { 'paste-fixture': { command: 'fixture', args: ['a value'] } } }));
+        await dialog.getByRole('button', { name: mcp('prefill') }).click();
+        if (await dialog.getByLabel(mcp('name')).inputValue() !== 'paste-fixture') throw new Error('MCP JSON did not prefill the manual form');
+        await dialog.getByRole('tab', { name: mcp('registry') }).click();
+        const searched = page.waitForRequest(req => new URL(req.url()).searchParams.get('q') === 'fixture');
+        await dialog.getByLabel(mcp('registry_search')).fill('fixture');
+        await searched;
+        await dialog.getByRole('button', { name: mcp('configure') }).nth(1).waitFor();
+        await inspect(page, errors, label + ' MCP registry');
+        await dialog.getByRole('button', { name: mcp('configure') }).nth(1).click();
+        if (await dialog.getByLabel(mcp('command'), { exact: true }).inputValue() !== 'npx' ||
+          await dialog.getByLabel(mcp('args')).inputValue() !== '["-y","@example/fixture@1.2.3"]' ||
+          await dialog.getByLabel(mcp('env')).inputValue() !== 'API_KEY=') throw new Error('Registry preset lost its command, argv or environment placeholder');
+        await inspect(page, errors, label + ' MCP manual');
+        await dialog.getByRole('tab', { name: mcp('import') }).click();
+        await dialog.getByText('Fixture from Claude').waitFor();
+        await dialog.getByRole('button', { name: dictionary['ui.dialog.annuler'] }).click();
+        await page.locator('.cx-card').filter({ hasText: 'Home-assistant-with-a-very-long-server-name-for-phone-layout' }).click();
+        const drawer = page.getByRole('dialog', { name: 'Home-assistant-with-a-very-long-server-name-for-phone-layout' });
+        const hidden = drawer.getByRole('switch', { name: 'list_rooms' });
+        await hidden.waitFor();
+        if (await hidden.getAttribute('aria-checked') !== 'false') throw new Error('MCP drawer lost the disabled tool setting');
+        await page.route('**/api/mcp/test', route => route.fulfill({ json: { ...snapshot, latency_ms: 31 } }));
+        const checked = page.waitForRequest(req => new URL(req.url()).pathname === '/api/mcp/test');
+        await drawer.getByRole('button', { name: mcp('test'), exact: true }).click();
+        if ((await checked).postDataJSON()?.name !== snapshot.servers[0].name) throw new Error('MCP connection test targeted the wrong server');
+        await drawer.getByRole('status').filter({ hasText: '31 ms' }).waitFor();
+        await inspect(page, errors, label + ' MCP drawer');
+        await page.keyboard.press('Escape');
+      }
       // Exercise the collection consumer that triggered the iPhone
       // crash, and both other catalogs while the engine is unavailable.
       if (r === 'chat') {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/lucas-lepajollec/loom/internal/loom/policy"
@@ -15,7 +16,8 @@ import (
 // write tools default to Confirm; read-only discovery tools remain Allow.
 func gatewayToolFallback(subject string) policy.Decision {
 	switch subject {
-	case "mcp.tool:loom/loom_overview",
+	case "mcp.tool:loom/" + mcpSearchTool, "mcp.tool:loom/" + mcpDescribeTool,
+		"mcp.tool:loom/loom_overview",
 		"mcp.tool:loom/loom_machines",
 		"mcp.tool:loom/loom_gateway_status",
 		"mcp.tool:loom/loom_subagent_catalog",
@@ -65,67 +67,77 @@ func gatewayToolFallback(subject string) policy.Decision {
 func gatewayPolicyMiddleware(subjects map[string]string) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
-			if method == "tools/call" {
-				var params struct {
-					Name      string `json:"name"`
-					Arguments struct {
-						Path    string `json:"path"`
-						File    string `json:"file"`
-						Dir     string `json:"dir"`
-						Command string `json:"command"`
-						Machine string `json:"machine"`
-					} `json:"arguments"`
-				}
-				var call struct {
-					Arguments json.RawMessage `json:"arguments"`
-				}
-				raw, _ := json.Marshal(req.GetParams())
-				_ = json.Unmarshal(raw, &params)
-				_ = json.Unmarshal(raw, &call)
-				subject := subjects[params.Name]
-				if subject == "" {
-					subject = "mcp.tool:loom/" + params.Name
-				}
-				m, session := policyTurn(ctx)
-				in := sessionPolicyInput(session, subject, gatewayToolFallback(subject))
-				if params.Name == "loom_machine_run" {
-					resolved, err := resolveAgentMachine(params.Arguments.Machine)
-					if err != nil {
-						return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, nil
-					}
-					in.MachineID = resolved
-				} else if strings.TrimSpace(params.Arguments.Machine) != "" {
-					if resolved, err := resolveAgentMachine(params.Arguments.Machine); err == nil {
-						in.MachineID = resolved
-					} else {
-						in.MachineID = strings.TrimSpace(params.Arguments.Machine)
-					}
-				}
-				in.Path, in.Command = params.Arguments.Path, params.Arguments.Command
-				if in.Path == "" {
-					in.Path = params.Arguments.File
-				}
-				if strings.TrimSpace(params.Arguments.Dir) != "" {
-					in.Workdir = strings.TrimSpace(params.Arguments.Dir)
-				}
-				in.Detail = gatewayCallDetail(in.MachineID, params.Arguments.Command, call.Arguments)
-				r := evaluatePolicy(in, false)
-				switch r.Decision {
-				case policy.Allow:
-				case policy.Deny:
-					msg := "policy denied capability: " + in.Subject
-					if r.Reason == "policy_unavailable" {
-						msg = "policy unavailable (vault locked or storage unreadable)"
-					}
-					return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: msg}}}, nil
-				default:
-					if err := m.confirmPolicy(ctx, in); err != nil {
-						return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, nil
-					}
-				}
+			if method != "tools/call" {
+				return next(ctx, method, req)
+			}
+			var params struct {
+				Name      string          `json:"name"`
+				Arguments json.RawMessage `json:"arguments"`
+			}
+			raw, _ := json.Marshal(req.GetParams())
+			_ = json.Unmarshal(raw, &params)
+			// These handlers authorize the real upstream subject or mcp.manage
+			// after validating the proposal. The wrapper name is not a capability.
+			if params.Name == mcpCallTool || params.Name == mcpRegisterTool {
+				return next(ctx, method, req)
+			}
+			subject := subjects[params.Name]
+			if subject == "" {
+				subject = "mcp.tool:loom/" + params.Name
+			}
+			if err := authorizeGatewayTool(ctx, params.Name, subject, params.Arguments); err != nil {
+				return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, nil
 			}
 			return next(ctx, method, req)
 		}
+	}
+}
+
+func authorizeGatewayTool(ctx context.Context, name, subject string, raw json.RawMessage) error {
+	var args struct {
+		Path, File, Dir, Command, Machine string
+	}
+	_ = json.Unmarshal(raw, &args)
+	mgr, session := policyTurn(ctx)
+	in := sessionPolicyInput(session, subject, gatewayToolFallback(subject))
+	if name == "loom_machine_run" {
+		resolved, err := resolveAgentMachine(args.Machine)
+		if err != nil {
+			return err
+		}
+		in.MachineID = resolved
+	} else if strings.TrimSpace(args.Machine) != "" {
+		if resolved, err := resolveAgentMachine(args.Machine); err == nil {
+			in.MachineID = resolved
+		} else {
+			in.MachineID = strings.TrimSpace(args.Machine)
+		}
+	}
+	in.Path, in.Command = firstNonEmpty(args.Path, args.File), args.Command
+	if dir := strings.TrimSpace(args.Dir); dir != "" {
+		in.Workdir = dir
+	}
+	in.Detail = gatewayCallDetail(in.MachineID, args.Command, raw)
+	return authorizeMCPPolicy(ctx, mgr, in, false)
+}
+
+func authorizeMCPPolicy(ctx context.Context, mgr *runtimeSessions, in policy.Input, requireApproval bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	r := evaluatePolicy(in, false)
+	switch {
+	case r.Decision == policy.Deny:
+		if r.Reason == "policy_unavailable" {
+			return errors.New("policy unavailable (vault locked or storage unreadable)")
+		}
+		return errors.New("policy denied capability: " + in.Subject)
+	case r.Decision == policy.Allow && !requireApproval:
+		return nil
+	case mgr == nil:
+		return errors.New("policy confirmation required for " + in.Subject)
+	default:
+		return mgr.confirmPolicy(ctx, in)
 	}
 }
 

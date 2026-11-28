@@ -105,3 +105,28 @@
   .drawer-panel.cx-drawer{width:100vw}
   .cx-fact{grid-template-columns:minmax(0,1fr);gap:2px}
 }
+
+.cx-mcp-heading,.cx-mcp-control{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;min-width:0}
+.cx-mcp-add,.cx-mcp-heading .btn{max-width:100%;white-space:normal}
+.cx-mcp-budget{padding:12px 16px;border:1px solid var(--line-soft);border-radius:var(--r-lg);background:var(--surface);font-size:13px;overflow-wrap:anywhere}
+.cx-mcp-budget p{margin:4px 0 0;color:var(--text-3);font-size:12.5px}
+.cx-mcp-tags,.cx-mcp-actions,.cx-mcp-mode{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
+.cx-mcp-tags{font-size:12px;color:var(--text-2)}
+.cx-mcp-control>:first-child{min-width:0;overflow-wrap:anywhere}
+.cx-mcp-control>.switch,.cx-mcp-control>.btn{flex:none}
+.cx-mcp-seg{flex-wrap:wrap;max-width:100%}
+.cx-mcp-seg button{white-space:normal;line-height:1.25}
+.cx-mcp-tool-list{margin:0;padding:0;list-style:none}
+.cx-mcp-tool-list li{padding:8px 12px;border-top:1px solid var(--line-soft);font-size:13px}
+.cx-mcp-tool-list li:first-child{border-top:0}
+.cx-mcp-list,.cx-mcp-form,.cx-mcp-inline{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+.cx-mcp-inline,.cx-mcp-item{padding:12px;border:1px solid var(--line-soft);border-radius:var(--r-lg);background:var(--surface)}
+.cx-mcp-field{display:grid;gap:5px;min-width:0;font-size:13px;color:var(--text-2)}
+.cx-mcp-field>.input{width:100%;min-width:0}
+.cx-mcp-field>textarea{resize:vertical;min-height:60px;padding-block:8px}
+.cx-mcp-item h3{margin:0;font-size:14px;overflow-wrap:anywhere}
+.cx-mcp-item p{margin:4px 0;font-size:12px;color:var(--text-2);overflow-wrap:anywhere}
+.cx-mcp-item>.cx-mcp-list,.cx-mcp-item>.cx-mcp-control{margin-top:8px}
+.cx-mcp-item .cx-mcp-target{margin:4px 0 0}
+.cx-mcp-modal .dialog-body{min-width:0}
+.cx-mcp-modal .dialog-head h2,.cx-mcp-drawer .dialog-head h2{overflow-wrap:anywhere}

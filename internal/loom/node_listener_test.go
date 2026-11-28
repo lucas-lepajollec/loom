@@ -151,7 +151,7 @@ func TestNodeListenFollowsTheUnitWhenStoredListenerIsStale(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	if err := changeNodeListener(LoomHome(), "192.168.0.200:2550"); err != nil {
+	if err := changeNodeListener(LoomHome(), ":2550"); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := os.ReadFile(path)

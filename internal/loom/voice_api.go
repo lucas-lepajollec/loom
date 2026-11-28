@@ -81,7 +81,7 @@ func voiceNodeAware(local http.HandlerFunc) http.HandlerFunc {
 		q := u.Query()
 		q.Del("machine")
 		u.RawQuery = q.Encode()
-		proxyEngineNode(w, cloned, &engineNode{URL: access.URL, WebKey: access.Token, Hostname: machine, Role: "engine-node"})
+		proxyEngineNode(w, cloned, access.node)
 	}
 }
 func handleVoiceNode(w http.ResponseWriter, r *http.Request) {

@@ -155,11 +155,13 @@ func (m *MCPManager) Ensure(name string, cfg resources.MCPServerConfig) *MCPSess
 		s.err = err
 	} else {
 		s.sess = sess
-		lt, lerr := sess.ListTools(ctx, nil)
-		if lerr != nil {
-			s.err = lerr
-		} else {
-			s.tools = lt.Tools
+		for tool, err := range sess.Tools(ctx, nil) {
+			if err != nil {
+				s.err = err
+				s.tools = nil
+				break
+			}
+			s.tools = append(s.tools, tool)
 		}
 	}
 
@@ -338,13 +340,16 @@ func (m *MCPManager) PromptLine() string {
 
 // MCPServerStatus est l'état d'un serveur pour l'UI web.
 type MCPServerStatus struct {
-	Name      string   `json:"name"`
-	Transport string   `json:"transport"`
-	Enabled   bool     `json:"enabled"`
-	Connected bool     `json:"connected"`
-	Error     string   `json:"error,omitempty"`
-	Tools     []string `json:"tools"`    // tous les outils découverts sur le serveur
-	Disabled  []string `json:"disabled"` // sous-ensemble masqué (non exposé à l'IA)
+	Name        string   `json:"name"`
+	Transport   string   `json:"transport"`
+	Enabled     bool     `json:"enabled"`
+	Connected   bool     `json:"connected"`
+	Error       string   `json:"error,omitempty"`
+	Tools       []string `json:"tools"`    // tous les outils découverts sur le serveur
+	Disabled    []string `json:"disabled"` // sous-ensemble masqué (non exposé à l'IA)
+	Exposure    string   `json:"exposure,omitempty"`
+	Type        string   `json:"type,omitempty"`
+	Description string   `json:"description,omitempty"`
 	// Détail de config (pour pré-remplir le formulaire d'édition).
 	Command string            `json:"command,omitempty"`
 	Args    []string          `json:"args,omitempty"`
@@ -356,35 +361,47 @@ type MCPServerStatus struct {
 // Status renvoie l'état de tous les serveurs configurés, en tentant de
 // connecter ceux qui sont activés (pour refléter l'état réel dans l'UI).
 func (m *MCPManager) Status() ([]MCPServerStatus, error) {
+	out, _, err := m.StatusWithTools()
+	return out, err
+}
+
+func (m *MCPManager) StatusWithTools() ([]MCPServerStatus, []MCPGatewayTool, error) {
 	servers, err := m.config.LoadMCPConfig()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	m.EnsureAll(servers) // en parallèle : le panneau MCP de l'UI n'attend plus la somme
-	var out []MCPServerStatus
+	out := make([]MCPServerStatus, 0, len(servers))
+	var exposed []MCPGatewayTool
 	for _, name := range resources.SortedServerNames(servers) {
 		cfg := servers[name]
 		st := MCPServerStatus{
-			Name:      name,
-			Transport: cfg.Transport(),
-			Enabled:   cfg.Enabled,
-			Command:   cfg.Command,
-			Args:      cfg.Args,
-			Env:       cfg.Env,
-			URL:       cfg.URL,
-			Headers:   cfg.Headers,
-			Tools:     []string{},
-			Disabled:  cfg.DisabledTools,
+			Name:        name,
+			Transport:   cfg.Transport(),
+			Exposure:    cfg.Exposure,
+			Type:        cfg.Type,
+			Description: cfg.Description,
+			Enabled:     cfg.Enabled,
+			Command:     cfg.Command,
+			Args:        cfg.Args,
+			Env:         cfg.Env,
+			URL:         cfg.URL,
+			Headers:     cfg.Headers,
+			Tools:       []string{},
+			Disabled:    cfg.DisabledTools,
 		}
 		if st.Disabled == nil {
 			st.Disabled = []string{}
 		}
 		if cfg.Enabled && cfg.Transport() != "" {
 			s := m.Ensure(name, cfg)
-			if s.sess != nil {
+			if s.err == nil && s.sess != nil {
 				st.Connected = true
 				for _, t := range s.tools {
 					st.Tools = append(st.Tools, t.Name)
+					if !cfg.ToolDisabled(t.Name) {
+						exposed = append(exposed, MCPGatewayTool{name, t})
+					}
 				}
 			}
 			if s.err != nil {
@@ -393,5 +410,5 @@ func (m *MCPManager) Status() ([]MCPServerStatus, error) {
 		}
 		out = append(out, st)
 	}
-	return out, nil
+	return out, exposed, nil
 }

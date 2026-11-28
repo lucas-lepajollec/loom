@@ -28,6 +28,7 @@ type gatewayState struct {
 	// that an agent is connected: time (Unix seconds) and MCP client name.
 	LastUsed   int64  `json:"last_used,omitempty"`
 	LastClient string `json:"last_client,omitempty"`
+	ToolMode   string `json:"tool_mode,omitempty"`
 }
 
 // gatewayLastNote keeps the last recorded use in memory, so most gateway
@@ -116,6 +117,38 @@ func handleMCPGateway(w http.ResponseWriter, r *http.Request) {
 	}
 	state, err := loadGatewayState()
 	brainResponse(w, map[string]any{"url": gatewayURL(), "token_set": state.TokenHash != "", "agents": agentsState(), "last_used": state.LastUsed, "last_client": state.LastClient}, err)
+}
+
+func handleMCPGatewayMode(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		if !workspaceMethod(w, r, http.MethodGet) || !usageVaultAccess(w) {
+			return
+		}
+		state, err := loadGatewayState()
+		brainResponse(w, map[string]any{"ok": true, "tool_mode": effectiveMCPMode(state.ToolMode)}, err)
+		return
+	}
+	if !workspaceMethod(w, r, http.MethodPost) || !usageVaultAccess(w) {
+		return
+	}
+	var req struct {
+		ToolMode string `json:"tool_mode"`
+	}
+	if !workspaceDecode(w, r, &req) {
+		return
+	}
+	if req.ToolMode != "smart" && req.ToolMode != "direct" {
+		sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "expected tool_mode: smart or direct"})
+		return
+	}
+	gatewayMu.Lock()
+	state, err := loadGatewayState()
+	if err == nil {
+		state.ToolMode = req.ToolMode
+		err = putJSON(bkState, gatewayStateKey, state)
+	}
+	gatewayMu.Unlock()
+	brainResponse(w, map[string]any{"ok": true, "tool_mode": req.ToolMode}, err)
 }
 func handleMCPGatewayToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")

@@ -50,8 +50,9 @@ function SetupDialog({ url, token, onClose }) {
   </${Modal}>`;
 }
 
-export function AgentAccess() {
+export function AgentAccess({ onMCPModeChanged } = {}) {
   const [gw, setGw] = useState(null);
+  const [toolMode, setToolMode] = useState('');
   const [pol, setPol] = useState(null);
   const [orch, setOrch] = useState(null);
   const [token, setToken] = useState('');
@@ -62,6 +63,7 @@ export function AgentAccess() {
   const loadOrch = () => get('/api/orchestration/settings').then(r => setOrch(r && r.ok ? r.settings : null)).catch(() => setOrch(null));
   useEffect(() => {
     load(); loadPolicy(); loadOrch();
+    get('/api/mcp/gateway/mode').then(r => setToolMode(r.tool_mode || '')).catch(() => {});
     const timer = setInterval(load, 20000); // le premier agent connecté apparaît sans recharger
     return () => clearInterval(timer);
   }, []);
@@ -100,6 +102,14 @@ export function AgentAccess() {
     if (r.ok === false || r.error || !Array.isArray(r.rules)) return toast(r.error || t('policy.save_failed'), 'err');
     setPol(r);
   };
+  const setMCPMode = async on => {
+    setBusy(true);
+    const r = await post('/api/mcp/gateway/mode', { tool_mode: on ? 'smart' : 'direct' });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || t('settings.page.reglage_impossible'), 'err');
+    setToolMode(r.tool_mode);
+    onMCPModeChanged?.();
+  };
   const agents = gw?.agents === 'available' ? t('agent_access.agents_ok') : gw?.agents === 'codeman_cli_missing' ? t('agent_access.agents_cli') : t('agent_access.agents_off');
   const last = gw?.last_used ? t('agent_access.last_value', { client: clientName(gw.last_client) || t('agent_access.an_agent'), when: since(gw.last_used) }) : t('agent_access.never');
   return html`<${Group} title=${t('agent_access.title')}>
@@ -111,6 +121,9 @@ export function AgentAccess() {
     </${Line}>
     ${gw?.token_set && html`<${Line} label=${t('agent_access.last')}><span class="state">${last}</span></${Line}>`}
     ${pol && html`<${Line} label=${t('agent_access.ask')} tip=${t('agent_access.ask_tip')}><${Switch} checked=${asking} disabled=${busy} label=${t('agent_access.ask')} onChange=${setAsk} /></${Line}>`}
+    ${toolMode && html`<${Line} label=${t('connections.mcp.smart_mode')} tip=${t('connections.mcp.smart_tip')}>
+      <${Switch} checked=${toolMode === 'smart'} disabled=${busy} label=${t('connections.mcp.smart_mode')} onChange=${setMCPMode} />
+    </${Line}>`}
     <${Line} label=${t('agent_access.agents')}><span class="state">${gw ? agents : '…'}</span></${Line}>
     ${token && html`<${SetupDialog} url=${url} token=${token} onClose=${() => setToken('')} />`}
   </${Group}>

@@ -76,10 +76,6 @@ func changeNodeListener(home, listen string) error {
 	if old == "" {
 		old = defaultNodeListen
 	}
-	newValue, err := nodeUnitValue(listen)
-	if err != nil {
-		return err
-	}
 	homeValue, err := nodeUnitValue(home)
 	if err != nil {
 		return err
@@ -94,6 +90,24 @@ func changeNodeListener(home, listen string) error {
 		return errors.New("existing node unit has no listener; reinstall the node")
 	}
 	oldValue := strings.TrimPrefix(current, "--listen ")
+	if strings.HasPrefix(listen, ":") {
+		bound, err := strconv.Unquote(oldValue)
+		if err != nil {
+			return errors.New("cannot read the installed node listener")
+		}
+		host, _, err := net.SplitHostPort(bound)
+		if err != nil {
+			return errors.New("installed node listener has no explicit host and port")
+		}
+		listen, err = resolveNodeListener(net.JoinHostPort(host, strings.TrimPrefix(listen, ":")))
+		if err != nil {
+			return err
+		}
+	}
+	newValue, err := nodeUnitValue(listen)
+	if err != nil {
+		return err
+	}
 	body := strings.Replace(string(previous), "--listen "+oldValue, "--listen "+newValue, 1)
 	restore := func() {
 		_ = os.WriteFile(path, previous, 0644)

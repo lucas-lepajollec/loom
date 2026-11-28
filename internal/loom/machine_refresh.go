@@ -8,6 +8,9 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 // A node announces its modules (engine, voice, terminal, files…) when it is
@@ -85,14 +88,33 @@ func updateMachineNode(id string, info nodeIdentity) {
 	if changed {
 		_ = putStoreJSON(bkState, remoteMachinesState, machines)
 	}
+	key := []byte(machineNodePrefix + id)
+	raw := getBytes(bkState, string(key))
+	plain, err := decodeMemContent(raw)
 	var n engineNode
-	if getStoreJSON(bkState, machineNodePrefix+id, &n) && n.URL != "" && (!slices.Equal(n.Modules, info.Modules) || info.Version != "" && n.Version != info.Version) {
-		n.Modules = slices.Clone(info.Modules)
-		if info.Version != "" {
-			n.Version = info.Version
-		}
-		_ = putStoreJSON(bkState, machineNodePrefix+id, n)
+	if err != nil || json.Unmarshal(plain, &n) != nil || n.URL == "" ||
+		(slices.Equal(n.Modules, info.Modules) && (info.Version == "" || n.Version == info.Version)) {
+		return
 	}
+	n.Modules = slices.Clone(info.Modules)
+	if info.Version != "" {
+		n.Version = info.Version
+	}
+	plain, err = json.Marshal(n)
+	if err != nil {
+		return
+	}
+	updated, err := encodeMemContent(plain)
+	if err != nil {
+		return
+	}
+	_ = store.Update(dbPath(), bkState, func(b *bolt.Bucket) error {
+		// A concurrent pairing or port repair owns the newer record.
+		if !bytes.Equal(raw, b.Get(key)) {
+			return nil
+		}
+		return b.Put(key, updated)
+	})
 }
 
 // forgetMachineRefresh makes the next listing read the node again (after an update).
