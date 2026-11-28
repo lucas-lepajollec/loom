@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
 
 // procBoot marque l'instant de démarrage de CE process (celui qui sert l'UI et
@@ -839,24 +841,45 @@ func handleInternet(w http.ResponseWriter, r *http.Request) {
 
 // mcpSaveReq est le payload d'ajout/édition d'un serveur MCP.
 type mcpSaveReq struct {
-	Name    string            `json:"name"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args"`
-	Env     map[string]string `json:"env"`
-	URL     string            `json:"url"`
-	Headers map[string]string `json:"headers"`
-	Enabled *bool             `json:"enabled"`
+	Name         string            `json:"name"`
+	Command      string            `json:"command"`
+	Args         []string          `json:"args"`
+	Env          map[string]string `json:"env"`
+	URL          string            `json:"url"`
+	Headers      map[string]string `json:"headers"`
+	Enabled      *bool             `json:"enabled"`
+	Type         string            `json:"type"`
+	Description  *string           `json:"description"`
+	Exposure     string            `json:"exposure"`
+	ExposureOnly bool              `json:"exposure_only"`
+	CreateOnly   bool              `json:"create_only"`
 }
 
 // handleMCP renvoie l'état de tous les serveurs MCP configurés (connexion tentée
 // pour ceux activés → l'UI voit l'état réel + les outils découverts).
 func handleMCP(w http.ResponseWriter, r *http.Request) {
-	list, err := MCPStatus()
+	if !workspaceMethod(w, r, http.MethodGet) {
+		return
+	}
+	respondMCPStatus(w, nil)
+}
+
+func respondMCPStatus(w http.ResponseWriter, fields map[string]any) {
+	w.Header().Set("Cache-Control", "no-store")
+	list, exposed, err := mcpMgr.StatusWithTools()
 	if err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "servers": list})
+	state, _ := loadGatewayState()
+	if fields == nil {
+		fields = make(map[string]any)
+	}
+	fields["ok"] = true
+	fields["servers"] = list
+	fields["tool_mode"] = effectiveMCPMode(state.ToolMode)
+	fields["token_budget"] = estimateMCPBudget(list, exposed, state.ToolMode)
+	sendJSON(w, 200, fields)
 }
 
 // handleMCPSave ajoute ou remplace un serveur MCP.
@@ -871,20 +894,32 @@ func handleMCPSave(w http.ResponseWriter, r *http.Request) {
 		enabled = *req.Enabled
 	}
 	cfg := MCPServerConfig{
-		Command: strings.TrimSpace(req.Command),
-		Args:    req.Args,
-		Env:     req.Env,
-		URL:     strings.TrimSpace(req.URL),
-		Headers: req.Headers,
-		Enabled: enabled,
+		Type:     req.Type,
+		Command:  strings.TrimSpace(req.Command),
+		Args:     req.Args,
+		Env:      req.Env,
+		URL:      strings.TrimSpace(req.URL),
+		Headers:  req.Headers,
+		Enabled:  enabled,
+		Exposure: req.Exposure,
 	}
-	if err := SetMCPServer(req.Name, cfg); err != nil {
-		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+	if req.Description != nil {
+		cfg.Description = strings.TrimSpace(*req.Description)
+	}
+	if cfg.URL != "" && !resources.ValidMCPURL(cfg.URL) {
+		sendJSON(w, 400, map[string]any{"ok": false, "error": "expected an HTTP(S) URL without embedded credentials"})
 		return
 	}
-	// Renvoie l'état à jour (avec tentative de connexion) pour un retour immédiat.
-	list, _ := MCPStatus()
-	sendJSON(w, 200, map[string]any{"ok": true, "servers": list})
+	opts := mcpSaveOptions{createOnly: req.CreateOnly, preserveExisting: true, exposureOnly: req.ExposureOnly, enabled: req.Enabled, description: req.Description}
+	if err := setMCPServer(req.Name, cfg, opts); err != nil {
+		code := http.StatusBadRequest
+		if err == errMCPAdoptConflict {
+			code = http.StatusConflict
+		}
+		sendJSON(w, code, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	respondMCPStatus(w, nil)
 }
 
 // handleMCPDelete retire un serveur MCP.
@@ -917,8 +952,7 @@ func handleMCPToggle(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	list, _ := MCPStatus()
-	sendJSON(w, 200, map[string]any{"ok": true, "servers": list})
+	respondMCPStatus(w, nil)
 }
 
 // handleMCPTool masque/démasque un outil précis d'un serveur.
@@ -936,8 +970,7 @@ func handleMCPTool(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	list, _ := MCPStatus()
-	sendJSON(w, 200, map[string]any{"ok": true, "servers": list})
+	respondMCPStatus(w, nil)
 }
 
 // handleMCPTest force une reconnexion d'un serveur et renvoie son état (bouton
@@ -950,13 +983,20 @@ func handleMCPTest(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	mcpInvalidate(req.Name)
-	list, err := MCPStatus()
+	servers, err := LoadMCPConfig()
 	if err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "servers": list})
+	cfg, ok := servers[req.Name]
+	if !ok || !cfg.Enabled {
+		respondMCPStatus(w, nil)
+		return
+	}
+	mcpInvalidate(req.Name)
+	started := time.Now()
+	mcpMgr.Ensure(req.Name, cfg)
+	respondMCPStatus(w, map[string]any{"latency_ms": time.Since(started).Milliseconds()})
 }
 
 // handleMem / handleMemSave / handleMemDelete : éditeur web des pages mémoire

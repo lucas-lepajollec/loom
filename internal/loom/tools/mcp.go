@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -16,15 +17,51 @@ import (
 // headerRoundTripper injecte des en-têtes statiques (auth) sur chaque requête
 // HTTP vers un serveur MCP distant.
 type headerRoundTripper struct {
-	base    http.RoundTripper
-	headers map[string]string
+	base           http.RoundTripper
+	headers        map[string]string
+	origin         *url.URL
+	sameOriginOnly bool
 }
 
 func (h headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Scheme != h.origin.Scheme || !strings.EqualFold(req.URL.Host, h.origin.Host) {
+		if h.sameOriginOnly {
+			return nil, fmt.Errorf("MCP SSE endpoint changed origin")
+		}
+		return h.base.RoundTrip(req)
+	}
+	req = req.Clone(req.Context())
 	for k, v := range h.headers {
 		req.Header.Set(k, v)
 	}
 	return h.base.RoundTrip(req)
+}
+
+// The SDK's SSE transport uses the connect context for the lifetime of its
+// stream. Bound connection setup, then leave the established stream open
+// until the session closes it.
+type mcpSSETransport struct{ *mcpsdk.SSEClientTransport }
+
+func (t mcpSSETransport) Connect(ctx context.Context) (mcpsdk.Connection, error) {
+	stream, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	stop := context.AfterFunc(ctx, cancel)
+	conn, err := t.SSEClientTransport.Connect(stream)
+	stop()
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	return mcpSSEConnection{conn, cancel}, nil
+}
+
+type mcpSSEConnection struct {
+	mcpsdk.Connection
+	cancel context.CancelFunc
+}
+
+func (c mcpSSEConnection) Close() error {
+	c.cancel()
+	return c.Connection.Close()
 }
 
 // connect établit une session pour la config donnée.
@@ -36,14 +73,24 @@ func ConnectMCP(ctx context.Context, name string, cfg resources.MCPServerConfig,
 	case "stdio":
 		transport = &mcpsdk.CommandTransport{Command: cmd}
 	case "http":
-		if len(cfg.Headers) > 0 {
-			base := httpClient.Transport
+		endpoint, err := url.Parse(cfg.URL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid MCP URL")
+		}
+		sse := cfg.Type == "sse"
+		httpCopy := *httpClient
+		if len(cfg.Headers) > 0 || sse {
+			base := httpCopy.Transport
 			if base == nil {
 				base = http.DefaultTransport
 			}
-			httpClient.Transport = headerRoundTripper{base: base, headers: cfg.Headers}
+			httpCopy.Transport = headerRoundTripper{base: base, headers: cfg.Headers, origin: endpoint, sameOriginOnly: sse}
 		}
-		transport = &mcpsdk.StreamableClientTransport{Endpoint: cfg.URL, HTTPClient: httpClient}
+		if sse {
+			transport = mcpSSETransport{&mcpsdk.SSEClientTransport{Endpoint: cfg.URL, HTTPClient: &httpCopy}}
+		} else {
+			transport = &mcpsdk.StreamableClientTransport{Endpoint: cfg.URL, HTTPClient: &httpCopy}
+		}
 	default:
 		return nil, fmt.Errorf("MCP server '%s' misconfigured (neither command nor url)", name)
 	}

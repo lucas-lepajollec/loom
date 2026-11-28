@@ -489,6 +489,14 @@
   .machine-row.machine-brick-row .machine-actions{width:auto;justify-content:flex-end;margin-left:0}
   .machine-resource-body{padding:14px 16px}
   .drawer-sheet .cx-detail-hero,.drawer-sheet .cx-facts,.drawer-sheet .cx-md-box,.drawer-sheet .cx-access .card{border-radius:16px;overflow:hidden}
+  .cx-mcp-budget,.cx-mcp-item,.cx-mcp-inline,.cx-mcp-tool-list{border-radius:18px}
+  .cx-mcp-add,.cx-mcp-detail .btn,.cx-mcp-modal .btn{min-height:var(--touch-target);border-radius:var(--r-pill)}
+  .cx-mcp-detail .switch{min-width:var(--touch-target);min-height:var(--touch-target);background-clip:content-box;padding-block:10px}
+  .cx-mcp-seg{width:100%;gap:4px;border-radius:var(--r-pill)}
+  .cx-mcp-seg button{flex:1 1 0;min-width:0;min-height:var(--touch-target);padding:4px 8px;border-radius:var(--r-pill);overflow-wrap:anywhere}
+  .cx-mcp-seg .ind{border-radius:var(--r-pill)}
+  .cx-mcp-field .input:not(textarea){min-height:var(--touch-target)}
+  .cx-mcp-modal .dialog-head>div,.cx-mcp-drawer .dialog-head>div{min-width:0}
   .drawer-sheet .cx-fact{grid-template-columns:minmax(0,1fr);gap:2px}
 }
 

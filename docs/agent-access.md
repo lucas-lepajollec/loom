@@ -35,13 +35,29 @@ resets that line. Only the token's hash is stored.
 | Tool | Effect |
 | --- | --- |
 | `loom_overview` | Loom version, machines, which machine provides each brick, whether agent sessions are available, and a short guide. Start here. |
-| `loom_machines` | This machine (`local`), paired nodes and saved SSH machines, with modules and whether a command can run there. |
+| `loom_machines` | This machine (`local`), paired nodes and saved SSH machines, with modules and terminal availability. Paired nodes include the current saved `node_url` when available. `loom_overview` includes the same machine list. |
 | `loom_machine_run` | Runs one non-interactive command, on a machine given by id, name or host (default: this machine), through Loom's terminals (local PTY, SSH or a node's terminal module) and returns the exit code and the last 64 KiB of plain-text output. Stopped after `timeout_seconds` (default 60, at most 600). The terminal is removed afterwards. |
 | `loom_subagent_catalog`, `loom_subagent_spawn`, `loom_subagent_list`, `loom_subagent_send`, `loom_subagent_wait`, `loom_subagent_read`, `loom_subagent_stop` | Dynamically discover available Codeman CLIs/models/effort/permissions and orchestrate tracked Loom sub-sessions with automatic scoped MCP access, optional Git worktree isolation (`.loom-worktrees/<slug>` + `.worktreeinclude`), full-conversation reads (`mode='full'`), approval bubbling (`signal='blocked'`), depth/concurrency caps, and strict same-tree isolation. |
 | `loom_board_post`, `loom_board_read` | Post and read concise updates, questions, handoffs and results on the shared coordination board of the current orchestration tree. |
 | `agents__*` | Codeman's own MCP server (`codeman mcp`): `list_sessions`, `start_session`, `send_prompt`, `wait_for_session`, `read_output`, `interrupt_session`, `delete_session`. |
 | `brain_*`, `memory_*`, skills, discussions | The second brain tools, unchanged. |
-| `<server>__<tool>` | The person's own MCP servers from `mcp.json`, unchanged. |
+| `<server>__<tool>` | Tools from external MCP servers exposed directly. |
+| `loom_mcp_search`, `loom_mcp_describe`, `loom_mcp_call` | Find, inspect and call tools from on-demand external MCP servers. |
+| `loom_mcp_register` | Propose a new external stdio or HTTP MCP server for owner approval. |
+
+For on-demand servers, the instructions list server names and tool counts.
+Search by keyword or use `query:"*"` with a `server` filter. Describe a result
+to get its full schema, then pass its exact server name, tool name and
+`arguments` object to `loom_mcp_call`. Local and Cloud discussions use the
+same three tools when MCP is enabled. See [MCP configuration](mcp-files.md)
+for exposure settings.
+
+Registration adds a new enabled server to Loom's `mcp.json` after approval.
+Supply environment variable names in `env_names`. Loom stores empty
+placeholders so the owner can fill the values in Connections. A proposal
+cannot replace a server with the same name. For legacy direct-only
+configurations, the gateway instructions name the registration tool. It
+appears in the tool list when a gateway or per-server exposure mode is set.
 
 ### Agent sessions through Codeman
 
@@ -59,11 +75,12 @@ the `agents__*` tools are absent and `loom_overview` says why.
 
 ## Permissions
 
-Every call goes through the gateway's policy check with the subject
+External tool calls, including `loom_mcp_call`, go through the policy check with the subject
 `mcp.tool:<server>/<tool>`: `mcp.tool:loom/loom_machine_run`,
-`mcp.tool:agents/start_session`, and so on. The default is allow, as for every
-gateway tool. A `deny` rule refuses the call. A `confirm` rule makes the call
-wait for the person, up to 24 hours.
+`mcp.tool:agents/start_session`, and so on. A `deny` rule refuses the call.
+A `confirm` rule makes the call wait for the person, up to 24 hours.
+Registration uses `mcp.manage` and requires an explicit approval for every
+proposal. A deny rule can block management altogether.
 
 "Ask me before acting" in the Agent access panel adds three global confirm rules,
 `agent-access-ask-run` (`loom_machine_run`), `agent-access-ask-session`

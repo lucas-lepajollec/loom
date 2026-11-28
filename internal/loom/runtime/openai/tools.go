@@ -13,6 +13,12 @@ type ToolAccess interface {
 	Definitions() any
 	Execute(context.Context, string, map[string]any) (string, error)
 }
+
+// jsonToolAccess preserves argument JSON for application tools that proxy it
+// to another protocol without converting numbers to floating point.
+type jsonToolAccess interface {
+	ExecuteJSON(context.Context, string, json.RawMessage) (string, error)
+}
 type ToolEvent struct {
 	ID, Name, Arguments, Result string
 	Done                        bool
@@ -96,15 +102,25 @@ func (a Adapter) runTools(ctx context.Context, turn Turn, emit func(Event) bool)
 		accumulated.outputReported = roundUsage.outputReported && (round == 0 || accumulated.outputReported)
 		messages = append(messages, map[string]any{"role": "assistant", "content": part, "tool_calls": pending})
 		for _, call := range pending {
-			var args map[string]any
-			if json.Unmarshal([]byte(call.Function.Arguments), &args) != nil || args == nil {
+			raw := json.RawMessage(strings.TrimSpace(call.Function.Arguments))
+			if len(raw) == 0 || raw[0] != '{' || !json.Valid(raw) {
 				return "", errors.New("invalid provider tool arguments")
 			}
 			event := &ToolEvent{ID: call.ID, Name: call.Function.Name, Arguments: call.Function.Arguments}
 			if !emit(Event{Tool: event}) {
 				return "", context.Canceled
 			}
-			result, err := turn.Tools.Execute(ctx, call.Function.Name, args)
+			var result string
+			var err error
+			if jsonTools, ok := turn.Tools.(jsonToolAccess); ok {
+				result, err = jsonTools.ExecuteJSON(ctx, call.Function.Name, raw)
+			} else {
+				var args map[string]any
+				if json.Unmarshal(raw, &args) != nil {
+					return "", errors.New("invalid provider tool arguments")
+				}
+				result, err = turn.Tools.Execute(ctx, call.Function.Name, args)
+			}
 			if err != nil {
 				return "", err
 			}

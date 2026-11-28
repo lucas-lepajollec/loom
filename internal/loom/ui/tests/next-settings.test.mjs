@@ -533,6 +533,15 @@ test('discovery uses the advertised full address once and node modules are read-
   assert.equal(nodes(mods, 'Switch').length, 0);
 });
 
+test('node connection and pairing prefer the saved URL over the default port', () => {
+  const { env } = harness(nodeMachines, 'nodeAddress');
+  const machine = { host: '192.168.1.20', port: 2222, node_url: 'http://192.168.1.20:2550' };
+  assert.equal(env.view(machine), machine.node_url);
+  assert.equal(env.view(machine, { url: 'https://node.example.test:8443' }), 'https://node.example.test:8443');
+  assert.equal(env.view({ host: '2001:db8::20', port: 2222 }), '[2001:db8::20]:2511');
+  assert.equal(env.view({}), '');
+});
+
 test('SSH migration shows progress and exact failures; manual pairing targets the same id', async () => {
   let complete, tick, changed = 0;
   const h = harness(nodeMachines, 'MachineMigration', { ...nodeMachineEnv, setInterval: fn => { tick = fn; return 1; }, post: (...args) => { h.posts.push(args); return new Promise(resolve => { complete = resolve; }); } });

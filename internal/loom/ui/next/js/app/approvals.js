@@ -17,6 +17,7 @@ export async function refreshLoomApprovals() {
 const TITLES = () => ({
   'mcp.tool:loom/loom_machine_run': t('approvals.run'),
   'mcp.tool:agents/start_session': t('approvals.session'),
+  'mcp.manage': t('approvals.mcp_register'),
 });
 
 export function LoomApproval({ item, class: c = '' }) {

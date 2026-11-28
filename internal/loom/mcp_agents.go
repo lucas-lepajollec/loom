@@ -77,6 +77,7 @@ type agentMachine struct {
 	Name      string   `json:"name"`
 	Kind      string   `json:"kind"` // this (the machine serving Loom), node or ssh
 	Host      string   `json:"host,omitempty"`
+	NodeURL   string   `json:"node_url,omitempty"`
 	OS        string   `json:"os,omitempty"`
 	Modules   []string `json:"modules,omitempty"`
 	Terminal  bool     `json:"terminal"`
@@ -95,7 +96,7 @@ func agentMachines() []agentMachine {
 		if name == "" {
 			name = m.Hostname
 		}
-		out = append(out, agentMachine{ID: m.ID, Name: name, Kind: kind, Host: m.Host, OS: m.OS, Modules: m.Modules, Terminal: machineTerminalsSupported(m), CheckedAt: m.CheckedAt})
+		out = append(out, agentMachine{ID: m.ID, Name: name, Kind: kind, Host: m.Host, NodeURL: machineNodeURL(m), OS: m.OS, Modules: m.Modules, Terminal: machineTerminalsSupported(m), CheckedAt: m.CheckedAt})
 	}
 	return out
 }
@@ -256,7 +257,7 @@ func registerLoomAgentTools(server *mcp.Server) {
 		func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, agentOverview, error) {
 			return nil, agentOverview{Loom: Version, Machines: agentMachines(), Roles: machineRoles(), Agents: agentsStatus(), SubagentCatalog: buildSubagentCatalog(ctx), Guide: agentGuide}, nil
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "loom_machines", Description: "List the machines Loom can reach: this machine (id local), paired Loom nodes and saved SSH machines, with their modules and whether a command can run there.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
+	mcp.AddTool(server, &mcp.Tool{Name: "loom_machines", Description: "List this machine (id local), paired Loom nodes (with their node_url) and saved SSH machines, with modules and terminal availability.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
 		func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, struct {
 			Machines []agentMachine `json:"machines"`
 		}, error) {

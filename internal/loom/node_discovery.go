@@ -2,12 +2,16 @@ package loom
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,6 +26,7 @@ type discoveredNode struct {
 	Address string `json:"address"`
 	Port    int    `json:"port"`
 	Paired  bool   `json:"paired"`
+	Proof   string `json:"proof,omitempty"`
 }
 
 func startNodeDiscovery(listener string) (*net.UDPConn, error) {
@@ -62,8 +67,20 @@ func serveNodeDiscovery(conn *net.UDPConn, node nodeDescriptor, host string, por
 		if err != nil {
 			return
 		}
-		if string(buffer[:n]) != "LOOM?" || !localNetworkHost(remote.IP.String()) {
+		if !localNetworkHost(remote.IP.String()) {
 			continue
+		}
+		probe := string(buffer[:n])
+		challenge := ""
+		if probe != "LOOM?" {
+			fields := strings.Fields(probe)
+			if len(fields) != 3 || fields[0] != "LOOM?" || fields[1] != node.ID {
+				continue
+			}
+			if nonce, err := hex.DecodeString(fields[2]); err != nil || len(nonce) != 32 {
+				continue
+			}
+			challenge = fields[2]
 		}
 		now := time.Now()
 		if now.Sub(window) >= time.Second {
@@ -90,8 +107,16 @@ func serveNodeDiscovery(conn *net.UDPConn, node nodeDescriptor, host string, por
 			addressHost = route.LocalAddr().(*net.UDPAddr).IP.String()
 			route.Close()
 		}
-		body, err := json.Marshal(discoveredNode{ID: node.ID, Name: node.Name, Version: node.Version,
-			Address: "http://" + net.JoinHostPort(addressHost, strconv.Itoa(port)), Port: port, Paired: nodeIsPaired()})
+		reply := discoveredNode{ID: node.ID, Name: node.Name, Version: node.Version,
+			Address: "http://" + net.JoinHostPort(addressHost, strconv.Itoa(port)), Port: port, Paired: nodeIsPaired()}
+		if challenge != "" {
+			key, err := readNodeToken()
+			if err != nil {
+				continue
+			}
+			reply.Proof = hex.EncodeToString(nodeDiscoveryProof(key, challenge, reply))
+		}
+		body, err := json.Marshal(reply)
 		if err == nil {
 			_, _ = conn.WriteToUDP(body, remote)
 		}
@@ -137,6 +162,16 @@ func nodeDiscoveryTargets() []nodeDiscoveryTarget {
 }
 
 func discoverNodes(ctx context.Context, targets []nodeDiscoveryTarget, wait time.Duration) []discoveredNode {
+	return collectDiscoveredNodes(ctx, targets, wait, []string{"LOOM?"}, func(node discoveredNode) bool { return node.Proof == "" })
+}
+
+func nodeDiscoveryProof(key, challenge string, node discoveredNode) []byte {
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte("loom-node-discovery-v1\x00" + challenge + "\x00" + node.ID + "\x00" + node.Address))
+	return mac.Sum(nil)
+}
+
+func collectDiscoveredNodes(ctx context.Context, targets []nodeDiscoveryTarget, wait time.Duration, probes []string, accept func(discoveredNode) bool) []discoveredNode {
 	nodes := map[string]discoveredNode{}
 	var mu sync.Mutex
 	var workers sync.WaitGroup
@@ -154,8 +189,10 @@ func discoverNodes(ctx context.Context, targets []nodeDiscoveryTarget, wait time
 			stop := context.AfterFunc(ctx, func() { conn.Close() })
 			defer stop()
 			_ = conn.SetDeadline(deadline)
-			if _, err := conn.WriteToUDP([]byte("LOOM?"), target.Probe); err != nil {
-				return
+			for _, probe := range probes {
+				if _, err := conn.WriteToUDP([]byte(probe), target.Probe); err != nil {
+					return
+				}
 			}
 			var buffer [4096]byte
 			for {
@@ -164,11 +201,13 @@ func discoverNodes(ctx context.Context, targets []nodeDiscoveryTarget, wait time
 					return
 				}
 				var node discoveredNode
-				if json.Unmarshal(buffer[:n], &node) != nil || !validDiscoveredNode(node, remote.IP) {
+				if json.Unmarshal(buffer[:n], &node) != nil || !validDiscoveredNode(node, remote.IP) || !accept(node) {
 					continue
 				}
 				mu.Lock()
-				nodes[node.ID] = node
+				if nodes[node.ID].Proof == "" || node.Proof != "" {
+					nodes[node.ID] = node
+				}
 				mu.Unlock()
 			}
 		})

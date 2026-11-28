@@ -47,7 +47,7 @@ func cmdNode(args []string) error {
 	}
 	if action == "listen" {
 		if len(args) < 2 || strings.HasPrefix(args[1], "-") {
-			return errors.New("usage: loom node listen lan|ADDR:PORT|local [--home DIR]")
+			return errors.New("usage: loom node listen lan|ADDR:PORT|:PORT|local [--home DIR]")
 		}
 		args = append([]string{action, "--listen", args[1]}, args[2:]...)
 	}
@@ -125,11 +125,13 @@ func cmdNode(args []string) error {
 			*listen = saved
 		}
 	}
-	resolved, err := resolveNodeListener(*listen)
-	if err != nil {
-		return err
+	if action != "listen" || !strings.HasPrefix(*listen, ":") {
+		resolved, err := resolveNodeListener(*listen)
+		if err != nil {
+			return err
+		}
+		*listen = resolved
 	}
-	*listen = resolved
 	if action != "pair" && (*jsonOutput || *ifUnpaired) {
 		return errors.New("--json and --if-unpaired apply only to node pair")
 	}

@@ -76,10 +76,21 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 	if cat := buildSubagentCatalog(context.Background()); cat.CodemanConnected && cat.Summary != "" {
 		instructions += " " + cat.Summary + "."
 	}
+	hub := externalMCPHub()
+	if note := hub.note(); note != "" {
+		instructions += "\n" + note
+	}
+	if hub.legacy {
+		instructions += "\nPropose new external servers with loom_mcp_register."
+	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "loom-gateway", Version: Version}, &mcp.ServerOptions{Instructions: instructions})
 	brain.RegisterMCPTools(server, reader)
 	registerLoomAgentTools(server)
 	registerLoomOrchestrationTools(server)
+	registerMCPHubTools(server, hub)
+	if hub.legacy {
+		server.AddReceivingMiddleware(legacyMCPToolList)
+	}
 	// Upstreams: the person's MCP servers, then Codeman's agent tools started
 	// by Loom itself. Each tool remembers which pool serves it.
 	type source struct {
@@ -88,15 +99,14 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 	}
 	var sources []source
 	var upstream []tools.MCPGatewayTool
-	for _, mgr := range []*tools.MCPManager{mcpMgr.MCPManager, agentsMCP} {
-		items, _, err := mgr.GatewayTools()
-		if err != nil {
-			continue
-		}
-		for _, item := range items {
-			sources = append(sources, source{mgr, item})
-			upstream = append(upstream, item)
-		}
+	for _, item := range hub.direct {
+		sources = append(sources, source{mcpMgr.MCPManager, item})
+		upstream = append(upstream, item)
+	}
+	agentTools, _, _ := agentsMCP.GatewayTools()
+	for _, item := range agentTools {
+		sources = append(sources, source{agentsMCP, item})
+		upstream = append(upstream, item)
 	}
 	names := gatewayToolNames(upstream)
 	subjects := map[string]string{}
@@ -120,6 +130,23 @@ func gatewayServer(reader brain.Reader) *mcp.Server {
 	})
 	server.AddReceivingMiddleware(gatewayUsageMiddleware, gatewayPolicyMiddleware(subjects))
 	return server
+}
+
+// Legacy configurations retain their original tool list. Registration remains
+// callable by name, and is listed once an exposure mode is configured.
+func legacyMCPToolList(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		res, err := next(ctx, method, req)
+		if list, ok := res.(*mcp.ListToolsResult); ok && method == "tools/list" {
+			for i, t := range list.Tools {
+				if t.Name == mcpRegisterTool {
+					list.Tools = append(list.Tools[:i:i], list.Tools[i+1:]...)
+					break
+				}
+			}
+		}
+		return res, err
+	}
 }
 
 // gatewayUsageMiddleware remembers which agent client last used the gateway.

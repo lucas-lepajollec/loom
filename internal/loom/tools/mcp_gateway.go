@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"time"
 
@@ -21,6 +22,7 @@ type MCPGatewayStatus struct {
 	Connected bool   `json:"connected"`
 	Tools     int    `json:"tools"`
 	Error     string `json:"error,omitempty"`
+	Exposure  string `json:"-"`
 }
 
 func (m *MCPManager) GatewayTools() ([]MCPGatewayTool, []MCPGatewayStatus, error) {
@@ -38,7 +40,7 @@ func (m *MCPManager) GatewayTools() ([]MCPGatewayTool, []MCPGatewayStatus, error
 	sort.Strings(names)
 	for _, name := range names {
 		cfg := servers[name]
-		st := MCPGatewayStatus{Name: name, Enabled: cfg.Enabled}
+		st := MCPGatewayStatus{Name: name, Enabled: cfg.Enabled, Exposure: cfg.Exposure}
 		if cfg.Enabled {
 			s := m.Ensure(name, cfg)
 			if s.err != nil {
@@ -88,6 +90,21 @@ func (m *MCPManager) GatewayCall(ctx context.Context, server, tool string, args 
 	}
 	if s.err != nil || s.sess == nil {
 		return nil, fmt.Errorf("MCP upstream unavailable")
+	}
+	if !slices.ContainsFunc(s.tools, func(t *mcpsdk.Tool) bool { return t.Name == tool }) {
+		return nil, fmt.Errorf("MCP tool unavailable")
+	}
+	// Re-read after connecting so a concurrent disable or edit takes effect.
+	servers, err = m.config.LoadMCPConfig()
+	if err != nil {
+		return nil, err
+	}
+	cfg, ok = servers[server]
+	m.mu.Lock()
+	current := m.sessions[server] == s
+	m.mu.Unlock()
+	if !current || !ok || !cfg.Enabled || cfg.ToolDisabled(tool) {
+		return nil, fmt.Errorf("MCP tool unavailable")
 	}
 	result, err := s.sess.CallTool(ctx, &mcpsdk.CallToolParams{Name: tool, Arguments: args})
 	if err != nil && ctx.Err() == nil {

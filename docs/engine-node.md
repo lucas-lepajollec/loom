@@ -12,7 +12,7 @@
 2. Enter the address and pairing code printed by the installer, or choose the
    node from Loom's live network discovery list and enter its code. Codes expire
    after ten minutes and work once. Both machines must be able to reach the
-   selected listener on port **2511**.
+   selected listener. The default port is **2511**.
 3. Loom opens the paired machine and displays its detected **engine,
    voice, terminal and observe** modules. Use that page to manage what runs there.
    Module availability is read-only; the node currently has no module-toggle API.
@@ -153,12 +153,23 @@ Use the installed node binary (and `--home DIR` for a custom data root):
 ```sh
 ~/.local/lib/loom-node/loom node listen lan
 ~/.local/lib/loom-node/loom node listen 192.168.1.20:2511
+~/.local/lib/loom-node/loom node listen :2550
 ~/.local/lib/loom-node/loom node listen local
 ```
 
 This rewrites the existing user unit, persists the listener and restarts
 `loom-node.service`. A failed listener change restores the previous unit and
 listener. No sudo or firewall changes are performed.
+The `:PORT` form keeps the host from the installed unit. When an already
+paired node's saved listener refuses a connection, the main Loom looks for
+that node's ID on the LAN. It verifies the advertised listener through
+`/api/node/info` with the saved credential before updating the paired link
+and the corresponding active engine link.
+
+Current nodes can prove ownership of a new LAN address with a signed discovery
+reply. Nodes that use the older discovery format can recover a port change
+on the saved IP. HTTPS links keep their TLS scheme and hostname. The
+Machines page, `loom_machines` and `loom_overview` use the resulting saved URL.
 
 After a started release installation or update, the installer prints the
 address, a fresh pairing code and its UTC expiry. If already paired it prints
@@ -312,7 +323,8 @@ Loom process or losing the node connection ends it. Node transport reconnection
 does not replay a command or start a replacement process. An unavailable exit
 code remains `-1`.
 
-`GET /api/machines` retains each machine's advertised `modules` and adds
+`GET /api/machines` returns `node_url` for paired nodes with a saved link.
+It retains each machine's advertised `modules` and adds
 `capabilities:["terminals"]` when it has SSH or a paired node advertising
 `terminal` (otherwise `capabilities:[]`). A node target with this module uses
 its node even when SSH is also configured. A machine with neither terminal

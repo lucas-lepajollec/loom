@@ -176,7 +176,6 @@ func (m *mcpManager) ensure(name string, cfg MCPServerConfig) *mcpSession { retu
 func mcpInvalidate(name string)                                           { mcpMgr.Invalidate(name) }
 func mcpCloseAll()                                                        { mcpMgr.CloseAll(); agentsMCP.CloseAll() }
 func mcpEnsureAll(servers map[string]MCPServerConfig)                     { mcpMgr.EnsureAll(servers) }
-func mcpTools() []Tool                                                    { return mcpMgr.Tools() }
+func mcpTools() []Tool                                                    { return externalMCPHub().discussionTools() }
 func mcpCall(name string, args map[string]any) string                     { return mcpMgr.Call(name, args) }
-func mcpPromptLine() string                                               { return mcpMgr.PromptLine() }
 func MCPStatus() ([]MCPServerStatus, error)                               { return mcpMgr.Status() }

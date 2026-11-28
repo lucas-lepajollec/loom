@@ -54,7 +54,11 @@ func proxyFiles(w http.ResponseWriter, r *http.Request) bool {
 	target := base + r.URL.Path + "?" + query.Encode()
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, r.Method, target, http.MaxBytesReader(w, r.Body, filesMaxText+8192))
+	var body io.Reader
+	if r.Body != nil && r.Body != http.NoBody {
+		body = http.MaxBytesReader(w, r.Body, filesMaxText+8192)
+	}
+	req, err := http.NewRequestWithContext(ctx, r.Method, target, body)
 	if err != nil {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return true
@@ -63,7 +67,8 @@ func proxyFiles(w http.ResponseWriter, r *http.Request) bool {
 	if ct := r.Header.Get("Content-Type"); ct != "" {
 		req.Header.Set("Content-Type", ct)
 	}
-	client := http.Client{Transport: nodeClient.Transport, CheckRedirect: nodeClient.CheckRedirect}
+	client := nodeControlClient(access.node)
+	client.Timeout = 0 // Preserve the longer file transfer deadline.
 	resp, err := client.Do(req)
 	if err != nil {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": "files machine unreachable"})

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
 
 const mcpSourcesState = "mcp_sources"
@@ -169,6 +171,9 @@ func adoptLinkedMCP(source, name string, withEnv bool) (string, []string, error)
 	cfg, err := adoptedMCPDefinition(*found, withEnv)
 	if err != nil {
 		return "", nil, err
+	}
+	if cfg.Exposure == "" {
+		cfg.Exposure = resources.MCPOnDemand
 	}
 	return storeAdoptedMCP(name, cfg)
 }

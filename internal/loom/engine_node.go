@@ -185,6 +185,7 @@ func engineRequestTarget() (base, key, model string) {
 	return strings.TrimRight(n.V1, "/"), n.APIKey, model
 }
 
+// engineBase is the origin of the engine's OpenAI-compatible API (no /v1).
 func engineBase() string {
 	if n := currentEngineNode(); n != nil {
 		return strings.TrimRight(n.V1, "/")
@@ -218,7 +219,7 @@ func engineCurrentModel() string {
 	}
 	req, _ := http.NewRequest(http.MethodGet, n.URL+"/api/status", nil)
 	req.Header.Set("Authorization", "Bearer "+n.WebKey)
-	resp, err := nodeClient.Do(req)
+	resp, err := nodeControlClient(n).Do(req)
 	if err != nil {
 		return ""
 	}
@@ -242,7 +243,7 @@ func engineContextSize() int {
 	}
 	req, _ := http.NewRequest(http.MethodGet, n.URL+"/api/status", nil)
 	req.Header.Set("Authorization", "Bearer "+n.WebKey)
-	resp, err := nodeClient.Do(req)
+	resp, err := nodeControlClient(n).Do(req)
 	if err != nil {
 		return 0
 	}
@@ -465,9 +466,12 @@ func handleEngineNode(w http.ResponseWriter, r *http.Request) {
 		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, n.URL+"/api/ping", nil)
 		req.Header.Set("Authorization", "Bearer "+n.WebKey)
 		reachable := false
-		if resp, err := nodeClient.Do(req); err == nil {
+		if resp, err := nodeControlClient(n).Do(req); err == nil {
 			resp.Body.Close()
 			reachable = resp.StatusCode == 200
+			if next := currentEngineNode(); next != nil && next.NodeID == n.NodeID && next.WebKey == n.WebKey {
+				n = next
+			}
 		}
 		sendJSON(w, 200, map[string]any{"ok": true, "remote": true, "url": n.URL, "v1": n.V1, "hostname": n.Hostname, "version": n.Version, "role": n.Role, "reachable": reachable, "degraded": degradedCapabilities.Snapshot(currentEngineCapabilityOwner())})
 		return
@@ -555,7 +559,7 @@ func proxyEngineNode(w http.ResponseWriter, r *http.Request, n *engineNode) {
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.FlushInterval = -1
-	proxy.Transport = nodeClient.Transport
+	proxy.Transport = nodeRecoveryTransport{nodeClient.Transport, n}
 	base := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		base(req)
@@ -720,7 +724,7 @@ func engineExecutionConfigFor(ctx context.Context, n *engineNode) (map[string]st
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+n.WebKey)
-	resp, err := nodeClient.Do(req)
+	resp, err := nodeControlClient(n).Do(req)
 	if err != nil {
 		return nil, errors.New("remote engine configuration unavailable")
 	}

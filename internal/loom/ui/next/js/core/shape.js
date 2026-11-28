@@ -33,6 +33,16 @@ const runtime = { capabilities: strings, degraded: rows, filesystem_policies: st
 const project = { capability_ids: strings, mcp_servers: strings, brain_sources: strings };
 const choice = { reasoning_efforts: strings };
 const workspace = { models: list(choice), runtimes: list(runtime), providers: list({ models: strings }), projects: list(project), capabilities: rows, sessions: list(session) };
+const stringValues = value => isObject(value) && Object.values(value).every(v => typeof v === 'string');
+const mcpServer = value => validShape(value, {
+  args: strings, tools: strings, disabled: strings, env: stringValues, headers: stringValues,
+  transport: '', type: '', exposure: '', command: '', url: '', description: '', error: '', enabled: false, connected: false,
+}) && typeof value.name === 'string';
+const mcpStatus = { servers: list(mcpServer), tool_mode: '', token_budget: {
+  direct_tokens: 0, injected_tokens: 0, saved_tokens: 0, saved_percent: 0, on_demand_tools: 0, direct_tools: 0,
+} };
+const mcpRegistryInput = { name: '', value: '', isRequired: false, isSecret: false };
+const mcpRegistryPreset = { transport: '', type: '', command: '', args: strings, url: '', headers: list(mcpRegistryInput), env_vars: list(mcpRegistryInput) };
 export const chatShape = { items: rows, frozen: rows, session: optional(session), context: optional(context), gen: null,
   starting: value => value === false || validShape(value, { at: 0, name: '' }) };
 // Only the flat form fields rendered by RequestCard are interpreted. Arbitrary
@@ -57,7 +67,7 @@ const shapes = {
   '/api/runtime/sessions': { sessions: list(session), session: optional(session), context: optional(context) },
   '/api/agent': { pages: list(value => validShape(value, {}) && typeof value.name === 'string'), skills: list(value => validShape(value, {}) && typeof value.name === 'string') }, '/api/providers': { providers: list({ models: strings }) },
   '/api/providers/models': { models: [''] }, '/api/providers/save': { provider: optional({ models: strings }) },
-  '/api/machines': { machines: [{ harnesses: strings, modules: strings, gpus: rows }], offers: value => value == null || isObject(value) && Object.values(value).every(rows) },
+  '/api/machines': { machines: [{ harnesses: strings, modules: strings, gpus: rows, node_url: '' }], offers: value => value == null || isObject(value) && Object.values(value).every(rows) },
   '/api/machines/local': { gpus: rows, harnesses: strings }, '/api/machines/metrics': { metrics: null },
   '/api/machines/discover': { nodes: rows }, '/api/machines/folders': { folders: strings },
   '/api/terminals': { terminals: rows }, '/api/previews': { previews: rows },
@@ -72,8 +82,11 @@ const shapes = {
   '/api/capabilities/folder': { skills: rows, tasks: rows, clients: rows },
   '/api/capabilities/link': { skills: rows, tasks: rows, clients: rows },
   '/api/capabilities/skill': { files: strings },
-  '/api/mcp': { servers: list(value => validShape(value, { args: strings, tools: rows, disabled: strings }) && typeof value.name === 'string') },
-  '/api/mcp/portable': { servers: rows }, '/api/mcp/gateway': {}, '/api/mcp/sources': { sources: list({ servers: list({ env_names: strings, header_names: strings }) }), suggested: rows }, '/api/mcp/sources/adopt': { env_to_fill: strings },
+  '/api/mcp': mcpStatus, '/api/mcp/save': mcpStatus, '/api/mcp/toggle': mcpStatus, '/api/mcp/tool': mcpStatus,
+  '/api/mcp/test': { ...mcpStatus, latency_ms: 0 },
+  '/api/mcp/registry/search': { servers: list({ id: '', title: '', description: '', version: '', suggested_name: '', presets: list(mcpRegistryPreset) }) },
+  '/api/mcp/portable': { servers: rows }, '/api/mcp/gateway': { tool_mode: '' }, '/api/mcp/gateway/mode': { tool_mode: '' },
+  '/api/mcp/sources': { sources: list({ path: '', label: '', error: '', servers: list({ source: '', name: '', project: '', transport: '', env_names: strings, header_names: strings }) }), suggested: list({ path: '', label: '' }) }, '/api/mcp/sources/adopt': { name: '', env_to_fill: strings },
   '/api/engine/params': { params: list({ choices: list([]) }) }, '/api/model-caps': { mmproj: strings, effort: strings },
   '/api/hub/search': { models: list(value => validShape(value, {}) && typeof value.id === 'string') }, '/api/hub/model': { files: list(value => validShape(value, {}) && typeof value.name === 'string') }, '/api/models/dirs': { dirs: rows },
   '/api/bench/tests': { tests: rows },'/api/bench/queue': { job: optional({ rows }), rows }, '/api/bench/runs': { runs: list({ rows }) },

@@ -249,6 +249,7 @@ func lastLine(s string) string {
 type remoteMachineInfo struct {
 	RemoteMachine
 	Capabilities []string `json:"capabilities"`
+	NodeURL      string   `json:"node_url,omitempty"`
 }
 
 // GET: machines, Loom's public key and the setup block.
@@ -262,7 +263,7 @@ func handleRemoteMachines(w http.ResponseWriter, r *http.Request) {
 			if machineTerminalsSupported(m) && !capabilityDisabled("machine:"+m.ID, "terminal") {
 				caps = append(caps, "terminals")
 			}
-			list = append(list, remoteMachineInfo{projectMachineCapabilities(m), degradedCapabilities.Filter("machine:"+m.ID, caps)})
+			list = append(list, remoteMachineInfo{projectMachineCapabilities(m), degradedCapabilities.Filter("machine:"+m.ID, caps), machineNodeURL(m)})
 		}
 		_, pub, err := loomSSHKey()
 		// Paired nodes remain usable on a main without SSH tooling.

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/lucas-lepajollec/loom/internal/loom/resources"
 )
 
 // Configuration des serveurs MCP (Model Context Protocol).
@@ -41,6 +43,18 @@ func LoadMCPConfig() (map[string]MCPServerConfig, error) {
 // SetMCPServer ajoute ou remplace un serveur nommé, puis invalide le pool de
 // sessions pour que le changement prenne effet au prochain tour.
 func SetMCPServer(name string, cfg MCPServerConfig) error {
+	return setMCPServer(name, cfg, mcpSaveOptions{})
+}
+
+type mcpSaveOptions struct {
+	createOnly       bool
+	preserveExisting bool
+	exposureOnly     bool
+	enabled          *bool
+	description      *string
+}
+
+func setMCPServer(name string, cfg MCPServerConfig, opts mcpSaveOptions) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return fmt.Errorf("empty server name")
@@ -48,26 +62,56 @@ func SetMCPServer(name string, cfg MCPServerConfig) error {
 	if strings.Contains(name, "__") {
 		return fmt.Errorf("the name cannot contain '__' (reserved for tool namespacing)")
 	}
+	mcpConfigMu.Lock()
+	err := saveMCPServerLocked(name, cfg, opts)
+	mcpConfigMu.Unlock()
+	if err == nil && !opts.exposureOnly {
+		mcpInvalidate(name)
+	}
+	return err
+}
+
+func saveMCPServerLocked(name string, cfg MCPServerConfig, opts mcpSaveOptions) error {
+	servers, err := loadMCPConfigForWriteLocked()
+	if err != nil {
+		return err
+	}
+	old, exists := servers[name]
+	if exists && opts.createOnly {
+		return errMCPAdoptConflict
+	}
+	if opts.exposureOnly {
+		if !exists {
+			return fmt.Errorf("unknown MCP server: %s", name)
+		}
+		old.Exposure = cfg.Exposure
+		cfg = old
+	} else if opts.preserveExisting {
+		cfg.DisabledTools = old.DisabledTools
+		if cfg.Exposure == "" && exists {
+			cfg.Exposure = old.Exposure
+		}
+		if cfg.Exposure == "" && !exists {
+			cfg.Exposure = resources.MCPOnDemand
+		}
+		if opts.enabled == nil && exists {
+			cfg.Enabled = old.Enabled
+		}
+		if opts.description == nil && exists {
+			cfg.Description = old.Description
+		}
+	}
+	if cfg.Type == "" {
+		cfg.Type = old.Type
+		if opts.preserveExisting && old.Transport() != cfg.Transport() {
+			cfg.Type = ""
+		}
+	}
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-	mcpConfigMu.Lock()
-	servers, err := loadMCPConfigForWriteLocked()
-	if err != nil {
-		mcpConfigMu.Unlock()
-		return err
-	}
-	if cfg.Type == "" {
-		cfg.Type = servers[name].Type
-	}
 	servers[name] = cfg
-	err = saveMCPConfigLocked(servers)
-	mcpConfigMu.Unlock()
-	if err != nil {
-		return err
-	}
-	mcpInvalidate(name)
-	return nil
+	return saveMCPConfigLocked(servers)
 }
 
 // DeleteMCPServer retire un serveur et ferme sa session si ouverte.

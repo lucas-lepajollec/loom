@@ -1,6 +1,8 @@
 package loom
 
 import (
+	"crypto/hmac"
+	"encoding/hex"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -79,6 +81,29 @@ func TestNodeDiscoveryLoopbackCollectAndExcludeLinked(t *testing.T) {
 	}
 	if len(unlinkedDiscoveredNodes(nodes)) != 1 {
 		t.Fatal("paired elsewhere was excluded")
+	}
+}
+
+func TestNodeDiscoverySignsTheAdvertisedAddress(t *testing.T) {
+	_, token := pairTestNode(t)
+	server, descriptor := discoveryTestResponder(t, "127.0.0.1")
+	challenge, err := newNodeToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes := collectDiscoveredNodes(t.Context(), []nodeDiscoveryTarget{{Local: net.IPv4(127, 0, 0, 1), Probe: server.LocalAddr().(*net.UDPAddr)}},
+		120*time.Millisecond, []string{"LOOM? " + descriptor.ID + " " + challenge}, func(discoveredNode) bool { return true })
+	if len(nodes) != 1 {
+		t.Fatal("signed discovery did not get one reply", nodes)
+	}
+	node := nodes[0]
+	proof, err := hex.DecodeString(node.Proof)
+	if err != nil || !hmac.Equal(proof, nodeDiscoveryProof(token, challenge, node)) {
+		t.Fatal("node did not authenticate the discovery response")
+	}
+	node.Address = "http://127.0.0.1:2550"
+	if hmac.Equal(proof, nodeDiscoveryProof(token, challenge, node)) {
+		t.Fatal("the signed address could be replaced")
 	}
 }
 

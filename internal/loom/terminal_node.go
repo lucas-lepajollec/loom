@@ -49,7 +49,8 @@ func startNodeTerminal(m RemoteMachine, dir, command string) (termProcess, error
 	u.RawQuery = url.Values{"cwd": {dir}, "command": {command}, "cols": {"100"}, "rows": {"30"}}.Encode()
 	dialCtx, dialCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer dialCancel()
-	client := &http.Client{Transport: nodeClient.Transport, CheckRedirect: nodeClient.CheckRedirect}
+	client := nodeControlClient(access.node)
+	client.Timeout = 0 // The dial context owns the WebSocket handshake timeout.
 	conn, resp, err := websocket.Dial(dialCtx, u.String(), &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": {"Bearer " + access.Token}}, HTTPClient: client})
 	if err != nil {
 		if resp != nil {

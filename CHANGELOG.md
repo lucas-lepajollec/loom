@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- **Paired node port recovery**. Loom verifies and saves a paired node's new
+  listener after a connection failure on its old port. Machines and the agent
+  gateway expose the saved node URL.
+- **External MCP in Connections**. Add, edit, test, disable and import MCP servers,
+  or fill the setup form from the official registry. On-demand discovery serves
+  individual tool schemas to agents and Local/Cloud discussions, and Connections
+  shows estimated token savings. Existing direct tool names still work for
+  servers configured for direct exposure. Agent registration proposals require
+  owner approval.
 - **Local engine catalog** shows hardware compatibility, loopback detection,
   installation and direct links for sixteen engines on Loom and Loom Node,
   including Strata, Basalt, mistral.rs, KTransformers and exo.

@@ -78,7 +78,7 @@ func EncodeMCPFile(previousTop, previousEntries map[string]json.RawMessage, serv
 		if old := previousEntries[name]; old != nil {
 			_ = json.Unmarshal(old, &fields)
 		}
-		for _, k := range []string{"command", "args", "env", "url", "headers", "enabled", "disabledTools", "type"} {
+		for _, k := range []string{"command", "args", "env", "url", "headers", "enabled", "disabledTools", "type", "exposure", "description"} {
 			delete(fields, k)
 		}
 		data, err := json.Marshal(cfg)

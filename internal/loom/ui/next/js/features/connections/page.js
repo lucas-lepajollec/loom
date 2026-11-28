@@ -15,6 +15,7 @@ import { FolderPicker } from '../../ui/folder.js';
 import { md } from '../chat/md.js';
 import { AgentAccess } from '../settings/agent-access.js';
 import { skillCards, matches } from './cards.js';
+import { MCPBudget, MCPServerDialog, MCPServerDrawer, exposureBadge, serverStatus, transportBadge, useMCPServers } from './mcp-servers.js';
 
 const homePath = p => String(p || '').replace(/^\/home\/[^/]+/, '~').replace(/^\/Users\/[^/]+/, '~');
 
@@ -96,14 +97,14 @@ function FamilyDetail({ card, onOpen }) {
   </div>`;
 }
 
-function Detail({ open, onClose }) {
+function Detail({ open, onClose, onMCPModeChanged }) {
   const [inner, setInner] = useState('');
   useEffect(() => setInner(''), [open]);
   const title = open.kind === 'mcp' ? 'Loom MCP' : t('connections.kind.skill');
   return html`<${Drawer} title=${title} class="cx-drawer" onClose=${onClose}>
     ${open.kind === 'mcp' ? html`<div class="cx-detail">
         <p class="cx-lead">${t('connections.loom_lead')}</p>
-        <div class="set-body cx-access"><${AgentAccess} /></div>
+        <div class="set-body cx-access"><${AgentAccess} onMCPModeChanged=${onMCPModeChanged} /></div>
       </div>`
       : open.kind === 'family' && !inner ? html`<${FamilyDetail} card=${open} onOpen=${setInner} />`
       : html`<${SkillDetail} name=${inner || open.id} onBack=${inner ? Object.assign(() => setInner(''), { label: open.name }) : null} />`}
@@ -118,6 +119,9 @@ export function ConnectionsPage() {
   const [filter, setFilter] = useState('all');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(null);
+  const [external, setExternal] = useState('');
+  const [mcpDialog, setMCPDialog] = useState(null);
+  const { data: mcpData, error: mcpError, reload: reloadMCP, publish: setMCP } = useMCPServers();
   useEffect(() => { loadCapabilities().then(setState); }, []);
   const link = async () => {
     setBusy(true);
@@ -132,7 +136,10 @@ export function ConnectionsPage() {
   const needle = q.trim().toLowerCase();
   const shownSkills = filter === 'mcp' ? [] : cards.filter(c => matches(c, needle));
   const mcp = { kind: 'mcp', id: 'loom', name: 'Loom', description: t('connections.loom_desc') };
-  const shownMcp = filter === 'skills' || !matches(mcp, needle) ? [] : [mcp];
+  const servers = mcpData?.servers || [];
+  const visibleServers = servers.filter(server => matches(server, needle));
+  const externalServer = servers.find(server => server.name === external);
+  const mode = mcpData?.tool_mode;
   const links = linkState(state?.clients || []);
   const todo = links.missing + links.stale;
   const skillCount = (state?.skills || []).length;
@@ -145,7 +152,7 @@ export function ConnectionsPage() {
       <${Seg} label=${t('connections.filter')} value=${filter} onChange=${setFilter} options=${[
         { value: 'all', label: t('connections.all') },
         { value: 'skills', label: t('connections.kind.skills'), count: skillCount || '' },
-        { value: 'mcp', label: 'MCP', count: 1 },
+        { value: 'mcp', label: 'MCP', count: 1 + servers.length },
       ]} />
       <label class="search cx-search"><${Icon} n="search" /><input type="search" aria-label=${t('connections.search')} placeholder=${t('connections.search')} value=${q} onInput=${e => setQ(e.target.value)} /></label>
     </div>
@@ -166,9 +173,21 @@ export function ConnectionsPage() {
       </div>
     </div>
 
-    ${shownMcp.length > 0 && html`<section class="cx-group">
-      <h2 class="cx-group-h">MCP</h2>
-      <div class="cx-grid">${shownMcp.map(c => html`<${Card} key=${c.id} icon="plug" name=${c.name} description=${c.description} meta=${t('connections.loom_meta')} onOpen=${() => setOpen(c)} />`)}</div>
+    ${filter !== 'skills' && html`<section class="cx-group">
+      <div class="cx-mcp-heading">
+        <h2 class="cx-group-h">MCP</h2>
+        <button type="button" class="btn sm cx-mcp-add" aria-haspopup="dialog" onClick=${() => setMCPDialog({})}><${Icon} n="plus" />${t('connections.mcp.add')}</button>
+      </div>
+      ${servers.length > 0 && html`<${MCPBudget} budget=${mcpData.token_budget} />`}
+      ${mcpError && html`<p class="cx-note msg-err" role="status">${mcpError}</p>`}
+      <div class="cx-grid">
+        ${matches(mcp, needle) && html`<${Card} icon="plug" name=${mcp.name} description=${mcp.description} meta=${t('connections.loom_meta')} onOpen=${() => setOpen(mcp)} />`}
+        ${visibleServers.map(server => html`<${Card} key=${server.name} icon="plug" name=${server.name} description=${server.description || serverStatus(server)}
+          meta=${html`<span class="cx-mcp-tags"><span class="tag">${transportBadge(server)}</span><span class="tag">${exposureBadge(server, mode)}</span>
+            ${server.description && html`<span>${serverStatus(server)}</span>`}</span>`}
+          onOpen=${() => setExternal(server.name)} />`)}
+      </div>
+      ${needle && !matches(mcp, needle) && visibleServers.length === 0 && html`<p class="cx-note">${t('connections.no_match')}</p>`}
     </section>`}
 
     ${filter !== 'mcp' && html`<section class="cx-group">
@@ -182,7 +201,13 @@ export function ConnectionsPage() {
     </section>`}
     <p class="cx-note">${t('connections.footnote', { clients: links.names || 'Claude Code' })}</p>
 
-    ${open && html`<${Detail} open=${open} onClose=${() => setOpen(null)} />`}
+    ${open && html`<${Detail} open=${open} onClose=${() => setOpen(null)} onMCPModeChanged=${reloadMCP} />`}
+    ${externalServer && !mcpDialog && html`<${MCPServerDrawer} server=${externalServer} mode=${mode} onClose=${() => setExternal('')}
+      onChange=${setMCP} onEdit=${() => setMCPDialog({ server: externalServer })}
+      onDelete=${name => { setExternal(''); setMCP({ ...mcpData, servers: servers.filter(server => server.name !== name) }); reloadMCP(); }} />`}
+    ${mcpDialog && html`<${MCPServerDialog} server=${mcpDialog.server} mode=${mode} onClose=${() => setMCPDialog(null)}
+      onSaved=${result => { setMCP(result); setMCPDialog(null); }}
+      onAdopt=${() => { reloadMCP(); setMCPDialog(null); }} />`}
     ${editing && html`<${FolderDialog} current=${dir} suggested=${state?.suggested} onClose=${() => setEditing(false)} onSaved=${setState} />`}
   </div></div>`;
 }
