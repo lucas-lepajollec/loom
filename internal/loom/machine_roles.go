@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -64,6 +65,10 @@ func proxyFiles(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	req.Header.Set("Authorization", "Bearer "+access.Token)
+	if r.URL.Path == "/api/files/raw" {
+		req.Header.Set("Range", r.Header.Get("Range"))
+		req.Header.Set("If-Range", r.Header.Get("If-Range"))
+	}
 	if ct := r.Header.Get("Content-Type"); ct != "" {
 		req.Header.Set("Content-Type", ct)
 	}
@@ -81,9 +86,19 @@ func proxyFiles(w http.ResponseWriter, r *http.Request) bool {
 	}
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	for _, h := range []string{"Content-Type", "Content-Disposition", "Last-Modified"} {
+	for _, h := range []string{"Content-Type", "Content-Disposition", "Last-Modified", "Accept-Ranges", "Content-Range"} {
 		if v := resp.Header.Get(h); v != "" {
 			w.Header().Set(h, v)
+		}
+	}
+	if r.URL.Path == "/api/files/raw" && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if resp.ContentLength > filesMaxRaw {
+			http.Error(w, "file exceeds preview limit", http.StatusRequestEntityTooLarge)
+			return true
+		}
+		setRawFileHeaders(w, r.URL.Query().Get("path"))
+		if resp.ContentLength >= 0 {
+			w.Header().Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
 		}
 	}
 	w.WriteHeader(resp.StatusCode)

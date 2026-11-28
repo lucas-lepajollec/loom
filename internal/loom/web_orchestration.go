@@ -305,6 +305,8 @@ func handleOrchestrationEvents(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 
+	ch := orchHub.subscribe()
+	defer orchHub.unsubscribe(ch)
 	if !writeEvt("init", map[string]any{
 		"nodes":        orchAllNodes(),
 		"board_counts": orchBoardCounts(),
@@ -313,8 +315,6 @@ func handleOrchestrationEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ch := orchHub.subscribe()
-	defer orchHub.unsubscribe(ch)
 	ping := time.NewTicker(20 * time.Second)
 	defer ping.Stop()
 

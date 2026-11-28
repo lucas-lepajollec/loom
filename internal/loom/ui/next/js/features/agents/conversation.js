@@ -1,3 +1,5 @@
+import { extractUrlsFromText } from './panel-helpers.js';
+import { mergePreviewUrls } from './panel-state.js';
 // Conversation d'une session : les blocs que Codeman reconstitue pour chaque
 // CLI (prompt, réponses, statuts, outils), rangés en tours avec le kit commun
 // (features/conversation). Pour Claude ils viennent de sa transcription JSONL,
@@ -389,6 +391,10 @@ export function Conversation({ session, onTerminal, terminalVisible, compact, ph
   }, [blocks, edits, approval?.id, state, tools.length]);
 
   const turns = useMemo(() => buildTurns(blocks, edits, live), [blocks, edits, live]);
+  useEffect(() => {
+    const text = turns.slice(-6).flatMap(turn => [turn.answer, turn.prompt, ...(turn.items || []).map(item => item.text), ...(turn.work || []).map(item => item.text)]).filter(Boolean).join('\n');
+    mergePreviewUrls(id, extractUrlsFromText(text));
+  }, [id, turns]);
   const detectedDocs = useMemo(() => extractMentionedFiles(turns, session.workingDir), [turns, session.workingDir]);
   useEffect(() => { if (detectedDocs.length) mergeDetectedDocs(id, detectedDocs); }, [id, detectedDocs]);
   const onPreview = useCallback(path => openPreview(id, path), [id]);

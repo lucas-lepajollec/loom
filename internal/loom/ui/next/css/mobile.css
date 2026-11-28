@@ -556,3 +556,10 @@
     padding-inline: 12px;
   }
 }
+
+@media(max-width:760px){
+  .up-tab .cm-preview-pill,.up-tab button,.up-tab .btn,.up-tab select,.up-tab input,.up-discussion-tabs button{min-height:44px;min-width:44px}
+  .up-tab .cm-preview-head{padding:8px;gap:6px}
+  .up-tab .cm-preview-body{padding:10px}
+  .up-tab .up-path{width:100%}
+}

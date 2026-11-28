@@ -18,6 +18,7 @@ func gatewayToolFallback(subject string) policy.Decision {
 	switch subject {
 	case "mcp.tool:loom/" + mcpListTool, "mcp.tool:loom/" + mcpSearchTool, "mcp.tool:loom/" + mcpDescribeTool,
 		"mcp.tool:loom/loom_overview",
+		"mcp.tool:loom/loom_preview_open",
 		"mcp.tool:loom/loom_machines",
 		"mcp.tool:loom/loom_gateway_status",
 		"mcp.tool:loom/loom_subagent_catalog",
@@ -95,7 +96,7 @@ func gatewayPolicyMiddleware(subjects map[string]string) mcp.Middleware {
 
 func authorizeGatewayTool(ctx context.Context, name, subject string, raw json.RawMessage) error {
 	var args struct {
-		Path, File, Dir, Command, Machine string
+		Path, File, Dir, Command, Machine, Target string
 	}
 	_ = json.Unmarshal(raw, &args)
 	mgr, session := policyTurn(ctx)
@@ -106,6 +107,8 @@ func authorizeGatewayTool(ctx context.Context, name, subject string, raw json.Ra
 			return err
 		}
 		in.MachineID = resolved
+	} else if name == "loom_preview_open" {
+		in.MachineID = firstNonEmpty(args.Target, "local")
 	} else if strings.TrimSpace(args.Machine) != "" {
 		if resolved, err := resolveAgentMachine(args.Machine); err == nil {
 			in.MachineID = resolved

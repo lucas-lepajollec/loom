@@ -124,3 +124,11 @@ export function mergeDetectedDocs(sessionId, paths) {
     previews: { ...st.previews, [sessionId]: { ...cur, detected: merged } },
   });
 }
+
+export function mergePreviewUrls(sessionId, urls) {
+  if (!sessionId || !urls.length) return;
+  const st = panelState.get(), cur = previewFor(st, sessionId);
+  const next = [...new Set([...urls, ...(cur.urls || [])])].slice(0, 16);
+  if (cur.urls?.length === next.length && next.every((url, i) => url === cur.urls[i])) return;
+  panelState.set({ previews: { ...st.previews, [sessionId]: { ...cur, urls: next } } });
+}

@@ -12,7 +12,7 @@ export function clampPanelWidth(w, viewport = typeof innerWidth === 'number' ? i
 }
 
 // Extensions de fichiers lisibles en aperçu (documents Markdown, config, code).
-const DOC_EXT = /\.(?:md|mdx|markdown|txt|rst|json|ya?ml|toml|ini|conf|cfg|env|go|js|mjs|cjs|ts|tsx|jsx|py|rs|rb|java|kt|c|h|cc|cpp|hpp|cs|php|sh|bash|zsh|sql|html?|css|scss|svg|xml|csv|diff|patch|log)$/i;
+const DOC_EXT = /\.(?:md|mdx|markdown|txt|rst|json|ya?ml|toml|ini|conf|cfg|env|go|js|mjs|cjs|ts|tsx|jsx|py|rs|rb|java|kt|c|h|cc|cpp|hpp|cs|php|sh|bash|zsh|sql|html?|css|scss|png|jpe?g|webp|gif|avif|bmp|ico|mp4|webm|mov|m4v|mp3|wav|ogg|flac|m4a|pdf|obj|stl|ply|gltf|glb|svg|xml|csv|diff|patch|log)$/i;
 const SPECIAL_NAMES = /(?:^|\/)(?:Dockerfile|Makefile|README|CHANGELOG|LICENSE|AGENTS\.md|CLAUDE\.md|GEMINI\.md)$/i;
 const MD_EXT = /\.(?:md|mdx|markdown)$/i;
 
@@ -62,7 +62,7 @@ const MD_LINK_RE = /\[[^\]]{1,120}\]\(([^)\s]+)\)/g;
 const CODE_PATH_RE = /`([^`\n]{2,220})`/g;
 // Chemins bruts dans du texte (terminal ou prose) : file://..., chemins avec /,
 // ou noms de fichiers Markdown autonomes.
-const LINE_TOKEN_RE = /(?:file:\/\/(?:localhost)?\/[^\s"'`<>()\[\]]+|(?:https?:\/\/[^\s"'`<>()\[\]]+)|(?:(?:\.{1,2}\/|\/|[A-Za-z0-9_.-]+\/)[A-Za-z0-9_.@\/-]+\.[A-Za-z0-9]{1,10}(?:#L?\d+(?:-L?\d+)?|:\d+(?::\d+)?)?)|(?:\b[A-Za-z0-9_.-]+\.(?:md|mdx|markdown)\b(?:#L?\d+(?:-L?\d+)?|:\d+(?::\d+)?)?))/g;
+const LINE_TOKEN_RE = /(?:file:\/\/(?:localhost)?\/[^\s"'`<>()\[\]]+|(?:https?:\/\/[^\s"'`<>()\[\]]+)|(?:(?:\.{1,2}\/|\/|[A-Za-z0-9_.-]+\/)[A-Za-z0-9_.@\/-]+\.[A-Za-z0-9]{1,10}(?:#L?\d+(?:-L?\d+)?|:\d+(?::\d+)?)?)|(?:\b[A-Za-z0-9_.-]+\.(?:md|mdx|markdown|png|jpe?g|webp|gif|svg|avif|bmp|ico|mp4|webm|mov|m4v|mp3|wav|ogg|flac|m4a|pdf|obj|stl|ply|gltf|glb|html?)\b(?:#L?\d+(?:-L?\d+)?|:\d+(?::\d+)?)?))/g;
 
 // Trouve tous les liens de fichiers cliquables dans une ligne de texte (terminal xterm).
 export function findFileLinksInLine(line, workingDir = '', knownPaths = []) {
@@ -159,3 +159,18 @@ export function extractMentionedFiles(turns, workingDir = '') {
   }
   return [...docs, ...others].slice(0, 8);
 }
+
+export function extractUrlsFromText(text) {
+  const urls = new Set();
+  for (const m of stripAnsi(text).matchAll(/\bhttp:\/\/[^\s<>"'`()\x1b]+/gi)) {
+    try {
+      const u = new URL(m[0].replace(/[.,;!\]]+$/, ''));
+      if (!['localhost','127.0.0.1','[::1]'].includes(u.hostname) || u.username || u.password) continue;
+      if (Number(u.port) >= 1024 && Number(u.port) <= 65535) urls.add(u.href);
+    } catch { /* Ignore malformed terminal fragments. */ }
+    if (urls.size >= 16) break;
+  }
+  return [...urls];
+}
+
+export const extractPreviewPortsFromText = text => [...new Set(extractUrlsFromText(text).map(s => Number(new URL(s).port)))];

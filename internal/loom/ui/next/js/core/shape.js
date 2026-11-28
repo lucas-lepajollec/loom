@@ -70,6 +70,8 @@ const shapes = {
   '/api/machines': { machines: [{ harnesses: strings, modules: strings, gpus: rows, node_url: '' }], offers: value => value == null || isObject(value) && Object.values(value).every(rows) },
   '/api/machines/local': { gpus: rows, harnesses: strings }, '/api/machines/metrics': { metrics: null },
   '/api/machines/discover': { nodes: rows }, '/api/machines/folders': { folders: strings },
+  '/api/previews/session': { previews: list(item => validShape(item, { target: '', path: '', label: '', port: 0 }) && ['port', 'file'].includes(item.kind)) },
+  '/api/previews/ports': { ports: list(n => Number.isInteger(n) && n >= 1024 && n <= 65535) },
   '/api/terminals': { terminals: rows }, '/api/previews': { previews: rows },
   '/api/server': { slots: optional({ items: rows }) }, '/api/voice/download/status': { download: null },
   '/api/voice': { engine: null, config: null, service: null, download: null },

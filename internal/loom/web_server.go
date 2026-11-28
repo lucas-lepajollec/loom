@@ -233,6 +233,8 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 		go func() { <-previewCtx.Done(); previews.shutdown() }()
 	}
 	api("/api/previews", func(w http.ResponseWriter, r *http.Request) { previews.handle(previewCtx, w, r) })
+	api("/api/previews/ports", previews.ports)
+	api("/api/previews/session", handleSessionPreviews)
 	api("/api/terminals", handleTerminals)
 	api("/api/terminals/close", handleTerminalClose)
 	api("/api/terminals/ticket", handleTerminalTicket)

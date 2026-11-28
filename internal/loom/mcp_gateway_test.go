@@ -125,14 +125,14 @@ func TestGatewayDiscoveryProxyAndStatus(t *testing.T) {
 		"loom_gateway_status", "loom_overview", "loom_machines", "loom_machine_run",
 		"loom_subagent_catalog", "loom_subagent_spawn", "loom_subagent_list", "loom_subagent_send",
 		"loom_subagent_wait", "loom_subagent_read", "loom_subagent_stop",
-		"loom_board_post", "loom_board_read",
+		"loom_board_post", "loom_board_read", "loom_preview_open",
 		"ok-server__echo",
 	} {
 		if !names[name] {
 			t.Fatal("missing", name)
 		}
 	}
-	if len(names) != 29 || names["ok-server__hidden"] {
+	if len(names) != 30 || names["ok-server__hidden"] {
 		t.Fatal(names)
 	}
 	if init := session.InitializeResult(); init == nil || !strings.Contains(init.Instructions, "loom_overview") {

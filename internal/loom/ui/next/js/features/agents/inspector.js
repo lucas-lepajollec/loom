@@ -10,8 +10,7 @@ import { Icon } from '../../ui/icons.js';
 import { DropdownButton, Switch, Empty, Seg, Menu } from '../../ui/controls.js';
 import { toast, prompt, confirm } from '../../ui/dialog.js';
 import { copyText } from '../../ui/clipboard.js';
-import { md } from '../chat/md.js';
-import { request } from '../../core/api.js';
+import { PreviewTab } from '../previews/tab.js';
 import { api, sendPrompt } from './client.js';
 import { ago } from './rail.js';
 import { agents, cliOf, onDomain, upsertSession, stateOf, attentionOf, approvalsFor, projectOf, hasConversation, sessionList, queueCommand } from './store.js';
@@ -24,7 +23,7 @@ import { changedFiles } from '../conversation/turns.js';
 import { go } from '../../core/state.js';
 import {
   panelState, DEFAULT_PANEL_WIDTH, clampPanelWidth, setLivePanelWidth, savePanelWidth,
-  previewFor, setPanelTab, openPreview, closePreview, isMarkdownPath, normalizeSessionPath,
+  previewFor, setPanelTab, openPreview, closePreview, normalizeSessionPath,
 } from './panel-state.js';
 import {
   orchestration, descendantsOf, rootIdOf, loadBoard, postBoard, spawnSubagent, stopTree, cleanupWorktree, refreshCatalog, pruneStopped,
@@ -588,93 +587,6 @@ function SubagentsTab({ session, subState, refreshSub }) {
   </div>`;
 }
 
-async function readOutsideFile(absPath) {
-  const rel = String(absPath || '').replace(/^\/+/, '');
-  if (!rel) return { outside: true };
-  const r = await request('/api/files/read?scope=machine&path=' + encodeURIComponent(rel), { timeout: 15000 });
-  let d = null;
-  try { d = await r.json(); } catch (_) {}
-  if (!r.ok || !d || d.ok === false) return { outside: true };
-  if (d.binary || d.too_large) return { binary: true, truncated: !!d.too_large };
-  return { content: typeof d.content === 'string' ? d.content : null };
-}
-
-function PreviewTab({ session, preview }) {
-  const id = session.id;
-  const activePath = preview.active || preview.detected[0] || preview.recent[0] || '';
-  const allDocs = useMemo(() => {
-    const out = [];
-    const seen = new Set();
-    for (const p of [activePath, ...(preview.recent || []), ...(preview.detected || [])]) {
-      if (!p || seen.has(p)) continue;
-      seen.add(p);
-      out.push(p);
-    }
-    return out.slice(0, 10);
-  }, [activePath, preview.recent, preview.detected]);
-
-  const markdown = isMarkdownPath(activePath);
-  const [mode, setMode] = useState('rendered');
-  useEffect(() => { setMode('rendered'); }, [activePath]);
-
-  const isAbs = activePath.startsWith('/');
-  const [st, run] = useRead(
-    () => !activePath ? Promise.resolve(null) : isAbs ? readOutsideFile(activePath) : api.fileContent(id, activePath),
-    [id, activePath, isAbs],
-  );
-  const outsideRoot = !!st.data?.outside;
-  const content = typeof st.data?.content === 'string' ? st.data.content : null;
-  const renderedHtml = useMemo(() => (markdown && mode === 'rendered' && content !== null ? md(content) : ''), [markdown, mode, content]);
-
-  if (!activePath) {
-    return html`<${Empty} icon="file" title=${t('agents.insp.preview')} text=${t('agents.preview.empty')} />`;
-  }
-
-  const { dir, name } = splitPath(activePath);
-  const onMdClick = e => {
-    const a = e.target.closest('a');
-    if (!a) return;
-    const raw = a.getAttribute('data-file-href') || a.getAttribute('href') || '';
-    const target = normalizeSessionPath(raw, session.workingDir);
-    if (target) {
-      e.preventDefault();
-      openPreview(id, target, { openPanel: false });
-    }
-  };
-
-  return html`<div class="cm-preview">
-    ${allDocs.length > 1 && html`<div class="cm-preview-pills">${allDocs.map(p => {
-      const sp = splitPath(p);
-      return html`<button type="button" key=${p} class=${cls('cm-preview-pill', p === activePath && 'on')} title=${p} onClick=${() => openPreview(id, p, { openPanel: false })}>
-        <${Icon} n="file" /><span class="trunc">${sp.name}</span></button>`;
-    })}</div>`}
-    <div class="cm-preview-head">
-      <div class="cm-preview-title" title=${activePath}>
-        <b class="trunc">${name}</b>
-        ${dir && html`<small class="mono trunc">${dir}</small>`}
-      </div>
-      <div class="cm-preview-acts">
-        ${markdown && html`<div class="cm-preview-mode" role="group" aria-label=${t('agents.insp.preview')}>
-          <button type="button" class=${cls(mode === 'rendered' && 'on')} onClick=${() => setMode('rendered')}>${t('agents.preview.rendered')}</button>
-          <button type="button" class=${cls(mode === 'raw' && 'on')} onClick=${() => setMode('raw')}>${t('agents.preview.raw')}</button>
-        </div>`}
-        <button type="button" class="icon-btn" aria-label=${t('agents.files.copy_path')} title=${t('agents.files.copy_path')} onClick=${() => copyText(activePath).then(() => toast(t('agents.copied')))}><${Icon} n="copy" /></button>
-        <button type="button" class="icon-btn" aria-label=${t('common.refresh')} title=${t('common.refresh')} onClick=${() => run()}><${Icon} n="refresh" /></button>
-        <button type="button" class="icon-btn" aria-label=${t('agents.preview.close')} title=${t('agents.preview.close')} onClick=${() => closePreview(id)}><${Icon} n="close" /></button>
-      </div>
-    </div>
-    <div class="cm-preview-body">
-      ${st.loading && !st.data ? html`<${Loading} />`
-        : outsideRoot ? html`<div class="cm-preview-msg"><${Icon} n="info" /><span>${t('agents.preview.outside')}</span></div>`
-        : st.error ? html`<${Failed} error=${st.error} retry=${run} />`
-        : content === null ? html`<p class="muted">${t('agents.files.binary')}</p>`
-        : markdown && mode === 'rendered' ? html`<div class="md cm-preview-md" onClick=${onMdClick} dangerouslySetInnerHTML=${{ __html: renderedHtml }}></div>`
-        : html`<pre class="cm-preview-code">${content}</pre>`}
-      ${st.data?.truncated && html`<p class="muted cm-chg-msg">${t('agents.files.truncated')}</p>`}
-    </div>
-  </div>`;
-}
-
 function Row({ k, children }) { return html`<div class="cm-kv"><span>${k}</span><b>${children}</b></div>`; }
 
 function InfoTab({ session }) {
@@ -809,7 +721,7 @@ export function Inspector({ session, open: isOpen = true, onClose, view, setView
   const subTotal = subList.length + loomSubs.length;
   const subActive = loomSubActive || subList.some(a => a.status === 'active');
   const hasPreview = !!(preview.active || preview.detected.length || preview.recent.length);
-  const activeTab = tab === 'preview' && !hasPreview ? 'session' : tab;
+  const activeTab = tab;
 
   // Indicateur animé glissant sous l'onglet actif + détection du débordement horizontal.
   useLayoutEffect(() => {
@@ -908,7 +820,7 @@ export function Inspector({ session, open: isOpen = true, onClose, view, setView
     { id: 'changes', label: t('agents.panel.changes'), count: changesCount },
     { id: 'files', label: t('agents.insp.files') },
     { id: 'subagents', label: t('agents.insp.subagents'), count: subTotal, active: subActive },
-    ...(hasPreview ? [{ id: 'preview', label: t('agents.insp.preview'), dot: !preview.active && preview.detected.length > 0, count: !preview.active && preview.detected.length > 1 ? preview.detected.length : 0 }] : []),
+    { id: 'preview', label: t('agents.insp.preview'), dot: !preview.active && preview.detected.length > 0, count: !preview.active && preview.detected.length > 1 ? preview.detected.length : 0 },
   ];
 
   const wPx = clampPanelWidth(width);
@@ -996,7 +908,7 @@ export function Inspector({ session, open: isOpen = true, onClose, view, setView
         ${activeTab === 'changes' && html`<${ChangesTab} id=${s.id} workingDir=${s.workingDir} editsState=${editsState} refreshEdits=${refreshEdits} gitState=${gitState} refreshGit=${refreshGit} />`}
         ${activeTab === 'files' && html`<${FilesTab} id=${s.id} />`}
         ${activeTab === 'subagents' && html`<${SubagentsTab} session=${s} subState=${subState} refreshSub=${refreshSub} />`}
-        ${activeTab === 'preview' && html`<${PreviewTab} session=${s} preview=${preview} />`}
+        ${activeTab === 'preview' && html`<${PreviewTab} key=${s.id} session=${{ ...s, agent: true }} preview=${preview} onFile=${p => openPreview(s.id, p, { openPanel: false })} onClose=${() => closePreview(s.id)} />`}
       </div>`}
     </div>
   </aside>`;
