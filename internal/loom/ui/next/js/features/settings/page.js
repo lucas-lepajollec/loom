@@ -212,7 +212,7 @@ function PushNotifications({ phone }) {
   </${Line}>`;
 }
 
-function Job({ onDone } = {}) {
+export function Job({ onDone } = {}) {
   const [j, setJ] = useState(null);
   useEffect(() => { const localT = setInterval(async () => { try { setJ(await get('/api/llamacpp/job')); } catch (_) {} }, 1200); get('/api/llamacpp/job').then(setJ).catch(() => {}); return () => clearInterval(localT); }, []);
   useEffect(() => { if (j?.exists && !j.running && j.ended_at && onDone) onDone(); }, [j?.running, j?.ended_at]);
@@ -243,37 +243,48 @@ function EngineAuto() {
     ${info && html`<span class=${'state' + (a.last_error ? ' err' : '')}>${info}</span>`}<${Switch} checked=${a.auto} label="${t("settings.page.mise_a_jour_automatique_du_moteur")}" onChange=${toggle} /></${Line}>`;
 }
 
-const KIND_LABEL = { 'llama.cpp': 'llama.cpp', vllm: 'vLLM', get openai() { return t("local.page.serveur_compatible_openai"); } };
+export const KIND_LABEL = {
+  'llama.cpp': 'llama.cpp', 'ik_llama.cpp': 'ik_llama.cpp', vllm: 'vLLM', sglang: 'SGLang',
+  mlx: 'MLX', ollama: 'Ollama', lmstudio: 'LM Studio', tabbyapi: 'TabbyAPI', koboldcpp: 'KoboldCpp', lemonade: 'Lemonade',
+  strata: 'Strata', basalt: 'Basalt', 'mistral.rs': 'mistral.rs', ktransformers: 'KTransformers', exo: 'exo',
+  get openai() { return t('local.page.serveur_compatible_openai'); },
+};
 
 // Lier un serveur d'inférence par son adresse (llama.cpp, vLLM…) : rien de
 // Loom n'est installé sur sa machine.
-export function DirectEngineForm({ start, onDone, dialog }) {
-  const [f, setF] = useState({ url: start || '', key: '', model: '' });
+export function DirectEngineForm({ start, onDone, dialog, registry = false }) {
+  const [f, setF] = useState({ url: start || '', key: '', model: '', name: '', activate: true });
   const [probe, setProbe] = useState(null);
   const [busy, setBusy] = useState(false);
+  const endpoint = registry ? '/api/engines/connections' : '/api/engine/node';
   const identify = async () => {
     setBusy(true);
-    const r = await post('/api/engine/node', { probe: true, url: f.url, key: f.key });
+    const r = await post(endpoint, { ...(registry ? { action: 'probe' } : { probe: true }), url: f.url, key: f.key }).catch(e => ({ ok: false, error: e.message }));
     setBusy(false);
     if (!r.ok) { setProbe(null); return toast(r.error || t("settings.page.moteur_injoignable"), 'err'); }
-    setProbe(r); setF({ ...f, model: r.models[0] });
+    setProbe(r); setF({ ...f, model: r.models[0] || '' });
   };
   const link = async () => {
     setBusy(true);
-    const r = await post('/api/engine/node', { direct: true, url: f.url, key: f.key, model: f.model });
+    const r = await post(endpoint, { ...(registry ? { action: 'save', name: f.name, activate: f.activate } : { direct: true }), url: f.url, key: f.key, model: f.model }).catch(e => ({ ok: false, error: e.message }));
     setBusy(false);
     if (!r.ok) return toast(r.error || t("settings.page.liaison_impossible"), 'err');
-    toast(KIND_LABEL[r.kind] + t("settings.page.de") + r.hostname + t("settings.page.lie")); await refreshEngineNode(); refreshStatus(); refreshLibrary(); onDone && onDone();
+    toast(registry ? t('engines.connection.saved') : (KIND_LABEL[r.kind] || r.kind) + t("settings.page.de") + r.hostname + t("settings.page.lie"));
+    await refreshEngineNode();
+    await Promise.allSettled([refreshStatus(), refreshLibrary()]);
+    onDone?.(true);
   };
   const fields = html`
     <p class="note">${t("settings.page.un_serveur_llama_cpp_llama_server_vllm_ou_compatible_openai_qui_t")}</p>
     <label class="field"><span>${t("settings.page.adresse_du_moteur")}</span><input class="input mono" placeholder="http://192.168.1.20:8080" value=${f.url} onInput=${e => { setF({ ...f, url: e.target.value }); setProbe(null); }} /></label>
     <label class="field"><span>${t("settings.page.cle_api_si_le_moteur_en_exige_une")}</span><input class="input mono" type="password" value=${f.key} onInput=${e => { setF({ ...f, key: e.target.value }); setProbe(null); }} /></label>
-    ${probe && html`<label class="field"><span>${KIND_LABEL[probe.kind]} · ${probe.models.length} ${t("settings.page.modele")}${probe.models.length > 1 ? 's' : ''}${probe.ctx ? t("settings.page.contexte") + probe.ctx : ''}</span>
+    ${registry && html`<label class="field"><span>${t('engines.connection.name')}</span><input class="input" value=${f.name} onInput=${e => setF({ ...f, name: e.target.value })} /></label>
+      <label class="engine-form-check"><input type="checkbox" checked=${f.activate} onChange=${e => setF({ ...f, activate: e.target.checked })} />${t('engines.connection.activate_now')}</label>`}
+    ${probe?.models.length > 0 && html`<label class="field"><span>${KIND_LABEL[probe.kind] || probe.kind} · ${probe.models.length} ${t("settings.page.modele")}${probe.models.length > 1 ? 's' : ''}${probe.ctx ? t("settings.page.contexte") + probe.ctx : ''}</span>
       <${ListPick} value=${f.model} onChange=${model => setF({ ...f, model })}
         options=${probe.models.map(model => ({ value: model, label: model }))} /></label>`}`;
-  const actions = html`${onDone && html`<button type="button" class="btn" onClick=${onDone}>${t("settings.page.annuler")}</button>`}
-    ${probe ? html`<button type="button" class="btn primary" disabled=${busy} onClick=${link}>${t("settings.page.utiliser_ce_moteur")}</button>`
+  const actions = html`${onDone && html`<button type="button" class="btn" onClick=${() => onDone()}>${t("settings.page.annuler")}</button>`}
+    ${probe ? html`<button type="button" class="btn primary" disabled=${busy} onClick=${link}>${registry && !f.activate ? t('engines.connection.save') : t("settings.page.utiliser_ce_moteur")}</button>`
       : html`<button type="button" class="btn primary" disabled=${busy || !f.url} onClick=${identify}>${busy ? t("environment.page.connexion") : t("settings.page.identifier_le_moteur")}</button>`}`;
   if (dialog) return html`<${Modal} ...${dialog} foot=${actions}>${fields}</${Modal}>`;
   return html`<div class="eng-link">

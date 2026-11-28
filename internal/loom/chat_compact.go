@@ -214,7 +214,8 @@ type summarizeResp struct {
 // Un seul appel NON streamé, sans outils — comme Hermes, on réutilise le modèle
 // principal déjà chargé (aucune dépendance, cohérent avec la fenêtre de contexte).
 func summarizeTranscript(ctx context.Context, transcript string) (string, error) {
-	return summarizeTranscriptAt(ctx, transcript, engineBase()+"/v1/chat/completions", engineAPIKey(), engineRequestModel(), true)
+	base, key, model := engineRequestTarget()
+	return summarizeTranscriptAt(ctx, transcript, base+"/v1/chat/completions", key, model, true)
 }
 
 func summarizeTranscriptAt(ctx context.Context, transcript, endpoint, key, model string, local bool) (string, error) {

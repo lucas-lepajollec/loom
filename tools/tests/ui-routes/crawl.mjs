@@ -146,7 +146,7 @@ try {
       // isolated installation. Domain APIs are faulted independently.
       if (scenario === 'phone-layout' && !u.pathname.startsWith('/api/auth/') && u.pathname !== '/api/prefs') return fixturePhone(route);
       const boot = u.pathname.startsWith('/api/auth/') || u.pathname === '/api/prefs';
-      const engineOnly = /^\/api\/(models|presets|preset|status|vram|ram|server|llamacpp|hub|backends|config|catalog|paths|naked|llama-flags|engines\/vllm|engine\/(params|service|keys|auto-update)|model-caps)(\/|$)/.test(u.pathname);
+      const engineOnly = /^\/api\/(models|presets|preset|status|vram|ram|server|llamacpp|hub|backends|config|catalog|paths|naked|llama-flags|engines|engine\/(params|service|keys|auto-update)|model-caps)(\/|$)/.test(u.pathname);
       if (degraded && !boot && (scenario !== 'engine-unreachable' || engineOnly)) {
         injected++;
         if (scenario === 'abort' || scenario === 'offline') return route.abort('internetdisconnected');
@@ -209,10 +209,50 @@ try {
         await page.locator('.models-row button.btn.sm', { hasText: /^(Connecter|Connect)$/ }).first().click(); await page.locator('.dialog').waitFor();
         await inspect(page, errors, label + ' provider dialog'); await page.locator('.dialog-head .icon-btn').click();
       }
+      if (scenario === 'phone-layout' && r === 'engine') {
+        const catalog = page.locator('.engine-catalog');
+        await catalog.locator('.engine-catalog-row').nth(8).waitFor();
+        await catalog.getByRole('button', { name: dictionary['engines.filter.installed'], exact: true }).click();
+        if (await catalog.locator('.engine-catalog-row').count() !== 2) throw new Error('Catalog filter did not select installed engines');
+        await catalog.getByRole('button', { name: dictionary['engines.filter.all'], exact: true }).click();
+        const ollama = catalog.locator('.engine-catalog-row').filter({ has: page.getByText('Ollama', { exact: true }) });
+        await ollama.getByRole('button', { name: dictionary['settings.page.lier'], exact: true }).click();
+        const address = page.locator('.eng-link input').first();
+        await address.waitFor();
+        if (await address.inputValue() !== 'http://127.0.0.1:11434') throw new Error('Detected engine address was not prefilled');
+        await inspect(page, errors, label + ' engine link');
+        await page.getByRole('button', { name: dictionary['settings.page.annuler'], exact: true }).click();
+
+        const basalt = catalog.locator('.engine-catalog-row').filter({ has: page.getByText('Basalt', { exact: true }) });
+        await basalt.getByText(dictionary['engines.hardware.blackwell'], { exact: true }).waitFor();
+        await basalt.getByRole('button', { name: dictionary['engines.install_guide'], exact: true }).click();
+        const basaltDrawer = page.getByRole('dialog', { name: 'Basalt', exact: true });
+        const basaltGuide = basaltDrawer.getByRole('link', { name: dictionary['engines.install_guide'], exact: true });
+        if (await basaltGuide.getAttribute('href') !== 'https://github.com/jesdga95/basalt/blob/main/docs/platforms.md') throw new Error('Wrong Basalt guide for Blackwell');
+        await inspect(page, errors, label + ' Basalt guide');
+        await basaltDrawer.locator('.dialog-head .icon-btn, .insp-head .icon-btn').click();
+        await basaltDrawer.waitFor({ state: 'hidden' });
+
+        const exo = catalog.locator('.engine-catalog-row').filter({ has: page.getByText('exo', { exact: true }) });
+        await exo.getByRole('button', { name: dictionary['settings.page.lier'], exact: true }).click();
+        await address.waitFor();
+        if (await address.inputValue() !== 'http://127.0.0.1:52415') throw new Error('Detected exo address was not prefilled');
+        await page.getByRole('button', { name: dictionary['settings.page.annuler'], exact: true }).click();
+
+        const wiring = page.locator('.engine-harness');
+        await wiring.locator('summary').click();
+        await wiring.getByRole('button', { name: 'Codex', exact: true }).click();
+        if (!(await wiring.locator('pre').textContent()).includes('<LOOM_API_KEY>')) throw new Error('Coding client snippet missing key placeholder');
+        await inspect(page, errors, label + ' coding client snippets');
+      }
       if (phone && scenario === 'phone-layout' && r === 'local') {
         const chips = page.locator('.phone-section-tabs a');
         await chips.last().waitFor();
         if (await chips.count() !== 4 || await chips.first().getAttribute('aria-current') !== 'page') throw new Error('Missing model sections');
+        await page.getByRole('tab', { name: 'SGLang', exact: true }).click();
+        await page.getByText('Qwen/Qwen3-8B', { exact: false }).last().waitFor();
+        await inspect(page, errors, label + ' SGLang library');
+        await page.getByRole('tab', { name: 'llama.cpp', exact: true }).click();
         const rows = page.locator('.models-compact-row');
         await rows.nth(1).waitFor();
         await checkTrigger(rows.first().locator('[aria-haspopup="menu"]'), page.getByRole('menu'));

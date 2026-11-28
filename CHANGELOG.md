@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- **Local engine catalog** shows hardware compatibility, loopback detection,
+  installation and direct links for sixteen engines on Loom and Loom Node,
+  including Strata, Basalt, mistral.rs, KTransformers and exo.
+  Saved direct connections can be switched independently, with upstream
+  credentials sealed at rest.
+- Added managed SGLang with native per-model settings and the shared Hugging
+  Face cache, managed MLX on Apple Silicon, Ollama pull and unload, and native
+  model metadata for linked Ollama and LM Studio.
+- The API panel offers copyable external client configurations for OpenCode,
+  Codex, Claude Code, Pi, Continue and OpenAI-compatible clients.
+
 - **Flat edge-to-edge workspace redesign, Pixel Matrix ambient canvas & Codex-style live motion**:
   - Switched the desktop shell to a flat, borderless edge-to-edge monochrome
     layout (Paradev / Codex / Linear grammar) with whisper-quiet hairlines,

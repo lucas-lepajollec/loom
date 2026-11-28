@@ -512,3 +512,39 @@
   }
   body:has(.scrim,.phone-drawer-scrim) .phone-app::after{display:none}
 }
+
+@media (max-width: 760px) {
+  .models-layout .engine-catalog-row,
+  .engine-connections .models-row,
+  .models-layout .engine-direct-row {
+    flex-wrap: wrap;
+  }
+
+  .models-layout :is(.engine-catalog-row, .engine-connections, .engine-direct-row) .models-actions {
+    flex: 1 0 100%;
+    max-width: 100%;
+    justify-content: flex-start;
+  }
+
+  .models-layout :is(.engine-catalog, .engine-harness, .engine-direct-row) .btn,
+  .models-layout .models-toolbar > .engine-library-picker button,
+  .engine-manager-actions .btn,
+  .engine-model-form .btn,
+  .engine-form-check {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .engine-library-picker {
+    flex-wrap: wrap;
+  }
+
+  .engine-library-picker button {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .engine-harness-body {
+    padding-inline: 12px;
+  }
+}

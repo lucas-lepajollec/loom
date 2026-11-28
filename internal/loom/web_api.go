@@ -92,6 +92,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	sendJSON(w, 200, map[string]any{
 		"ctx_effective":    ctxObserved,
+		"engine_kind":      configuredCatalogEngine(cfg),
 		"state":            state,
 		"active":           active,
 		"health":           health,

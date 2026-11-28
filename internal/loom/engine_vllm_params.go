@@ -53,18 +53,22 @@ func vllmParams(gpus int) []ParamSpec {
 	return ps
 }
 
-var vllmParserName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{0,79}$`)
+var vllmParserName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_.-]{0,79}$`)
 
 func validateVLLMParams(values map[string]string, gpus int) (map[string]string, error) {
+	return validatePythonEngineParams("vLLM", vllmParams(gpus), values)
+}
+
+func validatePythonEngineParams(engine string, params []ParamSpec, values map[string]string) (map[string]string, error) {
 	specs := map[string]ParamSpec{}
-	for _, p := range vllmParams(gpus) {
+	for _, p := range params {
 		specs[p.ID] = p
 	}
 	out := map[string]string{}
 	for k, s := range values {
 		p, ok := specs[k]
 		if !ok {
-			return nil, fmt.Errorf("unknown or unavailable vLLM parameter: %s", k)
+			return nil, fmt.Errorf("unknown or unavailable %s parameter: %s", engine, k)
 		}
 		if s == "" {
 			continue
@@ -176,8 +180,12 @@ func vllmToolParser(model string) string {
 }
 
 func loadVLLMParams(model string) (map[string]string, error) {
+	return loadPythonEngineParams("vllm", model)
+}
+
+func loadPythonEngineParams(engine, model string) (map[string]string, error) {
 	values := map[string]string{}
-	key := "vllm_params:" + model
+	key := engine + "_params:" + model
 	raw, ok := getStoreBytes(bkState, key)
 	if !ok {
 		if len(getBytes(bkState, key)) > 0 {

@@ -48,6 +48,12 @@ llama-server and vLLM continue to execute inference. Actual throughput and
 resource use depend on the native engine and hardware; no performance gain is
 claimed without measurements.
 
+Select a paired node under **Local › Engine** to manage its
+[engine catalog and saved direct connections](engines.md).
+Detection and installations run on the node. Its management API checks the
+node control credential, and clients using its `/v1` listener use a separate
+inference credential.
+
 ## Install from a release
 
 The node ships in the **same repository and release binary as Loom**. Starting with **v0.1.4**, run on Linux without sudo:

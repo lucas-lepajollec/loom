@@ -64,6 +64,10 @@ func (v *vllmState) appendLog(line string) {
 }
 
 func (v *vllmState) runLogged(ctx context.Context, name string, args ...string) error {
+	return runEngineLogged(ctx, v.appendLog, name, args...)
+}
+
+func runEngineLogged(ctx context.Context, log func(string), name string, args ...string) error {
 	path, err := lifecycleLookPath(name)
 	if err != nil {
 		return err
@@ -75,14 +79,14 @@ func (v *vllmState) runLogged(ctx context.Context, name string, args ...string) 
 		return err
 	}
 	cmd.Stderr = cmd.Stdout
-	v.appendLog("$ " + name + " " + strings.Join(args, " "))
+	log("$ " + name + " " + strings.Join(args, " "))
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 	sc := bufio.NewScanner(out)
 	sc.Buffer(make([]byte, 64<<10), 1<<20)
 	for sc.Scan() {
-		v.appendLog(sc.Text())
+		log(sc.Text())
 	}
 	return cmd.Wait()
 }
@@ -205,6 +209,7 @@ func vllmArgs(model string, port int, gpuUtil float64, maxLen int) []string {
 }
 
 func (v *vllmState) start(ctx context.Context, model string, values map[string]string, gpus int, offline ...bool) error {
+	previous := currentEngineNode()
 	port, err := freePort()
 	if err != nil {
 		return err
@@ -256,6 +261,7 @@ func (v *vllmState) start(ctx context.Context, model string, values map[string]s
 			}
 		}
 		v.mu.Unlock()
+		clearManagedEngineLink("vllm", port)
 	}()
 	// Loading a model takes time (download, compile): wait for /health.
 	base := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -276,9 +282,21 @@ func (v *vllmState) start(ctx context.Context, model string, values map[string]s
 		if err == nil && code == 200 {
 			linkCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			defer cancel()
-			_, err := linkDirectEngine(linkCtx, base, "", "")
-			if ctx.Err() != nil {
+			n, err := prepareDirectEngine(linkCtx, base, "", "")
+			if err == nil {
+				n.Kind, n.Managed = "vllm", "vllm"
+				v.mu.Lock()
+				if v.cmd == cmd && ctx.Err() == nil {
+					err = setEngineNodeIfCurrent(previous, n)
+				} else {
+					err = errors.New("vLLM stopped during loading")
+				}
+				v.mu.Unlock()
+			}
+			if err != nil || ctx.Err() != nil {
 				v.stop()
+			}
+			if ctx.Err() != nil {
 				return ctx.Err()
 			}
 			return err
@@ -296,7 +314,7 @@ func (v *vllmState) start(ctx context.Context, model string, values map[string]s
 
 func (v *vllmState) stop() {
 	v.mu.Lock()
-	cmd, done := v.cmd, v.done
+	cmd, done, port := v.cmd, v.done, v.port
 	v.mu.Unlock()
 	if cmd != nil && cmd.Process != nil {
 		_ = cmd.Process.Signal(os.Interrupt)
@@ -307,10 +325,16 @@ func (v *vllmState) stop() {
 			<-done
 		}
 	}
-	// The engine link pointed at this vLLM: back to this machine's llama.cpp.
-	if n := currentEngineNode(); n != nil && n.Direct && strings.HasPrefix(n.V1, "http://127.0.0.1:") && n.Kind == "vllm" {
-		_ = setEngineNode(nil)
+	clearManagedEngineLink("vllm", port)
+}
+
+func (v *vllmState) cancelStartAndStop() {
+	v.mu.Lock()
+	if v.startCancel != nil {
+		v.startCancel()
 	}
+	v.mu.Unlock()
+	v.stop()
 }
 
 // reserve prevents installing/updating a live environment and serializes actions.

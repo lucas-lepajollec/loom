@@ -199,6 +199,9 @@ func handleStartup(w http.ResponseWriter, r *http.Request) {
 // Explicit saved policy, no generation/download and no second inference runtime.
 // Native start paths retain responsibility for parameters, supervision and ports.
 func startConfiguredEngine(ctx context.Context) {
+	if currentEngineNode() != nil {
+		return
+	}
 	p := readEngineStartup()
 	if p.Engine == "off" || validateEngineStartup(p, isEngineWorker()) != nil {
 		return

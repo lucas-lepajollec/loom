@@ -1,11 +1,9 @@
 package loom
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -361,7 +359,7 @@ func newEngineWorkerMuxModules(token string, terminal *nodeTerminalServer) *http
 			sendJSON(w, 503, map[string]any{"ok": false, "error": "node identity unavailable"})
 			return
 		}
-		sendJSON(w, 200, map[string]any{"ok": true, "id": node.ID, "name": node.Name, "hostname": node.Name, "version": Version, "role": node.Role, "modules": node.Modules, "handshake": node.Handshake, "engine": true, "v1_exposed": true, "v1_same_origin": true, "api_key": readAPIKey(), "capabilities": []string{"llama.cpp", "vllm", "models", "presets", "downloads", "engine-updates", "node-updates", "startup", "local-benchmarks"}})
+		sendJSON(w, 200, map[string]any{"ok": true, "id": node.ID, "name": node.Name, "hostname": node.Name, "version": Version, "role": node.Role, "modules": node.Modules, "handshake": node.Handshake, "engine": true, "v1_exposed": true, "v1_same_origin": true, "api_key": readAPIKey(), "capabilities": []string{"llama.cpp", "vllm", "sglang", "mlx", "engine-catalog", "models", "presets", "downloads", "engine-updates", "node-updates", "startup", "local-benchmarks"}})
 	})
 	mux.HandleFunc("/api/node/pair", controlRequests("/api/node/pair", handleNodePair))
 	// A node's inference credential is independent from its management token.
@@ -370,8 +368,13 @@ func newEngineWorkerMuxModules(token string, terminal *nodeTerminalServer) *http
 			sendJSON(w, 503, map[string]any{"ok": false, "error": "node inference credential unavailable"})
 			return
 		}
-		if _, ok := oaiKeyOK(r); !ok {
+		key, ok := oaiKeyOK(r)
+		if !ok {
 			oaiError(w, 401, "invalid_request_error", "Invalid API key", "", "invalid_api_key")
+			return
+		}
+		if n := currentEngineNode(); n != nil && n.Direct && strings.HasPrefix(r.URL.Path, "/v1/") {
+			proxyLinkedInference(w, r, n, key)
 			return
 		}
 		serveNodeInference(w, r)
@@ -389,6 +392,7 @@ func newEngineWorkerMuxModules(token string, terminal *nodeTerminalServer) *http
 }
 
 func serveNodeInference(w http.ResponseWriter, r *http.Request) {
+	n := currentEngineNode()
 	const maxInferenceBody = 32 << 20
 	if r.ContentLength > maxInferenceBody {
 		sendJSON(w, 413, map[string]any{"error": "inference request too large"})
@@ -397,45 +401,27 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 	if r.Body != nil {
 		r.Body = http.MaxBytesReader(w, r.Body, maxInferenceBody)
 	}
-	if n := currentEngineNode(); n == nil && r.Method == http.MethodGet && (r.URL.Path == "/v1/models" || r.URL.Path == "/v1/models/") {
+	if n == nil && r.Method == http.MethodGet && (r.URL.Path == "/v1/models" || r.URL.Path == "/v1/models/") {
 		oaiWriteJSON(w, 200, oaiModelsJSON())
 		return
 	}
-	// Loom's alias names the selected model. vLLM expects its native ID;
-	// leave every other request field and explicit model ID intact.
-	if n := currentEngineNode(); n != nil && n.Direct && r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/") {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			sendJSON(w, 413, map[string]any{"error": "inference request too large"})
-			return
-		}
-		var request map[string]json.RawMessage
-		if json.Unmarshal(body, &request) == nil {
-			var model string
-			_ = json.Unmarshal(request["model"], &model)
-			if model == "loom" {
-				request["model"], _ = json.Marshal(n.Model)
-				body, _ = json.Marshal(request)
-			}
-		}
-		r.Body = io.NopCloser(bytes.NewReader(body))
-		r.ContentLength = int64(len(body))
+	target, key := localEngineBase(), ""
+	if n != nil {
+		target, key = n.V1, n.APIKey
 	}
-	target := engineBase()
-	key := engineAPIKey()
 	u, err := url.Parse(target)
 	if err != nil {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": "invalid local engine"})
 		return
 	}
-	// vLLM creates a local direct link. A worker may never forward to a remote
-	// control plane or use its machine token as an upstream inference credential.
-	if !localLoopbackHost(u.Hostname()) {
+	// A worker forwards inference to its own backend or an explicitly
+	// linked inference origin. It cannot chain another Loom control plane.
+	if n != nil && !n.Direct || n == nil && !localLoopbackHost(u.Hostname()) {
 		sendJSON(w, 502, map[string]any{"ok": false, "error": "node requires a loopback engine"})
 		return
 	}
 	// Moteur llama.cpp de cette machine arrêté : il démarre pour la requête.
-	if currentEngineNode() == nil && r.Method == http.MethodPost {
+	if n == nil && r.Method == http.MethodPost {
 		if err := ensureEngineForRequest(r.Context(), u); err != nil {
 			sendJSON(w, 503, map[string]any{"ok": false, "error": "engine unavailable: " + err.Error()})
 			return
@@ -448,7 +434,7 @@ func serveNodeInference(w http.ResponseWriter, r *http.Request) {
 		req.Host = u.Host
 		// Le front llama.cpp résout la clé cliente et compte sa propre requête.
 		// Un moteur direct, lui, ne connaît que sa credential native.
-		if currentEngineNode() != nil {
+		if n != nil {
 			req.Header.Set("Authorization", "Bearer "+key)
 		}
 		req.Header.Del("Cookie")
@@ -522,6 +508,8 @@ func serveEngineWorker(addr string) error {
 		vllm.mu.Unlock()
 		_ = serviceAction("stop")
 		vllm.stop()
+		sglang.stop()
+		mlx.stop()
 	}()
 	fmt.Printf("[loom node] %s (modules: %s)\n", addr, strings.Join(nodeModules(), ", "))
 	err = srv.Serve(ln)

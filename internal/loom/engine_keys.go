@@ -180,7 +180,7 @@ func oaiKeyOK(r *http.Request) (engineAPIIdentity, bool) {
 			named = true
 		}
 	}
-	if legacy == "" && (lanExposed() || named || getBool(bkState, "engine_named_keys_required")) {
+	if legacy == "" && (lanExposed() || apiKeyRequired() || named || getBool(bkState, "engine_named_keys_required")) {
 		return engineAPIIdentity{}, false
 	}
 	for _, key := range keys {

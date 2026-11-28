@@ -135,6 +135,7 @@ func newWebMux(lifecycle ...context.Context) *http.ServeMux {
 	}
 	api("/api/events", handleDomainEvents)
 	registerEngineControlRoutes(api)
+	mux.HandleFunc("/v1/", serveLinkedEngineInference)
 	registerVoiceRoutes(api, false)
 	registerJarvisRoutes(api)
 	api("/api/https", handleHTTPS)

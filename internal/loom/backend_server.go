@@ -18,11 +18,14 @@ import (
 // POST /api/server  {np} → slots parallèles (NP), puis redémarrage
 
 func llamaGET(path string) ([]byte, int, error) {
-	req, err := http.NewRequest(http.MethodGet, engineBase()+path, nil)
+	base, key, _ := engineRequestTarget()
+	req, err := http.NewRequest(http.MethodGet, base+path, nil)
 	if err != nil {
 		return nil, 0, err
 	}
-	authHeader(req)
+	if key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
 	resp, err := healthClient.Do(req)
 	if err != nil {
 		return nil, 0, err

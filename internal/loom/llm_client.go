@@ -1268,16 +1268,22 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 // modèle en cours de chargement, ou d'un process figé — bloquait healthCheck
 // indéfiniment. Et comme StartTurn commence par là, /api/chat/send restait
 // pendu : l'utilisateur voyait un bouton d'envoi qui ne rendait jamais la main.
-var healthClient = &http.Client{Timeout: 3 * time.Second}
+var healthClient = &http.Client{Timeout: 3 * time.Second, CheckRedirect: nodeClient.CheckRedirect}
 
 // healthCheck pings llama.cpp's /health endpoint.
 func healthCheck() (healthy bool) {
 	defer func() { workspaceSessions.observeHealth("engine", "Engine", "", healthy, true) }()
-	req, err := http.NewRequest(http.MethodGet, engineBase()+"/health", nil)
+	if n := currentEngineNode(); n != nil && n.Direct {
+		return directEngineHealthy(n)
+	}
+	base, key, _ := engineRequestTarget()
+	req, err := http.NewRequest(http.MethodGet, base+"/health", nil)
 	if err != nil {
 		return false
 	}
-	authHeader(req)
+	if key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
 	resp, err := healthClient.Do(req)
 	if err != nil {
 		return false
