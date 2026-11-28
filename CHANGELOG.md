@@ -2,10 +2,16 @@
 
 ## [Unreleased]
 
-- MCP Code Mode chains, filters and projects external tool calls in one turn.
-  Gateway and chat discovery use cached catalogs while servers refresh in the
-  background. Agents can list servers and propose edits for owner approval.
-  Connections shows discovery latency and keeps saved credentials on partial edits.
+- **Session previews**. The Preview tab in agent sessions and Local/Cloud
+  discussions displays live development apps, 3D geometry, images, media, PDF,
+  standalone HTML, Markdown and source. Expand a preview or test a web layout
+  at desktop, tablet and phone widths. Agents can suggest artifacts with
+  `loom_preview_open`. See [Session previews](docs/development-previews.md).
+- **MCP Code Mode & cached discovery**. MCP Code Mode chains, filters and
+  projects external tool calls in one turn. Gateway and chat discovery use
+  cached catalogs while servers refresh in the background. Agents can list
+  servers and propose edits for owner approval. Connections shows discovery
+  latency and keeps saved credentials on partial edits.
 
 - **Paired node port recovery**. Loom verifies and saves a paired node's new
   listener after a connection failure on its old port. Machines and the agent

@@ -86,6 +86,11 @@ export function phoneFixtures(ws, remote) {
       { id: 'fixture-local', name: localModel.name, model: localModel.path, kind: 'local', runtime_id: 'llama.cpp', enabled: true, ready: true },
     ], chat: { default_choice: 'fixture-local' }, projects, providers },
     '/api/chat/settings': { ok: true, default_choice: 'fixture-local' },
+    '/api/previews/session': { ok: true, previews: [
+      { kind: 'file', target: 'local', path: 'fixture.obj' }, { kind: 'file', target: 'local', path: 'fixture.html' },
+    ] },
+    '/api/files/read': { ok: true, content: '<h1>Preview fixture</h1>' },
+    '/api/machines/roles': { ok: true, roles: { codeman: 'local', files: 'local' } },
     '/api/machines': { ok: true, machines: [remote] },
     '/api/machines/local': { ok: true, hostname: 'Fixture workstation', os: 'Linux' },
     '/api/machines/metrics': { ok: true, metrics: { [remote.id]: { cpu: 27, cores: 4, ram_total: 8 * 1024 ** 3, ram_used: 2 * 1024 ** 3 } } },
@@ -132,6 +137,10 @@ export function phoneFixtures(ws, remote) {
   };
   return async route => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/files/raw' && new URL(route.request().url()).searchParams.get('path') === 'fixture.obj') {
+      return route.fulfill({ contentType: 'model/obj', body: 'v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3' });
+    }
+    if (path === '/api/previews/session' && route.request().method() === 'POST') return route.fulfill({ json: { ok: true } });
     if (path === '/api/estimate') return route.fulfill({ json: { ok: true, gpu_mb: 1024, vram_total_mb: 8192, ram_offload_mb: 0 } });
     if (path === '/api/chat/reset') return route.fulfill({ json: { ok: true, initial_choice: { kind: 'local', model: localModel.path, name: localModel.name } } });
     const decision = /^\/api\/codeman\/v1\/approvals\/(fixture-approval|fixture-reply)\/(answer|dismiss)$/.exec(path);

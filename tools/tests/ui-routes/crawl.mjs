@@ -10,6 +10,7 @@ import { mkdtempSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import net from 'node:net';
+import http from 'node:http';
 import { phoneLayoutIssues } from './layout.mjs';
 import { phoneFixtures } from './phone-fixtures.mjs';
 import { validData } from '../../../internal/loom/ui/next/js/core/shape.js';
@@ -103,6 +104,47 @@ try {
     touch('touchmove', end);
     touch('touchend', end);
   }, [from, to]);
+  async function checkSessionPreview(page, errors, label) {
+    const tab = page.locator('.up-tab');
+    await page.getByRole('tab', { name: dictionary['agents.insp.preview'], exact: true }).click();
+    await tab.getByRole('button', { name: 'fixture.obj' }).click();
+    await tab.locator('canvas[tabindex]').waitFor();
+    await tab.getByRole('button', { name: dictionary['preview.wire'] }).click();
+    await tab.getByRole('button', { name: 'fixture.html' }).click();
+    await tab.frameLocator('iframe').getByRole('heading', { name: 'Preview fixture' }).waitFor();
+    if (await tab.locator('iframe').getAttribute('sandbox') !== 'allow-scripts') throw new Error('HTML sandbox missing');
+    await tab.getByRole('button', { name: dictionary['agents.preview.raw'] }).click();
+    await tab.locator('pre').filter({ hasText: '<h1>Preview fixture</h1>' }).waitFor();
+
+    const upstream = http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html', 'X-Frame-Options': 'DENY' });
+      res.end('<h1>Development fixture</h1><input aria-label="Draft">' + (req.url === '/about' ? '<p>About fixture</p>' : ''));
+    });
+    await new Promise((resolve, reject) => upstream.once('error', reject).listen(0, '127.0.0.1', resolve));
+    try {
+      // Use the actual authenticated ticket, listener and frame policy.
+      await page.route('**/api/previews', route => route.continue());
+      await page.route('**/api/previews/ports?*', route => route.fulfill({ json: { ok: true, ports: [upstream.address().port] } }));
+      await tab.getByRole('button', { name: dictionary['preview.add_web'] }).click();
+      await tab.getByRole('button', { name: ':' + upstream.address().port }).click();
+      await tab.getByRole('button', { name: dictionary['previews.open'] }).click();
+      const frame = tab.frameLocator('iframe');
+      await frame.getByRole('heading', { name: 'Development fixture' }).waitFor();
+      await frame.getByLabel('Draft').fill('keep');
+      await tab.getByRole('button', { name: dictionary['preview.expand'] }).click();
+      if (await frame.getByLabel('Draft').inputValue() !== 'keep') throw new Error('Expanding restarted the preview');
+      await tab.getByLabel(dictionary['preview.viewport']).selectOption('desktop');
+      if (await frame.locator('html').evaluate(el => el.clientWidth) !== 1280) throw new Error('Wrong desktop viewport');
+      await tab.getByRole('button', { name: dictionary['preview.rotate'] }).click();
+      await inspect(page, errors, label + ' expanded preview');
+      await page.keyboard.press('Escape');
+      await tab.getByRole('button', { name: dictionary['preview.expand'] }).waitFor();
+      await tab.getByLabel(dictionary['preview.path']).fill('/about');
+      await tab.getByRole('button', { name: dictionary['preview.go'], exact: true }).click();
+      await frame.getByText('About fixture', { exact: true }).waitFor();
+      await tab.getByRole('button', { name: dictionary['agents.preview.close'] }).click();
+    } finally { upstream.closeAllConnections(); upstream.close(); }
+  }
   let checks = 0;
   // Chaque cas (moteur, format, scénario, page) tourne dans un contexte de
   // navigateur neuf : les cas sont indépendants, donc exécutés en parallèle
@@ -229,7 +271,17 @@ try {
       // Exercise the collection consumer that triggered the iPhone
       // crash, and both other catalogs while the engine is unavailable.
       if (r === 'chat') {
-        if (scenario === 'phone-layout') await checkTrigger(page.locator('.exec-btn'), page.locator('.picker'));
+        if (scenario === 'phone-layout') {
+          await checkTrigger(page.locator('.exec-btn'), page.locator('.picker'));
+          await page.locator('.chat-view .topbar .icon-btn').last().click();
+          const preview = page.getByRole('tab', { name: dictionary['agents.insp.preview'], exact: true });
+          await preview.click();
+          await page.locator('.up-tab').getByRole('button', { name: dictionary['preview.add_web'] }).click();
+          await page.locator('.up-tab').getByLabel(dictionary['previews.port']).waitFor();
+          await inspect(page, errors, label + ' discussion preview');
+          if (phone) await page.keyboard.press('Escape');
+          else await page.locator('.insp-head .icon-btn').click();
+        }
         await openPicker(page);
         await page.locator('.picker .seg button').nth(2).click();
       }
@@ -459,6 +511,7 @@ try {
         await page.locator('.phone-session-head button').last().click();
         await page.locator('.drawer-sheet .cm-panel').waitFor();
         await inspect(page, errors, label + ' agent inspector');
+        await checkSessionPreview(page, errors, label);
       }
       if (phone && scenario === 'phone-layout' && r === 'more') {
         await page.locator('.more-links a[href="#/files"]').click();

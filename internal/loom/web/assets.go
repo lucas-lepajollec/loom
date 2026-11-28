@@ -64,9 +64,10 @@ func UIContentSecurityPolicy(html []byte) string {
 // Assets serves the public UI from supplied filesystems and brand icon bytes.
 // It owns no conversation data, application state or mutable package globals.
 type Assets struct {
-	UI     fs.FS
-	NextFS fs.FS
-	Icons  func() map[string][]byte
+	PreviewFrameSource func(*http.Request) string
+	UI                 fs.FS
+	NextFS             fs.FS
+	Icons              func() map[string][]byte
 }
 
 func nextContentType(ext string) string {
@@ -117,7 +118,14 @@ func (a Assets) Next(w http.ResponseWriter, r *http.Request) {
 		// control plane to trick the owner into interacting with it.
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
-		w.Header().Set("Content-Security-Policy", UIContentSecurityPolicy(b))
+		policy := UIContentSecurityPolicy(b)
+		if a.PreviewFrameSource != nil {
+			policy += "; frame-src 'self'"
+			if source := a.PreviewFrameSource(r); source != "" {
+				policy += " " + source
+			}
+		}
+		w.Header().Set("Content-Security-Policy", policy)
 	}
 	w.Header().Set("Cache-Control", "no-cache")
 	etag := contentETag(b)

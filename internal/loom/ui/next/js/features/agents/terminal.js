@@ -1,3 +1,5 @@
+import { extractUrlsFromText } from './panel-helpers.js';
+import { mergePreviewUrls } from './panel-state.js';
 // Terminal natif d'une session Codeman, rendu par xterm.js. Le WebSocket ne
 // renvoie pas l'historique : on lit d'abord l'écran courant par HTTP, puis on
 // s'attache au flux. Une reconnexion relit l'écran, ne rejoue aucune saisie.
@@ -190,6 +192,7 @@ export function AgentTerminal({ sessionId, mode = '', workingDir = '', shell = f
             if (line.isWrapped && logical.length) logical[logical.length - 1] += str;
             else logical.push(str);
           }
+          mergePreviewUrls(sessionId, extractUrlsFromText([...oscUris, ...logical].join('\n')));
           const found = extractFilesFromText(logical.join('\n'), workingDirRef.current, oscUris);
           if (found.length) mergeDetectedDocs(sessionId, found);
         } catch (_) {}

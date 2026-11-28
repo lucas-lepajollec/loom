@@ -1,7 +1,7 @@
 import { t, locale, tSource } from '../../core/i18n.js';
 // Panneau de droite : s'adapte à l'exécution choisie. Local = paramètres
 // llama.cpp ; Cloud = fournisseur, usage, coût.
-import { html, useState, useEffect, useRef, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
+import { html, useState, useEffect, useRef, useMemo, useStore, cls, fmtTok, fmtSecs, baseName } from '../../core/lib.js';
 import { Icon } from '../../ui/icons.js';
 import { Seg, Switch, Tip } from '../../ui/controls.js';
 import { ListPick } from '../../ui/listpick.js';
@@ -15,6 +15,19 @@ import { currentExec } from '../chat/picker.js';
 import { openTerminalWith } from '../terminals/page.js';
 import { LocalParams } from './params.js';
 import { panelState, DEFAULT_PANEL_WIDTH, clampPanelWidth, setLivePanelWidth, savePanelWidth } from '../agents/panel-state.js';
+
+import { PreviewTab } from '../previews/tab.js';
+import { extractFilesFromText, extractUrlsFromText } from '../agents/panel-helpers.js';
+
+function DiscussionPreview({ onClose }) {
+  const { id, workingDir, items } = useStore(chat, c => ({ id: c.sessionId || '', workingDir: c.session?.workdir || '', items: c.items }));
+  const [active, setActive] = useState('');
+  const preview = useMemo(() => {
+    const text = items.slice(-24).map(i => i.text || '').join('\n');
+    return { active, recent: [], detected: extractFilesFromText(text, workingDir), urls: extractUrlsFromText(text) };
+  }, [active, items, workingDir]);
+  return html`<${PreviewTab} key=${id} preview=${preview} session=${{ id, workingDir }} onFile=${setActive} onClose=${onClose} />`;
+}
 
 const KV = ({ k, children }) => html`<div class="kv"><span>${k}</span><span>${children}</span></div>`;
 
@@ -55,7 +68,12 @@ export function Inspector({ open, onClose, phone }) {
   useEffect(() => () => { document.body.classList.remove('cm-dragging'); }, []);
   const exec = currentExec();
   const title = exec.kind === 'local' ? t("inspector.inspector.parametres") : exec.kind === 'cloud' ? t("inspector.inspector.modele") : t("inspector.inspector.session");
-  const content = exec.kind === 'local' ? html`<${LocalParams} />` : exec.kind === 'cloud' ? html`<${CloudPanel} />` : html`<p class="note">${t('runtime.retired')}</p>`;
+  const [preview, showPreview] = useState(false);
+  const sid = useStore(chat, c => c.sessionId);
+  const settings = exec.kind === 'local' ? html`<${LocalParams} />` : exec.kind === 'cloud' ? html`<${CloudPanel} />` : html`<p class="note">${t('runtime.retired')}</p>`;
+  const content = html`<div class="up-discussion-tabs"><${Seg} value=${preview ? 'preview' : 'settings'} label=${t('agents.insp.tabs')}
+    options=${[{ value: 'settings', label: title }, { value: 'preview', label: t('agents.insp.preview') }]} onChange=${v => showPreview(v === 'preview')} /></div>
+    ${preview && open ? html`<${DiscussionPreview} key=${sid} onClose=${() => showPreview(false)} />` : settings}`;
   if (phone) return open ? html`<${Modal} title=${title} onClose=${onClose} class="chat-inspector-sheet" focusField=${false}>${content}</${Modal}>` : null;
   const onResizeDown = e => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;

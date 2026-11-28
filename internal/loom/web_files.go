@@ -250,7 +250,7 @@ func handleFilesRead(w http.ResponseWriter, r *http.Request) {
 		filesError(w, errors.New("invalid path"))
 		return
 	}
-	root, _, err := openFilesScope(r)
+	root, err := openPreviewFileScope(r)
 	if err != nil {
 		filesError(w, err)
 		return
@@ -288,9 +288,43 @@ func handleFilesRead(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, 200, out)
 }
 
-// handleFilesRaw serves a file's bytes (images in notes). Never executable:
-// served as an attachment unless it is an image.
+var previewFileTypes = map[string]string{
+	".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif",
+	".svg": "image/svg+xml", ".avif": "image/avif", ".bmp": "image/bmp", ".ico": "image/x-icon",
+	".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime", ".m4v": "video/mp4",
+	".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".flac": "audio/flac", ".m4a": "audio/mp4",
+	".pdf": "application/pdf", ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
+	".glb": "model/gltf-binary", ".gltf": "model/gltf+json", ".obj": "model/obj", ".stl": "model/stl",
+	".ply": "application/octet-stream", ".bin": "application/octet-stream",
+}
+
+// An optional session directory narrows the existing file scope. Pin both
+// roots before opening the artifact so symlinks cannot escape either root.
+func openPreviewFileScope(r *http.Request) (*os.Root, error) {
+	root, base, err := openFilesScope(r)
+	dir := r.URL.Query().Get("dir")
+	if err != nil || dir == "" {
+		return root, err
+	}
+	defer root.Close()
+	if filepath.IsAbs(dir) {
+		dir, err = filepath.Rel(base, dir)
+		if err != nil {
+			return nil, err
+		}
+	}
+	rel, err := cleanRel(filepath.ToSlash(dir))
+	if err != nil {
+		return nil, err
+	}
+	return root.OpenRoot(rel)
+}
+
 func handleFilesRaw(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	if proxyFiles(w, r) {
 		return
 	}
@@ -299,7 +333,7 @@ func handleFilesRaw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid path", 400)
 		return
 	}
-	root, _, err := openFilesScope(r)
+	root, err := openPreviewFileScope(r)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -316,10 +350,20 @@ func handleFilesRaw(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	kind := mime.TypeByExtension(strings.ToLower(path.Ext(rel)))
+	setRawFileHeaders(w, rel)
+	http.ServeContent(w, r, "", info.ModTime(), io.NewSectionReader(f, 0, info.Size()))
+}
+
+func setRawFileHeaders(w http.ResponseWriter, rel string) {
+	kind := previewFileTypes[strings.ToLower(path.Ext(rel))]
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox")
-	if !strings.HasPrefix(kind, "image/") || kind == "image/svg+xml" {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+	if kind == "application/pdf" {
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'self'")
+	}
+	if kind == "" {
 		kind = "application/octet-stream"
 		cd := mime.FormatMediaType("attachment", map[string]string{"filename": path.Base(rel)})
 		if cd == "" {
@@ -328,7 +372,6 @@ func handleFilesRaw(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", cd)
 	}
 	w.Header().Set("Content-Type", kind)
-	http.ServeContent(w, r, "", info.ModTime(), f)
 }
 
 // handleFilesWrite saves a text file. With `modified`, the write is refused

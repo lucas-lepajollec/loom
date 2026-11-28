@@ -121,6 +121,9 @@ export const descendantsOf = (parentId, nodes = orchestration.get().nodes) => de
 
 // ---------- SSE temps réel ----------
 function handleOrchEvent(name, payload) {
+  if (name === 'init' || name === 'preview') {
+    window.dispatchEvent(new CustomEvent('loom:preview', { detail: payload?.session_id }));
+  }
   const st = orchestration.get();
   if (name === 'init' && payload) {
     orchestration.set({

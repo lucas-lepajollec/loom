@@ -25,7 +25,9 @@ var pwaIcons = sync.OnceValue(func() map[string][]byte {
 	return icons
 })
 
-func webAssets() web.Assets                { return web.Assets{UI: uiFS, NextFS: nextFS, Icons: pwaIcons} }
+func webAssets() web.Assets {
+	return web.Assets{PreviewFrameSource: previewFrameSource, UI: uiFS, NextFS: nextFS, Icons: pwaIcons}
+}
 func registerPWAAssets(mux *http.ServeMux) { webAssets().RegisterPWA(mux) }
 func registerWebAssets(mux *http.ServeMux) { webAssets().Register(mux) }
 func webAPI(mux *http.ServeMux) func(string, http.HandlerFunc) {

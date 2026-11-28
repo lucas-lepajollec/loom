@@ -62,7 +62,7 @@ func compressibleContentType(ct string) bool {
 // payloads, binary media and tiny responses bypass compression cleanly.
 func WithCompression(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodHead || r.Header.Get("Upgrade") != "" || !acceptsGzip(r) {
+		if r.Method == http.MethodHead || r.Header.Get("Range") != "" || r.Header.Get("Upgrade") != "" || !acceptsGzip(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

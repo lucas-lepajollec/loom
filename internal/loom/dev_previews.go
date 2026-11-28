@@ -3,11 +3,11 @@ package loom
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/exec"
@@ -29,11 +29,13 @@ type devPreviewInfo struct {
 }
 type previewGrant = controlGrant
 type previewTicket struct {
+	path    string
 	grant   previewGrant
 	expires time.Time
 }
 type devPreview struct {
 	devPreviewInfo
+	parent    string
 	mu        sync.Mutex
 	tickets   map[string]previewTicket
 	grants    map[string]previewGrant
@@ -67,6 +69,17 @@ func (p *devPreview) close() {
 }
 func previewOwner(r *http.Request) (previewGrant, error) { return controlOwner(r) }
 func (p *devPreview) ticket(r *http.Request) (string, error) {
+	return p.ticketFor(r, "/")
+}
+func (p *devPreview) ticketFor(r *http.Request, path string) (string, error) {
+	parent, err := previewParent(r)
+	if err != nil || parent.String() != p.parent {
+		return "", errors.New("open the preview from its Loom origin")
+	}
+	path, err = previewPath(path)
+	if err != nil {
+		return "", err
+	}
 	if p.ctx.Err() != nil || time.Now().Unix() >= p.Expires {
 		return "", errors.New("preview expired")
 	}
@@ -90,15 +103,17 @@ func (p *devPreview) ticket(r *http.Request) (string, error) {
 		return "", errors.New("too many preview sessions")
 	}
 	token := randomID(32)
-	p.tickets[hashWebKey(token)] = previewTicket{grant, time.Now().Add(time.Minute)}
+	p.tickets[hashWebKey(token)] = previewTicket{path, grant, time.Now().Add(time.Minute)}
 	return p.Origin + "/__loom_preview/open?ticket=" + url.QueryEscape(token), nil
 }
 func (p *devPreview) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", "frame-ancestors "+p.parent)
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	origin, _ := url.Parse(p.Origin)
-	if !strings.EqualFold(r.Host, origin.Host) || time.Now().Unix() >= p.Expires {
+	requested, err := previewOrigin(origin.Scheme + "://" + r.Host)
+	if err != nil || requested.Host != origin.Host || time.Now().Unix() >= p.Expires {
 		http.Error(w, "preview unavailable", http.StatusForbidden)
 		return
 	}
@@ -120,8 +135,12 @@ func (p *devPreview) serve(w http.ResponseWriter, r *http.Request) {
 		p.mu.Lock()
 		p.grants[hashWebKey(session)] = ticket.grant
 		p.mu.Unlock()
-		http.SetCookie(w, &http.Cookie{Name: "loom_preview_" + p.ID, Value: session, Path: "/", HttpOnly: true, Secure: origin.Scheme == "https", SameSite: http.SameSiteStrictMode, MaxAge: 8 * 60 * 60})
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		cookie := &http.Cookie{Name: "loom_preview_" + p.ID, Value: session, Path: "/", HttpOnly: true, Secure: origin.Scheme == "https", SameSite: http.SameSiteStrictMode, MaxAge: 8 * 60 * 60}
+		if cookie.Secure && r.Header.Get("Sec-Fetch-Site") == "cross-site" && r.Header.Get("Sec-Fetch-Dest") == "iframe" {
+			cookie.Partitioned, cookie.SameSite = true, http.SameSiteNoneMode
+		}
+		http.SetCookie(w, cookie)
+		http.Redirect(w, r, p.Origin+ticket.path, http.StatusSeeOther)
 		return
 	}
 	cookie, err := r.Cookie("loom_preview_" + p.ID)
@@ -136,7 +155,8 @@ func (p *devPreview) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "preview session expired", http.StatusUnauthorized)
 		return
 	}
-	if r.Header.Get("Sec-Fetch-Site") == "cross-site" || (r.Header.Get("Origin") != "" && r.Header.Get("Origin") != p.Origin) {
+	frameNavigation := origin.Scheme == "https" && r.Method == http.MethodGet && r.Header.Get("Sec-Fetch-Dest") == "iframe"
+	if (r.Header.Get("Sec-Fetch-Site") == "cross-site" && !frameNavigation) || (r.Header.Get("Origin") != "" && r.Header.Get("Origin") != p.Origin) {
 		http.Error(w, "preview origin refused", 403)
 		return
 	}
@@ -146,7 +166,7 @@ func (p *devPreview) serve(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	p.proxy.ServeHTTP(w, r.WithContext(ctx))
 }
-func previewProxy(target *url.URL, origin string, id string, transport *http.Transport) *httputil.ReverseProxy {
+func previewProxy(target *url.URL, origin, id string, transport *http.Transport) *httputil.ReverseProxy {
 	cookiePrefix := "loom_app_" + id + "_"
 	return &httputil.ReverseProxy{Transport: transport, FlushInterval: -1,
 		Rewrite: func(pr *httputil.ProxyRequest) {
@@ -171,6 +191,26 @@ func previewProxy(target *url.URL, origin string, id string, transport *http.Tra
 				pr.Out.Header.Set("Origin", target.Scheme+"://"+target.Host)
 			}
 		}, ModifyResponse: func(resp *http.Response) error {
+			resp.Header.Del("X-Frame-Options")
+			// Replace only the embedding restriction. Keep each upstream policy's
+			// independent script, connect, style and other restrictions.
+			policies := resp.Header.Values("Content-Security-Policy")
+			resp.Header.Del("Content-Security-Policy")
+			for _, header := range policies {
+				for _, policy := range strings.Split(header, ",") {
+					var kept []string
+					for _, directive := range strings.Split(policy, ";") {
+						fields := strings.Fields(directive)
+						if len(fields) > 0 && !strings.EqualFold(fields[0], "frame-ancestors") {
+							kept = append(kept, directive)
+						}
+					}
+					if len(kept) > 0 {
+						resp.Header.Add("Content-Security-Policy", strings.Join(kept, ";"))
+					}
+				}
+			}
+			// serve() sets the exact frame-ancestors policy on every response.
 			// Namespace application cookies: a dev server cannot overwrite Loom's login.
 			cookies := resp.Cookies()
 			resp.Header.Del("Set-Cookie")
@@ -201,13 +241,24 @@ func (m *devPreviewManager) start(ctx context.Context, target string, port int, 
 	if port < 1024 || port > 65535 {
 		return nil, errors.New("use a development port between 1024 and 65535")
 	}
-	if target == "local" && (port == defaultWebPort || port == webBound.port || port == 2511) {
+	parent, err := previewParent(r)
+	if err != nil {
+		return nil, err
+	}
+	if target == "local" && reservedPreviewPorts()[port] {
 		return nil, errors.New("a Loom control-plane port cannot be previewed")
 	}
 	var machine RemoteMachine
 	if target != "local" {
 		var err error
 		machine, err = workspaceMachine(target)
+		if err != nil {
+			return nil, err
+		}
+		if usesNodeTransport(machine) {
+			return nil, errors.New("remote application previews require an SSH connection to this machine")
+		}
+		machine, err = validRemoteMachine(machine)
 		if err != nil {
 			return nil, err
 		}
@@ -221,7 +272,7 @@ func (m *devPreviewManager) start(ctx context.Context, target string, port int, 
 		}
 	}
 	for _, p := range m.items {
-		if p.Target == target && p.Port == port {
+		if p.Target == target && p.Port == port && p.parent == parent.String() {
 			return p, nil
 		}
 		if target == "local" && port == p.listener.Addr().(*net.TCPAddr).Port {
@@ -253,29 +304,20 @@ func (m *devPreviewManager) start(ctx context.Context, target string, port int, 
 	if previewPort == port && target == "local" {
 		return nil, errors.New("preview listener conflicts with application port")
 	}
-	hostname := r.URL.Hostname()
-	if hostname == "" {
-		u, err := url.Parse("http://" + r.Host)
-		if err != nil || u.Hostname() == "" {
-			return nil, errors.New("invalid interface host")
-		}
-		hostname = u.Hostname()
-	}
 	publicOrigin := strings.ReplaceAll(os.Getenv("LOOM_PREVIEW_ORIGIN"), "{port}", strconv.Itoa(previewPort))
 	if publicOrigin == "" {
-		if r.TLS != nil || os.Getenv("LOOM_COOKIE_SECURE") == "1" {
+		if parent.Scheme == "https" {
 			return nil, errors.New("HTTPS needs LOOM_PREVIEW_ORIGIN on a separate preview origin; see the preview setup documentation")
 		}
-		publicOrigin = "http://" + net.JoinHostPort(hostname, strconv.Itoa(previewPort))
+		publicOrigin = "http://" + net.JoinHostPort(parent.Hostname(), strconv.Itoa(previewPort))
 	}
-	public, err := url.Parse(publicOrigin)
-	if err != nil || (public.Scheme != "http" && public.Scheme != "https") || public.Host == "" || public.User != nil || public.RawQuery != "" || public.Fragment != "" || (public.Path != "" && public.Path != "/") {
-		return nil, errors.New("invalid preview origin")
+	public, err := previewOrigin(publicOrigin)
+	if err != nil {
+		return nil, err
 	}
-	public.Path = ""
 	publicOrigin = public.String()
-	if strings.EqualFold(public.Host, r.Host) {
-		return nil, errors.New("the preview must use a different origin from Loom")
+	if strings.EqualFold(public.Host, parent.Host) || publicOrigin == parent.String() || (parent.Scheme == "https" && public.Scheme != "https") {
+		return nil, errors.New("use a separate preview origin with the same transport security as Loom")
 	}
 	for _, p := range m.items {
 		if p.Origin == publicOrigin {
@@ -283,12 +325,18 @@ func (m *devPreviewManager) start(ctx context.Context, target string, port int, 
 		}
 	}
 	previewCtx, cancel := context.WithCancel(ctx)
-	p := &devPreview{devPreviewInfo: devPreviewInfo{randomID(8), target, port, publicOrigin, time.Now().Add(8 * time.Hour).Unix()}, ctx: previewCtx, cancel: cancel, listener: listener, tickets: map[string]previewTicket{}, grants: map[string]previewGrant{}}
+	p := &devPreview{parent: parent.String(), devPreviewInfo: devPreviewInfo{randomID(8), target, port, publicOrigin, time.Now().Add(8 * time.Hour).Unix()}, ctx: previewCtx, cancel: cancel, listener: listener, tickets: map[string]previewTicket{}, grants: map[string]previewGrant{}}
 	transport := &http.Transport{Proxy: nil, ResponseHeaderTimeout: 15 * time.Second, MaxIdleConnsPerHost: 4, IdleConnTimeout: time.Minute}
-	upstream, _ := url.Parse("http://127.0.0.1:" + strconv.Itoa(port))
+	addr := netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), uint16(port))
+	upstream := &url.URL{Scheme: "http", Host: addr.String()}
 	if target == "local" {
-		transport.DialContext = func(dialCtx context.Context, network, address string) (net.Conn, error) {
-			conn, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(dialCtx, network, address)
+		transport.DialContext = func(dialCtx context.Context, _, _ string) (net.Conn, error) {
+			dialer := &net.Dialer{Timeout: 10 * time.Second}
+			conn, err := dialer.DialContext(dialCtx, "tcp4", addr.String())
+			if err != nil && dialCtx.Err() == nil {
+				ipv6 := netip.AddrPortFrom(netip.IPv6Loopback(), addr.Port())
+				conn, err = dialer.DialContext(dialCtx, "tcp6", ipv6.String())
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -349,6 +397,7 @@ func (m *devPreviewManager) handle(ctx context.Context, w http.ResponseWriter, r
 		Target  string `json:"target"`
 		Port    int    `json:"port"`
 		ID      string `json:"id"`
+		Path    string `json:"path"`
 		Consent bool   `json:"consent"`
 	}
 	if !workspaceDecode(w, r, &req) {
@@ -369,6 +418,10 @@ func (m *devPreviewManager) handle(ctx context.Context, w http.ResponseWriter, r
 		sendJSON(w, 400, map[string]any{"ok": false, "error": "confirm opening this development server to an authenticated preview"})
 		return
 	}
+	if _, err := previewPath(req.Path); err != nil {
+		filesError(w, err)
+		return
+	}
 	var p *devPreview
 	var err error
 	if req.Action == "open" || req.Action == "" {
@@ -387,7 +440,7 @@ func (m *devPreviewManager) handle(ctx context.Context, w http.ResponseWriter, r
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	link, err := p.ticket(r)
+	link, err := p.ticketFor(r, req.Path)
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -407,12 +460,16 @@ type previewSSHConn struct {
 }
 
 func previewSSHDial(dialCtx, ownerCtx context.Context, m RemoteMachine, key string, port int) (net.Conn, error) {
+	if port < 1024 || port > 65535 {
+		return nil, errors.New("invalid development port")
+	}
+	addr := netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), uint16(port))
 	if err := dialCtx.Err(); err != nil {
 		return nil, err
 	}
 	args := sshArgs(m, key)
 	last := args[len(args)-1]
-	args = append(args[:len(args)-1], "-W", fmt.Sprintf("127.0.0.1:%d", port), last)
+	args = append(args[:len(args)-1], "-W", addr.String(), "--", last)
 	cmd := exec.CommandContext(ownerCtx, "ssh", args...)
 	cmd.Stderr = io.Discard
 	cmd.WaitDelay = time.Second
